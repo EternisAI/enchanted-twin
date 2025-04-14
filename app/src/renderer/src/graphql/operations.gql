@@ -1,0 +1,19 @@
+query GetConditions {
+  conditions {
+    id
+    name
+    shortName
+    description
+    category
+  }
+}
+
+mutation CreateCondition($conditionName: String!) {
+  createCondition(conditionName: $conditionName) {
+    id
+    name
+    shortName
+    description
+    category
+  }
+}

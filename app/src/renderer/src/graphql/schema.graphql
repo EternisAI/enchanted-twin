@@ -1,0 +1,15 @@
+type Condition {
+  id: ID!
+  name: String!
+  shortName: String!
+  description: String
+  category: String!
+}
+
+type Query {
+  conditions: [Condition!]!
+}
+
+type Mutation {
+  createCondition(conditionName: String!): Condition!
+}
