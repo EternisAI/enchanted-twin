@@ -2,6 +2,11 @@
 
 package model
 
+type AddDataSourceInput struct {
+	DataSourceName *string `json:"dataSourceName,omitempty"`
+	Path           string  `json:"path"`
+}
+
 type Mutation struct {
 }
 

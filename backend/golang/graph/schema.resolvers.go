@@ -16,6 +16,11 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 	panic(fmt.Errorf("not implemented: UpdateProfile - updateProfile"))
 }
 
+// AddDataSource is the resolver for the addDataSource field.
+func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
+	panic(fmt.Errorf("not implemented: AddDataSource - addDataSource"))
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	return &model.UserProfile{
