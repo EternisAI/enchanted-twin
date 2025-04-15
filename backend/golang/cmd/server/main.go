@@ -61,6 +61,8 @@ func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	go bootstrap.CreateTemporalServer()
 
+	time.Sleep(5 * time.Second)
+
 	logger.Info("Starting temporal client")
 	client, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
 	if err != nil {
