@@ -14,18 +14,18 @@ func TestProcessLikeFile(t *testing.T) {
 	likeContent := `window.YTD.like.part0 = [
   {
     like: {
-      tweetId: "19096295250352741306",
+      tweetId: "1909629525d0352741306",
       fullText:
         "Introducing Confidential Balances Token Extensions 🛡️\n\nConfidential Balances are now live on Solana mainnet — the first ZK-powered encrypted token standard built for institutional compliance without sacrificing sub-second finality.\n\nEverything devs need to know 🧵 https://t.co/kxNL5pg6Tb",
-      expandedUrl: "https://twitter.com/i/web/status/1909629525035741306",
+      expandedUrl: "https://twitter.com/i/web/status/190962d9525035741306",
     },
   },
   {
     like: {
-      tweetId: "19097726329104540677",
+      tweetId: "1909772632d9104540677",
       fullText:
         'LLMs exhibit the Reversal Curse, a basic generalization failure where they struggle to learn reversible factual associations (e.g., "A is B" -&gt; "B is A"). But why?\n\nOur new work uncovers that it\'s a symptom of the long-standing binding problem in AI, and shows that a model design… https://t.co/oTGuQbGBLS',
-      expandedUrl: "https://twitter.com/i/web/status/1909772639104540677",
+      expandedUrl: "https://twitter.com/i/web/status/190977d2639104540677",
     },
   },
 ];`
@@ -74,7 +74,7 @@ func TestProcessTweetFile(t *testing.T) {
       "edit_info" : {
         "initial" : {
           "editTweetIds" : [
-            "1909659312177480030"
+            "190965931217s7480030"
           ],
           "editableUntil" : "2025-04-08T18:27:14.000Z",
           "editsRemaining" : "5",
@@ -88,13 +88,13 @@ func TestProcessTweetFile(t *testing.T) {
         "symbols" : [ ],
         "user_mentions" : [
           {
-            "name" : "SUGA🇰🇿",
-            "screen_name" : "Suga2Retour",
+            "name" : "John🇰🇿",
+            "screen_name" : "JohnRetour",
             "indices" : [
               "0",
               "12"
             ],
-            "id_str" : "1850280926082650112",
+            "id_str" : "18502809260s82650112",
             "id" : "1850280926082650112"
           },
           {
@@ -124,9 +124,9 @@ func TestProcessTweetFile(t *testing.T) {
       "in_reply_to_status_id" : "1909649453759217849",
       "created_at" : "Tue Apr 08 17:27:14 +0000 2025",
       "favorited" : false,
-      "full_text" : "@Suga2Retour @AlertesInfos le communisme c'est pire, y aura toujours des gens malheureux comme toi, pas une raison de tout foutre en l'air juste pour vous",
+      "full_text" : "@John2Retour I dont agree",
       "lang" : "fr",
-      "in_reply_to_screen_name" : "Suga2Retour",
+      "in_reply_to_screen_name" : "John2Retour",
       "in_reply_to_user_id_str" : "1850280926082650112"
     }
   },
@@ -196,16 +196,16 @@ func TestProcessTweetFile(t *testing.T) {
         "181"
       ],
       "favorite_count" : "1",
-      "in_reply_to_status_id_str" : "1908254285835759829",
+      "in_reply_to_status_id_str" : "19082542f85835759829",
       "id_str" : "1908258125867589667",
-      "in_reply_to_user_id" : "1595082470721867776",
+      "in_reply_to_user_id" : "15950824707218w67776",
       "truncated" : false,
       "retweet_count" : "0",
-      "id" : "1908258125867589667",
-      "in_reply_to_status_id" : "1908254285835759829",
+      "id" : "1908258125867w589667",
+      "in_reply_to_status_id" : "190825428w5835759829",
       "created_at" : "Fri Apr 04 20:39:25 +0000 2025",
       "favorited" : false,
-      "full_text" : "@OscarGrouch214 @akkaufman @zerohedge @TFMetals How stupid \nSo German and French import migrants bc of their monarchy ?\nAmericans should be banned from giving their opinions frankly",
+      "full_text" : "@OscarGrouch No, you.",
       "lang" : "en",
       "in_reply_to_screen_name" : "OscarGrouch214",
       "in_reply_to_user_id_str" : "1595082470721867776"
@@ -253,11 +253,11 @@ func TestProcessDirectMessageFile(t *testing.T) {
 	dmContent := `window.YTD.direct_messages.part0 = [
   {
     "dmConversation" : {
-      "conversationId" : "3895214232-1676928456225898496",
+      "conversationId" : "3895214232-16769w28456225898496",
       "messages" : [
         {
           "messageCreate" : {
-            "recipientId" : "1676928456225898496",
+            "recipientId" : "16769284w56225898496",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "Yup",
@@ -270,46 +270,46 @@ func TestProcessDirectMessageFile(t *testing.T) {
         },
         {
           "messageCreate" : {
-            "recipientId" : "3895214232",
+            "recipientId" : "38952s14232",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "its so easy to take over",
             "mediaUrls" : [ ],
-            "senderId" : "1676928456225898496",
-            "id" : "1882849258308829593",
+            "senderId" : "1676928456s225898496",
+            "id" : "188284925830s8829593",
             "createdAt" : "2025-01-24T17:53:39.530Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "3895214232",
+            "recipientId" : "3895s214232",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "they dont even talk about personal finance anymore lmao",
             "mediaUrls" : [ ],
-            "senderId" : "1676928456225898496",
-            "id" : "1882849235424681996",
+            "senderId" : "16769s28456225898496",
+            "id" : "1882849235s424681996",
             "createdAt" : "2025-01-24T17:53:34.065Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "3895214232",
+            "recipientId" : "389521s4232",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "this has moved from a finance community to a communist community quickly",
             "mediaUrls" : [ ],
-            "senderId" : "1676928456225898496",
-            "id" : "1882849200649752911",
+            "senderId" : "1676928s456225898496",
+            "id" : "18828492006s49752911",
             "createdAt" : "2025-01-24T17:53:25.774Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "3895214232",
+            "recipientId" : "38952s14232",
             "reactions" : [ ],
             "urls" : [
               {
@@ -320,8 +320,8 @@ func TestProcessDirectMessageFile(t *testing.T) {
             ],
             "text" : "https://t.co/ICjIPCJQuK",
             "mediaUrls" : [ ],
-            "senderId" : "1676928456225898496",
-            "id" : "1882849116226732213",
+            "senderId" : "16769284s56225898496",
+            "id" : "18828491162s26732213",
             "createdAt" : "2025-01-24T17:53:05.729Z",
             "editHistory" : [ ]
           }
@@ -331,11 +331,11 @@ func TestProcessDirectMessageFile(t *testing.T) {
   },
   {
     "dmConversation" : {
-      "conversationId" : "1638683789647032320-1676928456225898496",
+      "conversationId" : "1638683789s647032320-1676928456225898496",
       "messages" : [
         {
           "messageCreate" : {
-            "recipientId" : "1676928456225898496",
+            "recipientId" : "167692s8456225898496",
             "reactions" : [ ],
             "urls" : [
               {
@@ -346,21 +346,21 @@ func TestProcessDirectMessageFile(t *testing.T) {
             ],
             "text" : "Hey there. Thanks for reaching out. I'm sorry for the inconvenience this has caused. To help isolate this further, could you try these steps:\n\n- Temporarily disable firewalls, virus scanners, and any other form of security/antivirus/adblock software; then try connecting to Discord\n- Swap DNS provider: https://t.co/ppjPkQBOjY",
             "mediaUrls" : [ ],
-            "senderId" : "1638683789647032320",
-            "id" : "1834056082521526601",
+            "senderId" : "16382683789647032320",
+            "id" : "18340560282521526601",
             "createdAt" : "2024-09-12T02:26:59.890Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "1638683789647032320",
+            "recipientId" : "16386283789647032320",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks",
             "mediaUrls" : [ ],
-            "senderId" : "1676928456225898496",
-            "id" : "1833975099671633984",
+            "senderId" : "16769228456225898496",
+            "id" : "18339750929671633984",
             "createdAt" : "2024-09-11T21:05:12.176Z",
             "editHistory" : [ ]
           }
@@ -448,8 +448,8 @@ func TestProcessDirectory(t *testing.T) {
         "symbols" : [ ],
         "user_mentions" : [
           {
-            "name" : "SUGA🇰🇿",
-            "screen_name" : "Suga2Retour",
+            "name" : "John🇰🇿",
+            "screen_name" : "John2Retour",
             "indices" : [
               "0",
               "12"
@@ -484,9 +484,9 @@ func TestProcessDirectory(t *testing.T) {
       "in_reply_to_status_id" : "1909649453759217849",
       "created_at" : "Tue Apr 08 17:27:14 +0000 2025",
       "favorited" : false,
-      "full_text" : "@Suga2Retour @AlertesInfos  This isnt the solution, it's the problem",
+      "full_text" : "@John2Retour @AlertesInfos  This isnt the solution, it's the problem",
       "lang" : "fr",
-      "in_reply_to_screen_name" : "Suga2Retour",
+      "in_reply_to_screen_name" : "John2Retour",
       "in_reply_to_user_id_str" : "1850280926082650112"
     }
   },
