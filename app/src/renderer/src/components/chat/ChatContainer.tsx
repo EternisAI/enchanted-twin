@@ -1,5 +1,6 @@
 import { useQuery } from '@apollo/client'
 import { GetConditionsDocument } from '@renderer/graphql/generated/graphql'
+import { Button } from '../ui/button'
 
 export default function ChatContainer() {
   const { data, loading, error, refetch } = useQuery(GetConditionsDocument)
@@ -13,9 +14,11 @@ export default function ChatContainer() {
     <div>
       <h1>Conditions</h1>
       <div>
-        <ul>{data?.conditions.map((condition) => <li key={condition.id}>{condition.name}</li>)}</ul>
+        <ul className="bg-transparent">
+          {data?.conditions.map((condition) => <li key={condition.id}>{condition.name}</li>)}
+        </ul>
       </div>
-      <button onClick={() => refetch()}>Refetch</button>
+      <Button onClick={() => refetch()}>Refetch</Button>
     </div>
   )
 }
