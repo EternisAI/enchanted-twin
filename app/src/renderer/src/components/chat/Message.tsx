@@ -1,56 +1,55 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
-//@TODO: JUST TEMPORARY TYPES
-type Role = 'user' | 'assistant'
+import { Message } from '@renderer/graphql/generated/graphql'
 
-type ToolCall = {
-  name: string
-  args: Record<string, any>
-}
-
-type MessageProps = {
-  message: {
-    id: string
-    text?: string
-    imageUrls: string[]
-    role: Role
-    toolCalls: ToolCall[]
-    toolResult?: any
-    createdAt: string
-  }
-}
-
-export function MessageBubble({ message }: MessageProps) {
-  const isUser = message.role === 'user'
-
+export function UserMessageBubble({ message }: { message: Message }) {
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 gap-3`}>
-      <div
-        className={`max-w-md py-2 px-4 rounded-lg shadow ${
-          isUser ? 'bg-white text-right' : 'bg-gray-100 text-left'
-        }`}
-      >
-        {message.text && <p className="text-gray-800 mb-2">{message.text}</p>}
-
+    <div className="flex justify-end">
+      <div className="bg-white text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
+        {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto mb-2">
+          <div className="mt-2 space-x-2">
             {message.imageUrls.map((url, i) => (
               <img
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="w-24 h-24 object-cover rounded"
+                className="inline-block h-24 w-24 object-cover rounded"
+              />
+            ))}
+          </div>
+        )}
+        <div className="text-xs text-gray-500 pt-1">
+          {new Date(message.createdAt).toLocaleTimeString()}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function AssistantMessageBubble({ message }: { message: Message }) {
+  return (
+    <div className="flex justify-start">
+      <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
+        {message.text && <p>{message.text}</p>}
+        {message.imageUrls.length > 0 && (
+          <div className="mt-2 space-x-2">
+            {message.imageUrls.map((url, i) => (
+              <img
+                key={i}
+                src={url}
+                alt={`attachment-${i}`}
+                className="inline-block h-24 w-24 object-cover rounded"
               />
             ))}
           </div>
         )}
 
         {message.toolCalls.length > 0 && (
-          <div className="text-xs text-gray-600 mb-2">
-            <strong>Tool Calls:</strong>
-            <ul className="ml-4">
-              {message.toolCalls.map((tool, i) => (
-                <li key={i}>
-                  <code>{tool.name}</code> {JSON.stringify(tool.args)}
+          <div className="mt-3">
+            <p className="text-sm font-medium text-green-700">Tool Calls:</p>
+            <ul className="list-disc ml-5 text-sm">
+              {message.toolCalls.map((tool) => (
+                <li key={tool.id}>
+                  {tool.name} {tool.isCompleted ? '(done)' : '(pending)'}
                 </li>
               ))}
             </ul>
@@ -58,12 +57,11 @@ export function MessageBubble({ message }: MessageProps) {
         )}
 
         {message.toolResult && (
-          <div className="bg-green-50 p-2 rounded text-xs text-green-800 whitespace-pre-wrap break-words">
-            <strong>Tool Result</strong>
+          <div className="mt-3 bg-green-50 p-2 rounded text-xs text-gray-700 whitespace-pre-wrap">
+            <strong>Tool Result:</strong>
             <pre>{JSON.stringify(message.toolResult, null, 2)}</pre>
           </div>
         )}
-
         <div className="text-xs text-gray-500 pt-1">
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
