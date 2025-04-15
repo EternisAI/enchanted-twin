@@ -1,19 +1,95 @@
-query GetConditions {
-  conditions {
+# ====== Queries ======
+
+query GetChats($first: Int!, $offset: Int!) {
+  getChats(first: $first, offset: $offset) {
     id
     name
-    shortName
-    description
-    category
+    createdAt
+    messages {
+      id
+      text
+      role
+      createdAt
+    }
   }
 }
 
-mutation CreateCondition($conditionName: String!) {
-  createCondition(conditionName: $conditionName) {
+query GetChat($id: ID!) {
+  getChat(id: $id) {
     id
     name
-    shortName
-    description
-    category
+    createdAt
+    messages {
+      id
+      text
+      imageUrls
+      role
+      createdAt
+      toolCalls {
+        id
+        name
+        isCompleted
+      }
+      toolResult
+    }
+  }
+}
+
+# ====== Mutations ======
+
+mutation CreateChat($name: String!) {
+  createChat(name: $name) {
+    id
+    name
+    createdAt
+  }
+}
+
+mutation SendMessage($chatId: ID!, $text: String!) {
+  sendMessage(chatId: $chatId, text: $text) {
+    id
+    text
+    role
+    createdAt
+    imageUrls
+    toolCalls {
+      id
+      name
+      isCompleted
+    }
+    toolResult
+  }
+}
+
+mutation UpdateTitle($chatId: ID!, $title: String!) {
+  updateTitle(chatId: $chatId, title: $title) {
+    id
+    name
+    createdAt
+  }
+}
+
+mutation DeleteChat($chatId: ID!) {
+  deleteChat(chatId: $chatId) {
+    id
+    name
+  }
+}
+
+# ====== Subscription ======
+
+subscription MessageAdded($chatId: ID!) {
+  messageAdded(chatId: $chatId) {
+    id
+    text
+    role
+    createdAt
+    imageUrls
+    toolResult
+    toolCalls {
+      id
+      name
+      isCompleted
+    }
   }
 }

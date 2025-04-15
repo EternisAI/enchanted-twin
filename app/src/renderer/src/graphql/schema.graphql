@@ -1,15 +1,48 @@
-type Condition {
-  id: ID!
-  name: String!
-  shortName: String!
-  description: String
-  category: String!
-}
+directive @isAuthorized on FIELD_DEFINITION
+
+scalar DateTime
+scalar JSON
 
 type Query {
-  conditions: [Condition!]!
+  getChats(first: Int! = 10, offset: Int! = 0): [Chat!]! @isAuthorized
+  getChat(id: ID!): Chat! @isAuthorized
 }
 
 type Mutation {
-  createCondition(conditionName: String!): Condition!
+  createChat(name: String!): Chat! @isAuthorized
+  sendMessage(chatId: ID!, text: String!): Message! @isAuthorized
+  updateTitle(chatId: ID!, title: String!): Chat! @isAuthorized
+  deleteChat(chatId: ID!): Chat! @isAuthorized
+}
+
+type Subscription {
+  messageAdded(chatId: ID!): Message! @isAuthorized
+}
+
+type ToolCall {
+  id: String!
+  name: String!
+  isCompleted: Boolean!
+}
+
+type Chat {
+  id: ID!
+  name: String!
+  messages: [Message!]!
+  createdAt: DateTime!
+}
+
+type Message {
+  id: ID!
+  text: String
+  imageUrls: [String!]!
+  role: Role!
+  toolCalls: [ToolCall!]!
+  toolResult: JSON
+  createdAt: DateTime!
+}
+
+enum Role {
+  USER
+  ASSISTANT
 }
