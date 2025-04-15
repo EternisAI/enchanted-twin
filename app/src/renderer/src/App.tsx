@@ -1,5 +1,4 @@
 import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
 import { ApolloClientProvider } from './graphql/provider'
 import ChatContainer from './components/chat/ChatContainer'
 
@@ -9,7 +8,7 @@ function App(): React.JSX.Element {
   return (
     <>
       <ApolloClientProvider>
-        <img alt="logo" className="logo" src={electronLogo} />
+        {/* <img alt="logo" className="logo" src={electronLogo} /> */}
         {/* <p className="tip">
         Please try pressing <code>F12</code> to open the devTool
       </p> */}
