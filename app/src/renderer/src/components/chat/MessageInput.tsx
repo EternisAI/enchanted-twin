@@ -1,12 +1,17 @@
 import { useState } from 'react'
+import { Button } from '../ui/button'
 
-export default function MessageInput() {
+type MessageInputProps = {
+  onSend: (text: string) => void
+  isWaitingTwinResponse: boolean
+}
+
+export default function MessageInput({ onSend, isWaitingTwinResponse }: MessageInputProps) {
   const [text, setText] = useState('')
 
   const handleSend = () => {
     if (!text.trim()) return
-    // TODO: send message mutation
-    console.log('Sending:', text)
+    onSend(text)
     setText('')
   }
 
@@ -27,12 +32,18 @@ export default function MessageInput() {
         placeholder="Type a message..."
         className="flex-1 resize-none border rounded-md p-2 text-sm"
       />
-      <button
-        onClick={handleSend}
-        className="bg-green-600 text-white px-4 py-2 h-10 rounded-md hover:bg-green-700"
-      >
-        Send
-      </button>
+      <SendButton isWaitingTwinResponse={isWaitingTwinResponse} />
     </div>
+  )
+}
+
+function SendButton({ isWaitingTwinResponse }: { isWaitingTwinResponse: boolean }) {
+  return (
+    <Button
+      className="cursor-pointer bg-green-600 text-white px-4 py-2 h-10 rounded-md hover:bg-green-700"
+      disabled={isWaitingTwinResponse}
+    >
+      Send
+    </Button>
   )
 }
