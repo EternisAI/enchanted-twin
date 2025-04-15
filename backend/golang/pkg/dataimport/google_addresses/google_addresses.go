@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
 type Coordinates []float64
@@ -54,7 +54,7 @@ func (s *Source) Name() string {
 	return "google_addresses"
 }
 
-func (s *Source) ProcessFile(filePath string) ([]dataimport.Record, error) {
+func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("error reading file: %w", err)
@@ -69,7 +69,7 @@ func (s *Source) ProcessFile(filePath string) ([]dataimport.Record, error) {
 		return nil, fmt.Errorf("invalid GeoJSON: expected FeatureCollection, got %s", collection.Type)
 	}
 
-	var records []dataimport.Record
+	var records []types.Record
 	for _, feature := range collection.Features {
 		if feature.Type != "Feature" {
 			fmt.Printf("Warning: Skipping non-Feature element of type %s\n", feature.Type)
@@ -109,7 +109,7 @@ func (s *Source) ProcessFile(filePath string) ([]dataimport.Record, error) {
 			addressData["comment"] = feature.Properties.Comment
 		}
 
-		record := dataimport.Record{
+		record := types.Record{
 			Data:      addressData,
 			Timestamp: timestamp,
 			Source:    s.Name(),

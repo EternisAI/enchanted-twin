@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
 type UserProfile struct {
@@ -51,7 +51,7 @@ func parseTimestamp(ts string) (time.Time, error) {
 	return time.Unix(seconds, 0), nil
 }
 
-func (s *Source) ProcessFile(filePath string, username string) ([]dataimport.Record, error) {
+func (s *Source) ProcessFile(filePath string, username string) ([]types.Record, error) {
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -66,7 +66,7 @@ func (s *Source) ProcessFile(filePath string, username string) ([]dataimport.Rec
 	// Expected format: .../channel-name/YYYY-MM-DD.json
 	channelName := filepath.Base(filepath.Dir(filePath))
 
-	var records []dataimport.Record
+	var records []types.Record
 	for _, message := range messages {
 		timestamp, err := parseTimestamp(message.Timestamp)
 		if err != nil {
@@ -81,7 +81,7 @@ func (s *Source) ProcessFile(filePath string, username string) ([]dataimport.Rec
 			"myMessage":   strings.EqualFold(message.UserProfile.Name, username),
 		}
 
-		record := dataimport.Record{
+		record := types.Record{
 			Data:      messageData,
 			Timestamp: timestamp,
 			Source:    s.Name(),
@@ -95,8 +95,8 @@ func (s *Source) ProcessFile(filePath string, username string) ([]dataimport.Rec
 	return records, nil
 }
 
-func (s *Source) ProcessDirectory(userName string) ([]dataimport.Record, error) {
-	var allRecords []dataimport.Record
+func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
+	var allRecords []types.Record
 
 	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {

@@ -23,7 +23,7 @@ import (
 
 	loghtml "golang.org/x/net/html"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
 type Gmail struct{}
@@ -74,7 +74,7 @@ type job struct {
 
 type result struct {
 	emailIndex   int
-	record       dataimport.Record
+	record       types.Record
 	originalData string // Holds original data ONLY for failed/timed out emails
 	originalSize int    // Size of the original email data
 	err          error
@@ -84,7 +84,7 @@ type result struct {
 // Define timeout for processing a single email
 const processTimeout = 1 * time.Second
 
-func (g *Gmail) ProcessFile(filepath string, userName string) ([]dataimport.Record, error) {
+func (g *Gmail) ProcessFile(filepath string, userName string) ([]types.Record, error) {
 	// Count emails first
 	totalEmails, err := countEmails(filepath)
 	if err != nil {
@@ -92,7 +92,7 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]dataimport.Reco
 	}
 	if totalEmails == 0 {
 		fmt.Println("No emails found in the file.")
-		return []dataimport.Record{}, nil // Return empty slice, not an error
+		return []types.Record{}, nil // Return empty slice, not an error
 	}
 	fmt.Printf("Found %d emails. Starting processing using %d workers...\n", totalEmails, runtime.NumCPU())
 
@@ -163,7 +163,7 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]dataimport.Reco
 					timeoutErr := fmt.Errorf("processing timed out after %v", processTimeout)
 					results <- result{
 						emailIndex:   j.emailIndex,
-						record:       dataimport.Record{},
+						record:       types.Record{},
 						originalData: j.emailData,
 						originalSize: originalSize, // Pass size along on timeout too
 						err:          timeoutErr,
@@ -223,7 +223,7 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]dataimport.Reco
 	}()
 
 	// Collect Results, Separate Failed Emails, & Report Progress
-	recordsMap := make(map[int]dataimport.Record)
+	recordsMap := make(map[int]types.Record)
 
 	// Goroutine to wait for workers and close results channel
 	go func() {
@@ -292,7 +292,7 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]dataimport.Reco
 	fmt.Println("Processing finished.")
 
 	// Convert map to slice in original order (best effort)
-	finalRecords := make([]dataimport.Record, 0, len(recordsMap))
+	finalRecords := make([]types.Record, 0, len(recordsMap))
 	for i := 1; i <= totalEmails; i++ {
 		if record, ok := recordsMap[i]; ok {
 			finalRecords = append(finalRecords, record)
@@ -302,10 +302,10 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]dataimport.Reco
 	return finalRecords, nil
 }
 
-func (g *Gmail) processEmail(content string, userName string) (dataimport.Record, error) {
+func (g *Gmail) processEmail(content string, userName string) (types.Record, error) {
 	msg, err := mail.ReadMessage(strings.NewReader(content))
 	if err != nil {
-		return dataimport.Record{}, err
+		return types.Record{}, err
 	}
 
 	header := msg.Header
@@ -387,7 +387,7 @@ func (g *Gmail) processEmail(content string, userName string) (dataimport.Record
 		}
 	}
 
-	return dataimport.Record{
+	return types.Record{
 		Data:      data,
 		Timestamp: date,
 		Source:    g.Name(),

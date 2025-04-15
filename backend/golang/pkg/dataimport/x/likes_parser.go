@@ -5,11 +5,11 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
-func parseLikesAlternative(arrayContent string, userName string) ([]dataimport.Record, error) {
-	var records []dataimport.Record
+func parseLikesAlternative(arrayContent string, userName string) ([]types.Record, error) {
+	var records []types.Record
 	now := time.Now()
 
 	fmt.Printf("Like array content first 100 chars: %s\n", arrayContent[:min(100, len(arrayContent))])
@@ -54,7 +54,7 @@ func parseLikesAlternative(arrayContent string, userName string) ([]dataimport.R
 			"userName":    userName,
 		}
 
-		record := dataimport.Record{
+		record := types.Record{
 			Data:      data,
 			Timestamp: now,
 			Source:    "x",

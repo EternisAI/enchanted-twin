@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -22,7 +22,7 @@ func (s *Source) Name() string {
 }
 
 // ReadWhatsAppDB reads the WhatsApp database and returns Records
-func ReadWhatsAppDB(dbPath string) ([]dataimport.Record, error) {
+func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	// Open the database
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -65,7 +65,7 @@ func ReadWhatsAppDB(dbPath string) ([]dataimport.Record, error) {
 		valuePtrs[i] = &values[i]
 	}
 
-	var records []dataimport.Record
+	var records []types.Record
 	// Iterate over rows
 	rowCount := 0
 	for rows.Next() {
@@ -147,7 +147,7 @@ func ReadWhatsAppDB(dbPath string) ([]dataimport.Record, error) {
 		}
 
 		// Create record
-		record := dataimport.Record{
+		record := types.Record{
 			Data:      data,
 			Timestamp: timestamp,
 			Source:    "whatsapp",
@@ -163,6 +163,6 @@ func ReadWhatsAppDB(dbPath string) ([]dataimport.Record, error) {
 	return records, nil
 }
 
-func (s *Source) ProcessFile(filepath string) ([]dataimport.Record, error) {
+func (s *Source) ProcessFile(filepath string) ([]types.Record, error) {
 	return ReadWhatsAppDB(filepath)
 }

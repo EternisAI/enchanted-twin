@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
-func parseTwitterFile(content []byte, fileType string, userId string) ([]dataimport.Record, error) {
+func parseTwitterFile(content []byte, fileType string, userId string) ([]types.Record, error) {
 	contentStr := string(content)
 
 	var arrayRegex *regexp.Regexp
@@ -41,8 +41,8 @@ func parseTwitterFile(content []byte, fileType string, userId string) ([]dataimp
 	}
 }
 
-func parseTweets(arrayContent string, userId string) ([]dataimport.Record, error) {
-	var records []dataimport.Record
+func parseTweets(arrayContent string, userId string) ([]types.Record, error) {
+	var records []types.Record
 
 	tweetRegex := regexp.MustCompile(`\{\s*"?tweet"?\s*:\s*\{`)
 	tweetStartPositions := tweetRegex.FindAllStringIndex(arrayContent, -1)
@@ -142,7 +142,7 @@ func parseTweets(arrayContent string, userId string) ([]dataimport.Record, error
 			"userId":        userId,
 		}
 
-		record := dataimport.Record{
+		record := types.Record{
 			Data:      data,
 			Timestamp: timestamp,
 			Source:    "x",
@@ -158,8 +158,8 @@ func parseTweets(arrayContent string, userId string) ([]dataimport.Record, error
 	return records, nil
 }
 
-func parseDirectMessages(arrayContent string, userId string) ([]dataimport.Record, error) {
-	var records []dataimport.Record
+func parseDirectMessages(arrayContent string, userId string) ([]types.Record, error) {
+	var records []types.Record
 
 	convRegex := regexp.MustCompile(`\{\s*"?dmConversation"?\s*:\s*\{`)
 	convStartPositions := convRegex.FindAllStringIndex(arrayContent, -1)
@@ -260,7 +260,7 @@ func parseDirectMessages(arrayContent string, userId string) ([]dataimport.Recor
 				"myMessage":      myMessage,
 			}
 
-			record := dataimport.Record{
+			record := types.Record{
 				Data:      data,
 				Timestamp: timestamp,
 				Source:    "x",
