@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 
 import { routeTree } from '@renderer/routeTree.gen'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
+import { ApolloClientProvider } from './graphql/provider'
 
 const router = createRouter({ routeTree, defaultViewTransition: true })
 
@@ -18,6 +19,8 @@ declare module '@tanstack/react-router' {
 
 export default createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <RouterProvider router={router} />
+    <ApolloClientProvider>
+      <RouterProvider router={router} />
+    </ApolloClientProvider>
   </StrictMode>
 )

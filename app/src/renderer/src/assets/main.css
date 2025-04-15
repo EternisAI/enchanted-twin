@@ -7,7 +7,37 @@
 @view-transition {
 }
 
-@keyframes slide-out-left {
+::view-transition-old(page-content) {
+  animation: slide-out 0.5s cubic-bezier(0.86, 0, 0.07, 1) forwards;
+}
+
+::view-transition-new(page-content) {
+  animation: slide-in 0.5s cubic-bezier(0.86, 0, 0.07, 1) forwards;
+}
+
+@keyframes slide-out {
+  0% {
+    transform: translateX(0%);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(calc(50% * var(--direction, 1)));
+  }
+}
+
+@keyframes slide-in {
+  0% {
+    opacity: 0;
+    transform: translateX(calc(-50% * var(--direction, 1)));
+  }
+
+  100% {
+    transform: translateX(0%);
+  }
+}
+
+/* @keyframes slide-out-left {
   from {
     transform: translateX(0);
   }
@@ -36,7 +66,7 @@
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;
-}
+} */
 
 /* body {
   display: flex;
