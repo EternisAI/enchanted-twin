@@ -1,0 +1,15 @@
+type UserProfile {
+  name: String
+}
+
+input UpdateProfileInput {
+  name: String
+}
+
+type Query {
+  profile: UserProfile!
+}
+
+type Mutation {
+  updateProfile(input: UpdateProfileInput!): Boolean!
+}
