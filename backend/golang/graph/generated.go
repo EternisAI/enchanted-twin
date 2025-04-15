@@ -6,7 +6,7 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	"errors"
 	"fmt"
 	"strconv"

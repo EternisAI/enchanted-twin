@@ -6,9 +6,10 @@ package graph
 
 import (
 	"context"
-	"enchanted-twin/graph/model"
-	"enchanted-twin/pkg/helpers"
 	"fmt"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // UpdateProfile is the resolver for the updateProfile field.
@@ -34,5 +35,7 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
+type (
+	mutationResolver struct{ *Resolver }
+	queryResolver    struct{ *Resolver }
+)
