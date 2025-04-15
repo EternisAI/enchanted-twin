@@ -1,11 +1,23 @@
+/* eslint-disable react-refresh/only-export-components */
 import './assets/main.css'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App'
 
-createRoot(document.getElementById('root')!).render(
+import { routeTree } from '@renderer/routeTree.gen'
+import { createRouter, RouterProvider } from '@tanstack/react-router'
+
+const router = createRouter({ routeTree, defaultViewTransition: true })
+
+// Register the router instance for type safety
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: typeof router
+  }
+}
+
+export default createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <RouterProvider router={router} />
   </StrictMode>
 )
