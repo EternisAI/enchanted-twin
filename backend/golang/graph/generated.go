@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"github.com/EternisAI/enchanted-twin/graph/model"
 	"errors"
 	"fmt"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -268,7 +268,7 @@ func (ec *executionContext) field_Mutation_addDataSource_argsInput(
 ) (model.AddDataSourceInput, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalNAddDataSourceInput2enchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx, tmp)
+		return ec.unmarshalNAddDataSourceInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx, tmp)
 	}
 
 	var zeroVal model.AddDataSourceInput
@@ -291,7 +291,7 @@ func (ec *executionContext) field_Mutation_updateProfile_argsInput(
 ) (model.UpdateProfileInput, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalNUpdateProfileInput2enchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx, tmp)
+		return ec.unmarshalNUpdateProfileInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx, tmp)
 	}
 
 	var zeroVal model.UpdateProfileInput
@@ -559,7 +559,7 @@ func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*model.UserProfile)
 	fc.Result = res
-	return ec.marshalNUserProfile2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx, field.Selections, res)
+	return ec.marshalNUserProfile2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_profile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2709,7 +2709,7 @@ func (ec *executionContext) unmarshalInputAddDataSourceInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"dataSourceName", "path"}
+	fieldsInOrder := [...]string{"dataSourceName", "path", "username"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -2718,7 +2718,7 @@ func (ec *executionContext) unmarshalInputAddDataSourceInput(ctx context.Context
 		switch k {
 		case "dataSourceName":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dataSourceName"))
-			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			data, err := ec.unmarshalNString2string(ctx, v)
 			if err != nil {
 				return it, err
 			}
@@ -2730,6 +2730,13 @@ func (ec *executionContext) unmarshalInputAddDataSourceInput(ctx context.Context
 				return it, err
 			}
 			it.Path = data
+		case "username":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Username = data
 		}
 	}
 
@@ -3270,7 +3277,7 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) unmarshalNAddDataSourceInput2enchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx context.Context, v any) (model.AddDataSourceInput, error) {
+func (ec *executionContext) unmarshalNAddDataSourceInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx context.Context, v any) (model.AddDataSourceInput, error) {
 	res, err := ec.unmarshalInputAddDataSourceInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
@@ -3305,16 +3312,16 @@ func (ec *executionContext) marshalNString2string(ctx context.Context, sel ast.S
 	return res
 }
 
-func (ec *executionContext) unmarshalNUpdateProfileInput2enchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
+func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
 	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNUserProfile2enchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v model.UserProfile) graphql.Marshaler {
+func (ec *executionContext) marshalNUserProfile2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v model.UserProfile) graphql.Marshaler {
 	return ec._UserProfile(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUserProfile2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v *model.UserProfile) graphql.Marshaler {
+func (ec *executionContext) marshalNUserProfile2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v *model.UserProfile) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")

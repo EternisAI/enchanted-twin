@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
 type Contact struct {
@@ -93,7 +93,7 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", dateStr)
 }
 
-func (s *Source) ProcessFile(filepath string, userName string) ([]dataimport.Record, error) {
+func (s *Source) ProcessFile(filepath string, userName string) ([]types.Record, error) {
 	jsonData, err := os.ReadFile(filepath)
 	if err != nil {
 		return nil, err
@@ -104,7 +104,7 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]dataimport.Rec
 		return nil, err
 	}
 
-	var records []dataimport.Record
+	var records []types.Record
 
 	for _, contact := range telegramData.Contacts.List {
 		timestamp, err := parseTimestamp(contact.Date, contact.DateUnixtime)
@@ -121,7 +121,7 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]dataimport.Rec
 			"phoneNumber": contact.PhoneNumber,
 		}
 
-		record := dataimport.Record{
+		record := types.Record{
 			Data:      contactData,
 			Timestamp: timestamp,
 			Source:    s.Name(),
@@ -173,7 +173,7 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]dataimport.Rec
 			}
 
 			if len(message.Text) > 0 {
-				record := dataimport.Record{
+				record := types.Record{
 					Data:      messageData,
 					Timestamp: timestamp,
 					Source:    s.Name(),

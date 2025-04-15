@@ -16,6 +16,7 @@ type Mutation {
 }
 
 input AddDataSourceInput {
-  dataSourceName: String
+  dataSourceName: String!
   path: String!
+  username: String!
 }

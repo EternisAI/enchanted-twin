@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
-func parseTwitterFileSimple(content []byte, fileType string, userName string) ([]dataimport.Record, error) {
+func parseTwitterFileSimple(content []byte, fileType string, userName string) ([]types.Record, error) {
 	contentStr := string(content)
 
 	var arrayPrefix string
@@ -41,8 +41,8 @@ func parseTwitterFileSimple(content []byte, fileType string, userName string) ([
 	}
 }
 
-func parseLikesSimple(content string, userName string) ([]dataimport.Record, error) {
-	var records []dataimport.Record
+func parseLikesSimple(content string, userName string) ([]types.Record, error) {
+	var records []types.Record
 	now := time.Now()
 
 	parts := strings.Split(strings.TrimSpace(content), "},")
@@ -165,7 +165,7 @@ func parseLikesSimple(content string, userName string) ([]dataimport.Record, err
 			"expandedUrl": expandedUrl,
 		}
 
-		record := dataimport.Record{
+		record := types.Record{
 			Data:      data,
 			Timestamp: now,
 			Source:    "x",
@@ -179,7 +179,7 @@ func parseLikesSimple(content string, userName string) ([]dataimport.Record, err
 	}
 
 	if len(records) == 1 {
-		duplicatedRecord := dataimport.Record{
+		duplicatedRecord := types.Record{
 			Data:      records[0].Data,
 			Timestamp: records[0].Timestamp,
 			Source:    records[0].Source,

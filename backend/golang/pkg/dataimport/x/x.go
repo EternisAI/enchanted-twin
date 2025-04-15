@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
 )
 
 func min(a, b int) int {
@@ -40,7 +40,7 @@ func (s *Source) Name() string {
 	return "x"
 }
 
-func (s *Source) ProcessFile(filePath string, userId string) ([]dataimport.Record, error) {
+func (s *Source) ProcessFile(filePath string, userId string) ([]types.Record, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -99,8 +99,8 @@ func parseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", timestampStr)
 }
 
-func (s *Source) ProcessDirectory(userName string, xApiKey string) ([]dataimport.Record, error) {
-	var allRecords []dataimport.Record
+func (s *Source) ProcessDirectory(userName string, xApiKey string) ([]types.Record, error) {
+	var allRecords []types.Record
 
 	userId, err := GetUserIDByUsername(userName, xApiKey)
 	if err != nil {
