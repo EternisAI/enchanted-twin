@@ -8,8 +8,8 @@ export const Route = createFileRoute('/chat')({
   loader: async () => {
     const { data, loading, error } = await client.query({
       query: GetChatsDocument,
-      variables: { first: 20, offset: 0 },
-      fetchPolicy: 'network-only'
+      variables: { first: 20, offset: 0 }
+      // fetchPolicy: 'network-only'
     })
     console.log('loader called', data, loading, error)
     return { data, loading, error }

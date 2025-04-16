@@ -3,6 +3,7 @@ import { useNavigate, useRouter } from '@tanstack/react-router'
 import MessageInput from './MessageInput'
 import { useMutation } from '@apollo/client'
 import { CreateChatDocument, SendMessageDocument } from '@renderer/graphql/generated/graphql'
+import { client } from '@renderer/graphql/lib'
 
 export default function ChatHome() {
   const navigate = useNavigate()
@@ -19,11 +20,12 @@ export default function ChatHome() {
 
       if (newChatId) {
         await sendMessage({ variables: { chatId: newChatId, text } })
+        navigate({ to: `/chat/${newChatId}` })
         // Refetch all chats
+        await client.cache.evict({ fieldName: 'getChats' })
         await router.invalidate({
           filter: (match) => match.routeId === '/chat'
         })
-        navigate({ to: `/chat/${newChatId}` })
       }
     } catch (error) {
       console.error('Failed to start chat:', error)
