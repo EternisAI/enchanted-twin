@@ -1,5 +1,6 @@
 import { Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
+import { Markdown } from './Markdown'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -46,7 +47,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       variants={messageAnimation}
     >
       <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
-        {message.text && <p>{message.text}</p>}
+        {message.text && <Markdown>{message.text}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="mt-2 space-x-2">
             {message.imageUrls.map((url, i) => (
