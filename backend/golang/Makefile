@@ -1,0 +1,25 @@
+install:
+	go install github.com/99designs/gqlgen
+	brew install mockery
+	brew install golangci-lint
+
+run:
+	go run cmd/server/main.go
+
+build:
+	go build -o bin/enchanted-twin cmd/server/main.go
+
+release:
+	GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
+	GOOS=darwin GOARCH=arm64 go build -o bin/enchanted-twin-darwin-arm64 cmd/server/main.go
+	GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
+	GOOS=windows GOARCH=amd64 go build -o bin/enchanted-twin-windows-amd64.exe cmd/server/main.go
+
+lint:
+	golangci-lint run
+
+test:
+	go test ./...
+
+gqlgen:
+	go run github.com/99designs/gqlgen generate
