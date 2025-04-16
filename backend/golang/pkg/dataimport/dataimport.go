@@ -2,10 +2,13 @@ package dataimport
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataimport/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataimport/google_addresses"
@@ -65,29 +68,60 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 
 	file, err := os.Create(outputPath)
 	if err != nil {
-		return false, fmt.Errorf("error creating CSV file: %v", err)
+		return false, fmt.Errorf("error creating output file: %v", err)
 	}
 	defer file.Close()
 
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	header := []string{"data", "timestamp", "source"}
-	if err := writer.Write(header); err != nil {
-		return false, fmt.Errorf("error writing CSV header: %v", err)
-	}
-
-	for _, record := range records {
-		csvRecord, err := record.ToCSVRecord()
-		if err != nil {
-			log.Printf("Error converting record to CSV: %v", err)
-			continue
+	// Determine output format based on file extension
+	ext := strings.ToLower(filepath.Ext(outputPath))
+	switch ext {
+	case ".json":
+		// For JSON output, create a slice of records with their data
+		type jsonRecord struct {
+			Data      map[string]interface{} `json:"data"`
+			Timestamp string                 `json:"timestamp"`
+			Source    string                 `json:"source"`
 		}
 
-		if err := writer.Write(csvRecord); err != nil {
-			log.Printf("Error writing record: %v", err)
-			continue
+		jsonRecords := make([]jsonRecord, len(records))
+		for i, record := range records {
+			jsonRecords[i] = jsonRecord{
+				Data:      record.Data,
+				Timestamp: record.Timestamp.Format(time.RFC3339),
+				Source:    record.Source,
+			}
 		}
+
+		encoder := json.NewEncoder(file)
+		encoder.SetIndent("", "  ")
+		if err := encoder.Encode(jsonRecords); err != nil {
+			return false, fmt.Errorf("error writing JSON: %v", err)
+		}
+
+	case ".csv":
+		writer := csv.NewWriter(file)
+		defer writer.Flush()
+
+		header := []string{"data", "timestamp", "source"}
+		if err := writer.Write(header); err != nil {
+			return false, fmt.Errorf("error writing CSV header: %v", err)
+		}
+
+		for _, record := range records {
+			csvRecord, err := record.ToCSVRecord()
+			if err != nil {
+				log.Printf("Error converting record to CSV: %v", err)
+				continue
+			}
+
+			if err := writer.Write(csvRecord); err != nil {
+				log.Printf("Error writing record: %v", err)
+				continue
+			}
+		}
+
+	default:
+		return false, fmt.Errorf("unsupported output format: %s (use .csv or .json)", ext)
 	}
 
 	fmt.Printf("Successfully processed %d records and wrote to %s\n", len(records), outputPath)
