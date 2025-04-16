@@ -60,40 +60,41 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Start the Go server only in production
-  if (!is.dev) {
-    const goBinaryPath = join(process.resourcesPath, 'enchanted-twin')
-    console.log(`Attempting to start Go server at: ${goBinaryPath}`)
-    try {
-      goServerProcess = spawn(goBinaryPath, [], {
-        stdio: 'inherit'
+  // Determine the path to the Go binary based on the environment
+  const goBinaryPath = is.dev
+    ? join(__dirname, '..', '..', 'resources', 'enchanted-twin') // Path in development
+    : join(process.resourcesPath, 'enchanted-twin'); // Path in production
+
+  console.log(`Attempting to start Go server at: ${goBinaryPath}`)
+  try {
+    goServerProcess = spawn(goBinaryPath, [], {
+      // No stdio option here, defaults to 'pipe'
+    })
+
+    if (goServerProcess) {
+      goServerProcess.on('error', (err) => {
+        console.error('Failed to start Go server:', err)
       })
 
-      if (goServerProcess) {
-        goServerProcess.on('error', (err) => {
-          console.error('Failed to start Go server:', err)
-        })
+      goServerProcess.on('close', (code) => {
+        console.log(`Go server process exited with code ${code}`)
+        goServerProcess = null // Reset when closed
+      })
 
-        goServerProcess.on('close', (code) => {
-          console.log(`Go server process exited with code ${code}`)
-          goServerProcess = null // Reset when closed
-        })
+      goServerProcess.stdout?.on('data', (data) => {
+        console.log(`Go Server stdout: ${data}`);
+      });
+      goServerProcess.stderr?.on('data', (data) => {
+        console.error(`Go Server stderr: ${data}`);
+      });
 
-        goServerProcess.stdout?.on('data', (data) => {
-          console.log(`Go Server stdout: ${data}`);
-        });
-        goServerProcess.stderr?.on('data', (data) => {
-          console.error(`Go Server stderr: ${data}`);
-        });
-
-        console.log('Go server process started.')
-      } else {
-         console.error('Failed to spawn Go server process.')
-      }
-
-    } catch (error) {
-      console.error('Error spawning Go server:', error)
+      console.log('Go server process started.')
+    } else {
+        console.error('Failed to spawn Go server process.')
     }
+
+  } catch (error) {
+    console.error('Error spawning Go server:', error)
   }
 
   // Set app user model id for windows
