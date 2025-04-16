@@ -24,10 +24,11 @@ func NewOpenAIService(apiKey string, baseUrl string) *Service {
 	}
 }
 
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, model string) (openai.ChatCompletionMessage, error) {
+func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	completion, err := s.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
 		Model:    model,
+		Tools:    tools,
 	})
 
 	if err != nil {

@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -21,14 +23,14 @@ const (
 )
 
 type Service struct {
-	aiService ai.Service
+	aiService *ai.Service
 	storage   Storage
 	nc        *nats.Conn
 }
 
 func NewService(aiService *ai.Service, storage Storage, nc *nats.Conn) *Service {
 	return &Service{
-		aiService: *aiService,
+		aiService: aiService,
 		storage:   storage,
 		nc:        nc,
 	}
@@ -51,7 +53,12 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 
 	messageHistory = append(messageHistory, openai.UserMessage(message))
 
-	completion, err := s.aiService.Completions(ctx, messageHistory, MODEL)
+	agent := agent.NewAgent(s.nc, s.aiService)
+	tools := []tools.Tool{
+		&tools.SearchTool{},
+		&tools.ImageTool{},
+	}
+	response, err := agent.Execute(ctx, messageHistory, tools)
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +66,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	subject := fmt.Sprintf("chat.%s", chatID)
 	userMessageJson, err := json.Marshal(model.Message{
 		ID:        uuid.New().String(),
-		Text:      &completion.Content,
+		Text:      &response.Content,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		Role:      model.RoleUser,
 	})
@@ -119,7 +126,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	idAssistant, err := s.storage.AddMessageToChat(ctx, repository.Message{
 		ID:          uuid.New().String(),
 		ChatID:      chatID,
-		Text:        completion.Content,
+		Text:        response.Content,
 		ToolCalls:   repository.JSONForSQLLite(toolCallsJson),
 		ToolArgs:    repository.JSONForSQLLite(toolArgsJson),
 		ToolResults: repository.JSONForSQLLite(toolResultsJson),
@@ -133,7 +140,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 
 	return &model.Message{
 		ID:        idAssistant,
-		Text:      &completion.Content,
+		Text:      &response.Content,
 		Role:      model.RoleUser,
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}, nil

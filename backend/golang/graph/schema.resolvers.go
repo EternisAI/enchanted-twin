@@ -107,7 +107,7 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 
 	go func() {
 		<-ctx.Done()
-		sub.Unsubscribe()
+		_ = sub.Unsubscribe()
 		close(messages)
 	}()
 
