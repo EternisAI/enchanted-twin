@@ -24,6 +24,7 @@ import (
 	loghtml "golang.org/x/net/html"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
+	"github.com/sirupsen/logrus"
 )
 
 type Gmail struct{}
@@ -42,7 +43,11 @@ func countEmails(filepath string) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("error opening file for counting: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			logrus.Printf("Error closing file: %v", err)
+		}
+	}()
 
 	count := 0
 	scanner := bufio.NewScanner(file)
@@ -122,7 +127,11 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]types.Record, e
 		}
 	}
 	if failedFile != nil {
-		defer failedFile.Close()
+		defer func() {
+			if err := failedFile.Close(); err != nil {
+				logrus.Printf("Error closing failed emails file: %v", err)
+			}
+		}()
 	}
 
 	// Start workers with timeout logic
@@ -183,7 +192,11 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]types.Record, e
 			close(jobs)
 			return
 		}
-		defer file.Close()
+		defer func() {
+			if err := file.Close(); err != nil {
+				logrus.Printf("Error closing file: %v", err)
+			}
+		}()
 
 		reader := bufio.NewReader(file)
 		var emailBuffer bytes.Buffer
@@ -338,7 +351,11 @@ func (g *Gmail) processEmail(content string, userName string) (types.Record, err
 			if err != nil {
 				continue
 			}
-			defer part.Close()
+			defer func() {
+				if err := part.Close(); err != nil {
+					logrus.Printf("Error closing part: %v", err)
+				}
+			}()
 
 			partType, _, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
 			if err != nil {
@@ -372,7 +389,7 @@ func (g *Gmail) processEmail(content string, userName string) (types.Record, err
 		data["content"] = strings.TrimSpace(contentBuilder.String())
 	} else {
 		encoding := strings.ToLower(header.Get("Content-Transfer-Encoding"))
-		var bodyReader io.Reader = msg.Body
+		bodyReader := msg.Body
 		if encoding == "quoted-printable" {
 			bodyReader = quotedprintable.NewReader(bodyReader)
 		}
@@ -432,13 +449,14 @@ func extractTextFromHTML(htmlContent string) string {
 	var lastText string
 	var extract func(*loghtml.Node)
 	extract = func(n *loghtml.Node) {
-		if n.Type == loghtml.ElementNode {
+		switch n.Type {
+		case loghtml.ElementNode:
 			// Skip style, script, and other non-content tags
 			switch strings.ToLower(n.Data) {
 			case "style", "script", "noscript", "iframe", "head", "meta", "link":
 				return
 			}
-		} else if n.Type == loghtml.TextNode {
+		case loghtml.TextNode:
 			text := strings.TrimSpace(n.Data)
 			if text != "" {
 				// Add spacing between text nodes if needed
