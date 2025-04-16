@@ -233,6 +233,7 @@ func TestProcessTweetFile(t *testing.T) {
 	}
 
 	data := record.Data
+	fmt.Println(data)
 	if data["type"] != "tweet" {
 		t.Errorf("Expected type 'tweet', got '%v'", data["type"])
 	}
