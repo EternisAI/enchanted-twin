@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import { Button } from '../ui/button'
+import { StopCircleIcon } from 'lucide-react'
 
 type MessageInputProps = {
   onSend: (text: string) => void
   isWaitingTwinResponse: boolean
+  onStop?: () => void
 }
 
-export default function MessageInput({ onSend, isWaitingTwinResponse }: MessageInputProps) {
+export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: MessageInputProps) {
   const [text, setText] = useState('')
 
   const handleSend = () => {
@@ -32,23 +34,35 @@ export default function MessageInput({ onSend, isWaitingTwinResponse }: MessageI
         placeholder="Type a message..."
         className="flex-1 resize-none border rounded-md p-2 text-sm"
       />
-      <SendButton onClick={handleSend} isWaitingTwinResponse={isWaitingTwinResponse} />
+      <SendButton
+        onSend={handleSend}
+        isWaitingTwinResponse={isWaitingTwinResponse}
+        onStop={onStop}
+      />
     </div>
   )
 }
 
 function SendButton({
-  onClick,
+  onSend,
+  onStop,
   isWaitingTwinResponse
 }: {
-  onClick: () => void
   isWaitingTwinResponse: boolean
+  onSend: () => void
+  onStop?: () => void
 }) {
-  return (
+  return isWaitingTwinResponse ? (
     <Button
-      onClick={onClick}
-      className="cursor-pointer bg-green-600 text-white px-4 py-2 h-10 rounded-md hover:bg-green-700"
-      disabled={isWaitingTwinResponse}
+      onClick={onStop && onStop}
+      className="cursor-pointer bg-green-600 text-white w-16 px-4 py-2 h-10 rounded-md hover:bg-green-700"
+    >
+      <StopCircleIcon className="w-4 h-4" />
+    </Button>
+  ) : (
+    <Button
+      onClick={onSend}
+      className="cursor-pointer bg-green-600 text-white w-16 px-4 py-2 h-10 rounded-md hover:bg-green-700"
     >
       Send
     </Button>
