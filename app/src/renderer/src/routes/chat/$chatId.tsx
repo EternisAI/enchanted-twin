@@ -1,27 +1,29 @@
 // routes/chat/$chatId.tsx
 import ChatView from '@renderer/components/chat/ChatView'
-import { mockChats } from '@renderer/components/chat/mock'
+import { GetChatDocument } from '@renderer/graphql/generated/graphql'
+import { client } from '@renderer/graphql/lib'
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/chat/$chatId')({
   component: ChatRouteComponent,
   loader: async ({ params }) => {
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    const chat = mockChats.find((chat) => chat.id == params.chatId)
-    console.log('params!!', params, chat)
-
-    if (!chat) {
+    try {
+      const { data } = await client.query({
+        query: GetChatDocument,
+        variables: { id: params.chatId },
+        fetchPolicy: 'network-only'
+      })
+      return {
+        data: data.getChat,
+        loading: false,
+        error: null
+      }
+    } catch (error: unknown) {
       return {
         data: null,
         loading: false,
-        error: 'Chat not found'
+        error: error instanceof Error ? error.message : 'An unknown error occurred'
       }
-    }
-
-    return {
-      data: mockChats.find((chat) => chat.id == params.chatId),
-      loading: false,
-      error: null
     }
   },
   pendingComponent: () => {
@@ -44,11 +46,11 @@ export const Route = createFileRoute('/chat/$chatId')({
 })
 
 function ChatRouteComponent() {
-  const { data } = Route.useLoaderData()
+  const { data, error } = Route.useLoaderData()
 
   //   if (loading) return <div className="p-4">Loading chat...</div>
-  //   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
   if (!data) return <div className="p-4">Invalid chat ID.</div>
+  if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
 
   return <ChatView key={data.id} chat={data} />
 }
