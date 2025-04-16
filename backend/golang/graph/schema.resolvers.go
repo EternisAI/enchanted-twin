@@ -6,14 +6,14 @@ package graph
 
 import (
 	"context"
-	"enchanted-twin/graph/model"
-	"enchanted-twin/pkg/helpers"
 	"encoding/json"
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
+	nats "github.com/nats-io/nats.go"
 )
 
 // Messages is the resolver for the messages field.
@@ -89,7 +89,7 @@ func (r *queryResolver) GetChat(ctx context.Context, id string) (*model.Chat, er
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)
-	subject := fmt.Sprintf("notebook.%s", chatID)
+	subject := fmt.Sprintf("chat.%s", chatID)
 
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
 		var message model.Message
@@ -112,6 +112,11 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 	}()
 
 	return messages, nil
+}
+
+// AddDataSource is the resolver for the addDataSource field.
+func (r *subscriptionResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (<-chan bool, error) {
+	panic(fmt.Errorf("not implemented: AddDataSource - addDataSource"))
 }
 
 // Chat returns ChatResolver implementation.

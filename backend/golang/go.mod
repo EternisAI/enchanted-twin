@@ -1,4 +1,4 @@
-module enchanted-twin
+module github.com/EternisAI/enchanted-twin
 
 go 1.24.2
 
@@ -8,15 +8,18 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/joho/godotenv v1.5.1
+	github.com/mattn/go-sqlite3 v1.14.22
 	github.com/nats-io/nats-server/v2 v2.11.1
 	github.com/nats-io/nats.go v1.41.1
 	github.com/openai/openai-go v0.1.0-beta.10
 	github.com/pkg/errors v0.9.1
 	github.com/rs/cors v1.11.1
+	github.com/sirupsen/logrus v1.9.3
 	github.com/temporalio/ui-server/v2 v2.37.0
 	github.com/vektah/gqlparser/v2 v2.5.23
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-131.0
+	golang.org/x/net v0.39.0
 	google.golang.org/grpc v1.71.1
 )
 
@@ -120,7 +123,6 @@ require (
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/sony/gobreaker v1.0.0 // indirect
 	github.com/sosodev/duration v1.3.1 // indirect
 	github.com/spf13/cast v1.7.0 // indirect
@@ -165,7 +167,6 @@ require (
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
 	golang.org/x/oauth2 v0.29.0 // indirect
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect

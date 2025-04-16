@@ -2,8 +2,9 @@ package repository
 
 import (
 	"context"
-	"enchanted-twin/graph/model"
 	"fmt"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 func (r *Repository) AddMessageToChat(ctx context.Context, message Message) (string, error) {

@@ -1,9 +1,10 @@
 package repository
 
 import (
-	"enchanted-twin/graph/model"
 	"encoding/json"
 	"time"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 type JSONForSQLLite string

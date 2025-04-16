@@ -8,6 +8,12 @@ import (
 	"strconv"
 )
 
+type AddDataSourceInput struct {
+	DataSourceName string `json:"dataSourceName"`
+	Path           string `json:"path"`
+	Username       string `json:"username"`
+}
+
 type Chat struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`

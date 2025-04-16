@@ -6,7 +6,6 @@ import (
 	"bytes"
 	"context"
 	"embed"
-	"enchanted-twin/graph/model"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -81,7 +81,8 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		MessageAdded func(childComplexity int, chatID string) int
+		AddDataSource func(childComplexity int, input model.AddDataSourceInput) int
+		MessageAdded  func(childComplexity int, chatID string) int
 	}
 
 	ToolCall struct {
@@ -111,6 +112,7 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
+	AddDataSource(ctx context.Context, input model.AddDataSourceInput) (<-chan bool, error)
 }
 
 type executableSchema struct {
@@ -288,6 +290,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Profile(childComplexity), true
 
+	case "Subscription.addDataSource":
+		if e.complexity.Subscription.AddDataSource == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_addDataSource_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.AddDataSource(childComplexity, args["input"].(model.AddDataSourceInput)), true
+
 	case "Subscription.messageAdded":
 		if e.complexity.Subscription.MessageAdded == nil {
 			break
@@ -336,6 +350,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
+		ec.unmarshalInputAddDataSourceInput,
 		ec.unmarshalInputUpdateProfileInput,
 	)
 	first := true
@@ -573,7 +588,7 @@ func (ec *executionContext) field_Mutation_updateProfile_argsInput(
 ) (model.UpdateProfileInput, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalNUpdateProfileInput2enchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx, tmp)
+		return ec.unmarshalNUpdateProfileInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx, tmp)
 	}
 
 	var zeroVal model.UpdateProfileInput
@@ -664,6 +679,29 @@ func (ec *executionContext) field_Query_getChats_argsOffset(
 	}
 
 	var zeroVal int32
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_addDataSource_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_addDataSource_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_addDataSource_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.AddDataSourceInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNAddDataSourceInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx, tmp)
+	}
+
+	var zeroVal model.AddDataSourceInput
 	return zeroVal, nil
 }
 
@@ -906,7 +944,7 @@ func (ec *executionContext) _Chat_messages(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.([]*model.Message)
 	fc.Result = res
-	return ec.marshalNMessage2ᚕᚖenchantedᚑtwinᚋgraphᚋmodelᚐMessageᚄ(ctx, field.Selections, res)
+	return ec.marshalNMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Chat_messages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1139,7 +1177,7 @@ func (ec *executionContext) _Message_role(ctx context.Context, field graphql.Col
 	}
 	res := resTmp.(model.Role)
 	fc.Result = res
-	return ec.marshalNRole2enchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx, field.Selections, res)
+	return ec.marshalNRole2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Message_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1183,7 +1221,7 @@ func (ec *executionContext) _Message_toolCalls(ctx context.Context, field graphq
 	}
 	res := resTmp.([]*model.ToolCall)
 	fc.Result = res
-	return ec.marshalNToolCall2ᚕᚖenchantedᚑtwinᚋgraphᚋmodelᚐToolCallᚄ(ctx, field.Selections, res)
+	return ec.marshalNToolCall2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCallᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Message_toolCalls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1378,7 +1416,7 @@ func (ec *executionContext) _Mutation_createChat(ctx context.Context, field grap
 	}
 	res := resTmp.(*model.Chat)
 	fc.Result = res
-	return ec.marshalNChat2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, field.Selections, res)
+	return ec.marshalNChat2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_createChat(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1443,7 +1481,7 @@ func (ec *executionContext) _Mutation_sendMessage(ctx context.Context, field gra
 	}
 	res := resTmp.(*model.Message)
 	fc.Result = res
-	return ec.marshalNMessage2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res)
+	return ec.marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1514,7 +1552,7 @@ func (ec *executionContext) _Mutation_deleteChat(ctx context.Context, field grap
 	}
 	res := resTmp.(*model.Chat)
 	fc.Result = res
-	return ec.marshalNChat2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, field.Selections, res)
+	return ec.marshalNChat2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_deleteChat(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1579,7 +1617,7 @@ func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*model.UserProfile)
 	fc.Result = res
-	return ec.marshalNUserProfile2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx, field.Selections, res)
+	return ec.marshalNUserProfile2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_profile(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1627,7 +1665,7 @@ func (ec *executionContext) _Query_getChats(ctx context.Context, field graphql.C
 	}
 	res := resTmp.([]*model.Chat)
 	fc.Result = res
-	return ec.marshalNChat2ᚕᚖenchantedᚑtwinᚋgraphᚋmodelᚐChatᚄ(ctx, field.Selections, res)
+	return ec.marshalNChat2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_getChats(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1692,7 +1730,7 @@ func (ec *executionContext) _Query_getChat(ctx context.Context, field graphql.Co
 	}
 	res := resTmp.(*model.Chat)
 	fc.Result = res
-	return ec.marshalNChat2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, field.Selections, res)
+	return ec.marshalNChat2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_getChat(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1896,7 +1934,7 @@ func (ec *executionContext) _Subscription_messageAdded(ctx context.Context, fiel
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.marshalNMessage2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res).MarshalGQL(w)
+				ec.marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		case <-ctx.Done():
@@ -1939,6 +1977,75 @@ func (ec *executionContext) fieldContext_Subscription_messageAdded(ctx context.C
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Subscription_messageAdded_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_addDataSource(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_addDataSource(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().AddDataSource(rctx, fc.Args["input"].(model.AddDataSourceInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan bool):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNBoolean2bool(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_addDataSource(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_addDataSource_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4069,6 +4176,47 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
+func (ec *executionContext) unmarshalInputAddDataSourceInput(ctx context.Context, obj any) (model.AddDataSourceInput, error) {
+	var it model.AddDataSourceInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"dataSourceName", "path", "username"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "dataSourceName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dataSourceName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DataSourceName = data
+		case "path":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Path = data
+		case "username":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Username = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
 	var it model.UpdateProfileInput
 	asMap := map[string]any{}
@@ -4456,6 +4604,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "messageAdded":
 		return ec._Subscription_messageAdded(ctx, fields[0])
+	case "addDataSource":
+		return ec._Subscription_addDataSource(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -4881,6 +5031,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
+func (ec *executionContext) unmarshalNAddDataSourceInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx context.Context, v any) (model.AddDataSourceInput, error) {
+	res, err := ec.unmarshalInputAddDataSourceInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -4896,11 +5051,11 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) marshalNChat2enchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx context.Context, sel ast.SelectionSet, v model.Chat) graphql.Marshaler {
+func (ec *executionContext) marshalNChat2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx context.Context, sel ast.SelectionSet, v model.Chat) graphql.Marshaler {
 	return ec._Chat(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNChat2ᚕᚖenchantedᚑtwinᚋgraphᚋmodelᚐChatᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Chat) graphql.Marshaler {
+func (ec *executionContext) marshalNChat2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Chat) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -4924,7 +5079,7 @@ func (ec *executionContext) marshalNChat2ᚕᚖenchantedᚑtwinᚋgraphᚋmodel�
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNChat2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, sel, v[i])
+			ret[i] = ec.marshalNChat2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -4944,7 +5099,7 @@ func (ec *executionContext) marshalNChat2ᚕᚖenchantedᚑtwinᚋgraphᚋmodel�
 	return ret
 }
 
-func (ec *executionContext) marshalNChat2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx context.Context, sel ast.SelectionSet, v *model.Chat) graphql.Marshaler {
+func (ec *executionContext) marshalNChat2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChat(ctx context.Context, sel ast.SelectionSet, v *model.Chat) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -4999,11 +5154,11 @@ func (ec *executionContext) marshalNInt2int32(ctx context.Context, sel ast.Selec
 	return res
 }
 
-func (ec *executionContext) marshalNMessage2enchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx context.Context, sel ast.SelectionSet, v model.Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx context.Context, sel ast.SelectionSet, v model.Message) graphql.Marshaler {
 	return ec._Message(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNMessage2ᚕᚖenchantedᚑtwinᚋgraphᚋmodelᚐMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Message) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5027,7 +5182,7 @@ func (ec *executionContext) marshalNMessage2ᚕᚖenchantedᚑtwinᚋgraphᚋmod
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNMessage2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, sel, v[i])
+			ret[i] = ec.marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5047,7 +5202,7 @@ func (ec *executionContext) marshalNMessage2ᚕᚖenchantedᚑtwinᚋgraphᚋmod
 	return ret
 }
 
-func (ec *executionContext) marshalNMessage2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx context.Context, sel ast.SelectionSet, v *model.Message) graphql.Marshaler {
+func (ec *executionContext) marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx context.Context, sel ast.SelectionSet, v *model.Message) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5057,13 +5212,13 @@ func (ec *executionContext) marshalNMessage2ᚖenchantedᚑtwinᚋgraphᚋmodel�
 	return ec._Message(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNRole2enchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (model.Role, error) {
+func (ec *executionContext) unmarshalNRole2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx context.Context, v any) (model.Role, error) {
 	var res model.Role
 	err := res.UnmarshalGQL(v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNRole2enchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx context.Context, sel ast.SelectionSet, v model.Role) graphql.Marshaler {
+func (ec *executionContext) marshalNRole2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx context.Context, sel ast.SelectionSet, v model.Role) graphql.Marshaler {
 	return v
 }
 
@@ -5112,7 +5267,7 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
-func (ec *executionContext) marshalNToolCall2ᚕᚖenchantedᚑtwinᚋgraphᚋmodelᚐToolCallᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ToolCall) graphql.Marshaler {
+func (ec *executionContext) marshalNToolCall2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCallᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ToolCall) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -5136,7 +5291,7 @@ func (ec *executionContext) marshalNToolCall2ᚕᚖenchantedᚑtwinᚋgraphᚋmo
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNToolCall2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐToolCall(ctx, sel, v[i])
+			ret[i] = ec.marshalNToolCall2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCall(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -5156,7 +5311,7 @@ func (ec *executionContext) marshalNToolCall2ᚕᚖenchantedᚑtwinᚋgraphᚋmo
 	return ret
 }
 
-func (ec *executionContext) marshalNToolCall2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐToolCall(ctx context.Context, sel ast.SelectionSet, v *model.ToolCall) graphql.Marshaler {
+func (ec *executionContext) marshalNToolCall2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCall(ctx context.Context, sel ast.SelectionSet, v *model.ToolCall) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
@@ -5166,16 +5321,16 @@ func (ec *executionContext) marshalNToolCall2ᚖenchantedᚑtwinᚋgraphᚋmodel
 	return ec._ToolCall(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNUpdateProfileInput2enchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
+func (ec *executionContext) unmarshalNUpdateProfileInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUpdateProfileInput(ctx context.Context, v any) (model.UpdateProfileInput, error) {
 	res, err := ec.unmarshalInputUpdateProfileInput(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNUserProfile2enchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v model.UserProfile) graphql.Marshaler {
+func (ec *executionContext) marshalNUserProfile2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v model.UserProfile) graphql.Marshaler {
 	return ec._UserProfile(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNUserProfile2ᚖenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v *model.UserProfile) graphql.Marshaler {
+func (ec *executionContext) marshalNUserProfile2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐUserProfile(ctx context.Context, sel ast.SelectionSet, v *model.UserProfile) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
