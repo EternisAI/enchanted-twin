@@ -1,0 +1,7 @@
+build/
+.idea
+.env
+bin/
+output/
+data_input/
+store.db

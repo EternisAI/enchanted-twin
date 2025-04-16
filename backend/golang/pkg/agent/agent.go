@@ -1,0 +1,94 @@
+package agent
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/nats-io/nats.go"
+	"github.com/openai/openai-go"
+)
+
+const MAX_STEPS = 10
+
+type Agent struct {
+	nc        *nats.Conn
+	aiService *ai.Service
+}
+
+func NewAgent(nc *nats.Conn, aiService *ai.Service) *Agent {
+	return &Agent{
+		nc:        nc,
+		aiService: aiService,
+	}
+}
+
+type AgentResponse struct {
+	Content   string
+	ToolCalls []openai.ChatCompletionMessageToolCall
+}
+
+type ToolCall struct {
+	ToolName   string
+	Arguments  string
+	ToolResult any
+}
+
+func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, currentTools []tools.Tool) (AgentResponse, error) {
+	currentStep := 0
+	responseContent := ""
+	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
+	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
+
+	toolsMap := make(map[string]tools.Tool, 0)
+	for _, tool := range currentTools {
+		toolsMap[tool.Definition().Function.Name] = tool
+		apiToolDefinitions = append(apiToolDefinitions, tool.Definition())
+	}
+
+	for currentStep < MAX_STEPS {
+		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, "gpt-4o-mini")
+		if err != nil {
+			return AgentResponse{}, err
+		}
+
+		messages = append(messages, completion.ToParam())
+
+		if len(completion.ToolCalls) == 0 {
+			return AgentResponse{
+				Content: completion.Content,
+			}, nil
+		}
+
+		for _, toolCall := range completion.ToolCalls {
+			tool, ok := toolsMap[toolCall.Function.Name]
+			if !ok {
+				return AgentResponse{}, fmt.Errorf("tool not found: %s", toolCall.Function.Name)
+			}
+
+			var args map[string]any
+			err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
+			if err != nil {
+				return AgentResponse{}, err
+			}
+
+			toolResult, err := tool.Execute(ctx, args)
+			if err != nil {
+				return AgentResponse{}, err
+			}
+
+			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
+			toolCalls = append(toolCalls, toolCall)
+		}
+
+		responseContent = completion.Content
+		currentStep++
+	}
+
+	return AgentResponse{
+		Content:   responseContent,
+		ToolCalls: toolCalls,
+	}, nil
+}
