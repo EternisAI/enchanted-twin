@@ -63,7 +63,7 @@ app.whenReady().then(() => {
   // Determine the path to the Go binary based on the environment
   const goBinaryPath = is.dev
     ? join(__dirname, '..', '..', 'resources', 'enchanted-twin') // Path in development
-    : join(process.resourcesPath, 'enchanted-twin'); // Path in production
+    : join(process.resourcesPath, 'resources', 'enchanted-twin'); // Adjusted path in production
 
   console.log(`Attempting to start Go server at: ${goBinaryPath}`)
   try {
