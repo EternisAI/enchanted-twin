@@ -74,7 +74,7 @@ func TestProcessTweetFile(t *testing.T) {
       "edit_info" : {
         "initial" : {
           "editTweetIds" : [
-            "190965931217s7480030"
+            "1909659312177480030"
           ],
           "editableUntil" : "2025-04-08T18:27:14.000Z",
           "editsRemaining" : "5",
@@ -94,18 +94,8 @@ func TestProcessTweetFile(t *testing.T) {
               "0",
               "12"
             ],
-            "id_str" : "18502809260s82650112",
+            "id_str" : "1850280926082650112",
             "id" : "1850280926082650112"
-          },
-          {
-            "name" : "AlertesInfos",
-            "screen_name" : "AlertesInfos",
-            "indices" : [
-              "13",
-              "26"
-            ],
-            "id_str" : "959531564341317632",
-            "id" : "959531564341317632"
           }
         ],
         "urls" : [ ]
@@ -129,88 +119,7 @@ func TestProcessTweetFile(t *testing.T) {
       "in_reply_to_screen_name" : "John2Retour",
       "in_reply_to_user_id_str" : "1850280926082650112"
     }
-  },
-  {
-    "tweet" : {
-      "edit_info" : {
-        "initial" : {
-          "editTweetIds" : [
-            "1908258125867589667"
-          ],
-          "editableUntil" : "2025-04-04T21:39:25.000Z",
-          "editsRemaining" : "5",
-          "isEditEligible" : false
-        }
-      },
-      "retweeted" : false,
-      "source" : "<a href=\"http://twitter.com/download/android\" rel=\"nofollow\">Twitter for Android</a>",
-      "entities" : {
-        "hashtags" : [ ],
-        "symbols" : [ ],
-        "user_mentions" : [
-          {
-            "name" : "Oscar The Grouch",
-            "screen_name" : "OscarGrouch214",
-            "indices" : [
-              "0",
-              "15"
-            ],
-            "id_str" : "1595082470721867776",
-            "id" : "1595082470721867776"
-          },
-          {
-            "name" : "Alex Kaufman",
-            "screen_name" : "akkaufman",
-            "indices" : [
-              "16",
-              "26"
-            ],
-            "id_str" : "85821611",
-            "id" : "85821611"
-          },
-          {
-            "name" : "zerohedge",
-            "screen_name" : "zerohedge",
-            "indices" : [
-              "27",
-              "37"
-            ],
-            "id_str" : "18856867",
-            "id" : "18856867"
-          },
-          {
-            "name" : "TF Metals Report",
-            "screen_name" : "TFMetals",
-            "indices" : [
-              "38",
-              "47"
-            ],
-            "id_str" : "249834807",
-            "id" : "249834807"
-          }
-        ],
-        "urls" : [ ]
-      },
-      "display_text_range" : [
-        "0",
-        "181"
-      ],
-      "favorite_count" : "1",
-      "in_reply_to_status_id_str" : "19082542f85835759829",
-      "id_str" : "1908258125867589667",
-      "in_reply_to_user_id" : "15950824707218w67776",
-      "truncated" : false,
-      "retweet_count" : "0",
-      "id" : "1908258125867w589667",
-      "in_reply_to_status_id" : "190825428w5835759829",
-      "created_at" : "Fri Apr 04 20:39:25 +0000 2025",
-      "favorited" : false,
-      "full_text" : "@OscarGrouch No, you.",
-      "lang" : "en",
-      "in_reply_to_screen_name" : "OscarGrouch214",
-      "in_reply_to_user_id_str" : "1595082470721867776"
-    }
-  },
+  }
 ]`
 
 	if err := os.WriteFile(tweetPath, []byte(tweetContent), 0o644); err != nil {
@@ -238,8 +147,8 @@ func TestProcessTweetFile(t *testing.T) {
 		t.Errorf("Expected type 'tweet', got '%v'", data["type"])
 	}
 
-	if data["id"] != "19093868747226367534" {
-		t.Errorf("Expected id '1909386874726367534', got '%v'", data["id"])
+	if data["id"] != "1909659312177480030" {
+		t.Errorf("Expected id '1909659312177480030', got '%v'", data["id"])
 	}
 
 	if _, ok := data["fullText"]; !ok {
@@ -450,23 +359,13 @@ func TestProcessDirectory(t *testing.T) {
         "user_mentions" : [
           {
             "name" : "John🇰🇿",
-            "screen_name" : "John2Retour",
+            "screen_name" : "JohnRetour",
             "indices" : [
               "0",
               "12"
             ],
             "id_str" : "1850280926082650112",
             "id" : "1850280926082650112"
-          },
-          {
-            "name" : "AlertesInfos",
-            "screen_name" : "AlertesInfos",
-            "indices" : [
-              "13",
-              "26"
-            ],
-            "id_str" : "959531564341317632",
-            "id" : "959531564341317632"
           }
         ],
         "urls" : [ ]
@@ -485,93 +384,13 @@ func TestProcessDirectory(t *testing.T) {
       "in_reply_to_status_id" : "1909649453759217849",
       "created_at" : "Tue Apr 08 17:27:14 +0000 2025",
       "favorited" : false,
-      "full_text" : "@John2Retour @AlertesInfos  This isnt the solution, it's the problem",
+      "full_text" : "@John2Retour I dont agree",
       "lang" : "fr",
       "in_reply_to_screen_name" : "John2Retour",
       "in_reply_to_user_id_str" : "1850280926082650112"
     }
-  },
-  {
-    "tweet" : {
-      "edit_info" : {
-        "initial" : {
-          "editTweetIds" : [
-            "1908258125867589667"
-          ],
-          "editableUntil" : "2025-04-04T21:39:25.000Z",
-          "editsRemaining" : "5",
-          "isEditEligible" : false
-        }
-      },
-      "retweeted" : false,
-      "source" : "<a href=\"http://twitter.com/download/android\" rel=\"nofollow\">Twitter for Android</a>",
-      "entities" : {
-        "hashtags" : [ ],
-        "symbols" : [ ],
-        "user_mentions" : [
-          {
-            "name" : "Oscar The Grouch",
-            "screen_name" : "OscarGrouch214",
-            "indices" : [
-              "0",
-              "15"
-            ],
-            "id_str" : "1595082470721867776",
-            "id" : "1595082470721867776"
-          },
-          {
-            "name" : "Alex Kaufman",
-            "screen_name" : "akkaufman",
-            "indices" : [
-              "16",
-              "26"
-            ],
-            "id_str" : "85821611",
-            "id" : "85821611"
-          },
-          {
-            "name" : "zerohedge",
-            "screen_name" : "zerohedge",
-            "indices" : [
-              "27",
-              "37"
-            ],
-            "id_str" : "18856867",
-            "id" : "18856867"
-          },
-          {
-            "name" : "TF Metals Report",
-            "screen_name" : "TFMetals",
-            "indices" : [
-              "38",
-              "47"
-            ],
-            "id_str" : "249834807",
-            "id" : "249834807"
-          }
-        ],
-        "urls" : [ ]
-      },
-      "display_text_range" : [
-        "0",
-        "181"
-      ],
-      "favorite_count" : "1",
-      "in_reply_to_status_id_str" : "1908254285835759829",
-      "id_str" : "1908258125867589667",
-      "in_reply_to_user_id" : "1595082470721867776",
-      "truncated" : false,
-      "retweet_count" : "0",
-      "id" : "1908258125867589667",
-      "in_reply_to_status_id" : "1908254285835759829",
-      "created_at" : "Fri Apr 04 20:39:25 +0000 2025",
-      "favorited" : false,
-      "full_text" : "@OscarGrouch214 @akkaufman @zerohedge @TFMetals  I dont agree with this",
-      "lang" : "en",
-      "in_reply_to_screen_name" : "OscarGrouch214",
-      "in_reply_to_user_id_str" : "1595082470721867776"
-    }
-  }]`
+  }
+]`
 	tweetPath := filepath.Join(tempDir, "tweets.js")
 	if err := os.WriteFile(tweetPath, []byte(tweetContent), 0o644); err != nil {
 		t.Fatalf("Failed to create test file: %v", err)

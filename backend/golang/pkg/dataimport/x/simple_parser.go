@@ -96,7 +96,9 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 			continue
 		}
 
+		// Extract tweet ID using absolute positions
 		tweetId := part[tweetIdStart : tweetIdStart+tweetIdEnd]
+		fmt.Printf("Extracted tweetId: %s\n", tweetId)
 
 		fullTextStart := strings.Index(part, "fullText")
 		if fullTextStart == -1 {
