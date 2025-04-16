@@ -4,7 +4,12 @@ import { Button } from './components/ui/button'
 function App(): React.JSX.Element {
   const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
   return (
-    <div className="flex  items-center flex-col gap-8 py-10">
+    <div
+      className="flex  items-center flex-col gap-8 py-10"
+      style={{
+        viewTransitionName: 'page-content'
+      }}
+    >
       <style>
         {`
           :root {

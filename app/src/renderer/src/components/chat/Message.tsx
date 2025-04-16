@@ -1,8 +1,20 @@
 import { Message } from '@renderer/graphql/generated/graphql'
+import { motion } from 'framer-motion'
+
+const messageAnimation = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.3, ease: 'easeOut' }
+}
 
 export function UserMessageBubble({ message }: { message: Message }) {
   return (
-    <div className="flex justify-end">
+    <motion.div
+      className="flex justify-end"
+      initial="initial"
+      animate="animate"
+      variants={messageAnimation}
+    >
       <div className="bg-white text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
@@ -21,13 +33,18 @@ export function UserMessageBubble({ message }: { message: Message }) {
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 export function AssistantMessageBubble({ message }: { message: Message }) {
   return (
-    <div className="flex justify-start">
+    <motion.div
+      className="flex justify-start"
+      initial="initial"
+      animate="animate"
+      variants={messageAnimation}
+    >
       <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
@@ -66,6 +83,6 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
