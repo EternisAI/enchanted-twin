@@ -33,7 +33,6 @@ import (
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	logger.Info("Starting server...")
 
 	envs, err := config.LoadConfig(true)
 	if err != nil {
@@ -87,7 +86,7 @@ func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	go bootstrap.CreateTemporalServer()
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	logger.Info("Starting temporal client")
 	client, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
