@@ -6,26 +6,59 @@ package graph
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
 )
+
+// Messages is the resolver for the messages field.
+func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.Message, error) {
+	return r.TwinChatService.GetMessagesByChatId(ctx, obj.ID)
+}
 
 // UpdateProfile is the resolver for the updateProfile field.
 func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
 	panic(fmt.Errorf("not implemented: UpdateProfile - updateProfile"))
 }
 
-// AddDataSource is the resolver for the addDataSource field.
-func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
+// CreateChat is the resolver for the createChat field.
+func (r *mutationResolver) CreateChat(ctx context.Context, name string) (*model.Chat, error) {
+	chat, err := r.TwinChatService.CreateChat(ctx, name)
 	if err != nil {
-		fmt.Println(err)
-		return false, err
+		return nil, err
 	}
-	return success, nil
+	return &chat, nil
+}
+
+// SendMessage is the resolver for the sendMessage field.
+func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error) {
+	subject := fmt.Sprintf("chat.%s", chatID)
+
+	userMessageJson, err := json.Marshal(model.Message{
+		ID:        uuid.New().String(),
+		Text:      &text,
+		CreatedAt: time.Now().Format(time.RFC3339),
+		Role:      model.RoleUser,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = r.Nc.Publish(subject, userMessageJson)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.TwinChatService.SendMessage(ctx, chatID, text)
+}
+
+// DeleteChat is the resolver for the deleteChat field.
+func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
+	panic(fmt.Errorf("not implemented: DeleteChat - deleteChat"))
 }
 
 // Profile is the resolver for the profile field.
@@ -35,13 +68,70 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 	}, nil
 }
 
+// GetChats is the resolver for the getChats field.
+func (r *queryResolver) GetChats(ctx context.Context, first int32, offset int32) ([]*model.Chat, error) {
+	chats, err := r.TwinChatService.GetChats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return chats, nil
+}
+
+// GetChat is the resolver for the getChat field.
+func (r *queryResolver) GetChat(ctx context.Context, id string) (*model.Chat, error) {
+	chat, err := r.TwinChatService.GetChat(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &chat, nil
+}
+
+// MessageAdded is the resolver for the messageAdded field.
+func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
+	messages := make(chan *model.Message)
+	subject := fmt.Sprintf("chat.%s", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var message model.Message
+		err := json.Unmarshal(msg.Data, &message)
+		if err != nil {
+			r.Logger.Info("unmarshal error", "Error parsing message: %v", err)
+			return
+		}
+
+		messages <- &message
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(messages)
+	}()
+
+	return messages, nil
+}
+
+// AddDataSource is the resolver for the addDataSource field.
+func (r *subscriptionResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (<-chan bool, error) {
+	panic(fmt.Errorf("not implemented: AddDataSource - addDataSource"))
+}
+
+// Chat returns ChatResolver implementation.
+func (r *Resolver) Chat() ChatResolver { return &chatResolver{r} }
+
 // Mutation returns MutationResolver implementation.
 func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-type (
-	mutationResolver struct{ *Resolver }
-	queryResolver    struct{ *Resolver }
-)
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
