@@ -2,9 +2,6 @@ package main
 
 import (
 	"context"
-	"enchanted-twin/graph"
-	"enchanted-twin/pkg/bootstrap"
-	"enchanted-twin/pkg/config"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -12,6 +9,11 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
+
+	"github.com/EternisAI/enchanted-twin/graph"
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/handler"

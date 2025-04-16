@@ -1,10 +1,11 @@
 package main
 
 import (
-	"enchanted-twin/graph"
 	"log"
 	"net/http"
 	"os"
+
+	"github.com/EternisAI/enchanted-twin/graph"
 
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"

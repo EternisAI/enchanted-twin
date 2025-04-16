@@ -6,14 +6,26 @@ package graph
 
 import (
 	"context"
-	"enchanted-twin/graph/model"
-	"enchanted-twin/pkg/helpers"
 	"fmt"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // UpdateProfile is the resolver for the updateProfile field.
 func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
 	panic(fmt.Errorf("not implemented: UpdateProfile - updateProfile"))
+}
+
+// AddDataSource is the resolver for the addDataSource field.
+func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
+	result, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
+	return result, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -29,5 +41,7 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
+type (
+	mutationResolver struct{ *Resolver }
+	queryResolver    struct{ *Resolver }
+)
