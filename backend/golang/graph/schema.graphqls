@@ -12,4 +12,11 @@ type Query {
 
 type Mutation {
   updateProfile(input: UpdateProfileInput!): Boolean!
+  addDataSource(input: AddDataSourceInput!): Boolean!
+}
+
+input AddDataSourceInput {
+  dataSourceName: String!
+  path: String!
+  username: String!
 }
