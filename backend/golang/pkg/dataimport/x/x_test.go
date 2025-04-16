@@ -163,11 +163,11 @@ func TestProcessDirectMessageFile(t *testing.T) {
 	dmContent := `window.YTD.direct_messages.part0 = [
   {
     "dmConversation" : {
-      "conversationId" : "3895214232-16769w28456225898496",
+      "conversationId" : "3895214232-1676928456225898496",
       "messages" : [
         {
           "messageCreate" : {
-            "recipientId" : "16769284w56225898496",
+            "recipientId" : "1676928456225898496",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "Yup",
@@ -180,46 +180,46 @@ func TestProcessDirectMessageFile(t *testing.T) {
         },
         {
           "messageCreate" : {
-            "recipientId" : "38952s14232",
+            "recipientId" : "3895214232",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "its so easy to take over",
             "mediaUrls" : [ ],
-            "senderId" : "1676928456s225898496",
-            "id" : "188284925830s8829593",
+            "senderId" : "1676928456225898496",
+            "id" : "1882849258308829593",
             "createdAt" : "2025-01-24T17:53:39.530Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "3895s214232",
+            "recipientId" : "3895214232",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "they dont even talk about personal finance anymore lmao",
             "mediaUrls" : [ ],
-            "senderId" : "16769s28456225898496",
-            "id" : "1882849235s424681996",
+            "senderId" : "1676928456225898496",
+            "id" : "1882849235424681996",
             "createdAt" : "2025-01-24T17:53:34.065Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "389521s4232",
+            "recipientId" : "3895214232",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "this has moved from a finance community to a communist community quickly",
             "mediaUrls" : [ ],
-            "senderId" : "1676928s456225898496",
-            "id" : "18828492006s49752911",
+            "senderId" : "1676928456225898496",
+            "id" : "1882849200649752911",
             "createdAt" : "2025-01-24T17:53:25.774Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "38952s14232",
+            "recipientId" : "3895214232",
             "reactions" : [ ],
             "urls" : [
               {
@@ -230,8 +230,8 @@ func TestProcessDirectMessageFile(t *testing.T) {
             ],
             "text" : "https://t.co/ICjIPCJQuK",
             "mediaUrls" : [ ],
-            "senderId" : "16769284s56225898496",
-            "id" : "18828491162s26732213",
+            "senderId" : "1676928456225898496",
+            "id" : "1882849116226732213",
             "createdAt" : "2025-01-24T17:53:05.729Z",
             "editHistory" : [ ]
           }
@@ -241,11 +241,11 @@ func TestProcessDirectMessageFile(t *testing.T) {
   },
   {
     "dmConversation" : {
-      "conversationId" : "1638683789s647032320-1676928456225898496",
+      "conversationId" : "1638683789647032320-1676928456225898496",
       "messages" : [
         {
           "messageCreate" : {
-            "recipientId" : "167692s8456225898496",
+            "recipientId" : "1676928456225898496",
             "reactions" : [ ],
             "urls" : [
               {
@@ -256,21 +256,21 @@ func TestProcessDirectMessageFile(t *testing.T) {
             ],
             "text" : "Hey there. Thanks for reaching out. I'm sorry for the inconvenience this has caused. To help isolate this further, could you try these steps:\n\n- Temporarily disable firewalls, virus scanners, and any other form of security/antivirus/adblock software; then try connecting to Discord\n- Swap DNS provider: https://t.co/ppjPkQBOjY",
             "mediaUrls" : [ ],
-            "senderId" : "16382683789647032320",
-            "id" : "18340560282521526601",
+            "senderId" : "1638683789647032320",
+            "id" : "1834056082521526601",
             "createdAt" : "2024-09-12T02:26:59.890Z",
             "editHistory" : [ ]
           }
         },
         {
           "messageCreate" : {
-            "recipientId" : "16386283789647032320",
+            "recipientId" : "1638683789647032320",
             "reactions" : [ ],
             "urls" : [ ],
             "text" : "Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks",
             "mediaUrls" : [ ],
-            "senderId" : "16769228456225898496",
-            "id" : "18339750929671633984",
+            "senderId" : "1676928456225898496",
+            "id" : "1833975099671633984",
             "createdAt" : "2024-09-11T21:05:12.176Z",
             "editHistory" : [ ]
           }
@@ -294,6 +294,11 @@ func TestProcessDirectMessageFile(t *testing.T) {
 		t.Errorf("Expected 2 records, got %d", len(records))
 	}
 
+	expectedConversationIds := map[string]bool{
+		"3895214232-1676928456225898496":          true,
+		"1638683789647032320-1676928456225898496": true,
+	}
+
 	for _, record := range records {
 		if record.Source != "x" {
 			t.Errorf("Expected source 'x', got '%s'", record.Source)
@@ -304,8 +309,14 @@ func TestProcessDirectMessageFile(t *testing.T) {
 			t.Errorf("Expected type 'directMessage', got '%v'", data["type"])
 		}
 
-		if data["conversationId"] != "14101591-1064795797114552322" {
-			t.Errorf("Expected conversationId '14101591-1064795797114552322', got '%v'", data["conversationId"])
+		conversationId, ok := data["conversationId"].(string)
+		if !ok {
+			t.Errorf("Expected conversationId to be a string, but it wasn't")
+			continue
+		}
+
+		if !expectedConversationIds[conversationId] {
+			t.Errorf("Unexpected conversationId '%v', expected one of %v", conversationId, expectedConversationIds)
 		}
 
 		if _, ok := data["text"]; !ok {
