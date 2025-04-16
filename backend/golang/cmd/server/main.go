@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"enchanted-twin/graph"
+	"enchanted-twin/pkg/ai"
 	"enchanted-twin/pkg/bootstrap"
 	"enchanted-twin/pkg/config"
+	"enchanted-twin/pkg/twinchat"
+	chatrepository "enchanted-twin/pkg/twinchat/repository"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -20,6 +23,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"go.temporal.io/sdk/client"
@@ -41,7 +45,29 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	router := bootstrapGraphqlServer(logger, temporalClient, envs.GraphqlPort)
+	logger.Info("Starting nats server")
+	_, err = bootstrap.StartEmbeddedNATSServer()
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start nats server"))
+	}
+
+	logger.Info("Starting nats client")
+	nc, err := bootstrap.NewNatsClient()
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create nats client"))
+	}
+
+	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	chatStorage := chatrepository.NewRepository(logger)
+	twinChatService := twinchat.NewService(aiService, chatStorage, nc)
+
+	router := bootstrapGraphqlServer(graphqlServerInput{
+		logger:          logger,
+		temporalClient:  temporalClient,
+		port:            envs.GraphqlPort,
+		twinChatService: twinChatService,
+		natsClient:      nc,
+	})
 
 	logger.Info("Starting server")
 	err = http.ListenAndServe(":"+envs.GraphqlPort, router)
@@ -69,18 +95,28 @@ func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
 	return client, nil
 }
 
-func bootstrapGraphqlServer(logger *slog.Logger, temporalClient client.Client, port string) *chi.Mux {
+type graphqlServerInput struct {
+	logger          *slog.Logger
+	temporalClient  client.Client
+	port            string
+	twinChatService *twinchat.Service
+	natsClient      *nats.Conn
+}
+
+func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(cors.New(cors.Options{
 		AllowCredentials: true,
 		AllowedOrigins:   []string{"*"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
-		Debug:            false,
+		Debug:            true,
 	}).Handler)
 
 	srv := handler.New(gqlSchema(GqlSchemaInput{
-		Logger:         logger,
-		TemporalClient: temporalClient,
+		Logger:          input.logger,
+		TemporalClient:  input.temporalClient,
+		TwinChatService: input.twinChatService,
+		Nc:              input.natsClient,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
@@ -104,7 +140,7 @@ func bootstrapGraphqlServer(logger *slog.Logger, temporalClient client.Client, p
 
 		if resp != nil && resp.Errors != nil && len(resp.Errors) > 0 {
 			oc := graphql.GetOperationContext(ctx)
-			logger.Error("gql error", "operation_name", oc.OperationName, "raw_query", oc.RawQuery, "errors", resp.Errors)
+			input.logger.Error("gql error", "operation_name", oc.OperationName, "raw_query", oc.RawQuery, "errors", resp.Errors)
 		}
 
 		return resp
@@ -113,21 +149,25 @@ func bootstrapGraphqlServer(logger *slog.Logger, temporalClient client.Client, p
 	router.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	router.Handle("/query", srv)
 
-	logger.Info(fmt.Sprintf("connect to http://localhost:%s/ for GraphQL playground", port))
+	input.logger.Info(fmt.Sprintf("connect to http://localhost:%s/ for GraphQL playground", input.port))
 
 	return router
 }
 
 type GqlSchemaInput struct {
-	Logger         *slog.Logger
-	TemporalClient client.Client
+	Logger          *slog.Logger
+	TemporalClient  client.Client
+	TwinChatService *twinchat.Service
+	Nc              *nats.Conn
 }
 
 func gqlSchema(input GqlSchemaInput) graphql.ExecutableSchema {
 	config := graph.Config{
 		Resolvers: &graph.Resolver{
-			Logger:         input.Logger,
-			TemporalClient: input.TemporalClient,
+			Logger:          input.Logger,
+			TemporalClient:  input.TemporalClient,
+			TwinChatService: *input.TwinChatService,
+			Nc:              input.Nc,
 		},
 	}
 	return graph.NewExecutableSchema(config)

@@ -9,8 +9,9 @@ import (
 )
 
 type Config struct {
-	OpenAIAPIKey string
-	GraphqlPort  string
+	OpenAIAPIKey  string
+	GraphqlPort   string
+	OpenAIBaseURL string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -35,7 +36,8 @@ func getEnvOrPanic(key string, printEnv bool) string {
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 	return &Config{
-		OpenAIAPIKey: getEnvOrPanic("OPENAI_API_KEY", printEnv),
-		GraphqlPort:  getEnvOrPanic("GRAPHQL_PORT", printEnv),
+		OpenAIAPIKey:  getEnvOrPanic("OPENAI_API_KEY", printEnv),
+		GraphqlPort:   getEnvOrPanic("GRAPHQL_PORT", printEnv),
+		OpenAIBaseURL: getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
 	}, nil
 }
