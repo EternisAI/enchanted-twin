@@ -9,6 +9,12 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// Wrapper around a SQLite database connection that provides
+// functionality specific to Twins.
+//
+// 1. The creation method creates the tables if they do not exist.
+// 2. Convenience methods for querying data.
+// 3. Convenience method for inserting and updating data.
 type Store struct {
 	db *sqlx.DB
 }
@@ -33,7 +39,7 @@ func NewStore(dbPath string) (*Store, error) {
 
 	// Insert default profile if it doesn't exist
 	_, err = db.Exec(`
-		INSERT OR IGNORE INTO user_profiles (id, name) VALUES ('default', 'John Doe')
+		INSERT OR IGNORE INTO user_profiles (id, name) VALUES ('default', '(missing name)')
 	`)
 	if err != nil {
 		return nil, err
