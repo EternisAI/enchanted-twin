@@ -3,6 +3,11 @@ import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { spawn, ChildProcess } from 'child_process'
+import log from 'electron-log/main';
+
+// Configure electron-log
+log.transports.file.level = 'info'; // Log info level and above to file
+log.info(`Log file will be written to: ${log.transports.file.getFile().path}`);
 
 let goServerProcess: ChildProcess | null = null
 
@@ -60,7 +65,7 @@ app.whenReady().then(() => {
     ? join(__dirname, '..', '..', 'resources', 'enchanted-twin') // Path in development
     : join(process.resourcesPath, 'resources', 'enchanted-twin'); // Adjusted path in production
 
-  console.log(`Attempting to start Go server at: ${goBinaryPath}`)
+  log.info(`Attempting to start Go server at: ${goBinaryPath}`)
   try {
     goServerProcess = spawn(goBinaryPath, [], {
       // No stdio option here, defaults to 'pipe'
@@ -68,28 +73,28 @@ app.whenReady().then(() => {
 
     if (goServerProcess) {
       goServerProcess.on('error', (err) => {
-        console.error('Failed to start Go server:', err)
+        log.error('Failed to start Go server:', err)
       })
 
       goServerProcess.on('close', (code) => {
-        console.log(`Go server process exited with code ${code}`)
+        log.info(`Go server process exited with code ${code}`)
         goServerProcess = null // Reset when closed
       })
 
       goServerProcess.stdout?.on('data', (data) => {
-        console.log(`Go Server stdout: ${data}`);
+        log.info(`Go Server stdout: ${data.toString().trim()}`);
       });
       goServerProcess.stderr?.on('data', (data) => {
-        console.error(`Go Server stderr: ${data}`);
+        log.error(`Go Server stderr: ${data.toString().trim()}`);
       });
 
-      console.log('Go server process started.')
+      log.info('Go server process spawned.')
     } else {
-        console.error('Failed to spawn Go server process.')
+        log.error('Failed to spawn Go server process.')
     }
 
   } catch (error) {
-    console.error('Error spawning Go server:', error)
+    log.error('Error spawning Go server:', error)
   }
 
   // Set app user model id for windows
@@ -125,13 +130,13 @@ app.on('window-all-closed', () => {
 
 // Ensure Go server is killed when the app quits (only if started by Electron, i.e., production)
 app.on('will-quit', () => {
-  if (!is.dev && goServerProcess) {
-    console.log('Attempting to kill Go server process...')
+  if (goServerProcess) {
+    log.info('Attempting to kill Go server process...')
     const killed = goServerProcess.kill() // Sends SIGTERM by default
     if (killed) {
-       console.log('Go server process killed successfully.')
+       log.info('Go server process killed successfully.')
     } else {
-        console.error('Failed to kill Go server process. It might have already exited.')
+        log.warn('Failed to kill Go server process. It might have already exited.')
     }
     goServerProcess = null
   }
