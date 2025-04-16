@@ -2,10 +2,42 @@
 
 package model
 
+import (
+	"fmt"
+	"io"
+	"strconv"
+)
+
+type Chat struct {
+	ID        string     `json:"id"`
+	Name      string     `json:"name"`
+	Messages  []*Message `json:"messages"`
+	CreatedAt string     `json:"createdAt"`
+}
+
+type Message struct {
+	ID          string      `json:"id"`
+	Text        *string     `json:"text,omitempty"`
+	ImageUrls   []string    `json:"imageUrls"`
+	Role        Role        `json:"role"`
+	ToolCalls   []*ToolCall `json:"toolCalls"`
+	ToolResults []string    `json:"toolResults"`
+	CreatedAt   string      `json:"createdAt"`
+}
+
 type Mutation struct {
 }
 
 type Query struct {
+}
+
+type Subscription struct {
+}
+
+type ToolCall struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	IsCompleted bool   `json:"isCompleted"`
 }
 
 type UpdateProfileInput struct {
@@ -14,4 +46,45 @@ type UpdateProfileInput struct {
 
 type UserProfile struct {
 	Name *string `json:"name,omitempty"`
+}
+
+type Role string
+
+const (
+	RoleUser      Role = "USER"
+	RoleAssistant Role = "ASSISTANT"
+)
+
+var AllRole = []Role{
+	RoleUser,
+	RoleAssistant,
+}
+
+func (e Role) IsValid() bool {
+	switch e {
+	case RoleUser, RoleAssistant:
+		return true
+	}
+	return false
+}
+
+func (e Role) String() string {
+	return string(e)
+}
+
+func (e *Role) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = Role(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid Role", str)
+	}
+	return nil
+}
+
+func (e Role) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
