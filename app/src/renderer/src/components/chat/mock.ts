@@ -36,6 +36,42 @@ const messages: Message[] = [
     toolCalls: [{ id: '1', name: 'getWeather', isCompleted: false }],
     toolResult: [{ temp: '14°C', condition: 'Cloudy' }],
     createdAt: new Date().toISOString()
+  },
+  {
+    id: '5',
+    text: 'Here is a cute cat picture for you! 🐱',
+    imageUrls: [],
+    role: Role.Assistant,
+    toolCalls: [],
+    toolResult: null,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '6',
+    text: 'Cats are great companions! 🐾',
+    imageUrls: [],
+    role: Role.Assistant,
+    toolCalls: [],
+    toolResult: null,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '7',
+    text: 'Did you know cats can jump up to six times their body length? 🐈',
+    imageUrls: [],
+    role: Role.Assistant,
+    toolCalls: [],
+    toolResult: null,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '8',
+    text: 'Here’s another fun fact: cats sleep for about 70% of their lives! 😺',
+    imageUrls: [],
+    role: Role.Assistant,
+    toolCalls: [],
+    toolResult: null,
+    createdAt: new Date().toISOString()
   }
 ]
 
@@ -55,7 +91,7 @@ const chats: Chat[] = [
   {
     id: '3',
     name: 'Chat 3',
-    messages: messages.slice(0, 2),
+    messages: messages.slice(0, 3),
     createdAt: new Date().toISOString()
   },
   {

@@ -8,12 +8,7 @@ export const Route = createRootRoute({
     return (
       <div className="flex flex-col h-screen w-screen">
         <Header />
-        <div
-          className="flex-1 overflow-auto"
-          style={{
-            viewTransitionName: 'page-content'
-          }}
-        >
+        <div className="flex-1 overflow-auto">
           <Outlet />
           <TanStackRouterDevtools />
         </div>
