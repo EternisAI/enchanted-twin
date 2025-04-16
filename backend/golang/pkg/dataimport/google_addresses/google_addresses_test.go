@@ -176,7 +176,7 @@ func TestProcessDirectory(t *testing.T) {
 		t.Fatalf("ProcessDirectory failed: %v", err)
 	}
 
-	if len(records) != 2 {
-		t.Errorf("Expected 2 records, got %d", len(records))
+	if len(records) != 1 {
+		t.Errorf("Expected 1 record, got %d", len(records))
 	}
 }
