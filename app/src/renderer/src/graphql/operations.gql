@@ -1,4 +1,8 @@
-# ====== Queries ======
+query GetProfile {
+  profile {
+    name
+  }
+}
 
 query GetChats($first: Int!, $offset: Int!) {
   getChats(first: $first, offset: $offset) {
@@ -10,6 +14,13 @@ query GetChats($first: Int!, $offset: Int!) {
       text
       role
       createdAt
+      imageUrls
+      toolCalls {
+        id
+        name
+        isCompleted
+      }
+      toolResults
     }
   }
 }
@@ -30,12 +41,10 @@ query GetChat($id: ID!) {
         name
         isCompleted
       }
-      toolResult
+      toolResults
     }
   }
 }
-
-# ====== Mutations ======
 
 mutation CreateChat($name: String!) {
   createChat(name: $name) {
@@ -52,20 +61,12 @@ mutation SendMessage($chatId: ID!, $text: String!) {
     role
     createdAt
     imageUrls
+    toolResults
     toolCalls {
       id
       name
       isCompleted
     }
-    toolResult
-  }
-}
-
-mutation UpdateTitle($chatId: ID!, $title: String!) {
-  updateTitle(chatId: $chatId, title: $title) {
-    id
-    name
-    createdAt
   }
 }
 
@@ -76,8 +77,6 @@ mutation DeleteChat($chatId: ID!) {
   }
 }
 
-# ====== Subscription ======
-
 subscription MessageAdded($chatId: ID!) {
   messageAdded(chatId: $chatId) {
     id
@@ -85,11 +84,15 @@ subscription MessageAdded($chatId: ID!) {
     role
     createdAt
     imageUrls
-    toolResult
+    toolResults
     toolCalls {
       id
       name
       isCompleted
     }
   }
+}
+
+subscription DataSourceAdded($input: AddDataSourceInput!) {
+  addDataSource(input: $input)
 }

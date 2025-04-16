@@ -73,10 +73,10 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           </div>
         )}
 
-        {message.toolResult && (
+        {message.toolResults.length > 0 && (
           <div className="mt-3 bg-green-50 p-2 rounded text-xs text-gray-700 whitespace-pre-wrap">
             <strong>Tool Result:</strong>
-            <pre>{JSON.stringify(message.toolResult, null, 2)}</pre>
+            <pre>{JSON.stringify(message.toolResults, null, 2)}</pre>
           </div>
         )}
         <div className="text-xs text-gray-500 pt-1">

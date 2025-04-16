@@ -1,22 +1,12 @@
-directive @isAuthorized on FIELD_DEFINITION
-
 scalar DateTime
 scalar JSON
 
-type Query {
-  getChats(first: Int! = 10, offset: Int! = 0): [Chat!]! @isAuthorized
-  getChat(id: ID!): Chat! @isAuthorized
+type UserProfile {
+  name: String
 }
 
-type Mutation {
-  createChat(name: String!): Chat! @isAuthorized
-  sendMessage(chatId: ID!, text: String!): Message! @isAuthorized
-  updateTitle(chatId: ID!, title: String!): Chat! @isAuthorized
-  deleteChat(chatId: ID!): Chat! @isAuthorized
-}
-
-type Subscription {
-  messageAdded(chatId: ID!): Message! @isAuthorized
+input UpdateProfileInput {
+  name: String
 }
 
 type ToolCall {
@@ -38,11 +28,35 @@ type Message {
   imageUrls: [String!]!
   role: Role!
   toolCalls: [ToolCall!]!
-  toolResult: JSON
+  toolResults: [String!]!
   createdAt: DateTime!
 }
 
 enum Role {
   USER
   ASSISTANT
+}
+
+type Query {
+  profile: UserProfile!
+  getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
+  getChat(id: ID!): Chat!
+}
+
+type Mutation {
+  updateProfile(input: UpdateProfileInput!): Boolean!
+  createChat(name: String!): Chat!
+  sendMessage(chatId: ID!, text: String!): Message!
+  deleteChat(chatId: ID!): Chat!
+}
+
+type Subscription {
+  messageAdded(chatId: ID!): Message!
+  addDataSource(input: AddDataSourceInput!): Boolean!
+}
+
+input AddDataSourceInput {
+  dataSourceName: String!
+  path: String!
+  username: String!
 }

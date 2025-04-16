@@ -25,19 +25,18 @@ export function useSendMessage(chatId: string, onMessageSent: (msg: Message) => 
       role: Role.User,
       imageUrls: [],
       toolCalls: [],
-      toolResult: null,
+      toolResults: [],
       createdAt: new Date().toISOString()
     }
 
     onMessageSent(optimisticMessage)
 
-    await new Promise((resolve) => setTimeout(resolve, 1500))
-    // await sendMessageMutation({
-    //   variables: {
-    //     chatId,
-    //     text
-    //   }
-    // })
+    await sendMessageMutation({
+      variables: {
+        chatId,
+        text
+      }
+    })
   }
 
   return { sendMessage }

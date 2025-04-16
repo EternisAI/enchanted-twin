@@ -1,12 +1,39 @@
+// ChatHome.tsx
+import { useNavigate, useRouter } from '@tanstack/react-router'
 import MessageInput from './MessageInput'
+import { useMutation } from '@apollo/client'
+import { CreateChatDocument, SendMessageDocument } from '@renderer/graphql/generated/graphql'
 
 export default function ChatHome() {
+  const navigate = useNavigate()
+  const router = useRouter()
+  const [createChat] = useMutation(CreateChatDocument)
+  const [sendMessage] = useMutation(SendMessageDocument)
+
+  const handleStartChat = async (text: string) => {
+    try {
+      const { data: createData } = await createChat({
+        variables: { name: text }
+      })
+      const newChatId = createData?.createChat?.id
+
+      if (newChatId) {
+        await sendMessage({ variables: { chatId: newChatId, text } })
+        // Refetch all chats
+        await router.invalidate({
+          filter: (match) => match.routeId === '/chat'
+        })
+        navigate({ to: `/chat/${newChatId}` })
+      }
+    } catch (error) {
+      console.error('Failed to start chat:', error)
+    }
+  }
+
   return (
     <div
-      className="flex flex-col items-center py-10 w-full h-full"
-      style={{
-        viewTransitionName: 'page-content'
-      }}
+      className="flex flex-col items-center  w-full h-full"
+      style={{ viewTransitionName: 'page-content' }}
     >
       <style>
         {`
@@ -18,7 +45,7 @@ export default function ChatHome() {
       <div className="flex flex-col flex-1 min-h-full w-full justify-between">
         <div
           className="p-6 flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
-          style={{ maxHeight: `calc(100vh - ${'130px'})` }}
+          style={{ maxHeight: `calc(100vh - 130px)` }}
         >
           <h1 className="text-2xl font-bold text-black">Home</h1>
           <h5 className="text-gray-500 text-md">Send a message to start a conversation</h5>
@@ -27,7 +54,7 @@ export default function ChatHome() {
           className="px-6 py-6 border-t border-gray-200"
           style={{ height: '130px' } as React.CSSProperties}
         >
-          <MessageInput onSend={() => {}} isWaitingTwinResponse={false} />
+          <MessageInput onSend={handleStartChat} isWaitingTwinResponse={false} />
         </div>
       </div>
     </div>
