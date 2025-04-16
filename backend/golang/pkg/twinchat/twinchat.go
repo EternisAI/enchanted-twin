@@ -68,7 +68,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		ID:        uuid.New().String(),
 		Text:      &response.Content,
 		CreatedAt: time.Now().Format(time.RFC3339),
-		Role:      model.RoleUser,
+		Role:      model.RoleAssistant,
 	})
 	if err != nil {
 		return nil, err
