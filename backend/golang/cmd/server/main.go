@@ -13,6 +13,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -58,6 +59,13 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create nats client"))
 	}
 
+	logger.Info("Initializing database")
+	store, err := db.NewStore("./store.db")
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create or initialize database"))
+	}
+	defer store.Close()
+
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	chatStorage := chatrepository.NewRepository(logger)
 	twinChatService := twinchat.NewService(aiService, chatStorage, nc)
@@ -68,6 +76,7 @@ func main() {
 		port:            envs.GraphqlPort,
 		twinChatService: twinChatService,
 		natsClient:      nc,
+		store:           store,
 	})
 
 	logger.Info("Starting server")
@@ -102,6 +111,7 @@ type graphqlServerInput struct {
 	port            string
 	twinChatService *twinchat.Service
 	natsClient      *nats.Conn
+	store           *db.Store
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -113,11 +123,12 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Debug:            true,
 	}).Handler)
 
-	srv := handler.New(gqlSchema(GqlSchemaInput{
+	srv := handler.New(gqlSchema(&graph.Resolver{
 		Logger:          input.logger,
 		TemporalClient:  input.temporalClient,
-		TwinChatService: input.twinChatService,
+		TwinChatService: *input.twinChatService,
 		Nc:              input.natsClient,
+		Store:           input.store,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
@@ -155,21 +166,9 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	return router
 }
 
-type GqlSchemaInput struct {
-	Logger          *slog.Logger
-	TemporalClient  client.Client
-	TwinChatService *twinchat.Service
-	Nc              *nats.Conn
-}
-
-func gqlSchema(input GqlSchemaInput) graphql.ExecutableSchema {
+func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	config := graph.Config{
-		Resolvers: &graph.Resolver{
-			Logger:          input.Logger,
-			TemporalClient:  input.TemporalClient,
-			TwinChatService: *input.TwinChatService,
-			Nc:              input.Nc,
-		},
+		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
 }

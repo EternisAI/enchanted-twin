@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/joho/godotenv v1.5.1
-	github.com/mattn/go-sqlite3 v1.14.22
+	github.com/mattn/go-sqlite3 v1.14.27
 	github.com/nats-io/nats-server/v2 v2.11.1
 	github.com/nats-io/nats.go v1.41.1
 	github.com/openai/openai-go v0.1.0-beta.10
