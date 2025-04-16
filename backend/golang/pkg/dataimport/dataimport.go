@@ -70,7 +70,11 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 	if err != nil {
 		return false, fmt.Errorf("error creating output file: %v", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Error closing file: %v", err)
+		}
+	}()
 
 	// Determine output format based on file extension
 	ext := strings.ToLower(filepath.Ext(outputPath))
