@@ -3,6 +3,7 @@ package graph
 import (
 	"log/slog"
 
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 
 	"github.com/nats-io/nats.go"
@@ -18,4 +19,5 @@ type Resolver struct {
 	TemporalClient  client.Client
 	TwinChatService twinchat.Service
 	Nc              *nats.Conn
+	Store           *db.Store
 }

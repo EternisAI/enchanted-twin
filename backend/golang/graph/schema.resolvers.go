@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 )
@@ -23,7 +22,8 @@ func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.
 
 // UpdateProfile is the resolver for the updateProfile field.
 func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
-	panic(fmt.Errorf("not implemented: UpdateProfile - updateProfile"))
+	// Use SQLite for profile updates
+	return r.Store.UpdateUserProfile(ctx, input)
 }
 
 // CreateChat is the resolver for the createChat field.
@@ -63,9 +63,11 @@ func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*mode
 
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
-	return &model.UserProfile{
-		Name: helpers.Ptr("John Doe"),
-	}, nil
+	if r.Store == nil {
+		panic("Store not initialized")
+	}
+	// Use SQLite for profile storage
+	return r.Store.GetUserProfile(ctx)
 }
 
 // GetChats is the resolver for the getChats field.
