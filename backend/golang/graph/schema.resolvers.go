@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 )
@@ -63,7 +64,12 @@ func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*mode
 
 // AddDataSource is the resolver for the addDataSource field.
 func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
-	panic(fmt.Errorf("not implemented: AddDataSource - addDataSource"))
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
+	return success, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -133,10 +139,12 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)
 
 // !!! WARNING !!!
 // The code below was going to be deleted when updating resolvers. It has been copied here so you have
