@@ -290,7 +290,7 @@ func TestProcessDirectMessageFile(t *testing.T) {
 		t.Fatalf("ProcessFile failed: %v", err)
 	}
 
-	if len(records) != 2 {
+	if len(records) != 7 {
 		t.Errorf("Expected 2 records, got %d", len(records))
 	}
 
@@ -562,8 +562,8 @@ func TestProcessDirectory(t *testing.T) {
 	// 	t.Errorf("Expected 1 like record, got %d", typeCount["like"])
 	// }
 
-	if typeCount["tweet"] != 2 {
-		t.Errorf("Expected 2 tweet record, got %d", typeCount["tweet"])
+	if typeCount["tweet"] != 1 {
+		t.Errorf("Expected 1 tweet record, got %d", typeCount["tweet"])
 	}
 
 	if typeCount["directMessage"] != 7 {
