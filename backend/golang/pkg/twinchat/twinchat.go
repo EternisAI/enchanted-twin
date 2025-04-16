@@ -130,7 +130,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		ToolCalls:   repository.JSONForSQLLite(toolCallsJson),
 		ToolArgs:    repository.JSONForSQLLite(toolArgsJson),
 		ToolResults: repository.JSONForSQLLite(toolResultsJson),
-		Role:        model.RoleUser.String(),
+		Role:        model.RoleAssistant.String(),
 		CreatedAt:   time.Now(),
 	})
 
