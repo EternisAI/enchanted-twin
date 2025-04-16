@@ -2,9 +2,10 @@ package repository
 
 import (
 	"context"
-	"enchanted-twin/graph/model"
 	"fmt"
 	"time"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 
 	"github.com/google/uuid"
 )

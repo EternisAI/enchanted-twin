@@ -2,11 +2,12 @@ package twinchat
 
 import (
 	"context"
-	"enchanted-twin/graph/model"
-	"enchanted-twin/pkg/ai"
-	"enchanted-twin/pkg/twinchat/repository"
 	"encoding/json"
 	"time"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"

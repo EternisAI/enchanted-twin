@@ -69,4 +69,11 @@ type Mutation {
 
 type Subscription {
   messageAdded(chatId: ID!): Message!
+  addDataSource(input: AddDataSourceInput!): Boolean!
+}
+
+input AddDataSourceInput {
+  dataSourceName: String!
+  path: String!
+  username: String!
 }

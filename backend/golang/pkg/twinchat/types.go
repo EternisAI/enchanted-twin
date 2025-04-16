@@ -1,9 +1,10 @@
 package twinchat
 
 import (
-	"enchanted-twin/graph/model"
 	"fmt"
 	"strings"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 
 	"github.com/openai/openai-go"
 )

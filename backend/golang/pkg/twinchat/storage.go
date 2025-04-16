@@ -2,8 +2,9 @@ package twinchat
 
 import (
 	"context"
-	"enchanted-twin/graph/model"
-	"enchanted-twin/pkg/twinchat/repository"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
 type Storage interface {

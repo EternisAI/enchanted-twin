@@ -1,10 +1,11 @@
 package repository
 
 import (
-	"enchanted-twin/graph/model"
-	"enchanted-twin/pkg/helpers"
 	"log/slog"
 	"time"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // temporary stub for before database integration

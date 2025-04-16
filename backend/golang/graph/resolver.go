@@ -1,8 +1,9 @@
 package graph
 
 import (
-	"enchanted-twin/pkg/twinchat"
 	"log/slog"
+
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 
 	"github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
