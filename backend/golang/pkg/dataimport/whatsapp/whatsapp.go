@@ -28,7 +28,11 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			log.Printf("Error closing database: %v", err)
+		}
+	}()
 	// Query all messages from ZWAMESSAGE table
 	query := `SELECT 
 		m.Z_PK, m.ZISFROMME, m.ZCHATSESSION, m.ZMESSAGEINFO, m.ZMESSAGEDATE, m.ZSENTDATE,
@@ -49,7 +53,11 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	// Get column names
 	columns, err := rows.Columns()

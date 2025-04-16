@@ -20,12 +20,12 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 
 // AddDataSource is the resolver for the addDataSource field.
 func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
-	result, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
 	if err != nil {
 		fmt.Println(err)
 		return false, err
 	}
-	return result, nil
+	return success, nil
 }
 
 // Profile is the resolver for the profile field.
