@@ -43,7 +43,6 @@ func parseTwitterFileSimple(content []byte, fileType string, userName string) ([
 
 func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 	var records []types.Record
-	now := time.Now()
 
 	parts := strings.Split(strings.TrimSpace(content), "},")
 
@@ -158,6 +157,40 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 
 		expandedUrl := part[expandedUrlStart : expandedUrlStart+expandedUrlEnd]
 
+		// Extract createdAt timestamp
+		createdAtStart := strings.Index(part, "createdAt")
+		var timestamp time.Time
+		if createdAtStart != -1 {
+			// Find the colon after createdAt
+			createdAtStart = strings.Index(part[createdAtStart:], ":") + createdAtStart
+			if createdAtStart != -1 {
+				createdAtStart += 1 // Skip the colon
+				createdAtStart = strings.IndexAny(strings.TrimSpace(part[createdAtStart:]), "\"'") + createdAtStart
+				if createdAtStart != -1 {
+					quote := part[createdAtStart : createdAtStart+1]
+					createdAtStart += 1
+					var createdAtEnd int
+					if quote == "\"" {
+						createdAtEnd = strings.Index(part[createdAtStart:], "\"")
+					} else {
+						createdAtEnd = strings.Index(part[createdAtStart:], "'")
+					}
+					if createdAtEnd != -1 {
+						createdAt := part[createdAtStart : createdAtStart+createdAtEnd]
+						parsedTime, err := parseTwitterTimestamp(createdAt)
+						if err == nil {
+							timestamp = parsedTime
+						}
+					}
+				}
+			}
+		}
+
+		// If we couldn't parse the timestamp, use current time as fallback
+		if timestamp.IsZero() {
+			timestamp = time.Now()
+		}
+
 		data := map[string]interface{}{
 			"type":        "like",
 			"tweetId":     tweetId,
@@ -167,7 +200,7 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 
 		record := types.Record{
 			Data:      data,
-			Timestamp: now,
+			Timestamp: timestamp,
 			Source:    "x",
 		}
 
