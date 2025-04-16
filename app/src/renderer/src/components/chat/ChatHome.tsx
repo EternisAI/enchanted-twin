@@ -56,7 +56,7 @@ export default function ChatHome() {
           className="px-6 py-6 border-t border-gray-200"
           style={{ height: '130px' } as React.CSSProperties}
         >
-          <MessageInput onSend={handleStartChat} isWaitingTwinResponse={false} />
+          <MessageInput isWaitingTwinResponse={false} onSend={handleStartChat} />
         </div>
       </div>
     </div>
