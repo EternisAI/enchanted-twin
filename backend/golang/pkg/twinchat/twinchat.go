@@ -3,6 +3,7 @@ package twinchat
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -51,6 +52,21 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	messageHistory = append(messageHistory, openai.UserMessage(message))
 
 	completion, err := s.aiService.Completions(ctx, messageHistory, MODEL)
+	if err != nil {
+		return nil, err
+	}
+
+	subject := fmt.Sprintf("chat.%s", chatID)
+	userMessageJson, err := json.Marshal(model.Message{
+		ID:        uuid.New().String(),
+		Text:      &completion.Content,
+		CreatedAt: time.Now().Format(time.RFC3339),
+		Role:      model.RoleUser,
+	})
+	if err != nil {
+		return nil, err
+	}
+	err = s.nc.Publish(subject, userMessageJson)
 	if err != nil {
 		return nil, err
 	}
