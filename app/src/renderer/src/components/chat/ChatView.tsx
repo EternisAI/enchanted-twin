@@ -1,7 +1,7 @@
 import { useRef, useEffect, useState } from 'react'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
-import { Chat, Message } from '@renderer/graphql/generated/graphql'
+import { Chat, Message, Role } from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 
@@ -12,13 +12,24 @@ export default function ChatView({ chat }: { chat: Chat }) {
   const [messages, setMessages] = useState<Message[]>(chat.messages)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
 
+  //@TODO: This will be used to append OR replace a message if same id
+  const appendMessage = (msg: Message) => {
+    setMessages((prev) => {
+      return [...prev, msg]
+    })
+  }
+
   const { sendMessage } = useSendMessage(chat.id, (msg) => {
-    setMessages((prev) => [...prev, msg])
+    appendMessage(msg)
     setIsWaitingTwinResponse(true)
   })
 
   useMessageSubscription(chat.id, (msg) => {
-    setMessages((prev) => [...prev, msg])
+    console.log('message subscription', msg)
+    if (msg.role === Role.User) {
+      return
+    }
+    appendMessage(msg)
     setIsWaitingTwinResponse(false)
   })
 
@@ -46,7 +57,13 @@ export default function ChatView({ chat }: { chat: Chat }) {
         className="px-6 py-6 border-t border-gray-200"
         style={{ height: INPUT_HEIGHT } as React.CSSProperties}
       >
-        <MessageInput onSend={sendMessage} isWaitingTwinResponse={isWaitingTwinResponse} />
+        <MessageInput
+          isWaitingTwinResponse={isWaitingTwinResponse}
+          onSend={sendMessage}
+          onStop={() => {
+            setIsWaitingTwinResponse(false)
+          }}
+        />
       </div>
     </div>
   )

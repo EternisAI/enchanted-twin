@@ -1,6 +1,8 @@
 import { Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { Markdown } from './Markdown'
+import { cn } from '@renderer/lib/utils'
+import { CheckCircle, LoaderIcon } from 'lucide-react'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -61,18 +63,29 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           </div>
         )}
 
-        {message.toolCalls.length > 0 && (
-          <div className="mt-3">
-            <p className="text-sm font-medium text-green-700">Tool Calls:</p>
-            <ul className="list-disc ml-5 text-sm">
-              {message.toolCalls.map((tool) => (
-                <li key={tool.id}>
-                  {tool.name} {tool.isCompleted ? '(done)' : '(pending)'}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        {message.toolCalls.map((toolCall) => {
+          return (
+            <div
+              key={toolCall.id}
+              className={cn(
+                'flex items-center gap-2',
+                toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
+              )}
+            >
+              {toolCall.isCompleted ? (
+                <>
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Used {toolCall.name}</span>
+                </>
+              ) : (
+                <>
+                  <LoaderIcon className="h-4 w-4 animate-spin" />
+                  <span>Using {toolCall.name}...</span>
+                </>
+              )}
+            </div>
+          )
+        })}
 
         {message.toolResults.length > 0 && (
           <div className="mt-3 bg-green-50 p-2 rounded text-xs text-gray-700 whitespace-pre-wrap">

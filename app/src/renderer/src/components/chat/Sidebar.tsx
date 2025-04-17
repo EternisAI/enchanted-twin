@@ -19,6 +19,8 @@ import { useMutation } from '@apollo/client'
 export function Sidebar({ chats }: { chats: Chat[] }) {
   const { location } = useRouterState()
 
+  const isHome = location.pathname === '/chat'
+
   return (
     <aside className="flex flex-col justify-between gap-3 w-64 bg-gray-50 border-r p-4 overflow-y-auto">
       <div className="flex flex-col gap-3">
@@ -32,7 +34,7 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
       </div>
 
       <div>
-        <Link to="/chat">
+        <Link to="/chat" disabled={isHome}>
           <button className="w-full bg-green-500 text-white px-4 py-2 rounded-md">New Chat</button>
         </Link>
       </div>
@@ -68,7 +70,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           'text-gray-800': !isActive
         })}
       >
-        {chat.name || 'Untitled Chat'}
+        {chat.name.slice(0, 25) || 'Untitled Chat'}
       </Link>
       <AlertDialog>
         <AlertDialogTrigger asChild>
