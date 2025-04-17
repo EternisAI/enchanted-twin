@@ -65,10 +65,11 @@ function createWindow(): void {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Determine the path to the Go binary based on the environment
+  // Determine the path to the Go binary based on the environment and platform
+  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin';
   const goBinaryPath = is.dev
-    ? join(__dirname, '..', '..', 'resources', 'enchanted-twin') // Path in development
-    : join(process.resourcesPath, 'resources', 'enchanted-twin'); // Adjusted path in production
+    ? join(__dirname, '..', '..', 'resources', executable) // Path in development
+    : join(process.resourcesPath, 'resources', executable); // Adjusted path in production
 
   // Create the database directory in user data path
   const userDataPath = app.getPath('userData');
