@@ -6,6 +6,8 @@ import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 import path from 'path'
 
+const PATHNAME = 'input_data'
+
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -58,8 +60,10 @@ app.whenReady().then(() => {
   // This will be used to copy the files to the app's storage directory to be read later by GO
   ipcMain.handle('copy-dropped-files', async (event, filePaths) => {
     console.log('copy-dropped-files', filePaths)
-    const appPath = app.getAppPath()
-    const fileStoragePath = path.join(appPath, 'stored-files')
+    const fileStoragePath =
+      process.env.NODE_ENV === 'development'
+        ? path.join(app.getAppPath(), PATHNAME)
+        : path.join(app.getPath('userData'), PATHNAME)
 
     // Ensure storage directory exists
     if (!fs.existsSync(fileStoragePath)) {
@@ -92,7 +96,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('get-stored-files-path', () => {
     const appPath = app.getAppPath()
-    return path.join(appPath, 'stored-files')
+    return path.join(appPath, PATHNAME)
   })
 
   createWindow()
