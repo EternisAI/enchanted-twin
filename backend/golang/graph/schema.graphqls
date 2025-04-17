@@ -76,7 +76,7 @@ type Mutation {
 
 type Subscription {
   messageAdded(chatId: ID!): Message!
-  indexingStatus(dataSourceName: String!): IndexingStatus!
+  indexingStatus: IndexingStatus!
 }
 
 type DataSource {
@@ -84,6 +84,7 @@ type DataSource {
   name: String!
   path: String!
   updatedAt: DateTime!
+  isProcessed: Boolean!
   isIndexed: Boolean!
 }
 
@@ -100,4 +101,5 @@ type IndexingStatus {
   status: IndexingState!
   processingDataProgress: Int!
   indexingDataProgress: Int!
+  dataSources: [DataSource!]!
 }

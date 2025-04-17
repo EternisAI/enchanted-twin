@@ -47,7 +47,8 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 	})
 
 	indexingState := NOT_STARTED
-	w.publishIndexingStatus(ctx, model.IndexingStateNotStarted, 0, 0)
+	dataSources := []*model.DataSource{}
+	w.publishIndexingStatus(ctx, model.IndexingStateNotStarted, dataSources, 0, 0)
 
 	err := workflow.SetQueryHandler(ctx, "getIndexingState", func() (IndexingStateQuery, error) {
 		return IndexingStateQuery{State: indexingState}, nil
@@ -68,12 +69,22 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		return IndexWorkflowResponse{}, errors.New("no data sources found")
 	}
 
+	for _, dataSource := range fetchDataSourcesResponse.DataSources {
+		dataSources = append(dataSources, &model.DataSource{
+			ID:          dataSource.ID,
+			Name:        dataSource.Name,
+			Path:        dataSource.Path,
+			IsProcessed: false,
+			IsIndexed:   false,
+		})
+	}
+
 	indexingState = PROCESSING_DATA
-	w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, 0, 0)
+	w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
 
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
-		// Publish status for individual data source
-		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, 0, 0)
+
+		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
 
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
@@ -84,29 +95,31 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).Get(ctx, &processDataResponse)
 		if err != nil {
 			indexingState = FAILED
-			w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, 0, 0)
+			w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
 			return IndexWorkflowResponse{}, err
 		}
 
+		dataSources[i].IsProcessed = true
+
 		// Update progress
 		progress := int32((i + 1) * 100 / len(fetchDataSourcesResponse.DataSources))
-		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, progress, 0)
+		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, progress, 0)
 	}
 
 	indexingState = INDEXING_DATA
-	w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, 100, 0)
+	w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, dataSources, 100, 0)
 
 	var indexDataResponse IndexDataActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{}).Get(ctx, &indexDataResponse)
 	if err != nil {
 		indexingState = FAILED
-		w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, 100, 0)
+		w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, dataSources, 100, 0)
 		return IndexWorkflowResponse{}, err
 	}
 
 	var completeResponse CompleteActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
-		DataSources: fetchDataSourcesResponse.DataSources,
+		DataSources: dataSources,
 	}).Get(ctx, &completeResponse)
 	if err != nil {
 		indexingState = FAILED
@@ -114,20 +127,23 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 	}
 
 	indexingState = COMPLETED
-	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, 100, 100)
+	fmt.Println("completed")
+	fmt.Println(dataSources)
+
+	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, dataSources, 100, 100)
 	return IndexWorkflowResponse{}, nil
 }
 
-func (w *IndexingWorkflow) publishIndexingStatus(ctx workflow.Context, state model.IndexingState, processingProgress, indexingProgress int32) {
+func (w *IndexingWorkflow) publishIndexingStatus(ctx workflow.Context, state model.IndexingState, dataSources []*model.DataSource, processingProgress, indexingProgress int32) {
 	status := &model.IndexingStatus{
 		Status:                 state,
 		ProcessingDataProgress: processingProgress,
 		IndexingDataProgress:   indexingProgress,
+		DataSources:            dataSources,
 	}
 	statusJson, _ := json.Marshal(status)
 	subject := "indexing_data"
 
-	// Use workflow.ExecuteActivity to publish the status
 	input := PublishIndexingStatusInput{
 		Subject: subject,
 		Data:    statusJson,
@@ -199,17 +215,18 @@ func (w *IndexingWorkflow) CleanUpActivity(ctx context.Context, input CleanUpAct
 }
 
 type CompleteActivityInput struct {
-	DataSources []*db.DataSource `json:"dataSources"`
+	DataSources []*model.DataSource `json:"dataSources"`
 }
 
 type CompleteActivityResponse struct{}
 
 func (w *IndexingWorkflow) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
-	for _, dataSource := range input.DataSources {
+	for i, dataSource := range input.DataSources {
 		_, err := w.Store.UpdateDataSource(ctx, dataSource.ID, true)
 		if err != nil {
 			return CompleteActivityResponse{}, err
 		}
+		input.DataSources[i].IsIndexed = true
 	}
 	return CompleteActivityResponse{}, nil
 }

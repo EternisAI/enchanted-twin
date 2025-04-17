@@ -16,17 +16,19 @@ type Chat struct {
 }
 
 type DataSource struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	Path      string `json:"path"`
-	UpdatedAt string `json:"updatedAt"`
-	IsIndexed bool   `json:"isIndexed"`
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	UpdatedAt   string `json:"updatedAt"`
+	IsProcessed bool   `json:"isProcessed"`
+	IsIndexed   bool   `json:"isIndexed"`
 }
 
 type IndexingStatus struct {
 	Status                 IndexingState `json:"status"`
 	ProcessingDataProgress int32         `json:"processingDataProgress"`
 	IndexingDataProgress   int32         `json:"indexingDataProgress"`
+	DataSources            []*DataSource `json:"dataSources"`
 }
 
 type Message struct {

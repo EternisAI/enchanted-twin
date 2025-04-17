@@ -58,14 +58,16 @@ type ComplexityRoot struct {
 	}
 
 	DataSource struct {
-		ID        func(childComplexity int) int
-		IsIndexed func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Path      func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		ID          func(childComplexity int) int
+		IsIndexed   func(childComplexity int) int
+		IsProcessed func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Path        func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
 	}
 
 	IndexingStatus struct {
+		DataSources            func(childComplexity int) int
 		IndexingDataProgress   func(childComplexity int) int
 		ProcessingDataProgress func(childComplexity int) int
 		Status                 func(childComplexity int) int
@@ -98,7 +100,7 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		IndexingStatus func(childComplexity int, dataSourceName string) int
+		IndexingStatus func(childComplexity int) int
 		MessageAdded   func(childComplexity int, chatID string) int
 	}
 
@@ -134,7 +136,7 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
-	IndexingStatus(ctx context.Context, dataSourceName string) (<-chan *model.IndexingStatus, error)
+	IndexingStatus(ctx context.Context) (<-chan *model.IndexingStatus, error)
 }
 
 type executableSchema struct {
@@ -198,6 +200,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.DataSource.IsIndexed(childComplexity), true
 
+	case "DataSource.isProcessed":
+		if e.complexity.DataSource.IsProcessed == nil {
+			break
+		}
+
+		return e.complexity.DataSource.IsProcessed(childComplexity), true
+
 	case "DataSource.name":
 		if e.complexity.DataSource.Name == nil {
 			break
@@ -218,6 +227,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.DataSource.UpdatedAt(childComplexity), true
+
+	case "IndexingStatus.dataSources":
+		if e.complexity.IndexingStatus.DataSources == nil {
+			break
+		}
+
+		return e.complexity.IndexingStatus.DataSources(childComplexity), true
 
 	case "IndexingStatus.indexingDataProgress":
 		if e.complexity.IndexingStatus.IndexingDataProgress == nil {
@@ -399,12 +415,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		args, err := ec.field_Subscription_indexingStatus_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Subscription.IndexingStatus(childComplexity, args["dataSourceName"].(string)), true
+		return e.complexity.Subscription.IndexingStatus(childComplexity), true
 
 	case "Subscription.messageAdded":
 		if e.complexity.Subscription.MessageAdded == nil {
@@ -837,29 +848,6 @@ func (ec *executionContext) field_Query_getChats_argsOffset(
 	}
 
 	var zeroVal int32
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Subscription_indexingStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Subscription_indexingStatus_argsDataSourceName(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["dataSourceName"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Subscription_indexingStatus_argsDataSourceName(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("dataSourceName"))
-	if tmp, ok := rawArgs["dataSourceName"]; ok {
-		return ec.unmarshalNString2string(ctx, tmp)
-	}
-
-	var zeroVal string
 	return zeroVal, nil
 }
 
@@ -1354,6 +1342,50 @@ func (ec *executionContext) fieldContext_DataSource_updatedAt(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _DataSource_isProcessed(ctx context.Context, field graphql.CollectedField, obj *model.DataSource) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DataSource_isProcessed(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsProcessed, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DataSource_isProcessed(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DataSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DataSource_isIndexed(ctx context.Context, field graphql.CollectedField, obj *model.DataSource) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_DataSource_isIndexed(ctx, field)
 	if err != nil {
@@ -1525,6 +1557,64 @@ func (ec *executionContext) fieldContext_IndexingStatus_indexingDataProgress(_ c
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IndexingStatus_dataSources(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_IndexingStatus_dataSources(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.DataSources, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.DataSource)
+	fc.Result = res
+	return ec.marshalNDataSource2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐDataSourceᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_IndexingStatus_dataSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IndexingStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_DataSource_id(ctx, field)
+			case "name":
+				return ec.fieldContext_DataSource_name(ctx, field)
+			case "path":
+				return ec.fieldContext_DataSource_path(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_DataSource_updatedAt(ctx, field)
+			case "isProcessed":
+				return ec.fieldContext_DataSource_isProcessed(ctx, field)
+			case "isIndexed":
+				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
 		},
 	}
 	return fc, nil
@@ -2427,6 +2517,8 @@ func (ec *executionContext) fieldContext_Query_getDataSources(_ context.Context,
 				return ec.fieldContext_DataSource_path(ctx, field)
 			case "updatedAt":
 				return ec.fieldContext_DataSource_updatedAt(ctx, field)
+			case "isProcessed":
+				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
 			}
@@ -2666,7 +2758,7 @@ func (ec *executionContext) _Subscription_indexingStatus(ctx context.Context, fi
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().IndexingStatus(rctx, fc.Args["dataSourceName"].(string))
+		return ec.resolvers.Subscription().IndexingStatus(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2697,7 +2789,7 @@ func (ec *executionContext) _Subscription_indexingStatus(ctx context.Context, fi
 	}
 }
 
-func (ec *executionContext) fieldContext_Subscription_indexingStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Subscription_indexingStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Subscription",
 		Field:      field,
@@ -2711,20 +2803,11 @@ func (ec *executionContext) fieldContext_Subscription_indexingStatus(ctx context
 				return ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
 			case "indexingDataProgress":
 				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
+			case "dataSources":
+				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Subscription_indexingStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
 	}
 	return fc, nil
 }
@@ -2944,6 +3027,8 @@ func (ec *executionContext) fieldContext_UserProfile_indexingStatus(_ context.Co
 				return ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
 			case "indexingDataProgress":
 				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
+			case "dataSources":
+				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
@@ -2998,6 +3083,8 @@ func (ec *executionContext) fieldContext_UserProfile_connectedDataSources(_ cont
 				return ec.fieldContext_DataSource_path(ctx, field)
 			case "updatedAt":
 				return ec.fieldContext_DataSource_updatedAt(ctx, field)
+			case "isProcessed":
+				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
 			}
@@ -5109,6 +5196,11 @@ func (ec *executionContext) _DataSource(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "isProcessed":
+			out.Values[i] = ec._DataSource_isProcessed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "isIndexed":
 			out.Values[i] = ec._DataSource_isIndexed(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -5160,6 +5252,11 @@ func (ec *executionContext) _IndexingStatus(ctx context.Context, sel ast.Selecti
 			}
 		case "indexingDataProgress":
 			out.Values[i] = ec._IndexingStatus_indexingDataProgress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "dataSources":
+			out.Values[i] = ec._IndexingStatus_dataSources(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

@@ -188,7 +188,7 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
-func (r *subscriptionResolver) IndexingStatus(ctx context.Context, dataSourceName string) (<-chan *model.IndexingStatus, error) {
+func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *model.IndexingStatus, error) {
 	if r.Nc == nil {
 		return nil, errors.New("NATS connection is nil")
 	}
@@ -198,7 +198,6 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context, dataSourceNam
 	}
 
 	r.Logger.Info("Subscribing to indexing status",
-		"dataSourceName", dataSourceName,
 		"connected", r.Nc.IsConnected(),
 		"status", r.Nc.Status().String())
 
