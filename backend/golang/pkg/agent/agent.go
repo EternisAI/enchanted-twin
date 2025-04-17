@@ -26,8 +26,10 @@ func NewAgent(nc *nats.Conn, aiService *ai.Service) *Agent {
 }
 
 type AgentResponse struct {
-	Content   string
-	ToolCalls []openai.ChatCompletionMessageToolCall
+	Content     string
+	ToolCalls   []openai.ChatCompletionMessageToolCall
+	ToolResults []any
+	ImageURLs   []string
 }
 
 type ToolCall struct {
@@ -40,6 +42,9 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 	currentStep := 0
 	responseContent := ""
 	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
+	toolResults := make([]any, 0)
+	imageURLs := make([]string, 0)
+
 	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
 
 	toolsMap := make(map[string]tools.Tool, 0)
@@ -58,7 +63,10 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 		if len(completion.ToolCalls) == 0 {
 			return AgentResponse{
-				Content: completion.Content,
+				Content:     completion.Content,
+				ToolCalls:   toolCalls,
+				ToolResults: toolResults,
+				ImageURLs:   imageURLs,
 			}, nil
 		}
 
@@ -79,8 +87,13 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 				return AgentResponse{}, err
 			}
 
+			if len(toolResult.ImageURLs) > 0 {
+				imageURLs = append(imageURLs, toolResult.ImageURLs...)
+			}
+
 			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
 			toolCalls = append(toolCalls, toolCall)
+			toolResults = append(toolResults, toolResult)
 		}
 
 		responseContent = completion.Content
@@ -88,7 +101,9 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 	}
 
 	return AgentResponse{
-		Content:   responseContent,
-		ToolCalls: toolCalls,
+		Content:     responseContent,
+		ToolCalls:   toolCalls,
+		ToolResults: toolResults,
+		ImageURLs:   imageURLs,
 	}, nil
 }

@@ -2,35 +2,53 @@ package repository
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 type JSONForSQLLite string
 
+// ChatDB is used for database operations with proper db field mapping
+type ChatDB struct {
+	ID        string `db:"id"`
+	Name      string `db:"name"`
+	CreatedAt string `db:"created_at"` // Maps to the database column created_at
+}
+
+// ToModel converts a ChatDB to a model.Chat
+func (c *ChatDB) ToModel() model.Chat {
+	return model.Chat{
+		ID:        c.ID,
+		Name:      c.Name,
+		CreatedAt: c.CreatedAt,
+	}
+}
+
+// Message represents a message in the chat
 type Message struct {
-	ID          string         `json:"id"`
-	ChatID      string         `json:"chat_id"`
-	Text        string         `json:"text"`
-	Role        string         `json:"role"`
-	ToolCalls   JSONForSQLLite `json:"tool_calls"`
-	ToolArgs    JSONForSQLLite `json:"tool_args"`
-	ToolResults JSONForSQLLite `json:"tool_results"`
-	ImageURLs   []string       `json:"image_urls"`
-	CreatedAt   time.Time      `json:"created_at"`
+	ID             string  `db:"id"`
+	ChatID         string  `db:"chat_id"`
+	Text           string  `db:"text"`
+	Role           string  `db:"role"`
+	ToolCallsStr   *string `db:"tool_calls"`
+	ToolResultsStr *string `db:"tool_results"`
+	ImageURLsStr   *string `db:"image_urls"` // Stored as JSON string
+	CreatedAtStr   string  `db:"created_at"` // Stored as RFC3339 string
 }
 
 func (m *Message) ToModel() *model.Message {
-	var toolArgs []string
-	_ = json.Unmarshal([]byte(m.ToolArgs), &toolArgs)
+	var imageUrls = make([]string, 0)
+	if m.ImageURLsStr != nil {
+		if err := json.Unmarshal([]byte(*m.ImageURLsStr), &imageUrls); err != nil {
+			imageUrls = []string{}
+		}
+	}
+
 	return &model.Message{
-		ID:   m.ID,
-		Text: &m.Text,
-		Role: model.Role(m.Role),
-		// ToolResults: m.ToolResults,
-		ImageUrls: m.ImageURLs,
-		CreatedAt: m.CreatedAt.Format(time.RFC3339),
-		// ToolCalls:   &m.ToolCalls,
+		ID:        m.ID,
+		Text:      &m.Text,
+		Role:      model.Role(m.Role),
+		ImageUrls: imageUrls,
+		CreatedAt: m.CreatedAtStr,
 	}
 }

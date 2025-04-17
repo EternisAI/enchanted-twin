@@ -68,7 +68,7 @@ func main() {
 	defer store.Close()
 
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	chatStorage := chatrepository.NewRepository(logger)
+	chatStorage := chatrepository.NewRepository(logger, store.DB())
 	twinChatService := twinchat.NewService(aiService, chatStorage, nc)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{

@@ -7,7 +7,8 @@ import (
 )
 
 type ToolResult struct {
-	Content string
+	Content   string
+	ImageURLs []string
 }
 
 type Tool interface {

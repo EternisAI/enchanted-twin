@@ -10,12 +10,13 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	"github.com/pkg/errors"
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -63,6 +64,8 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		return nil, err
 	}
 
+	fmt.Println("image urls", response.ImageURLs)
+
 	subject := fmt.Sprintf("chat.%s", chatID)
 	userMessageJson, err := json.Marshal(model.Message{
 		ID:        uuid.New().String(),
@@ -78,61 +81,49 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		return nil, err
 	}
 
-	toolCalls := []string{}
-	toolArgs := []string{}
-	toolResults := []string{}
-
-	// for _, toolCall := range completion.ToolCalls {
-	// 	toolCalls = append(toolCalls, toolCall.Function.Name)
-	// 	toolArgs = append(toolArgs, toolCall.Function.Arguments)
-
-	// 	var toolArgs map[string]interface{}
-	// 	err := json.Unmarshal([]byte(toolCall.Function.Arguments), &toolArgs)
-	// 	if err != nil {
-	// 		return nil, errors.Wrap(err, "failed to unmarshal tool call arguments")
-	// 	}
-
-	// 	// execute tool
-	// 	toolResult := "X"
-	// 	toolResults = append(toolResults, toolResult)
-	// }
-
-	toolCallsJson, err := json.Marshal(toolCalls)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal tool calls")
-	}
-
-	toolArgsJson, err := json.Marshal(toolArgs)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal tool call arguments")
-	}
-
-	toolResultsJson, err := json.Marshal(toolResults)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to marshal tool call results")
-	}
-
+	// user message
 	_, err = s.storage.AddMessageToChat(ctx, repository.Message{
-		ID:        uuid.New().String(),
-		ChatID:    chatID,
-		Text:      message,
-		Role:      model.RoleUser.String(),
-		CreatedAt: time.Now(),
+		ID:           uuid.New().String(),
+		ChatID:       chatID,
+		Text:         message,
+		Role:         model.RoleUser.String(),
+		CreatedAtStr: time.Now().Format(time.RFC3339),
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	idAssistant, err := s.storage.AddMessageToChat(ctx, repository.Message{
-		ID:          uuid.New().String(),
-		ChatID:      chatID,
-		Text:        response.Content,
-		ToolCalls:   repository.JSONForSQLLite(toolCallsJson),
-		ToolArgs:    repository.JSONForSQLLite(toolArgsJson),
-		ToolResults: repository.JSONForSQLLite(toolResultsJson),
-		Role:        model.RoleAssistant.String(),
-		CreatedAt:   time.Now(),
-	})
+	// assistant message
+	assistantMessage := repository.Message{
+		ID:           uuid.New().String(),
+		ChatID:       chatID,
+		Text:         response.Content,
+		Role:         model.RoleAssistant.String(),
+		CreatedAtStr: time.Now().Format(time.RFC3339),
+	}
+	if len(response.ToolCalls) > 0 {
+		toolCallsJson, err := json.Marshal(response.ToolCalls)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal tool calls")
+		}
+		assistantMessage.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
+	}
+	if len(response.ToolResults) > 0 {
+		toolResultsJson, err := json.Marshal(response.ToolResults)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal tool results")
+		}
+		assistantMessage.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
+	}
+	if len(response.ImageURLs) > 0 {
+		imageURLsJson, err := json.Marshal(response.ImageURLs)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal image URLs")
+		}
+		assistantMessage.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
+	}
+
+	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessage)
 
 	if err != nil {
 		return nil, err
