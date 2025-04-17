@@ -58,8 +58,10 @@ app.whenReady().then(() => {
   // This will be used to copy the files to the app's storage directory to be read later by GO
   ipcMain.handle('copy-dropped-files', async (event, filePaths) => {
     console.log('copy-dropped-files', filePaths)
-    const appPath = app.getAppPath()
-    const fileStoragePath = path.join(appPath, 'stored-files')
+    const fileStoragePath =
+      process.env.NODE_ENV === 'development'
+        ? path.join(app.getAppPath(), 'stored-files')
+        : path.join(app.getPath('userData'), 'stored-files')
 
     // Ensure storage directory exists
     if (!fs.existsSync(fileStoragePath)) {
