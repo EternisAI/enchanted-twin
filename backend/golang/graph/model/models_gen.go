@@ -23,12 +23,6 @@ type DataSource struct {
 	IsIndexed bool   `json:"isIndexed"`
 }
 
-type IndexingInput struct {
-	DataSourceName string `json:"dataSourceName"`
-	SourcePath     string `json:"sourcePath"`
-	Username       string `json:"username"`
-}
-
 type IndexingStatus struct {
 	Status                 IndexingState `json:"status"`
 	ProcessingDataProgress int32         `json:"processingDataProgress"`

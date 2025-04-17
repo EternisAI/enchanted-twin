@@ -64,17 +64,12 @@ func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*mode
 }
 
 // StartIndexing is the resolver for the startIndexing field.
-func (r *mutationResolver) StartIndexing(ctx context.Context, input model.IndexingInput) (bool, error) {
+func (r *mutationResolver) StartIndexing(ctx context.Context) (bool, error) {
 	options := client.StartWorkflowOptions{
 		ID:        "index",
 		TaskQueue: "default",
 	}
-	proposalMap := map[string]interface{}{
-		"dataSourceName": input.DataSourceName,
-		"sourcePath":     input.SourcePath,
-		"username":       input.Username,
-	}
-	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "IndexWorkflow", proposalMap)
+	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "IndexWorkflow", map[string]interface{}{})
 	if err != nil {
 		return false, fmt.Errorf("error executing workflow: %v", err)
 	}

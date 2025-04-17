@@ -108,6 +108,15 @@ func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	return dataSources, nil
 }
 
+func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
+	var dataSources []*DataSource
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed FROM data_sources WHERE is_indexed = FALSE`)
+	if err != nil {
+		return nil, err
+	}
+	return dataSources, nil
+}
+
 func (s *Store) CreateDataSource(ctx context.Context, id string, name string, path string) (*DataSource, error) {
 	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name, path) VALUES (?, ?, ?)`, id, name, path)
 	if err != nil {
