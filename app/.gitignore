@@ -6,3 +6,4 @@ out
 *.log*
 
 .env
+input_data/
