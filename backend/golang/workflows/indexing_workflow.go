@@ -2,10 +2,12 @@ package workflows
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"go.temporal.io/sdk/temporal"
@@ -43,6 +45,7 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 	})
 
 	indexingState := NOT_STARTED
+	w.publishIndexingStatus(ctx, model.IndexingStateNotStarted, 0, 0)
 
 	err := workflow.SetQueryHandler(ctx, "getIndexingState", func() (IndexingStateQuery, error) {
 		return IndexingStateQuery{State: indexingState}, nil
@@ -64,8 +67,12 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 	}
 
 	indexingState = PROCESSING_DATA
+	w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, 0, 0)
 
-	for _, dataSource := range fetchDataSourcesResponse.DataSources {
+	for i, dataSource := range fetchDataSourcesResponse.DataSources {
+		// Publish status for individual data source
+		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, 0, 0)
+
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
 			SourcePath:     dataSource.Path,
@@ -75,16 +82,23 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).Get(ctx, &processDataResponse)
 		if err != nil {
 			indexingState = FAILED
+			w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, 0, 0)
 			return IndexWorkflowResponse{}, err
 		}
+
+		// Update progress
+		progress := int32((i + 1) * 100 / len(fetchDataSourcesResponse.DataSources))
+		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, progress, 0)
 	}
 
 	indexingState = INDEXING_DATA
+	w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, 100, 0)
 
 	var indexDataResponse IndexDataActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{}).Get(ctx, &indexDataResponse)
 	if err != nil {
 		indexingState = FAILED
+		w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, 100, 0)
 		return IndexWorkflowResponse{}, err
 	}
 
@@ -98,7 +112,28 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 	}
 
 	indexingState = COMPLETED
+	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, 100, 100)
 	return IndexWorkflowResponse{}, nil
+}
+
+func (w *TemporalWorkflows) publishIndexingStatus(ctx workflow.Context, state model.IndexingState, processingProgress, indexingProgress int32) {
+	status := &model.IndexingStatus{
+		Status:                 state,
+		ProcessingDataProgress: processingProgress,
+		IndexingDataProgress:   indexingProgress,
+	}
+	statusJson, _ := json.Marshal(status)
+	subject := "indexing_data"
+
+	// Use workflow.ExecuteActivity to publish the status
+	input := PublishIndexingStatusInput{
+		Subject: subject,
+		Data:    statusJson,
+	}
+	err := workflow.ExecuteActivity(ctx, w.PublishIndexingStatus, input).Get(ctx, nil)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Failed to publish indexing status", "error", err, "subject", subject)
+	}
 }
 
 type FetchDataSourcesActivityInput struct{}
@@ -126,6 +161,7 @@ type ProcessDataActivityResponse struct {
 }
 
 func (w *TemporalWorkflows) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
+	// TODO: replace username parameter
 	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", "xxx", "")
 	if err != nil {
 		fmt.Println(err)
@@ -174,4 +210,38 @@ func (w *TemporalWorkflows) CompleteActivity(ctx context.Context, input Complete
 		}
 	}
 	return CompleteActivityResponse{}, nil
+}
+
+type PublishIndexingStatusInput struct {
+	Subject string
+	Data    []byte
+}
+
+func (w *TemporalWorkflows) PublishIndexingStatus(ctx context.Context, input PublishIndexingStatusInput) error {
+	if w.Nc == nil {
+		return fmt.Errorf("NATS connection is nil")
+	}
+
+	if !w.Nc.IsConnected() {
+		return fmt.Errorf("NATS connection is not connected")
+	}
+
+	w.Logger.Info("Publishing indexing status",
+		"subject", input.Subject,
+		"data", string(input.Data),
+		"connected", w.Nc.IsConnected(),
+		"status", w.Nc.Status().String())
+
+	err := w.Nc.Publish(input.Subject, input.Data)
+	if err != nil {
+		w.Logger.Error("Failed to publish indexing status",
+			"error", err,
+			"subject", input.Subject,
+			"connected", w.Nc.IsConnected(),
+			"status", w.Nc.Status().String())
+		return err
+	}
+
+	w.Logger.Info("Successfully published indexing status", "subject", input.Subject)
+	return nil
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/workflows"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
+	"github.com/pkg/errors"
 	"go.temporal.io/sdk/client"
 )
 
@@ -188,7 +189,70 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 
 // IndexingStatus is the resolver for the indexingStatus field.
 func (r *subscriptionResolver) IndexingStatus(ctx context.Context, dataSourceName string) (<-chan *model.IndexingStatus, error) {
-	panic(fmt.Errorf("not implemented: IndexingStatus - indexingStatus"))
+	if r.Nc == nil {
+		return nil, errors.Wrap(errors.New("NATS connection is nil"), "failed to get indexing status")
+	}
+
+	if !r.Nc.IsConnected() {
+		return nil, errors.Wrap(errors.New("NATS connection is not connected"), "failed to get indexing status")
+	}
+
+	r.Logger.Info("Subscribing to indexing status",
+		"dataSourceName", dataSourceName,
+		"connected", r.Nc.IsConnected(),
+		"status", r.Nc.Status().String())
+
+	statusChan := make(chan *model.IndexingStatus, 100)
+	subject := "indexing_data"
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		r.Logger.Info("Received indexing status message",
+			"subject", msg.Subject,
+			"data", string(msg.Data),
+			"connected", r.Nc.IsConnected(),
+			"status", r.Nc.Status().String())
+
+		var status model.IndexingStatus
+		err := json.Unmarshal(msg.Data, &status)
+		if err != nil {
+			r.Logger.Error("Failed to unmarshal indexing status",
+				"error", err,
+				"data", string(msg.Data))
+			return
+		}
+
+		select {
+		case statusChan <- &status:
+			r.Logger.Info("Successfully sent status to channel", "subject", msg.Subject)
+		case <-ctx.Done():
+			r.Logger.Info("Context cancelled while sending status", "subject", msg.Subject)
+			return
+		default:
+			r.Logger.Warn("Status channel is full, dropping message", "subject", msg.Subject)
+		}
+	})
+	if err != nil {
+		r.Logger.Error("Failed to subscribe to indexing status",
+			"error", err,
+			"subject", subject,
+			"connected", r.Nc.IsConnected(),
+			"status", r.Nc.Status().String())
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		r.Logger.Info("Unsubscribing from indexing status",
+			"subject", subject,
+			"connected", r.Nc.IsConnected(),
+			"status", r.Nc.Status().String())
+		if err := sub.Unsubscribe(); err != nil {
+			r.Logger.Error("Error unsubscribing", "error", err)
+		}
+		close(statusChan)
+	}()
+
+	return statusChan, nil
 }
 
 // Chat returns ChatResolver implementation.
@@ -203,7 +267,9 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)

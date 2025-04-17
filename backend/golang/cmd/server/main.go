@@ -67,7 +67,7 @@ func main() {
 	}()
 
 	logger.Info("Starting temporal server and client")
-	temporalClient, err := bootstrapTemporal(logger, envs, store)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
@@ -97,7 +97,7 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store) (client.Client, error) {
+func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	go bootstrap.CreateTemporalServer()
 
@@ -115,6 +115,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 		Logger: logger,
 		Config: envs,
 		Store:  store,
+		Nc:     nc,
 	}
 	temporalWorkflows.RegisterWorkflows(&w)
 
