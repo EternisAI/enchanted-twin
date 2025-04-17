@@ -1,4 +1,4 @@
-package workflows
+package indexing
 
 import (
 	"context"
@@ -33,7 +33,7 @@ type IndexingStateQuery struct {
 	State IndexingState
 }
 
-func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkflowInput) (IndexWorkflowResponse, error) {
+func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkflowInput) (IndexWorkflowResponse, error) {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -116,7 +116,7 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 	return IndexWorkflowResponse{}, nil
 }
 
-func (w *TemporalWorkflows) publishIndexingStatus(ctx workflow.Context, state model.IndexingState, processingProgress, indexingProgress int32) {
+func (w *IndexingWorkflow) publishIndexingStatus(ctx workflow.Context, state model.IndexingState, processingProgress, indexingProgress int32) {
 	status := &model.IndexingStatus{
 		Status:                 state,
 		ProcessingDataProgress: processingProgress,
@@ -142,7 +142,7 @@ type FetchDataSourcesActivityResponse struct {
 	DataSources []*db.DataSource `json:"dataSources"`
 }
 
-func (w *TemporalWorkflows) FetchDataSourcesActivity(ctx context.Context, input FetchDataSourcesActivityInput) (FetchDataSourcesActivityResponse, error) {
+func (w *IndexingWorkflow) FetchDataSourcesActivity(ctx context.Context, input FetchDataSourcesActivityInput) (FetchDataSourcesActivityResponse, error) {
 	dataSources, err := w.Store.GetUnindexedDataSources(ctx)
 	if err != nil {
 		return FetchDataSourcesActivityResponse{}, err
@@ -160,7 +160,7 @@ type ProcessDataActivityResponse struct {
 	Success bool `json:"success"`
 }
 
-func (w *TemporalWorkflows) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
+func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
 	// TODO: replace username parameter
 	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", "xxx", "")
 	if err != nil {
@@ -176,7 +176,7 @@ type DownloadModelActivityInput struct {
 
 type DownloadModelActivityResponse struct{}
 
-func (w *TemporalWorkflows) DownloadModelActivity(ctx context.Context, input DownloadModelActivityInput) (DownloadModelActivityResponse, error) {
+func (w *IndexingWorkflow) DownloadModelActivity(ctx context.Context, input DownloadModelActivityInput) (DownloadModelActivityResponse, error) {
 	return DownloadModelActivityResponse{}, nil
 }
 
@@ -184,7 +184,7 @@ type IndexDataActivityInput struct{}
 
 type IndexDataActivityResponse struct{}
 
-func (w *TemporalWorkflows) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
+func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
 	return IndexDataActivityResponse{}, nil
 }
 
@@ -192,7 +192,7 @@ type CleanUpActivityInput struct{}
 
 type CleanUpActivityResponse struct{}
 
-func (w *TemporalWorkflows) CleanUpActivity(ctx context.Context, input CleanUpActivityInput) (CleanUpActivityResponse, error) {
+func (w *IndexingWorkflow) CleanUpActivity(ctx context.Context, input CleanUpActivityInput) (CleanUpActivityResponse, error) {
 	return CleanUpActivityResponse{}, nil
 }
 
@@ -202,7 +202,7 @@ type CompleteActivityInput struct {
 
 type CompleteActivityResponse struct{}
 
-func (w *TemporalWorkflows) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
+func (w *IndexingWorkflow) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
 	for _, dataSource := range input.DataSources {
 		_, err := w.Store.UpdateDataSource(ctx, dataSource.ID, true)
 		if err != nil {
@@ -217,7 +217,7 @@ type PublishIndexingStatusInput struct {
 	Data    []byte
 }
 
-func (w *TemporalWorkflows) PublishIndexingStatus(ctx context.Context, input PublishIndexingStatusInput) error {
+func (w *IndexingWorkflow) PublishIndexingStatus(ctx context.Context, input PublishIndexingStatusInput) error {
 	if w.Nc == nil {
 		return fmt.Errorf("NATS connection is nil")
 	}
