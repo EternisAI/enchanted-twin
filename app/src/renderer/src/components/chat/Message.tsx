@@ -88,12 +88,12 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
         })}
 
         {message.toolResults.length > 0 && (
-          <div className="mt-3 bg-green-50 p-2 rounded text-xs text-gray-700 whitespace-pre-wrap">
+          <div className="mt-3 bg-green-50 p-2 rounded text-xs text-foreground whitespace-pre-wrap">
             <strong>Tool Result:</strong>
             <pre>{JSON.stringify(message.toolResults, null, 2)}</pre>
           </div>
         )}
-        <div className="text-xs text-gray-500 pt-1">
+        <div className="text-xs text-muted-foreground pt-1">
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>

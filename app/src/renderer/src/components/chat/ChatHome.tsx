@@ -58,7 +58,7 @@ export default function ChatHome() {
         >
           <div className="py-8">
             <div className="w-48 h-48 rounded-full bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-400 text-6xl">👤</span>
+              <span className="text-foreground text-6xl">👤</span>
             </div>
           </div>
 
