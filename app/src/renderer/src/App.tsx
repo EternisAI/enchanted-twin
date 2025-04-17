@@ -1,4 +1,5 @@
 import Versions from './components/Versions'
+import DragNDrop from './components/onboarding/DragNDrop'
 import { Button } from './components/ui/button'
 
 function App(): React.JSX.Element {
@@ -22,6 +23,7 @@ function App(): React.JSX.Element {
           <h1>Home Page</h1>
         </div>
         <div className="actions">
+          <DragNDrop />
           <Button variant="secondary" onClick={ipcHandle}>
             Send IPC
           </Button>
