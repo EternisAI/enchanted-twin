@@ -1,4 +1,4 @@
-package workflows
+package indexing
 
 import (
 	"log/slog"
@@ -9,14 +9,14 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-type TemporalWorkflows struct {
+type IndexingWorkflow struct {
 	Logger *slog.Logger
 	Config *config.Config
 	Store  *db.Store
 	Nc     *nats.Conn
 }
 
-func (workflows *TemporalWorkflows) RegisterWorkflows(worker *worker.Worker) {
+func (workflows *IndexingWorkflow) RegisterWorkflows(worker *worker.Worker) {
 	(*worker).RegisterWorkflow(workflows.IndexWorkflow)
 	(*worker).RegisterActivity(workflows.FetchDataSourcesActivity)
 	(*worker).RegisterActivity(workflows.ProcessDataActivity)

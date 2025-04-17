@@ -14,9 +14,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-	"github.com/EternisAI/enchanted-twin/workflows"
 
 	"github.com/EternisAI/enchanted-twin/graph"
 
@@ -111,13 +111,13 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 
 	w := worker.New(client, "default", worker.Options{})
 
-	temporalWorkflows := workflows.TemporalWorkflows{
+	indexingWorkflow := indexing.IndexingWorkflow{
 		Logger: logger,
 		Config: envs,
 		Store:  store,
 		Nc:     nc,
 	}
-	temporalWorkflows.RegisterWorkflows(&w)
+	indexingWorkflow.RegisterWorkflows(&w)
 
 	err = w.Start()
 	if err != nil {

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/workflows"
+	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"github.com/pkg/errors"
@@ -100,7 +100,7 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 
 	workflowID := "index"
 	workflowRunID := "" // Empty string means latest run
-	var stateQuery workflows.IndexingStateQuery
+	var stateQuery indexing.IndexingStateQuery
 	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
 	if err != nil {
 		fmt.Println(err)
