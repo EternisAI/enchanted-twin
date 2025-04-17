@@ -48,7 +48,7 @@ func main() {
 	}
 
 	logger.Info("Starting nats server")
-	_, err = bootstrap.StartEmbeddedNATSServer()
+	_, err = bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start nats server"))
 	}
@@ -95,7 +95,7 @@ func main() {
 func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	ready := make(chan struct{})
-	go bootstrap.CreateTemporalServer(ready)
+	go bootstrap.CreateTemporalServer(logger, ready)
 	<-ready
 
 	logger.Info("Temporal server is ready, creating client")
