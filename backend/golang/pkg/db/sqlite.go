@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -41,6 +42,15 @@ func NewStore(dbPath string) (*Store, error) {
 	_, err = db.Exec(`
 		INSERT OR IGNORE INTO user_profiles (id, name) VALUES ('default', '(missing name)')
 	`)
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS data_sources (
+			id TEXT PRIMARY KEY,
+			name TEXT,
+			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+			is_indexed BOOLEAN DEFAULT FALSE
+		)
+	`)
 	if err != nil {
 		return nil, err
 	}
@@ -75,6 +85,40 @@ func (s *Store) UpdateUserProfile(ctx context.Context, input model.UpdateProfile
 	}
 
 	return rows > 0, nil
+}
+
+type DataSource struct {
+	ID        string `db:"id"`
+	Name      string `db:"name"`
+	UpdatedAt string `db:"updated_at"`
+	IsIndexed bool   `db:"is_indexed"`
+}
+
+// GetDataSources retrieves all data sources
+func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
+	var dataSources []*DataSource
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, is_indexed FROM data_sources`)
+	if err != nil {
+		return nil, err
+	}
+	return dataSources, nil
+}
+
+func (s *Store) SaveDataSource(ctx context.Context, name string) (*DataSource, error) {
+	id := uuid.New().String()
+	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name) VALUES (?, ?)`, id, name)
+	if err != nil {
+		return nil, err
+	}
+	return &DataSource{ID: id, Name: name}, nil
+}
+
+func (s *Store) UpdateDataSource(ctx context.Context, id string, name string) (*DataSource, error) {
+	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET name = ? WHERE id = ?`, name, id)
+	if err != nil {
+		return nil, err
+	}
+	return &DataSource{ID: id, Name: name}, nil
 }
 
 // Close closes the database connection
