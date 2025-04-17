@@ -162,7 +162,7 @@ type ProcessDataActivityResponse struct {
 
 func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
 	// TODO: replace username parameter
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", "xxx", "")
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".jsonl", "xxx", "")
 	if err != nil {
 		fmt.Println(err)
 		return ProcessDataActivityResponse{}, err
