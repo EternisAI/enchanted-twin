@@ -7,16 +7,12 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
-	"github.com/google/uuid"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
-type IndexWorkflowInput struct {
-	DataSourceName string `json:"dataSourceName"`
-	SourcePath     string `json:"sourcePath"`
-	Username       string `json:"username"`
-}
+type IndexWorkflowInput struct{}
 
 type IndexWorkflowResponse struct{}
 
@@ -55,32 +51,32 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 		return IndexWorkflowResponse{}, err
 	}
 
-	if input.DataSourceName == "" {
-		return IndexWorkflowResponse{}, errors.New("dataSourceName is required")
-	}
-	if input.SourcePath == "" {
-		return IndexWorkflowResponse{}, errors.New("sourcePath is required")
-	}
-
-	var createDataSourceResponse CreateDataSourceActivityResponse
-
-	dataSourceId := uuid.New().String()
-	err = workflow.ExecuteActivity(ctx, w.CreateDataSourceActivity, CreateDataSourceActivityInput{
-		DataSourceID:   dataSourceId,
-		DataSourceName: input.DataSourceName,
-	}).Get(ctx, &createDataSourceResponse)
+	var fetchDataSourcesResponse FetchDataSourcesActivityResponse
+	err = workflow.ExecuteActivity(ctx, w.FetchDataSourcesActivity, FetchDataSourcesActivityInput{}).Get(ctx, &fetchDataSourcesResponse)
 	if err != nil {
 		indexingState = FAILED
 		return IndexWorkflowResponse{}, err
+	}
+
+	if len(fetchDataSourcesResponse.DataSources) == 0 {
+		indexingState = FAILED
+		return IndexWorkflowResponse{}, errors.New("no data sources found")
 	}
 
 	indexingState = PROCESSING_DATA
 
-	var processDataResponse ProcessDataActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, ProcessDataActivityInput(input)).Get(ctx, &processDataResponse)
-	if err != nil {
-		indexingState = FAILED
-		return IndexWorkflowResponse{}, err
+	for _, dataSource := range fetchDataSourcesResponse.DataSources {
+		processDataActivityInput := ProcessDataActivityInput{
+			DataSourceName: dataSource.Name,
+			SourcePath:     dataSource.Path,
+			Username:       "",
+		}
+		var processDataResponse ProcessDataActivityResponse
+		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).Get(ctx, &processDataResponse)
+		if err != nil {
+			indexingState = FAILED
+			return IndexWorkflowResponse{}, err
+		}
 	}
 
 	indexingState = INDEXING_DATA
@@ -94,7 +90,7 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 
 	var completeResponse CompleteActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
-		DataSourceID: dataSourceId,
+		DataSources: fetchDataSourcesResponse.DataSources,
 	}).Get(ctx, &completeResponse)
 	if err != nil {
 		indexingState = FAILED
@@ -105,19 +101,18 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 	return IndexWorkflowResponse{}, nil
 }
 
-type CreateDataSourceActivityInput struct {
-	DataSourceID   string `json:"dataSourceID"`
-	DataSourceName string `json:"dataSourceName"`
+type FetchDataSourcesActivityInput struct{}
+
+type FetchDataSourcesActivityResponse struct {
+	DataSources []*db.DataSource `json:"dataSources"`
 }
 
-type CreateDataSourceActivityResponse struct{}
-
-func (w *TemporalWorkflows) CreateDataSourceActivity(ctx context.Context, input CreateDataSourceActivityInput) (CreateDataSourceActivityResponse, error) {
-	_, err := w.Store.CreateDataSource(ctx, input.DataSourceID, input.DataSourceName, "")
+func (w *TemporalWorkflows) FetchDataSourcesActivity(ctx context.Context, input FetchDataSourcesActivityInput) (FetchDataSourcesActivityResponse, error) {
+	dataSources, err := w.Store.GetUnindexedDataSources(ctx)
 	if err != nil {
-		return CreateDataSourceActivityResponse{}, err
+		return FetchDataSourcesActivityResponse{}, err
 	}
-	return CreateDataSourceActivityResponse{}, nil
+	return FetchDataSourcesActivityResponse{DataSources: dataSources}, nil
 }
 
 type ProcessDataActivityInput struct {
@@ -131,7 +126,7 @@ type ProcessDataActivityResponse struct {
 }
 
 func (w *TemporalWorkflows) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", input.Username, "")
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", "xxx", "")
 	if err != nil {
 		fmt.Println(err)
 		return ProcessDataActivityResponse{}, err
@@ -166,15 +161,17 @@ func (w *TemporalWorkflows) CleanUpActivity(ctx context.Context, input CleanUpAc
 }
 
 type CompleteActivityInput struct {
-	DataSourceID string `json:"dataSourceID"`
+	DataSources []*db.DataSource `json:"dataSources"`
 }
 
 type CompleteActivityResponse struct{}
 
 func (w *TemporalWorkflows) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
-	_, err := w.Store.UpdateDataSource(ctx, input.DataSourceID, true)
-	if err != nil {
-		return CompleteActivityResponse{}, err
+	for _, dataSource := range input.DataSources {
+		_, err := w.Store.UpdateDataSource(ctx, dataSource.ID, true)
+		if err != nil {
+			return CompleteActivityResponse{}, err
+		}
 	}
 	return CompleteActivityResponse{}, nil
 }

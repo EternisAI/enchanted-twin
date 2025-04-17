@@ -86,7 +86,7 @@ type ComplexityRoot struct {
 		CreateChat    func(childComplexity int, name string) int
 		DeleteChat    func(childComplexity int, chatID string) int
 		SendMessage   func(childComplexity int, chatID string, text string) int
-		StartIndexing func(childComplexity int, input model.IndexingInput) int
+		StartIndexing func(childComplexity int) int
 		UpdateProfile func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
@@ -122,7 +122,7 @@ type MutationResolver interface {
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
-	StartIndexing(ctx context.Context, input model.IndexingInput) (bool, error)
+	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
 }
 type QueryResolver interface {
@@ -341,12 +341,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			break
 		}
 
-		args, err := ec.field_Mutation_startIndexing_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.StartIndexing(childComplexity, args["input"].(model.IndexingInput)), true
+		return e.complexity.Mutation.StartIndexing(childComplexity), true
 
 	case "Mutation.updateProfile":
 		if e.complexity.Mutation.UpdateProfile == nil {
@@ -465,7 +460,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputIndexingInput,
 		ec.unmarshalInputUpdateProfileInput,
 	)
 	first := true
@@ -725,29 +719,6 @@ func (ec *executionContext) field_Mutation_sendMessage_argsText(
 	}
 
 	var zeroVal string
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_startIndexing_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Mutation_startIndexing_argsInput(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_startIndexing_argsInput(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (model.IndexingInput, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalNIndexingInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingInput(ctx, tmp)
-	}
-
-	var zeroVal model.IndexingInput
 	return zeroVal, nil
 }
 
@@ -2134,7 +2105,7 @@ func (ec *executionContext) _Mutation_startIndexing(ctx context.Context, field g
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().StartIndexing(rctx, fc.Args["input"].(model.IndexingInput))
+		return ec.resolvers.Mutation().StartIndexing(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2151,7 +2122,7 @@ func (ec *executionContext) _Mutation_startIndexing(ctx context.Context, field g
 	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Mutation_startIndexing(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Mutation_startIndexing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Mutation",
 		Field:      field,
@@ -2160,17 +2131,6 @@ func (ec *executionContext) fieldContext_Mutation_startIndexing(ctx context.Cont
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_startIndexing_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
 	}
 	return fc, nil
 }
@@ -4932,47 +4892,6 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputIndexingInput(ctx context.Context, obj any) (model.IndexingInput, error) {
-	var it model.IndexingInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"dataSourceName", "sourcePath", "username"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "dataSourceName":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dataSourceName"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.DataSourceName = data
-		case "sourcePath":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourcePath"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.SourcePath = data
-		case "username":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Username = data
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
 	var it model.UpdateProfileInput
 	asMap := map[string]any{}
@@ -6088,11 +6007,6 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalNIndexingInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingInput(ctx context.Context, v any) (model.IndexingInput, error) {
-	res, err := ec.unmarshalInputIndexingInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNIndexingState2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingState(ctx context.Context, v any) (model.IndexingState, error) {
