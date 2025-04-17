@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -23,6 +24,14 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	for _, chat := range r.chats {
 		chats = append(chats, &chat)
 	}
+
+	// Sort chats by createdAt in descending order (newest first)
+	sort.Slice(chats, func(i, j int) bool {
+		timeI, _ := time.Parse(time.RFC3339, chats[i].CreatedAt)
+		timeJ, _ := time.Parse(time.RFC3339, chats[j].CreatedAt)
+		return timeI.After(timeJ)
+	})
+
 	return chats, nil
 }
 
