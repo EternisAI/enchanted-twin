@@ -33,4 +33,6 @@ endef
 
 $(foreach target,$(BUILD_TARGETS),$(eval $(call build_recipe,$(target))))
 
-.PHONY: $(addprefix build-,$(BUILD_TARGETS))
+build-all: $(addprefix build-,$(BUILD_TARGETS))
+
+.PHONY: $(addprefix build-,$(BUILD_TARGETS)) build-all
