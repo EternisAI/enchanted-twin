@@ -21,6 +21,18 @@ type Chat struct {
 	CreatedAt string     `json:"createdAt"`
 }
 
+type IndexingInput struct {
+	DataSourceName string `json:"dataSourceName"`
+	SourcePath     string `json:"sourcePath"`
+	Username       string `json:"username"`
+}
+
+type IndexingStatus struct {
+	Status                 IndexingState `json:"status"`
+	ProcessingDataProgress int32         `json:"processingDataProgress"`
+	IndexingDataProgress   int32         `json:"indexingDataProgress"`
+}
+
 type Message struct {
 	ID          string      `json:"id"`
 	Text        *string     `json:"text,omitempty"`
@@ -51,7 +63,57 @@ type UpdateProfileInput struct {
 }
 
 type UserProfile struct {
-	Name *string `json:"name,omitempty"`
+	Name           *string         `json:"name,omitempty"`
+	IndexingStatus *IndexingStatus `json:"indexingStatus,omitempty"`
+}
+
+type IndexingState string
+
+const (
+	IndexingStateNotStarted       IndexingState = "NOT_STARTED"
+	IndexingStateDownloadingModel IndexingState = "DOWNLOADING_MODEL"
+	IndexingStateProcessingData   IndexingState = "PROCESSING_DATA"
+	IndexingStateIndexingData     IndexingState = "INDEXING_DATA"
+	IndexingStateCleanUp          IndexingState = "CLEAN_UP"
+	IndexingStateCompleted        IndexingState = "COMPLETED"
+)
+
+var AllIndexingState = []IndexingState{
+	IndexingStateNotStarted,
+	IndexingStateDownloadingModel,
+	IndexingStateProcessingData,
+	IndexingStateIndexingData,
+	IndexingStateCleanUp,
+	IndexingStateCompleted,
+}
+
+func (e IndexingState) IsValid() bool {
+	switch e {
+	case IndexingStateNotStarted, IndexingStateDownloadingModel, IndexingStateProcessingData, IndexingStateIndexingData, IndexingStateCleanUp, IndexingStateCompleted:
+		return true
+	}
+	return false
+}
+
+func (e IndexingState) String() string {
+	return string(e)
+}
+
+func (e *IndexingState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = IndexingState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid IndexingState", str)
+	}
+	return nil
+}
+
+func (e IndexingState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 type Role string

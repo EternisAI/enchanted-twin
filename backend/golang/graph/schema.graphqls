@@ -20,6 +20,7 @@ directive @goTag(
 
 type UserProfile {
   name: String
+  indexingStatus: IndexingStatus #latest workflow status
 }
 
 input UpdateProfileInput {
@@ -66,14 +67,37 @@ type Mutation {
   sendMessage(chatId: ID!, text: String!): Message!
   deleteChat(chatId: ID!): Chat!
   addDataSource(input: AddDataSourceInput!): Boolean!
+  startIndexing(input: IndexingInput!): Boolean!
 }
 
 type Subscription {
   messageAdded(chatId: ID!): Message!
+  indexingStatus(dataSourceName: String!): IndexingStatus!
+}
+
+input IndexingInput {
+  dataSourceName: String!
+  sourcePath: String!
+  username: String!
 }
 
 input AddDataSourceInput {
   dataSourceName: String!
   path: String!
   username: String!
+}
+
+enum IndexingState {
+  NOT_STARTED
+  DOWNLOADING_MODEL
+  PROCESSING_DATA #[1 part, 2 ?]
+  INDEXING_DATA
+  CLEAN_UP # delete `input_files`
+  COMPLETED
+}
+
+type IndexingStatus {
+   status: IndexingState!
+   processingDataProgress: Int!
+   indexingDataProgress: Int!
 }

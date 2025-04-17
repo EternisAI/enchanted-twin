@@ -72,6 +72,16 @@ func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDat
 	return success, nil
 }
 
+// StartIndexing is the resolver for the startIndexing field.
+func (r *mutationResolver) StartIndexing(ctx context.Context, input model.IndexingInput) (bool, error) {
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", input.Username, "")
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
+	return success, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -127,6 +137,11 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 	return messages, nil
 }
 
+// IndexingStatus is the resolver for the indexingStatus field.
+func (r *subscriptionResolver) IndexingStatus(ctx context.Context, dataSourceName string) (<-chan *model.IndexingStatus, error) {
+	panic(fmt.Errorf("not implemented: IndexingStatus - indexingStatus"))
+}
+
 // Chat returns ChatResolver implementation.
 func (r *Resolver) Chat() ChatResolver { return &chatResolver{r} }
 
@@ -145,15 +160,3 @@ type (
 	queryResolver        struct{ *Resolver }
 	subscriptionResolver struct{ *Resolver }
 )
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *subscriptionResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (<-chan bool, error) {
-	panic(fmt.Errorf("not implemented: AddDataSource - addDataSource"))
-}
-*/

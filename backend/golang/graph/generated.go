@@ -57,6 +57,12 @@ type ComplexityRoot struct {
 		Name      func(childComplexity int) int
 	}
 
+	IndexingStatus struct {
+		IndexingDataProgress   func(childComplexity int) int
+		ProcessingDataProgress func(childComplexity int) int
+		Status                 func(childComplexity int) int
+	}
+
 	Message struct {
 		CreatedAt   func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -72,6 +78,7 @@ type ComplexityRoot struct {
 		CreateChat    func(childComplexity int, name string) int
 		DeleteChat    func(childComplexity int, chatID string) int
 		SendMessage   func(childComplexity int, chatID string, text string) int
+		StartIndexing func(childComplexity int, input model.IndexingInput) int
 		UpdateProfile func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
@@ -82,7 +89,8 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		MessageAdded func(childComplexity int, chatID string) int
+		IndexingStatus func(childComplexity int, dataSourceName string) int
+		MessageAdded   func(childComplexity int, chatID string) int
 	}
 
 	ToolCall struct {
@@ -92,7 +100,8 @@ type ComplexityRoot struct {
 	}
 
 	UserProfile struct {
-		Name func(childComplexity int) int
+		IndexingStatus func(childComplexity int) int
+		Name           func(childComplexity int) int
 	}
 }
 
@@ -105,6 +114,7 @@ type MutationResolver interface {
 	SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error)
+	StartIndexing(ctx context.Context, input model.IndexingInput) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -113,6 +123,7 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
+	IndexingStatus(ctx context.Context, dataSourceName string) (<-chan *model.IndexingStatus, error)
 }
 
 type executableSchema struct {
@@ -161,6 +172,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Chat.Name(childComplexity), true
+
+	case "IndexingStatus.indexingDataProgress":
+		if e.complexity.IndexingStatus.IndexingDataProgress == nil {
+			break
+		}
+
+		return e.complexity.IndexingStatus.IndexingDataProgress(childComplexity), true
+
+	case "IndexingStatus.processingDataProgress":
+		if e.complexity.IndexingStatus.ProcessingDataProgress == nil {
+			break
+		}
+
+		return e.complexity.IndexingStatus.ProcessingDataProgress(childComplexity), true
+
+	case "IndexingStatus.status":
+		if e.complexity.IndexingStatus.Status == nil {
+			break
+		}
+
+		return e.complexity.IndexingStatus.Status(childComplexity), true
 
 	case "Message.createdAt":
 		if e.complexity.Message.CreatedAt == nil {
@@ -259,6 +291,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string)), true
 
+	case "Mutation.startIndexing":
+		if e.complexity.Mutation.StartIndexing == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_startIndexing_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StartIndexing(childComplexity, args["input"].(model.IndexingInput)), true
+
 	case "Mutation.updateProfile":
 		if e.complexity.Mutation.UpdateProfile == nil {
 			break
@@ -302,6 +346,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Profile(childComplexity), true
 
+	case "Subscription.indexingStatus":
+		if e.complexity.Subscription.IndexingStatus == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_indexingStatus_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.IndexingStatus(childComplexity, args["dataSourceName"].(string)), true
+
 	case "Subscription.messageAdded":
 		if e.complexity.Subscription.MessageAdded == nil {
 			break
@@ -335,6 +391,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ToolCall.Name(childComplexity), true
 
+	case "UserProfile.indexingStatus":
+		if e.complexity.UserProfile.IndexingStatus == nil {
+			break
+		}
+
+		return e.complexity.UserProfile.IndexingStatus(childComplexity), true
+
 	case "UserProfile.name":
 		if e.complexity.UserProfile.Name == nil {
 			break
@@ -351,6 +414,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputAddDataSourceInput,
+		ec.unmarshalInputIndexingInput,
 		ec.unmarshalInputUpdateProfileInput,
 	)
 	first := true
@@ -595,6 +659,29 @@ func (ec *executionContext) field_Mutation_sendMessage_argsText(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_startIndexing_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_startIndexing_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_startIndexing_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.IndexingInput, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNIndexingInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingInput(ctx, tmp)
+	}
+
+	var zeroVal model.IndexingInput
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -702,6 +789,29 @@ func (ec *executionContext) field_Query_getChats_argsOffset(
 	}
 
 	var zeroVal int32
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_indexingStatus_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_indexingStatus_argsDataSourceName(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["dataSourceName"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_indexingStatus_argsDataSourceName(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("dataSourceName"))
+	if tmp, ok := rawArgs["dataSourceName"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
 	return zeroVal, nil
 }
 
@@ -1015,6 +1125,138 @@ func (ec *executionContext) fieldContext_Chat_createdAt(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IndexingStatus_status(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_IndexingStatus_status(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Status, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.IndexingState)
+	fc.Result = res
+	return ec.marshalNIndexingState2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingState(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_IndexingStatus_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IndexingStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type IndexingState does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IndexingStatus_processingDataProgress(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ProcessingDataProgress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int32)
+	fc.Result = res
+	return ec.marshalNInt2int32(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_IndexingStatus_processingDataProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IndexingStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IndexingStatus_indexingDataProgress(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IndexingDataProgress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int32)
+	fc.Result = res
+	return ec.marshalNInt2int32(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_IndexingStatus_indexingDataProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IndexingStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -1644,6 +1886,61 @@ func (ec *executionContext) fieldContext_Mutation_addDataSource(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_startIndexing(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_startIndexing(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().StartIndexing(rctx, fc.Args["input"].(model.IndexingInput))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_startIndexing(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_startIndexing_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_profile(ctx, field)
 	if err != nil {
@@ -1685,6 +1982,8 @@ func (ec *executionContext) fieldContext_Query_profile(_ context.Context, field 
 			switch field.Name {
 			case "name":
 				return ec.fieldContext_UserProfile_name(ctx, field)
+			case "indexingStatus":
+				return ec.fieldContext_UserProfile_indexingStatus(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserProfile", field.Name)
 		},
@@ -2038,6 +2337,83 @@ func (ec *executionContext) fieldContext_Subscription_messageAdded(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_indexingStatus(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_indexingStatus(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().IndexingStatus(rctx, fc.Args["dataSourceName"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.IndexingStatus):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNIndexingStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingStatus(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_indexingStatus(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_IndexingStatus_status(ctx, field)
+			case "processingDataProgress":
+				return ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
+			case "indexingDataProgress":
+				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_indexingStatus_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _ToolCall_id(ctx context.Context, field graphql.CollectedField, obj *model.ToolCall) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_ToolCall_id(ctx, field)
 	if err != nil {
@@ -2206,6 +2582,55 @@ func (ec *executionContext) fieldContext_UserProfile_name(_ context.Context, fie
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserProfile_indexingStatus(ctx context.Context, field graphql.CollectedField, obj *model.UserProfile) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserProfile_indexingStatus(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IndexingStatus, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.IndexingStatus)
+	fc.Result = res
+	return ec.marshalOIndexingStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingStatus(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserProfile_indexingStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "status":
+				return ec.fieldContext_IndexingStatus_status(ctx, field)
+			case "processingDataProgress":
+				return ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
+			case "indexingDataProgress":
+				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
 	}
 	return fc, nil
@@ -4203,6 +4628,47 @@ func (ec *executionContext) unmarshalInputAddDataSourceInput(ctx context.Context
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputIndexingInput(ctx context.Context, obj any) (model.IndexingInput, error) {
+	var it model.IndexingInput
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"dataSourceName", "sourcePath", "username"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "dataSourceName":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dataSourceName"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.DataSourceName = data
+		case "sourcePath":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("sourcePath"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.SourcePath = data
+		case "username":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
+			data, err := ec.unmarshalNString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Username = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
 	var it model.UpdateProfileInput
 	asMap := map[string]any{}
@@ -4299,6 +4765,55 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._Chat_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var indexingStatusImplementors = []string{"IndexingStatus"}
+
+func (ec *executionContext) _IndexingStatus(ctx context.Context, sel ast.SelectionSet, obj *model.IndexingStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, indexingStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("IndexingStatus")
+		case "status":
+			out.Values[i] = ec._IndexingStatus_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "processingDataProgress":
+			out.Values[i] = ec._IndexingStatus_processingDataProgress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "indexingDataProgress":
+			out.Values[i] = ec._IndexingStatus_indexingDataProgress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -4439,6 +4954,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "addDataSource":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addDataSource(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "startIndexing":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_startIndexing(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -4597,6 +5119,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "messageAdded":
 		return ec._Subscription_messageAdded(ctx, fields[0])
+	case "indexingStatus":
+		return ec._Subscription_indexingStatus(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -4664,6 +5188,8 @@ func (ec *executionContext) _UserProfile(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = graphql.MarshalString("UserProfile")
 		case "name":
 			out.Values[i] = ec._UserProfile_name(ctx, field, obj)
+		case "indexingStatus":
+			out.Values[i] = ec._UserProfile_indexingStatus(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5128,6 +5654,35 @@ func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.Selec
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNIndexingInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingInput(ctx context.Context, v any) (model.IndexingInput, error) {
+	res, err := ec.unmarshalInputIndexingInput(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNIndexingState2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingState(ctx context.Context, v any) (model.IndexingState, error) {
+	var res model.IndexingState
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNIndexingState2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingState(ctx context.Context, sel ast.SelectionSet, v model.IndexingState) graphql.Marshaler {
+	return v
+}
+
+func (ec *executionContext) marshalNIndexingStatus2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingStatus(ctx context.Context, sel ast.SelectionSet, v model.IndexingStatus) graphql.Marshaler {
+	return ec._IndexingStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNIndexingStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingStatus(ctx context.Context, sel ast.SelectionSet, v *model.IndexingStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._IndexingStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNInt2int32(ctx context.Context, v any) (int32, error) {
@@ -5606,6 +6161,13 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 	}
 	res := graphql.MarshalBoolean(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOIndexingStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingStatus(ctx context.Context, sel ast.SelectionSet, v *model.IndexingStatus) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._IndexingStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
