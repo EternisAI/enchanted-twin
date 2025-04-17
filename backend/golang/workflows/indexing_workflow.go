@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	"github.com/google/uuid"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -47,7 +48,6 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 
 	indexingState := NOT_STARTED
 
-	// Register query handler for indexing state
 	err := workflow.SetQueryHandler(ctx, "getIndexingState", func() (IndexingStateQuery, error) {
 		return IndexingStateQuery{State: indexingState}, nil
 	})
@@ -62,23 +62,66 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 		return IndexWorkflowResponse{}, errors.New("sourcePath is required")
 	}
 
-	fmt.Println("Indexing workflow started")
+	var createDataSourceResponse CreateDataSourceActivityResponse
+
+	dataSourceId := uuid.New().String()
+	err = workflow.ExecuteActivity(ctx, w.CreateDataSourceActivity, CreateDataSourceActivityInput{
+		DataSourceID:   dataSourceId,
+		DataSourceName: input.DataSourceName,
+	}).Get(ctx, &createDataSourceResponse)
+	if err != nil {
+		indexingState = FAILED
+		return IndexWorkflowResponse{}, err
+	}
 
 	indexingState = PROCESSING_DATA
 
-	var response IndexWorkflowResponse
+	var processDataResponse ProcessDataActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, ProcessDataActivityInput{
 		DataSourceName: input.DataSourceName,
 		SourcePath:     input.SourcePath,
 		Username:       input.Username,
-	}).Get(ctx, &response)
+	}).Get(ctx, &processDataResponse)
+	if err != nil {
+		indexingState = FAILED
+		return IndexWorkflowResponse{}, err
+	}
+
+	indexingState = INDEXING_DATA
+
+	var indexDataResponse IndexDataActivityResponse
+	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{}).Get(ctx, &indexDataResponse)
+	if err != nil {
+		indexingState = FAILED
+		return IndexWorkflowResponse{}, err
+	}
+
+	var completeResponse CompleteActivityResponse
+	err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
+		DataSourceID: dataSourceId,
+	}).Get(ctx, &completeResponse)
 	if err != nil {
 		indexingState = FAILED
 		return IndexWorkflowResponse{}, err
 	}
 
 	indexingState = COMPLETED
-	return response, nil
+	return IndexWorkflowResponse{}, nil
+}
+
+type CreateDataSourceActivityInput struct {
+	DataSourceID   string `json:"dataSourceID"`
+	DataSourceName string `json:"dataSourceName"`
+}
+
+type CreateDataSourceActivityResponse struct{}
+
+func (w *TemporalWorkflows) CreateDataSourceActivity(ctx context.Context, input CreateDataSourceActivityInput) (CreateDataSourceActivityResponse, error) {
+	_, err := w.Store.CreateDataSource(ctx, input.DataSourceID, input.DataSourceName)
+	if err != nil {
+		return CreateDataSourceActivityResponse{}, err
+	}
+	return CreateDataSourceActivityResponse{}, nil
 }
 
 type ProcessDataActivityInput struct {
@@ -124,4 +167,18 @@ type CleanUpActivityResponse struct{}
 
 func (w *TemporalWorkflows) CleanUpActivity(ctx context.Context, input CleanUpActivityInput) (CleanUpActivityResponse, error) {
 	return CleanUpActivityResponse{}, nil
+}
+
+type CompleteActivityInput struct {
+	DataSourceID string `json:"dataSourceID"`
+}
+
+type CompleteActivityResponse struct{}
+
+func (w *TemporalWorkflows) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
+	_, err := w.Store.UpdateDataSource(ctx, input.DataSourceID, true)
+	if err != nil {
+		return CompleteActivityResponse{}, err
+	}
+	return CompleteActivityResponse{}, nil
 }

@@ -43,12 +43,6 @@ func main() {
 	}
 	logger.Info("Config loaded", slog.Any("envs", envs))
 
-	logger.Info("Starting temporal server and client")
-	temporalClient, err := bootstrapTemporal(logger, envs)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start temporal"))
-	}
-
 	logger.Info("Starting nats server")
 	_, err = bootstrap.StartEmbeddedNATSServer()
 	if err != nil {
@@ -67,6 +61,12 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
 	}
 	defer store.Close()
+
+	logger.Info("Starting temporal server and client")
+	temporalClient, err := bootstrapTemporal(logger, envs, store)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start temporal"))
+	}
 
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	chatStorage := chatrepository.NewRepository(logger)
@@ -93,7 +93,7 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *slog.Logger, envs *config.Config) (client.Client, error) {
+func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	go bootstrap.CreateTemporalServer()
 
@@ -110,6 +110,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config) (client.Client,
 	temporalWorkflows := workflows.TemporalWorkflows{
 		Logger: logger,
 		Config: envs,
+		Store:  store,
 	}
 	temporalWorkflows.RegisterWorkflows(&w)
 

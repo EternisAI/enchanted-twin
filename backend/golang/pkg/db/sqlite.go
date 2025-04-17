@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -91,7 +90,7 @@ type DataSource struct {
 	ID        string `db:"id"`
 	Name      string `db:"name"`
 	UpdatedAt string `db:"updated_at"`
-	IsIndexed bool   `db:"is_indexed"`
+	IsIndexed *bool  `db:"is_indexed"`
 }
 
 // GetDataSources retrieves all data sources
@@ -104,8 +103,7 @@ func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	return dataSources, nil
 }
 
-func (s *Store) SaveDataSource(ctx context.Context, name string) (*DataSource, error) {
-	id := uuid.New().String()
+func (s *Store) CreateDataSource(ctx context.Context, id string, name string) (*DataSource, error) {
 	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name) VALUES (?, ?)`, id, name)
 	if err != nil {
 		return nil, err
@@ -113,12 +111,12 @@ func (s *Store) SaveDataSource(ctx context.Context, name string) (*DataSource, e
 	return &DataSource{ID: id, Name: name}, nil
 }
 
-func (s *Store) UpdateDataSource(ctx context.Context, id string, name string) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET name = ? WHERE id = ?`, name, id)
+func (s *Store) UpdateDataSource(ctx context.Context, id string, isIndexed bool) (*DataSource, error) {
+	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, is_indexed = ? WHERE id = ?`, isIndexed, id)
 	if err != nil {
 		return nil, err
 	}
-	return &DataSource{ID: id, Name: name}, nil
+	return &DataSource{ID: id, IsIndexed: &isIndexed}, nil
 }
 
 // Close closes the database connection
