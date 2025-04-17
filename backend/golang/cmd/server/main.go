@@ -62,6 +62,7 @@ func main() {
 	logger.Info("Initializing database")
 	store, err := db.NewStore("./store.db")
 	if err != nil {
+		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
 	}
 	defer store.Close()
@@ -93,16 +94,16 @@ func main() {
 
 func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
 	logger.Info("Starting temporal server")
-	go bootstrap.CreateTemporalServer()
+	ready := make(chan struct{})
+	go bootstrap.CreateTemporalServer(ready)
+	<-ready
 
-	time.Sleep(10 * time.Second)
-
-	logger.Info("Starting temporal client")
-	client, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
+	logger.Info("Temporal server is ready, creating client")
+	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
 	if err != nil {
-		panic(errors.Wrap(err, "Unable to create temporal client"))
+		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
-	return client, nil
+	return temporalClient, nil
 }
 
 type graphqlServerInput struct {

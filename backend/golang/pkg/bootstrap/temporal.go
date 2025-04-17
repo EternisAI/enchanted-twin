@@ -70,7 +70,8 @@ func CreateTemporalClient(address string, namespace string, apiKey string) (clie
 	return client.Dial(clientOptions)
 }
 
-func CreateTemporalServer() {
+// CreateTemporalServer starts a Temporal server and signals readiness on the ready channel.
+func CreateTemporalServer(ready chan<- struct{}) {
 	ip := TemporalServerIP
 	port := TemporalServerPort
 	historyPort := port + 1
@@ -222,6 +223,8 @@ func CreateTemporalServer() {
 			log.Printf("error stopping server: %s", err)
 		}
 	}()
+	// signal that the server is ready
+	close(ready)
 	log.Printf("%-8s %v:%v", "Server:", ip, port)
 	log.Printf("%-8s http://%v:%v", "UI:", ip, uiPort)
 
