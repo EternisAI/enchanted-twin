@@ -1,4 +1,4 @@
-package dataimport
+package dataprocessing
 
 import (
 	"encoding/csv"
@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/gmail"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/google_addresses"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/slack"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/telegram"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/whatsapp"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/x"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/google_addresses"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 )
 
 func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (bool, error) {

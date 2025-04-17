@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
+	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -184,7 +184,7 @@ type ProcessDataActivityResponse struct {
 
 func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
 	// TODO: replace username parameter
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, OUTPUT_PATH+input.DataSourceName+".jsonl", "xxx", "")
+	success, err := dataprocessing.ProcessSource(input.DataSourceName, input.SourcePath, OUTPUT_PATH+input.DataSourceName+".jsonl", "xxx", "")
 	if err != nil {
 		fmt.Println(err)
 		return ProcessDataActivityResponse{}, err
