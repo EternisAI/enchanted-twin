@@ -31,7 +31,6 @@ build-$(1):
 	cd $(APP_DIR) && pnpm $(BUILD_CMD_$(1))
 endef
 
-# Generate build targets
 $(foreach target,$(BUILD_TARGETS),$(eval $(call build_recipe,$(target))))
 
 .PHONY: $(addprefix build-,$(BUILD_TARGETS))
