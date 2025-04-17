@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 )
@@ -59,6 +60,16 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 // DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
 	panic(fmt.Errorf("not implemented: DeleteChat - deleteChat"))
+}
+
+// AddDataSource is the resolver for the addDataSource field.
+func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
+	return success, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -116,11 +127,6 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 	return messages, nil
 }
 
-// AddDataSource is the resolver for the addDataSource field.
-func (r *subscriptionResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (<-chan bool, error) {
-	panic(fmt.Errorf("not implemented: AddDataSource - addDataSource"))
-}
-
 // Chat returns ChatResolver implementation.
 func (r *Resolver) Chat() ChatResolver { return &chatResolver{r} }
 
@@ -133,7 +139,21 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *subscriptionResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (<-chan bool, error) {
+	panic(fmt.Errorf("not implemented: AddDataSource - addDataSource"))
+}
+*/

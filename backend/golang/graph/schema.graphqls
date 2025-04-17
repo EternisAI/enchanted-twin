@@ -65,11 +65,11 @@ type Mutation {
   createChat(name: String!): Chat!
   sendMessage(chatId: ID!, text: String!): Message!
   deleteChat(chatId: ID!): Chat!
+  addDataSource(input: AddDataSourceInput!): Boolean!
 }
 
 type Subscription {
   messageAdded(chatId: ID!): Message!
-  addDataSource(input: AddDataSourceInput!): Boolean!
 }
 
 input AddDataSourceInput {
