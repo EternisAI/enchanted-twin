@@ -102,6 +102,35 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 			return false, fmt.Errorf("error writing JSON: %v", err)
 		}
 
+	case ".jsonl":
+		// For JSONL output, write each record as a separate line
+		for _, record := range records {
+			jsonRecord := struct {
+				Data      map[string]interface{} `json:"data"`
+				Timestamp string                 `json:"timestamp"`
+				Source    string                 `json:"source"`
+			}{
+				Data:      record.Data,
+				Timestamp: record.Timestamp.Format(time.RFC3339),
+				Source:    record.Source,
+			}
+
+			jsonData, err := json.Marshal(jsonRecord)
+			if err != nil {
+				log.Printf("Error marshaling record to JSON: %v", err)
+				continue
+			}
+
+			if _, err := file.Write(jsonData); err != nil {
+				log.Printf("Error writing JSONL record: %v", err)
+				continue
+			}
+			if _, err := file.Write([]byte("\n")); err != nil {
+				log.Printf("Error writing newline: %v", err)
+				continue
+			}
+		}
+
 	case ".csv":
 		writer := csv.NewWriter(file)
 		defer writer.Flush()
