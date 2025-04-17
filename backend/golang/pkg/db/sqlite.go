@@ -26,7 +26,13 @@ func NewStore(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
 	}
 
-	// Create tables if it doesn't exist
+	// Enable WAL mode for better concurrency and performance
+	_, err = db.Exec("PRAGMA journal_mode=WAL;")
+	if err != nil {
+		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
+	}
+
+	// Create user_profiles table if it doesn't exist
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS user_profiles (
 			id TEXT PRIMARY KEY,
