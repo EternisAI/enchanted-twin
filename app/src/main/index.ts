@@ -5,17 +5,16 @@ import icon from '../../resources/icon.png?asset'
 import { spawn, ChildProcess } from 'child_process'
 import log from 'electron-log/main';
 import { existsSync, mkdirSync } from 'fs'
+import fs from 'fs'
+import path from 'path'
+
+const PATHNAME = 'input_data'
 
 // Configure electron-log
 log.transports.file.level = 'info'; // Log info level and above to file
 log.info(`Log file will be written to: ${log.transports.file.getFile().path}`);
 
 let goServerProcess: ChildProcess | null = null
-
-import fs from 'fs'
-import path from 'path'
-
-const PATHNAME = 'input_data'
 
 function createWindow(): void {
   // Create the browser window.
