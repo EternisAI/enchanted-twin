@@ -26,12 +26,32 @@ func NewStore(dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
 	}
 
-	// Create user_profiles table if it doesn't exist
+	// Create tables if it doesn't exist
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS user_profiles (
 			id TEXT PRIMARY KEY,
 			name TEXT
-		)
+		);
+
+		CREATE TABLE IF NOT EXISTS chats (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_chats_id ON chats(id);
+
+		CREATE TABLE IF NOT EXISTS messages (
+			id TEXT PRIMARY KEY,
+			chat_id TEXT NOT NULL,
+			text TEXT,
+			tool_calls JSON,
+			tool_results JSON,
+			image_urls JSON,
+			role TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 	`)
 	if err != nil {
 		return nil, err
@@ -80,4 +100,10 @@ func (s *Store) UpdateUserProfile(ctx context.Context, input model.UpdateProfile
 // Close closes the database connection
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// DB returns the underlying sqlx.DB instance
+func (s *Store) DB() *sqlx.DB {
+	db := s.db
+	return db
 }
