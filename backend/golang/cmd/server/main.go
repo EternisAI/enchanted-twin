@@ -14,6 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/onboarding/activities"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
+	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"go.temporal.io/sdk/client"
@@ -79,6 +81,14 @@ func main() {
 		natsClient:      nc,
 		store:           store,
 	})
+
+	ollamaClient, err := ollamaapi.ClientFromEnvironment()
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create ollama client"))
+	}
+
+	logger.Info("Pulling ollama model")
+	examplePullModel(ollamaClient, nc)
 
 	logger.Info("Starting server")
 	err = http.ListenAndServe(":"+envs.GraphqlPort, router)
@@ -172,4 +182,12 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func examplePullModel(ollamaClient *ollamaapi.Client, nc *nats.Conn) {
+	activities := activities.NewOnboardingActivities(ollamaClient, nc)
+	err := activities.DownloadOllamaModel(context.Background())
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to download ollama model"))
+	}
 }
