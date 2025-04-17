@@ -24,7 +24,7 @@ function ChatLayout() {
   const chats: Chat[] = data?.getChats || []
 
   return (
-    <div className="flex h-screen">
+    <div className="flex flex-1 h-full">
       <Sidebar chats={chats} />
       <main className="flex-1 overflow-hidden">
         <Outlet />

@@ -24,7 +24,7 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
   return (
     <aside className="flex flex-col justify-between gap-3 w-64 bg-accent border-r p-4 overflow-y-auto">
       <div className="flex flex-col gap-3">
-        <h2 className="text-lg font-semibold mb-4">Chats</h2>
+        <h2 className="text-lg font-semibold mb-4 text-foreground">Chats</h2>
         <div className="space-y-2">
           {chats.map((chat: Chat) => {
             const isActive = location.pathname === `/chat/${chat.id}`

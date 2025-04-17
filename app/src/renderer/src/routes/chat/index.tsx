@@ -6,9 +6,5 @@ export const Route = createFileRoute('/chat/')({
 })
 
 function RouteComponent() {
-  return (
-    <div className="flex h-full w-full">
-      <ChatHome />
-    </div>
-  )
+  return <ChatHome />
 }

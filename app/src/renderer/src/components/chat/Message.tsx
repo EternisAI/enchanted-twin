@@ -18,7 +18,7 @@ export function UserMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-background text-foreground rounded-lg px-4 py-2 shadow max-w-md">
+      <div className="bg-background text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:border">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
           <div className="mt-2 space-x-2">
