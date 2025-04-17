@@ -109,8 +109,9 @@ type ComplexityRoot struct {
 	}
 
 	UserProfile struct {
-		IndexingStatus func(childComplexity int) int
-		Name           func(childComplexity int) int
+		ConnectedDataSources func(childComplexity int) int
+		IndexingStatus       func(childComplexity int) int
+		Name                 func(childComplexity int) int
 	}
 }
 
@@ -437,6 +438,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ToolCall.Name(childComplexity), true
+
+	case "UserProfile.connectedDataSources":
+		if e.complexity.UserProfile.ConnectedDataSources == nil {
+			break
+		}
+
+		return e.complexity.UserProfile.ConnectedDataSources(childComplexity), true
 
 	case "UserProfile.indexingStatus":
 		if e.complexity.UserProfile.IndexingStatus == nil {
@@ -2233,6 +2241,8 @@ func (ec *executionContext) fieldContext_Query_profile(_ context.Context, field 
 				return ec.fieldContext_UserProfile_name(ctx, field)
 			case "indexingStatus":
 				return ec.fieldContext_UserProfile_indexingStatus(ctx, field)
+			case "connectedDataSources":
+				return ec.fieldContext_UserProfile_connectedDataSources(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type UserProfile", field.Name)
 		},
@@ -2936,6 +2946,62 @@ func (ec *executionContext) fieldContext_UserProfile_indexingStatus(_ context.Co
 				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserProfile_connectedDataSources(ctx context.Context, field graphql.CollectedField, obj *model.UserProfile) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserProfile_connectedDataSources(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ConnectedDataSources, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.DataSource)
+	fc.Result = res
+	return ec.marshalNDataSource2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐDataSourceᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserProfile_connectedDataSources(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_DataSource_id(ctx, field)
+			case "name":
+				return ec.fieldContext_DataSource_name(ctx, field)
+			case "path":
+				return ec.fieldContext_DataSource_path(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_DataSource_updatedAt(ctx, field)
+			case "isIndexed":
+				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
 		},
 	}
 	return fc, nil
@@ -5494,6 +5560,11 @@ func (ec *executionContext) _UserProfile(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = ec._UserProfile_name(ctx, field, obj)
 		case "indexingStatus":
 			out.Values[i] = ec._UserProfile_indexingStatus(ctx, field, obj)
+		case "connectedDataSources":
+			out.Values[i] = ec._UserProfile_connectedDataSources(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

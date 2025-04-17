@@ -44,7 +44,7 @@ func main() {
 	logger.Info("Config loaded", slog.Any("envs", envs))
 
 	logger.Info("Starting nats server")
-	_, err = bootstrap.StartEmbeddedNATSServer()
+	_, err = bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start nats server"))
 	}
@@ -58,6 +58,7 @@ func main() {
 	logger.Info("Initializing database")
 	store, err := db.NewStore("./store.db")
 	if err != nil {
+		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
 	}
 	defer func() {
@@ -73,7 +74,7 @@ func main() {
 	}
 
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	chatStorage := chatrepository.NewRepository(logger)
+	chatStorage := chatrepository.NewRepository(logger, store.DB())
 	twinChatService := twinchat.NewService(aiService, chatStorage, nc)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
@@ -99,17 +100,17 @@ func main() {
 
 func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn) (client.Client, error) {
 	logger.Info("Starting temporal server")
-	go bootstrap.CreateTemporalServer()
+	ready := make(chan struct{})
+	go bootstrap.CreateTemporalServer(logger, ready)
+	<-ready
 
-	time.Sleep(10 * time.Second)
-
-	logger.Info("Starting temporal client")
-	client, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
+	logger.Info("Temporal server is ready, creating client")
+	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
 	if err != nil {
-		panic(errors.Wrap(err, "Unable to create temporal client"))
+		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
 
-	w := worker.New(client, "default", worker.Options{})
+	w := worker.New(temporalClient, "default", worker.Options{})
 
 	indexingWorkflow := indexing.IndexingWorkflow{
 		Logger: logger,
@@ -125,7 +126,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 		return nil, err
 	}
 
-	return client, nil
+	return temporalClient, nil
 }
 
 type graphqlServerInput struct {
