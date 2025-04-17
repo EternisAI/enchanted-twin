@@ -27,15 +27,30 @@ export function ThemeProvider({ children, defaultTheme = 'system', ...props }: T
 
     root.classList.remove('light', 'dark')
 
-    if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light'
-      root.classList.add(systemTheme)
-      return
+    const updateTheme = async (newTheme: Theme) => {
+      if (newTheme === 'system') {
+        // Get the native theme from Electron
+        const nativeTheme = await window.api.getNativeTheme()
+        root.classList.add(nativeTheme)
+        // Set the native theme source to system
+        await window.api.setNativeTheme('system')
+      } else {
+        root.classList.add(newTheme)
+        // Sync the native theme with our app theme
+        await window.api.setNativeTheme(newTheme)
+      }
     }
 
-    root.classList.add(theme)
+    // Update theme initially
+    updateTheme(theme)
+
+    // Listen for system theme changes when in system mode
+    if (theme === 'system') {
+      window.api.onNativeThemeUpdated((newTheme) => {
+        root.classList.remove('light', 'dark')
+        root.classList.add(newTheme)
+      })
+    }
   }, [theme])
 
   const value = {
