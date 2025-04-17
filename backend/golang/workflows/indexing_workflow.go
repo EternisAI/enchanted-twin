@@ -19,6 +19,21 @@ type IndexWorkflowInput struct {
 
 type IndexWorkflowResponse struct{}
 
+type IndexingState string
+
+const (
+	NOT_STARTED       IndexingState = "NOT_STARTED"
+	DOWNLOADING_MODEL IndexingState = "DOWNLOADING_MODEL"
+	PROCESSING_DATA   IndexingState = "PROCESSING_DATA"
+	INDEXING_DATA     IndexingState = "INDEXING_DATA"
+	COMPLETED         IndexingState = "COMPLETED"
+	FAILED            IndexingState = "FAILED"
+)
+
+type IndexingStateQuery struct {
+	State IndexingState
+}
+
 func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkflowInput) (IndexWorkflowResponse, error) {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 3 * time.Minute,
@@ -30,6 +45,16 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 		},
 	})
 
+	indexingState := NOT_STARTED
+
+	// Register query handler for indexing state
+	err := workflow.SetQueryHandler(ctx, "getIndexingState", func() (IndexingStateQuery, error) {
+		return IndexingStateQuery{State: indexingState}, nil
+	})
+	if err != nil {
+		return IndexWorkflowResponse{}, err
+	}
+
 	if input.DataSourceName == "" {
 		return IndexWorkflowResponse{}, errors.New("dataSourceName is required")
 	}
@@ -39,16 +64,20 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 
 	fmt.Println("Indexing workflow started")
 
+	indexingState = PROCESSING_DATA
+
 	var response IndexWorkflowResponse
-	err := workflow.ExecuteActivity(ctx, w.ProcessDataActivity, ProcessDataActivityInput{
+	err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, ProcessDataActivityInput{
 		DataSourceName: input.DataSourceName,
 		SourcePath:     input.SourcePath,
 		Username:       input.Username,
 	}).Get(ctx, &response)
 	if err != nil {
+		indexingState = FAILED
 		return IndexWorkflowResponse{}, err
 	}
 
+	indexingState = COMPLETED
 	return response, nil
 }
 
