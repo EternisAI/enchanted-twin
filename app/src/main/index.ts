@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 import { spawn, ChildProcess } from 'child_process'
 import log from 'electron-log/main';
+import { existsSync, mkdirSync } from 'fs'
 
 // Configure electron-log
 log.transports.file.level = 'info'; // Log info level and above to file
@@ -70,9 +71,25 @@ app.whenReady().then(() => {
     ? join(__dirname, '..', '..', 'resources', 'enchanted-twin') // Path in development
     : join(process.resourcesPath, 'resources', 'enchanted-twin'); // Adjusted path in production
 
-  log.info(`Attempting to start Go server at: ${goBinaryPath}`)
+  // Create the database directory in user data path
+  const userDataPath = app.getPath('userData');
+  const dbDir = join(userDataPath, 'db');
+  
+  // Ensure the database directory exists
+  if (!existsSync(dbDir)) {
+    try {
+      mkdirSync(dbDir, { recursive: true });
+      log.info(`Created database directory: ${dbDir}`);
+    } catch (err) {
+      log.error(`Failed to create database directory: ${err}`);
+    }
+  }
+  
+  log.info(`Database directory: ${dbDir}`);
+  log.info(`Attempting to start Go server at: ${goBinaryPath}`);
+  
   try {
-    goServerProcess = spawn(goBinaryPath, [], {
+    goServerProcess = spawn(goBinaryPath, [`--db-path=${join(dbDir, 'enchanted-twin.db')}`], {
       // No stdio option here, defaults to 'pipe'
     })
 

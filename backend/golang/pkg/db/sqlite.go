@@ -3,6 +3,8 @@ package db
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/jmoiron/sqlx"
@@ -21,6 +23,14 @@ type Store struct {
 
 // NewStore creates a new SQLite-backed store
 func NewStore(dbPath string) (*Store, error) {
+	// Create the parent directory if it doesn't exist
+	dir := filepath.Dir(dbPath)
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create database directory: %w", err)
+		}
+	}
+
 	db, err := sqlx.Connect("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)

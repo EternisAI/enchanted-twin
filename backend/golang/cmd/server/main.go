@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -35,6 +36,12 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
+	// Parse command line flags
+	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
+	flag.Parse()
+
+	logger.Info("Using database path", slog.String("path", *dbPath))
+
 	envs, err := config.LoadConfig(true)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to load config"))
@@ -60,7 +67,7 @@ func main() {
 	}
 
 	logger.Info("Initializing database")
-	store, err := db.NewStore("./store.db")
+	store, err := db.NewStore(*dbPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
