@@ -3,6 +3,7 @@ description:
 globs: 
 alwaysApply: true
 ---
+- You are building an app with the stack: Electron, Vite, shadcn, tailwdinw, tanstack router.
 - When packages in `pkg` directory relies on repository make sure to introduce repository per feature instead of augmenting ever increasing interface.
 - Do NOT add comments to explain every other line of your code. The code itself should be self-evident unless the code is exotic or solving a complex problem.
 - When writing code use `make build` to make sure that your proposed code still builds.

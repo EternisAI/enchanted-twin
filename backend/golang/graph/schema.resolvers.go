@@ -7,14 +7,14 @@ package graph
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
+	"github.com/EternisAI/enchanted-twin/pkg/indexing"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
-	"github.com/pkg/errors"
 	"go.temporal.io/sdk/client"
 )
 
@@ -190,11 +190,11 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 // IndexingStatus is the resolver for the indexingStatus field.
 func (r *subscriptionResolver) IndexingStatus(ctx context.Context, dataSourceName string) (<-chan *model.IndexingStatus, error) {
 	if r.Nc == nil {
-		return nil, errors.Wrap(errors.New("NATS connection is nil"), "failed to get indexing status")
+		return nil, errors.New("NATS connection is nil")
 	}
 
 	if !r.Nc.IsConnected() {
-		return nil, errors.Wrap(errors.New("NATS connection is not connected"), "failed to get indexing status")
+		return nil, errors.New("NATS connection is not connected")
 	}
 
 	r.Logger.Info("Subscribing to indexing status",

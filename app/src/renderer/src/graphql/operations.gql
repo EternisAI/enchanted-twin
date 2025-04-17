@@ -1,19 +1,98 @@
-query GetConditions {
-  conditions {
-    id
+query GetProfile {
+  profile {
     name
-    shortName
-    description
-    category
   }
 }
 
-mutation CreateCondition($conditionName: String!) {
-  createCondition(conditionName: $conditionName) {
+query GetChats($first: Int!, $offset: Int!) {
+  getChats(first: $first, offset: $offset) {
     id
     name
-    shortName
-    description
-    category
+    createdAt
+    messages {
+      id
+      text
+      role
+      createdAt
+      imageUrls
+      toolCalls {
+        id
+        name
+        isCompleted
+      }
+      toolResults
+    }
   }
+}
+
+query GetChat($id: ID!) {
+  getChat(id: $id) {
+    id
+    name
+    createdAt
+    messages {
+      id
+      text
+      imageUrls
+      role
+      createdAt
+      toolCalls {
+        id
+        name
+        isCompleted
+      }
+      toolResults
+    }
+  }
+}
+
+mutation CreateChat($name: String!) {
+  createChat(name: $name) {
+    id
+    name
+    createdAt
+  }
+}
+
+mutation SendMessage($chatId: ID!, $text: String!) {
+  sendMessage(chatId: $chatId, text: $text) {
+    id
+    text
+    role
+    createdAt
+    imageUrls
+    toolResults
+    toolCalls {
+      id
+      name
+      isCompleted
+    }
+  }
+}
+
+mutation DeleteChat($chatId: ID!) {
+  deleteChat(chatId: $chatId) {
+    id
+    name
+  }
+}
+
+subscription MessageAdded($chatId: ID!) {
+  messageAdded(chatId: $chatId) {
+    id
+    text
+    role
+    createdAt
+    imageUrls
+    toolResults
+    toolCalls {
+      id
+      name
+      isCompleted
+    }
+  }
+}
+
+subscription DataSourceAdded($input: AddDataSourceInput!) {
+  addDataSource(input: $input)
 }

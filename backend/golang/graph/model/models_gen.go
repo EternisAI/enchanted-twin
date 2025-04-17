@@ -59,8 +59,9 @@ type UpdateProfileInput struct {
 }
 
 type UserProfile struct {
-	Name           *string         `json:"name,omitempty"`
-	IndexingStatus *IndexingStatus `json:"indexingStatus,omitempty"`
+	Name                 *string         `json:"name,omitempty"`
+	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
+	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
 }
 
 type IndexingState string

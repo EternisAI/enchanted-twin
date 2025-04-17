@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -70,7 +71,8 @@ func CreateTemporalClient(address string, namespace string, apiKey string) (clie
 	return client.Dial(clientOptions)
 }
 
-func CreateTemporalServer() {
+// CreateTemporalServer starts a Temporal server and signals readiness on the ready channel.
+func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}) {
 	ip := TemporalServerIP
 	port := TemporalServerPort
 	historyPort := port + 1
@@ -188,8 +190,8 @@ func CreateTemporalServer() {
 	if err != nil {
 		log.Fatalf("unable to create authorizer: %s", err)
 	}
-	logger := temporallog.NewNoopLogger().With()
-	claimMapper, err := authorization.GetClaimMapperFromConfig(&conf.Global.Authorization, logger)
+	temporalLogger := temporallog.NewNoopLogger().With()
+	claimMapper, err := authorization.GetClaimMapperFromConfig(&conf.Global.Authorization, temporalLogger)
 	if err != nil {
 		log.Fatalf("unable to create claim mapper: %s", err)
 	}
@@ -206,7 +208,7 @@ func CreateTemporalServer() {
 			primitives.MatchingService: static.SingleLocalHost(fmt.Sprintf("%s:%d", ip, matchingPort)),
 			primitives.WorkerService:   static.SingleLocalHost(fmt.Sprintf("%s:%d", ip, workerPort)),
 		}),
-		temporal.WithLogger(logger),
+		temporal.WithLogger(temporalLogger),
 		temporal.WithAuthorizer(authorizer),
 		temporal.WithClaimMapper(func(*config.Config) authorization.ClaimMapper { return claimMapper }),
 		temporal.WithDynamicConfigClient(dynConf))
@@ -222,8 +224,10 @@ func CreateTemporalServer() {
 			log.Printf("error stopping server: %s", err)
 		}
 	}()
-	log.Printf("%-8s %v:%v", "Server:", ip, port)
-	log.Printf("%-8s http://%v:%v", "UI:", ip, uiPort)
+	// signal that the server is ready
+	close(ready)
+	logger.Info("Server started", "ip", ip, "port", port)
+	logger.Info("UI", "ip", ip, "port", uiPort)
 
 	select {}
 }

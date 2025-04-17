@@ -36,7 +36,7 @@ export default function SidebarDock() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -50, opacity: 0 }}
             transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="bg-purple-600 text-white rounded-r-full text-lg px-3 py-3 cursor-pointer shadow-lg"
+            className="bg-green-600 text-white rounded-r-full text-lg px-3 py-3 cursor-pointer shadow-lg"
           >
             <MenuIcon className="w-5 h-5" />
           </motion.div>
@@ -53,7 +53,7 @@ export default function SidebarDock() {
             transition={{ type: 'spring', stiffness: 200, damping: 24 }}
             className="bg-white border-r shadow-lg p-4 flex flex-col gap-6 rounded-r-xl w-48"
           >
-            <div className="text-xl font-bold text-purple-700 px-2">Enchanted Twin</div>
+            <div className="text-xl font-bold text-green-700 px-2">Enchanted Twin</div>
             <nav className="flex flex-col gap-4 mt-2">
               {LINKS.map(({ label, to, icon: Icon }) => {
                 const isActive = location.href === to
@@ -63,8 +63,8 @@ export default function SidebarDock() {
                     to={to}
                     disabled={isActive}
                     className={cn(
-                      'flex items-center gap-2 px-3 py-2 rounded-md hover:bg-purple-100 transition-colors',
-                      isActive ? 'bg-purple-200 text-purple-800 font-semibold' : 'text-gray-700'
+                      'flex items-center gap-2 px-3 py-2 rounded-md hover:bg-green-100 transition-colors',
+                      isActive ? 'bg-green-200 text-green-800 font-semibold' : 'text-gray-700'
                     )}
                   >
                     <Icon className="w-5 h-5" />
