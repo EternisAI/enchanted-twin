@@ -68,6 +68,7 @@ type Mutation {
   sendMessage(chatId: ID!, text: String!): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing(input: IndexingInput!): Boolean!
+  addDataSource(name: String!, path: String!): Boolean!
 }
 
 type Subscription {

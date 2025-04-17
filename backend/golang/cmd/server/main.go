@@ -60,7 +60,11 @@ func main() {
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Error closing store", slog.Any("error", err))
+		}
+	}()
 
 	logger.Info("Starting temporal server and client")
 	temporalClient, err := bootstrapTemporal(logger, envs, store)

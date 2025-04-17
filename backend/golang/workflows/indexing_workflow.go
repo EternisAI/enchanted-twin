@@ -77,11 +77,7 @@ func (w *TemporalWorkflows) IndexWorkflow(ctx workflow.Context, input IndexWorkf
 	indexingState = PROCESSING_DATA
 
 	var processDataResponse ProcessDataActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, ProcessDataActivityInput{
-		DataSourceName: input.DataSourceName,
-		SourcePath:     input.SourcePath,
-		Username:       input.Username,
-	}).Get(ctx, &processDataResponse)
+	err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, ProcessDataActivityInput(input)).Get(ctx, &processDataResponse)
 	if err != nil {
 		indexingState = FAILED
 		return IndexWorkflowResponse{}, err
@@ -117,7 +113,7 @@ type CreateDataSourceActivityInput struct {
 type CreateDataSourceActivityResponse struct{}
 
 func (w *TemporalWorkflows) CreateDataSourceActivity(ctx context.Context, input CreateDataSourceActivityInput) (CreateDataSourceActivityResponse, error) {
-	_, err := w.Store.CreateDataSource(ctx, input.DataSourceID, input.DataSourceName)
+	_, err := w.Store.CreateDataSource(ctx, input.DataSourceID, input.DataSourceName, "")
 	if err != nil {
 		return CreateDataSourceActivityResponse{}, err
 	}
