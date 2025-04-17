@@ -57,7 +57,7 @@ export default function ChatHome() {
           style={{ maxHeight: `calc(100vh - 130px)` }}
         >
           <div className="py-8">
-            <div className="w-48 h-48 rounded-full bg-gray-200 flex items-center justify-center">
+            <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
               <span className="text-foreground text-6xl">👤</span>
             </div>
           </div>
