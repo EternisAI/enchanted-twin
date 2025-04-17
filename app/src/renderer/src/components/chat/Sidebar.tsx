@@ -19,7 +19,7 @@ import { useMutation } from '@apollo/client'
 export function Sidebar({ chats }: { chats: Chat[] }) {
   const { location } = useRouterState()
 
-  const isHome = location.pathname === '/chat'
+  const isHome = location.pathname === '/chat' // TODO: refactor, this is a hack to check if we're on the home page
 
   return (
     <aside className="flex flex-col justify-between gap-3 w-64 bg-muted/50 p-4 overflow-y-auto rounded-lg">
