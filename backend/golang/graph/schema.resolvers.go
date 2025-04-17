@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/workflows"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
@@ -86,8 +87,33 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 	if r.Store == nil {
 		panic("Store not initialized")
 	}
-	// Use SQLite for profile storage
-	return r.Store.GetUserProfile(ctx)
+
+	profile, err := r.Store.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	workflowID := "index-x"
+	workflowRunID := "" // Empty string means latest run
+	var stateQuery workflows.IndexingStateQuery
+	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
+	if err != nil {
+		fmt.Println(err)
+		return profile, nil
+	}
+
+	if err := encodedValue.Get(&stateQuery); err != nil {
+		fmt.Println(err)
+		return profile, nil
+	}
+
+	profile.IndexingStatus = &model.IndexingStatus{
+		Status:                 model.IndexingState(stateQuery.State),
+		ProcessingDataProgress: 0,
+		IndexingDataProgress:   0,
+	}
+
+	return profile, nil
 }
 
 // GetChats is the resolver for the getChats field.
@@ -153,10 +179,12 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)
 
 // !!! WARNING !!!
 // The code below was going to be deleted when updating resolvers. It has been copied here so you have
