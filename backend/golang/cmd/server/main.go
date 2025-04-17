@@ -113,6 +113,12 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config) (client.Client,
 	}
 	temporalWorkflows.RegisterWorkflows(&w)
 
+	err = w.Start()
+	if err != nil {
+		logger.Error("Error starting worker", slog.Any("error", err))
+		return nil, err
+	}
+
 	return client, nil
 }
 
