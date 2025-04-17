@@ -178,6 +178,7 @@
   }
 }
 
-button {
+/* not using cursor pointer as native buttons don't have it */
+/* button {
   cursor: pointer;
-}
+} */

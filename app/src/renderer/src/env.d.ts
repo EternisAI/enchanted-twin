@@ -16,6 +16,9 @@ interface IApi {
   copyDroppedFiles: (filePaths: string[]) => Promise<void>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
   selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>
+  getNativeTheme: () => Promise<'light' | 'dark'>
+  setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
+  onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
 }
 
 declare global {

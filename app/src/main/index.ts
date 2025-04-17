@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -8,7 +8,7 @@ import path from 'path'
 
 const PATHNAME = 'input_data'
 
-function createWindow(): void {
+function createWindow(): BrowserWindow {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
@@ -40,6 +40,8 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  return mainWindow
 }
 
 // This method will be called when Electron has finished
@@ -56,8 +58,30 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
+  const mainWindow = createWindow()
+
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // Handle theme changes
+  ipcMain.handle('get-native-theme', () => {
+    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+  })
+
+  ipcMain.handle('set-native-theme', (_, theme: 'system' | 'light' | 'dark') => {
+    if (theme === 'system') {
+      nativeTheme.themeSource = 'system'
+    } else {
+      nativeTheme.themeSource = theme
+    }
+    return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+  })
+
+  // Listen for native theme changes and notify renderer
+  nativeTheme.on('updated', () => {
+    const newTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+    mainWindow.webContents.send('native-theme-updated', newTheme)
+  })
 
   // Handle directory selection
   ipcMain.handle('select-directory', async () => {
@@ -116,8 +140,6 @@ app.whenReady().then(() => {
     const appPath = app.getAppPath()
     return path.join(appPath, PATHNAME)
   })
-
-  createWindow()
 
   app.on('activate', function () {
     // On macOS it's common to re-create a window in the app when the
