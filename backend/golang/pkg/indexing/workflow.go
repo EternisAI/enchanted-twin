@@ -210,14 +210,6 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context, input IndexDat
 	return IndexDataActivityResponse{}, nil
 }
 
-type CleanUpActivityInput struct{}
-
-type CleanUpActivityResponse struct{}
-
-func (w *IndexingWorkflow) CleanUpActivity(ctx context.Context, input CleanUpActivityInput) (CleanUpActivityResponse, error) {
-	return CleanUpActivityResponse{}, nil
-}
-
 type CompleteActivityInput struct {
 	DataSources []*model.DataSource `json:"dataSources"`
 }

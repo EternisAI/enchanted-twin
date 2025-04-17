@@ -21,7 +21,6 @@ func (workflows *IndexingWorkflow) RegisterWorkflows(worker *worker.Worker) {
 	(*worker).RegisterActivity(workflows.FetchDataSourcesActivity)
 	(*worker).RegisterActivity(workflows.ProcessDataActivity)
 	(*worker).RegisterActivity(workflows.IndexDataActivity)
-	(*worker).RegisterActivity(workflows.CleanUpActivity)
 	(*worker).RegisterActivity(workflows.CompleteActivity)
 	(*worker).RegisterActivity(workflows.PublishIndexingStatus)
 }
