@@ -6,7 +6,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 
 	_ "github.com/mattn/go-sqlite3"
 )

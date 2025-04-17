@@ -1,4 +1,4 @@
-package dataimport
+package dataprocessing
 
 import (
 	"encoding/json"

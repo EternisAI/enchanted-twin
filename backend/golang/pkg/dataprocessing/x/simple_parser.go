@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func parseTwitterFileSimple(content []byte, fileType string, userName string) ([]types.Record, error) {
