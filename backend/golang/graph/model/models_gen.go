@@ -15,6 +15,13 @@ type Chat struct {
 	CreatedAt string     `json:"createdAt"`
 }
 
+type DataSource struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	UpdatedAt string `json:"updatedAt"`
+	IsIndexed bool   `json:"isIndexed"`
+}
+
 type IndexingInput struct {
 	DataSourceName string `json:"dataSourceName"`
 	SourcePath     string `json:"sourcePath"`

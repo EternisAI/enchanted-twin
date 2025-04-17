@@ -59,6 +59,7 @@ type Query {
   profile: UserProfile!
   getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
   getChat(id: ID!): Chat!
+  getDataSources: [DataSource!]!
 }
 
 type Mutation {
@@ -78,6 +79,13 @@ input IndexingInput {
   dataSourceName: String!
   sourcePath: String!
   username: String!
+}
+
+type DataSource {
+  id: ID!
+  name: String!
+  updatedAt: DateTime!
+  isIndexed: Boolean!
 }
 
 enum IndexingState {

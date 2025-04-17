@@ -134,6 +134,25 @@ func (r *queryResolver) GetChat(ctx context.Context, id string) (*model.Chat, er
 	return &chat, nil
 }
 
+// GetDataSources is the resolver for the getDataSources field.
+func (r *queryResolver) GetDataSources(ctx context.Context) ([]*model.DataSource, error) {
+	dbDataSources, err := r.Store.GetDataSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	modelDataSources := make([]*model.DataSource, len(dbDataSources))
+	for i, ds := range dbDataSources {
+		modelDataSources[i] = &model.DataSource{
+			ID:        ds.ID,
+			Name:      ds.Name,
+			UpdatedAt: ds.UpdatedAt,
+			IsIndexed: ds.IsIndexed,
+		}
+	}
+	return modelDataSources, nil
+}
+
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)
@@ -193,12 +212,7 @@ type (
 //    it when you're done.
 //  - You have helper methods in this file. Move them out to keep these resolver files clean.
 /*
-	func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
-	if err != nil {
-		fmt.Println(err)
-		return false, err
-	}
-	return success, nil
+	func (r *queryResolver) DataSource(ctx context.Context) ([]*model.DataSource, error) {
+	panic(fmt.Errorf("not implemented: DataSource - dataSource"))
 }
 */
