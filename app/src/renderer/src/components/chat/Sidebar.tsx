@@ -22,7 +22,7 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
   const isHome = location.pathname === '/chat'
 
   return (
-    <aside className="flex flex-col justify-between gap-3 w-64 bg-gray-50 border-r p-4 overflow-y-auto">
+    <aside className="flex flex-col justify-between gap-3 w-64 bg-accent border-r p-4 overflow-y-auto">
       <div className="flex flex-col gap-3">
         <h2 className="text-lg font-semibold mb-4">Chats</h2>
         <div className="space-y-2">
@@ -35,7 +35,7 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
 
       <div>
         <Link to="/chat" disabled={isHome}>
-          <button className="w-full bg-green-500 text-white px-4 py-2 rounded-md">New Chat</button>
+          <Button>New Chat</Button>
         </Link>
       </div>
     </aside>
@@ -56,8 +56,8 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   return (
     <div
       className={cn('flex items-center gap-2 justify-between rounded-md group', {
-        'bg-green-100': isActive,
-        'hover:bg-gray-100': !isActive
+        'bg-primary/10': isActive,
+        'hover:bg-accent': !isActive
       })}
     >
       <Link
@@ -66,8 +66,8 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         to="/chat/$chatId"
         params={{ chatId: chat.id }}
         className={cn('block px-3 py-2 text-sm font-medium flex-1', {
-          'text-green-700': isActive,
-          'text-gray-800': !isActive
+          'text-primary': isActive,
+          'text-muted-foreground': !isActive
         })}
       >
         {chat.name.slice(0, 25) || 'Untitled Chat'}
@@ -77,9 +77,9 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           <Button
             variant="ghost"
             size="icon"
-            className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-100"
+            className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
           >
-            <Trash2 className="w-4 h-4 text-red-500" />
+            <Trash2 className="w-4 h-4 text-destructive" />
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent>

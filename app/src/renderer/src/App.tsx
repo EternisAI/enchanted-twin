@@ -20,14 +20,14 @@ function App(): React.JSX.Element {
       </style>
       <div className="flex w-full max-w-2xl flex-col gap-4 ">
         <div>
-          <h1>Home Page</h1>
+          <h1>My Twin</h1>
         </div>
         <div className="actions">
           <DragNDrop />
           <Button variant="secondary" onClick={ipcHandle}>
             Send IPC
           </Button>
-          <Versions></Versions>
+          {process.env.NODE_ENV === 'development' && <Versions></Versions>}
         </div>
       </div>
     </div>
