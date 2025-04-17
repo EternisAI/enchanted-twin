@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -57,10 +58,17 @@ type ProcessDataActivityInput struct {
 	Username       string `json:"username"`
 }
 
-type ProcessDataActivityResponse struct{}
+type ProcessDataActivityResponse struct {
+	Success bool `json:"success"`
+}
 
 func (w *TemporalWorkflows) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
-	return ProcessDataActivityResponse{}, nil
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", input.Username, "")
+	if err != nil {
+		fmt.Println(err)
+		return ProcessDataActivityResponse{}, err
+	}
+	return ProcessDataActivityResponse{Success: success}, nil
 }
 
 type DownloadModelActivityInput struct {
