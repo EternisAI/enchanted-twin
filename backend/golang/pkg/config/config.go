@@ -36,8 +36,8 @@ func getEnvOrPanic(key string, printEnv bool) string {
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 	return &Config{
-		OpenAIAPIKey:  getEnvOrPanic("OPENAI_API_KEY", printEnv),
-		GraphqlPort:   getEnvOrPanic("GRAPHQL_PORT", printEnv),
+		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", "", printEnv),
+		GraphqlPort:   getEnv("GRAPHQL_PORT", "3000", printEnv),
 		OpenAIBaseURL: getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
 	}, nil
 }
