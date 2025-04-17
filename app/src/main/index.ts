@@ -6,6 +6,8 @@ import icon from '../../resources/icon.png?asset'
 import fs from 'fs'
 import path from 'path'
 
+const PATHNAME = 'input_data'
+
 function createWindow(): void {
   // Create the browser window.
   const mainWindow = new BrowserWindow({
@@ -60,8 +62,8 @@ app.whenReady().then(() => {
     console.log('copy-dropped-files', filePaths)
     const fileStoragePath =
       process.env.NODE_ENV === 'development'
-        ? path.join(app.getAppPath(), 'stored-files')
-        : path.join(app.getPath('userData'), 'stored-files')
+        ? path.join(app.getAppPath(), PATHNAME)
+        : path.join(app.getPath('userData'), PATHNAME)
 
     // Ensure storage directory exists
     if (!fs.existsSync(fileStoragePath)) {
@@ -94,7 +96,7 @@ app.whenReady().then(() => {
 
   ipcMain.handle('get-stored-files-path', () => {
     const appPath = app.getAppPath()
-    return path.join(appPath, 'stored-files')
+    return path.join(appPath, PATHNAME)
   })
 
   createWindow()
