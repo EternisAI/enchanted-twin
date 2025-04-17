@@ -3,7 +3,9 @@ import { electronAPI } from '@electron-toolkit/preload'
 
 const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
-  copyDroppedFiles: (paths: string[]) => ipcRenderer.invoke('copy-dropped-files', paths)
+  copyDroppedFiles: (paths: string[]) => ipcRenderer.invoke('copy-dropped-files', paths),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
+  selectFiles: () => ipcRenderer.invoke('select-files')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

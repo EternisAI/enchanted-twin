@@ -2,11 +2,25 @@
 
 export {}
 
+interface IElectronAPI {
+  ipcRenderer: {
+    send(channel: string, ...args: unknown[]): void
+    on(channel: string, func: (...args: unknown[]) => void): void
+    once(channel: string, func: (...args: unknown[]) => void): void
+    invoke(channel: string, ...args: unknown[]): Promise<{ canceled: boolean; filePaths: string[] }>
+  }
+}
+
+interface IApi {
+  ping: () => void
+  copyDroppedFiles: (filePaths: string[]) => Promise<void>
+  selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
+  selectFiles: () => Promise<{ canceled: boolean; filePaths: string[] }>
+}
+
 declare global {
   interface Window {
-    api: {
-      getPathForFile: (file: File) => string
-      copyDroppedFiles: (paths: string[]) => Promise<string[]>
-    }
+    electron: IElectronAPI
+    api: IApi
   }
 }

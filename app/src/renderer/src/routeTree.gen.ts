@@ -12,6 +12,7 @@
 
 import { Route as rootRoute } from './routes/__root'
 import { Route as SettingsImport } from './routes/settings'
+import { Route as OnboardingImport } from './routes/onboarding'
 import { Route as ChatRouteImport } from './routes/chat/route'
 import { Route as IndexImport } from './routes/index'
 import { Route as ChatIndexImport } from './routes/chat/index'
@@ -22,6 +23,12 @@ import { Route as ChatChatIdImport } from './routes/chat/$chatId'
 const SettingsRoute = SettingsImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const OnboardingRoute = OnboardingImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -67,6 +74,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatRouteImport
       parentRoute: typeof rootRoute
     }
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingImport
+      parentRoute: typeof rootRoute
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -110,6 +124,7 @@ const ChatRouteRouteWithChildren = ChatRouteRoute._addFileChildren(
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat': typeof ChatRouteRouteWithChildren
+  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/chat/': typeof ChatIndexRoute
@@ -117,6 +132,7 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/chat': typeof ChatIndexRoute
@@ -126,6 +142,7 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/chat': typeof ChatRouteRouteWithChildren
+  '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/chat/': typeof ChatIndexRoute
@@ -133,22 +150,37 @@ export interface FileRoutesById {
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/chat' | '/settings' | '/chat/$chatId' | '/chat/'
+  fullPaths:
+    | '/'
+    | '/chat'
+    | '/onboarding'
+    | '/settings'
+    | '/chat/$chatId'
+    | '/chat/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/settings' | '/chat/$chatId' | '/chat'
-  id: '__root__' | '/' | '/chat' | '/settings' | '/chat/$chatId' | '/chat/'
+  to: '/' | '/onboarding' | '/settings' | '/chat/$chatId' | '/chat'
+  id:
+    | '__root__'
+    | '/'
+    | '/chat'
+    | '/onboarding'
+    | '/settings'
+    | '/chat/$chatId'
+    | '/chat/'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatRouteRoute: typeof ChatRouteRouteWithChildren
+  OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRouteRoute: ChatRouteRouteWithChildren,
+  OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
 }
 
@@ -164,6 +196,7 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/chat",
+        "/onboarding",
         "/settings"
       ]
     },
@@ -176,6 +209,9 @@ export const routeTree = rootRoute
         "/chat/$chatId",
         "/chat/"
       ]
+    },
+    "/onboarding": {
+      "filePath": "onboarding.tsx"
     },
     "/settings": {
       "filePath": "settings.tsx"

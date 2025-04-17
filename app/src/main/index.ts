@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -58,6 +58,22 @@ app.whenReady().then(() => {
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  // Handle directory selection
+  ipcMain.handle('select-directory', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    return result
+  })
+
+  // Handle file selection
+  ipcMain.handle('select-files', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile', 'multiSelections']
+    })
+    return result
+  })
 
   // This will be used to copy the files to the app's storage directory to be read later by GO
   ipcMain.handle('copy-dropped-files', async (event, filePaths) => {
