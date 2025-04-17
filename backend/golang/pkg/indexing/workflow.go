@@ -100,8 +100,7 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		}
 
 		dataSources[i].IsProcessed = true
-
-		// Update progress
+		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 		progress := int32((i + 1) * 100 / len(fetchDataSourcesResponse.DataSources))
 		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, progress, 0)
 	}
@@ -126,9 +125,14 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		return IndexWorkflowResponse{}, err
 	}
 
+	for i := range dataSources {
+		dataSources[i].IsIndexed = true
+		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
+	}
+
 	indexingState = COMPLETED
 	fmt.Println("completed")
-	fmt.Println(dataSources)
+	fmt.Println(dataSources[0].IsIndexed)
 
 	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, dataSources, 100, 100)
 	return IndexWorkflowResponse{}, nil
@@ -221,12 +225,12 @@ type CompleteActivityInput struct {
 type CompleteActivityResponse struct{}
 
 func (w *IndexingWorkflow) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
-	for i, dataSource := range input.DataSources {
+	for _, dataSource := range input.DataSources {
 		_, err := w.Store.UpdateDataSource(ctx, dataSource.ID, true)
 		if err != nil {
 			return CompleteActivityResponse{}, err
 		}
-		input.DataSources[i].IsIndexed = true
+
 	}
 	return CompleteActivityResponse{}, nil
 }
