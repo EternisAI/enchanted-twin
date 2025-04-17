@@ -111,9 +111,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config) (client.Client,
 		Logger: logger,
 		Config: envs,
 	}
-
-	w.RegisterWorkflow(temporalWorkflows.IndexWorkflow)
-	w.RegisterActivity(temporalWorkflows.ProcessDataActivity)
+	temporalWorkflows.RegisterWorkflows(&w)
 
 	return client, nil
 }
