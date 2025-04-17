@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net"
 	"time"
 
@@ -14,7 +14,7 @@ const (
 	NatsServerURL = "nats://127.0.0.1:4222"
 )
 
-func StartEmbeddedNATSServer() (*server.Server, error) {
+func StartEmbeddedNATSServer(logger *slog.Logger) (*server.Server, error) {
 	opts := &server.Options{}
 
 	s, err := server.NewServer(opts)
@@ -34,7 +34,7 @@ func StartEmbeddedNATSServer() (*server.Server, error) {
 		return nil, errors.New("unexpected address type")
 	}
 
-	log.Printf("Started NATS server on port: %d", tcpAddr.Port)
+	logger.Info("Started NATS server", "port", tcpAddr.Port)
 	return s, nil
 }
 
