@@ -28,13 +28,7 @@ export default function DragNDrop() {
       <div
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        style={{
-          border: '2px dashed #cccccc',
-          borderRadius: '4px',
-          padding: '20px',
-          textAlign: 'center',
-          height: '200px'
-        }}
+        className="border-2 border-border rounded-md p-4 text-center border-dashed"
       >
         Drag and drop files here
       </div>
