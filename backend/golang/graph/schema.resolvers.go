@@ -155,6 +155,7 @@ func (r *queryResolver) GetDataSources(ctx context.Context) ([]*model.DataSource
 		modelDataSources[i] = &model.DataSource{
 			ID:        ds.ID,
 			Name:      ds.Name,
+			Path:      ds.Path,
 			UpdatedAt: ds.UpdatedAt,
 			IsIndexed: ds.IsIndexed != nil && *ds.IsIndexed,
 		}

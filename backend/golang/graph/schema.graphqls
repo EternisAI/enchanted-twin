@@ -85,6 +85,7 @@ input IndexingInput {
 type DataSource {
   id: ID!
   name: String!
+  path: String!
   updatedAt: DateTime!
   isIndexed: Boolean!
 }

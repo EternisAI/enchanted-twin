@@ -18,6 +18,7 @@ type Chat struct {
 type DataSource struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
+	Path      string `json:"path"`
 	UpdatedAt string `json:"updatedAt"`
 	IsIndexed bool   `json:"isIndexed"`
 }
