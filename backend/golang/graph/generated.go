@@ -74,7 +74,6 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddDataSource func(childComplexity int, input model.AddDataSourceInput) int
 		CreateChat    func(childComplexity int, name string) int
 		DeleteChat    func(childComplexity int, chatID string) int
 		SendMessage   func(childComplexity int, chatID string, text string) int
@@ -113,7 +112,6 @@ type MutationResolver interface {
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
-	AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error)
 	StartIndexing(ctx context.Context, input model.IndexingInput) (bool, error)
 }
 type QueryResolver interface {
@@ -242,18 +240,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Message.ToolResults(childComplexity), true
-
-	case "Mutation.addDataSource":
-		if e.complexity.Mutation.AddDataSource == nil {
-			break
-		}
-
-		args, err := ec.field_Mutation_addDataSource_args(context.TODO(), rawArgs)
-		if err != nil {
-			return 0, false
-		}
-
-		return e.complexity.Mutation.AddDataSource(childComplexity, args["input"].(model.AddDataSourceInput)), true
 
 	case "Mutation.createChat":
 		if e.complexity.Mutation.CreateChat == nil {
@@ -413,7 +399,6 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	opCtx := graphql.GetOperationContext(ctx)
 	ec := executionContext{opCtx, e, 0, 0, make(chan graphql.DeferredResult)}
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
-		ec.unmarshalInputAddDataSourceInput,
 		ec.unmarshalInputIndexingInput,
 		ec.unmarshalInputUpdateProfileInput,
 	)
@@ -548,29 +533,6 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 // endregion ************************** generated!.gotpl **************************
 
 // region    ***************************** args.gotpl *****************************
-
-func (ec *executionContext) field_Mutation_addDataSource_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
-	var err error
-	args := map[string]any{}
-	arg0, err := ec.field_Mutation_addDataSource_argsInput(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["input"] = arg0
-	return args, nil
-}
-func (ec *executionContext) field_Mutation_addDataSource_argsInput(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (model.AddDataSourceInput, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-	if tmp, ok := rawArgs["input"]; ok {
-		return ec.unmarshalNAddDataSourceInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx, tmp)
-	}
-
-	var zeroVal model.AddDataSourceInput
-	return zeroVal, nil
-}
 
 func (ec *executionContext) field_Mutation_createChat_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
@@ -1825,61 +1787,6 @@ func (ec *executionContext) fieldContext_Mutation_deleteChat(ctx context.Context
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_deleteChat_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
-		ec.Error(ctx, err)
-		return fc, err
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _Mutation_addDataSource(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Mutation_addDataSource(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
-		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().AddDataSource(rctx, fc.Args["input"].(model.AddDataSourceInput))
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(bool)
-	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_Mutation_addDataSource(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "Mutation",
-		Field:      field,
-		IsMethod:   true,
-		IsResolver: true,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
-		},
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			err = ec.Recover(ctx, r)
-			ec.Error(ctx, err)
-		}
-	}()
-	ctx = graphql.WithFieldContext(ctx, fc)
-	if fc.Args, err = ec.field_Mutation_addDataSource_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -4587,47 +4494,6 @@ func (ec *executionContext) fieldContext___Type_isOneOf(_ context.Context, field
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputAddDataSourceInput(ctx context.Context, obj any) (model.AddDataSourceInput, error) {
-	var it model.AddDataSourceInput
-	asMap := map[string]any{}
-	for k, v := range obj.(map[string]any) {
-		asMap[k] = v
-	}
-
-	fieldsInOrder := [...]string{"dataSourceName", "path", "username"}
-	for _, k := range fieldsInOrder {
-		v, ok := asMap[k]
-		if !ok {
-			continue
-		}
-		switch k {
-		case "dataSourceName":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("dataSourceName"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.DataSourceName = data
-		case "path":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Path = data
-		case "username":
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("username"))
-			data, err := ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-			it.Username = data
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputIndexingInput(ctx context.Context, obj any) (model.IndexingInput, error) {
 	var it model.IndexingInput
 	asMap := map[string]any{}
@@ -4947,13 +4813,6 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteChat":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteChat(ctx, field)
-			})
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "addDataSource":
-			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
-				return ec._Mutation_addDataSource(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -5547,11 +5406,6 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 // endregion **************************** object.gotpl ****************************
 
 // region    ***************************** type.gotpl *****************************
-
-func (ec *executionContext) unmarshalNAddDataSourceInput2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐAddDataSourceInput(ctx context.Context, v any) (model.AddDataSourceInput, error) {
-	res, err := ec.unmarshalInputAddDataSourceInput(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
 
 func (ec *executionContext) unmarshalNBoolean2bool(ctx context.Context, v any) (bool, error) {
 	res, err := graphql.UnmarshalBoolean(v)

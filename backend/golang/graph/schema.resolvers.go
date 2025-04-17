@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -62,24 +62,23 @@ func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*mode
 	panic(fmt.Errorf("not implemented: DeleteChat - deleteChat"))
 }
 
-// AddDataSource is the resolver for the addDataSource field.
-func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
-	if err != nil {
-		fmt.Println(err)
-		return false, err
-	}
-	return success, nil
-}
-
 // StartIndexing is the resolver for the startIndexing field.
 func (r *mutationResolver) StartIndexing(ctx context.Context, input model.IndexingInput) (bool, error) {
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".json", input.Username, "")
-	if err != nil {
-		fmt.Println(err)
-		return false, err
+	options := client.StartWorkflowOptions{
+		ID:        "index-" + input.DataSourceName,
+		TaskQueue: "default",
 	}
-	return success, nil
+	proposalMap := map[string]interface{}{
+		"dataSourceName": input.DataSourceName,
+		"sourcePath":     input.SourcePath,
+		"username":       input.Username,
+	}
+	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "IndexWorkflow", proposalMap)
+	if err != nil {
+		return false, fmt.Errorf("error executing workflow: %v", err)
+	}
+
+	return true, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -154,9 +153,24 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *mutationResolver) AddDataSource(ctx context.Context, input model.AddDataSourceInput) (bool, error) {
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.Path, "./output/"+input.DataSourceName+".json", input.Username, "")
+	if err != nil {
+		fmt.Println(err)
+		return false, err
+	}
+	return success, nil
+}
+*/

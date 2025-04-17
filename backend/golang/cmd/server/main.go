@@ -16,6 +16,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	"github.com/EternisAI/enchanted-twin/workflows"
 
 	"github.com/EternisAI/enchanted-twin/graph"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
 )
 
 func main() {
@@ -42,7 +44,7 @@ func main() {
 	logger.Info("Config loaded", slog.Any("envs", envs))
 
 	logger.Info("Starting temporal server and client")
-	temporalClient, err := bootstrapTemporal(logger)
+	temporalClient, err := bootstrapTemporal(logger, envs)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
@@ -91,7 +93,7 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
+func bootstrapTemporal(logger *slog.Logger, envs *config.Config) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	go bootstrap.CreateTemporalServer()
 
@@ -102,6 +104,17 @@ func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create temporal client"))
 	}
+
+	w := worker.New(client, "default", worker.Options{})
+
+	temporalWorkflows := workflows.TemporalWorkflows{
+		Logger: logger,
+		Config: envs,
+	}
+
+	w.RegisterWorkflow(temporalWorkflows.IndexWorkflow)
+	w.RegisterActivity(temporalWorkflows.ProcessDataActivity)
+
 	return client, nil
 }
 
