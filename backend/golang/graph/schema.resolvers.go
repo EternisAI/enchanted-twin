@@ -82,6 +82,15 @@ func (r *mutationResolver) StartIndexing(ctx context.Context, input model.Indexi
 	return true, nil
 }
 
+// AddDataSource is the resolver for the addDataSource field.
+func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path string) (bool, error) {
+	_, err := r.Store.CreateDataSource(ctx, uuid.New().String(), name, path)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -198,21 +207,7 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-)
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *queryResolver) DataSource(ctx context.Context) ([]*model.DataSource, error) {
-	panic(fmt.Errorf("not implemented: DataSource - dataSource"))
-}
-*/
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

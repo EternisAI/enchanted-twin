@@ -41,11 +41,15 @@ func NewStore(dbPath string) (*Store, error) {
 	_, err = db.Exec(`
 		INSERT OR IGNORE INTO user_profiles (id, name) VALUES ('default', '(missing name)')
 	`)
+	if err != nil {
+		return nil, err
+	}
 
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS data_sources (
 			id TEXT PRIMARY KEY,
 			name TEXT,
+			path TEXT,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			is_indexed BOOLEAN DEFAULT FALSE
 		)
@@ -90,25 +94,26 @@ type DataSource struct {
 	ID        string `db:"id"`
 	Name      string `db:"name"`
 	UpdatedAt string `db:"updated_at"`
+	Path      string `db:"path"`
 	IsIndexed *bool  `db:"is_indexed"`
 }
 
 // GetDataSources retrieves all data sources
 func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, is_indexed FROM data_sources`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed FROM data_sources`)
 	if err != nil {
 		return nil, err
 	}
 	return dataSources, nil
 }
 
-func (s *Store) CreateDataSource(ctx context.Context, id string, name string) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name) VALUES (?, ?)`, id, name)
+func (s *Store) CreateDataSource(ctx context.Context, id string, name string, path string) (*DataSource, error) {
+	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name, path) VALUES (?, ?, ?)`, id, name, path)
 	if err != nil {
 		return nil, err
 	}
-	return &DataSource{ID: id, Name: name}, nil
+	return &DataSource{ID: id, Name: name, Path: path}, nil
 }
 
 func (s *Store) UpdateDataSource(ctx context.Context, id string, isIndexed bool) (*DataSource, error) {
