@@ -33,6 +33,8 @@ type IndexingStateQuery struct {
 	State IndexingState
 }
 
+const OUTPUT_PATH = "./output/"
+
 func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkflowInput) (IndexWorkflowResponse, error) {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 3 * time.Minute,
@@ -162,7 +164,7 @@ type ProcessDataActivityResponse struct {
 
 func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
 	// TODO: replace username parameter
-	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, "./output/"+input.DataSourceName+".jsonl", "xxx", "")
+	success, err := dataimport.ProcessSource(input.DataSourceName, input.SourcePath, OUTPUT_PATH+input.DataSourceName+".jsonl", "xxx", "")
 	if err != nil {
 		fmt.Println(err)
 		return ProcessDataActivityResponse{}, err
