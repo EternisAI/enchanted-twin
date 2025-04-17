@@ -132,7 +132,7 @@ app.whenReady().then(() => {
   ipcMain.on('ping', () => console.log('pong'))
 
   // This will be used to copy the files to the app's storage directory to be read later by GO
-  ipcMain.handle('copy-dropped-files', async (event, filePaths) => {
+  ipcMain.handle('copy-dropped-files', async (_event, filePaths) => {
     console.log('copy-dropped-files', filePaths)
     const fileStoragePath =
       process.env.NODE_ENV === 'development'
