@@ -9,3 +9,9 @@ alwaysApply: true
 - When packages in `pkg` directory relies on repository make sure to introduce repository per feature instead of augmenting ever increasing interface.
 - Do NOT add comments to explain every other line of your code. The code itself should be self-evident unless the code is exotic or solving a complex problem.
 - When writing code use `make build` to make sure that your proposed code still builds.
+- Don't add comment to explain every other line of your code. The code itself should self-sufficient unless where code is non-trivial.
+- When writing code use `make build` to make sure that your proposed code still builds.
+
+# User interface
+
+- We are building an Electron app with an custom title bar and a spacing component with the class `.titlebar` to properly position the window content.

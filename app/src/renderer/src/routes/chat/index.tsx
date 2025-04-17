@@ -6,5 +6,9 @@ export const Route = createFileRoute('/chat/')({
 })
 
 function RouteComponent() {
-  return <ChatHome />
+  return (
+    <div className="h-full p-4">
+      <ChatHome />
+    </div>
+  )
 }

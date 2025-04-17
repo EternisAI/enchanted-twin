@@ -1,6 +1,7 @@
 import { AppNav } from '@renderer/components/AppNav'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { SetupBanner } from '@renderer/components/SetupBanner'
 
 function RootComponent() {
   const { isCompleted } = useOnboardingStore()
@@ -15,12 +16,15 @@ function RootComponent() {
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground">
-      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6"></div>
-      <div className="flex flex-1 pt-6 ">
-        <AppNav />
-        <div className="flex-1 overflow-auto rounded-lg h-full">
-          <Outlet />
-          {/* <TanStackRouterDevtools /> */}
+      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6" />
+      <div className="flex flex-col flex-1 pt-6 gap-2">
+        <SetupBanner />
+        <div className="flex flex-1">
+          <AppNav />
+          <div className="flex-1 overflow-auto rounded-lg h-full">
+            <Outlet />
+            {/* <TanStackRouterDevtools /> */}
+          </div>
         </div>
       </div>
     </div>

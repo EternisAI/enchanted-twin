@@ -16,6 +16,7 @@ interface OnboardingState {
   userName: string
   dataSources: DataSource[]
   isCompleted: boolean
+  lastCompletedStep: number
   setStep: (step: number) => void
   nextStep: () => void
   previousStep: () => void
@@ -25,22 +26,27 @@ interface OnboardingState {
   addDataSource: (source: DataSource) => void
   updateDataSource: (type: DataSourceType, updates: Partial<DataSource>) => void
   completeOnboarding: () => void
+  resetOnboarding: () => void
 }
 
 export const useOnboardingStore = create<OnboardingState>()(
   persist(
     (set, get) => ({
-        
       currentStep: 0,
       totalSteps: 3,
       userName: '',
       dataSources: [],
       isCompleted: false,
+      lastCompletedStep: -1,
       setStep: (step) => set({ currentStep: step }),
       nextStep: () => {
         const { currentStep, totalSteps, canGoNext } = get()
         if (canGoNext()) {
-          set({ currentStep: Math.min(currentStep + 1, totalSteps - 1) })
+          const nextStep = Math.min(currentStep + 1, totalSteps - 1)
+          set({ 
+            currentStep: nextStep,
+            lastCompletedStep: Math.max(get().lastCompletedStep, currentStep)
+          })
         }
       },
       previousStep: () => {
@@ -77,7 +83,14 @@ export const useOnboardingStore = create<OnboardingState>()(
             source.type === type ? { ...source, ...updates } : source
           )
         })),
-      completeOnboarding: () => set({ isCompleted: true })
+      completeOnboarding: () => set({ 
+        isCompleted: true,
+        lastCompletedStep: get().currentStep 
+      }),
+      resetOnboarding: () => set((state) => ({ 
+        isCompleted: false,
+        currentStep: state.lastCompletedStep + 1
+      }))
     }),
     {
       name: 'onboarding-storage'

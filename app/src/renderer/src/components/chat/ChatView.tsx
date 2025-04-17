@@ -53,10 +53,7 @@ export default function ChatView({ chat }: { chat: Chat }) {
           <div ref={bottomRef} />
         </div>
       </div>
-      <div
-        className="px-6 py-6 border-t border-gray-200"
-        style={{ height: INPUT_HEIGHT } as React.CSSProperties}
-      >
+      <div className="px-6" style={{ height: INPUT_HEIGHT } as React.CSSProperties}>
         <MessageInput
           isWaitingTwinResponse={isWaitingTwinResponse}
           onSend={sendMessage}

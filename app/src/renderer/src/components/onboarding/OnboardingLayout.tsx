@@ -2,6 +2,7 @@ import { ReactNode } from 'react'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { ArrowLeft, ArrowRight } from 'lucide-react'
 import { Button } from '../ui/button'
+import { useNavigate } from '@tanstack/react-router'
 
 interface OnboardingLayoutProps {
   children: ReactNode
@@ -10,8 +11,21 @@ interface OnboardingLayoutProps {
 }
 
 export function OnboardingLayout({ children, title, subtitle }: OnboardingLayoutProps) {
-  const { currentStep, totalSteps, nextStep, previousStep, canGoNext, canGoPrevious } =
-    useOnboardingStore()
+  const {
+    currentStep,
+    totalSteps,
+    nextStep,
+    previousStep,
+    canGoNext,
+    canGoPrevious,
+    completeOnboarding
+  } = useOnboardingStore()
+  const navigate = useNavigate()
+
+  const handleSkip = () => {
+    completeOnboarding()
+    navigate({ to: '/chat' })
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
@@ -49,10 +63,15 @@ export function OnboardingLayout({ children, title, subtitle }: OnboardingLayout
             <ArrowLeft className="mr-2 h-4 w-4" />
             Back
           </Button>
-          <Button onClick={nextStep} disabled={!canGoNext()}>
-            {currentStep === totalSteps - 1 ? 'Finish' : 'Next'}
-            {currentStep < totalSteps - 1 && <ArrowRight className="ml-2 h-4 w-4" />}
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={handleSkip}>
+              Skip setup
+            </Button>
+            <Button onClick={nextStep} disabled={!canGoNext()}>
+              {currentStep === totalSteps - 1 ? 'Finish' : 'Next'}
+              {currentStep < totalSteps - 1 && <ArrowRight className="ml-2 h-4 w-4" />}
+            </Button>
+          </div>
         </div>
 
         {/* Privacy notice */}
