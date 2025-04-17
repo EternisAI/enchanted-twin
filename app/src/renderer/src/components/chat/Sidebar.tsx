@@ -35,7 +35,7 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
 
       <div>
         <Link to="/chat" disabled={isHome}>
-          <Button>New Chat</Button>
+          <Button className="w-full">New Chat</Button>
         </Link>
       </div>
     </aside>
@@ -90,13 +90,14 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>Do not delete</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
                 deleteChat({ variables: { chatId: chat.id } })
               }}
+              asChild
             >
-              Delete (Not implemented yet)
+              <Button variant="destructive">Delete (Not implemented yet)</Button>
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -170,6 +170,12 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Makes the titlebar draggable so user can move the window */
+  .titlebar {
+    user-select: none;
+    app-region: drag;
+  }
 }
 
 button {

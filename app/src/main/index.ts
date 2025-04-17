@@ -14,7 +14,9 @@ function createWindow(): void {
     width: 1200,
     height: 800,
     show: false,
+    titleBarStyle: 'hidden',
     autoHideMenuBar: true,
+    ...(process.platform !== 'darwin' ? { titleBarOverlay: true } : {}),
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),

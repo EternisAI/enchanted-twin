@@ -1,7 +1,9 @@
 import React, { useCallback, useState } from 'react'
+import { cn } from '@renderer/lib/utils'
 
 export default function DragNDrop() {
   const [pathToCopiedFiles, setPathToCopiedFiles] = useState<string[]>([])
+  const [isDragging, setIsDragging] = useState(false)
 
   const handleDrop = async (e: React.DragEvent) => {
     e.preventDefault()
@@ -18,17 +20,37 @@ export default function DragNDrop() {
     setPathToCopiedFiles((state) => [...state, ...pathsToCopiedFiles])
   }
 
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }, [])
+
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     e.stopPropagation()
   }, [])
 
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (e.currentTarget === e.target) {
+      setIsDragging(false)
+    }
+  }, [])
+
   return (
     <div className="flex flex-col gap-4">
       <div
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        className="border-2 border-border rounded-md p-4 text-center border-dashed"
+        className={cn('border-2 rounded-md p-4 text-center transition-all', {
+          'border-border': !isDragging,
+          'border-dashed': !isDragging,
+          'border-primary bg-accent/30': isDragging
+        })}
       >
         Drag and drop files here
       </div>
