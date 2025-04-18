@@ -4,4 +4,4 @@ build/
 bin/
 output/
 data_input/
-store.db
+store.db*
