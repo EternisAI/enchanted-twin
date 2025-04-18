@@ -35,7 +35,7 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 3 * time.Minute,
+		StartToCloseTimeout: 120 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second * 2,
 			MaximumInterval:    time.Minute * 10,
