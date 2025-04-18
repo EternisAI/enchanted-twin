@@ -21,13 +21,13 @@ export function UserMessageBubble({ message }: { message: Message }) {
       <div className="bg-white text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
-          <div className="mt-2 space-x-2">
+          <div className="flex gap-2 mt-2">
             {message.imageUrls.map((url, i) => (
               <img
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block h-24 w-24 object-cover rounded"
+                className="inline-block h-48 w-48 object-cover rounded"
               />
             ))}
           </div>
@@ -49,20 +49,6 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       variants={messageAnimation}
     >
       <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
-        {message.text && <Markdown>{message.text}</Markdown>}
-        {message.imageUrls.length > 0 && (
-          <div className="mt-2 space-x-2">
-            {message.imageUrls.map((url, i) => (
-              <img
-                key={i}
-                src={url}
-                alt={`attachment-${i}`}
-                className="inline-block h-24 w-24 object-cover rounded"
-              />
-            ))}
-          </div>
-        )}
-
         {message.toolCalls.map((toolCall) => {
           return (
             <div
@@ -86,13 +72,26 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
             </div>
           )
         })}
+        {message.text && <Markdown>{message.text}</Markdown>}
+        {message.imageUrls.length > 0 && (
+          <div className="flex gap-2 mt-2">
+            {message.imageUrls.map((url, i) => (
+              <img
+                key={i}
+                src={url}
+                alt={`attachment-${i}`}
+                className="inline-block h-48 w-48 object-cover rounded"
+              />
+            ))}
+          </div>
+        )}
 
-        {message.toolResults.length > 0 && (
+        {/* {message.toolResults.length > 0 && (
           <div className="mt-3 bg-green-50 p-2 rounded text-xs text-gray-700 whitespace-pre-wrap">
             <strong>Tool Result:</strong>
             <pre>{JSON.stringify(message.toolResults, null, 2)}</pre>
           </div>
-        )}
+        )} */}
         <div className="text-xs text-gray-500 pt-1">
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
