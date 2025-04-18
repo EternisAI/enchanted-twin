@@ -130,8 +130,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 	logger.Info("Temporal client created")
 
 	w := worker.New(temporalClient, "default", worker.Options{
-		MaxConcurrentWorkflowTaskExecutionSize: 1,
-		MaxConcurrentActivityExecutionSize:     1,
+		MaxConcurrentActivityExecutionSize: 1,
 	})
 
 	indexingWorkflow := indexing.IndexingWorkflow{
