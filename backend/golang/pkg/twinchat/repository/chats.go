@@ -72,3 +72,14 @@ func (r *Repository) CreateChat(ctx context.Context, name string) (model.Chat, e
 
 	return chat, nil
 }
+
+func (r *Repository) DeleteChat(ctx context.Context, chatID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		DELETE FROM chats WHERE id = ?
+	`, chatID)
+	if err != nil {
+		return fmt.Errorf("failed to delete chat: %w", err)
+	}
+
+	return nil
+}
