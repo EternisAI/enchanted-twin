@@ -94,6 +94,22 @@ func NewStore(dbPath string) (*Store, error) {
 		return nil, err
 	}
 
+	// - token_type is typically "Bearer" or "bearer"
+	// - expires_at refers to the expiry of the access_token.
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS oauth_tokens (
+			provider TEXT PRIMARY KEY,
+			token_type TEXT NOT NULL,
+			scope TEXT NOT NULL,
+			access_token TEXT,
+			expires_at DATETIME,
+			refresh_token TEXT
+		)
+	`)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Store{db: db}, nil
 }
 
