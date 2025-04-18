@@ -10,6 +10,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/nats-io/nats.go"
+	ollamaapi "github.com/ollama/ollama/api"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -18,24 +20,17 @@ type IndexWorkflowInput struct{}
 
 type IndexWorkflowResponse struct{}
 
-type IndexingState string
-
-const (
-	NOT_STARTED       IndexingState = "NOT_STARTED"
-	DOWNLOADING_MODEL IndexingState = "DOWNLOADING_MODEL"
-	PROCESSING_DATA   IndexingState = "PROCESSING_DATA"
-	INDEXING_DATA     IndexingState = "INDEXING_DATA"
-	COMPLETED         IndexingState = "COMPLETED"
-	FAILED            IndexingState = "FAILED"
-)
-
 type IndexingStateQuery struct {
-	State IndexingState
+	State model.IndexingState
 }
 
 const OUTPUT_PATH = "./output/"
 
 func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkflowInput) (IndexWorkflowResponse, error) {
+	if w.Store == nil {
+		return IndexWorkflowResponse{}, fmt.Errorf("store is nil")
+	}
+
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -46,7 +41,7 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		},
 	})
 
-	indexingState := NOT_STARTED
+	indexingState := model.IndexingStateNotStarted
 	dataSources := []*model.DataSource{}
 	w.publishIndexingStatus(ctx, model.IndexingStateNotStarted, dataSources, 0, 0)
 
@@ -54,19 +49,35 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		return IndexingStateQuery{State: indexingState}, nil
 	})
 	if err != nil {
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to set query handler", "error", err)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to set query handler: %w", err)
 	}
 
 	var fetchDataSourcesResponse FetchDataSourcesActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.FetchDataSourcesActivity, FetchDataSourcesActivityInput{}).Get(ctx, &fetchDataSourcesResponse)
 	if err != nil {
-		indexingState = FAILED
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to fetch data sources", "error", err)
+		indexingState = model.IndexingStateFailed
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to fetch data sources: %w", err)
 	}
 
 	if len(fetchDataSourcesResponse.DataSources) == 0 {
-		indexingState = FAILED
+		workflow.GetLogger(ctx).Info("No data sources found")
+		indexingState = model.IndexingStateFailed
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
 		return IndexWorkflowResponse{}, errors.New("no data sources found")
+	}
+
+	indexingState = model.IndexingStateDownloadingModel
+	w.publishIndexingStatus(ctx, model.IndexingStateDownloadingModel, []*model.DataSource{}, 0, 0)
+
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, nil).Get(ctx, nil)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
+		indexingState = model.IndexingStateFailed
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to download Ollama model: %w", err)
 	}
 
 	for _, dataSource := range fetchDataSourcesResponse.DataSources {
@@ -79,11 +90,10 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		})
 	}
 
-	indexingState = PROCESSING_DATA
+	indexingState = model.IndexingStateProcessingData
 	w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
 
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
-
 		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
 
 		processDataActivityInput := ProcessDataActivityInput{
@@ -94,9 +104,11 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		var processDataResponse ProcessDataActivityResponse
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).Get(ctx, &processDataResponse)
 		if err != nil {
-			indexingState = FAILED
-			w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
-			return IndexWorkflowResponse{}, err
+			workflow.GetLogger(ctx).Error("Failed to process data source",
+				"error", err,
+				"dataSource", dataSource.Name)
+			w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
+			return IndexWorkflowResponse{}, fmt.Errorf("failed to process data source %s: %w", dataSource.Name, err)
 		}
 
 		dataSources[i].IsProcessed = true
@@ -105,15 +117,15 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, progress, 0)
 	}
 
-	indexingState = INDEXING_DATA
 	w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, dataSources, 100, 0)
 
 	var indexDataResponse IndexDataActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{}).Get(ctx, &indexDataResponse)
 	if err != nil {
-		indexingState = FAILED
-		w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, dataSources, 100, 0)
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
+
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to index data: %w", err)
 	}
 
 	var completeResponse CompleteActivityResponse
@@ -121,8 +133,10 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		DataSources: dataSources,
 	}).Get(ctx, &completeResponse)
 	if err != nil {
-		indexingState = FAILED
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to complete indexing", "error", err)
+
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to complete indexing: %w", err)
 	}
 
 	for i := range dataSources {
@@ -130,10 +144,8 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 	}
 
-	indexingState = COMPLETED
-	fmt.Println("completed")
-	fmt.Println(dataSources[0].IsIndexed)
-
+	indexingState = model.IndexingStateCompleted
+	workflow.GetLogger(ctx).Info("Indexing completed successfully")
 	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, dataSources, 100, 100)
 	return IndexWorkflowResponse{}, nil
 }
@@ -192,16 +204,6 @@ func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input Proces
 	return ProcessDataActivityResponse{Success: success}, nil
 }
 
-type DownloadModelActivityInput struct {
-	ModelName string `json:"modelName"`
-}
-
-type DownloadModelActivityResponse struct{}
-
-func (w *IndexingWorkflow) DownloadModelActivity(ctx context.Context, input DownloadModelActivityInput) (DownloadModelActivityResponse, error) {
-	return DownloadModelActivityResponse{}, nil
-}
-
 type IndexDataActivityInput struct{}
 
 type IndexDataActivityResponse struct{}
@@ -258,5 +260,81 @@ func (w *IndexingWorkflow) PublishIndexingStatus(ctx context.Context, input Publ
 	}
 
 	w.Logger.Info("Successfully published indexing status", "subject", input.Subject)
+	return nil
+}
+
+type OnboardingActivities struct {
+	ollamaClient *ollamaapi.Client
+	nc           *nats.Conn
+}
+
+func NewOnboardingActivities(ollamaClient *ollamaapi.Client, nc *nats.Conn) *OnboardingActivities {
+	return &OnboardingActivities{
+		ollamaClient: ollamaClient,
+		nc:           nc,
+	}
+}
+
+// This would be for a GraphQL subscription (optional)
+type DownloadModelProgress struct {
+	PercentageProgress float64
+}
+
+func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context) error {
+	modelName := "gemma3:1b"
+
+	models, err := w.OllamaClient.List(context.Background())
+	if err != nil {
+		w.Logger.Error("Failed to list ollama models", "error", err)
+		return err
+	}
+
+	modelFound := false
+	for _, model := range models.Models {
+		if model.Name == modelName {
+			modelFound = true
+			break
+		}
+	}
+
+	if modelFound {
+		w.Logger.Info("Model already downloaded", "modelName", modelName)
+		return nil
+	}
+
+	req := &ollamaapi.PullRequest{
+		Model: modelName,
+	}
+
+	pullProgressFunc := func(progress ollamaapi.ProgressResponse) error {
+		if progress.Total == 0 {
+			return nil
+		}
+
+		percentageProgress := float64(progress.Completed) / float64(progress.Total) * 100
+
+		w.Logger.Info("Download progress", "percentageProgress", percentageProgress)
+		userMessageJson, err := json.Marshal(DownloadModelProgress{
+			PercentageProgress: percentageProgress,
+		})
+		if err != nil {
+			return err
+		}
+
+		err = w.Nc.Publish("onboarding.download_model.progress", userMessageJson)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	err = w.OllamaClient.Pull(context.Background(), req, pullProgressFunc)
+	if err != nil {
+		return err
+	}
+
+	w.Logger.Info("Model downloaded", "modelName", modelName)
+
 	return nil
 }
