@@ -2,12 +2,13 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
 export enum IndexingState {
-  NotStarted = 'NotStarted',
-  ProcessingData = 'ProcessingData',
-  IndexingData = 'IndexingData',
-  Completed = 'Completed',
-  DownloadingModel = 'DownloadingModel',
-  CleanUp = 'CleanUp'
+  NotStarted = 'NOT_STARTED',
+  DownloadingModel = 'DOWNLOADING_MODEL',
+  ProcessingData = 'PROCESSING_DATA',
+  IndexingData = 'INDEXING_DATA',
+  CleanUp = 'CLEAN_UP',
+  Completed = 'COMPLETED',
+  Failed = 'FAILED'
 }
 
 export enum OnboardingStep {

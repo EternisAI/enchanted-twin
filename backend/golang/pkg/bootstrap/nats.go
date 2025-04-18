@@ -15,7 +15,12 @@ const (
 )
 
 func StartEmbeddedNATSServer(logger *slog.Logger) (*server.Server, error) {
-	opts := &server.Options{}
+	opts := &server.Options{
+		Port:      4222,
+		Host:      "127.0.0.1",
+		JetStream: true,
+		StoreDir:  "./nats",
+	}
 
 	s, err := server.NewServer(opts)
 	if err != nil {
@@ -24,7 +29,7 @@ func StartEmbeddedNATSServer(logger *slog.Logger) (*server.Server, error) {
 
 	go s.Start()
 
-	if !s.ReadyForConnections(10 * time.Second) {
+	if !s.ReadyForConnections(30 * time.Second) {
 		return nil, errors.New("NATS server not ready in time")
 	}
 
@@ -39,5 +44,20 @@ func StartEmbeddedNATSServer(logger *slog.Logger) (*server.Server, error) {
 }
 
 func NewNatsClient() (*nats.Conn, error) {
-	return nats.Connect(NatsServerURL)
+	opts := []nats.Option{
+		nats.ReconnectWait(2 * time.Second),
+		nats.MaxReconnects(10),
+		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
+			if err != nil {
+				slog.Error("NATS disconnected", "error", err)
+			}
+		}),
+		nats.ReconnectHandler(func(nc *nats.Conn) {
+			slog.Info("NATS reconnected", "url", nc.ConnectedUrl())
+		}),
+		nats.ErrorHandler(func(nc *nats.Conn, sub *nats.Subscription, err error) {
+			slog.Error("NATS error", "error", err)
+		}),
+	}
+	return nats.Connect(NatsServerURL, opts...)
 }

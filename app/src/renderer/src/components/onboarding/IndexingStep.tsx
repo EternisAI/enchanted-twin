@@ -1,9 +1,25 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { IndexingState, useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { OnboardingLayout } from './OnboardingLayout'
-import { Loader2 } from 'lucide-react'
-import { useSubscription } from '@apollo/client'
+import { Loader2, RefreshCw } from 'lucide-react'
+import { useSubscription, useMutation } from '@apollo/client'
 import { gql } from '@apollo/client'
+import { toast } from 'sonner'
+import { Button } from '../ui/button'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle
+} from '../ui/alert-dialog'
+
+const START_INDEXING = gql`
+  mutation StartIndexing {
+    startIndexing
+  }
+`
 
 const INDEXING_STATUS_SUBSCRIPTION = gql`
   subscription IndexingStatus {
@@ -24,8 +40,46 @@ const INDEXING_STATUS_SUBSCRIPTION = gql`
 export function IndexingStep() {
   const { dataSources, updateDataSource, updateIndexingStatus, completeOnboarding } =
     useOnboardingStore()
+  const [isRetrying, setIsRetrying] = useState(false)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const { data } = useSubscription(INDEXING_STATUS_SUBSCRIPTION)
+  const { data, error: subscriptionError } = useSubscription(INDEXING_STATUS_SUBSCRIPTION)
+  const [startIndexing, { error: mutationError }] = useMutation(START_INDEXING)
+
+  const handleStartIndexing = useCallback(async () => {
+    try {
+      setIsRetrying(true)
+      setErrorMessage(null)
+      await startIndexing()
+      toast.success('Indexing process restarted successfully')
+    } catch (error) {
+      console.error('Failed to start indexing:', error)
+      toast.error('Failed to start indexing. Please try again.')
+    } finally {
+      setIsRetrying(false)
+    }
+  }, [startIndexing])
+
+  useEffect(() => {
+    // Start indexing when component mounts
+    handleStartIndexing()
+  }, [handleStartIndexing])
+
+  useEffect(() => {
+    if (subscriptionError) {
+      console.error('Subscription error:', subscriptionError)
+      setErrorMessage('Error receiving indexing updates. Please refresh the page.')
+      toast.error('Error receiving indexing updates. Please refresh the page.')
+    }
+  }, [subscriptionError])
+
+  useEffect(() => {
+    if (mutationError) {
+      console.error('Mutation error:', mutationError)
+      setErrorMessage('Failed to start indexing. Please try again.')
+      toast.error('Failed to start indexing. Please try again.')
+    }
+  }, [mutationError])
 
   useEffect(() => {
     if (data?.indexingStatus) {
@@ -50,6 +104,11 @@ export function IndexingStep() {
           isIndexed: source.isIndexed
         })
       })
+
+      // Handle failed state
+      if (status === 'FAILED') {
+        setErrorMessage('Failed to process data. Please check your data sources and try again.')
+      }
 
       // Check if indexing is completed
       if (status === IndexingState.Completed) {
@@ -99,6 +158,18 @@ export function IndexingStep() {
       subtitle="Please wait while we process your data sources. This may take a few minutes."
     >
       <div className="space-y-4">
+        {errorMessage && (
+          <AlertDialog open={!!errorMessage} onOpenChange={() => setErrorMessage(null)}>
+            <AlertDialogContent>
+              <AlertDialogTitle>Error</AlertDialogTitle>
+              <AlertDialogDescription>{errorMessage}</AlertDialogDescription>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setErrorMessage(null)}>Close</AlertDialogCancel>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        )}
+
         {/* Overall Progress */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -147,6 +218,29 @@ export function IndexingStep() {
             )}
           </div>
         ))}
+
+        {(mutationError || subscriptionError || data?.indexingStatus?.status === 'FAILED') && (
+          <div className="flex justify-center mt-4">
+            <Button
+              variant="outline"
+              onClick={handleStartIndexing}
+              disabled={isRetrying}
+              className="flex items-center gap-2"
+            >
+              {isRetrying ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Retrying...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-4 w-4" />
+                  Retry Indexing
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         <p className="text-sm text-muted-foreground text-center mt-6">
           Your data is being processed locally on your device. This ensures maximum privacy and

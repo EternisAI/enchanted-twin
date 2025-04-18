@@ -4,6 +4,7 @@ import { ArrowLeft, ArrowRight, Lock } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Brain } from '../graphics/brain'
 import { motion } from 'framer-motion'
+import { OnboardingStep, IndexingState } from '@renderer/lib/stores/onboarding'
 
 interface OnboardingLayoutProps {
   children: ReactNode
@@ -32,7 +33,13 @@ function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string
 }
 
 function OnboardingNavigation() {
-  const { currentStep, totalSteps, nextStep, previousStep, stepValidation } = useOnboardingStore()
+  const { currentStep, totalSteps, nextStep, previousStep, stepValidation, indexingStatus } =
+    useOnboardingStore()
+
+  const isIndexing =
+    currentStep === OnboardingStep.Indexing &&
+    indexingStatus.status !== IndexingState.Completed &&
+    indexingStatus.status !== IndexingState.Failed
 
   return (
     <motion.div
@@ -42,7 +49,11 @@ function OnboardingNavigation() {
       transition={{ duration: 0.3, delay: 0.2 }}
     >
       {currentStep > 0 ? (
-        <Button variant="outline" onClick={previousStep} disabled={!stepValidation.canGoBack()}>
+        <Button
+          variant="outline"
+          onClick={previousStep}
+          disabled={!stepValidation.canGoBack() || isIndexing}
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
@@ -50,7 +61,7 @@ function OnboardingNavigation() {
         <div className="w-8" />
       )}
       <div className="flex gap-2">
-        <Button onClick={nextStep} disabled={!stepValidation.canProceed()}>
+        <Button onClick={nextStep} disabled={!stepValidation.canProceed() || isIndexing}>
           {currentStep === totalSteps - 1 ? 'Finish' : 'Next'}
           {currentStep < totalSteps - 1 && <ArrowRight className="ml-2 h-4 w-4" />}
         </Button>
