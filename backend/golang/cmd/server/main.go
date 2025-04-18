@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -102,14 +101,23 @@ func main() {
 		store:           store,
 	})
 
-	logger.Info("GraphQL server started")
-	err = http.ListenAndServe(":"+envs.GraphqlPort, router)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start server"))
-	}
-
+	// Set up signal handling for graceful shutdown BEFORE starting the server
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+
+	// Start HTTP server in a goroutine so it doesn't block signal handling
+	go func() {
+		logger.Info("Starting GraphQL HTTP server", slog.String("port", envs.GraphqlPort))
+		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
+		if err != nil && err != http.ErrServerClosed {
+			logger.Error("HTTP server error", slog.Any("error", err))
+			panic(errors.Wrap(err, "Unable to start server"))
+		}
+	}()
+
+	logger.Info("Server ready for GraphQL queries", slog.String("port", envs.GraphqlPort))
+
+	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
 }
@@ -201,8 +209,6 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 
 	router.Handle("/", playground.Handler("GraphQL playground", "/query"))
 	router.Handle("/query", srv)
-
-	input.logger.Info(fmt.Sprintf("connect to http://localhost:%s/ for GraphQL playground", input.port))
 
 	return router
 }
