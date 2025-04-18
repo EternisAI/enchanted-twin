@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "enchanted",
   "version": "1.0.0",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
@@ -75,6 +75,7 @@
     ]
   },
   "build": {
+    "productName": "Enchanted",
     "extraResources": [
       {
         "from": "./resources",
