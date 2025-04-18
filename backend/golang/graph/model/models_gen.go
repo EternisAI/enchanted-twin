@@ -8,17 +8,27 @@ import (
 	"strconv"
 )
 
-type AddDataSourceInput struct {
-	DataSourceName string `json:"dataSourceName"`
-	Path           string `json:"path"`
-	Username       string `json:"username"`
-}
-
 type Chat struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
 	Messages  []*Message `json:"messages"`
 	CreatedAt string     `json:"createdAt"`
+}
+
+type DataSource struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Path        string `json:"path"`
+	UpdatedAt   string `json:"updatedAt"`
+	IsProcessed bool   `json:"isProcessed"`
+	IsIndexed   bool   `json:"isIndexed"`
+}
+
+type IndexingStatus struct {
+	Status                 IndexingState `json:"status"`
+	ProcessingDataProgress int32         `json:"processingDataProgress"`
+	IndexingDataProgress   int32         `json:"indexingDataProgress"`
+	DataSources            []*DataSource `json:"dataSources"`
 }
 
 type Message struct {
@@ -51,7 +61,60 @@ type UpdateProfileInput struct {
 }
 
 type UserProfile struct {
-	Name *string `json:"name,omitempty"`
+	Name                 *string         `json:"name,omitempty"`
+	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
+	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
+}
+
+type IndexingState string
+
+const (
+	IndexingStateNotStarted       IndexingState = "NOT_STARTED"
+	IndexingStateDownloadingModel IndexingState = "DOWNLOADING_MODEL"
+	IndexingStateProcessingData   IndexingState = "PROCESSING_DATA"
+	IndexingStateIndexingData     IndexingState = "INDEXING_DATA"
+	IndexingStateCleanUp          IndexingState = "CLEAN_UP"
+	IndexingStateCompleted        IndexingState = "COMPLETED"
+	IndexingStateFailed           IndexingState = "FAILED"
+)
+
+var AllIndexingState = []IndexingState{
+	IndexingStateNotStarted,
+	IndexingStateDownloadingModel,
+	IndexingStateProcessingData,
+	IndexingStateIndexingData,
+	IndexingStateCleanUp,
+	IndexingStateCompleted,
+	IndexingStateFailed,
+}
+
+func (e IndexingState) IsValid() bool {
+	switch e {
+	case IndexingStateNotStarted, IndexingStateDownloadingModel, IndexingStateProcessingData, IndexingStateIndexingData, IndexingStateCleanUp, IndexingStateCompleted, IndexingStateFailed:
+		return true
+	}
+	return false
+}
+
+func (e IndexingState) String() string {
+	return string(e)
+}
+
+func (e *IndexingState) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = IndexingState(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid IndexingState", str)
+	}
+	return nil
+}
+
+func (e IndexingState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
 type Role string
