@@ -9,6 +9,7 @@ export enum IndexingState {
   DownloadingModel = 'DownloadingModel',
   CleanUp = 'CleanUp'
 }
+
 interface DataSource {
   id: string
   name: string
@@ -57,9 +58,18 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
       isCompleted: false,
       lastCompletedStep: -1,
-      setStep: (step) => set({ currentStep: step }),
+      setStep: (step) => {
+        const { totalSteps } = get()
+        // Ensure step is within bounds
+        const newStep = Math.max(0, Math.min(step, totalSteps - 1))
+        set({ 
+          currentStep: newStep,
+          lastCompletedStep: Math.max(get().lastCompletedStep, newStep)
+        })
+      },
       nextStep: () => {
         const { currentStep, totalSteps, canGoNext } = get()
+        console.log('Next step:', { currentStep, canGoNext: canGoNext() })
         if (canGoNext()) {
           const nextStep = Math.min(currentStep + 1, totalSteps - 1)
           set({ 
@@ -70,12 +80,19 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
       previousStep: () => {
         const { currentStep } = get()
+        console.log('Previous step:', { currentStep, canGoPrevious: currentStep > 0 })
         if (currentStep > 0) {
           set({ currentStep: currentStep - 1 })
         }
       },
       canGoNext: () => {
         const { currentStep, userName, dataSources, indexingStatus } = get()
+        console.log('Checking canGoNext:', { 
+          currentStep, 
+          userName, 
+          dataSourcesLength: dataSources.length,
+          indexingStatus: indexingStatus.status 
+        })
         switch (currentStep) {
           case 0:
             return userName.trim().length > 0
@@ -89,31 +106,54 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
       canGoPrevious: () => {
         const { currentStep } = get()
+        console.log('Checking canGoPrevious:', { currentStep })
         return currentStep > 0
       },
-      setUserName: (name) => set({ userName: name }),
-      addDataSource: (source) =>
+      setUserName: (name) => {
+        console.log('Setting username:', name)
+        set({ userName: name })
+      },
+      addDataSource: (source) => {
+        console.log('Adding data source:', source)
         set((state) => ({
           dataSources: [...state.dataSources, source]
-        })),
+        }))
+      },
       updateDataSource: (id, updates) =>
         set((state) => ({
           dataSources: state.dataSources.map((source) =>
             source.id === id ? { ...source, ...updates } : source
           )
         })),
-      updateIndexingStatus: (status) =>
+      updateIndexingStatus: (status) => {
+        console.log('Updating indexing status:', status)
         set((state) => ({
           indexingStatus: { ...state.indexingStatus, ...status }
-        })),
-      completeOnboarding: () => set({ 
-        // isCompleted: true,
-        lastCompletedStep: get().currentStep 
-      }),
-      resetOnboarding: () => set(() => ({ 
-        isCompleted: false,
-        currentStep: 0
-      }))
+        }))
+      },
+      completeOnboarding: () => {
+        const { currentStep } = get()
+        console.log('Completing onboarding at step:', currentStep)
+        set({ 
+          isCompleted: true,
+          lastCompletedStep: currentStep
+        })
+      },
+      resetOnboarding: () => {
+        console.log('Resetting onboarding')
+        set(() => ({ 
+          isCompleted: false,
+          currentStep: 0,
+          lastCompletedStep: -1,
+          userName: '',
+          dataSources: [],
+          indexingStatus: {
+            status: IndexingState.NotStarted,
+            processingDataProgress: 0,
+            indexingDataProgress: 0
+          }
+        }))
+      }
     }),
     {
       name: 'onboarding-storage'

@@ -13,7 +13,7 @@ export function WelcomeStep() {
 
   return (
     <OnboardingLayout
-      title="Welcome to Enchanted"
+      title="Enchanted"
       subtitle="Let's get started by personalizing your experience"
     >
       <div className="space-y-4">

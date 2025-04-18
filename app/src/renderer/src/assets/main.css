@@ -217,7 +217,7 @@
     app-region: drag;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
+    font-family: 'Funnel Display', var(--font-sans);  /* ! Keep this separate from the other variables so that we can change the font-family separately */
     @apply font-bold;
   }
 }
