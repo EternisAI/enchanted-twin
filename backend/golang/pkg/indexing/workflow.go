@@ -10,7 +10,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -280,18 +279,6 @@ func (w *IndexingWorkflow) PublishIndexingStatus(ctx context.Context, input Publ
 
 	w.Logger.Info("Successfully published indexing status", "subject", input.Subject)
 	return nil
-}
-
-type OnboardingActivities struct {
-	ollamaClient *ollamaapi.Client
-	nc           *nats.Conn
-}
-
-func NewOnboardingActivities(ollamaClient *ollamaapi.Client, nc *nats.Conn) *OnboardingActivities {
-	return &OnboardingActivities{
-		ollamaClient: ollamaClient,
-		nc:           nc,
-	}
 }
 
 // This would be for a GraphQL subscription (optional)
