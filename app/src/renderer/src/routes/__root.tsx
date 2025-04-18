@@ -9,6 +9,7 @@ function RootComponent() {
   if (!isCompleted) {
     return (
       <div className="flex flex-col h-screen w-screen text-foreground">
+        <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-50" />
         <Outlet />
       </div>
     )
@@ -16,7 +17,7 @@ function RootComponent() {
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground">
-      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6" />
+      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-50" />
       <div className="flex flex-col flex-1 pt-6 gap-2">
         {process.env.NODE_ENV === 'development' && <SetupBanner />}
         <div className="flex flex-1">

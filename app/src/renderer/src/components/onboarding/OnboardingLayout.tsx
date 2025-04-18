@@ -13,9 +13,11 @@ interface OnboardingLayoutProps {
 
 const OnboardingBackground = memo(function OnboardingBackground() {
   return (
-    <div className="absolute bottom-0 left-0 w-full z-0 h-[66%]">
-      <div className="w-full h-full bg-background/50 bg-gradient-to-b from-background to-background/50 absolute inset-0" />
-      <Brain />
+    <div className="absolute bottom-0 left-0 w-full z-0 h-full opacity-50 dark:opacity-100">
+      <div className="w-full h-full bg-gradient-to-b from-background to-background/50 absolute inset-0 z-20" />
+      <div className="w-full h-full relative z-10">
+        <Brain />
+      </div>
     </div>
   )
 })
