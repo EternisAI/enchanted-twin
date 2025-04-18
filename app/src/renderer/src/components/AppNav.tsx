@@ -43,7 +43,8 @@ export function AppNav() {
                   to={href}
                   disabled={isActive}
                   className={cn(
-                    'group text-xs font-semibold flex flex-col items-center gap-1 px-2 py-1 aspect-square justify-center rounded-md'
+                    'group text-xs font-medium flex flex-col items-center gap-1 px-2 py-1 aspect-square justify-center rounded-md',
+                    isActive && 'font-semibold'
                   )}
                 >
                   <div

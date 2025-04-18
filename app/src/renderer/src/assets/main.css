@@ -216,8 +216,8 @@
     user-select: none;
     app-region: drag;
   }
-  h1, h2, h3, h4, h5, h6 {
-    font-family: 'Funnel Display', var(--font-sans);
+  h1, h2 {
+    font-family: 'Imbue', var(--font-sans);
     @apply font-medium;
   }
 }

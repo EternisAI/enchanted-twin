@@ -28,7 +28,7 @@ const OnboardingBackground = memo(function OnboardingBackground() {
 function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
     <div className="flex flex-col gap-3 text-center">
-      <h1 className="text-4xl tracking-normal">{title}</h1>
+      <h1 className="text-5xl tracking-normal">{title}</h1>
       {subtitle && <p className="text-muted-foreground text-balance">{subtitle}</p>}
     </div>
   )
