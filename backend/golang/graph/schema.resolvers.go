@@ -128,9 +128,13 @@ func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (boo
 	panic(fmt.Errorf("not implemented: DeleteDataSource - deleteDataSource"))
 }
 
-// AddMCPServer is the resolver for the addMCPServer field.
-func (r *mutationResolver) AddMCPServer(ctx context.Context, input model.AddMCPServerInput) (*model.MCPServer, error) {
-	panic(fmt.Errorf("not implemented: AddMCPServer - addMCPServer"))
+// ConnectMCPServer is the resolver for the connectMCPServer field.
+func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (bool, error) {
+	_, err := r.MCPService.ConnectMCPServer(ctx, input)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -173,13 +177,25 @@ func (r *queryResolver) GetChatSuggestions(ctx context.Context, chatID string) (
 }
 
 // GetMCPServers is the resolver for the getMCPServers field.
-func (r *queryResolver) GetMCPServers(ctx context.Context) ([]*model.MCPServer, error) {
-	panic(fmt.Errorf("not implemented: GetMCPServers - getMCPServers"))
+func (r *queryResolver) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error) {
+	return r.MCPService.GetMCPServers(ctx)
 }
 
 // GetTools is the resolver for the getTools field.
 func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
-	panic(fmt.Errorf("not implemented: GetTools - getTools"))
+	tools, err := r.MCPService.GetTools(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	toolsDefinitions := make([]*model.Tool, len(tools))
+	for i, tool := range tools {
+		toolsDefinitions[i] = &model.Tool{
+			Name:        tool.Name,
+			Description: *tool.Description,
+		}
+	}
+	return toolsDefinitions, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.

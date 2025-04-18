@@ -108,6 +108,9 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 					if content.ImageContent != nil {
 						imageURLs = append(imageURLs, content.ImageContent.Data)
 					}
+					if content.TextContent != nil {
+						messages = append(messages, openai.ToolMessage(content.TextContent.Text, toolCall.ID))
+					}
 				}
 			}
 
