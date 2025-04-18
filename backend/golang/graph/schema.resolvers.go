@@ -58,15 +58,12 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text)
 }
 
-// DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
-	// Retrieve the chat before deletion to return it
 	chat, err := r.TwinChatService.GetChat(ctx, chatID)
 	if err != nil {
 		return nil, fmt.Errorf("chat not found")
 	}
 
-	// Delete the chat
 	err = r.TwinChatService.DeleteChat(ctx, chatID)
 	if err != nil {
 		return nil, err
