@@ -66,6 +66,11 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		indexingState = model.IndexingStateFailed
 		errMsg := err.Error()
 		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0, &errMsg)
+		err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
+			DataSources: dataSources,
+			IsIndexed:   false,
+			HasError:    true,
+		}).Get(ctx, &completeResponse)
 		return IndexWorkflowResponse{}, fmt.Errorf("failed to fetch data sources: %w", err)
 	}
 
@@ -74,6 +79,11 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		indexingState = model.IndexingStateFailed
 		errMsg := "No data sources found"
 		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0, &errMsg)
+		err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
+			DataSources: dataSources,
+			IsIndexed:   false,
+			HasError:    true,
+		}).Get(ctx, &completeResponse)
 		return IndexWorkflowResponse{}, errors.New("no data sources found")
 	}
 
@@ -86,6 +96,11 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		indexingState = model.IndexingStateFailed
 		errMsg := err.Error()
 		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0, &errMsg)
+		err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
+			DataSources: dataSources,
+			IsIndexed:   false,
+			HasError:    true,
+		}).Get(ctx, &completeResponse)
 		return IndexWorkflowResponse{}, fmt.Errorf("failed to download Ollama model: %w", err)
 	}
 
@@ -95,6 +110,11 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		indexingState = model.IndexingStateFailed
 		errMsg := err.Error()
 		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0, &errMsg)
+		err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
+			DataSources: dataSources,
+			IsIndexed:   false,
+			HasError:    true,
+		}).Get(ctx, &completeResponse)
 		return IndexWorkflowResponse{}, fmt.Errorf("failed to download Ollama model: %w", err)
 	}
 
@@ -127,6 +147,11 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 				"dataSource", dataSource.Name)
 			errMsg := err.Error()
 			w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0, &errMsg)
+			err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
+				DataSources: dataSources,
+				IsIndexed:   false,
+				HasError:    true,
+			}).Get(ctx, &completeResponse)
 			return IndexWorkflowResponse{}, fmt.Errorf("failed to process data source %s: %w", dataSource.Name, err)
 		}
 
@@ -144,7 +169,13 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
 		errMsg := err.Error()
 		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0, &errMsg)
+		err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
+			DataSources: dataSources,
+			IsIndexed:   false,
+			HasError:    true,
+		}).Get(ctx, &completeResponse)
 		return IndexWorkflowResponse{}, fmt.Errorf("failed to index data: %w", err)
+
 	}
 
 	err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
