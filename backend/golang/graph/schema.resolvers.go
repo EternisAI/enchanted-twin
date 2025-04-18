@@ -58,9 +58,18 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text)
 }
 
-// DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
-	panic(fmt.Errorf("not implemented: DeleteChat - deleteChat"))
+	chat, err := r.TwinChatService.GetChat(ctx, chatID)
+	if err != nil {
+		return nil, fmt.Errorf("chat not found")
+	}
+
+	err = r.TwinChatService.DeleteChat(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &chat, nil
 }
 
 // StartIndexing is the resolver for the startIndexing field.
@@ -84,6 +93,16 @@ func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path 
 		return false, err
 	}
 	return true, nil
+}
+
+// DeleteDataSource is the resolver for the deleteDataSource field.
+func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (bool, error) {
+	result, err := r.Store.DeleteDataSourceError(ctx, id)
+	if err != nil {
+		return false, err
+	}
+
+	return result != nil, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -265,9 +284,7 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

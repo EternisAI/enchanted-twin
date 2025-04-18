@@ -58,6 +58,7 @@ type ComplexityRoot struct {
 	}
 
 	DataSource struct {
+		HasError    func(childComplexity int) int
 		ID          func(childComplexity int) int
 		IsIndexed   func(childComplexity int) int
 		IsProcessed func(childComplexity int) int
@@ -68,6 +69,7 @@ type ComplexityRoot struct {
 
 	IndexingStatus struct {
 		DataSources            func(childComplexity int) int
+		Error                  func(childComplexity int) int
 		IndexingDataProgress   func(childComplexity int) int
 		ProcessingDataProgress func(childComplexity int) int
 		Status                 func(childComplexity int) int
@@ -84,12 +86,13 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddDataSource func(childComplexity int, name string, path string) int
-		CreateChat    func(childComplexity int, name string) int
-		DeleteChat    func(childComplexity int, chatID string) int
-		SendMessage   func(childComplexity int, chatID string, text string) int
-		StartIndexing func(childComplexity int) int
-		UpdateProfile func(childComplexity int, input model.UpdateProfileInput) int
+		AddDataSource    func(childComplexity int, name string, path string) int
+		CreateChat       func(childComplexity int, name string) int
+		DeleteChat       func(childComplexity int, chatID string) int
+		DeleteDataSource func(childComplexity int, id string) int
+		SendMessage      func(childComplexity int, chatID string, text string) int
+		StartIndexing    func(childComplexity int) int
+		UpdateProfile    func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
 	Query struct {
@@ -127,6 +130,7 @@ type MutationResolver interface {
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
+	DeleteDataSource(ctx context.Context, id string) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -186,6 +190,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Chat.Name(childComplexity), true
 
+	case "DataSource.hasError":
+		if e.complexity.DataSource.HasError == nil {
+			break
+		}
+
+		return e.complexity.DataSource.HasError(childComplexity), true
+
 	case "DataSource.id":
 		if e.complexity.DataSource.ID == nil {
 			break
@@ -234,6 +245,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.IndexingStatus.DataSources(childComplexity), true
+
+	case "IndexingStatus.error":
+		if e.complexity.IndexingStatus.Error == nil {
+			break
+		}
+
+		return e.complexity.IndexingStatus.Error(childComplexity), true
 
 	case "IndexingStatus.indexingDataProgress":
 		if e.complexity.IndexingStatus.IndexingDataProgress == nil {
@@ -340,6 +358,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeleteChat(childComplexity, args["chatId"].(string)), true
+
+	case "Mutation.deleteDataSource":
+		if e.complexity.Mutation.DeleteDataSource == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_deleteDataSource_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.DeleteDataSource(childComplexity, args["id"].(string)), true
 
 	case "Mutation.sendMessage":
 		if e.complexity.Mutation.SendMessage == nil {
@@ -693,6 +723,29 @@ func (ec *executionContext) field_Mutation_deleteChat_argsChatID(
 ) (string, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
 	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_deleteDataSource_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_deleteDataSource_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_deleteDataSource_argsID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
 		return ec.unmarshalNID2string(ctx, tmp)
 	}
 
@@ -1430,6 +1483,50 @@ func (ec *executionContext) fieldContext_DataSource_isIndexed(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _DataSource_hasError(ctx context.Context, field graphql.CollectedField, obj *model.DataSource) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DataSource_hasError(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.HasError, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DataSource_hasError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DataSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _IndexingStatus_status(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_IndexingStatus_status(ctx, field)
 	if err != nil {
@@ -1613,8 +1710,51 @@ func (ec *executionContext) fieldContext_IndexingStatus_dataSources(_ context.Co
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "hasError":
+				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _IndexingStatus_error(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_IndexingStatus_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_IndexingStatus_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IndexingStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -2288,6 +2428,61 @@ func (ec *executionContext) fieldContext_Mutation_addDataSource(ctx context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_deleteDataSource(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_deleteDataSource(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteDataSource(rctx, fc.Args["id"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_deleteDataSource(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_deleteDataSource_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_profile(ctx, field)
 	if err != nil {
@@ -2521,6 +2716,8 @@ func (ec *executionContext) fieldContext_Query_getDataSources(_ context.Context,
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "hasError":
+				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
 		},
@@ -2805,6 +3002,8 @@ func (ec *executionContext) fieldContext_Subscription_indexingStatus(_ context.C
 				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
 			case "dataSources":
 				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
+			case "error":
+				return ec.fieldContext_IndexingStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
@@ -3029,6 +3228,8 @@ func (ec *executionContext) fieldContext_UserProfile_indexingStatus(_ context.Co
 				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
 			case "dataSources":
 				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
+			case "error":
+				return ec.fieldContext_IndexingStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
@@ -3087,6 +3288,8 @@ func (ec *executionContext) fieldContext_UserProfile_connectedDataSources(_ cont
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "hasError":
+				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
 		},
@@ -5206,6 +5409,11 @@ func (ec *executionContext) _DataSource(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "hasError":
+			out.Values[i] = ec._DataSource_hasError(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5260,6 +5468,8 @@ func (ec *executionContext) _IndexingStatus(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "error":
+			out.Values[i] = ec._IndexingStatus_error(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -5406,6 +5616,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "addDataSource":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_addDataSource(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "deleteDataSource":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_deleteDataSource(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

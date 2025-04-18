@@ -1,4 +1,4 @@
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
 import { Chat, DeleteChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
 import {
@@ -15,6 +15,7 @@ import {
 import { Button } from '../ui/button'
 import { Trash2 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
+import { client } from '@renderer/graphql/lib'
 
 export function Sidebar({ chats }: { chats: Chat[] }) {
   const { location } = useRouterState()
@@ -43,13 +44,22 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
 }
 
 function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
+  const navigate = useNavigate()
+  const router = useRouter()
   const [deleteChat] = useMutation(DeleteChatDocument, {
     refetchQueries: [GetChatsDocument],
     onError: (error) => {
       console.error(error)
     },
-    onCompleted: () => {
-      console.log('Chat deleted')
+    onCompleted: async () => {
+      await client.cache.evict({ fieldName: 'getChats' })
+      await router.invalidate({
+        filter: (match) => match.routeId === '/chat'
+      })
+
+      if (isActive) {
+        navigate({ to: '/chat' })
+      }
     }
   })
 
@@ -84,7 +94,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         </AlertDialogTrigger>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete chat?</AlertDialogTitle>
+            <AlertDialogTitle>Delete chat</AlertDialogTitle>
             <AlertDialogDescription>
               This action cannot be undone. It will permanently delete the chat.
             </AlertDialogDescription>
@@ -97,7 +107,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
               }}
               asChild
             >
-              <Button variant="destructive">Delete (Not implemented yet)</Button>
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

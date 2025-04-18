@@ -1,9 +1,11 @@
 package dataprocessing
 
 import (
+	"archive/zip"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
@@ -19,11 +21,117 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 )
 
+func extractZip(zipPath string) (extractedPath string, err error) {
+	tempDir, err := os.MkdirTemp("", "extracted_zip_")
+	if err != nil {
+		return "", fmt.Errorf("error creating temp directory: %v", err)
+	}
+
+	reader, err := zip.OpenReader(zipPath)
+	if err != nil {
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			return "", fmt.Errorf("error removing temp directory: %v", err)
+		}
+		return "", fmt.Errorf("error opening zip file: %v", err)
+	}
+	defer func() {
+		if closeErr := reader.Close(); closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("error closing zip reader: %v", closeErr)
+			} else {
+				log.Printf("Error closing zip reader: %v", closeErr)
+			}
+		}
+	}()
+
+	for _, file := range reader.File {
+		path := filepath.Join(tempDir, file.Name)
+
+		if file.FileInfo().IsDir() {
+			err = os.MkdirAll(path, file.Mode())
+			if err != nil {
+				return "", fmt.Errorf("error creating directory: %v", err)
+			}
+			continue
+		}
+
+		fileReader, err := file.Open()
+		if err != nil {
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				return "", fmt.Errorf("error removing temp directory: %v", err)
+			}
+			return "", fmt.Errorf("error opening file in zip: %v", err)
+		}
+		defer func() {
+			if closeErr := fileReader.Close(); closeErr != nil {
+				if err == nil {
+					err = fmt.Errorf("error closing file reader: %v", closeErr)
+				} else {
+					log.Printf("Error closing file reader: %v", closeErr)
+				}
+			}
+		}()
+
+		err = os.MkdirAll(filepath.Dir(path), 0o755)
+		if err != nil {
+			return "", fmt.Errorf("error creating directory: %v", err)
+		}
+
+		targetFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
+		if err != nil {
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				return "", fmt.Errorf("error removing temp directory: %v", err)
+			}
+			return "", fmt.Errorf("error creating file: %v", err)
+		}
+		defer func() {
+			if closeErr := targetFile.Close(); closeErr != nil {
+				if err == nil {
+					err = fmt.Errorf("error closing target file: %v", closeErr)
+				} else {
+					log.Printf("Error closing target file: %v", closeErr)
+				}
+			}
+		}()
+
+		if _, err := io.Copy(targetFile, fileReader); err != nil {
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				return "", fmt.Errorf("error removing temp directory: %v", err)
+			}
+			return "", fmt.Errorf("error extracting file: %v", err)
+		}
+	}
+
+	return tempDir, nil
+}
+
 func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (bool, error) {
 	var records []types.Record
 	var err error
 
+	ext := strings.ToLower(filepath.Ext(inputPath))
+	if ext == ".zip" {
+
+		tempDir, err := extractZip(inputPath)
+		if err != nil {
+			return false, fmt.Errorf("error extracting zip file: %v", err)
+		}
+		defer func() {
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				log.Printf("Error removing temp directory: %v", err)
+			}
+		}()
+
+		inputPath = tempDir
+	}
+
 	switch strings.ToLower(sourceType) {
+
 	case "telegram":
 		if name == "" {
 			return false, fmt.Errorf("telegram requires a username")
@@ -41,7 +149,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 			return false, fmt.Errorf("gmail requires an email")
 		}
 		source := gmail.New()
-		records, err = source.ProcessFile(inputPath, name)
+		records, err = source.ProcessDirectory(inputPath, name)
 	case "x":
 		if name == "" {
 			return false, fmt.Errorf("x requires a username")
@@ -77,7 +185,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 	}()
 
 	// Determine output format based on file extension
-	ext := strings.ToLower(filepath.Ext(outputPath))
+	ext = strings.ToLower(filepath.Ext(outputPath))
 	switch ext {
 	case ".json":
 		// For JSON output, create a slice of records with their data
