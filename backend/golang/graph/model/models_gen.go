@@ -8,6 +8,12 @@ import (
 	"strconv"
 )
 
+type AddMCPServerInput struct {
+	Name    string   `json:"name"`
+	Command []string `json:"command,omitempty"`
+	Envs    []string `json:"envs,omitempty"`
+}
+
 type Chat struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
@@ -38,6 +44,14 @@ type IndexingStatus struct {
 	Error                  *string       `json:"error,omitempty"`
 }
 
+type MCPServer struct {
+	ID        string   `json:"id"`
+	Command   []string `json:"command,omitempty"`
+	Envs      []string `json:"envs,omitempty"`
+	Name      string   `json:"name"`
+	CreatedAt string   `json:"createdAt"`
+}
+
 type Message struct {
 	ID          string      `json:"id"`
 	Text        *string     `json:"text,omitempty"`
@@ -66,6 +80,11 @@ type Query struct {
 }
 
 type Subscription struct {
+}
+
+type Tool struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 type ToolCall struct {

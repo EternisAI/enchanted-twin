@@ -21,6 +21,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
 
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -172,6 +174,10 @@ func main() {
 			logger.Error("Telegram service error", slog.Any("error", err))
 		}
 	}()
+	mcpRepository := repository.NewRepository(logger, store.DB())
+	mcpService := mcpserver.NewService(context.Background(), *mcpRepository)
+
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel, mcpService)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
@@ -181,6 +187,7 @@ func main() {
 		natsClient:      nc,
 		store:           store,
 		aiService:       aiService,
+		mcpService:      mcpService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -244,6 +251,7 @@ type graphqlServerInput struct {
 	natsClient      *nats.Conn
 	store           *db.Store
 	aiService       *ai.Service
+	mcpService      mcpserver.MCPService
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -259,6 +267,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Logger:          input.logger,
 		TemporalClient:  input.temporalClient,
 		TwinChatService: input.twinChatService,
+		MCPService:      input.mcpService,
 		Nc:              input.natsClient,
 		Store:           input.store,
 		AiService:       input.aiService,

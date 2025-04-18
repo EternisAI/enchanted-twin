@@ -83,6 +83,8 @@ type Query {
   getDataSources: [DataSource!]!
   getOAuthStatus: [OAuthStatus!]!
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
+  getMCPServers: [MCPServer!]!
+  getTools: [Tool!]!
 }
 
 type Mutation {
@@ -100,6 +102,7 @@ type Mutation {
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
   deleteDataSource(id: ID!): Boolean!
+  addMCPServer(input: AddMCPServerInput!): MCPServer!
 }
 
 type Subscription {
@@ -139,4 +142,22 @@ type IndexingStatus {
 type ChatSuggestionsCategory {
   category: String!
   suggestions: [String!]!
+}
+input AddMCPServerInput {
+  name: String!
+  command: [String!]
+  envs: [String!]
+}
+
+type MCPServer {
+  id: ID!
+  command: [String!]
+  envs: [String!]
+  name: String!
+  createdAt: DateTime!
+}
+
+type Tool {
+  name: String!
+  description: String!
 }
