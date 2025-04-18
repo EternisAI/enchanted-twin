@@ -23,7 +23,7 @@ import (
 
 	loghtml "golang.org/x/net/html"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/sirupsen/logrus"
 )
 
