@@ -9,6 +9,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	mcp_golang "github.com/metoro-io/mcp-golang"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 )
@@ -51,10 +52,10 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
 
-	toolsMap := make(map[string]tools.Tool, 0)
+	toolsMap := make(map[string]mcp_golang.ToolRetType, 0)
 	for _, tool := range currentTools {
-		toolsMap[tool.Definition().Function.Name] = tool
-		apiToolDefinitions = append(apiToolDefinitions, tool.Definition())
+		toolsMap[definition(tool).Function.Name] = tool
+		apiToolDefinitions = append(apiToolDefinitions, definition(tool))
 	}
 
 	for currentStep < MAX_STEPS {
@@ -101,8 +102,13 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 				return AgentResponse{}, err
 			}
 
-			if len(toolResult.ImageURLs) > 0 {
-				imageURLs = append(imageURLs, toolResult.ImageURLs...)
+			if len(toolResult.Content) > 0 {
+				for _, content := range toolResult.Content {
+
+					if content.ImageContent != nil {
+						imageURLs = append(imageURLs, content.ImageContent.Data)
+					}
+				}
 			}
 
 			// send message with isCompleted true

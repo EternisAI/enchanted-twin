@@ -15,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/pkg/errors"
 
@@ -34,9 +35,10 @@ type Service struct {
 	completionsModel string
 	telegramToken    string
 	store            *db.Store
+	mcpService       mcpserver.MCPService
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store, mcpService mcpserver.MCPService) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -47,6 +49,7 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		telegramToken:    telegramToken,
 		store:            store,
 		authStorage:      authStorage,
+		mcpService:       mcpService,
 	}
 }
 
@@ -246,6 +249,8 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		Role:      model.RoleUser,
 		ImageUrls: response.ImageURLs,
 		CreatedAt: time.Now().Format(time.RFC3339),
+		ToolCalls: assistantMessageDb.ToModel().ToolCalls,
+		ToolResults: assistantMessageDb.ToModel().ToolResults,
 	}, nil
 }
 
