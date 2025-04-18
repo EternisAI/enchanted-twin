@@ -83,6 +83,11 @@
           "**/*"
         ]
       }
-    ]
+    ],
+    "publish": {
+      "provider": "generic",
+      "url": "https://example.com/download/",
+      "channel": "latest"
+    }
   }
 }
