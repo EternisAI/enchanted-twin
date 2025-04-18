@@ -1,12 +1,10 @@
 package db
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -26,7 +24,7 @@ func NewStore(dbPath string) (*Store, error) {
 	// Create the parent directory if it doesn't exist
 	dir := filepath.Dir(dbPath)
 	if dir != "." {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("failed to create database directory: %w", err)
 		}
 	}
@@ -95,78 +93,6 @@ func NewStore(dbPath string) (*Store, error) {
 	}
 
 	return &Store{db: db}, nil
-}
-
-// GetUserProfile retrieves the user profile
-func (s *Store) GetUserProfile(ctx context.Context) (*model.UserProfile, error) {
-	var name string
-	err := s.db.GetContext(ctx, &name, `SELECT name FROM user_profiles WHERE id = 'default'`)
-	if err != nil {
-		return nil, err
-	}
-	return &model.UserProfile{
-		Name: &name,
-	}, nil
-}
-
-// UpdateUserProfile updates the user profile
-func (s *Store) UpdateUserProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
-	result, err := s.db.ExecContext(ctx, `
-		UPDATE user_profiles SET name = ? WHERE id = 'default'
-	`, input.Name)
-	if err != nil {
-		return false, err
-	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return false, err
-	}
-
-	return rows > 0, nil
-}
-
-type DataSource struct {
-	ID        string `db:"id"`
-	Name      string `db:"name"`
-	UpdatedAt string `db:"updated_at"`
-	Path      string `db:"path"`
-	IsIndexed *bool  `db:"is_indexed"`
-}
-
-// GetDataSources retrieves all data sources
-func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
-	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed FROM data_sources`)
-	if err != nil {
-		return nil, err
-	}
-	return dataSources, nil
-}
-
-func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
-	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed FROM data_sources WHERE is_indexed = FALSE`)
-	if err != nil {
-		return nil, err
-	}
-	return dataSources, nil
-}
-
-func (s *Store) CreateDataSource(ctx context.Context, id string, name string, path string) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name, path) VALUES (?, ?, ?)`, id, name, path)
-	if err != nil {
-		return nil, err
-	}
-	return &DataSource{ID: id, Name: name, Path: path}, nil
-}
-
-func (s *Store) UpdateDataSource(ctx context.Context, id string, isIndexed bool) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, is_indexed = ? WHERE id = ?`, isIndexed, id)
-	if err != nil {
-		return nil, err
-	}
-	return &DataSource{ID: id, IsIndexed: &isIndexed}, nil
 }
 
 // Close closes the database connection
