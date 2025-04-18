@@ -22,6 +22,7 @@ type DataSource struct {
 	UpdatedAt   string `json:"updatedAt"`
 	IsProcessed bool   `json:"isProcessed"`
 	IsIndexed   bool   `json:"isIndexed"`
+	HasError    bool   `json:"hasError"`
 }
 
 type IndexingStatus struct {

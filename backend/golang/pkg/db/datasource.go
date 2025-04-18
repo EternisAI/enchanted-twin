@@ -26,7 +26,7 @@ func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 // GetUnindexedDataSources retrieves all data sources that are not indexed
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed, has_error FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE`)
 	if err != nil {
 		return nil, err
 	}

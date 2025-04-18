@@ -58,6 +58,7 @@ type ComplexityRoot struct {
 	}
 
 	DataSource struct {
+		HasError    func(childComplexity int) int
 		ID          func(childComplexity int) int
 		IsIndexed   func(childComplexity int) int
 		IsProcessed func(childComplexity int) int
@@ -88,7 +89,7 @@ type ComplexityRoot struct {
 		AddDataSource    func(childComplexity int, name string, path string) int
 		CreateChat       func(childComplexity int, name string) int
 		DeleteChat       func(childComplexity int, chatID string) int
-		DeleteDataSource func(childComplexity int, name string) int
+		DeleteDataSource func(childComplexity int, id string) int
 		SendMessage      func(childComplexity int, chatID string, text string) int
 		StartIndexing    func(childComplexity int) int
 		UpdateProfile    func(childComplexity int, input model.UpdateProfileInput) int
@@ -129,7 +130,7 @@ type MutationResolver interface {
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
-	DeleteDataSource(ctx context.Context, name string) (bool, error)
+	DeleteDataSource(ctx context.Context, id string) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -188,6 +189,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Chat.Name(childComplexity), true
+
+	case "DataSource.hasError":
+		if e.complexity.DataSource.HasError == nil {
+			break
+		}
+
+		return e.complexity.DataSource.HasError(childComplexity), true
 
 	case "DataSource.id":
 		if e.complexity.DataSource.ID == nil {
@@ -361,7 +369,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.DeleteDataSource(childComplexity, args["name"].(string)), true
+		return e.complexity.Mutation.DeleteDataSource(childComplexity, args["id"].(string)), true
 
 	case "Mutation.sendMessage":
 		if e.complexity.Mutation.SendMessage == nil {
@@ -725,20 +733,20 @@ func (ec *executionContext) field_Mutation_deleteChat_argsChatID(
 func (ec *executionContext) field_Mutation_deleteDataSource_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := ec.field_Mutation_deleteDataSource_argsName(ctx, rawArgs)
+	arg0, err := ec.field_Mutation_deleteDataSource_argsID(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["name"] = arg0
+	args["id"] = arg0
 	return args, nil
 }
-func (ec *executionContext) field_Mutation_deleteDataSource_argsName(
+func (ec *executionContext) field_Mutation_deleteDataSource_argsID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("name"))
-	if tmp, ok := rawArgs["name"]; ok {
-		return ec.unmarshalNString2string(ctx, tmp)
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
 	}
 
 	var zeroVal string
@@ -1475,6 +1483,50 @@ func (ec *executionContext) fieldContext_DataSource_isIndexed(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _DataSource_hasError(ctx context.Context, field graphql.CollectedField, obj *model.DataSource) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DataSource_hasError(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.HasError, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DataSource_hasError(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DataSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _IndexingStatus_status(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_IndexingStatus_status(ctx, field)
 	if err != nil {
@@ -1658,6 +1710,8 @@ func (ec *executionContext) fieldContext_IndexingStatus_dataSources(_ context.Co
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "hasError":
+				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
 		},
@@ -2388,7 +2442,7 @@ func (ec *executionContext) _Mutation_deleteDataSource(ctx context.Context, fiel
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().DeleteDataSource(rctx, fc.Args["name"].(string))
+		return ec.resolvers.Mutation().DeleteDataSource(rctx, fc.Args["id"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2662,6 +2716,8 @@ func (ec *executionContext) fieldContext_Query_getDataSources(_ context.Context,
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "hasError":
+				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
 		},
@@ -3232,6 +3288,8 @@ func (ec *executionContext) fieldContext_UserProfile_connectedDataSources(_ cont
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "hasError":
+				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type DataSource", field.Name)
 		},
@@ -5348,6 +5406,11 @@ func (ec *executionContext) _DataSource(ctx context.Context, sel ast.SelectionSe
 			}
 		case "isIndexed":
 			out.Values[i] = ec._DataSource_isIndexed(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "hasError":
+			out.Values[i] = ec._DataSource_hasError(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

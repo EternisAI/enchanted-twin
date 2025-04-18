@@ -70,7 +70,7 @@ type Mutation {
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
-  deleteDataSource(name: String!): Boolean!
+  deleteDataSource(id: ID!): Boolean!
 }
 
 type Subscription {
@@ -85,6 +85,7 @@ type DataSource {
   updatedAt: DateTime!
   isProcessed: Boolean!
   isIndexed: Boolean!
+  hasError: Boolean!
 }
 
 enum IndexingState {
