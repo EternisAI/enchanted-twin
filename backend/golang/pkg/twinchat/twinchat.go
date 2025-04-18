@@ -148,3 +148,7 @@ func (s *Service) CreateChat(ctx context.Context, name string) (model.Chat, erro
 func (s *Service) GetMessagesByChatId(ctx context.Context, chatID string) ([]*model.Message, error) {
 	return s.storage.GetMessagesByChatId(ctx, chatID)
 }
+
+func (s *Service) DeleteChat(ctx context.Context, chatID string) error {
+	return s.storage.DeleteChat(ctx, chatID)
+}
