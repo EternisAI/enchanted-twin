@@ -26,6 +26,11 @@ type IndexingStateQuery struct {
 
 const OUTPUT_PATH = "./output/"
 
+const (
+	LOCAL_MODEL     = "gemma3:1b"
+	EMBEDDING_MODEL = "nomic-embed-text"
+)
+
 func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkflowInput) (IndexWorkflowResponse, error) {
 	if w.Store == nil {
 		return IndexWorkflowResponse{}, fmt.Errorf("store is nil")
@@ -72,7 +77,15 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 	indexingState = model.IndexingStateDownloadingModel
 	w.publishIndexingStatus(ctx, model.IndexingStateDownloadingModel, []*model.DataSource{}, 0, 0)
 
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, nil).Get(ctx, nil)
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, LOCAL_MODEL).Get(ctx, nil)
+	if err != nil {
+		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
+		indexingState = model.IndexingStateFailed
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to download Ollama model: %w", err)
+	}
+
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, EMBEDDING_MODEL).Get(ctx, nil)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
 		indexingState = model.IndexingStateFailed
@@ -280,9 +293,7 @@ type DownloadModelProgress struct {
 	PercentageProgress float64
 }
 
-func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context) error {
-	modelName := "gemma3:1b"
-
+func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context, modelName string) error {
 	models, err := w.OllamaClient.List(context.Background())
 	if err != nil {
 		w.Logger.Error("Failed to list ollama models", "error", err)
