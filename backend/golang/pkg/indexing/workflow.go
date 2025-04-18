@@ -121,6 +121,9 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		}
 		var processDataResponse ProcessDataActivityResponse
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).Get(ctx, &processDataResponse)
+
+		progress := int32((i + 1) * 100 / len(fetchDataSourcesResponse.DataSources))
+		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 		if err != nil {
 			workflow.GetLogger(ctx).Error("Failed to process data source",
 				"error", err,
@@ -128,15 +131,15 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 
 			dataSources[i].IsProcessed = false
 			dataSources[i].HasError = true
+			errMsg := err.Error()
+			w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, progress, 0, &errMsg)
 		} else {
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
 			dataSources[i].IsIndexed = true // TODO: to update after indexing is implemented
+			w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, progress, 0, nil)
 		}
 
-		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
-
-		progress := int32((i + 1) * 100 / len(fetchDataSourcesResponse.DataSources))
 		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, progress, 0, nil)
 	}
 
