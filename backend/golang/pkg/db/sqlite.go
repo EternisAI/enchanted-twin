@@ -70,11 +70,18 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 		);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+	`)
+	if err != nil {
+		return nil, err
+	}
 
+	// Create mcp_servers table if it doesn't exist
+	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS mcp_servers (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
-			command JSON,
+			command TEXT NOT NULL,
+			args JSON,
 			envs JSON,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
@@ -83,6 +90,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+
 
 	// Insert default profile if it doesn't exist
 	_, err = db.ExecContext(ctx, `

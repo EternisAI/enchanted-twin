@@ -25,32 +25,35 @@ func TestMCPService_GetTools(t *testing.T) {
 	s := NewService(ctx, *repo)
 
 
-	_, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
+	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
-		Command: []string{"go", "run", "./mcp_test_server/hello_world_mcp_server.go"},
+		Command: "go",
+		Args: []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
 	})
 
 	if err != nil {
 		t.Fatalf("Failed to add MCPServer: %v", err)
 	}
 	// Uncomment to run with these servers locally and updating params
-	// _, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
+	// _, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 	// 	Name:    "filesystem_mcp_server",
-	// 	Command: []string{"npx", "-y", "@modelcontextprotocol/server-filesystem", "/Users/username/Desktop", "/Users/username/Downloads"},
+	// 	Command: "npx",
+	// 	Args: []string{"-y", "@modelcontextprotocol/server-filesystem", "/Users/username/Desktop", "/Users/username/Downloads"},
 	// })
 
 	// if err != nil {
 	// 	t.Fatalf("Failed to add MCPServer: %v", err)
 	// }
 
-	// _, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
+	// _, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 	// 	Name:    "dbhub_mcp_server",
-	// 	Command: []string{"docker", "run", "-i", "--rm", "mcp/postgres", "postgresql://username:password@host.docker.internal:5432/postgres"},
+	// 	Command: "docker",
+	// 	Args: []string{"run", "-i", "--rm", "mcp/postgres", "postgresql://username:password@host.docker.internal:5432/postgres"},
 	// })
 
-	if err != nil {
-		t.Fatalf("Failed to add MCPServer: %v", err)
-	}
+	// if err != nil {
+	// 	t.Fatalf("Failed to add MCPServer: %v", err)
+	// }
 
 	fmt.Println("MCPServer added")
 
@@ -80,9 +83,10 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	s := NewService(ctx, *repo)	
 	
 
-	_, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
+	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
-		Command: []string{"go", "run", "./mcp_test_server/hello_world_mcp_server.go"},
+		Command: "go",
+		Args: []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
 	})
 
 	if err != nil {

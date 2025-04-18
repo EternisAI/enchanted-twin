@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
@@ -13,15 +14,20 @@ import (
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 )
 
+type ConnectedMCPServer struct {
+	ID string
+	Client *mcp.Client
+}
+
 // service implements the MCPServerService interface.
 type service struct {
 	repo repository.Repository
-	clients []*mcp.Client
+	connectedServers []*ConnectedMCPServer
 }
 
 // NewService creates a new MCPServerService.
 func NewService(ctx context.Context, repo repository.Repository) MCPService {
-	service := &service{repo: repo, clients: []*mcp.Client{}}
+	service := &service{repo: repo, connectedServers: []*ConnectedMCPServer{}}
 	err := service.LoadMCP(ctx)
 	if err != nil {
 		fmt.Println("Error loading MCP servers", err)
@@ -30,16 +36,18 @@ func NewService(ctx context.Context, repo repository.Repository) MCPService {
 }
 
 // AddMCPServer adds a new MCP server using the repository.
-func (s *service) AddMCPServer(ctx context.Context, input model.AddMCPServerInput) (*model.MCPServer, error) {
+func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (*model.MCPServer, error) {
 	// Here you might add validation or other business logic before calling the repo
-	mcpServer, err := s.repo.AddMCPServer(ctx, input.Name, input.Command, input.Envs)
+	mcpServer, err := s.repo.AddMCPServer(ctx, input.Name, input.Command, input.Args, input.Envs)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command(mcpServer.Command[0], mcpServer.Command[1:]...)	
+	cmd := exec.Command(mcpServer.Command, mcpServer.Args...)	
 	cmd.Env = os.Environ()
-	cmd.Env = append(cmd.Env, mcpServer.Envs...)
+	for _, env := range mcpServer.Envs {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
+	}
 	transport, err := GetTransport(cmd)
 	if err != nil {
 		return nil, err
@@ -52,14 +60,42 @@ func (s *service) AddMCPServer(ctx context.Context, input model.AddMCPServerInpu
 		return nil, err
 	}
 
-	s.clients = append(s.clients, client)
+	s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+		ID: mcpServer.ID,
+		Client: client,
+	})
 
 	return mcpServer, nil
 }
 
 // GetMCPServers retrieves all MCP servers using the repository.
-func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServer, error) {
-	return s.repo.GetMCPServers(ctx)
+func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error) {
+
+	mcpservers, err := s.repo.GetMCPServers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	connectedServerIds := []string{}
+	for _, connectedServer := range s.connectedServers {
+		connectedServerIds = append(connectedServerIds, connectedServer.ID)
+	}
+
+	mcpserversDefinitions := make([]*model.MCPServerDefinition, len(mcpservers))
+	for i, mcpServer := range mcpservers {
+
+		mcpserversDefinitions[i] = &model.MCPServerDefinition{
+			ID: mcpServer.ID,
+			Name: mcpServer.Name,
+			Command: mcpServer.Command,
+			Args: mcpServer.Args,
+			Envs: mcpServer.Envs,
+			Connected: slices.Contains(connectedServerIds, mcpServer.ID),
+			Enabled: mcpServer.Enabled,
+		}
+	}
+
+	return mcpserversDefinitions, nil
 }
 
 // LoadMCP loads a MCP server from the repository.
@@ -70,10 +106,12 @@ func (s *service) LoadMCP(ctx context.Context) error {
 	}
 
 	for _, server := range servers {
-		cmd := exec.Command(server.Command[0], server.Command[1:]...)	
+		cmd := exec.Command(server.Command, server.Args...)	
 
 		cmd.Env = os.Environ()
-		cmd.Env = append(cmd.Env, server.Envs...)
+		for _, env := range server.Envs {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
+		}
 
 		transport, err := GetTransport(cmd)
 		if err != nil {
@@ -87,7 +125,10 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			continue
 		}
 
-		s.clients = append(s.clients, client)
+		s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+			ID: server.ID,
+			Client: client,
+		})
 	}
 
 	return nil
@@ -97,12 +138,12 @@ func (s *service) LoadMCP(ctx context.Context) error {
 func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 	var allTools []mcp.ToolRetType
 
-	for _, client := range s.clients {
+	for _, connectedServer := range s.connectedServers {
 		cursor := ""
 		for {
-			client_tools, err := client.ListTools(ctx, &cursor)
+			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
-				fmt.Println("Error getting tools for client", client, err)
+				fmt.Println("Error getting tools for client", connectedServer.ID, err)
 				continue
 			}
 
@@ -121,13 +162,13 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 }
 
 func (s *service) ExecuteTool(ctx context.Context, toolName string, args any) (*mcp.ToolResponse, error) {
-	for _, client := range s.clients {
+	for _, connectedServer := range s.connectedServers {
 		cursor := ""
 		tools := []mcp.ToolRetType{}
 		for {
-			tool, err := client.ListTools(ctx, &cursor)
+			tool, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
-				fmt.Println("Error getting tools for client", client, err)
+				fmt.Println("Error getting tools for client", connectedServer.ID, err)
 				continue
 			}
 			tools = append(tools, tool.Tools...)
@@ -139,7 +180,7 @@ func (s *service) ExecuteTool(ctx context.Context, toolName string, args any) (*
 		}
 		for _, tool := range tools {
 			if tool.Name == toolName {
-				response, err := client.CallTool(ctx, toolName, args)
+				response, err := connectedServer.Client.CallTool(ctx, toolName, args)
 				if err != nil {
 					return nil, err	
 				}

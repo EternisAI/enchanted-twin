@@ -8,12 +8,6 @@ import (
 	"strconv"
 )
 
-type AddMCPServerInput struct {
-	Name    string   `json:"name"`
-	Command []string `json:"command,omitempty"`
-	Envs    []string `json:"envs,omitempty"`
-}
-
 type Chat struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
@@ -24,6 +18,13 @@ type Chat struct {
 type ChatSuggestionsCategory struct {
 	Category    string   `json:"category"`
 	Suggestions []string `json:"suggestions"`
+}
+
+type ConnectMCPServerInput struct {
+	Name    string           `json:"name"`
+	Command string           `json:"command"`
+	Args    []string         `json:"args,omitempty"`
+	Envs    []*KeyValueInput `json:"envs,omitempty"`
 }
 
 type DataSource struct {
@@ -44,12 +45,34 @@ type IndexingStatus struct {
 	Error                  *string       `json:"error,omitempty"`
 }
 
+type KeyValue struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type KeyValueInput struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 type MCPServer struct {
-	ID        string   `json:"id"`
-	Command   []string `json:"command,omitempty"`
-	Envs      []string `json:"envs,omitempty"`
-	Name      string   `json:"name"`
-	CreatedAt string   `json:"createdAt"`
+	ID        string      `json:"id"`
+	Command   string      `json:"command"`
+	Args      []string    `json:"args,omitempty"`
+	Envs      []*KeyValue `json:"envs,omitempty"`
+	Name      string      `json:"name"`
+	CreatedAt string      `json:"createdAt"`
+	Enabled   bool        `json:"enabled"`
+}
+
+type MCPServerDefinition struct {
+	ID        string      `json:"id"`
+	Name      string      `json:"name"`
+	Command   string      `json:"command"`
+	Args      []string    `json:"args,omitempty"`
+	Envs      []*KeyValue `json:"envs,omitempty"`
+	Connected bool        `json:"connected"`
+	Enabled   bool        `json:"enabled"`
 }
 
 type Message struct {

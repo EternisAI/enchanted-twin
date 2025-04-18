@@ -83,7 +83,7 @@ type Query {
   getDataSources: [DataSource!]!
   getOAuthStatus: [OAuthStatus!]!
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
-  getMCPServers: [MCPServer!]!
+  getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
 }
 
@@ -102,7 +102,7 @@ type Mutation {
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
   deleteDataSource(id: ID!): Boolean!
-  addMCPServer(input: AddMCPServerInput!): MCPServer!
+  connectMCPServer(input: ConnectMCPServerInput!): Boolean!
 }
 
 type Subscription {
@@ -143,21 +143,46 @@ type ChatSuggestionsCategory {
   category: String!
   suggestions: [String!]!
 }
-input AddMCPServerInput {
+
+input KeyValueInput {
+  key: String!
+  value: String!
+}
+
+type KeyValue {
+  key: String!
+  value: String!
+}
+
+input ConnectMCPServerInput {
   name: String!
-  command: [String!]
-  envs: [String!]
+  command: String!
+  args: [String!]
+  envs: [KeyValueInput!]
 }
 
 type MCPServer {
   id: ID!
-  command: [String!]
-  envs: [String!]
+  command: String!
+  args: [String!]
+  envs: [KeyValue!]
   name: String!
   createdAt: DateTime!
+  enabled: Boolean!
+}
+
+type MCPServerDefinition {
+	id: String!
+  name: String!
+  command: String!
+  args: [String!]
+  envs: [KeyValue!]
+  connected: Boolean!
+  enabled: Boolean!
 }
 
 type Tool {
   name: String!
   description: String!
 }
+
