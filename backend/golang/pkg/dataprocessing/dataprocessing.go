@@ -29,44 +29,81 @@ func extractZip(zipPath string) (string, error) {
 
 	reader, err := zip.OpenReader(zipPath)
 	if err != nil {
-		os.RemoveAll(tempDir)
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			return "", fmt.Errorf("error removing temp directory: %v", err)
+		}
 		return "", fmt.Errorf("error opening zip file: %v", err)
 	}
-	defer reader.Close()
+	defer func() {
+		if err := reader.Close(); err != nil {
+			log.Printf("Error closing zip reader: %v", err)
+		}
+	}()
 
 	for _, file := range reader.File {
 
 		path := filepath.Join(tempDir, file.Name)
 
 		if file.FileInfo().IsDir() {
-			os.MkdirAll(path, file.Mode())
+			err = os.MkdirAll(path, file.Mode())
+			if err != nil {
+				return "", fmt.Errorf("error creating directory: %v", err)
+			}
 			continue
 		}
 
 		fileReader, err := file.Open()
 		if err != nil {
-			os.RemoveAll(tempDir)
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				return "", fmt.Errorf("error removing temp directory: %v", err)
+			}
 			return "", fmt.Errorf("error opening file in zip: %v", err)
 		}
 
-		os.MkdirAll(filepath.Dir(path), 0o755)
+		err = os.MkdirAll(filepath.Dir(path), 0o755)
+		if err != nil {
+			return "", fmt.Errorf("error creating directory: %v", err)
+		}
 
 		targetFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
 		if err != nil {
-			fileReader.Close()
-			os.RemoveAll(tempDir)
+			err = fileReader.Close()
+			if err != nil {
+				return "", fmt.Errorf("error closing file reader: %v", err)
+			}
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				return "", fmt.Errorf("error removing temp directory: %v", err)
+			}
 			return "", fmt.Errorf("error creating file: %v", err)
 		}
 
 		if _, err := io.Copy(targetFile, fileReader); err != nil {
-			fileReader.Close()
-			targetFile.Close()
-			os.RemoveAll(tempDir)
+			err = fileReader.Close()
+			if err != nil {
+				return "", fmt.Errorf("error closing file reader: %v", err)
+			}
+			err = targetFile.Close()
+			if err != nil {
+				return "", fmt.Errorf("error closing target file: %v", err)
+			}
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				return "", fmt.Errorf("error removing temp directory: %v", err)
+			}
 			return "", fmt.Errorf("error extracting file: %v", err)
 		}
 
-		fileReader.Close()
-		targetFile.Close()
+		err = fileReader.Close()
+		if err != nil {
+			return "", fmt.Errorf("error closing file reader: %v", err)
+		}
+		err = targetFile.Close()
+		if err != nil {
+			return "", fmt.Errorf("error closing target file: %v", err)
+		}
 	}
 
 	return tempDir, nil
@@ -83,7 +120,12 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 		if err != nil {
 			return false, fmt.Errorf("error extracting zip file: %v", err)
 		}
-		defer os.RemoveAll(tempDir)
+		defer func() {
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				log.Printf("Error removing temp directory: %v", err)
+			}
+		}()
 
 		inputPath = tempDir
 	}

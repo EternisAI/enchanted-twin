@@ -3,7 +3,6 @@ package indexing
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -84,7 +83,7 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 			IsIndexed:   false,
 			HasError:    true,
 		}).Get(ctx, &completeResponse)
-		return IndexWorkflowResponse{}, errors.New("no data sources found")
+		return IndexWorkflowResponse{}, fmt.Errorf("no data sources found: %w", err)
 	}
 
 	indexingState = model.IndexingStateDownloadingModel
