@@ -15,6 +15,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
+
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -31,6 +33,9 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+
+	ollamaapi "github.com/ollama/ollama/api"
 )
 
 func main() {
@@ -43,16 +48,18 @@ func main() {
 	logger.Info("Using database path", slog.String("path", *dbPath))
 
 	envs, err := config.LoadConfig(true)
+
+	ollamaClient, err := ollamaapi.ClientFromEnvironment()
+
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create ollama client"))
+	}
+
+	envs, err := config.LoadConfig(true)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to load config"))
 	}
 	logger.Info("Config loaded", slog.Any("envs", envs))
-
-	logger.Info("Starting temporal server and client")
-	temporalClient, err := bootstrapTemporal(logger)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start temporal"))
-	}
 
 	logger.Info("Starting nats server")
 	_, err = bootstrap.StartEmbeddedNATSServer(logger)
@@ -72,7 +79,17 @@ func main() {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
 	}
-	defer store.Close()
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Error closing store", slog.Any("error", err))
+		}
+	}()
+
+	logger.Info("Starting temporal server and client")
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start temporal"))
+	}
 
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
@@ -99,7 +116,7 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
+func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready)
@@ -110,6 +127,24 @@ func bootstrapTemporal(logger *slog.Logger) (client.Client, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
+
+	w := worker.New(temporalClient, "default", worker.Options{})
+
+	indexingWorkflow := indexing.IndexingWorkflow{
+		Logger:       logger,
+		Config:       envs,
+		Store:        store,
+		Nc:           nc,
+		OllamaClient: ollamaClient,
+	}
+	indexingWorkflow.RegisterWorkflows(&w)
+
+	err = w.Start()
+	if err != nil {
+		logger.Error("Error starting worker", slog.Any("error", err))
+		return nil, err
+	}
+
 	return temporalClient, nil
 }
 

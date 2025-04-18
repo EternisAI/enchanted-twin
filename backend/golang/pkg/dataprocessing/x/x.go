@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataimport/types"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func min(a, b int) int {
