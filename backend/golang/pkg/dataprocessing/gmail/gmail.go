@@ -13,6 +13,7 @@ import (
 	"mime/quotedprintable"
 	"net/mail"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"strings"
@@ -96,8 +97,7 @@ func (g *Gmail) ProcessFile(filepath string, userName string) ([]types.Record, e
 		return nil, fmt.Errorf("failed to count emails: %w", err)
 	}
 	if totalEmails == 0 {
-		fmt.Println("No emails found in the file.")
-		return []types.Record{}, nil // Return empty slice, not an error
+		return nil, fmt.Errorf("no emails found in the file")
 	}
 	fmt.Printf("Found %d emails. Starting processing using %d workers...\n", totalEmails, runtime.NumCPU())
 
@@ -524,4 +524,43 @@ func decodeUTF8Sequences(text string) (string, error) {
 		}
 		return match
 	}), nil
+}
+
+func (g *Gmail) ProcessDirectory(dirPath string, userName string) ([]types.Record, error) {
+	var allRecords []types.Record
+	var mu sync.Mutex // To protect allRecords slice
+
+	// Walk through the directory recursively
+	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories
+		if info.IsDir() {
+			return nil
+		}
+
+		// Check if the file is named emails.mbox
+		if info.Name() == "emails.mbox" {
+			// Process the file
+			records, err := g.ProcessFile(path, userName)
+			if err != nil {
+				logrus.Printf("Error processing file %s: %v", path, err)
+				return nil // Continue processing other files
+			}
+
+			// Safely append records to the shared slice
+			mu.Lock()
+			allRecords = append(allRecords, records...)
+			mu.Unlock()
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error walking directory: %w", err)
+	}
+
+	return allRecords, nil
 }

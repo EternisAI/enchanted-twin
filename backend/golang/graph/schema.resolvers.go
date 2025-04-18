@@ -86,6 +86,16 @@ func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path 
 	return true, nil
 }
 
+// DeleteDataSource is the resolver for the deleteDataSource field.
+func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (bool, error) {
+	result, err := r.Store.DeleteDataSourceError(ctx, id)
+	if err != nil {
+		return false, err
+	}
+
+	return result != nil, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -265,9 +275,7 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
