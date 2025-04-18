@@ -33,20 +33,20 @@ func TestMCPService_GetTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to add MCPServer: %v", err)
 	}
+	// Uncomment to run with these servers locally and updating params
+	// _, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
+	// 	Name:    "filesystem_mcp_server",
+	// 	Command: []string{"npx", "-y", "@modelcontextprotocol/server-filesystem", "/Users/username/Desktop", "/Users/username/Downloads"},
+	// })
 
-	_, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
-		Name:    "filesystem_mcp_server",
-		Command: []string{"npx", "-y", "@modelcontextprotocol/server-filesystem", "/Users/username/Desktop", "/Users/username/Downloads"},
-	})
+	// if err != nil {
+	// 	t.Fatalf("Failed to add MCPServer: %v", err)
+	// }
 
-	if err != nil {
-		t.Fatalf("Failed to add MCPServer: %v", err)
-	}
-
-	_, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
-		Name:    "dbhub_mcp_server",
-		Command: []string{"docker", "run", "-i", "--rm", "mcp/postgres", "postgresql://username:password@host.docker.internal:5432/postgres"},
-	})
+	// _, err = s.AddMCPServer(ctx, model.AddMCPServerInput{
+	// 	Name:    "dbhub_mcp_server",
+	// 	Command: []string{"docker", "run", "-i", "--rm", "mcp/postgres", "postgresql://username:password@host.docker.internal:5432/postgres"},
+	// })
 
 	if err != nil {
 		t.Fatalf("Failed to add MCPServer: %v", err)
