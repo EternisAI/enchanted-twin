@@ -1,6 +1,9 @@
 import Spline from '@splinetool/react-spline'
-// file lives in src/assets/illustrations/brain.splinecode
 
 export function Brain() {
-  return <Spline scene="src/assets/illustrations/brain.splinecode" />
+  return (
+    <div className="h-full w-full">
+      <Spline scene="src/assets/illustrations/brain.splinecode" />
+    </div>
+  )
 }
