@@ -55,19 +55,41 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 	}
+
 	response, err := agent.Execute(ctx, messageHistory, tools)
 	if err != nil {
 		return nil, err
 	}
 
 	subject := fmt.Sprintf("chat.%s", chatID)
+	toolResults := make([]string, len(response.ToolResults))
+	for i, v := range response.ToolResults {
+		toolResultsJson, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		toolResults[i] = string(toolResultsJson)
+	}
+
+	toolCalls := make([]*model.ToolCall, len(response.ToolCalls))
+	for i, v := range response.ToolCalls {
+		toolCalls[i] = &model.ToolCall{
+			ID:          v.ID,
+			Name:        v.Function.Name,
+			IsCompleted: true,
+		}
+	}
+
 	assistantMessageJson, err := json.Marshal(model.Message{
 		ID:        uuid.New().String(),
 		Text:      &response.Content,
 		ImageUrls: response.ImageURLs,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		Role:      model.RoleAssistant,
+		ToolCalls: toolCalls,
+		ToolResults: toolResults,
 	})
+	
 	if err != nil {
 		return nil, err
 	}

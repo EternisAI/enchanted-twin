@@ -29,21 +29,15 @@ func NewAgent(nc *nats.Conn, aiService *ai.Service) *Agent {
 type AgentResponse struct {
 	Content     string
 	ToolCalls   []openai.ChatCompletionMessageToolCall
-	ToolResults []any
+	ToolResults []tools.ToolResult
 	ImageURLs   []string
-}
-
-type ToolCall struct {
-	ToolName   string
-	Arguments  string
-	ToolResult any
 }
 
 func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, currentTools []tools.Tool) (AgentResponse, error) {
 	currentStep := 0
 	responseContent := ""
 	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
-	toolResults := make([]any, 0)
+	toolResults := make([]tools.ToolResult, 0)
 	imageURLs := make([]string, 0)
 
 	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
@@ -71,7 +65,15 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 			}, nil
 		}
 
+		// err = a.nc.Publish(subject, model.Message{
+		// 	ID: uuid.New().String(),
+				
+		// })
+
+
 		for _, toolCall := range completion.ToolCalls {
+			// we send message with tool call 
+			fmt.Printf("Calling tool: %s\n", toolCall.Function.Name)
 			tool, ok := toolsMap[toolCall.Function.Name]
 			if !ok {
 				return AgentResponse{}, fmt.Errorf("tool not found: %s", toolCall.Function.Name)
@@ -84,6 +86,8 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 			}
 
 			toolResult, err := tool.Execute(ctx, args)
+
+
 			if err != nil {
 				return AgentResponse{}, err
 			}
@@ -92,6 +96,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 				imageURLs = append(imageURLs, toolResult.ImageURLs...)
 			}
 
+			// send message with isCompleted true
 			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
 			toolCalls = append(toolCalls, toolCall)
 			toolResults = append(toolResults, toolResult)
