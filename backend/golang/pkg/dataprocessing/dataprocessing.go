@@ -149,7 +149,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 			return false, fmt.Errorf("gmail requires an email")
 		}
 		source := gmail.New()
-		records, err = source.ProcessFile(inputPath, name)
+		records, err = source.ProcessDirectory(inputPath, name)
 	case "x":
 		if name == "" {
 			return false, fmt.Errorf("x requires a username")
