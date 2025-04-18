@@ -5,11 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/nats-io/nats.go"
+	ollamaapi "github.com/ollama/ollama/api"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -67,6 +70,15 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 	if len(fetchDataSourcesResponse.DataSources) == 0 {
 		indexingState = FAILED
 		return IndexWorkflowResponse{}, errors.New("no data sources found")
+	}
+
+	indexingState = DOWNLOADING_MODEL
+	w.publishIndexingStatus(ctx, model.IndexingStateDownloadingModel, []*model.DataSource{}, 0, 0)
+
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, nil).Get(ctx, nil)
+	if err != nil {
+		indexingState = FAILED
+		return IndexWorkflowResponse{}, err
 	}
 
 	for _, dataSource := range fetchDataSourcesResponse.DataSources {
@@ -192,16 +204,6 @@ func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input Proces
 	return ProcessDataActivityResponse{Success: success}, nil
 }
 
-type DownloadModelActivityInput struct {
-	ModelName string `json:"modelName"`
-}
-
-type DownloadModelActivityResponse struct{}
-
-func (w *IndexingWorkflow) DownloadModelActivity(ctx context.Context, input DownloadModelActivityInput) (DownloadModelActivityResponse, error) {
-	return DownloadModelActivityResponse{}, nil
-}
-
 type IndexDataActivityInput struct{}
 
 type IndexDataActivityResponse struct{}
@@ -258,5 +260,80 @@ func (w *IndexingWorkflow) PublishIndexingStatus(ctx context.Context, input Publ
 	}
 
 	w.Logger.Info("Successfully published indexing status", "subject", input.Subject)
+	return nil
+}
+
+type OnboardingActivities struct {
+	ollamaClient *ollamaapi.Client
+	nc           *nats.Conn
+}
+
+func NewOnboardingActivities(ollamaClient *ollamaapi.Client, nc *nats.Conn) *OnboardingActivities {
+	return &OnboardingActivities{
+		ollamaClient: ollamaClient,
+		nc:           nc,
+	}
+}
+
+// This would be for a GraphQL subscription (optional)
+type DownloadModelProgress struct {
+	PercentageProgress float64
+}
+
+func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context) error {
+	modelName := "gemma3:1b"
+
+	models, err := w.OllamaClient.List(context.Background())
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	modelFound := false
+	for _, model := range models.Models {
+		if model.Name == modelName {
+			modelFound = true
+			break
+		}
+	}
+
+	if modelFound {
+		fmt.Println("Model already downloaded")
+		return nil
+	}
+
+	req := &ollamaapi.PullRequest{
+		Model: modelName,
+	}
+
+	pullProgressFunc := func(progress ollamaapi.ProgressResponse) error {
+		if progress.Total == 0 {
+			return nil
+		}
+
+		percentageProgress := float64(progress.Completed) / float64(progress.Total) * 100
+
+		fmt.Println("Download progress ", percentageProgress)
+		userMessageJson, err := json.Marshal(DownloadModelProgress{
+			PercentageProgress: percentageProgress,
+		})
+		if err != nil {
+			return err
+		}
+
+		err = w.Nc.Publish("onboarding.download_model.progress", userMessageJson)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}
+
+	err = w.OllamaClient.Pull(context.Background(), req, pullProgressFunc)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("Model downloaded")
+
 	return nil
 }
