@@ -68,6 +68,7 @@ type ComplexityRoot struct {
 
 	IndexingStatus struct {
 		DataSources            func(childComplexity int) int
+		Error                  func(childComplexity int) int
 		IndexingDataProgress   func(childComplexity int) int
 		ProcessingDataProgress func(childComplexity int) int
 		Status                 func(childComplexity int) int
@@ -234,6 +235,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.IndexingStatus.DataSources(childComplexity), true
+
+	case "IndexingStatus.error":
+		if e.complexity.IndexingStatus.Error == nil {
+			break
+		}
+
+		return e.complexity.IndexingStatus.Error(childComplexity), true
 
 	case "IndexingStatus.indexingDataProgress":
 		if e.complexity.IndexingStatus.IndexingDataProgress == nil {
@@ -1620,6 +1628,47 @@ func (ec *executionContext) fieldContext_IndexingStatus_dataSources(_ context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _IndexingStatus_error(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_IndexingStatus_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_IndexingStatus_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "IndexingStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Message_id(ctx context.Context, field graphql.CollectedField, obj *model.Message) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Message_id(ctx, field)
 	if err != nil {
@@ -2805,6 +2854,8 @@ func (ec *executionContext) fieldContext_Subscription_indexingStatus(_ context.C
 				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
 			case "dataSources":
 				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
+			case "error":
+				return ec.fieldContext_IndexingStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
@@ -3029,6 +3080,8 @@ func (ec *executionContext) fieldContext_UserProfile_indexingStatus(_ context.Co
 				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
 			case "dataSources":
 				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
+			case "error":
+				return ec.fieldContext_IndexingStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
@@ -5260,6 +5313,8 @@ func (ec *executionContext) _IndexingStatus(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "error":
+			out.Values[i] = ec._IndexingStatus_error(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

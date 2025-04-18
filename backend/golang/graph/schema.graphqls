@@ -18,8 +18,6 @@ directive @goTag(
   value: String
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
- 
-
 type UserProfile {
   name: String
   indexingStatus: IndexingStatus
@@ -95,6 +93,7 @@ enum IndexingState {
   INDEXING_DATA
   CLEAN_UP # delete `input_files`
   COMPLETED
+  FAILED
 }
 
 type IndexingStatus {
@@ -102,4 +101,5 @@ type IndexingStatus {
   processingDataProgress: Int!
   indexingDataProgress: Int!
   dataSources: [DataSource!]!
+  error: String
 }

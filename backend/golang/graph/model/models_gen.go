@@ -29,6 +29,7 @@ type IndexingStatus struct {
 	ProcessingDataProgress int32         `json:"processingDataProgress"`
 	IndexingDataProgress   int32         `json:"indexingDataProgress"`
 	DataSources            []*DataSource `json:"dataSources"`
+	Error                  *string       `json:"error,omitempty"`
 }
 
 type Message struct {
