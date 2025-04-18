@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/indexing"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
@@ -100,7 +99,7 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 
 	workflowID := "index"
 	workflowRunID := "" // Empty string means latest run
-	var stateQuery indexing.IndexingStateQuery
+	var stateQuery model.IndexingState
 	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
 	if err != nil {
 		fmt.Println(err)
@@ -113,7 +112,7 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 	}
 
 	profile.IndexingStatus = &model.IndexingStatus{
-		Status:                 model.IndexingState(stateQuery.State),
+		Status:                 stateQuery,
 		ProcessingDataProgress: 0,
 		IndexingDataProgress:   0,
 	}
