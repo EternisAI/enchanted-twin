@@ -23,6 +23,7 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
     <OnboardingLayout
       title="Enchanted"
       subtitle="Let's get started by personalizing your experience"
+      className="max-w-sm w-full self-center"
     >
       <div className="space-y-4">
         <form className="space-y-2" onSubmit={handleSubmit}>

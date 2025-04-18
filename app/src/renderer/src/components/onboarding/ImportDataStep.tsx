@@ -124,7 +124,7 @@ export function ImportDataStep() {
             return (
               <div key={name} className="relative">
                 <div
-                  className={`p-4 rounded-lg border ${
+                  className={`p-4 rounded-lg bg-card border ${
                     isSelected ? 'border-primary bg-primary/5' : 'border-border'
                   } transition-colors`}
                 >

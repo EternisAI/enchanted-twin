@@ -5,16 +5,18 @@ import { Button } from '../ui/button'
 import { Brain } from '../graphics/brain'
 import { motion } from 'framer-motion'
 import { OnboardingStep, IndexingState } from '@renderer/lib/stores/onboarding'
+import { cn } from '@renderer/lib/utils'
 
 interface OnboardingLayoutProps {
   children: ReactNode
   title: string
   subtitle?: string
+  className?: string
 }
 
 const OnboardingBackground = memo(function OnboardingBackground() {
   return (
-    <div className="absolute bottom-0 right-0 w-full z-0 h-full opacity-50 dark:opacity-100">
+    <div className="absolute bottom-0 right-0 w-full z-0 h-full opacity-35 dark:opacity-100">
       <div className="w-full h-full bg-gradient-to-b from-background to-background/50 absolute inset-0 z-20" />
       <div className="w-full h-full relative z-10">
         <Brain />
@@ -86,11 +88,16 @@ function OnboardingPrivacyNotice() {
   )
 }
 
-export function OnboardingLayout({ children, title, subtitle }: OnboardingLayoutProps) {
+export function OnboardingLayout({ children, title, subtitle, className }: OnboardingLayoutProps) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
       <OnboardingBackground />
-      <div className="w-full max-w-md flex flex-col gap-12 z-10 relative bg-transparent">
+      <div
+        className={cn(
+          'w-full max-w-xl flex flex-col gap-12 z-10 relative bg-transparent',
+          className
+        )}
+      >
         <div className="flex flex-col gap-8">
           <OnboardingTitle title={title} subtitle={subtitle} />
           {children}
