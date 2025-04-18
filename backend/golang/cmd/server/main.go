@@ -55,7 +55,6 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
 	}
 
-	envs, err := config.LoadConfig(true)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to load config"))
 	}
