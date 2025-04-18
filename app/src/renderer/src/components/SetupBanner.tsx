@@ -9,7 +9,6 @@ export function SetupBanner() {
   const setupProgress = ((lastCompletedStep + 1) / totalSteps) * 100
 
   // Only hide when we've completed all steps
-  if (lastCompletedStep >= totalSteps - 1) return null
 
   const handleContinueSetup = () => {
     resetOnboarding()
