@@ -15,7 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
-	"github.com/EternisAI/enchanted-twin/pkg/onboarding/activities"
+
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -29,15 +29,21 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
-	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
+
+	ollamaapi "github.com/ollama/ollama/api"
 )
 
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	ollamaClient, err := ollamaapi.ClientFromEnvironment()
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create ollama client"))
+	}
 
 	envs, err := config.LoadConfig(true)
 	if err != nil {
@@ -70,7 +76,7 @@ func main() {
 	}()
 
 	logger.Info("Starting temporal server and client")
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
@@ -88,14 +94,6 @@ func main() {
 		store:           store,
 	})
 
-	ollamaClient, err := ollamaapi.ClientFromEnvironment()
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to create ollama client"))
-	}
-
-	logger.Info("Pulling ollama model")
-	examplePullModel(ollamaClient, nc)
-
 	logger.Info("Starting server")
 	err = http.ListenAndServe(":"+envs.GraphqlPort, router)
 	if err != nil {
@@ -108,7 +106,7 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn) (client.Client, error) {
+func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client) (client.Client, error) {
 	logger.Info("Starting temporal server")
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready)
@@ -123,10 +121,11 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 	w := worker.New(temporalClient, "default", worker.Options{})
 
 	indexingWorkflow := indexing.IndexingWorkflow{
-		Logger: logger,
-		Config: envs,
-		Store:  store,
-		Nc:     nc,
+		Logger:       logger,
+		Config:       envs,
+		Store:        store,
+		Nc:           nc,
+		OllamaClient: ollamaClient,
 	}
 	indexingWorkflow.RegisterWorkflows(&w)
 
@@ -205,12 +204,4 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
-}
-
-func examplePullModel(ollamaClient *ollamaapi.Client, nc *nats.Conn) {
-	activities := activities.NewOnboardingActivities(ollamaClient, nc)
-	err := activities.DownloadOllamaModel(context.Background())
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to download ollama model"))
-	}
 }
