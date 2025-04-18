@@ -1,7 +1,9 @@
 package dataprocessing
 
 import (
+	"archive/tar"
 	"archive/zip"
+	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -109,16 +111,128 @@ func extractZip(zipPath string) (extractedPath string, err error) {
 	return tempDir, nil
 }
 
+func extractTarGz(tarGzPath string) (extractedPath string, err error) {
+	tempDir, err := os.MkdirTemp("", "extracted_tar_")
+	if err != nil {
+		return "", fmt.Errorf("error creating temp directory: %v", err)
+	}
+
+	file, err := os.Open(tarGzPath)
+	if err != nil {
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			return "", fmt.Errorf("error removing temp directory: %v", err)
+		}
+		return "", fmt.Errorf("error opening tar.gz file: %v", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("error closing tar.gz file: %v", closeErr)
+			} else {
+				log.Printf("Error closing tar.gz file: %v", closeErr)
+			}
+		}
+	}()
+
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		err = os.RemoveAll(tempDir)
+		if err != nil {
+			return "", fmt.Errorf("error removing temp directory: %v", err)
+		}
+		return "", fmt.Errorf("error creating gzip reader: %v", err)
+	}
+	defer func() {
+		if closeErr := gzReader.Close(); closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("error closing gzip reader: %v", closeErr)
+			} else {
+				log.Printf("Error closing gzip reader: %v", closeErr)
+			}
+		}
+	}()
+
+	tarReader := tar.NewReader(gzReader)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			err = os.RemoveAll(tempDir)
+			if err != nil {
+				return "", fmt.Errorf("error removing temp directory: %v", err)
+			}
+			return "", fmt.Errorf("error reading tar header: %v", err)
+		}
+
+		path := filepath.Join(tempDir, header.Name)
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(path, header.FileInfo().Mode()); err != nil {
+				err = os.RemoveAll(tempDir)
+				if err != nil {
+					return "", fmt.Errorf("error removing temp directory: %v", err)
+				}
+				return "", fmt.Errorf("error creating directory: %v", err)
+			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+				err = os.RemoveAll(tempDir)
+				if err != nil {
+					return "", fmt.Errorf("error removing temp directory: %v", err)
+				}
+				return "", fmt.Errorf("error creating directory: %v", err)
+			}
+
+			outFile, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, header.FileInfo().Mode())
+			if err != nil {
+				err = os.RemoveAll(tempDir)
+				if err != nil {
+					return "", fmt.Errorf("error removing temp directory: %v", err)
+				}
+				return "", fmt.Errorf("error creating file: %v", err)
+			}
+
+			if _, err := io.Copy(outFile, tarReader); err != nil {
+				outFile.Close()
+				err = os.RemoveAll(tempDir)
+				if err != nil {
+					return "", fmt.Errorf("error removing temp directory: %v", err)
+				}
+				return "", fmt.Errorf("error extracting file: %v", err)
+			}
+
+			if err := outFile.Close(); err != nil {
+				err = os.RemoveAll(tempDir)
+				if err != nil {
+					return "", fmt.Errorf("error removing temp directory: %v", err)
+				}
+				return "", fmt.Errorf("error closing file: %v", err)
+			}
+		}
+	}
+
+	return tempDir, nil
+}
+
 func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (bool, error) {
 	var records []types.Record
 	var err error
 
 	ext := strings.ToLower(filepath.Ext(inputPath))
-	if ext == ".zip" {
-
-		tempDir, err := extractZip(inputPath)
+	if ext == ".zip" || ext == ".tar" || ext == ".tar.gz" {
+		var tempDir string
+		if ext == ".zip" {
+			tempDir, err = extractZip(inputPath)
+		} else {
+			tempDir, err = extractTarGz(inputPath)
+		}
 		if err != nil {
-			return false, fmt.Errorf("error extracting zip file: %v", err)
+			return false, fmt.Errorf("error extracting archive file: %v", err)
 		}
 		defer func() {
 			err = os.RemoveAll(tempDir)
