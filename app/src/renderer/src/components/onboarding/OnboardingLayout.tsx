@@ -2,7 +2,6 @@ import { ReactNode, memo } from 'react'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { ArrowLeft, ArrowRight, Lock } from 'lucide-react'
 import { Button } from '../ui/button'
-import { useNavigate } from '@tanstack/react-router'
 import { Brain } from '../graphics/brain'
 import { motion } from 'framer-motion'
 
@@ -14,7 +13,7 @@ interface OnboardingLayoutProps {
 
 const OnboardingBackground = memo(function OnboardingBackground() {
   return (
-    <div className="absolute bottom-0 left-0 w-full z-0 h-full opacity-50 dark:opacity-100">
+    <div className="absolute bottom-0 right-0 w-full z-0 h-full opacity-50 dark:opacity-100">
       <div className="w-full h-full bg-gradient-to-b from-background to-background/50 absolute inset-0 z-20" />
       <div className="w-full h-full relative z-10">
         <Brain />
@@ -25,39 +24,25 @@ const OnboardingBackground = memo(function OnboardingBackground() {
 
 function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="flex flex-col gap-1 text-center">
-      <h1 className="text-3xl font-extrabold tracking-tighter">{title}</h1>
-      {subtitle && <p className="text-muted-foreground">{subtitle}</p>}
+    <div className="flex flex-col gap-3 text-center">
+      <h1 className="text-4xl tracking-normal">{title}</h1>
+      {subtitle && <p className="text-muted-foreground text-balance">{subtitle}</p>}
     </div>
   )
 }
 
 function OnboardingNavigation() {
-  const {
-    currentStep,
-    totalSteps,
-    nextStep,
-    previousStep,
-    canGoNext,
-    canGoPrevious,
-    completeOnboarding
-  } = useOnboardingStore()
-  const navigate = useNavigate()
-
-  const handleSkip = () => {
-    completeOnboarding()
-    navigate({ to: '/' })
-  }
+  const { currentStep, totalSteps, nextStep, previousStep, stepValidation } = useOnboardingStore()
 
   return (
     <motion.div
-      className="mt-8 flex justify-between items-center"
+      className="flex justify-between items-center"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.2 }}
     >
       {currentStep > 0 ? (
-        <Button variant="outline" onClick={previousStep} disabled={!canGoPrevious()}>
+        <Button variant="outline" onClick={previousStep} disabled={!stepValidation.canGoBack()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back
         </Button>
@@ -65,10 +50,7 @@ function OnboardingNavigation() {
         <div className="w-8" />
       )}
       <div className="flex gap-2">
-        <Button variant="ghost" onClick={handleSkip}>
-          Skip setup
-        </Button>
-        <Button onClick={nextStep} disabled={!canGoNext()}>
+        <Button onClick={nextStep} disabled={!stepValidation.canProceed()}>
           {currentStep === totalSteps - 1 ? 'Finish' : 'Next'}
           {currentStep < totalSteps - 1 && <ArrowRight className="ml-2 h-4 w-4" />}
         </Button>
@@ -80,7 +62,7 @@ function OnboardingNavigation() {
 function OnboardingPrivacyNotice() {
   return (
     <motion.div
-      className="mt-8 text-center"
+      className="text-center"
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: 0.3 }}
@@ -97,8 +79,8 @@ export function OnboardingLayout({ children, title, subtitle }: OnboardingLayout
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
       <OnboardingBackground />
-      <div className="w-full max-w-md flex flex-col gap-8 z-10 relative bg-transparent">
-        <div className="flex flex-col gap-4">
+      <div className="w-full max-w-md flex flex-col gap-12 z-10 relative bg-transparent">
+        <div className="flex flex-col gap-8">
           <OnboardingTitle title={title} subtitle={subtitle} />
           {children}
         </div>

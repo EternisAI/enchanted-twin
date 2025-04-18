@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { useOnboardingStore, OnboardingStep } from '@renderer/lib/stores/onboarding'
 import { WelcomeStep } from './WelcomeStep'
 import { ImportDataStep } from './ImportDataStep'
 import { IndexingStep } from './IndexingStep'
@@ -8,9 +8,12 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { usePrevious } from '@renderer/lib/hooks/usePrevious'
 
 export function OnboardingContainer() {
-  const { currentStep, isCompleted } = useOnboardingStore()
+  const { currentStep, isCompleted, nextStep } = useOnboardingStore()
   const navigate = useNavigate()
   const prevStep = usePrevious(currentStep)
+  console.log('currentStep', currentStep)
+  console.log('prevStep', prevStep)
+
   const direction = prevStep !== undefined ? (currentStep > prevStep ? 1 : -1) : 0
 
   useEffect(() => {
@@ -21,14 +24,14 @@ export function OnboardingContainer() {
 
   const renderStep = () => {
     switch (currentStep) {
-      case 0:
-        return <WelcomeStep />
-      case 1:
+      case OnboardingStep.Welcome:
+        return <WelcomeStep onContinue={nextStep} />
+      case OnboardingStep.DataSources:
         return <ImportDataStep />
-      case 2:
+      case OnboardingStep.Indexing:
         return <IndexingStep />
       default:
-        return <WelcomeStep />
+        return <WelcomeStep onContinue={nextStep} />
     }
   }
 
