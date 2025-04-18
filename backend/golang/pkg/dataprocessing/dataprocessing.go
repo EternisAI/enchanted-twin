@@ -21,7 +21,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 )
 
-func extractZip(zipPath string) (string, error) {
+func extractZip(zipPath string) (extractedPath string, err error) {
 	tempDir, err := os.MkdirTemp("", "extracted_zip_")
 	if err != nil {
 		return "", fmt.Errorf("error creating temp directory: %v", err)
@@ -36,13 +36,16 @@ func extractZip(zipPath string) (string, error) {
 		return "", fmt.Errorf("error opening zip file: %v", err)
 	}
 	defer func() {
-		if err := reader.Close(); err != nil {
-			log.Printf("Error closing zip reader: %v", err)
+		if closeErr := reader.Close(); closeErr != nil {
+			if err == nil {
+				err = fmt.Errorf("error closing zip reader: %v", closeErr)
+			} else {
+				log.Printf("Error closing zip reader: %v", closeErr)
+			}
 		}
 	}()
 
 	for _, file := range reader.File {
-
 		path := filepath.Join(tempDir, file.Name)
 
 		if file.FileInfo().IsDir() {
@@ -61,6 +64,15 @@ func extractZip(zipPath string) (string, error) {
 			}
 			return "", fmt.Errorf("error opening file in zip: %v", err)
 		}
+		defer func() {
+			if closeErr := fileReader.Close(); closeErr != nil {
+				if err == nil {
+					err = fmt.Errorf("error closing file reader: %v", closeErr)
+				} else {
+					log.Printf("Error closing file reader: %v", closeErr)
+				}
+			}
+		}()
 
 		err = os.MkdirAll(filepath.Dir(path), 0o755)
 		if err != nil {
@@ -69,40 +81,28 @@ func extractZip(zipPath string) (string, error) {
 
 		targetFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.Mode())
 		if err != nil {
-			err = fileReader.Close()
-			if err != nil {
-				return "", fmt.Errorf("error closing file reader: %v", err)
-			}
 			err = os.RemoveAll(tempDir)
 			if err != nil {
 				return "", fmt.Errorf("error removing temp directory: %v", err)
 			}
 			return "", fmt.Errorf("error creating file: %v", err)
 		}
+		defer func() {
+			if closeErr := targetFile.Close(); closeErr != nil {
+				if err == nil {
+					err = fmt.Errorf("error closing target file: %v", closeErr)
+				} else {
+					log.Printf("Error closing target file: %v", closeErr)
+				}
+			}
+		}()
 
 		if _, err := io.Copy(targetFile, fileReader); err != nil {
-			err = fileReader.Close()
-			if err != nil {
-				return "", fmt.Errorf("error closing file reader: %v", err)
-			}
-			err = targetFile.Close()
-			if err != nil {
-				return "", fmt.Errorf("error closing target file: %v", err)
-			}
 			err = os.RemoveAll(tempDir)
 			if err != nil {
 				return "", fmt.Errorf("error removing temp directory: %v", err)
 			}
 			return "", fmt.Errorf("error extracting file: %v", err)
-		}
-
-		err = fileReader.Close()
-		if err != nil {
-			return "", fmt.Errorf("error closing file reader: %v", err)
-		}
-		err = targetFile.Close()
-		if err != nil {
-			return "", fmt.Errorf("error closing target file: %v", err)
 		}
 	}
 
