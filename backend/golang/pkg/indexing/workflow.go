@@ -45,6 +45,8 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		},
 	})
 
+	var completeResponse CompleteActivityResponse
+
 	indexingState := model.IndexingStateNotStarted
 	dataSources := []*model.DataSource{}
 	w.publishIndexingStatus(ctx, model.IndexingStateNotStarted, dataSources, 0, 0, nil)
@@ -145,9 +147,10 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		return IndexWorkflowResponse{}, fmt.Errorf("failed to index data: %w", err)
 	}
 
-	var completeResponse CompleteActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
 		DataSources: dataSources,
+		IsIndexed:   true,
+		HasError:    false,
 	}).Get(ctx, &completeResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to complete indexing", "error", err)
@@ -232,13 +235,15 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context, input IndexDat
 
 type CompleteActivityInput struct {
 	DataSources []*model.DataSource `json:"dataSources"`
+	IsIndexed   bool                `json:"isIndexed"`
+	HasError    bool                `json:"hasError"`
 }
 
 type CompleteActivityResponse struct{}
 
 func (w *IndexingWorkflow) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
 	for _, dataSource := range input.DataSources {
-		_, err := w.Store.UpdateDataSource(ctx, dataSource.ID, true)
+		_, err := w.Store.UpdateDataSourceState(ctx, dataSource.ID, input.IsIndexed, input.HasError)
 		if err != nil {
 			return CompleteActivityResponse{}, err
 		}

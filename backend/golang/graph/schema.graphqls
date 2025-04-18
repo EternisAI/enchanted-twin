@@ -70,6 +70,7 @@ type Mutation {
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
+  deleteDataSource(name: String!): Boolean!
 }
 
 type Subscription {

@@ -10,6 +10,7 @@ type DataSource struct {
 	UpdatedAt string `db:"updated_at"`
 	Path      string `db:"path"`
 	IsIndexed *bool  `db:"is_indexed"`
+	HasError  *bool  `db:"has_error"`
 }
 
 // GetDataSources retrieves all data sources
@@ -42,10 +43,18 @@ func (s *Store) CreateDataSource(ctx context.Context, id string, name string, pa
 }
 
 // UpdateDataSource updates a data source
-func (s *Store) UpdateDataSource(ctx context.Context, id string, isIndexed bool) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, is_indexed = ? WHERE id = ?`, isIndexed, id)
+func (s *Store) UpdateDataSourceState(ctx context.Context, id string, isIndexed bool, hasError bool) (*DataSource, error) {
+	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, is_indexed = ?, has_error = ? WHERE id = ?`, isIndexed, hasError, id)
 	if err != nil {
 		return nil, err
 	}
-	return &DataSource{ID: id, IsIndexed: &isIndexed}, nil
+	return &DataSource{ID: id, IsIndexed: &isIndexed, HasError: &hasError}, nil
+}
+
+func (s *Store) DeleteDataSourceError(ctx context.Context, id string) (*DataSource, error) {
+	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET has_error = FALSE WHERE id = ?`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &DataSource{ID: id}, nil
 }
