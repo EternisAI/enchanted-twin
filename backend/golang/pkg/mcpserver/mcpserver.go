@@ -22,7 +22,10 @@ type service struct {
 // NewService creates a new MCPServerService.
 func NewService(ctx context.Context, repo repository.Repository) MCPService {
 	service := &service{repo: repo, clients: []*mcp.Client{}}
-	service.LoadMCP(ctx)
+	err := service.LoadMCP(ctx)
+	if err != nil {
+		fmt.Println("Error loading MCP servers", err)
+	}
 	return service
 }
 
@@ -36,9 +39,7 @@ func (s *service) AddMCPServer(ctx context.Context, input model.AddMCPServerInpu
 
 	cmd := exec.Command(mcpServer.Command[0], mcpServer.Command[1:]...)	
 	cmd.Env = os.Environ()
-	for _, env := range mcpServer.Envs {
-		cmd.Env = append(cmd.Env, env)
-	}
+	cmd.Env = append(cmd.Env, mcpServer.Envs...)
 	transport, err := GetTransport(cmd)
 	if err != nil {
 		return nil, err
@@ -72,9 +73,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		cmd := exec.Command(server.Command[0], server.Command[1:]...)	
 
 		cmd.Env = os.Environ()
-		for _, env := range server.Envs {
-			cmd.Env = append(cmd.Env, env)
-		}
+		cmd.Env = append(cmd.Env, server.Envs...)
 
 		transport, err := GetTransport(cmd)
 		if err != nil {
