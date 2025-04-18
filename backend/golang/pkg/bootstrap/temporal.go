@@ -7,6 +7,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
@@ -35,7 +36,7 @@ const (
 	TemporalTaskQueue  = "default"
 )
 
-func NewTemporalClient() (client.Client, error) {
+func NewTemporalClient(dbPath string) (client.Client, error) {
 	return CreateTemporalClient(fmt.Sprintf("%s:%d", TemporalServerIP, TemporalServerPort), TemporalNamespace, "")
 }
 
@@ -72,7 +73,7 @@ func CreateTemporalClient(address string, namespace string, apiKey string) (clie
 }
 
 // CreateTemporalServer starts a Temporal server and signals readiness on the ready channel.
-func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}) {
+func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}, dbPath string) {
 	ip := TemporalServerIP
 	port := TemporalServerPort
 	historyPort := port + 1
@@ -104,12 +105,8 @@ func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}) {
 			DataStores: map[string]config.DataStore{
 				"sqlite-default": {
 					SQL: &config.SQL{
-						PluginName: sqliteplugin.PluginName,
-						ConnectAttributes: map[string]string{
-							"mode":  "memory",
-							"cache": "shared",
-						},
-						DatabaseName: "temporal",
+						PluginName:   sqliteplugin.PluginName,
+						DatabaseName: dbPath,
 					},
 				},
 			},
@@ -179,13 +176,22 @@ func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}) {
 			HostPort: fmt.Sprintf("%s:%d", ip, port),
 		},
 	}
+
+	sqlConfig := conf.Persistence.DataStores["sqlite-default"].SQL
+
+	err := sqliteschema.SetupSchema(sqlConfig)
+	if err != nil && !strings.Contains(err.Error(), "table namespaces already exists") {
+		log.Fatalf("failed to setup SQLite schema: %v", err)
+	}
+
 	namespaceConfig, err := sqliteschema.NewNamespaceConfig(clusterName, TemporalNamespace, false, nil)
 	if err != nil {
 		log.Fatalf("unable to create namespace config: %s", err)
 	}
-	if err := sqliteschema.CreateNamespaces(conf.Persistence.DataStores["sqlite-default"].SQL, namespaceConfig); err != nil {
+	if err := sqliteschema.CreateNamespaces(sqlConfig, namespaceConfig); err != nil {
 		log.Fatalf("unable to create namespace: %s", err)
 	}
+
 	authorizer, err := authorization.GetAuthorizerFromConfig(&conf.Global.Authorization)
 	if err != nil {
 		log.Fatalf("unable to create authorizer: %s", err)
@@ -226,8 +232,8 @@ func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}) {
 	}()
 	// signal that the server is ready
 	close(ready)
-	logger.Info("Server started", "ip", ip, "port", port)
-	logger.Info("UI", "ip", ip, "port", uiPort)
+	logger.Info("Temporal server", "ip", ip, "port", port)
+	logger.Info("Temporal UI", "address", fmt.Sprintf("http://%s:%d", ip, uiPort))
 
 	select {}
 }
