@@ -25,7 +25,8 @@ const DATA_SOURCES: {
     label: 'WhatsApp',
     description: 'Import your WhatsApp chat history',
     selectType: 'files',
-    fileRequirement: 'Select your WhatsApp chat export file'
+    fileRequirement:
+      'Select your WhatsApp SQLITE database file (~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite)'
   },
   {
     name: 'Telegram',
@@ -38,7 +39,7 @@ const DATA_SOURCES: {
     name: 'Slack',
     label: 'Slack',
     description: 'Import your Slack workspace data',
-    selectType: 'directory',
+    selectType: 'files',
     fileRequirement: 'Select the folder containing channel folders'
   },
   {

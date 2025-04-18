@@ -34,6 +34,9 @@ const INSTRUCTIONS = {
   GoogleAddresses: [
     "You should find the address file in the 'Maps' folder or equivalent of your google export.",
     'Similarly, move the file to input/google_export folder and rename it to addresses.json.'
+  ],
+  WhatsApp: [
+    'Select your WhatsApp SQLITE database file (~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite)'
   ]
 }
 
