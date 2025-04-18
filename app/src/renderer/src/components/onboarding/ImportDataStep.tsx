@@ -66,9 +66,16 @@ const DATA_SOURCES: {
 ]
 
 export function ImportDataStep() {
-  const { addDataSource, dataSources } = useOnboardingStore()
+  const { addDataSource, dataSources, removeDataSource } = useOnboardingStore()
   const [addDataSourceMutation] = useMutation(ADD_DATA_SOURCE)
   const [selectedDataSource, setSelectedDataSource] = useState<string | null>(null)
+
+  const handleRemoveDataSource = (name: string) => {
+    const source = dataSources.find((ds) => ds.name === name)
+    if (source) {
+      removeDataSource(source.id)
+    }
+  }
 
   const handleFileSelect = async (name: string, selectType: 'directory' | 'files') => {
     try {
@@ -139,7 +146,24 @@ export function ImportDataStep() {
                     <p className="text-sm text-muted-foreground">{description}</p>
                     {isSelected ? (
                       <div className="text-sm">
-                        <p className="text-primary">✓ Selected</p>
+                        <div className="flex items-center justify-between">
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleFileSelect(name, selectType)}
+                            >
+                              Change
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => handleRemoveDataSource(name)}
+                            >
+                              Remove
+                            </Button>
+                          </div>
+                        </div>
                         <p className="text-muted-foreground text-xs truncate">{source?.path}</p>
                         <p className="text-muted-foreground text-xs mt-1">{fileRequirement}</p>
                       </div>

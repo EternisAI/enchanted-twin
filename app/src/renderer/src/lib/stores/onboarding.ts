@@ -49,6 +49,7 @@ interface OnboardingState {
   previousStep: () => void
   setUserName: (name: string) => void
   addDataSource: (source: DataSource) => void
+  removeDataSource: (id: string) => void
   updateDataSource: (id: string, updates: Partial<DataSource>) => void
   updateIndexingStatus: (status: Partial<OnboardingState['indexingStatus']>) => void
   completeOnboarding: () => void
@@ -104,6 +105,7 @@ export const useOnboardingStore = create<OnboardingState>()(
           previousStep: () => {},
           setUserName: () => {},
           addDataSource: () => {},
+          removeDataSource: () => {},
           updateDataSource: () => {},
           updateIndexingStatus: () => {},
           completeOnboarding: () => {},
@@ -149,6 +151,15 @@ export const useOnboardingStore = create<OnboardingState>()(
           set((state) => ({
             dataSources: [...state.dataSources, source],
             stepValidation: validateStep({ ...state, dataSources: [...state.dataSources, source] })
+          }))
+        },
+        removeDataSource: (id: string) => {
+          set((state) => ({
+            dataSources: state.dataSources.filter((source) => source.id !== id),
+            stepValidation: validateStep({
+              ...state,
+              dataSources: state.dataSources.filter((source) => source.id !== id)
+            })
           }))
         },
         updateDataSource: (id: string, updates: Partial<DataSource>) =>
