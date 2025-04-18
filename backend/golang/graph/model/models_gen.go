@@ -75,6 +75,7 @@ const (
 	IndexingStateIndexingData     IndexingState = "INDEXING_DATA"
 	IndexingStateCleanUp          IndexingState = "CLEAN_UP"
 	IndexingStateCompleted        IndexingState = "COMPLETED"
+	IndexingStateFailed           IndexingState = "FAILED"
 )
 
 var AllIndexingState = []IndexingState{
@@ -84,11 +85,12 @@ var AllIndexingState = []IndexingState{
 	IndexingStateIndexingData,
 	IndexingStateCleanUp,
 	IndexingStateCompleted,
+	IndexingStateFailed,
 }
 
 func (e IndexingState) IsValid() bool {
 	switch e {
-	case IndexingStateNotStarted, IndexingStateDownloadingModel, IndexingStateProcessingData, IndexingStateIndexingData, IndexingStateCleanUp, IndexingStateCompleted:
+	case IndexingStateNotStarted, IndexingStateDownloadingModel, IndexingStateProcessingData, IndexingStateIndexingData, IndexingStateCleanUp, IndexingStateCompleted, IndexingStateFailed:
 		return true
 	}
 	return false

@@ -38,6 +38,10 @@ type IndexingStateQuery struct {
 const OUTPUT_PATH = "./output/"
 
 func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkflowInput) (IndexWorkflowResponse, error) {
+	if w.Store == nil {
+		return IndexWorkflowResponse{}, fmt.Errorf("store is nil")
+	}
+
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 3 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
@@ -48,36 +52,33 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		},
 	})
 
-	indexingState := NOT_STARTED
 	dataSources := []*model.DataSource{}
 	w.publishIndexingStatus(ctx, model.IndexingStateNotStarted, dataSources, 0, 0)
 
-	err := workflow.SetQueryHandler(ctx, "getIndexingState", func() (IndexingStateQuery, error) {
-		return IndexingStateQuery{State: indexingState}, nil
-	})
-	if err != nil {
-		return IndexWorkflowResponse{}, err
-	}
-
 	var fetchDataSourcesResponse FetchDataSourcesActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.FetchDataSourcesActivity, FetchDataSourcesActivityInput{}).Get(ctx, &fetchDataSourcesResponse)
+	err := workflow.ExecuteActivity(ctx, w.FetchDataSourcesActivity, FetchDataSourcesActivityInput{}).Get(ctx, &fetchDataSourcesResponse)
 	if err != nil {
-		indexingState = FAILED
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to fetch data sources", "error", err)
+
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to fetch data sources: %w", err)
 	}
 
 	if len(fetchDataSourcesResponse.DataSources) == 0 {
-		indexingState = FAILED
+		workflow.GetLogger(ctx).Info("No data sources found")
+
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
 		return IndexWorkflowResponse{}, errors.New("no data sources found")
 	}
 
-	indexingState = DOWNLOADING_MODEL
 	w.publishIndexingStatus(ctx, model.IndexingStateDownloadingModel, []*model.DataSource{}, 0, 0)
 
 	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, nil).Get(ctx, nil)
 	if err != nil {
-		indexingState = FAILED
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
+
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to download Ollama model: %w", err)
 	}
 
 	for _, dataSource := range fetchDataSourcesResponse.DataSources {
@@ -90,11 +91,9 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		})
 	}
 
-	indexingState = PROCESSING_DATA
 	w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
 
 	for i, dataSource := range fetchDataSourcesResponse.DataSources {
-
 		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
 
 		processDataActivityInput := ProcessDataActivityInput{
@@ -105,9 +104,11 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		var processDataResponse ProcessDataActivityResponse
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).Get(ctx, &processDataResponse)
 		if err != nil {
-			indexingState = FAILED
-			w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, 0, 0)
-			return IndexWorkflowResponse{}, err
+			workflow.GetLogger(ctx).Error("Failed to process data source",
+				"error", err,
+				"dataSource", dataSource.Name)
+			w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 0, 0)
+			return IndexWorkflowResponse{}, fmt.Errorf("failed to process data source %s: %w", dataSource.Name, err)
 		}
 
 		dataSources[i].IsProcessed = true
@@ -116,15 +117,15 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		w.publishIndexingStatus(ctx, model.IndexingStateProcessingData, dataSources, progress, 0)
 	}
 
-	indexingState = INDEXING_DATA
 	w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, dataSources, 100, 0)
 
 	var indexDataResponse IndexDataActivityResponse
 	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{}).Get(ctx, &indexDataResponse)
 	if err != nil {
-		indexingState = FAILED
-		w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, dataSources, 100, 0)
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
+
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to index data: %w", err)
 	}
 
 	var completeResponse CompleteActivityResponse
@@ -132,8 +133,10 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		DataSources: dataSources,
 	}).Get(ctx, &completeResponse)
 	if err != nil {
-		indexingState = FAILED
-		return IndexWorkflowResponse{}, err
+		workflow.GetLogger(ctx).Error("Failed to complete indexing", "error", err)
+
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to complete indexing: %w", err)
 	}
 
 	for i := range dataSources {
@@ -141,10 +144,7 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 	}
 
-	indexingState = COMPLETED
-	fmt.Println("completed")
-	fmt.Println(dataSources[0].IsIndexed)
-
+	workflow.GetLogger(ctx).Info("Indexing completed successfully")
 	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, dataSources, 100, 100)
 	return IndexWorkflowResponse{}, nil
 }
