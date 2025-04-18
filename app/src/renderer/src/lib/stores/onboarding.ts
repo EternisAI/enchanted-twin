@@ -62,7 +62,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         const { totalSteps } = get()
         // Ensure step is within bounds
         const newStep = Math.max(0, Math.min(step, totalSteps - 1))
-        set({ 
+        set({
           currentStep: newStep,
           lastCompletedStep: Math.max(get().lastCompletedStep, newStep)
         })
@@ -72,7 +72,7 @@ export const useOnboardingStore = create<OnboardingState>()(
         console.log('Next step:', { currentStep, canGoNext: canGoNext() })
         if (canGoNext()) {
           const nextStep = Math.min(currentStep + 1, totalSteps - 1)
-          set({ 
+          set({
             currentStep: nextStep,
             lastCompletedStep: Math.max(get().lastCompletedStep, currentStep)
           })
@@ -87,11 +87,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       },
       canGoNext: () => {
         const { currentStep, userName, dataSources, indexingStatus } = get()
-        console.log('Checking canGoNext:', { 
-          currentStep, 
-          userName, 
+        console.log('Checking canGoNext:', {
+          currentStep,
+          userName,
           dataSourcesLength: dataSources.length,
-          indexingStatus: indexingStatus.status 
+          indexingStatus: indexingStatus.status
         })
         switch (currentStep) {
           case 0:
@@ -134,14 +134,14 @@ export const useOnboardingStore = create<OnboardingState>()(
       completeOnboarding: () => {
         const { currentStep } = get()
         console.log('Completing onboarding at step:', currentStep)
-        set({ 
+        set({
           isCompleted: true,
           lastCompletedStep: currentStep
         })
       },
       resetOnboarding: () => {
         console.log('Resetting onboarding')
-        set(() => ({ 
+        set(() => ({
           isCompleted: false,
           currentStep: 0,
           lastCompletedStep: -1,
@@ -159,4 +159,4 @@ export const useOnboardingStore = create<OnboardingState>()(
       name: 'onboarding-storage'
     }
   )
-) 
+)
