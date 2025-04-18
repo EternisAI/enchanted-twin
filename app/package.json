@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "enchanted",
   "version": "1.0.0",
   "description": "An Electron application with React and TypeScript",
   "main": "./out/main/index.js",
@@ -33,6 +33,7 @@
     "@tanstack/react-router-devtools": "^1.116.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "electron-log": "^5.3.3",
     "electron-updater": "^6.3.9",
     "framer-motion": "^12.7.2",
     "graphql": "^16.10.0",
@@ -72,5 +73,22 @@
       "electron",
       "esbuild"
     ]
+  },
+  "build": {
+    "productName": "Enchanted",
+    "extraResources": [
+      {
+        "from": "./resources",
+        "to": "resources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "publish": {
+      "provider": "generic",
+      "url": "https://example.com/download/",
+      "channel": "latest"
+    }
   }
 }

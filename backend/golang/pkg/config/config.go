@@ -25,7 +25,7 @@ func getEnv(key, defaultValue string, printEnv bool) string {
 	return value
 }
 
-func getEnvOrPanic(key string, printEnv bool) string {
+func getEnvOrPanic(key string, printEnv bool) string { //nolint
 	value := getEnv(key, "", printEnv)
 	if value == "" {
 		panic(fmt.Sprintf("Environment variable %s is not set", key))
@@ -36,8 +36,8 @@ func getEnvOrPanic(key string, printEnv bool) string {
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 	return &Config{
-		OpenAIAPIKey:  getEnvOrPanic("OPENAI_API_KEY", printEnv),
-		GraphqlPort:   getEnvOrPanic("GRAPHQL_PORT", printEnv),
+		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", "", printEnv),
+		GraphqlPort:   getEnv("GRAPHQL_PORT", "3000", printEnv),
 		OpenAIBaseURL: getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
 	}, nil
 }

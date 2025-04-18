@@ -7,25 +7,25 @@ const messages: Message[] = [
     imageUrls: [],
     role: Role.User,
     toolCalls: [],
-    toolResult: null,
+    toolResults: [],
     createdAt: new Date().toISOString()
   },
   {
     id: '2',
-    text: 'Sure! Here’s a cat for you 🐱',
+    text: "Sure! Here's a cat for you 🐱",
     imageUrls: [],
     role: Role.Assistant,
     toolCalls: [],
-    toolResult: null,
+    toolResults: [],
     createdAt: new Date().toISOString()
   },
   {
     id: '3',
-    text: 'Can you also fetch me today’s weather in NYC?',
+    text: "Can you also fetch me today's weather in NYC?",
     imageUrls: [],
     role: Role.User,
     toolCalls: [],
-    toolResult: null,
+    toolResults: [],
     createdAt: new Date().toISOString()
   },
   {
@@ -34,7 +34,7 @@ const messages: Message[] = [
     imageUrls: [],
     role: Role.Assistant,
     toolCalls: [{ id: '1', name: 'getWeather', isCompleted: false }],
-    toolResult: [{ temp: '14°C', condition: 'Cloudy' }],
+    toolResults: ['{"temp":"14°C","condition":"Cloudy"}'],
     createdAt: new Date().toISOString()
   },
   {
@@ -43,7 +43,7 @@ const messages: Message[] = [
     imageUrls: [],
     role: Role.Assistant,
     toolCalls: [],
-    toolResult: null,
+    toolResults: [],
     createdAt: new Date().toISOString()
   },
   {
@@ -52,7 +52,7 @@ const messages: Message[] = [
     imageUrls: [],
     role: Role.Assistant,
     toolCalls: [],
-    toolResult: null,
+    toolResults: [],
     createdAt: new Date().toISOString()
   },
   {
@@ -61,16 +61,16 @@ const messages: Message[] = [
     imageUrls: [],
     role: Role.Assistant,
     toolCalls: [],
-    toolResult: null,
+    toolResults: [],
     createdAt: new Date().toISOString()
   },
   {
     id: '8',
-    text: 'Here’s another fun fact: cats sleep for about 70% of their lives! 😺',
+    text: "Here's another fun fact: cats sleep for about 70% of their lives! 😺",
     imageUrls: [],
     role: Role.Assistant,
     toolCalls: [],
-    toolResult: null,
+    toolResults: [],
     createdAt: new Date().toISOString()
   }
 ]
