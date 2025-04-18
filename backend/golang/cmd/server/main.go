@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -40,31 +41,33 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
+	// Parse command line flags
+	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
+	flag.Parse()
+
+	logger.Info("Using database path", slog.String("path", *dbPath))
+
+	envs, _ := config.LoadConfig(true)
+
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
 	}
-
-	envs, err := config.LoadConfig(true)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to load config"))
-	}
 	logger.Info("Config loaded", slog.Any("envs", envs))
 
-	logger.Info("Starting nats server")
 	_, err = bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start nats server"))
 	}
+	logger.Info("NATS server started")
 
-	logger.Info("Starting nats client")
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create nats client"))
 	}
+	logger.Info("NATS client started")
 
-	logger.Info("Initializing database")
-	store, err := db.NewStore("./store.db")
+	store, err := db.NewStore(*dbPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
@@ -74,9 +77,9 @@ func main() {
 			logger.Error("Error closing store", slog.Any("error", err))
 		}
 	}()
+	logger.Info("SQLite database initialized")
 
-	logger.Info("Starting temporal server and client")
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, *dbPath)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
@@ -94,7 +97,7 @@ func main() {
 		store:           store,
 	})
 
-	logger.Info("Starting server")
+	logger.Info("GraphQL server started")
 	err = http.ListenAndServe(":"+envs.GraphqlPort, router)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start server"))
@@ -106,17 +109,17 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client) (client.Client, error) {
-	logger.Info("Starting temporal server")
+func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, dbPath string) (client.Client, error) {
 	ready := make(chan struct{})
-	go bootstrap.CreateTemporalServer(logger, ready)
+	go bootstrap.CreateTemporalServer(logger, ready, dbPath)
 	<-ready
+	logger.Info("Temporal server started")
 
-	logger.Info("Temporal server is ready, creating client")
 	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
+	logger.Info("Temporal client created")
 
 	w := worker.New(temporalClient, "default", worker.Options{})
 

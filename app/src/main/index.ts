@@ -1,12 +1,20 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-
+import { spawn, ChildProcess } from 'child_process'
+import log from 'electron-log/main'
+import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
 
 const PATHNAME = 'input_data'
+
+// Configure electron-log
+log.transports.file.level = 'info' // Log info level and above to file
+log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
+
+let goServerProcess: ChildProcess | null = null
 
 function createWindow(): BrowserWindow {
   // Create the browser window.
@@ -22,6 +30,19 @@ function createWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
     }
+  })
+
+  // Add context menu for developer tools
+  mainWindow.webContents.on('context-menu', (_, params) => {
+    const menu = Menu.buildFromTemplate([
+      {
+        label: 'Toggle Developer Tools',
+        click: () => {
+          mainWindow.webContents.toggleDevTools()
+        }
+      }
+    ])
+    menu.popup({ window: mainWindow, x: params.x, y: params.y })
   })
 
   mainWindow.on('ready-to-show', () => {
@@ -48,6 +69,59 @@ function createWindow(): BrowserWindow {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Determine the path to the Go binary based on the environment and platform
+  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
+  const goBinaryPath = is.dev
+    ? join(__dirname, '..', '..', 'resources', executable) // Path in development
+    : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
+
+  // Create the database directory in user data path
+  const userDataPath = app.getPath('userData')
+  const dbDir = join(userDataPath, 'db')
+
+  // Ensure the database directory exists
+  if (!existsSync(dbDir)) {
+    try {
+      mkdirSync(dbDir, { recursive: true })
+      log.info(`Created database directory: ${dbDir}`)
+    } catch (err) {
+      log.error(`Failed to create database directory: ${err}`)
+    }
+  }
+
+  log.info(`Database directory: ${dbDir}`)
+  log.info(`Attempting to start Go server at: ${goBinaryPath}`)
+
+  try {
+    goServerProcess = spawn(goBinaryPath, [`--db-path=${join(dbDir, 'enchanted-twin.db')}`], {
+      // No stdio option here, defaults to 'pipe'
+    })
+
+    if (goServerProcess) {
+      goServerProcess.on('error', (err) => {
+        log.error('Failed to start Go server:', err)
+      })
+
+      goServerProcess.on('close', (code) => {
+        log.info(`Go server process exited with code ${code}`)
+        goServerProcess = null // Reset when closed
+      })
+
+      goServerProcess.stdout?.on('data', (data) => {
+        log.info(`Go Server stdout: ${data.toString().trim()}`)
+      })
+      goServerProcess.stderr?.on('data', (data) => {
+        log.error(`Go Server stderr: ${data.toString().trim()}`)
+      })
+
+      log.info('Go server process spawned.')
+    } else {
+      log.error('Failed to spawn Go server process.')
+    }
+  } catch (error) {
+    log.error('Error spawning Go server:', error)
+  }
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
@@ -100,7 +174,7 @@ app.whenReady().then(() => {
   })
 
   // This will be used to copy the files to the app's storage directory to be read later by GO
-  ipcMain.handle('copy-dropped-files', async (event, filePaths) => {
+  ipcMain.handle('copy-dropped-files', async (_event, filePaths) => {
     console.log('copy-dropped-files', filePaths)
     const fileStoragePath =
       process.env.NODE_ENV === 'development'
@@ -154,6 +228,20 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
+  }
+})
+
+// Ensure Go server is killed when the app quits (only if started by Electron, i.e., production)
+app.on('will-quit', () => {
+  if (goServerProcess) {
+    log.info('Attempting to kill Go server process...')
+    const killed = goServerProcess.kill() // Sends SIGTERM by default
+    if (killed) {
+      log.info('Go server process killed successfully.')
+    } else {
+      log.warn('Failed to kill Go server process. It might have already exited.')
+    }
+    goServerProcess = null
   }
 })
 
