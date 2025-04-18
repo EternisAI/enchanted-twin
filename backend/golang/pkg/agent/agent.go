@@ -15,14 +15,18 @@ const MAX_STEPS = 10
 const MODEL = "gpt-4o-mini"
 
 type Agent struct {
-	nc        *nats.Conn
-	aiService *ai.Service
+	nc               *nats.Conn
+	aiService        *ai.Service
+	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
+	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)
 }
 
-func NewAgent(nc *nats.Conn, aiService *ai.Service) *Agent {
+func NewAgent(nc *nats.Conn, aiService *ai.Service, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) *Agent {
 	return &Agent{
-		nc:        nc,
-		aiService: aiService,
+		nc:               nc,
+		aiService:        aiService,
+		PreToolCallback:  preToolCallback,
+		PostToolCallback: postToolCallback,
 	}
 }
 
@@ -65,15 +69,14 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 			}, nil
 		}
 
-		// err = a.nc.Publish(subject, model.Message{
-		// 	ID: uuid.New().String(),
-				
-		// })
-
-
 		for _, toolCall := range completion.ToolCalls {
-			// we send message with tool call 
-			fmt.Printf("Calling tool: %s\n", toolCall.Function.Name)
+			if a.PreToolCallback != nil {
+				a.PreToolCallback(toolCall)
+			}
+		}
+		// we send message with tool call
+		for _, toolCall := range completion.ToolCalls {
+			// we send message with tool call
 			tool, ok := toolsMap[toolCall.Function.Name]
 			if !ok {
 				return AgentResponse{}, fmt.Errorf("tool not found: %s", toolCall.Function.Name)
@@ -87,7 +90,6 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 			toolResult, err := tool.Execute(ctx, args)
 
-
 			if err != nil {
 				return AgentResponse{}, err
 			}
@@ -97,6 +99,9 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 			}
 
 			// send message with isCompleted true
+			if a.PostToolCallback != nil {
+				a.PostToolCallback(toolCall, toolResult)
+			}
 			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
 			toolCalls = append(toolCalls, toolCall)
 			toolResults = append(toolResults, toolResult)

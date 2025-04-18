@@ -53,9 +53,16 @@ type Subscription struct {
 }
 
 type ToolCall struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	IsCompleted bool   `json:"isCompleted"`
+	ID          string          `json:"id"`
+	Name        string          `json:"name"`
+	IsCompleted bool            `json:"isCompleted"`
+	MessageID   string          `json:"messageId"`
+	Result      *ToolCallResult `json:"result,omitempty"`
+}
+
+type ToolCallResult struct {
+	Content   *string  `json:"content,omitempty"`
+	ImageUrls []string `json:"imageUrls"`
 }
 
 type UpdateProfileInput struct {

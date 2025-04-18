@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -23,10 +24,12 @@ type Service struct {
 	aiService *ai.Service
 	storage   Storage
 	nc        *nats.Conn
+	logger    *slog.Logger
 }
 
-func NewService(aiService *ai.Service, storage Storage, nc *nats.Conn) *Service {
+func NewService(logger *slog.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn) *Service {
 	return &Service{
+		logger:    logger,
 		aiService: aiService,
 		storage:   storage,
 		nc:        nc,
@@ -50,7 +53,54 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 
 	messageHistory = append(messageHistory, openai.UserMessage(message))
 
-	agent := agent.NewAgent(s.nc, s.aiService)
+	assistantMessageId := uuid.New().String()
+
+	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
+		tcJson, err := json.Marshal(model.ToolCall{
+			ID:          toolCall.ID,
+			Name:        toolCall.Function.Name,
+			MessageID:   assistantMessageId,
+			IsCompleted: false,
+		})
+		if err != nil {
+			s.logger.Error("failed to marshal tool call", "error", err)
+			return
+		}
+		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
+		err = s.nc.Publish(subject, tcJson)
+		if err != nil {
+			s.logger.Error("failed to publish tool call", "error", err)
+		}
+	}
+
+	toolCallResultsMap := make(map[string]model.ToolCallResult)
+	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult) {
+		tcJson, err := json.Marshal(model.ToolCall{
+			ID:        toolCall.ID,
+			Name:      toolCall.Function.Name,
+			MessageID: assistantMessageId,
+			Result: &model.ToolCallResult{
+				Content:   &toolResult.Content,
+				ImageUrls: toolResult.ImageURLs,
+			},
+			IsCompleted: true,
+		})
+		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
+			Content:   &toolResult.Content,
+			ImageUrls: toolResult.ImageURLs,
+		}
+		if err != nil {
+			s.logger.Error("failed to marshal tool call", "error", err)
+			return
+		}
+		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
+		err = s.nc.Publish(subject, tcJson)
+		if err != nil {
+			s.logger.Error("failed to publish tool call", "error", err)
+		}
+	}
+
+	agent := agent.NewAgent(s.nc, s.aiService, preToolCallback, postToolCallback)
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
@@ -81,15 +131,15 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	assistantMessageJson, err := json.Marshal(model.Message{
-		ID:        uuid.New().String(),
-		Text:      &response.Content,
-		ImageUrls: response.ImageURLs,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Role:      model.RoleAssistant,
-		ToolCalls: toolCalls,
+		ID:          uuid.New().String(),
+		Text:        &response.Content,
+		ImageUrls:   response.ImageURLs,
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		Role:        model.RoleAssistant,
+		ToolCalls:   toolCalls,
 		ToolResults: toolResults,
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +169,22 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		CreatedAtStr: time.Now().Format(time.RFC3339),
 	}
 	if len(response.ToolCalls) > 0 {
-		toolCallsJson, err := json.Marshal(response.ToolCalls)
+		toolCalls := make([]model.ToolCall, 0)
+		for _, toolCall := range response.ToolCalls {
+
+			toolCall := model.ToolCall{
+				ID:          toolCall.ID,
+				Name:        toolCall.Function.Name,
+				MessageID:   assistantMessageId,
+				IsCompleted: true,
+			}
+			result, ok := toolCallResultsMap[toolCall.ID]
+			if ok {
+				toolCall.Result = &result
+			}
+			toolCalls = append(toolCalls, toolCall)
+		}
+		toolCallsJson, err := json.Marshal(toolCalls)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal tool calls")
 		}
