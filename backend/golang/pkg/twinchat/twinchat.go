@@ -19,10 +19,6 @@ import (
 	"github.com/openai/openai-go"
 )
 
-const (
-	MODEL = "gpt-4o-mini"
-)
-
 type Service struct {
 	aiService *ai.Service
 	storage   Storage
@@ -64,19 +60,18 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		return nil, err
 	}
 
-	fmt.Println("image urls", response.ImageURLs)
-
 	subject := fmt.Sprintf("chat.%s", chatID)
-	userMessageJson, err := json.Marshal(model.Message{
+	assistantMessageJson, err := json.Marshal(model.Message{
 		ID:        uuid.New().String(),
 		Text:      &response.Content,
+		ImageUrls: response.ImageURLs,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		Role:      model.RoleAssistant,
 	})
 	if err != nil {
 		return nil, err
 	}
-	err = s.nc.Publish(subject, userMessageJson)
+	err = s.nc.Publish(subject, assistantMessageJson)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +89,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	// assistant message
-	assistantMessage := repository.Message{
+	assistantMessageDb := repository.Message{
 		ID:           uuid.New().String(),
 		ChatID:       chatID,
 		Text:         response.Content,
@@ -106,24 +101,24 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal tool calls")
 		}
-		assistantMessage.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
+		assistantMessageDb.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
 	}
 	if len(response.ToolResults) > 0 {
 		toolResultsJson, err := json.Marshal(response.ToolResults)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal tool results")
 		}
-		assistantMessage.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
+		assistantMessageDb.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
 	}
 	if len(response.ImageURLs) > 0 {
 		imageURLsJson, err := json.Marshal(response.ImageURLs)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal image URLs")
 		}
-		assistantMessage.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
+		assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
 	}
 
-	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessage)
+	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
 
 	if err != nil {
 		return nil, err
@@ -133,6 +128,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		ID:        idAssistant,
 		Text:      &response.Content,
 		Role:      model.RoleUser,
+		ImageUrls: response.ImageURLs,
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}, nil
 }

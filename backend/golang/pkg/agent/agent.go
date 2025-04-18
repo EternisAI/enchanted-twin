@@ -12,6 +12,7 @@ import (
 )
 
 const MAX_STEPS = 10
+const MODEL = "gpt-4o-mini"
 
 type Agent struct {
 	nc        *nats.Conn
@@ -54,7 +55,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 	}
 
 	for currentStep < MAX_STEPS {
-		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, "gpt-4o-mini")
+		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, MODEL)
 		if err != nil {
 			return AgentResponse{}, err
 		}

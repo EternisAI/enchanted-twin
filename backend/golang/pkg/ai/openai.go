@@ -18,7 +18,7 @@ type Service struct {
 }
 
 func NewOpenAIService(apiKey string, baseUrl string) *Service {
-	client := openai.NewClient(option.WithAPIKey(apiKey))
+	client := openai.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseUrl))
 	return &Service{
 		client: &client,
 	}
