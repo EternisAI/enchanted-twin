@@ -5,8 +5,7 @@ import { Sparkles } from 'lucide-react'
 
 export function SetupBanner() {
   const navigate = useNavigate()
-  const { resetOnboarding, lastCompletedStep, totalSteps } = useOnboardingStore()
-  const setupProgress = ((lastCompletedStep + 1) / totalSteps) * 100
+  const { resetOnboarding } = useOnboardingStore()
 
   // Only hide when we've completed all steps
 
@@ -16,20 +15,9 @@ export function SetupBanner() {
   }
 
   return (
-    <div className="bg-card border-b px-4 py-1.5">
+    <div className="bg-muted border-b px-4 py-1.5">
       <div className="flex items-center justify-between max-w-screen-2xl mx-auto">
-        <div className="flex items-center gap-4">
-          <p className="text-sm">
-            <span className="font-medium">Setup in progress:</span> {Math.round(setupProgress)}%
-            complete
-          </p>
-          <div className="w-32 h-1 bg-muted rounded-full overflow-hidden">
-            <div
-              className="h-full bg-primary transition-all duration-300 ease-in-out"
-              style={{ width: `${setupProgress}%` }}
-            />
-          </div>
-        </div>
+        DEV
         <Button
           onClick={handleContinueSetup}
           size="sm"
