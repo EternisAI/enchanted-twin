@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -285,7 +284,8 @@ func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context) error {
 
 	models, err := w.OllamaClient.List(context.Background())
 	if err != nil {
-		log.Fatal(err)
+		w.Logger.Error("Failed to list ollama models", "error", err)
+		return err
 	}
 
 	modelFound := false
@@ -297,7 +297,7 @@ func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context) error {
 	}
 
 	if modelFound {
-		fmt.Println("Model already downloaded")
+		w.Logger.Info("Model already downloaded", "modelName", modelName)
 		return nil
 	}
 
@@ -312,7 +312,7 @@ func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context) error {
 
 		percentageProgress := float64(progress.Completed) / float64(progress.Total) * 100
 
-		fmt.Println("Download progress ", percentageProgress)
+		w.Logger.Info("Download progress", "percentageProgress", percentageProgress)
 		userMessageJson, err := json.Marshal(DownloadModelProgress{
 			PercentageProgress: percentageProgress,
 		})
@@ -333,7 +333,7 @@ func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context) error {
 		return err
 	}
 
-	fmt.Println("Model downloaded")
+	w.Logger.Info("Model downloaded", "modelName", modelName)
 
 	return nil
 }
