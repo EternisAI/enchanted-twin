@@ -47,7 +47,7 @@ func main() {
 
 	logger.Info("Using database path", slog.String("path", *dbPath))
 
-	envs, err := config.LoadConfig(true)
+	envs, _ := config.LoadConfig(true)
 
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 
