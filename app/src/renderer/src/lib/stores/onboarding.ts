@@ -1,13 +1,21 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type DataSourceType = 'WhatsApp' | 'Telegram' | 'Slack' | 'Gmail'
-
+export enum IndexingState {
+  NotStarted = 'NotStarted',
+  ProcessingData = 'ProcessingData',
+  IndexingData = 'IndexingData',
+  Completed = 'Completed',
+  DownloadingModel = 'DownloadingModel',
+  CleanUp = 'CleanUp'
+}
 interface DataSource {
-  type: DataSourceType
-  path?: string
-  status: 'pending' | 'processing' | 'completed' | 'error'
-  progress?: number
+  id: string
+  name: string
+  path: string
+  updatedAt: Date
+  isProcessed: boolean
+  isIndexed: boolean
 }
 
 interface OnboardingState {
@@ -15,6 +23,11 @@ interface OnboardingState {
   totalSteps: number
   userName: string
   dataSources: DataSource[]
+  indexingStatus: {
+    status: IndexingState
+    processingDataProgress: number
+    indexingDataProgress: number
+  }
   isCompleted: boolean
   lastCompletedStep: number
   setStep: (step: number) => void
@@ -24,7 +37,8 @@ interface OnboardingState {
   canGoPrevious: () => boolean
   setUserName: (name: string) => void
   addDataSource: (source: DataSource) => void
-  updateDataSource: (type: DataSourceType, updates: Partial<DataSource>) => void
+  updateDataSource: (id: string, updates: Partial<DataSource>) => void
+  updateIndexingStatus: (status: Partial<OnboardingState['indexingStatus']>) => void
   completeOnboarding: () => void
   resetOnboarding: () => void
 }
@@ -36,6 +50,11 @@ export const useOnboardingStore = create<OnboardingState>()(
       totalSteps: 3,
       userName: '',
       dataSources: [],
+      indexingStatus: {
+        status: IndexingState.NotStarted,
+        processingDataProgress: 0,
+        indexingDataProgress: 0
+      },
       isCompleted: false,
       lastCompletedStep: -1,
       setStep: (step) => set({ currentStep: step }),
@@ -56,14 +75,14 @@ export const useOnboardingStore = create<OnboardingState>()(
         }
       },
       canGoNext: () => {
-        const { currentStep, userName, dataSources } = get()
+        const { currentStep, userName, dataSources, indexingStatus } = get()
         switch (currentStep) {
           case 0:
             return userName.trim().length > 0
           case 1:
             return dataSources.length > 0
           case 2:
-            return dataSources.every((source) => source.status === 'completed')
+            return indexingStatus.status === IndexingState.Completed
           default:
             return false
         }
@@ -77,19 +96,23 @@ export const useOnboardingStore = create<OnboardingState>()(
         set((state) => ({
           dataSources: [...state.dataSources, source]
         })),
-      updateDataSource: (type, updates) =>
+      updateDataSource: (id, updates) =>
         set((state) => ({
           dataSources: state.dataSources.map((source) =>
-            source.type === type ? { ...source, ...updates } : source
+            source.id === id ? { ...source, ...updates } : source
           )
         })),
+      updateIndexingStatus: (status) =>
+        set((state) => ({
+          indexingStatus: { ...state.indexingStatus, ...status }
+        })),
       completeOnboarding: () => set({ 
-        isCompleted: true,
+        // isCompleted: true,
         lastCompletedStep: get().currentStep 
       }),
-      resetOnboarding: () => set((state) => ({ 
+      resetOnboarding: () => set(() => ({ 
         isCompleted: false,
-        currentStep: state.lastCompletedStep + 1
+        currentStep: 0
       }))
     }),
     {

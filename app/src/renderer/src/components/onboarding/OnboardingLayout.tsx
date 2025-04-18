@@ -3,6 +3,7 @@ import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { ArrowLeft, ArrowRight, Lock } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useNavigate } from '@tanstack/react-router'
+import { Brain } from '../graphics/brain'
 
 interface OnboardingLayoutProps {
   children: ReactNode
@@ -24,12 +25,15 @@ export function OnboardingLayout({ children, title, subtitle }: OnboardingLayout
 
   const handleSkip = () => {
     completeOnboarding()
-    navigate({ to: '/chat' })
+    navigate({ to: '/' })
   }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
-      <div className="w-full max-w-2xl flex flex-col gap-8">
+      <div className="absolute top-0 left-0 w-full h-full z-0 opacity-25">
+        <Brain />
+      </div>
+      <div className="w-full max-w-2xl flex flex-col gap-8 z-10 relative bg-transparent">
         {/* Content */}
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-1">
