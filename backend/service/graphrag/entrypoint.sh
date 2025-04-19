@@ -44,7 +44,7 @@ if [ "$DO_INIT" = "true" ] || ([ "$DO_INIT" = "auto" ] && [ ! -f "$GRAPHRAG_ROOT
 		sed -i 's/model: gpt.*$/model: gpt-4o-mini/g' "$SETTINGS_FILE"
 		
 		# Update file_type to csv
-		sed -i 's/file_type: .*$/file_type: jsonl/g' "$SETTINGS_FILE"
+		sed -i 's/file_type: .*$/file_type: csv/g' "$SETTINGS_FILE"
 
 		cat "$SETTINGS_FILE"
 		echo
