@@ -70,10 +70,8 @@ if [ "$DO_INDEX" = "true" ]; then
     
     # Process data files before indexing
     # Process slack data if it exists
-    if [ -f "$INPUT_DATA_DIR/slack.csv" ]; then
-        echo "Processing Slack data..."
-        python ./scripts/prepare_slack.py
-    fi
+	echo "Processing Slack data..."
+	python ./scripts/prepare_slack.py --input "$INPUT_DATA_DIR" --output "$GRAPHRAG_ROOT/input/slack.csv"
 
     # Process telegram data if it exists
     if [ -f "$INPUT_DATA_DIR/telegram.csv" ]; then

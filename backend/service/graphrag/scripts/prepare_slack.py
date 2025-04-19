@@ -53,10 +53,11 @@ class SlackProcessor:
         """
         logger.info(f"Reading data from {input_path}")
         try:
-            df = pd.read_csv(input_path)
+            df = pd.read_json(input_path, lines=True)
         except Exception as e:
             logger.error(f"Failed to read input file: {e}")
             raise
+        print(df)
 
         logger.debug(f"Input columns: {df.columns.tolist()}")
         logger.debug(f"Read {len(df)} records from input file")
@@ -135,55 +136,62 @@ class SlackProcessor:
         return df
 
     def _transform_message(self, row: pd.Series) -> Optional[Dict[str, Any]]:
-        """Transform a single Slack message row"""
+        """
+        Accept both dict‑ and str‑typed `data` values and return a normalized record.
+        Rows whose data can’t be parsed (or that carry no text) are skipped.
+        """
         try:
-            # Parse the data field which contains the raw message JSON
-            if not isinstance(row["data"], str):
-                logger.debug(f"Skipping row with invalid data: {row['data']}")
+            # 1. Parse the `data` field -----------------------------------------
+            raw = row["data"]
+
+            if isinstance(raw, dict):
+                data = raw
+            elif isinstance(raw, str):
+                try:
+                    data = json.loads(raw)
+                except json.JSONDecodeError:
+                    logger.debug(f"Unparseable data string: {raw!r}")
+                    return None
+            else:
+                logger.debug(f"Unexpected data type: {type(raw)}")
                 return None
 
-            data = json.loads(row["data"])
+            # 2. Extract the bits we need ---------------------------------------
+            is_my_message = bool(data.get("myMessage"))
+            username = (data.get("username") or "UNKNOWN").strip()
+            channel_name = data.get("channelName", "").strip()
+            content = data.get("text", "").strip()
 
-            # Skip messages without a username
-            if not data.get("username"):
+            # Ignore rows that carry no human‑visible text
+            if not content:
                 return None
 
-            # Extract message details
-            is_my_message = data.get("myMessage", False)
-            username = data.get("username", "").upper()  # Convert to uppercase
-            channel_name = data.get("channelName", "")
-            content = data.get("text", "")
+            # Timestamp: prefer explicit columns, fall back to “now”
+            ts = (
+                row.get("timestamp")
+                or row.get("creation_date")
+                or datetime.now().isoformat()
+            )
 
-            # Get timestamp
-            timestamp = None
-            if "timestamp" in row and pd.notna(row["timestamp"]):
-                timestamp = row["timestamp"]
-            elif "creation_date" in row and pd.notna(row["creation_date"]):
-                timestamp = row["creation_date"]
-            else:
-                # Use current time as fallback
-                timestamp = datetime.now().isoformat()
+            # 3. Build title + metadata -----------------------------------------
+            title = (
+                f"Slack message from me in #{channel_name}"
+                if is_my_message
+                else f"Slack message from {username} in #{channel_name}"
+            )
 
-            # Create title
-            if is_my_message:
-                title = f"Slack message from me in #{channel_name}"
-            else:
-                title = f"Slack message from {username} in #{channel_name}"
-
-            # Create metadata
             metadata = {
                 "source": "slack",
                 "author": username,
                 "channel": channel_name,
-                "created_at": timestamp,
+                "created_at": ts,
                 "is_my_message": is_my_message,
             }
 
-            # Create transformed data
             return {"title": title, "text": content, "metadata": metadata}
 
         except Exception as e:
-            logger.debug(f"Error transforming message: {e}")
+            logger.debug(f"Error transforming row: {e}")
             return None
 
     def _standardize_metadata(self, row: pd.Series) -> str:
@@ -298,7 +306,7 @@ class SlackProcessor:
 @click.option(
     "--input",
     "-i",
-    type=click.Path(exists=True, readable=True, file_okay=True, dir_okay=False),
+    type=click.Path(exists=True, readable=True, file_okay=True, dir_okay=True),
     default="./input_data/slack.csv",
     help="Path to input Slack CSV file",
 )
@@ -318,8 +326,20 @@ def main(input: str, output: str, verbose: bool) -> None:
         input_path = Path(input).resolve()
         output_path = Path(output).resolve()
 
+        print(f"Input path: {input_path}")
+        print(f"Output path: {output_path}")
+
+        input_files = []
+        if input_path.is_dir():
+            input_files = list(input_path.glob("*.jsonl"))
+        else:
+            input_files.append(input_path)
+
+        print(f"Input files: {input_files}")
+
         processor = SlackProcessor(verbose=verbose)
-        processor.process_file(input_path, output_path)
+        for input_file in input_files:
+            processor.process_file(input_file, output_path)
 
         sys.exit(0)
     except Exception as e:
