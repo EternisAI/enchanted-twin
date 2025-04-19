@@ -104,6 +104,10 @@ subscription ToolCallUpdated($chatId: ID!) {
   }
 }
 
-mutation AddDataSource($input: AddDataSourceInput!) {
-  addDataSource(input: $input)
+mutation AddDataSource($name: String!, $path: String!) {
+  addDataSource(name: $name, path: $path)
+}
+
+mutation DeleteDataSource($id: ID!) {
+  deleteDataSource(id: $id)
 }
