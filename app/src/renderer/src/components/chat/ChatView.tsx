@@ -10,21 +10,7 @@ const INPUT_HEIGHT = '130px'
 
 export default function ChatView({ chat }: { chat: Chat }) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
-  const [messages, setMessages] = useState<Message[]>([
-    ...chat.messages,
-    {
-      id: '1',
-      text: 'Hello',
-      imageUrls: [],
-      role: Role.Assistant,
-      toolCalls: [
-        { id: '1', name: 'getWeather', isCompleted: false, messageId: '1' },
-        { id: '2', name: 'getWeather', isCompleted: true, messageId: '1' }
-      ],
-      toolResults: [],
-      createdAt: new Date().toISOString()
-    }
-  ])
+  const [messages, setMessages] = useState<Message[]>(chat.messages)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
 
   const upsertMessage = (msg: Message) => {
