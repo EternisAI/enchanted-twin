@@ -39,7 +39,7 @@ const DATA_SOURCES: {
     label: 'Slack',
     description: 'Import your Slack workspace data',
     selectType: 'files',
-    fileRequirement: 'Select the folder containing channel folders'
+    fileRequirement: 'Select your exported Slack ZIP file'
   },
   {
     name: 'Gmail',
