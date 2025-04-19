@@ -3,6 +3,7 @@
 ## requirements
 
 - [Ollama](https://ollama.ai/) must be installed **and running** on your system
+- [Docker](https://www.docker.com/) for services
 - Go
 - pnpm
 - Node.js

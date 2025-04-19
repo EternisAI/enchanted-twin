@@ -1,0 +1,9 @@
+pandas==2.2.3
+numpy
+graphrag==2.1.0
+click
+openai>=1.0.0
+rich
+dspy-ai
+python-dotenv
+psycopg2-binary

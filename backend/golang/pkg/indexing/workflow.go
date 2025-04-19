@@ -220,17 +220,27 @@ type ProcessDataActivityInput struct {
 }
 
 type ProcessDataActivityResponse struct {
-	Success bool `json:"success"`
+	Success    bool   `json:"success"`
+	OutputPath string `json:"outputPath"`
 }
 
 func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
-	// TODO: replace username parameter
-	success, err := dataprocessing.ProcessSource(input.DataSourceName, input.SourcePath, OUTPUT_PATH+input.DataSourceName+"_"+input.DataSourceID+".jsonl", input.Username, "")
+	// Create a more descriptive output path with both source name and ID
+	outputPath := OUTPUT_PATH + input.DataSourceName + "_" + input.DataSourceID + ".jsonl"
+
+	// Use the provided username or a default if not available
+	username := input.Username
+	if username == "" {
+		username = "system"
+	}
+
+	// Process the data source
+	success, err := dataprocessing.ProcessSource(input.DataSourceName, input.SourcePath, outputPath, username, "")
 	if err != nil {
 		fmt.Println(err)
 		return ProcessDataActivityResponse{}, err
 	}
-	return ProcessDataActivityResponse{Success: success}, nil
+	return ProcessDataActivityResponse{Success: success, OutputPath: outputPath}, nil
 }
 
 type IndexDataActivityInput struct{}

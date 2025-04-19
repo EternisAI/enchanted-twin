@@ -10,6 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/internal/service/graphrag"
+
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
@@ -54,6 +56,37 @@ func main() {
 	}
 	logger.Info("Config loaded", slog.Any("envs", envs))
 
+	// Initialize GraphRAG service in a goroutine to avoid blocking app startup
+	var graphragService *graphrag.GraphRAGService
+
+	go func() {
+		logger.Info("Initializing GraphRAG service...")
+		graphragConfig := bootstrap.DefaultGraphRAGConfig()
+		graphragConfig.ForceRebuild = true
+
+		service, err := bootstrap.InitGraphRAG(context.Background(), graphragConfig, logger)
+		if err != nil {
+			logger.Error("Failed to initialize GraphRAG service", slog.Any("error", err))
+			return
+		}
+
+		graphragService = service
+		logger.Info("GraphRAG service initialized successfully")
+	}()
+
+	// Set up a deferred cleanup function
+	defer func() {
+		if graphragService != nil {
+			logger.Info("Shutting down GraphRAG service...")
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer shutdownCancel()
+
+			if err := bootstrap.ShutdownGraphRAG(shutdownCtx, graphragService); err != nil {
+				logger.Error("Error shutting down GraphRAG service", slog.Any("error", err))
+			}
+		}
+	}()
+
 	_, err = bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start nats server"))
@@ -96,7 +129,7 @@ func main() {
 		store:           store,
 	})
 
-	// Set up signal handling for graceful shutdown BEFORE starting the server
+	// Wait for termination signal
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
@@ -110,9 +143,6 @@ func main() {
 		}
 	}()
 
-	logger.Info("Server ready for GraphQL queries", slog.String("port", envs.GraphqlPort))
-
-	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
 }
