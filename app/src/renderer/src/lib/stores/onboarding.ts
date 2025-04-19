@@ -24,6 +24,7 @@ interface DataSource {
   updatedAt: Date
   isProcessed: boolean
   isIndexed: boolean
+  hasError: boolean
 }
 
 interface StepValidation {

@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
+import { ExternalLink } from 'lucide-react'
 
 interface ImportInstructionsModalProps {
   isOpen: boolean
@@ -8,8 +9,17 @@ interface ImportInstructionsModalProps {
 
 const INSTRUCTIONS = {
   X: [
-    "To export your data go to 'Settings and Privacy'",
-    "Then go to 'Your account' → 'Download and archive your data'",
+    <span key="x-link">
+      To export your data go to{' '}
+      <a
+        href="https://x.com/settings/download_your_data"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline hover:text-primary transition-colors inline-flex items-center gap-1"
+      >
+        Download your data <ExternalLink className="w-3 h-3" />
+      </a>
+    </span>,
     "After your export is complete, move the entire folder to the input folder, and rename it to 'x_export'"
   ],
   Slack: [

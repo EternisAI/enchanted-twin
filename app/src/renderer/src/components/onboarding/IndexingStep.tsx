@@ -32,6 +32,7 @@ const INDEXING_STATUS_SUBSCRIPTION = gql`
         name
         isProcessed
         isIndexed
+        hasError
       }
     }
   }

@@ -56,14 +56,14 @@ const DATA_SOURCES: {
     selectType: 'directory',
     fileRequirement:
       'Select the folder containing X .js files (like.js, direct-messages.js, tweets.js)'
-  },
-  {
-    name: 'GoogleAddresses',
-    label: 'Google Addresses',
-    description: 'Import your Google Addresses from Location History',
-    selectType: 'directory',
-    fileRequirement: 'Select the folder containing addresses.json files from Google Takeout'
   }
+  // {
+  //   name: 'GoogleAddresses',
+  //   label: 'Google Addresses',
+  //   description: 'Import your Google Addresses from Location History',
+  //   selectType: 'files',
+  //   fileRequirement: 'Select the folder containing addresses.json files from Google Takeout'
+  // }
 ]
 
 export function ImportDataStep() {
@@ -103,7 +103,8 @@ export function ImportDataStep() {
           path: result.filePaths[0],
           updatedAt: new Date(),
           isProcessed: false,
-          isIndexed: false
+          isIndexed: false,
+          hasError: false
         })
       }
     } catch (error) {
