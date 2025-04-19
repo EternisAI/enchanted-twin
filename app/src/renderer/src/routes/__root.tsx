@@ -22,7 +22,7 @@ function RootComponent() {
   }
 
   return (
-    <div className="flex flex-col h-screen w-screen text-foreground">
+    <div className="flex flex-col text-foreground">
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-50 flex items-center justify-center">
         {process.env.NODE_ENV === 'development' && <DevBadge />}
       </div>

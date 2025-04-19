@@ -84,7 +84,7 @@ export default function ChatView({ chat }: { chat: Chat }) {
   }, [messages])
 
   return (
-    <div className="flex flex-col flex-1 min-h-full w-full justify-between">
+    <div className="flex flex-col flex-1 min-h-full max-h-full w-full justify-between">
       <div
         className="p-6 flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
         style={{ maxHeight: `calc(100vh - ${INPUT_HEIGHT})` }}

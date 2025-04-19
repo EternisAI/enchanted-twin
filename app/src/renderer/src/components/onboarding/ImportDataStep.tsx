@@ -111,6 +111,13 @@ export function ImportDataStep() {
     }
   }
 
+  const handleCloseModal = () => {
+    // Add a small delay before clearing the data source to allow the modal's closing animation to complete
+    setTimeout(() => {
+      setSelectedDataSource(null)
+    }, 200)
+  }
+
   return (
     <OnboardingLayout
       title="Import Your Data"
@@ -189,7 +196,7 @@ export function ImportDataStep() {
       </div>
       <ImportInstructionsModal
         isOpen={!!selectedDataSource}
-        onClose={() => setSelectedDataSource(null)}
+        onClose={handleCloseModal}
         dataSource={selectedDataSource || ''}
       />
     </OnboardingLayout>

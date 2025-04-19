@@ -15,7 +15,7 @@ function App(): React.JSX.Element {
       </style>
       <div className="flex w-full max-w-2xl flex-col gap-4 ">
         <div>
-          <h1>My Twin</h1>
+          <h1 className="text-4xl">My Twin</h1>
         </div>
         <div className="actions">
           {/* <DragNDrop /> */}
