@@ -131,7 +131,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	assistantMessageJson, err := json.Marshal(model.Message{
-		ID:          uuid.New().String(),
+		ID:          assistantMessageId,
 		Text:        &response.Content,
 		ImageUrls:   response.ImageURLs,
 		CreatedAt:   time.Now().Format(time.RFC3339),
