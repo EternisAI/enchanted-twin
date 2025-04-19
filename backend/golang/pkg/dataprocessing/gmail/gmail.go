@@ -542,7 +542,7 @@ func (g *Gmail) ProcessDirectory(dirPath string, userName string) ([]types.Recor
 		}
 
 		// Check if the file is named emails.mbox
-		if info.Name() == "emails.mbox" {
+		if strings.Contains(info.Name(), ".mbox") {
 			// Process the file
 			records, err := g.ProcessFile(path, userName)
 			if err != nil {

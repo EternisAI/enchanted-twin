@@ -18,15 +18,9 @@ directive @goTag(
   value: String
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
-type DataSource {
-  id: ID!
-  name: String!
-  isIndexed: Boolean!
-  updatedAt: DateTime!
-}
-
 type UserProfile {
   name: String
+  indexingStatus: IndexingStatus
   connectedDataSources: [DataSource!]!
 }
 
@@ -66,6 +60,7 @@ type Query {
   profile: UserProfile!
   getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
   getChat(id: ID!): Chat!
+  getDataSources: [DataSource!]!
 }
 
 type Mutation {
@@ -73,15 +68,40 @@ type Mutation {
   createChat(name: String!): Chat!
   sendMessage(chatId: ID!, text: String!): Message!
   deleteChat(chatId: ID!): Chat!
-  addDataSource(input: AddDataSourceInput!): Boolean!
+  startIndexing: Boolean!
+  addDataSource(name: String!, path: String!): Boolean!
+  deleteDataSource(id: ID!): Boolean!
 }
 
 type Subscription {
   messageAdded(chatId: ID!): Message!
+  indexingStatus: IndexingStatus!
 }
 
-input AddDataSourceInput {
-  dataSourceName: String!
+type DataSource {
+  id: ID!
+  name: String!
   path: String!
-  username: String!
+  updatedAt: DateTime!
+  isProcessed: Boolean!
+  isIndexed: Boolean!
+  hasError: Boolean!
+}
+
+enum IndexingState {
+  NOT_STARTED
+  DOWNLOADING_MODEL
+  PROCESSING_DATA #[1 part, 2 ?]
+  INDEXING_DATA
+  CLEAN_UP # delete `input_files`
+  COMPLETED
+  FAILED
+}
+
+type IndexingStatus {
+  status: IndexingState!
+  processingDataProgress: Int!
+  indexingDataProgress: Int!
+  dataSources: [DataSource!]!
+  error: String
 }
