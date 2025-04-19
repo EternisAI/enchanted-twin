@@ -174,8 +174,8 @@ func (s *Service) BuildImage(ctx context.Context) error {
 	return nil
 }
 
-// StartContainer starts the Docker container
-func (s *Service) StartContainer(ctx context.Context) error {
+// RunContainer starts the Docker container
+func (s *Service) RunContainer(ctx context.Context) error {
 	// Check if container already exists
 	cmd := exec.CommandContext(
 		ctx,

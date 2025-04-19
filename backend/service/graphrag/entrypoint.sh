@@ -40,8 +40,8 @@ if [ "$DO_INIT" = "true" ] || ([ "$DO_INIT" = "auto" ] && [ ! -f "$GRAPHRAG_ROOT
 	if [ -f "$SETTINGS_FILE" ]; then
 		echo "Updating settings.yaml..."
 		
-		# Update model to gpt-4.1-mini
-		sed -i 's/model: gpt.*$/model: gpt-4.1-mini/g' "$SETTINGS_FILE"
+		# Update model to gpt-4o-mini -- can't handle gpt-4.1-mini due to old libs
+		sed -i 's/model: gpt.*$/model: gpt-4o-mini/g' "$SETTINGS_FILE"
 		
 		# Update file_type to csv
 		sed -i 's/file_type: .*$/file_type: csv/g' "$SETTINGS_FILE"
@@ -91,6 +91,10 @@ if [ "$DO_INDEX" = "true" ]; then
 	echo "simplemem.py indexing complete"
 fi
 
-# Run memory monitoring script
-echo "Calling simplemem.py with " "$@"
-python ./scripts/simplemem.py --db-user="$POSTGRES_USER" --db-password="$POSTGRES_PASSWORD" --db-name="$POSTGRES_DB" "$@"
+# Run memory query if we're passed in parameters
+if [ $# -gt 0 ]; then
+    echo "Calling simplemem.py with parameters:" "$@"
+    python ./scripts/simplemem.py --db-user="$POSTGRES_USER" --db-password="$POSTGRES_PASSWORD" --db-name="$POSTGRES_DB" "$@"
+else
+    echo "No parameters passed, skipping simplemem.py execution"
+fi

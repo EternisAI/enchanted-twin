@@ -4,9 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/internal/service/graphrag"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	ollamaapi "github.com/ollama/ollama/api"
@@ -243,12 +247,61 @@ func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input Proces
 	return ProcessDataActivityResponse{Success: success, OutputPath: outputPath}, nil
 }
 
-type IndexDataActivityInput struct{}
+type IndexDataActivityInput struct {
+	DataPath        string `json:"dataPath"`        // Path to the processed data directory
+	GraphRAGDataDir string `json:"graphRagDataDir"` // Base directory for GraphRAG data
+}
 
-type IndexDataActivityResponse struct{}
+type IndexDataActivityResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message"`
+}
 
 func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
-	return IndexDataActivityResponse{}, nil
+	w.Logger.Info("Starting GraphRAG indexing activity",
+		slog.String("dataPath", input.DataPath))
+
+	// Set default GraphRAG data directory if not provided
+	graphRAGDataDir := input.GraphRAGDataDir
+	if graphRAGDataDir == "" {
+		// Use a default path if not specified
+		graphRAGDataDir = filepath.Join(os.TempDir(), "enchanted-twin", "graphrag")
+		w.Logger.Info("Using default GraphRAG data directory",
+			slog.String("graphRAGDataDir", graphRAGDataDir))
+	}
+
+	// Use the workflow's GraphRAG service if available, or create a new one if not
+	var service *graphrag.GraphRAGService
+
+	if w.GraphRAGService != nil {
+		service = w.GraphRAGService
+		w.Logger.Info("Using existing GraphRAG service")
+	} else {
+		// Create a new GraphRAG service for indexing
+		w.Logger.Info("Creating new GraphRAG service")
+		var err error
+		service, err = graphrag.NewGraphRAGService(graphRAGDataDir, "batch", w.Logger)
+		if err != nil {
+			errMsg := fmt.Sprintf("Failed to create GraphRAG service: %v", err)
+			w.Logger.Error(errMsg)
+			return IndexDataActivityResponse{Success: false, Message: errMsg}, err
+		}
+		// Store the service in the workflow struct for future use
+		w.GraphRAGService = service
+	}
+
+	// Run the indexing process
+	if err := service.RunIndexing(ctx, input.DataPath); err != nil {
+		errMsg := fmt.Sprintf("Failed to run GraphRAG indexing: %v", err)
+		w.Logger.Error(errMsg)
+		return IndexDataActivityResponse{Success: false, Message: errMsg}, err
+	}
+
+	w.Logger.Info("GraphRAG indexing completed successfully")
+	return IndexDataActivityResponse{
+		Success: true,
+		Message: "GraphRAG indexing completed successfully",
+	}, nil
 }
 
 type CompleteActivityInput struct {
@@ -258,6 +311,15 @@ type CompleteActivityInput struct {
 type CompleteActivityResponse struct{}
 
 func (w *IndexingWorkflow) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
+	// Cleanup GraphRAG service if it exists
+	if w.GraphRAGService != nil {
+		w.Logger.Info("Closing GraphRAG service")
+		if err := w.GraphRAGService.Close(); err != nil {
+			w.Logger.Error("Failed to close GraphRAG service", slog.Any("error", err))
+		}
+		w.GraphRAGService = nil
+	}
+
 	for _, dataSource := range input.DataSources {
 		_, err := w.Store.UpdateDataSourceState(ctx, dataSource.ID, dataSource.IsIndexed, dataSource.HasError)
 		if err != nil {

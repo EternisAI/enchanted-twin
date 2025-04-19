@@ -3,6 +3,7 @@ package indexing
 import (
 	"log/slog"
 
+	"github.com/EternisAI/enchanted-twin/internal/service/graphrag"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	nats "github.com/nats-io/nats.go"
@@ -11,11 +12,12 @@ import (
 )
 
 type IndexingWorkflow struct {
-	Logger       *slog.Logger
-	Config       *config.Config
-	Store        *db.Store
-	Nc           *nats.Conn
-	OllamaClient *ollamaapi.Client
+	Logger         *slog.Logger
+	Config         *config.Config
+	Store          *db.Store
+	Nc             *nats.Conn
+	OllamaClient   *ollamaapi.Client
+	GraphRAGService *graphrag.GraphRAGService
 }
 
 func (workflows *IndexingWorkflow) RegisterWorkflows(worker *worker.Worker) {

@@ -67,6 +67,12 @@ func ensureGraphRAGImage(ctx context.Context, service *graphrag.GraphRAGService,
 	// Build image if it doesn't exist or if forced rebuild is requested
 	if !imageExists {
 		service.Logger().Info("GraphRAG image doesn't exist, building it")
+
+		// Stop and remove any existing container with the same name
+		// Ignore errors since container might not exist
+		_ = service.StopContainer(ctx)
+		_ = service.RemoveContainer(ctx)
+
 		if err := service.BuildImage(ctx); err != nil {
 			return fmt.Errorf("failed to build GraphRAG image: %w", err)
 		}
@@ -75,7 +81,14 @@ func ensureGraphRAGImage(ctx context.Context, service *graphrag.GraphRAGService,
 
 	// If image exists but force rebuild is enabled
 	if forceRebuild {
-		service.Logger().Info("Forcing GraphRAG image rebuild")
+		service.Logger().Info("Forcing GraphRAG image rebuild - removing any existing container first")
+
+		// First try to stop and remove any existing container to avoid conflicts
+		// Ignore errors since container might not exist
+		_ = service.StopContainer(ctx)
+		_ = service.RemoveContainer(ctx)
+
+		// Now rebuild the image
 		if err := service.BuildImage(ctx); err != nil {
 			return fmt.Errorf("failed to rebuild GraphRAG image: %w", err)
 		}

@@ -265,7 +265,10 @@ func checkPortsAvailable(ip string, ports []int) error {
 		addr := fmt.Sprintf("%s:%d", ip, port)
 		conn, err := net.Dial("tcp", addr)
 		if err == nil {
-			conn.Close()
+			if closeErr := conn.Close(); closeErr != nil {
+				// Just log the error since we're already returning an error about the port
+				fmt.Printf("Warning: failed to close connection: %v\n", closeErr)
+			}
 			return fmt.Errorf("port %d is already in use", port)
 		}
 	}

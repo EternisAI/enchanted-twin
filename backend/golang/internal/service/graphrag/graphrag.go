@@ -75,7 +75,7 @@ func NewGraphRAGService(dataDir string, runMode string, logger *slog.Logger) (*G
 
 	// Optional environment variables to control container behavior
 	envVars["DO_INIT"] = "auto"
-	envVars["DO_INDEX"] = "true"
+	envVars["DO_INDEX"] = "false"
 
 	// Pass through the OpenAI API key from the environment
 	envVars["OPENAI_API_KEY"] = os.Getenv("OPENAI_API_KEY")
@@ -121,7 +121,7 @@ func (s *GraphRAGService) BuildImage(ctx context.Context) error {
 
 // StartContainer starts the GraphRAG container
 func (s *GraphRAGService) StartContainer(ctx context.Context) error {
-	return s.dockerService.StartContainer(ctx)
+	return s.dockerService.RunContainer(ctx)
 }
 
 // StopContainer stops the GraphRAG container
@@ -147,4 +147,84 @@ func (s *GraphRAGService) ExecuteCommand(ctx context.Context, command []string) 
 // Close cleans up any resources
 func (s *GraphRAGService) Close() error {
 	return s.dockerService.Close()
+}
+
+// RunIndexing executes a GraphRAG indexing operation
+func (s *GraphRAGService) RunIndexing(ctx context.Context, dataPath string) error {
+	logger := s.Logger()
+	logger.Info("Running GraphRAG indexing",
+		slog.String("data_path", dataPath))
+
+	// Find project root to locate context path
+	pwd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	// Use same approach as in NewGraphRAGService to find project root
+	projectRoot := pwd
+	if filepath.Base(projectRoot) == "golang" {
+		projectRoot = filepath.Dir(filepath.Dir(projectRoot))
+	} else {
+		for {
+			if _, err := os.Stat(filepath.Join(projectRoot, "go.mod")); err == nil {
+				projectRoot = filepath.Dir(filepath.Dir(projectRoot))
+				break
+			}
+			parentDir := filepath.Dir(projectRoot)
+			if parentDir == projectRoot {
+				return fmt.Errorf("could not find project root")
+			}
+			projectRoot = parentDir
+		}
+	}
+
+	// Create the full path to the Dockerfile directory
+	dockerfilePath := filepath.Join("backend", "service", "graphrag")
+	contextPath := filepath.Join(projectRoot, dockerfilePath)
+
+	// Setup environment for indexing
+	envVars := make(map[string]string)
+	envVars["DO_INIT"] = "auto"
+	envVars["DO_INDEX"] = "true"
+	envVars["OPENAI_API_KEY"] = os.Getenv("OPENAI_API_KEY")
+
+	// Setup volumes for the data paths
+	volumes := make(map[string]string)
+	volumes[filepath.Join(s.dataDir, "graphrag_root")] = "/app/graphrag_root"
+	volumes[dataPath] = "/app/input_data"
+
+	// Create container options
+	options := docker.ContainerOptions{
+		ImageName:     "enchanted-twin-graphrag",
+		ImageTag:      "latest",
+		ContextPath:   contextPath,
+		ContainerName: "enchanted-twin-graphrag-index",
+		EnvVars:       envVars,
+		Volumes:       volumes,
+		Detached:      false, // We want to wait for indexing to complete
+	}
+
+	// Create Docker service
+	dockerService, err := docker.NewService(options, logger)
+	if err != nil {
+		return fmt.Errorf("failed to create Docker service for indexing: %w", err)
+	}
+	defer func() {
+		if err := dockerService.Close(); err != nil {
+			logger.Error("Failed to close Docker service", slog.Any("error", err))
+		}
+	}()
+
+	// Check if container already exists and remove it if it does
+	_ = dockerService.StopContainer(ctx)
+	_ = dockerService.RemoveContainer(ctx)
+
+	// Start container and wait for it to complete
+	if err := dockerService.RunContainer(ctx); err != nil {
+		return fmt.Errorf("failed to run indexing container: %w", err)
+	}
+
+	logger.Info("GraphRAG indexing completed successfully")
+	return nil
 }
