@@ -25,8 +25,7 @@ const DATA_SOURCES: {
     label: 'WhatsApp',
     description: 'Import your WhatsApp chat history',
     selectType: 'files',
-    fileRequirement:
-      'Select your WhatsApp SQLITE database file (~/Library/Group Containers/group.net.whatsapp.WhatsApp.shared/ChatStorage.sqlite)'
+    fileRequirement: 'Select your WhatsApp SQLITE database file'
   },
   {
     name: 'Telegram',
@@ -126,7 +125,7 @@ export function ImportDataStep() {
             return (
               <div key={name} className="relative h-full">
                 <div
-                  className={`p-4 rounded-lg bg-card border h-full ${
+                  className={`p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-2 ${
                     isSelected ? 'border-primary bg-primary/5' : 'border-border'
                   } transition-colors`}
                 >
@@ -144,7 +143,10 @@ export function ImportDataStep() {
                       <HelpCircle className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </div>
-                  <p className="text-sm text-muted-foreground">{description}</p>
+                  <div className="flex flex-col gap-1 flex-1">
+                    <p className="text-sm text-muted-foreground">{description}</p>
+                    <p className="text-muted-foreground text-xs">{fileRequirement}</p>
+                  </div>
                   {isSelected ? (
                     <div className="text-sm">
                       <div className="flex items-center justify-between">
@@ -166,11 +168,9 @@ export function ImportDataStep() {
                         </div>
                       </div>
                       <p className="text-muted-foreground text-xs truncate">{source?.path}</p>
-                      <p className="text-muted-foreground text-xs mt-1">{fileRequirement}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-muted-foreground text-xs">{fileRequirement}</p>
                       <Button
                         variant="outline"
                         size="sm"
