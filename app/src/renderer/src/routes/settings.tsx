@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
 import { Monitor, Moon, Sun } from 'lucide-react'
+import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 
 export const Route = createFileRoute('/settings')({
   component: Settings
@@ -9,7 +10,9 @@ export const Route = createFileRoute('/settings')({
 
 function Settings() {
   const { theme, setTheme } = useTheme()
-
+  // reset all zustand stores
+  // reset onboarding store
+  const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding)
   return (
     <div className="p-6 max-w-2xl mx-auto" style={{ viewTransitionName: 'page-content' }}>
       <style>
@@ -51,6 +54,23 @@ function Settings() {
             >
               <Monitor className="mr-2" />
               System
+            </Button>
+          </div>
+        </div>
+        <div>
+          <h2 className="text-lg font-medium mb-2">Reset</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Resets internal app state. This will remove all data from the app.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="destructive"
+              className="flex-1"
+              onClick={() => {
+                resetOnboarding()
+              }}
+            >
+              Reset
             </Button>
           </div>
         </div>
