@@ -15,9 +15,8 @@ export function SetupBanner() {
   }
 
   return (
-    <div className="bg-muted border-b px-4 py-1.5">
-      <div className="flex items-center justify-between max-w-screen-2xl mx-auto">
-        DEV
+    <div className="bg-transparent border-b px-4 py-1.5">
+      <div className="flex items-center justify-center max-w-screen-2xl mx-auto">
         <Button
           onClick={handleContinueSetup}
           size="sm"

@@ -39,9 +39,7 @@ function OnboardingNavigation() {
     useOnboardingStore()
 
   const isIndexing =
-    currentStep === OnboardingStep.Indexing &&
-    indexingStatus.status !== IndexingState.Completed &&
-    indexingStatus.status !== IndexingState.Failed
+    currentStep === OnboardingStep.Indexing && indexingStatus.status === IndexingState.IndexingData
 
   return (
     <motion.div
@@ -89,6 +87,8 @@ function OnboardingPrivacyNotice() {
 }
 
 export function OnboardingLayout({ children, title, subtitle, className }: OnboardingLayoutProps) {
+  const { currentStep } = useOnboardingStore()
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
       <OnboardingBackground />
@@ -104,7 +104,7 @@ export function OnboardingLayout({ children, title, subtitle, className }: Onboa
         </div>
 
         <OnboardingNavigation />
-        <OnboardingPrivacyNotice />
+        {currentStep !== OnboardingStep.Welcome && <OnboardingPrivacyNotice />}
       </div>
     </div>
   )
