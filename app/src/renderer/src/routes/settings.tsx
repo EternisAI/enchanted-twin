@@ -1,8 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { ConfirmDestructiveAction } from '@renderer/components/ui/confirm-destructive-action-dialog'
 
 export const Route = createFileRoute('/settings')({
   component: Settings
@@ -13,6 +14,7 @@ function Settings() {
   // reset all zustand stores
   // reset onboarding store
   const resetOnboarding = useOnboardingStore((state) => state.resetOnboarding)
+  const navigate = useNavigate()
   return (
     <div className="p-6 max-w-2xl mx-auto" style={{ viewTransitionName: 'page-content' }}>
       <style>
@@ -22,11 +24,11 @@ function Settings() {
           }
         `}
       </style>
-      <h1 className="text-2xl font-semibold mb-6">Settings</h1>
+      <h2 className="text-2xl mb-6">Settings</h2>
 
       <div className="space-y-6">
         <div>
-          <h2 className="text-lg font-medium mb-2">Appearance</h2>
+          <h3 className="text-lg font-medium mb-2">Appearance</h3>
           <p className="text-sm text-muted-foreground mb-4">
             Customize how the app looks on your device.
           </p>
@@ -58,20 +60,21 @@ function Settings() {
           </div>
         </div>
         <div>
-          <h2 className="text-lg font-medium mb-2">Reset</h2>
+          <h3 className="text-lg font-medium mb-2">Reset</h3>
           <p className="text-sm text-muted-foreground mb-4">
-            Resets internal app state. This will remove all data from the app.
+            Resets internal app state. This will remove all data from the app.{' '}
+            <strong>THIS ONLY RESETS THE FRONT-END FOR NOW</strong>
           </p>
           <div className="flex items-center gap-2">
-            <Button
-              variant="destructive"
-              className="flex-1"
-              onClick={() => {
+            <ConfirmDestructiveAction
+              title="Reset"
+              description="Resets internal app state. This will remove all data from the app."
+              onConfirm={() => {
                 resetOnboarding()
+                navigate({ to: '/' })
               }}
-            >
-              Reset
-            </Button>
+              confirmText="Reset"
+            />
           </div>
         </div>
       </div>
