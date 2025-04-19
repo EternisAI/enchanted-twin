@@ -1,10 +1,13 @@
 import App from '@renderer/App'
-import { createFileRoute } from '@tanstack/react-router'
+import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({
-  component: Index
+  component: App,
+  beforeLoad: () => {
+    const onboardingStore = useOnboardingStore.getState()
+    if (!onboardingStore.isCompleted) {
+      throw redirect({ to: '/onboarding' })
+    }
+  }
 })
-
-function Index() {
-  return <App />
-}

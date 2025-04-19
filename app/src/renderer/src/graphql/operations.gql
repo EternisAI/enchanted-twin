@@ -96,3 +96,7 @@ subscription MessageAdded($chatId: ID!) {
 subscription DataSourceAdded($input: AddDataSourceInput!) {
   addDataSource(input: $input)
 }
+
+mutation AddDataSource($input: AddDataSourceInput!) {
+  addDataSource(input: $input)
+}

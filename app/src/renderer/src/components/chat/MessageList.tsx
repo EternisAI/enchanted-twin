@@ -19,7 +19,7 @@ export default function MessageList({ messages, isWaitingTwinResponse }: Message
       )}
       {isWaitingTwinResponse && (
         <motion.div
-          className="text-sm text-gray-500 italic px-3 py-1 bg-gray-100 rounded-md w-fit"
+          className="text-sm text-muted-foreground italic px-3 py-1 bg-accent rounded-md w-fit"
           initial="initial"
           animate="animate"
           variants={{

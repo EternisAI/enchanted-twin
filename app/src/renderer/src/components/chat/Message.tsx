@@ -18,7 +18,7 @@ export function UserMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-white text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
+      <div className="bg-background text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:border">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
           <div className="mt-2 space-x-2">
@@ -27,12 +27,12 @@ export function UserMessageBubble({ message }: { message: Message }) {
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block h-24 w-24 object-cover rounded"
+                className="inline-block max-h-24 max-w-24 object-fit rounded"
               />
             ))}
           </div>
         )}
-        <div className="text-xs text-gray-500 pt-1">
+        <div className="text-xs text-muted-foreground pt-1">
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>
@@ -48,7 +48,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
+      <div className="bg-accent text-foreground rounded-lg px-4 py-2 shadow max-w-md">
         {message.text && <Markdown>{message.text}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="mt-2 space-x-2">
@@ -88,12 +88,12 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
         })}
 
         {message.toolResults.length > 0 && (
-          <div className="mt-3 bg-green-50 p-2 rounded text-xs text-gray-700 whitespace-pre-wrap">
+          <div className="mt-3 bg-green-50 p-2 rounded text-xs text-foreground whitespace-pre-wrap">
             <strong>Tool Result:</strong>
             <pre>{JSON.stringify(message.toolResults, null, 2)}</pre>
           </div>
         )}
-        <div className="text-xs text-gray-500 pt-1">
+        <div className="text-xs text-muted-foreground pt-1">
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>
