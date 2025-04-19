@@ -13,7 +13,7 @@ export function ConfirmDestructiveAction({
   title,
   description,
   onConfirm,
-  onCancel,
+  onCancel = () => {},
   confirmText
 }: {
   title: string
