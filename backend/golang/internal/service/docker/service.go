@@ -148,7 +148,7 @@ func (s *Service) BuildImage(ctx context.Context) error {
 	// Build the image using docker CLI
 	args := []string{
 		"build",
-		"--no-cache", // Force rebuild without using cache
+		// "--no-cache", // Force rebuild without using cache
 		"-t", s.FullImageName(),
 	}
 
@@ -283,6 +283,8 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	var stderr bytes.Buffer
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &stderr
+
+	s.logger.Info("Running docker cmd", slog.String("docker", strings.Join(args, " ")))
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create and start container: %s: %w", stderr.String(), err)

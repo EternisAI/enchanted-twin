@@ -1,12 +1,12 @@
 package indexing
 
 import (
+	"errors"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -26,7 +26,10 @@ type IndexingStateQuery struct {
 	State model.IndexingState
 }
 
-const OUTPUT_PATH = "./output/"
+const (
+	OUTPUT_PATH       = "./output/"
+	GRAPHRAG_DATA_DIR = "./data/graphrag"
+)
 
 const (
 	LOCAL_MODEL     = "gemma3:1b"
@@ -150,8 +153,36 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 
 	w.publishIndexingStatus(ctx, model.IndexingStateIndexingData, dataSources, 100, 0, nil)
 
+	// Determine the input data directory from processed files
+	outputDir := OUTPUT_PATH
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		workflow.GetLogger(ctx).Error("Failed to create output directory", "error", err)
+		errMsg := err.Error()
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0, &errMsg)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Ensure graphRAG data directory exists
+	graphRAGDataDir := GRAPHRAG_DATA_DIR
+	// Create it if it doesn't exist
+	if err := os.MkdirAll(graphRAGDataDir, 0755); err != nil {
+		workflow.GetLogger(ctx).Error("Failed to create GraphRAG data directory", "error", err)
+		errMsg := err.Error()
+		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0, &errMsg)
+		return IndexWorkflowResponse{}, fmt.Errorf("failed to create GraphRAG data directory: %w", err)
+	}
+
+	workflow.GetLogger(ctx).Info("Preparing for indexing",
+		slog.String("outputDir", outputDir),
+		slog.String("graphRAGDataDir", graphRAGDataDir))
+
 	var indexDataResponse IndexDataActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{}).Get(ctx, &indexDataResponse)
+	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{
+		DataPath:        outputDir,
+		GraphRAGDataDir: graphRAGDataDir,
+	}).Get(ctx, &indexDataResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
 		errMsg := err.Error()
@@ -261,14 +292,22 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context, input IndexDat
 	w.Logger.Info("Starting GraphRAG indexing activity",
 		slog.String("dataPath", input.DataPath))
 
-	// Set default GraphRAG data directory if not provided
+	// Validate GraphRAG data directory
 	graphRAGDataDir := input.GraphRAGDataDir
 	if graphRAGDataDir == "" {
-		// Use a default path if not specified
-		graphRAGDataDir = filepath.Join(os.TempDir(), "enchanted-twin", "graphrag")
-		w.Logger.Info("Using default GraphRAG data directory",
-			slog.String("graphRAGDataDir", graphRAGDataDir))
+		errMsg := "GraphRAG data directory not provided"
+		w.Logger.Error(errMsg)
+		return IndexDataActivityResponse{Success: false, Message: errMsg}, errors.New(errMsg)
 	}
+
+	// Verify the directory exists
+	if _, err := os.Stat(graphRAGDataDir); os.IsNotExist(err) {
+		errMsg := fmt.Sprintf("GraphRAG data directory does not exist: %s", graphRAGDataDir)
+		w.Logger.Error(errMsg)
+		return IndexDataActivityResponse{Success: false, Message: errMsg}, errors.New(errMsg)
+	}
+
+	w.Logger.Info("Using GraphRAG data directory", slog.String("graphRAGDataDir", graphRAGDataDir))
 
 	// Use the workflow's GraphRAG service if available, or create a new one if not
 	var service *graphrag.GraphRAGService

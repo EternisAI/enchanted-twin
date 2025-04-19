@@ -13,24 +13,48 @@ import (
 
 // GraphRAGService manages the GraphRAG Docker container lifecycle
 type GraphRAGService struct {
-	dockerService *docker.Service
-	dataDir       string
-	runMode       string
+	dockerService   *docker.Service
+	graphragDataDir string // Directory for GraphRAG data/config
+	inputDataDir    string // Directory for input data
 }
 
 // NewGraphRAGService creates a new GraphRAG service instance
-func NewGraphRAGService(dataDir string, runMode string, logger *slog.Logger) (*GraphRAGService, error) {
+// The second parameter (formerly runMode) can be used to specify a separate input data directory
+// If left empty, inputDataDir will be the same as graphragDataDir
+func NewGraphRAGService(graphragDataDir string, inputDataDir string, logger *slog.Logger) (*GraphRAGService, error) {
 	// Use default logger if none is provided
 	if logger == nil {
 		logger = slog.Default()
 	}
 
-	// Set defaults
-	if dataDir == "" {
-		dataDir = "./data/graphrag"
+	// Require valid data directories
+	if graphragDataDir == "" {
+		return nil, fmt.Errorf("graphrag data directory must be specified")
 	}
-	if runMode == "" {
-		runMode = "daemon" // Keep container running by default
+
+	// Make graphragDataDir absolute to avoid Docker volume mounting issues
+	if !filepath.IsAbs(graphragDataDir) {
+		absPath, err := filepath.Abs(graphragDataDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for graphrag data directory: %w", err)
+		}
+		graphragDataDir = absPath
+		logger.Info("Converted to absolute path", slog.String("graphragDataDir", graphragDataDir))
+	}
+
+	// If input data directory is not specified, use the GraphRAG data directory
+	if inputDataDir == "" {
+		inputDataDir = graphragDataDir
+	}
+
+	// Make inputDataDir absolute if it's not already
+	if !filepath.IsAbs(inputDataDir) {
+		absPath, err := filepath.Abs(inputDataDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for input data directory: %w", err)
+		}
+		inputDataDir = absPath
+		logger.Info("Converted to absolute path", slog.String("inputDataDir", inputDataDir))
 	}
 
 	// Find project root to locate context path
@@ -64,14 +88,48 @@ func NewGraphRAGService(dataDir string, runMode string, logger *slog.Logger) (*G
 	dockerfilePath := filepath.Join("backend", "service", "graphrag")
 	contextPath := filepath.Join(projectRoot, dockerfilePath)
 
-	// Setup volumes
+	// Setup volumes - always use absolute paths for Docker
 	volumes := make(map[string]string)
-	volumes[filepath.Join(dataDir, "input_data")] = "/app/input_data"
-	volumes[filepath.Join(dataDir, "graphrag_root")] = "/app/graphrag_root"
+
+	// Create the input data directory if it doesn't exist
+	inputDataPath := filepath.Join(inputDataDir, "input_data")
+	if err := os.MkdirAll(inputDataPath, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create input data directory: %w", err)
+	}
+
+	// Ensure path is absolute
+	if !filepath.IsAbs(inputDataPath) {
+		absPath, err := filepath.Abs(inputDataPath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for input data directory: %w", err)
+		}
+		inputDataPath = absPath
+	}
+
+	// Create the graphrag root directory if it doesn't exist
+	graphragRootDir := filepath.Join(graphragDataDir, "graphrag_root")
+	if err := os.MkdirAll(graphragRootDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create graphrag root directory: %w", err)
+	}
+
+	// Ensure path is absolute
+	if !filepath.IsAbs(graphragRootDir) {
+		absPath, err := filepath.Abs(graphragRootDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get absolute path for graphrag root directory: %w", err)
+		}
+		graphragRootDir = absPath
+	}
+
+	logger.Info("Creating directories with absolute paths",
+		slog.String("input_data", inputDataPath),
+		slog.String("graphrag_root", graphragRootDir))
+
+	volumes[inputDataPath] = "/app/input_data"
+	volumes[graphragRootDir] = "/app/graphrag_root"
 
 	// Setup environment variables
 	envVars := make(map[string]string)
-	envVars["RUN_MODE"] = runMode
 
 	// Optional environment variables to control container behavior
 	envVars["DO_INIT"] = "auto"
@@ -98,9 +156,9 @@ func NewGraphRAGService(dataDir string, runMode string, logger *slog.Logger) (*G
 	}
 
 	return &GraphRAGService{
-		dockerService: dockerService,
-		dataDir:       dataDir,
-		runMode:       runMode,
+		dockerService:   dockerService,
+		graphragDataDir: graphragDataDir,
+		inputDataDir:    inputDataDir,
 	}, nil
 }
 
@@ -191,8 +249,52 @@ func (s *GraphRAGService) RunIndexing(ctx context.Context, dataPath string) erro
 
 	// Setup volumes for the data paths
 	volumes := make(map[string]string)
-	volumes[filepath.Join(s.dataDir, "graphrag_root")] = "/app/graphrag_root"
+
+	// Create the graphrag root directory if it doesn't exist
+	graphragRootDir := filepath.Join(s.graphragDataDir, "graphrag_root")
+	if err := os.MkdirAll(graphragRootDir, 0755); err != nil {
+		return fmt.Errorf("failed to create graphrag root directory: %w", err)
+	}
+
+	// Ensure the path is absolute for Docker
+	if !filepath.IsAbs(graphragRootDir) {
+		absPath, err := filepath.Abs(graphragRootDir)
+		if err != nil {
+			return fmt.Errorf("failed to get absolute path for graphrag root directory: %w", err)
+		}
+		graphragRootDir = absPath
+	}
+
+	volumes[graphragRootDir] = "/app/graphrag_root"
+	logger.Info("Mounting graphrag data directory",
+		slog.String("host_path", graphragRootDir),
+		slog.String("container_path", "/app/graphrag_root"))
+
+	// Require a valid input data path
+	if dataPath == "" {
+		return fmt.Errorf("input data path must be provided")
+	}
+
+	// Ensure input data path is absolute
+	if !filepath.IsAbs(dataPath) {
+		absPath, err := filepath.Abs(dataPath)
+		if err != nil {
+			return fmt.Errorf("failed to get absolute path for input data directory: %w", err)
+		}
+		dataPath = absPath
+		logger.Info("Converted input data path to absolute path",
+			slog.String("dataPath", dataPath))
+	}
+
+	// Verify input data path exists
+	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
+		return fmt.Errorf("input data directory does not exist: %s", dataPath)
+	}
+
 	volumes[dataPath] = "/app/input_data"
+	logger.Info("Mounting input data directory",
+		slog.String("host_path", dataPath),
+		slog.String("container_path", "/app/input_data"))
 
 	// Create container options
 	options := docker.ContainerOptions{

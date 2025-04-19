@@ -4,24 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"os"
-	"path/filepath"
 
 	"github.com/EternisAI/enchanted-twin/internal/service/graphrag"
 )
 
 // GraphRAGConfig holds configuration for the GraphRAG service
 type GraphRAGConfig struct {
-	DataDir      string
-	RunMode      string
+	GraphRAGRoot string
+	InputDataDir string
 	ForceRebuild bool
 }
 
 // DefaultGraphRAGConfig returns the default configuration for GraphRAG
 func DefaultGraphRAGConfig() GraphRAGConfig {
 	return GraphRAGConfig{
-		DataDir:      filepath.Join(os.TempDir(), "enchanted-twin", "graphrag"),
-		RunMode:      "daemon",
+		GraphRAGRoot: "./data/graphrag", // Use a permanent directory, not a temp folder
+		InputDataDir: "./output",
 		ForceRebuild: false,
 	}
 }
@@ -29,7 +27,7 @@ func DefaultGraphRAGConfig() GraphRAGConfig {
 // InitGraphRAG initializes and starts the GraphRAG service
 func InitGraphRAG(ctx context.Context, config GraphRAGConfig, logger *slog.Logger) (*graphrag.GraphRAGService, error) {
 	// Create a new GraphRAG service
-	service, err := graphrag.NewGraphRAGService(config.DataDir, config.RunMode, logger)
+	service, err := graphrag.NewGraphRAGService(config.GraphRAGRoot, config.InputDataDir, logger)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GraphRAG service: %w", err)
 	}
