@@ -20,7 +20,7 @@ func DefaultGraphRAGConfig() GraphRAGConfig {
 	return GraphRAGConfig{
 		GraphRAGRoot: "./data/graphrag", // Use a permanent directory, not a temp folder
 		InputDataDir: "./output",
-		ForceRebuild: false,
+		ForceRebuild: true,
 	}
 }
 

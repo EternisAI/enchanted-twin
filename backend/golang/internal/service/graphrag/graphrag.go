@@ -301,7 +301,7 @@ func (s *GraphRAGService) RunIndexing(ctx context.Context, dataPath string) erro
 		ImageName:     "enchanted-twin-graphrag",
 		ImageTag:      "latest",
 		ContextPath:   contextPath,
-		ContainerName: "enchanted-twin-graphrag-index",
+		ContainerName: "enchanted-twin-graphrag",
 		EnvVars:       envVars,
 		Volumes:       volumes,
 		Detached:      false, // We want to wait for indexing to complete
