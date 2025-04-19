@@ -25,7 +25,6 @@ export default function ChatView({ chat }: { chat: Chat }) {
   })
 
   useMessageSubscription(chat.id, (msg) => {
-    console.log('message subscription', msg)
     if (msg.role === Role.User) {
       return
     }
