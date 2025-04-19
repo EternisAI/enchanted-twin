@@ -1,0 +1,16 @@
+.DS_Store
+.idea
+*.log
+tmp/
+
+build/
+.idea
+.env
+bin/
+output/
+data_input/
+store.db*
+*.db-shm
+*.db-wal
+
+texfrag
