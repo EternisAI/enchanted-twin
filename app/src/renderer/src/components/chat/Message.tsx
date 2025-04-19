@@ -20,7 +20,7 @@ export function UserMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-background text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:border">
+      <div className="bg-white text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
           <div className="flex gap-2 mt-2">
@@ -29,12 +29,12 @@ export function UserMessageBubble({ message }: { message: Message }) {
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block max-h-24 max-w-24 object-fit rounded"
+                className="inline-block h-48 w-48 object-cover rounded"
               />
             ))}
           </div>
         )}
-        <div className="text-xs text-muted-foreground pt-1">
+        <div className="text-xs text-gray-500 pt-1">
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>
@@ -50,22 +50,22 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-accent text-foreground rounded-lg px-4 py-2 shadow max-w-md">
+      <div className="bg-gray-100 text-gray-800 rounded-lg px-4 py-2 shadow max-w-md">
         {message.text && <Markdown>{message.text}</Markdown>}
         {message.imageUrls.length > 0 && (
-          <div className="flex gap-2 my-2">
+          <div className="flex flex-col gap-2 my-2">
             {message.imageUrls.map((url, i) => (
               <img
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block h-48 w-48 object-cover rounded"
+                className="inline-block h-80 w-80 object-cover rounded"
               />
             ))}
           </div>
         )}
 
-        <div className="flex gap-4 pt-2">
+        <div className="flex flex-wrap gap-4 pt-2">
           {message.toolCalls.map((toolCall) => {
             const toolNameInProgress = TOOL_NAMES[toolCall.name]?.inProgress || toolCall.name
             const toolNameCompleted = TOOL_NAMES[toolCall.name]?.completed || toolCall.name
