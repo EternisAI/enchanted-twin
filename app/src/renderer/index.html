@@ -4,10 +4,15 @@
     <meta charset="UTF-8" />
     <title>Digital Twin</title>
     <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
+     <!-- for dev, use https://prod.spline.design, for production use local assets -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'self' http://localhost:3000 ws://localhost:3000; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https: http:"
+      content="default-src 'self'; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://www.gstatic.com https://prod.spline.design; script-src 'self' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; "
     />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Imbue&display=swap" rel="stylesheet" />
+    <!-- TODO: embed fonts -->
   </head>
 
   <body>

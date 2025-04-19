@@ -53,18 +53,10 @@ function SendButton({
   onStop?: () => void
 }) {
   return isWaitingTwinResponse ? (
-    <Button
-      onClick={onStop && onStop}
-      className="cursor-pointer bg-green-600 text-white w-16 px-4 py-2 h-10 rounded-md hover:bg-green-700"
-    >
+    <Button onClick={onStop && onStop}>
       <StopCircleIcon className="w-4 h-4" />
     </Button>
   ) : (
-    <Button
-      onClick={onSend}
-      className="cursor-pointer bg-green-600 text-white w-16 px-4 py-2 h-10 rounded-md hover:bg-green-700"
-    >
-      Send
-    </Button>
+    <Button onClick={onSend}>Send</Button>
   )
 }

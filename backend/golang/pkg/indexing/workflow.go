@@ -35,7 +35,7 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 3 * time.Minute,
+		StartToCloseTimeout: 120 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second * 2,
 			MaximumInterval:    time.Minute * 10,
@@ -117,7 +117,8 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		processDataActivityInput := ProcessDataActivityInput{
 			DataSourceName: dataSource.Name,
 			SourcePath:     dataSource.Path,
-			Username:       "",
+			DataSourceID:   dataSource.ID,
+			Username:       "xxx",
 		}
 		var processDataResponse ProcessDataActivityResponse
 		err = workflow.ExecuteActivity(ctx, w.ProcessDataActivity, processDataActivityInput).Get(ctx, &processDataResponse)
@@ -215,6 +216,7 @@ type ProcessDataActivityInput struct {
 	DataSourceName string `json:"dataSourceName"`
 	SourcePath     string `json:"sourcePath"`
 	Username       string `json:"username"`
+	DataSourceID   string `json:"dataSourceID"`
 }
 
 type ProcessDataActivityResponse struct {
@@ -223,7 +225,7 @@ type ProcessDataActivityResponse struct {
 
 func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
 	// TODO: replace username parameter
-	success, err := dataprocessing.ProcessSource(input.DataSourceName, input.SourcePath, OUTPUT_PATH+input.DataSourceName+".jsonl", "xxx", "")
+	success, err := dataprocessing.ProcessSource(input.DataSourceName, input.SourcePath, OUTPUT_PATH+input.DataSourceName+"_"+input.DataSourceID+".jsonl", input.Username, "")
 	if err != nil {
 		fmt.Println(err)
 		return ProcessDataActivityResponse{}, err

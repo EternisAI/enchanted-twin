@@ -7,11 +7,16 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
+
+	"net"
 
 	uiserver "github.com/temporalio/ui-server/v2/server"
 	uiconfig "github.com/temporalio/ui-server/v2/server/config"
@@ -81,6 +86,13 @@ func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}, dbPath str
 	workerPort := port + 3
 	uiPort := port + 1000
 	clusterName := "active"
+
+	// Check if ports are available
+	if err := checkPortsAvailable(ip, []int{port, historyPort, matchingPort, workerPort, uiPort}); err != nil {
+		logger.Error("Port conflict detected", "error", err)
+		close(ready)
+		return
+	}
 
 	ui := uiserver.NewServer(uiserveroptions.WithConfigProvider(&uiconfig.Config{
 		TemporalGRPCAddress: fmt.Sprintf("%s:%d", TemporalServerIP, TemporalServerPort),
@@ -225,15 +237,37 @@ func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}, dbPath str
 	if err := server.Start(); err != nil {
 		log.Fatalf("unable to start server: %s", err)
 	}
-	defer func() {
-		if err := server.Stop(); err != nil {
-			log.Printf("error stopping server: %s", err)
-		}
-	}()
+
+	// Set up signal handling for graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	// signal that the server is ready
 	close(ready)
 	logger.Info("Temporal server", "ip", ip, "port", port)
 	logger.Info("Temporal UI", "address", fmt.Sprintf("http://%s:%d", ip, uiPort))
 
-	select {}
+	// Wait for shutdown signal
+	<-sigChan
+	logger.Info("Shutting down Temporal server...")
+
+	// Stop the server gracefully
+	if err := server.Stop(); err != nil {
+		logger.Error("Error stopping server", "error", err)
+	}
+
+	// Stop the UI server
+	ui.Stop()
+}
+
+func checkPortsAvailable(ip string, ports []int) error {
+	for _, port := range ports {
+		addr := fmt.Sprintf("%s:%d", ip, port)
+		conn, err := net.Dial("tcp", addr)
+		if err == nil {
+			conn.Close()
+			return fmt.Errorf("port %d is already in use", port)
+		}
+	}
+	return nil
 }

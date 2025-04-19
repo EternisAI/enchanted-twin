@@ -49,13 +49,8 @@ func main() {
 	envs, _ := config.LoadConfig(true)
 
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
-
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
-	}
-
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to load config"))
 	}
 	logger.Info("Config loaded", slog.Any("envs", envs))
 
@@ -134,7 +129,9 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 	}
 	logger.Info("Temporal client created")
 
-	w := worker.New(temporalClient, "default", worker.Options{})
+	w := worker.New(temporalClient, "default", worker.Options{
+		MaxConcurrentActivityExecutionSize: 1,
+	})
 
 	indexingWorkflow := indexing.IndexingWorkflow{
 		Logger:       logger,
