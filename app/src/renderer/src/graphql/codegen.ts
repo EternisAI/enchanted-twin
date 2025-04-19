@@ -3,7 +3,7 @@ import type { CodegenConfig } from '@graphql-codegen/cli'
 
 const config: CodegenConfig = {
   overwrite: true,
-  schema: 'src/renderer/src/graphql/schema.graphql',
+  schema: '../backend/golang/graph/schema.graphqls',
   documents: 'src/renderer/src/graphql/operations.gql',
   generates: {
     'src/renderer/src/graphql/generated/': {
