@@ -118,71 +118,69 @@ export function ImportDataStep() {
       subtitle="Select the data sources you'd like to import. You can always add more later."
     >
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 grid-flow-row h-full">
           {DATA_SOURCES.map(({ name, label, description, selectType, fileRequirement }) => {
             const isSelected = dataSources.some((ds) => ds.name === name)
             const source = dataSources.find((ds) => ds.name === name)
 
             return (
-              <div key={name} className="relative">
+              <div key={name} className="relative h-full">
                 <div
-                  className={`p-4 rounded-lg bg-card border ${
+                  className={`p-4 rounded-lg bg-card border h-full ${
                     isSelected ? 'border-primary bg-primary/5' : 'border-border'
                   } transition-colors`}
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-medium">{label}</h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium">{label}</h3>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="absolute top-2 right-2 h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedDataSource(name)
+                      }}
+                    >
+                      <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-muted-foreground">{description}</p>
+                  {isSelected ? (
+                    <div className="text-sm">
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleFileSelect(name, selectType)}
+                          >
+                            Change
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => handleRemoveDataSource(name)}
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="text-muted-foreground text-xs truncate">{source?.path}</p>
+                      <p className="text-muted-foreground text-xs mt-1">{fileRequirement}</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground text-xs">{fileRequirement}</p>
                       <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 h-6 w-6"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setSelectedDataSource(name)
-                        }}
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => handleFileSelect(name, selectType)}
                       >
-                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                        Select {selectType === 'files' ? 'File' : 'Folder'}
                       </Button>
                     </div>
-                    <p className="text-sm text-muted-foreground">{description}</p>
-                    {isSelected ? (
-                      <div className="text-sm">
-                        <div className="flex items-center justify-between">
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleFileSelect(name, selectType)}
-                            >
-                              Change
-                            </Button>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => handleRemoveDataSource(name)}
-                            >
-                              Remove
-                            </Button>
-                          </div>
-                        </div>
-                        <p className="text-muted-foreground text-xs truncate">{source?.path}</p>
-                        <p className="text-muted-foreground text-xs mt-1">{fileRequirement}</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-muted-foreground text-xs">{fileRequirement}</p>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => handleFileSelect(name, selectType)}
-                        >
-                          Select {selectType === 'files' ? 'File' : 'Folder'}
-                        </Button>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
             )
