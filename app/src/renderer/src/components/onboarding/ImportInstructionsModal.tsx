@@ -24,7 +24,7 @@ const INSTRUCTIONS = {
   ],
   Slack: [
     'Only the owner or administrator of the Slack workspace can usually export the data.',
-    "After exporting your data, move the entire folder to the input folder, and rename it to 'slack_export'"
+    'Select your exported ZIP file'
   ],
   Telegram: [
     "Install the Telegram Desktop app if you haven't already.",
