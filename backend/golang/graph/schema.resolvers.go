@@ -58,6 +58,7 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text)
 }
 
+// DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.GetChat(ctx, chatID)
 	if err != nil {
@@ -203,6 +204,34 @@ func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) 
 	}()
 
 	return messages, nil
+}
+
+// ToolCallUpdated is the resolver for the toolCallUpdated field.
+func (r *subscriptionResolver) ToolCallUpdated(ctx context.Context, chatID string) (<-chan *model.ToolCall, error) {
+	toolCalls := make(chan *model.ToolCall)
+	subject := fmt.Sprintf("chat.%s.tool_call", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var toolCall model.ToolCall
+		err := json.Unmarshal(msg.Data, &toolCall)
+		if err != nil {
+			r.Logger.Info("unmarshal error", "Error parsing message: %v", err)
+			return
+		}
+
+		toolCalls <- &toolCall
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(toolCalls)
+	}()
+
+	return toolCalls, nil
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.

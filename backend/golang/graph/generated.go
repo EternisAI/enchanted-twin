@@ -103,14 +103,22 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		IndexingStatus func(childComplexity int) int
-		MessageAdded   func(childComplexity int, chatID string) int
+		IndexingStatus  func(childComplexity int) int
+		MessageAdded    func(childComplexity int, chatID string) int
+		ToolCallUpdated func(childComplexity int, chatID string) int
 	}
 
 	ToolCall struct {
 		ID          func(childComplexity int) int
 		IsCompleted func(childComplexity int) int
+		MessageID   func(childComplexity int) int
 		Name        func(childComplexity int) int
+		Result      func(childComplexity int) int
+	}
+
+	ToolCallResult struct {
+		Content   func(childComplexity int) int
+		ImageUrls func(childComplexity int) int
 	}
 
 	UserProfile struct {
@@ -140,6 +148,7 @@ type QueryResolver interface {
 }
 type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
+	ToolCallUpdated(ctx context.Context, chatID string) (<-chan *model.ToolCall, error)
 	IndexingStatus(ctx context.Context) (<-chan *model.IndexingStatus, error)
 }
 
@@ -459,6 +468,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.MessageAdded(childComplexity, args["chatId"].(string)), true
 
+	case "Subscription.toolCallUpdated":
+		if e.complexity.Subscription.ToolCallUpdated == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_toolCallUpdated_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.ToolCallUpdated(childComplexity, args["chatId"].(string)), true
+
 	case "ToolCall.id":
 		if e.complexity.ToolCall.ID == nil {
 			break
@@ -473,12 +494,40 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.ToolCall.IsCompleted(childComplexity), true
 
+	case "ToolCall.messageId":
+		if e.complexity.ToolCall.MessageID == nil {
+			break
+		}
+
+		return e.complexity.ToolCall.MessageID(childComplexity), true
+
 	case "ToolCall.name":
 		if e.complexity.ToolCall.Name == nil {
 			break
 		}
 
 		return e.complexity.ToolCall.Name(childComplexity), true
+
+	case "ToolCall.result":
+		if e.complexity.ToolCall.Result == nil {
+			break
+		}
+
+		return e.complexity.ToolCall.Result(childComplexity), true
+
+	case "ToolCallResult.content":
+		if e.complexity.ToolCallResult.Content == nil {
+			break
+		}
+
+		return e.complexity.ToolCallResult.Content(childComplexity), true
+
+	case "ToolCallResult.imageUrls":
+		if e.complexity.ToolCallResult.ImageUrls == nil {
+			break
+		}
+
+		return e.complexity.ToolCallResult.ImageUrls(childComplexity), true
 
 	case "UserProfile.connectedDataSources":
 		if e.complexity.UserProfile.ConnectedDataSources == nil {
@@ -915,6 +964,29 @@ func (ec *executionContext) field_Subscription_messageAdded_args(ctx context.Con
 	return args, nil
 }
 func (ec *executionContext) field_Subscription_messageAdded_argsChatID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
+	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_toolCallUpdated_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_toolCallUpdated_argsChatID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_toolCallUpdated_argsChatID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -1978,6 +2050,10 @@ func (ec *executionContext) fieldContext_Message_toolCalls(_ context.Context, fi
 				return ec.fieldContext_ToolCall_name(ctx, field)
 			case "isCompleted":
 				return ec.fieldContext_ToolCall_isCompleted(ctx, field)
+			case "messageId":
+				return ec.fieldContext_ToolCall_messageId(ctx, field)
+			case "result":
+				return ec.fieldContext_ToolCall_result(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ToolCall", field.Name)
 		},
@@ -2941,6 +3017,87 @@ func (ec *executionContext) fieldContext_Subscription_messageAdded(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Subscription_toolCallUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_toolCallUpdated(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().ToolCallUpdated(rctx, fc.Args["chatId"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.ToolCall):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNToolCall2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCall(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_toolCallUpdated(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_ToolCall_id(ctx, field)
+			case "name":
+				return ec.fieldContext_ToolCall_name(ctx, field)
+			case "isCompleted":
+				return ec.fieldContext_ToolCall_isCompleted(ctx, field)
+			case "messageId":
+				return ec.fieldContext_ToolCall_messageId(ctx, field)
+			case "result":
+				return ec.fieldContext_ToolCall_result(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToolCall", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_toolCallUpdated_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Subscription_indexingStatus(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
 	fc, err := ec.fieldContext_Subscription_indexingStatus(ctx, field)
 	if err != nil {
@@ -3138,6 +3295,182 @@ func (ec *executionContext) fieldContext_ToolCall_isCompleted(_ context.Context,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolCall_messageId(ctx context.Context, field graphql.CollectedField, obj *model.ToolCall) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolCall_messageId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MessageID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolCall_messageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolCall",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolCall_result(ctx context.Context, field graphql.CollectedField, obj *model.ToolCall) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolCall_result(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Result, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.ToolCallResult)
+	fc.Result = res
+	return ec.marshalOToolCallResult2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCallResult(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolCall_result(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolCall",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "content":
+				return ec.fieldContext_ToolCallResult_content(ctx, field)
+			case "imageUrls":
+				return ec.fieldContext_ToolCallResult_imageUrls(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ToolCallResult", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolCallResult_content(ctx context.Context, field graphql.CollectedField, obj *model.ToolCallResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolCallResult_content(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Content, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolCallResult_content(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolCallResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ToolCallResult_imageUrls(ctx context.Context, field graphql.CollectedField, obj *model.ToolCallResult) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ToolCallResult_imageUrls(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ImageUrls, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ToolCallResult_imageUrls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ToolCallResult",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5803,6 +6136,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 	switch fields[0].Name {
 	case "messageAdded":
 		return ec._Subscription_messageAdded(ctx, fields[0])
+	case "toolCallUpdated":
+		return ec._Subscription_toolCallUpdated(ctx, fields[0])
 	case "indexingStatus":
 		return ec._Subscription_indexingStatus(ctx, fields[0])
 	default:
@@ -5833,6 +6168,54 @@ func (ec *executionContext) _ToolCall(ctx context.Context, sel ast.SelectionSet,
 			}
 		case "isCompleted":
 			out.Values[i] = ec._ToolCall_isCompleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "messageId":
+			out.Values[i] = ec._ToolCall_messageId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "result":
+			out.Values[i] = ec._ToolCall_result(ctx, field, obj)
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var toolCallResultImplementors = []string{"ToolCallResult"}
+
+func (ec *executionContext) _ToolCallResult(ctx context.Context, sel ast.SelectionSet, obj *model.ToolCallResult) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, toolCallResultImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ToolCallResult")
+		case "content":
+			out.Values[i] = ec._ToolCallResult_content(ctx, field, obj)
+		case "imageUrls":
+			out.Values[i] = ec._ToolCallResult_imageUrls(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -6546,6 +6929,10 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	return ret
 }
 
+func (ec *executionContext) marshalNToolCall2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCall(ctx context.Context, sel ast.SelectionSet, v model.ToolCall) graphql.Marshaler {
+	return ec._ToolCall(ctx, sel, &v)
+}
+
 func (ec *executionContext) marshalNToolCall2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCallᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ToolCall) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
@@ -6953,6 +7340,13 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	}
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOToolCallResult2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCallResult(ctx context.Context, sel ast.SelectionSet, v *model.ToolCallResult) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return ec._ToolCallResult(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalO__EnumValue2ᚕgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐEnumValueᚄ(ctx context.Context, sel ast.SelectionSet, v []introspection.EnumValue) graphql.Marshaler {
