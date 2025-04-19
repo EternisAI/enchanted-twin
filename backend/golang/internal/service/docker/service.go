@@ -141,13 +141,14 @@ func (s *Service) BuildImage(ctx context.Context) error {
 		return fmt.Errorf("context path is required for building an image")
 	}
 
-	s.logger.Info("Building Docker image",
+	s.logger.Info("Building Docker image (with cache disabled)",
 		slog.String("image", s.FullImageName()),
 		slog.String("context_path", s.options.ContextPath))
 
 	// Build the image using docker CLI
 	args := []string{
 		"build",
+		"--no-cache", // Force rebuild without using cache
 		"-t", s.FullImageName(),
 	}
 
