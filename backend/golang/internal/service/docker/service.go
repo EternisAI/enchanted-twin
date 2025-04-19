@@ -73,9 +73,6 @@ func NewService(options ContainerOptions, logger *slog.Logger) (*Service, error)
 		options.Ports = make(map[string]string)
 	}
 
-	// Default to detached mode
-	options.Detached = true
-
 	return &Service{
 		options: options,
 		logger:  logger,
@@ -241,6 +238,8 @@ func (s *Service) RunContainer(ctx context.Context) error {
 
 	if s.options.Detached {
 		args = append(args, "-d")
+	} else {
+		args = append(args, "-it")
 	}
 
 	// Container name
@@ -283,6 +282,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	var stderr bytes.Buffer
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &stderr
+	cmd.Stdin = os.Stdin
 
 	s.logger.Info("Running docker cmd", slog.String("docker", strings.Join(args, " ")))
 
@@ -356,4 +356,9 @@ func (s *Service) ExecuteCommand(ctx context.Context, command []string) (string,
 func (s *Service) Close() error {
 	// No resources to clean up
 	return nil
+}
+
+// Options returns a copy of the service's container options
+func (s *Service) Options() ContainerOptions {
+	return s.options
 }

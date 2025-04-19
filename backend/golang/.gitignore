@@ -7,5 +7,5 @@ data_input/
 store.db*
 *.db-shm
 *.db-wal
-
-texfrag
+data/*
+texfrag/*

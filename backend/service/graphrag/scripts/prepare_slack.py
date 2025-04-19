@@ -57,7 +57,6 @@ class SlackProcessor:
         except Exception as e:
             logger.error(f"Failed to read input file: {e}")
             raise
-        print(df)
 
         logger.debug(f"Input columns: {df.columns.tolist()}")
         logger.debug(f"Read {len(df)} records from input file")
