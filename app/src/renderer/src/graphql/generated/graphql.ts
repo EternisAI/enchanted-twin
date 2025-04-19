@@ -18,18 +18,42 @@ export type Scalars = {
   JSON: { input: any; output: any; }
 };
 
-export type AddDataSourceInput = {
-  dataSourceName: Scalars['String']['input'];
-  path: Scalars['String']['input'];
-  username: Scalars['String']['input'];
-};
-
 export type Chat = {
   __typename?: 'Chat';
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
   messages: Array<Message>;
   name: Scalars['String']['output'];
+};
+
+export type DataSource = {
+  __typename?: 'DataSource';
+  hasError: Scalars['Boolean']['output'];
+  id: Scalars['ID']['output'];
+  isIndexed: Scalars['Boolean']['output'];
+  isProcessed: Scalars['Boolean']['output'];
+  name: Scalars['String']['output'];
+  path: Scalars['String']['output'];
+  updatedAt: Scalars['DateTime']['output'];
+};
+
+export enum IndexingState {
+  CleanUp = 'CLEAN_UP',
+  Completed = 'COMPLETED',
+  DownloadingModel = 'DOWNLOADING_MODEL',
+  Failed = 'FAILED',
+  IndexingData = 'INDEXING_DATA',
+  NotStarted = 'NOT_STARTED',
+  ProcessingData = 'PROCESSING_DATA'
+}
+
+export type IndexingStatus = {
+  __typename?: 'IndexingStatus';
+  dataSources: Array<DataSource>;
+  error?: Maybe<Scalars['String']['output']>;
+  indexingDataProgress: Scalars['Int']['output'];
+  processingDataProgress: Scalars['Int']['output'];
+  status: IndexingState;
 };
 
 export type Message = {
@@ -45,10 +69,19 @@ export type Message = {
 
 export type Mutation = {
   __typename?: 'Mutation';
+  addDataSource: Scalars['Boolean']['output'];
   createChat: Chat;
   deleteChat: Chat;
+  deleteDataSource: Scalars['Boolean']['output'];
   sendMessage: Message;
+  startIndexing: Scalars['Boolean']['output'];
   updateProfile: Scalars['Boolean']['output'];
+};
+
+
+export type MutationAddDataSourceArgs = {
+  name: Scalars['String']['input'];
+  path: Scalars['String']['input'];
 };
 
 
@@ -59,6 +92,11 @@ export type MutationCreateChatArgs = {
 
 export type MutationDeleteChatArgs = {
   chatId: Scalars['ID']['input'];
+};
+
+
+export type MutationDeleteDataSourceArgs = {
+  id: Scalars['ID']['input'];
 };
 
 
@@ -76,6 +114,7 @@ export type Query = {
   __typename?: 'Query';
   getChat: Chat;
   getChats: Array<Chat>;
+  getDataSources: Array<DataSource>;
   profile: UserProfile;
 };
 
@@ -97,13 +136,9 @@ export enum Role {
 
 export type Subscription = {
   __typename?: 'Subscription';
-  addDataSource: Scalars['Boolean']['output'];
+  indexingStatus: IndexingStatus;
   messageAdded: Message;
-};
-
-
-export type SubscriptionAddDataSourceArgs = {
-  input: AddDataSourceInput;
+  toolCallUpdated: ToolCall;
 };
 
 
@@ -111,11 +146,24 @@ export type SubscriptionMessageAddedArgs = {
   chatId: Scalars['ID']['input'];
 };
 
+
+export type SubscriptionToolCallUpdatedArgs = {
+  chatId: Scalars['ID']['input'];
+};
+
 export type ToolCall = {
   __typename?: 'ToolCall';
   id: Scalars['String']['output'];
   isCompleted: Scalars['Boolean']['output'];
+  messageId: Scalars['String']['output'];
   name: Scalars['String']['output'];
+  result?: Maybe<ToolCallResult>;
+};
+
+export type ToolCallResult = {
+  __typename?: 'ToolCallResult';
+  content?: Maybe<Scalars['String']['output']>;
+  imageUrls: Array<Scalars['String']['output']>;
 };
 
 export type UpdateProfileInput = {
@@ -124,6 +172,8 @@ export type UpdateProfileInput = {
 
 export type UserProfile = {
   __typename?: 'UserProfile';
+  connectedDataSources: Array<DataSource>;
+  indexingStatus?: Maybe<IndexingStatus>;
   name?: Maybe<Scalars['String']['output']>;
 };
 
@@ -174,14 +224,14 @@ export type MessageAddedSubscriptionVariables = Exact<{
 }>;
 
 
-export type MessageAddedSubscription = { __typename?: 'Subscription', messageAdded: { __typename?: 'Message', id: string, text?: string | null, role: Role, createdAt: any, imageUrls: Array<string>, toolResults: Array<string>, toolCalls: Array<{ __typename?: 'ToolCall', id: string, name: string, isCompleted: boolean }> } };
+export type MessageAddedSubscription = { __typename?: 'Subscription', messageAdded: { __typename?: 'Message', id: string, text?: string | null, role: Role, createdAt: any, imageUrls: Array<string>, toolResults: Array<string>, toolCalls: Array<{ __typename?: 'ToolCall', id: string, name: string, isCompleted: boolean, messageId: string }> } };
 
-export type DataSourceAddedSubscriptionVariables = Exact<{
-  input: AddDataSourceInput;
+export type ToolCallUpdatedSubscriptionVariables = Exact<{
+  chatId: Scalars['ID']['input'];
 }>;
 
 
-export type DataSourceAddedSubscription = { __typename?: 'Subscription', addDataSource: boolean };
+export type ToolCallUpdatedSubscription = { __typename?: 'Subscription', toolCallUpdated: { __typename?: 'ToolCall', id: string, name: string, isCompleted: boolean, messageId: string } };
 
 
 export const GetProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetProfile"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"profile"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<GetProfileQuery, GetProfileQueryVariables>;
@@ -190,5 +240,5 @@ export const GetChatDocument = {"kind":"Document","definitions":[{"kind":"Operat
 export const CreateChatDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateChat"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"name"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createChat"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"name"},"value":{"kind":"Variable","name":{"kind":"Name","value":"name"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]}}]} as unknown as DocumentNode<CreateChatMutation, CreateChatMutationVariables>;
 export const SendMessageDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"SendMessage"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"text"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sendMessage"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}},{"kind":"Argument","name":{"kind":"Name","value":"text"},"value":{"kind":"Variable","name":{"kind":"Name","value":"text"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrls"}},{"kind":"Field","name":{"kind":"Name","value":"toolResults"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}}]}}]}}]}}]} as unknown as DocumentNode<SendMessageMutation, SendMessageMutationVariables>;
 export const DeleteChatDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteChat"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteChat"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<DeleteChatMutation, DeleteChatMutationVariables>;
-export const MessageAddedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"MessageAdded"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageAdded"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrls"}},{"kind":"Field","name":{"kind":"Name","value":"toolResults"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}}]}}]}}]}}]} as unknown as DocumentNode<MessageAddedSubscription, MessageAddedSubscriptionVariables>;
-export const DataSourceAddedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"DataSourceAdded"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"AddDataSourceInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"addDataSource"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}]}]}}]} as unknown as DocumentNode<DataSourceAddedSubscription, DataSourceAddedSubscriptionVariables>;
+export const MessageAddedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"MessageAdded"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"messageAdded"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrls"}},{"kind":"Field","name":{"kind":"Name","value":"toolResults"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}},{"kind":"Field","name":{"kind":"Name","value":"messageId"}}]}}]}}]}}]} as unknown as DocumentNode<MessageAddedSubscription, MessageAddedSubscriptionVariables>;
+export const ToolCallUpdatedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"ToolCallUpdated"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"toolCallUpdated"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}},{"kind":"Field","name":{"kind":"Name","value":"messageId"}}]}}]}}]} as unknown as DocumentNode<ToolCallUpdatedSubscription, ToolCallUpdatedSubscriptionVariables>;

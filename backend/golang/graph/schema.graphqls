@@ -32,6 +32,13 @@ type ToolCall {
   id: String!
   name: String!
   isCompleted: Boolean!
+  messageId: String!
+  result: ToolCallResult
+}
+
+type ToolCallResult {
+  content: String
+  imageUrls: [String!]!
 }
 
 type Chat {
@@ -75,6 +82,7 @@ type Mutation {
 
 type Subscription {
   messageAdded(chatId: ID!): Message!
+  toolCallUpdated(chatId: ID!): ToolCall!
   indexingStatus: IndexingStatus!
 }
 

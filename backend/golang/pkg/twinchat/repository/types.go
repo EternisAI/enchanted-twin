@@ -44,11 +44,27 @@ func (m *Message) ToModel() *model.Message {
 		}
 	}
 
+	toolCalls := make([]*model.ToolCall, 0)
+	if m.ToolCallsStr != nil {
+		if err := json.Unmarshal([]byte(*m.ToolCallsStr), &toolCalls); err != nil {
+			toolCalls = []*model.ToolCall{}
+		}
+	}
+
+	toolCallResults := make([]string, 0)
+	if m.ToolResultsStr != nil {
+		if err := json.Unmarshal([]byte(*m.ToolResultsStr), &toolCallResults); err != nil {
+			toolCallResults = []string{}
+		}
+	}
+
 	return &model.Message{
-		ID:        m.ID,
-		Text:      &m.Text,
-		Role:      model.Role(m.Role),
-		ImageUrls: imageUrls,
-		CreatedAt: m.CreatedAtStr,
+		ID:          m.ID,
+		Text:        &m.Text,
+		Role:        model.Role(m.Role),
+		ImageUrls:   imageUrls,
+		CreatedAt:   m.CreatedAtStr,
+		ToolCalls:   toolCalls,
+		ToolResults: toolCallResults,
 	}
 }

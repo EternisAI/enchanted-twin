@@ -19,6 +19,7 @@ query GetChats($first: Int!, $offset: Int!) {
         id
         name
         isCompleted
+        # messageId
       }
       toolResults
     }
@@ -89,12 +90,18 @@ subscription MessageAdded($chatId: ID!) {
       id
       name
       isCompleted
+      messageId
     }
   }
 }
 
-subscription DataSourceAdded($input: AddDataSourceInput!) {
-  addDataSource(input: $input)
+subscription ToolCallUpdated($chatId: ID!) {
+  toolCallUpdated(chatId: $chatId) {
+    id
+    name
+    isCompleted
+    messageId
+  }
 }
 
 mutation AddDataSource($input: AddDataSourceInput!) {
