@@ -9,6 +9,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -25,14 +26,16 @@ type Service struct {
 	storage   Storage
 	nc        *nats.Conn
 	logger    *slog.Logger
+	memory    memory.Storage
 }
 
-func NewService(logger *slog.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn) *Service {
+func NewService(logger *slog.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage) *Service {
 	return &Service{
 		logger:    logger,
 		aiService: aiService,
 		storage:   storage,
 		nc:        nc,
+		memory:    memory,
 	}
 }
 
