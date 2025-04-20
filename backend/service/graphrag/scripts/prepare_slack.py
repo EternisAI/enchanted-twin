@@ -65,6 +65,11 @@ class SlackProcessor:
         if self._is_already_processed(df):
             df = self._cleanup_processed_file(df)
 
+        # Limit to first 1000 rows for faster processing
+        if len(df) > 1000:
+            logger.info(f"Limiting data processing to first 1000 rows (out of {len(df)} total rows)")
+            df = df.head(1000)
+
         # Process data
         df = self._process_raw_data(df)
 

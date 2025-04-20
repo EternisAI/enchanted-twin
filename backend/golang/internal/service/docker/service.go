@@ -239,7 +239,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	if s.options.Detached {
 		args = append(args, "-d")
 	} else {
-		args = append(args, "-it")
+		args = append(args, "-i")
 	}
 
 	// Container name
