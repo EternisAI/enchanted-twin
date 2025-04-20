@@ -109,9 +109,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
-		&tools.MemorySearchTool{
-			Memory: s.memory,
-		},
+		tools.NewMemorySearchTool(s.logger, s.memory),
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)

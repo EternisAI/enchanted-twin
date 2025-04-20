@@ -75,6 +75,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 		for _, toolCall := range completion.ToolCalls {
 			if a.PreToolCallback != nil {
+				a.logger.Debug("Pre tool callback", "tool_call", toolCall)
 				a.PreToolCallback(toolCall)
 			}
 		}
@@ -105,6 +106,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 			// send message with isCompleted true
 			if a.PostToolCallback != nil {
+				a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_result", toolResult)
 				a.PostToolCallback(toolCall, toolResult)
 			}
 			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
