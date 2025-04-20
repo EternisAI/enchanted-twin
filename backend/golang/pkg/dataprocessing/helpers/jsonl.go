@@ -13,7 +13,11 @@ func ReadJSONL[T any](filePath string) ([]T, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to open file")
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			err = errors.Wrap(closeErr, "failed to close file")
+		}
+	}()
 
 	var results []T
 	scanner := bufio.NewScanner(file)

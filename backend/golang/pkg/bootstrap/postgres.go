@@ -118,6 +118,10 @@ func NewPostgresService(logger *slog.Logger, options PostgresOptions) (*Postgres
 
 // Start starts the PostgreSQL container and optionally waits for it to be ready
 func (s *PostgresService) Start(ctx context.Context, waitForReady bool) error {
+	// Remove any existing container first to ensure consistent port mappings
+	s.logger.Info("Removing any existing PostgreSQL container to ensure clean start")
+	_ = s.dockerService.RemoveContainer(ctx) // Ignore error if container doesn't exist
+
 	// Start the PostgreSQL container
 	err := s.dockerService.RunContainer(ctx)
 	if err != nil {
@@ -167,18 +171,7 @@ func (s *PostgresService) WaitForReady(ctx context.Context, maxWaitTime time.Dur
 	return fmt.Errorf("timeout waiting for PostgreSQL to be ready")
 }
 
-// isPortAvailable checks if a port is available to use
-func isPortAvailable(port string) bool {
-	ln, err := net.Listen("tcp", ":"+port)
-	if err != nil {
-		return false
-	}
-	if err := ln.Close(); err != nil {
-		// Just log this error but still return true as we were able to bind
-		fmt.Printf("Error closing listener: %v\n", err)
-	}
-	return true
-}
+// Removed unused function: isPortAvailable
 
 // findRandomAvailablePort finds a random available port
 func findRandomAvailablePort() string {
@@ -208,22 +201,32 @@ func (s *PostgresService) Remove(ctx context.Context) error {
 	return s.dockerService.RemoveContainer(ctx)
 }
 
-// CreateDatabase creates a new database in PostgreSQL
-func (s *PostgresService) CreateDatabase(ctx context.Context, dbName string) error {
-	s.logger.Info("Creating PostgreSQL database", slog.String("database", dbName))
+// EnsureDatabase ensures a database exists in PostgreSQL, creating it if it doesn't
+func (s *PostgresService) EnsureDatabase(ctx context.Context, dbName string) error {
+	s.logger.Info("Ensuring PostgreSQL database exists", slog.String("database", dbName))
 
-	// Execute the create database command
-	_, err := s.dockerService.ExecuteCommand(ctx, []string{
+	// First check if database exists
+	output, err := s.dockerService.ExecuteCommand(ctx, []string{
 		"psql",
 		"-U", s.options.User,
-		"-c", fmt.Sprintf("CREATE DATABASE %s;", dbName),
+		"-c", fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname = '%s'", dbName),
 	})
 
-	if err != nil {
-		return fmt.Errorf("failed to create database: %w", err)
+	// If database doesn't exist (no rows), create it
+	if err == nil && !strings.Contains(output, "1 row") {
+		s.logger.Info("Database doesn't exist, creating it", slog.String("database", dbName))
+		_, err = s.dockerService.ExecuteCommand(ctx, []string{
+			"psql",
+			"-U", s.options.User,
+			"-c", fmt.Sprintf("CREATE DATABASE %s", dbName),
+		})
 	}
 
-	s.logger.Info("Created PostgreSQL database", slog.String("database", dbName))
+	if err != nil {
+		return fmt.Errorf("failed to ensure database exists: %w", err)
+	}
+
+	s.logger.Info("Ensured PostgreSQL database exists", slog.String("database", dbName))
 	return nil
 }
 
