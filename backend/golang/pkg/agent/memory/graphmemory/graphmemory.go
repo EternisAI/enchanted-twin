@@ -35,7 +35,7 @@ func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreat
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	mem := &GraphMemory{db: db, ai: ai}
+	mem := &GraphMemory{db: db, ai: ai, logger: logger}
 
 	// Create schema with proper error handling
 	if err := mem.ensureDbSchema(recreate); err != nil {
@@ -59,7 +59,7 @@ type EntryInfo struct {
 
 // Constants for parallel processing
 const (
-	MaxConcurrentWorkers = 5
+	MaxConcurrentWorkers = 20
 )
 
 // Fact represents a subject-predicate-object triple extracted from text
@@ -77,12 +77,14 @@ func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument
 	}
 
 	// Prepare entries and store them in the database
+	m.logger.Info("Preparing text entries", "documents", len(documents))
 	entriesToProcess, err := m.prepareTextEntries(ctx, documents)
 	if err != nil {
 		return err
 	}
 
 	// Process facts in parallel
+	m.logger.Info("Extracting facts", "entries", len(entriesToProcess))
 	allFacts, errs := m.extractAndStoreFacts(ctx, entriesToProcess)
 
 	// Check for errors during fact extraction
@@ -367,7 +369,7 @@ func (m *GraphMemory) extractFacts(ctx context.Context, text string, textEntryID
 
 	// Parse the response to extract facts
 	facts := m.parseAIFactResponse(response.Content, textEntryID)
-	fmt.Printf("AI extracted %d facts from text\n", len(facts))
+	m.logger.Debug("AI extracted facts", "facts", len(facts))
 
 	// Store the facts in the database
 	storedFacts, err := m.storeFacts(ctx, facts, textEntryID)

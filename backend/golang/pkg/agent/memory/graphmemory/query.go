@@ -26,6 +26,8 @@ func (g *GraphMemory) Query(
 		return out, err
 	}
 
+	g.logger.Debug("Generated queries", "queries", qlist)
+
 	seenDoc := make(map[string]struct{})
 
 	for _, q := range qlist {
@@ -143,6 +145,7 @@ func (g *GraphMemory) GenerateSQLQueries(
 	}
 
 	prompt := createSQLGenerationPrompt(question, subs, prds, objs)
+	g.logger.Debug("Generated prompt", "prompt", prompt)
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(prompt),

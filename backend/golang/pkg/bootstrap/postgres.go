@@ -121,8 +121,8 @@ func NewPostgresService(logger *log.Logger, options PostgresOptions) (*PostgresS
 // Start starts the PostgreSQL container and optionally waits for it to be ready
 func (s *PostgresService) Start(ctx context.Context, waitForReady bool) error {
 	// Remove any existing container first to ensure consistent port mappings
-	s.logger.Info("Removing any existing PostgreSQL container to ensure clean start")
-	_ = s.dockerService.RemoveContainer(ctx) // Ignore error if container doesn't exist
+	// s.logger.Info("Removing any existing PostgreSQL container to ensure clean start")
+	// _ = s.dockerService.RemoveContainer(ctx) // Ignore error if container doesn't exist
 
 	// Start the PostgreSQL container
 	err := s.dockerService.RunContainer(ctx)

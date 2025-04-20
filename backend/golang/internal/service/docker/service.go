@@ -196,7 +196,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 		status := parts[1]
 
 		if strings.HasPrefix(status, "Up") {
-			s.logger.Info("Container is already running", slog.String("container", s.options.ContainerName))
+			s.logger.Info("Container is already running", "container", s.options.ContainerName)
 			return nil
 		}
 

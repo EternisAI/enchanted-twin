@@ -105,10 +105,13 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		}
 	}
 
-	agent := agent.NewAgent(s.nc, s.aiService, preToolCallback, postToolCallback)
+	agent := agent.NewAgent(s.logger, s.nc, s.aiService, preToolCallback, postToolCallback)
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
+		&tools.MemorySearchTool{
+			Memory: s.memory,
+		},
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)
