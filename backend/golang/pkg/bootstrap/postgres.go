@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 )
 
@@ -28,7 +30,7 @@ type PostgresOptions struct {
 type PostgresService struct {
 	dockerService *docker.Service
 	options       PostgresOptions
-	logger        *slog.Logger
+	logger        *log.Logger
 }
 
 // DefaultPostgresOptions returns a PostgresOptions struct with default values
@@ -41,7 +43,7 @@ func DefaultPostgresOptions() PostgresOptions {
 
 	return PostgresOptions{
 		Version:       "17",
-		Port:          "",
+		Port:          "15432",
 		DataPath:      filepath.Join(cwd, "data", "postgres"),
 		User:          "postgres",
 		Password:      "postgres",
@@ -51,7 +53,7 @@ func DefaultPostgresOptions() PostgresOptions {
 }
 
 // NewPostgresService creates a new PostgreSQL service with sensible defaults
-func NewPostgresService(logger *slog.Logger, options PostgresOptions) (*PostgresService, error) {
+func NewPostgresService(logger *log.Logger, options PostgresOptions) (*PostgresService, error) {
 	// Merge provided options with defaults
 	defaults := DefaultPostgresOptions()
 
@@ -203,7 +205,7 @@ func (s *PostgresService) Remove(ctx context.Context) error {
 
 // EnsureDatabase ensures a database exists in PostgreSQL, creating it if it doesn't
 func (s *PostgresService) EnsureDatabase(ctx context.Context, dbName string) error {
-	s.logger.Info("Ensuring PostgreSQL database exists", slog.String("database", dbName))
+	s.logger.Info("Ensuring PostgreSQL database exists", "database", dbName)
 
 	// First check if database exists
 	output, err := s.dockerService.ExecuteCommand(ctx, []string{
@@ -211,6 +213,8 @@ func (s *PostgresService) EnsureDatabase(ctx context.Context, dbName string) err
 		"-U", s.options.User,
 		"-c", fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname = '%s'", dbName),
 	})
+
+	s.logger.Debug("Database exists", "output", output)
 
 	// If database doesn't exist (no rows), create it
 	if err == nil && !strings.Contains(output, "1 row") {
@@ -226,7 +230,7 @@ func (s *PostgresService) EnsureDatabase(ctx context.Context, dbName string) err
 		return fmt.Errorf("failed to ensure database exists: %w", err)
 	}
 
-	s.logger.Info("Ensured PostgreSQL database exists", slog.String("database", dbName))
+	s.logger.Debug("Ensured PostgreSQL database exists", "database", dbName)
 	return nil
 }
 

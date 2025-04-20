@@ -4,8 +4,9 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"log"
-	"log/slog"
+
+	"github.com/charmbracelet/log"
+
 	"net/http"
 	"os"
 	"os/signal"
@@ -78,7 +79,7 @@ func CreateTemporalClient(address string, namespace string, apiKey string) (clie
 }
 
 // CreateTemporalServer starts a Temporal server and signals readiness on the ready channel.
-func CreateTemporalServer(logger *slog.Logger, ready chan<- struct{}, dbPath string) {
+func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath string) {
 	ip := TemporalServerIP
 	port := TemporalServerPort
 	historyPort := port + 1

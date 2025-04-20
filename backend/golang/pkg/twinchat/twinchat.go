@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+
+	"github.com/charmbracelet/log"
+
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -25,11 +27,11 @@ type Service struct {
 	aiService *ai.Service
 	storage   Storage
 	nc        *nats.Conn
-	logger    *slog.Logger
+	logger    *log.Logger
 	memory    memory.Storage
 }
 
-func NewService(logger *slog.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage) *Service {
 	return &Service{
 		logger:    logger,
 		aiService: aiService,

@@ -1,17 +1,17 @@
 package repository
 
 import (
-	"log/slog"
+	"github.com/charmbracelet/log"
 
 	"github.com/jmoiron/sqlx"
 )
 
 type Repository struct {
-	logger *slog.Logger
+	logger *log.Logger
 	db     *sqlx.DB
 }
 
-func NewRepository(logger *slog.Logger, db *sqlx.DB) *Repository {
+func NewRepository(logger *log.Logger, db *sqlx.DB) *Repository {
 	return &Repository{
 		logger: logger,
 		db:     db,
