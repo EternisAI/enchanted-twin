@@ -136,7 +136,7 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	memory, err := graphmemory.NewGraphMemory(postgresService.GetConnectionString(""))
+	memory, err := graphmemory.NewGraphMemory(postgresService.GetConnectionString("enchanted_twin"))
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create graph memory"))
 	}
@@ -178,7 +178,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 	<-ready
 	logger.Info("Temporal server started")
 
-	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "enchanted_twin")
+	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
