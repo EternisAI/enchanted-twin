@@ -7,3 +7,4 @@ data_input/
 store.db*
 *.db-shm
 *.db-wal
+postgres-data/*
