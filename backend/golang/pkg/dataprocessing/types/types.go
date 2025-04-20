@@ -7,7 +7,7 @@ import (
 
 // Record represents a single data record that will be written to CSV
 type Record struct {
-	Data      map[string]interface{}
+	Data      map[string]any
 	Timestamp time.Time
 	Source    string
 }

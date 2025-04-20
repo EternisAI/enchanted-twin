@@ -9,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -74,7 +76,7 @@ func (s *Source) ProcessFile(filePath string, username string) ([]types.Record, 
 			continue
 		}
 
-		messageData := map[string]interface{}{
+		messageData := map[string]any{
 			"text":        message.Text,
 			"username":    message.UserProfile.Name,
 			"channelName": channelName,
@@ -127,4 +129,38 @@ func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
 	}
 
 	return allRecords, nil
+}
+
+func ToDocuments(path string) ([]memory.TextDocument, error) {
+	records, err := helpers.ReadJSONL[types.Record](path)
+	if err != nil {
+		return nil, err
+	}
+
+	textDocuments := []memory.TextDocument{}
+	for _, record := range records {
+		message, ok := record.Data["text"].(string)
+		if !ok || message == "" {
+			continue
+		}
+		authorUsername, ok := record.Data["username"].(string)
+		if !ok || authorUsername == "" {
+			continue
+		}
+
+		channelName, ok := record.Data["channelName"].(string)
+		if !ok || channelName == "" {
+			continue
+		}
+
+		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
+
+		textDocuments = append(textDocuments, memory.TextDocument{
+			Content:   message,
+			Timestamp: &record.Timestamp,
+			Tags:      []string{"slack", authorUsername},
+		})
+	}
+
+	return textDocuments, nil
 }

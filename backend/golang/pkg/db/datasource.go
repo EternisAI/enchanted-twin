@@ -5,18 +5,19 @@ import (
 )
 
 type DataSource struct {
-	ID        string `db:"id"`
-	Name      string `db:"name"`
-	UpdatedAt string `db:"updated_at"`
-	Path      string `db:"path"`
-	IsIndexed *bool  `db:"is_indexed"`
-	HasError  *bool  `db:"has_error"`
+	ID            string  `db:"id"`
+	Name          string  `db:"name"`
+	UpdatedAt     string  `db:"updated_at"`
+	Path          string  `db:"path"`
+	ProcessedPath *string `db:"processed_path"`
+	IsIndexed     *bool   `db:"is_indexed"`
+	HasError      *bool   `db:"has_error"`
 }
 
 // GetDataSources retrieves all data sources
 func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed FROM data_sources`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, processed_path, is_indexed FROM data_sources`)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +27,7 @@ func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 // GetUnindexedDataSources retrieves all data sources that are not indexed
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, is_indexed, has_error FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE`)
+	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, processed_path, is_indexed, has_error FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE`)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +50,14 @@ func (s *Store) UpdateDataSourceState(ctx context.Context, id string, isIndexed 
 		return nil, err
 	}
 	return &DataSource{ID: id, IsIndexed: &isIndexed, HasError: &hasError}, nil
+}
+
+func (s *Store) UpdateDataSourceProcessedPath(ctx context.Context, id string, processedPath string) error {
+	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, processed_path = ? WHERE id = ?`, processedPath, id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Store) DeleteDataSourceError(ctx context.Context, id string) (*DataSource, error) {
