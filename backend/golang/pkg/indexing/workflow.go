@@ -265,6 +265,8 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
+			w.Logger.Info("Documents", "slack", len(documents))
+			w.Logger.Info("MemoryStore", "memory", w.Memory)
 			err = w.Memory.Store(ctx, documents)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
