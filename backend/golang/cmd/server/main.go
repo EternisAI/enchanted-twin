@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
@@ -135,9 +136,14 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
+	memory, err := graphmemory.NewGraphMemory(postgresService.GetConnectionString(""))
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create graph memory"))
+	}
+
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
@@ -172,7 +178,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 	<-ready
 	logger.Info("Temporal server started")
 
-	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
+	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "enchanted_twin")
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
