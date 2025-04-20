@@ -59,7 +59,7 @@ type EntryInfo struct {
 
 // Constants for parallel processing
 const (
-	MaxConcurrentWorkers = 20
+	MaxConcurrentWorkers = 30
 )
 
 // Fact represents a subject-predicate-object triple extracted from text
@@ -84,7 +84,7 @@ func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument
 	}
 
 	// Process facts in parallel
-	m.logger.Info("Extracting facts", "entries", len(entriesToProcess))
+	m.logger.Debug("Extracting facts", "entries", len(entriesToProcess))
 	allFacts, errs := m.extractAndStoreFacts(ctx, entriesToProcess)
 
 	// Check for errors during fact extraction
@@ -270,7 +270,7 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 				return
 			}
 
-			m.logger.Info("Successfully extracted facts", "worker", idx, "facts", len(facts))
+			m.logger.Debug("Successfully extracted facts", "worker", idx, "facts", len(facts))
 			allFacts[idx] = facts
 		}(entry.index, entry.textEntryID, entry.text)
 	}
@@ -369,7 +369,6 @@ func (m *GraphMemory) extractFacts(ctx context.Context, text string, textEntryID
 
 	// Parse the response to extract facts
 	facts := m.parseAIFactResponse(response.Content, textEntryID)
-	m.logger.Debug("AI extracted facts", "facts", len(facts))
 
 	// Store the facts in the database
 	storedFacts, err := m.storeFacts(ctx, facts, textEntryID)
