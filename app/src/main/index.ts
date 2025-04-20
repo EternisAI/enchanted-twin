@@ -239,6 +239,23 @@ app.on('window-all-closed', () => {
 
 // Ensure Go server is killed when the app quits (only if started by Electron, i.e., production)
 app.on('will-quit', () => {
+  killGoServer()
+})
+
+app.on('before-quit', () => {
+  killGoServer()
+})
+
+process.on('exit', () => {
+  killGoServer()
+})
+
+process.on('SIGINT', () => {
+  killGoServer()
+  process.exit()
+})
+
+function killGoServer() {
   if (goServerProcess) {
     log.info('Attempting to kill Go server process...')
     const killed = goServerProcess.kill() // Sends SIGTERM by default
@@ -249,7 +266,7 @@ app.on('will-quit', () => {
     }
     goServerProcess = null
   }
-})
+}
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and require them here.
