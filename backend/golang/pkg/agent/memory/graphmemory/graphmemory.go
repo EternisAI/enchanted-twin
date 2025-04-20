@@ -1,6 +1,7 @@
 package graphmemory
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -21,12 +22,12 @@ func NewGraphMemory(pgString string, ai *ai.Service) (*GraphMemory, error) {
 	return &GraphMemory{db: db, ai: ai}, nil
 }
 
-func (g *GraphMemory) Store(documents []memory.TextDocument) error {
+func (g *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
 	// Cosmin will implement
 	return nil
 }
 
-func (g *GraphMemory) Query(query string) ([]memory.TextDocument, error) {
-	// August will implement
+func (g *GraphMemory) Query(ctx context.Context, query string) ([]memory.TextDocument, error) {
+
 	return nil, nil
 }
