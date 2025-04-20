@@ -64,6 +64,7 @@ func main() {
 
 	// Parse command line flags
 	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
+	recreateMemDb := flag.Bool("recreate-mem-db", false, "Recreate the postgres memory database")
 	flag.Parse()
 
 	logger.Info("Using database path", slog.String("path", *dbPath))
@@ -145,7 +146,7 @@ func main() {
 	}
 
 	logger.Info("PostgreSQL listening at", "connection", postgresService.GetConnectionString(dbName))
-	memory, err := graphmemory.NewGraphMemory(postgresService.GetConnectionString(dbName), aiService, false)
+	memory, err := graphmemory.NewGraphMemory(postgresService.GetConnectionString(dbName), aiService, *recreateMemDb)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create graph memory"))
 	}
