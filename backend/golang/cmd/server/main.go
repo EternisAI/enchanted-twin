@@ -136,13 +136,14 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	memory, err := graphmemory.NewGraphMemory(postgresService.GetConnectionString("enchanted_twin"))
+	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	chatStorage := chatrepository.NewRepository(logger, store.DB())
+
+	memory, err := graphmemory.NewGraphMemory(postgresService.GetConnectionString("enchanted_twin"), aiService)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create graph memory"))
 	}
 
-	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	chatStorage := chatrepository.NewRepository(logger, store.DB())
 	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
