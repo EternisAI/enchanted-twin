@@ -5,13 +5,20 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 )
 
 type MemorySearchTool struct {
+	Logger *log.Logger
 	Memory memory.Storage
+}
+
+func NewMemorySearchTool(logger *log.Logger, memory memory.Storage) *MemorySearchTool {
+	return &MemorySearchTool{Logger: logger, Memory: memory}
 }
 
 func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (ToolResult, error) {
@@ -36,6 +43,9 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (T
 	for _, doc := range result.Documents {
 		resultText += fmt.Sprintf("Memory Document %s: %s. At %s\n", doc.ID, doc.Content, doc.Timestamp)
 	}
+
+	t.Logger.Debug("Memory tool result", "documents_count", len(result.Documents), "text_count", len(result.Text), "response", resultText)
+
 	return ToolResult{
 		Content: resultText,
 	}, nil

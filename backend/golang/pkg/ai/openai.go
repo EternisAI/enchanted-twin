@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -18,6 +19,7 @@ type Service struct {
 }
 
 func NewOpenAIService(apiKey string, baseUrl string) *Service {
+	fmt.Println("Starting with base url", baseUrl, "and api key", apiKey)
 	client := openai.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseUrl))
 	return &Service{
 		client: &client,
