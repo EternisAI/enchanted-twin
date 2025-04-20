@@ -1,6 +1,9 @@
 package memory
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 type TextDocument struct {
 	ID        string
@@ -10,6 +13,6 @@ type TextDocument struct {
 }
 
 type Storage interface {
-	Store(documents []TextDocument) error
-	Query(query string) ([]TextDocument, error)
+	Store(ctx context.Context, documents []TextDocument) error
+	Query(ctx context.Context, query string) ([]TextDocument, error)
 }
