@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -37,6 +39,37 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
+// bootstrapPostgres initializes and starts a PostgreSQL service
+func bootstrapPostgres(ctx context.Context, logger *slog.Logger) (*bootstrap.PostgresService, error) {
+	// Configure PostgreSQL options
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+	}
+
+	// Set up PostgreSQL options with default values
+	options := bootstrap.PostgresOptions{
+		Version:       "15",
+		Port:          "5432",
+		DataPath:      filepath.Join(cwd, "postgres-data"),
+		User:          "postgres",
+		Password:      "postgres",
+		Database:      "enchanted_twin",
+		ContainerName: "enchanted-twin-postgres",
+	}
+
+	// Create and start PostgreSQL service
+	postgresService, err := bootstrap.StartPostgresContainer(ctx, logger, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start PostgreSQL: %w", err)
+	}
+
+	logger.Info("PostgreSQL started successfully",
+		slog.String("connection", postgresService.GetConnectionString("")))
+
+	return postgresService, nil
+}
+
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
@@ -53,6 +86,25 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
 	}
 	logger.Info("Config loaded", slog.Any("envs", envs))
+
+	// Start PostgreSQL
+	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	postgresService, err := bootstrapPostgres(postgresCtx, logger)
+	if err != nil {
+		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
+		// Continue with SQLite only if PostgreSQL fails
+	} else {
+		// Set up cleanup on shutdown
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := postgresService.StopPostgres(shutdownCtx); err != nil {
+				logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
+			}
+		}()
+	}
 
 	_, err = bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -96,10 +148,6 @@ func main() {
 		store:           store,
 	})
 
-	// Set up signal handling for graceful shutdown BEFORE starting the server
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
 		logger.Info("Starting GraphQL HTTP server", slog.String("port", envs.GraphqlPort))
@@ -110,7 +158,8 @@ func main() {
 		}
 	}()
 
-	logger.Info("Server ready for GraphQL queries", slog.String("port", envs.GraphqlPort))
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
 	// Wait for termination signal
 	<-signalChan
