@@ -140,7 +140,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 		Nc:           nc,
 		OllamaClient: ollamaClient,
 	}
-	indexingWorkflow.RegisterWorkflows(&w)
+	indexingWorkflow.RegisterWorkflowsAndActivities(&w)
 
 	err = w.Start()
 	if err != nil {

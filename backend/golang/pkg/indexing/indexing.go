@@ -18,7 +18,7 @@ type IndexingWorkflow struct {
 	OllamaClient *ollamaapi.Client
 }
 
-func (workflows *IndexingWorkflow) RegisterWorkflows(worker *worker.Worker) {
+func (workflows *IndexingWorkflow) RegisterWorkflowsAndActivities(worker *worker.Worker) {
 	(*worker).RegisterWorkflow(workflows.IndexWorkflow)
 	(*worker).RegisterActivity(workflows.FetchDataSourcesActivity)
 	(*worker).RegisterActivity(workflows.ProcessDataActivity)
