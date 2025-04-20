@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 	"time"
 
@@ -42,31 +41,20 @@ import (
 
 // bootstrapPostgres initializes and starts a PostgreSQL service
 func bootstrapPostgres(ctx context.Context, logger *slog.Logger) (*bootstrap.PostgresService, error) {
-	// Configure PostgreSQL options
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get current working directory: %w", err)
-	}
-
-	// Set up PostgreSQL options with default values
-	options := bootstrap.PostgresOptions{
-		Version:       "15",
-		Port:          "5432",
-		DataPath:      filepath.Join(cwd, "postgres-data"),
-		User:          "postgres",
-		Password:      "postgres",
-		Database:      "enchanted_twin",
-		ContainerName: "enchanted-twin-postgres",
-	}
+	// Get default options
+	options := bootstrap.DefaultPostgresOptions()
 
 	// Create and start PostgreSQL service
-	postgresService, err := bootstrap.StartPostgresContainer(ctx, logger, options)
+	postgresService, err := bootstrap.NewPostgresService(logger, options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL: %w", err)
+		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
 	}
 
-	logger.Info("PostgreSQL started successfully",
-		slog.String("connection", postgresService.GetConnectionString("")))
+	logger.Info("Starting PostgreSQL service...")
+	err = postgresService.Start(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
+	}
 
 	return postgresService, nil
 }

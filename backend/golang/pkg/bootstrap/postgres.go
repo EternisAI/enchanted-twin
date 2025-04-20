@@ -4,21 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/internal/service/docker"
-)
-
-const (
-	PostgresDefaultPort     = "5432"
-	PostgresDefaultUser     = "postgres"
-	PostgresDefaultPassword = "postgres"
-	PostgresDefaultDB       = "postgres"
-	PostgresDefaultVersion  = "17"
-	PostgresContainerName   = "enchanted-twin-postgres"
 )
 
 // PostgresOptions represents configuration options for a PostgreSQL container
@@ -39,34 +31,51 @@ type PostgresService struct {
 	logger        *slog.Logger
 }
 
+// DefaultPostgresOptions returns a PostgresOptions struct with default values
+func DefaultPostgresOptions() PostgresOptions {
+	// Get current working directory for default data path
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = "."
+	}
+
+	return PostgresOptions{
+		Version:       "17",
+		Port:          "",
+		DataPath:      filepath.Join(cwd, "data", "postgres"),
+		User:          "postgres",
+		Password:      "postgres",
+		Database:      "postgres",
+		ContainerName: "enchanted-twin-postgres",
+	}
+}
+
 // NewPostgresService creates a new PostgreSQL service with sensible defaults
 func NewPostgresService(logger *slog.Logger, options PostgresOptions) (*PostgresService, error) {
-	// Set defaults
+	// Merge provided options with defaults
+	defaults := DefaultPostgresOptions()
+
+	// Apply defaults for any unset fields
 	if options.Version == "" {
-		options.Version = PostgresDefaultVersion
+		options.Version = defaults.Version
 	}
 	if options.Port == "" {
-		options.Port = PostgresDefaultPort
+		options.Port = findRandomAvailablePort()
 	}
 	if options.DataPath == "" {
-		// Default to a postgres-data directory in the current working directory
-		cwd, err := os.Getwd()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get current working directory: %w", err)
-		}
-		options.DataPath = filepath.Join(cwd, "postgres-data")
+		options.DataPath = defaults.DataPath
 	}
 	if options.Password == "" {
-		options.Password = PostgresDefaultPassword
+		options.Password = defaults.Password
 	}
 	if options.User == "" {
-		options.User = PostgresDefaultUser
+		options.User = defaults.User
 	}
 	if options.Database == "" {
-		options.Database = PostgresDefaultDB
+		options.Database = defaults.Database
 	}
 	if options.ContainerName == "" {
-		options.ContainerName = PostgresContainerName
+		options.ContainerName = defaults.ContainerName
 	}
 
 	// Ensure data directory exists
@@ -107,8 +116,8 @@ func NewPostgresService(logger *slog.Logger, options PostgresOptions) (*Postgres
 	}, nil
 }
 
-// StartPostgres starts the PostgreSQL container and optionally waits for it to be ready
-func (s *PostgresService) StartPostgres(ctx context.Context, waitForReady bool) error {
+// Start starts the PostgreSQL container and optionally waits for it to be ready
+func (s *PostgresService) Start(ctx context.Context, waitForReady bool) error {
 	// Start the PostgreSQL container
 	err := s.dockerService.RunContainer(ctx)
 	if err != nil {
@@ -158,13 +167,44 @@ func (s *PostgresService) WaitForReady(ctx context.Context, maxWaitTime time.Dur
 	return fmt.Errorf("timeout waiting for PostgreSQL to be ready")
 }
 
-// StopPostgres stops the PostgreSQL container
-func (s *PostgresService) StopPostgres(ctx context.Context) error {
+// isPortAvailable checks if a port is available to use
+func isPortAvailable(port string) bool {
+	ln, err := net.Listen("tcp", ":"+port)
+	if err != nil {
+		return false
+	}
+	if err := ln.Close(); err != nil {
+		// Just log this error but still return true as we were able to bind
+		fmt.Printf("Error closing listener: %v\n", err)
+	}
+	return true
+}
+
+// findRandomAvailablePort finds a random available port
+func findRandomAvailablePort() string {
+	// Try to get a random port by asking the OS for one
+	ln, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return "" // Unable to find a port
+	}
+	defer func() {
+		if err := ln.Close(); err != nil {
+			fmt.Printf("Error closing listener: %v\n", err)
+		}
+	}()
+
+	// Get the port from the listener
+	addr := ln.Addr().(*net.TCPAddr)
+	return fmt.Sprintf("%d", addr.Port)
+}
+
+// Stop stops the PostgreSQL container
+func (s *PostgresService) Stop(ctx context.Context) error {
 	return s.dockerService.StopContainer(ctx)
 }
 
-// RemovePostgres removes the PostgreSQL container
-func (s *PostgresService) RemovePostgres(ctx context.Context) error {
+// Remove removes the PostgreSQL container
+func (s *PostgresService) Remove(ctx context.Context) error {
 	return s.dockerService.RemoveContainer(ctx)
 }
 
@@ -216,19 +256,4 @@ func (s *PostgresService) ExecuteSQL(ctx context.Context, database, sql string) 
 // DockerService returns the underlying Docker service
 func (s *PostgresService) DockerService() *docker.Service {
 	return s.dockerService
-}
-
-// StartPostgresContainer is a convenience function to create and start a PostgreSQL container
-func StartPostgresContainer(ctx context.Context, logger *slog.Logger, options PostgresOptions) (*PostgresService, error) {
-	service, err := NewPostgresService(logger, options)
-	if err != nil {
-		return nil, err
-	}
-
-	err = service.StartPostgres(ctx, true)
-	if err != nil {
-		return nil, err
-	}
-
-	return service, nil
 }
