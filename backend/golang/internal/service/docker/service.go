@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
 // ContainerOptions represents options for running a Docker container
@@ -35,16 +37,11 @@ type ContainerOptions struct {
 // Service manages Docker containers using the Docker CLI
 type Service struct {
 	options ContainerOptions
-	logger  *slog.Logger
+	logger  *log.Logger
 }
 
 // NewService creates a new Docker service
-func NewService(options ContainerOptions, logger *slog.Logger) (*Service, error) {
-	// Use default logger if none is provided
-	if logger == nil {
-		logger = slog.Default()
-	}
-
+func NewService(options ContainerOptions, logger *log.Logger) (*Service, error) {
 	// Check if Docker is available
 	cmd := exec.Command("docker", "--version")
 	if err := cmd.Run(); err != nil {
@@ -80,7 +77,7 @@ func NewService(options ContainerOptions, logger *slog.Logger) (*Service, error)
 }
 
 // Logger returns the service's logger
-func (s *Service) Logger() *slog.Logger {
+func (s *Service) Logger() *log.Logger {
 	return s.logger
 }
 
@@ -284,13 +281,13 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	cmd.Stderr = &stderr
 	cmd.Stdin = os.Stdin
 
-	s.logger.Info("Running docker cmd", slog.String("docker", strings.Join(args, " ")))
+	s.logger.Debug("Running docker cmd", "docker", strings.Join(args, " "))
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("failed to create and start container: %s: %w", stderr.String(), err)
 	}
 
-	s.logger.Info("Started container", slog.String("container", s.options.ContainerName))
+	s.logger.Debug("Started container", "container", s.options.ContainerName)
 	return nil
 }
 
@@ -318,7 +315,7 @@ func (s *Service) RemoveContainer(ctx context.Context) error {
 		return fmt.Errorf("failed to remove container: %s: %w", stderr.String(), err)
 	}
 
-	s.logger.Info("Removed container", slog.String("container", s.options.ContainerName))
+	s.logger.Info("Removed container", "container", s.options.ContainerName)
 	return nil
 }
 

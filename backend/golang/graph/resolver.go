@@ -1,7 +1,7 @@
 package graph
 
 import (
-	"log/slog"
+	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -15,7 +15,7 @@ import (
 // It serves as dependency injection for your app, add any dependencies you require here.
 
 type Resolver struct {
-	Logger          *slog.Logger
+	Logger          *log.Logger
 	TemporalClient  client.Client
 	TwinChatService twinchat.Service
 	Nc              *nats.Conn

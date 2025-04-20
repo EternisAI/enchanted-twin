@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -16,8 +18,12 @@ import (
 )
 
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		ReportCaller:    true,
+		ReportTimestamp: true,
+		Level:           log.DebugLevel,
+		TimeFormat:      time.Kitchen,
+	})
 	// Define command line flags
 	recreateSchema := flag.Bool("recreate", false, "Recreate the database schema")
 	apiKey := flag.String("api-key", "", "OpenAI API key (optional, will use env var if not provided)")
@@ -86,7 +92,7 @@ func main() {
 
 	// Initialize graph memory
 	logger.Info("Initializing graph memory", slog.Bool("recreate_schema", *recreateSchema))
-	graphMem, err := graphmemory.NewGraphMemory(connString, aiService, *recreateSchema)
+	graphMem, err := graphmemory.NewGraphMemory(logger, connString, aiService, *recreateSchema)
 	if err != nil {
 		logger.Error("Failed to initialize graph memory", slog.Any("error", err))
 		os.Exit(1)
@@ -125,26 +131,27 @@ func main() {
 
 	// Query for test document
 	logger.Info("Querying for test document")
-	results, err := graphMem.Query(context.Background(), "Enchanted Twin")
+	result, err := graphMem.Query(context.Background(), "Enchanted Twin")
 	if err != nil {
 		logger.Error("Failed to query memory", slog.Any("error", err))
 		os.Exit(1)
 	}
 
 	// Display results
-	logger.Info(fmt.Sprintf("Found %d results for query", len(results)))
-	for i, doc := range results {
+	logger.Info(fmt.Sprintf("Found %d documents for query", len(result.Documents)))
+	for i, doc := range result.Documents {
 		logger.Info(fmt.Sprintf("Result %d:", i+1),
 			slog.String("id", doc.ID),
 			slog.String("content", doc.Content),
 			slog.Any("tags", doc.Tags))
 	}
+	logger.Info("Text", "text", result.Text)
 
 	logger.Info("Memory test completed successfully")
 }
 
 // bootstrapPostgres initializes and starts a PostgreSQL service
-func bootstrapPostgres(ctx context.Context, logger *slog.Logger) (*bootstrap.PostgresService, error) {
+func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.PostgresService, error) {
 	// Get default options
 	options := bootstrap.DefaultPostgresOptions()
 

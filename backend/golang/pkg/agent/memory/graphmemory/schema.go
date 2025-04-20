@@ -25,14 +25,25 @@ CREATE TABLE IF NOT EXISTS text_entries (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Add unique constraint with coalesced meta to handle nulls
-CREATE UNIQUE INDEX IF NOT EXISTS text_entries_text_meta_idx ON text_entries (text, COALESCE(meta, ''));
+-- Add text_hash column if it doesn't exist
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_attribute WHERE attrelid = 'text_entries'::regclass AND attname = 'text_hash') THEN
+    ALTER TABLE text_entries ADD COLUMN text_hash TEXT GENERATED ALWAYS AS (MD5(text)) STORED;
+  END IF;
+END $$;
+
+-- Drop old index if it exists
+DROP INDEX IF EXISTS text_entries_text_meta_idx;
+
+-- Create new index using text_hash instead
+CREATE UNIQUE INDEX IF NOT EXISTS text_entries_hash_meta_idx ON text_entries (text_hash, COALESCE(meta, ''));
 
 -- Create GiST index on ltree array for efficient tag-based queries
 CREATE INDEX IF NOT EXISTS text_entries_tags_idx ON text_entries USING GIST (tags);
 
 -- Table for storing extracted structured facts
-CREATE TABLE facts (
+CREATE TABLE IF NOT EXISTS facts (
   id BIGSERIAL PRIMARY KEY,
   text_entry_id BIGINT NOT NULL,
   sub TEXT NOT NULL,  -- Subject
@@ -42,11 +53,11 @@ CREATE TABLE facts (
 );
 
 -- Create GIN indexes for fulltext search on subject and object
-CREATE INDEX facts_sub_fulltext_idx ON facts USING GIN (to_tsvector('english', sub));
-CREATE INDEX facts_obj_fulltext_idx ON facts USING GIN (to_tsvector('english', obj));
+CREATE INDEX IF NOT EXISTS facts_sub_fulltext_idx ON facts USING GIN (to_tsvector('english', sub));
+CREATE INDEX IF NOT EXISTS facts_obj_fulltext_idx ON facts USING GIN (to_tsvector('english', obj));
 
 -- Table for storing embedding vectors
-CREATE TABLE embeddings (
+CREATE TABLE IF NOT EXISTS embeddings (
   id BIGSERIAL PRIMARY KEY,
   text_entry_id BIGINT NOT NULL,
   -- guts vector(1536),  -- TODO Using pgvector for embedding vectors

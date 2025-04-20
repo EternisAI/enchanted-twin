@@ -4,6 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+
+	"github.com/charmbracelet/log"
+
 	"strings"
 	"sync"
 	"time"
@@ -16,11 +19,12 @@ import (
 )
 
 type GraphMemory struct {
-	db *sql.DB
-	ai *ai.Service
+	db     *sql.DB
+	ai     *ai.Service
+	logger *log.Logger
 }
 
-func NewGraphMemory(pgString string, ai *ai.Service, recreate bool) (*GraphMemory, error) {
+func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreate bool) (*GraphMemory, error) {
 	db, err := sql.Open("postgres", pgString)
 	if err != nil {
 		return nil, err
@@ -93,7 +97,7 @@ func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument
 	for _, facts := range allFacts {
 		totalFacts += len(facts)
 	}
-	fmt.Printf("Processed %d entries, extracted %d facts total\n", len(entriesToProcess), totalFacts)
+	m.logger.Info("Processed entries", "entries", len(entriesToProcess), "facts", totalFacts)
 
 	return nil
 }
@@ -115,21 +119,15 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 
 	for i, doc := range documents {
 		// Prepare metadata for non-tag fields
-		var metaMap map[string]string
+		metaMap := map[string]string{}
 
 		// Store the document timestamp in metadata if available
 		if doc.Timestamp != nil {
-			if metaMap == nil {
-				metaMap = make(map[string]string)
-			}
 			metaMap["timestamp"] = doc.Timestamp.Format(time.RFC3339)
 		}
 
-		// Store the document ID in metadata if available
+		// Store the document IDE in metadata if available
 		if doc.ID != "" {
-			if metaMap == nil {
-				metaMap = make(map[string]string)
-			}
 			metaMap["id"] = doc.ID
 		}
 
@@ -174,7 +172,7 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 			query = `
 				INSERT INTO text_entries (text, meta, tags)
 				VALUES ($1, NULL, NULL)
-				ON CONFLICT (text, COALESCE(meta, ''))
+				ON CONFLICT (text_hash, COALESCE(meta, ''))
 				DO UPDATE SET id = text_entries.id
 				RETURNING id`
 			err = tx.QueryRowContext(ctx, query, doc.Content).Scan(&textEntryID)
@@ -183,7 +181,7 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 			query = `
 				INSERT INTO text_entries (text, meta, tags)
 				VALUES ($1, NULL, $2::ltree[])
-				ON CONFLICT (text, COALESCE(meta, ''))
+				ON CONFLICT (text_hash, COALESCE(meta, ''))
 				DO UPDATE SET tags = $2::ltree[]
 				RETURNING id`
 			err = tx.QueryRowContext(ctx, query, doc.Content, tagsStr).Scan(&textEntryID)
@@ -192,7 +190,7 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 			query = `
 				INSERT INTO text_entries (text, meta, tags)
 				VALUES ($1, $2::hstore, NULL)
-				ON CONFLICT (text, COALESCE(meta, ''))
+				ON CONFLICT (text_hash, COALESCE(meta, ''))
 				DO UPDATE SET id = text_entries.id
 				RETURNING id`
 			err = tx.QueryRowContext(ctx, query, doc.Content, metaStr).Scan(&textEntryID)
@@ -201,7 +199,7 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 			query = `
 				INSERT INTO text_entries (text, meta, tags)
 				VALUES ($1, $2::hstore, $3::ltree[])
-				ON CONFLICT (text, COALESCE(meta, ''))
+				ON CONFLICT (text_hash, COALESCE(meta, ''))
 				DO UPDATE SET tags = $3::ltree[]
 				RETURNING id`
 			err = tx.QueryRowContext(ctx, query, doc.Content, metaStr, tagsStr).Scan(&textEntryID)
@@ -256,8 +254,7 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 			defer func() { <-sem }()
 
 			// Extract facts using AI
-			fmt.Printf("Worker %d: Extracting facts from text (length: %d chars, ID: %d)\n",
-				idx, len(text), entryID)
+			m.logger.Info("Extracting facts", "worker", idx, "length", len(text), "id", entryID)
 
 			facts, err := m.extractFacts(ctx, text, entryID)
 
@@ -266,12 +263,12 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 			defer mutex.Unlock()
 
 			if err != nil {
-				fmt.Printf("ERROR worker %d: extracting facts: %v\n", idx, err)
+				m.logger.Error("Error extracting facts", "worker", idx, "error", err)
 				allErrors[idx] = fmt.Errorf("error extracting facts: %w", err)
 				return
 			}
 
-			fmt.Printf("Worker %d: Successfully extracted %d facts\n", idx, len(facts))
+			m.logger.Info("Successfully extracted facts", "worker", idx, "facts", len(facts))
 			allFacts[idx] = facts
 		}(entry.index, entry.textEntryID, entry.text)
 	}
@@ -282,6 +279,56 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 	fmt.Println("All fact extraction workers completed")
 
 	return allFacts, allErrors
+}
+
+func (m *GraphMemory) getUniqueTripleValues(ctx context.Context) ([]string, []string, []string, error) {
+	// Helper function to query and process unique values
+	getUniqueValues := func(column string) ([]string, error) {
+		var values []string
+		rows, err := m.db.QueryContext(ctx, fmt.Sprintf("SELECT DISTINCT %s FROM facts LIMIT 100", column))
+		if err != nil {
+			return nil, err
+		}
+		defer func() {
+			if closeErr := rows.Close(); closeErr != nil {
+				err = fmt.Errorf("error closing rows: %v (original error: %w)", closeErr, err)
+			}
+		}()
+
+		for rows.Next() {
+			var value string
+			if err := rows.Scan(&value); err == nil && value != "" {
+				// Trim long values
+				if len(value) > 30 {
+					value = value[:27] + "..."
+				}
+				values = append(values, value)
+			}
+		}
+
+		if err := rows.Err(); err != nil {
+			return nil, err
+		}
+
+		return values, nil
+	}
+
+	subs, err := getUniqueValues("sub")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error getting unique subjects: %w", err)
+	}
+
+	preds, err := getUniqueValues("prd")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error getting unique predicates: %w", err)
+	}
+
+	objs, err := getUniqueValues("obj")
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("error getting unique objects: %w", err)
+	}
+
+	return subs, preds, objs, nil
 }
 
 // extractFacts uses the AI service to extract subject-predicate-object triples from text
@@ -419,57 +466,6 @@ func (m *GraphMemory) storeFacts(ctx context.Context, facts []Fact, textEntryID 
 	return storedFacts, nil
 }
 
-// getUniqueTripleValues retrieves unique subjects, predicates, and objects from the database
-func (m *GraphMemory) getUniqueTripleValues(ctx context.Context) ([]string, []string, []string, error) {
-	// Helper function to query and process unique values
-	getUniqueValues := func(column string) ([]string, error) {
-		var values []string
-		rows, err := m.db.QueryContext(ctx, fmt.Sprintf("SELECT DISTINCT %s FROM facts LIMIT 100", column))
-		if err != nil {
-			return nil, err
-		}
-		defer func() {
-			if closeErr := rows.Close(); closeErr != nil {
-				err = fmt.Errorf("error closing rows: %v (original error: %w)", closeErr, err)
-			}
-		}()
-
-		for rows.Next() {
-			var value string
-			if err := rows.Scan(&value); err == nil && value != "" {
-				// Trim long values
-				if len(value) > 30 {
-					value = value[:27] + "..."
-				}
-				values = append(values, value)
-			}
-		}
-
-		if err := rows.Err(); err != nil {
-			return nil, err
-		}
-
-		return values, nil
-	}
-
-	subs, err := getUniqueValues("sub")
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error getting unique subjects: %w", err)
-	}
-
-	preds, err := getUniqueValues("prd")
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error getting unique predicates: %w", err)
-	}
-
-	objs, err := getUniqueValues("obj")
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error getting unique objects: %w", err)
-	}
-
-	return subs, preds, objs, nil
-}
-
 // createFactExtractionPrompt creates a prompt for the AI to extract facts from text
 func createFactExtractionPrompt(text string, uniqueSubs, uniquePreds, uniqueObjs []string) string {
 	prompt := "Extract subject-predicate-object facts from the following text.\n\n"
@@ -499,230 +495,6 @@ func min(a, b int) int {
 		return a
 	}
 	return b
-}
-
-func (m *GraphMemory) Query(ctx context.Context, query string) ([]memory.TextDocument, error) {
-	if query == "" {
-		return nil, fmt.Errorf("query cannot be empty")
-	}
-
-	// First, try to find exact text matches
-	rows, err := m.db.QueryContext(ctx, `
-		SELECT id, text, meta, tags, created_at 
-		FROM text_entries 
-		WHERE text ILIKE $1
-		ORDER BY created_at DESC
-		LIMIT 10
-	`, "%"+query+"%")
-
-	if err != nil {
-		return nil, fmt.Errorf("error querying text entries: %w", err)
-	}
-	defer func() {
-		if closeErr := rows.Close(); closeErr != nil {
-			err = fmt.Errorf("error closing rows: %v (original error: %w)", closeErr, err)
-		}
-	}()
-
-	documents := []memory.TextDocument{}
-
-	for rows.Next() {
-		var id int64
-		var text string
-		var meta sql.NullString
-		var tags sql.NullString // ltree[] will be read as text in this simple implementation
-		var createdAt time.Time
-
-		if err := rows.Scan(&id, &text, &meta, &tags, &createdAt); err != nil {
-			return nil, fmt.Errorf("error scanning row: %w", err)
-		}
-
-		// Parse meta data to extract document ID
-		docID := fmt.Sprintf("doc-%d", id)
-		metaMap := map[string]string{}
-
-		if meta.Valid {
-			// Parse hstore format "key"=>"value" - this is a simple implementation
-			metaStr := meta.String
-			if metaStr != "" {
-				entries := strings.Split(metaStr, ",")
-				for _, entry := range entries {
-					keyValue := strings.Split(entry, "=>")
-					if len(keyValue) == 2 {
-						key := strings.Trim(strings.TrimSpace(keyValue[0]), "\"")
-						value := strings.Trim(strings.TrimSpace(keyValue[1]), "\"")
-						metaMap[key] = value
-
-						// Extract ID if present
-						if key == "id" {
-							docID = value
-						}
-					}
-				}
-			}
-		}
-
-		// Parse tags from string to string array
-		// This is a simple implementation that assumes tags format: {tag1,tag2,tag3}
-		tagList := []string{}
-		if tags.Valid && tags.String != "" {
-			tagsStr := tags.String
-			// Remove curly braces
-			tagsStr = strings.Trim(tagsStr, "{}")
-			if tagsStr != "" {
-				// Split by comma
-				tagItems := strings.Split(tagsStr, ",")
-				for _, tag := range tagItems {
-					tag = strings.Trim(strings.TrimSpace(tag), "\"")
-					if tag != "" {
-						tagList = append(tagList, tag)
-					}
-				}
-			}
-		}
-
-		// Create timestamp pointer
-		timestamp := &createdAt
-
-		documents = append(documents, memory.TextDocument{
-			ID:        docID,
-			Content:   text,
-			Tags:      tagList,
-			Timestamp: timestamp,
-		})
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating rows: %w", err)
-	}
-
-	// If we haven't found any direct text matches, try to find matches via facts
-	if len(documents) == 0 {
-		// Find facts that match the query
-		factRows, err := m.db.QueryContext(ctx, `
-			SELECT DISTINCT text_entry_id
-			FROM facts
-			WHERE sub ILIKE $1 OR prd ILIKE $1 OR obj ILIKE $1
-			LIMIT 10
-		`, "%"+query+"%")
-
-		if err != nil {
-			return nil, fmt.Errorf("error querying facts: %w", err)
-		}
-		defer func() {
-			if closeErr := factRows.Close(); closeErr != nil {
-				err = fmt.Errorf("error closing fact rows: %v (original error: %w)", closeErr, err)
-			}
-		}()
-
-		// Collect text entry IDs
-		var textEntryIDs []int64
-		for factRows.Next() {
-			var textEntryID int64
-			if err := factRows.Scan(&textEntryID); err != nil {
-				return nil, fmt.Errorf("error scanning fact row: %w", err)
-			}
-			textEntryIDs = append(textEntryIDs, textEntryID)
-		}
-
-		if err := factRows.Err(); err != nil {
-			return nil, fmt.Errorf("error iterating fact rows: %w", err)
-		}
-
-		// If we found matching facts, look up the corresponding text entries
-		if len(textEntryIDs) > 0 {
-			// Create a parameterized IN clause like ($1, $2, $3, ...)
-			params := make([]string, len(textEntryIDs))
-			args := make([]interface{}, len(textEntryIDs))
-			for i, id := range textEntryIDs {
-				params[i] = fmt.Sprintf("$%d", i+1)
-				args[i] = id
-			}
-
-			query := fmt.Sprintf(`
-				SELECT id, text, meta, tags, created_at 
-				FROM text_entries 
-				WHERE id IN (%s)
-				ORDER BY created_at DESC
-			`, strings.Join(params, ", "))
-
-			rows, err := m.db.QueryContext(ctx, query, args...)
-			if err != nil {
-				return nil, fmt.Errorf("error querying text entries by IDs: %w", err)
-			}
-			defer func() {
-				if closeErr := rows.Close(); closeErr != nil {
-					err = fmt.Errorf("error closing rows: %v (original error: %w)", closeErr, err)
-				}
-			}()
-
-			// Process rows the same way as above
-			for rows.Next() {
-				var id int64
-				var text string
-				var meta sql.NullString
-				var tags sql.NullString
-				var createdAt time.Time
-
-				if err := rows.Scan(&id, &text, &meta, &tags, &createdAt); err != nil {
-					return nil, fmt.Errorf("error scanning row: %w", err)
-				}
-
-				// Same processing as above
-				docID := fmt.Sprintf("doc-%d", id)
-				metaMap := map[string]string{}
-
-				if meta.Valid {
-					metaStr := meta.String
-					if metaStr != "" {
-						entries := strings.Split(metaStr, ",")
-						for _, entry := range entries {
-							keyValue := strings.Split(entry, "=>")
-							if len(keyValue) == 2 {
-								key := strings.Trim(strings.TrimSpace(keyValue[0]), "\"")
-								value := strings.Trim(strings.TrimSpace(keyValue[1]), "\"")
-								metaMap[key] = value
-
-								if key == "id" {
-									docID = value
-								}
-							}
-						}
-					}
-				}
-
-				tagList := []string{}
-				if tags.Valid && tags.String != "" {
-					tagsStr := tags.String
-					tagsStr = strings.Trim(tagsStr, "{}")
-					if tagsStr != "" {
-						tagItems := strings.Split(tagsStr, ",")
-						for _, tag := range tagItems {
-							tag = strings.Trim(strings.TrimSpace(tag), "\"")
-							if tag != "" {
-								tagList = append(tagList, tag)
-							}
-						}
-					}
-				}
-
-				timestamp := &createdAt
-
-				documents = append(documents, memory.TextDocument{
-					ID:        docID,
-					Content:   text,
-					Tags:      tagList,
-					Timestamp: timestamp,
-				})
-			}
-
-			if err := rows.Err(); err != nil {
-				return nil, fmt.Errorf("error iterating rows: %w", err)
-			}
-		}
-	}
-
-	return documents, nil
 }
 
 func (m *GraphMemory) ensureDbSchema(recreate bool) error {

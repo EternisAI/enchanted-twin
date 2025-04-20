@@ -1,8 +1,9 @@
 package indexing
 
 import (
-	"log/slog"
+	"github.com/charmbracelet/log"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	nats "github.com/nats-io/nats.go"
@@ -11,11 +12,12 @@ import (
 )
 
 type IndexingWorkflow struct {
-	Logger       *slog.Logger
+	Logger       *log.Logger
 	Config       *config.Config
 	Store        *db.Store
 	Nc           *nats.Conn
 	OllamaClient *ollamaapi.Client
+	Memory       memory.Storage
 }
 
 func (workflows *IndexingWorkflow) RegisterWorkflowsAndActivities(worker *worker.Worker) {

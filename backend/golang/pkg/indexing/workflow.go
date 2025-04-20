@@ -265,7 +265,10 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
-			// TODO: index documents
+			err = w.Memory.Store(ctx, documents)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 
 		}
