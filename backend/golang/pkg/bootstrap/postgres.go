@@ -93,11 +93,6 @@ func NewPostgresService(logger *log.Logger, options PostgresOptions) (*PostgresS
 		options.ContainerName = defaults.ContainerName
 	}
 
-	// Ensure data directory exists
-	// if err := os.MkdirAll(options.DataPath, 0755); err != nil {
-	// 	return nil, fmt.Errorf("failed to create PostgreSQL data directory: %w", err)
-	// }
-
 	// Configure Docker container options
 	containerOptions := docker.ContainerOptions{
 		ImageName:     "postgres",
