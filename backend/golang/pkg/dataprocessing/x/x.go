@@ -240,11 +240,9 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		case "like":
 			content = record.Data["fullText"].(string)
 			metadata = map[string]string{
-				"type":        "like",
-				"id":          record.Data["tweetId"].(string),
-				"url":         record.Data["expandedUrl"].(string),
-				"tweetId":     record.Data["tweetId"].(string),
-				"expandedUrl": record.Data["expandedUrl"].(string),
+				"type": "like",
+				"id":   record.Data["tweetId"].(string),
+				"url":  record.Data["expandedUrl"].(string),
 			}
 			tags = append(tags, "like", record.Data["tweetId"].(string))
 		case "tweet":
@@ -254,8 +252,6 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 				"id":            record.Data["id"].(string),
 				"favoriteCount": record.Data["favoriteCount"].(string),
 				"retweetCount":  record.Data["retweetCount"].(string),
-				"userId":        record.Data["userId"].(string),
-				"lang":          record.Data["lang"].(string),
 			}
 			tags = append(tags, "tweet", record.Data["id"].(string), record.Data["retweetCount"].(string), record.Data["favoriteCount"].(string))
 		case "direct_message":
