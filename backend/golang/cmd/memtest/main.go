@@ -92,7 +92,7 @@ func main() {
 
 	// Initialize graph memory
 	logger.Info("Initializing graph memory", slog.Bool("recreate_schema", *recreateSchema))
-	graphMem, err := graphmemory.NewGraphMemory(logger, connString, aiService, *recreateSchema)
+	graphMem, err := graphmemory.NewGraphMemory(logger, connString, aiService, *recreateSchema, envs.CompletionsModel)
 	if err != nil {
 		logger.Error("Failed to initialize graph memory", slog.Any("error", err))
 		os.Exit(1)

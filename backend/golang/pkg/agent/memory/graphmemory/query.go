@@ -49,7 +49,11 @@ func (g *GraphMemory) Query(
 
 		// Always close rows, even if we return early
 		func() {
-			defer rows.Close()
+			defer func() {
+				if err := rows.Close(); err != nil {
+					g.logger.Error("Failed to close rows", "error", err)
+				}
+			}()
 
 			// --- authoritative column list from the driver -------------
 			dbCols, err := rows.Columns()
