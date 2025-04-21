@@ -70,15 +70,13 @@ func main() {
 		TimeFormat:      time.Kitchen,
 	})
 
-	// Parse command line flags
-	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
 	recreateMemDb := flag.Bool("recreate-mem-db", false, "Recreate the postgres memory database")
 	flag.Parse()
 
-	logger.Info("Using database path", "path", *dbPath)
-
 	envs, _ := config.LoadConfig(true)
 	logger.Debug("Config loaded", "envs", envs)
+
+	logger.Info("Using database path", "path", envs.DBPath)
 
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 	if err != nil {
@@ -121,7 +119,7 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	store, err := db.NewStore(*dbPath)
+	store, err := db.NewStore(envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
@@ -153,7 +151,7 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create graph memory"))
 	}
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory, *dbPath)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
@@ -187,9 +185,9 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, memory memory.Storage, dbPath string) (client.Client, error) {
+func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, memory memory.Storage) (client.Client, error) {
 	ready := make(chan struct{})
-	go bootstrap.CreateTemporalServer(logger, ready, dbPath)
+	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
 	<-ready
 	logger.Info("Temporal server started")
 

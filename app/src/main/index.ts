@@ -89,12 +89,18 @@ app.whenReady().then(() => {
     }
   }
 
-  log.info(`Database directory: ${dbDir}`)
+  // Define the database path
+  const dbPath = join(dbDir, 'enchanted-twin.db')
+  log.info(`Database path: ${dbPath}`)
   log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
   try {
-    goServerProcess = spawn(goBinaryPath, [`--db-path=${join(dbDir, 'enchanted-twin.db')}`], {
-      // No stdio option here, defaults to 'pipe'
+    // Start the Go server with DB_PATH as an environment variable
+    goServerProcess = spawn(goBinaryPath, [], {
+      env: {
+        ...process.env,
+        DB_PATH: dbPath
+      }
     })
 
     if (goServerProcess) {
