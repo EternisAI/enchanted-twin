@@ -88,6 +88,17 @@ app.whenReady().then(() => {
       log.error(`Failed to create database directory: ${err}`)
     }
   }
+  
+  // Ensure PostgreSQL data directory exists
+  const pgDataDir = join(dbDir, 'pgdata')
+  if (!existsSync(pgDataDir)) {
+    try {
+      mkdirSync(pgDataDir, { recursive: true })
+      log.info(`Created PostgreSQL data directory: ${pgDataDir}`)
+    } catch (err) {
+      log.error(`Failed to create PostgreSQL data directory: ${err}`)
+    }
+  }
 
   log.info(`Database directory: ${dbDir}`)
   log.info(`Go binary path: ${goBinaryPath}`)
@@ -103,7 +114,8 @@ app.whenReady().then(() => {
         goServerProcess = spawn(goBinaryPath, [], {
           env: {
             ...process.env,
-            DB_PATH: join(dbDir, 'enchanted-twin.db')
+            DB_PATH: join(dbDir, 'enchanted-twin.db'),
+            PGDATA: join(dbDir, 'pgdata')
           }
         })
 
