@@ -102,7 +102,9 @@ app.whenReady().then(() => {
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
           ...process.env,
-          DB_PATH: dbPath
+          DB_PATH: dbPath,
+          COMPLETIONS_MODEL: 'gpt-4o-mini',
+          EMBEDDINGS_MODEL: 'text-embedding-3-small'
         }
       })
 
