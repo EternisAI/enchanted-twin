@@ -19,7 +19,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
 
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -49,13 +48,12 @@ func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.Post
 	options := bootstrap.DefaultPostgresOptions()
 
 	// Set up command line flags
-	providerFlag := flag.String("provider", "", "OAuth provider to authenticate with (twitter, google, linkedin)")
 	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
 	logger.Info("Using database path", slog.String("path", *dbPath))
 	flag.Parse()
 
 	// Open database
-	store, err := db.NewStore(*dbPath)
+	store, err := db.NewStore(context.Background(), *dbPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
@@ -66,17 +64,6 @@ func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.Post
 		}
 	}()
 	logger.Info("SQLite database initialized")
-
-	// Check if this run is a provider run...
-	if *providerFlag != "" {
-		// Run OAuth flow with selected provider
-		if err := helpers.OauthFlow(*providerFlag, logger, store); err != nil {
-			fmt.Printf("Error: %v\n", err)
-			os.Exit(1)
-		}
-		logger.Info("OauthFlow successful", "provider", *providerFlag)
-		os.Exit(0)
-	}
 
 	envs, err := config.LoadConfig(true)
 

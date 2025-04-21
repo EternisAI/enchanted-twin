@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
@@ -20,6 +21,16 @@ import (
 // Messages is the resolver for the messages field.
 func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.Message, error) {
 	return r.TwinChatService.GetMessagesByChatId(ctx, obj.ID)
+}
+
+// StartOAuthFlow is the resolver for the startOAuthFlow field.
+func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string) (string, error) {
+	return helpers.StartOAuthFlow(ctx, r.Logger, r.Store, provider)
+}
+
+// CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
+func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
+	return helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
 }
 
 // UpdateProfile is the resolver for the updateProfile field.
