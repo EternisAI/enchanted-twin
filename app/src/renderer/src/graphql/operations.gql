@@ -19,7 +19,7 @@ query GetChats($first: Int!, $offset: Int!) {
         id
         name
         isCompleted
-        # messageId
+        messageId
       }
       toolResults
     }
@@ -41,6 +41,7 @@ query GetChat($id: ID!) {
         id
         name
         isCompleted
+        messageId
       }
       toolResults
     }
