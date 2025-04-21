@@ -87,6 +87,10 @@ func main() {
 	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	// --- DEBUG: Print PATH environment variable ---
+	logger.Debug("Current PATH", "path", os.Getenv("PATH"))
+	// --- END DEBUG ---
+
 	postgresService, err := bootstrapPostgres(postgresCtx, logger)
 	if err != nil {
 		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
