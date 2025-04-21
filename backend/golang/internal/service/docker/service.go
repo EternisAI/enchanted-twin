@@ -185,7 +185,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to check if container exists: %w", err)
+		return fmt.Errorf("failed to check if container exists, check if docker is running: %w", err)
 	}
 
 	containerInfo := strings.TrimSpace(stdout.String())

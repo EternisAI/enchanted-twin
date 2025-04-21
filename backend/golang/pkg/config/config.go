@@ -9,9 +9,12 @@ import (
 )
 
 type Config struct {
-	OpenAIAPIKey  string
-	GraphqlPort   string
-	OpenAIBaseURL string
+	OpenAIAPIKey     string
+	GraphqlPort      string
+	OpenAIBaseURL    string
+	EmbeddingsAPIURL string
+	CompletionsModel string
+	EmbeddingsModel  string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -35,9 +38,13 @@ func getEnvOrPanic(key string, printEnv bool) string { //nolint
 
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
-	return &Config{
-		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", "", printEnv),
-		GraphqlPort:   getEnv("GRAPHQL_PORT", "3000", printEnv),
-		OpenAIBaseURL: getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
-	}, nil
+	conf := &Config{
+		OpenAIAPIKey:     getEnv("OPENAI_API_KEY", "", printEnv),
+		GraphqlPort:      getEnv("GRAPHQL_PORT", "3000", printEnv),
+		OpenAIBaseURL:    getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
+		EmbeddingsAPIURL: getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsModel: getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
+		EmbeddingsModel:  getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
+	}
+	return conf, nil
 }

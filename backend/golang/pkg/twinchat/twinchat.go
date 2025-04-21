@@ -116,6 +116,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	if err != nil {
 		return nil, err
 	}
+	s.logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
 
 	subject := fmt.Sprintf("chat.%s", chatID)
 	toolResults := make([]string, len(response.ToolResults))

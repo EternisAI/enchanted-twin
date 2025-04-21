@@ -122,12 +122,12 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 	var stateQuery model.IndexingState
 	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
 	if err != nil {
-		fmt.Println(err)
+		r.Logger.Error("Error querying workflow", "error", err)
 		return profile, nil
 	}
 
 	if err := encodedValue.Get(&stateQuery); err != nil {
-		fmt.Println(err)
+		r.Logger.Error("Error querying workflow", "error", err)
 		return profile, nil
 	}
 

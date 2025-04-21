@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
 
 	"strings"
 	"sync"
@@ -19,12 +20,13 @@ import (
 )
 
 type GraphMemory struct {
-	db     *sql.DB
-	ai     *ai.Service
-	logger *log.Logger
+	db                   *sql.DB
+	ai                   *ai.Service
+	logger               *log.Logger
+	completionsModelName string
 }
 
-func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreate bool) (*GraphMemory, error) {
+func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreate bool, completionsModelName string) (*GraphMemory, error) {
 	db, err := sql.Open("postgres", pgString)
 	if err != nil {
 		return nil, err
@@ -35,7 +37,7 @@ func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreat
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	mem := &GraphMemory{db: db, ai: ai, logger: logger}
+	mem := &GraphMemory{db: db, ai: ai, logger: logger, completionsModelName: completionsModelName}
 
 	// Create schema with proper error handling
 	if err := mem.ensureDbSchema(recreate); err != nil {
@@ -59,7 +61,7 @@ type EntryInfo struct {
 
 // Constants for parallel processing
 const (
-	MaxConcurrentWorkers = 30
+	MaxConcurrentWorkers = 5
 )
 
 // Fact represents a subject-predicate-object triple extracted from text
@@ -90,7 +92,7 @@ func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument
 	// Check for errors during fact extraction
 	for i, err := range errs {
 		if err != nil {
-			fmt.Printf("Error processing entry %d: %v\n", i, err)
+			m.logger.Error("Error processing entry", "entry", i, "error", err)
 		}
 	}
 
@@ -109,7 +111,7 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 	// Begin a transaction
 	tx, err := m.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+		return nil, errors.Wrap(err, "failed to begin transaction")
 	}
 	defer func() {
 		if err != nil {
@@ -235,7 +237,7 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 
 	// Skip processing if no AI service is available
 	if m.ai == nil {
-		fmt.Println("No AI service available, skipping fact extraction")
+		m.logger.Info("No AI service available, skipping fact extraction")
 		return allFacts, allErrors
 	}
 
@@ -256,7 +258,7 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 			defer func() { <-sem }()
 
 			// Extract facts using AI
-			m.logger.Info("Extracting facts", "worker", idx, "length", len(text), "id", entryID)
+			m.logger.Debug("Extracting facts", "worker", idx, "length", len(text), "id", entryID)
 
 			facts, err := m.extractFacts(ctx, text, entryID)
 
@@ -276,9 +278,9 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 	}
 
 	// Wait for all goroutines to complete
-	fmt.Println("Waiting for all fact extraction workers to complete...")
+	m.logger.Info("Waiting for all fact extraction workers to complete...")
 	wg.Wait()
-	fmt.Println("All fact extraction workers completed")
+	m.logger.Info("All fact extraction workers completed")
 
 	return allFacts, allErrors
 }
@@ -358,13 +360,11 @@ func (m *GraphMemory) extractFacts(ctx context.Context, text string, textEntryID
 		openai.UserMessage(promptText),
 	}
 
-	// Use default model if not specified
-	model := "gpt-4o"
-
 	// Call the OpenAI API
-	response, err := m.ai.Completions(ctx, messages, nil, model)
+	m.logger.Debug("Calling AI service", "model", m.completionsModelName)
+	response, err := m.ai.Completions(ctx, messages, nil, m.completionsModelName)
 	if err != nil {
-		return nil, fmt.Errorf("error calling AI service: %w", err)
+		return nil, errors.Wrap(err, "error calling AI service")
 	}
 
 	// Parse the response to extract facts
@@ -373,7 +373,7 @@ func (m *GraphMemory) extractFacts(ctx context.Context, text string, textEntryID
 	// Store the facts in the database
 	storedFacts, err := m.storeFacts(ctx, facts, textEntryID)
 	if err != nil {
-		return nil, fmt.Errorf("error storing facts: %w", err)
+		return nil, errors.Wrap(err, "error storing facts")
 	}
 
 	return storedFacts, nil

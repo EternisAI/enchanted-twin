@@ -152,7 +152,6 @@ DROP TABLE IF EXISTS text_entries;
 CREATE TABLE text_entries (
                               id BIGSERIAL PRIMARY KEY,
                               text TEXT NOT NULL,
-                              metadata JSONB,  -- Allows storing additional metadata as JSON
                               UNIQUE(text, metadata)
 );
 
@@ -201,7 +200,7 @@ func (g *GraphMemory) GenerateSQLQueries(
 		ctx,
 		messages,
 		[]openai.ChatCompletionToolParam{extractSQLQueriesToolDefinition()},
-		"gpt-4o-mini",
+		g.completionsModelName,
 	)
 	if err != nil {
 		return nil, err
@@ -254,7 +253,7 @@ SCHEMA (abridged)
 
 INSTRUCTIONS
 -------------------------------------------------
-1. Produce **one or more** SQL statements that collectively answer the question. Do not return more than 100 documents together.
+1. Produce **one or more** SQL statements that collectively answer the question. Do not return more than 100 documents together. Count queries do not need a limit.
 2. When querying facts perform a JOIN with 'text_entries' on 'text_entry_id' to obtain 'text'.
 3. For each statement list every column alias (left‑to‑right).
    · Use alias **text** when the column holds original sentences.
