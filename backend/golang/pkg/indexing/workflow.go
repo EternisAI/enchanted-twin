@@ -9,6 +9,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
@@ -296,7 +297,20 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
+		case "gmail":
+			documents, err := gmail.ToDocuments(*dataSource.ProcessedPath)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "gmail", len(documents))
+			err = w.Memory.Store(ctx, documents)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+
 		}
+
 	}
 	return IndexDataActivityResponse{}, nil
 }
