@@ -234,11 +234,10 @@ type graphqlServerInput struct {
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(cors.New(cors.Options{
-		Logger:           input.logger,
 		AllowCredentials: true,
 		AllowedOrigins:   []string{"*"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
-		Debug:            true,
+		Debug:            false,
 	}).Handler)
 
 	srv := handler.New(gqlSchema(&graph.Resolver{
