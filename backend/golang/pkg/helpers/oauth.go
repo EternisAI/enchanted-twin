@@ -8,11 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -52,7 +53,7 @@ func generateRandomState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func StartOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, provider string, scope string) (string, error) {
+func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, provider string, scope string) (string, error) {
 	// Get config for supported provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
@@ -105,7 +106,7 @@ func StartOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, p
 	return authURL.String(), nil
 }
 
-func CompleteOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, state string, authCode string) (string, error) {
+func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, state string, authCode string) (string, error) {
 	logger.Debug("starting OAuth completion", "state", state)
 
 	// Retrieve session data using state
