@@ -12,6 +12,7 @@ type Config struct {
 	OpenAIAPIKey  string
 	GraphqlPort   string
 	OpenAIBaseURL string
+	DBPath        string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -39,5 +40,6 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		OpenAIAPIKey:  getEnv("OPENAI_API_KEY", "", printEnv),
 		GraphqlPort:   getEnv("GRAPHQL_PORT", "3000", printEnv),
 		OpenAIBaseURL: getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
+		DBPath:        getEnv("DB_PATH", "./store.db", printEnv),
 	}, nil
 }
