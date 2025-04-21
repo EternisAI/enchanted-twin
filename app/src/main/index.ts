@@ -92,40 +92,46 @@ app.whenReady().then(() => {
   // Define the database path
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
-  log.info(`Attempting to start Go server at: ${goBinaryPath}`)
+  
+  // Only start the Go server in production environment
+  if (!is.dev) {
+    log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
-  try {
-    // Start the Go server with DB_PATH as an environment variable
-    goServerProcess = spawn(goBinaryPath, [], {
-      env: {
-        ...process.env,
-        DB_PATH: dbPath
+    try {
+      // Start the Go server with DB_PATH as an environment variable
+      goServerProcess = spawn(goBinaryPath, [], {
+        env: {
+          ...process.env,
+          DB_PATH: dbPath
+        }
+      })
+
+      if (goServerProcess) {
+        goServerProcess.on('error', (err) => {
+          log.error('Failed to start Go server:', err)
+        })
+
+        goServerProcess.on('close', (code) => {
+          log.info(`Go server process exited with code ${code}`)
+          goServerProcess = null // Reset when closed
+        })
+
+        goServerProcess.stdout?.on('data', (data) => {
+          log.info(`Go Server stdout: ${data.toString().trim()}`)
+        })
+        goServerProcess.stderr?.on('data', (data) => {
+          log.error(`Go Server stderr: ${data.toString().trim()}`)
+        })
+
+        log.info('Go server process spawned.')
+      } else {
+        log.error('Failed to spawn Go server process.')
       }
-    })
-
-    if (goServerProcess) {
-      goServerProcess.on('error', (err) => {
-        log.error('Failed to start Go server:', err)
-      })
-
-      goServerProcess.on('close', (code) => {
-        log.info(`Go server process exited with code ${code}`)
-        goServerProcess = null // Reset when closed
-      })
-
-      goServerProcess.stdout?.on('data', (data) => {
-        log.info(`Go Server stdout: ${data.toString().trim()}`)
-      })
-      goServerProcess.stderr?.on('data', (data) => {
-        log.error(`Go Server stderr: ${data.toString().trim()}`)
-      })
-
-      log.info('Go server process spawned.')
-    } else {
-      log.error('Failed to spawn Go server process.')
+    } catch (error) {
+      log.error('Error spawning Go server:', error)
     }
-  } catch (error) {
-    log.error('Error spawning Go server:', error)
+  } else {
+    log.info('Running in development mode - packaged Go server not started')
   }
 
   // Set app user model id for windows
