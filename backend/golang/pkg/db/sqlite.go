@@ -84,6 +84,7 @@ func NewStore(dbPath string) (*Store, error) {
 			id TEXT PRIMARY KEY,
 			name TEXT,
 			path TEXT,
+			processed_path TEXT,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			is_indexed BOOLEAN DEFAULT FALSE,
 			has_error BOOLEAN DEFAULT FALSE

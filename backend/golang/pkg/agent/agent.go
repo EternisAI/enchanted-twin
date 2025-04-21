@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/nats-io/nats.go"
@@ -15,14 +17,16 @@ const MAX_STEPS = 10
 const MODEL = "gpt-4o-mini"
 
 type Agent struct {
+	logger           *log.Logger
 	nc               *nats.Conn
 	aiService        *ai.Service
 	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
 	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)
 }
 
-func NewAgent(nc *nats.Conn, aiService *ai.Service, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) *Agent {
+func NewAgent(logger *log.Logger, nc *nats.Conn, aiService *ai.Service, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) *Agent {
 	return &Agent{
+		logger:           logger,
 		nc:               nc,
 		aiService:        aiService,
 		PreToolCallback:  preToolCallback,
@@ -71,6 +75,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 		for _, toolCall := range completion.ToolCalls {
 			if a.PreToolCallback != nil {
+				a.logger.Debug("Pre tool callback", "tool_call", toolCall)
 				a.PreToolCallback(toolCall)
 			}
 		}
@@ -88,6 +93,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 				return AgentResponse{}, err
 			}
 
+			a.logger.Debug("Executing tool", "tool", toolCall.Function.Name, "args", args)
 			toolResult, err := tool.Execute(ctx, args)
 
 			if err != nil {
@@ -100,6 +106,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 			// send message with isCompleted true
 			if a.PostToolCallback != nil {
+				a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_result", toolResult)
 				a.PostToolCallback(toolCall, toolResult)
 			}
 			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))

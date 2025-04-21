@@ -3,6 +3,9 @@ package bootstrap
 import (
 	"errors"
 	"log/slog"
+
+	"github.com/charmbracelet/log"
+
 	"net"
 	"time"
 
@@ -14,7 +17,7 @@ const (
 	NatsServerURL = "nats://127.0.0.1:4222"
 )
 
-func StartEmbeddedNATSServer(logger *slog.Logger) (*server.Server, error) {
+func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
 	opts := &server.Options{
 		Port:      4222,
 		Host:      "127.0.0.1",
