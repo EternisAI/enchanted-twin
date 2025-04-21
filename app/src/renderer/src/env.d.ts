@@ -9,6 +9,13 @@ interface IElectronAPI {
     once(channel: string, func: (...args: unknown[]) => void): void
     invoke(channel: string, ...args: unknown[]): Promise<{ canceled: boolean; filePaths: string[] }>
   }
+  process: {
+    versions: {
+      electron: string
+      chrome: string
+      node: string
+    }
+  }
 }
 
 interface IApi {

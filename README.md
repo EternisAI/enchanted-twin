@@ -1,17 +1,18 @@
 # Enchanted Twin
 
-## requirements
+## Dev Requirements
 
 - [Ollama](https://ollama.ai/) must be installed **and running** on your system
 - Go
 - pnpm
 - Node.js
+- Docker
 
 ## setup
 
 ### ollama
 
-You must have Ollama installed **and running* on your system and running.
+You must have Ollama installed \*_and running_ on your system and running.
 
 ### frontend
 
@@ -29,4 +30,16 @@ You must have Ollama installed **and running* on your system and running.
 
 ## build & release
 
-TBa
+Navigate to the root.
+
+For Mac M series use.
+
+```sh
+make build-mac-silicon
+```
+
+To build for all architectures
+
+```sh
+make build-all
+```
