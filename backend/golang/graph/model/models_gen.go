@@ -46,6 +46,12 @@ type Message struct {
 type Mutation struct {
 }
 
+type OAuthStatus struct {
+	Provider  string   `json:"provider"`
+	ExpiresAt string   `json:"expiresAt"`
+	Scope     []string `json:"scope"`
+}
+
 type Query struct {
 }
 
