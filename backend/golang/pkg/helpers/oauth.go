@@ -101,7 +101,7 @@ func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, pr
 		return "", fmt.Errorf("unable to store state and verifier for provider '%s': %w", provider, err)
 	}
 
-	logger.Debug("start OAuth flow: stored stated and verifier to database", "provider", provider, "state", state, "scope", scope)
+	logger.Debug("start OAuth flow: stored state and verifier to database", "provider", provider, "state", state, "scope", scope)
 
 	return authURL.String(), nil
 }
