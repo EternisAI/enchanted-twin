@@ -8,11 +8,23 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
 )
+
+var dockerCommand string
+
+func init() {
+	switch runtime.GOOS {
+	case "windows":
+		dockerCommand = "docker" // Rely on PATH for Windows
+	default: // darwin (macOS), linux, etc.
+		dockerCommand = "/usr/local/bin/docker" // Assume standard location for Unix-like systems
+	}
+}
 
 // ContainerOptions represents options for running a Docker container
 type ContainerOptions struct {
@@ -43,7 +55,7 @@ type Service struct {
 // NewService creates a new Docker service
 func NewService(options ContainerOptions, logger *log.Logger) (*Service, error) {
 	// Check if Docker is available
-	cmd := exec.Command("docker", "--version")
+	cmd := exec.Command(dockerCommand, "--version")
 	if err := cmd.Run(); err != nil {
 		return nil, fmt.Errorf("docker not available: %w", err)
 	}
@@ -90,7 +102,7 @@ func (s *Service) FullImageName() string {
 func (s *Service) CheckImageExists(ctx context.Context) (bool, time.Time, error) {
 	cmd := exec.CommandContext(
 		ctx,
-		"docker",
+		dockerCommand,
 		"image",
 		"inspect",
 		"--format", "{{.Created}}",
@@ -153,7 +165,7 @@ func (s *Service) BuildImage(ctx context.Context) error {
 		args = append(args, ".")
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := exec.CommandContext(ctx, dockerCommand, args...)
 
 	// Connect pipes
 	var stderr bytes.Buffer
@@ -173,7 +185,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	// Check if container already exists
 	cmd := exec.CommandContext(
 		ctx,
-		"docker",
+		dockerCommand,
 		"ps",
 		"-a",
 		"--filter", fmt.Sprintf("name=%s", s.options.ContainerName),
@@ -202,7 +214,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 
 		// Container exists but is not running
 		s.logger.Info("Starting existing container", slog.String("container", s.options.ContainerName))
-		cmd = exec.CommandContext(ctx, "docker", "start", containerID)
+		cmd = exec.CommandContext(ctx, dockerCommand, "start", containerID)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
@@ -275,7 +287,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 		args = append(args, s.options.Command...)
 	}
 
-	cmd = exec.CommandContext(ctx, "docker", args...)
+	cmd = exec.CommandContext(ctx, dockerCommand, args...)
 	var stderr bytes.Buffer
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = &stderr
@@ -293,7 +305,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 
 // StopContainer stops the Docker container
 func (s *Service) StopContainer(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "docker", "stop", s.options.ContainerName)
+	cmd := exec.CommandContext(ctx, dockerCommand, "stop", s.options.ContainerName)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -307,7 +319,7 @@ func (s *Service) StopContainer(ctx context.Context) error {
 
 // RemoveContainer removes the Docker container
 func (s *Service) RemoveContainer(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "docker", "rm", "-f", s.options.ContainerName)
+	cmd := exec.CommandContext(ctx, dockerCommand, "rm", "-f", s.options.ContainerName)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 
@@ -321,7 +333,7 @@ func (s *Service) RemoveContainer(ctx context.Context) error {
 
 // GetContainerLogs gets logs from the Docker container
 func (s *Service) GetContainerLogs(ctx context.Context) (string, error) {
-	cmd := exec.CommandContext(ctx, "docker", "logs", "--tail", "100", s.options.ContainerName)
+	cmd := exec.CommandContext(ctx, dockerCommand, "logs", "--tail", "100", s.options.ContainerName)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -336,7 +348,7 @@ func (s *Service) GetContainerLogs(ctx context.Context) (string, error) {
 // ExecuteCommand executes a command in the Docker container
 func (s *Service) ExecuteCommand(ctx context.Context, command []string) (string, error) {
 	args := append([]string{"exec", s.options.ContainerName}, command...)
-	cmd := exec.CommandContext(ctx, "docker", args...)
+	cmd := exec.CommandContext(ctx, dockerCommand, args...)
 
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
