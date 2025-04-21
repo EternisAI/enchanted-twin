@@ -47,35 +47,65 @@ func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.Post
 	// Get default options
 	options := bootstrap.DefaultPostgresOptions()
 
-	// Set up command line flags
-	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
-	logger.Info("Using database path", slog.String("path", *dbPath))
+	// Create and start PostgreSQL service
+	postgresService, err := bootstrap.NewPostgresService(logger, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
+	}
+
+	logger.Info("Starting PostgreSQL service...")
+	err = postgresService.Start(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
+	}
+
+	return postgresService, nil
+}
+
+func main() {
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		ReportCaller:    true,
+		ReportTimestamp: true,
+		Level:           log.DebugLevel,
+		TimeFormat:      time.Kitchen,
+	})
+
+	recreateMemDb := flag.Bool("recreate-mem-db", false, "Recreate the postgres memory database")
 	flag.Parse()
 
-	// Open database
-	store, err := db.NewStore(context.Background(), *dbPath)
-	if err != nil {
-		logger.Error("Unable to create or initialize database", "error", err)
-		panic(errors.Wrap(err, "Unable to create or initialize database"))
-	}
-	defer func() {
-		if err := store.Close(); err != nil {
-			logger.Error("Error closing store", slog.Any("error", err))
-		}
-	}()
-	logger.Info("SQLite database initialized")
+	envs, _ := config.LoadConfig(true)
+	logger.Debug("Config loaded", "envs", envs)
 
-	envs, err := config.LoadConfig(true)
-
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to load config"))
-	}
-	logger.Info("Config loaded", slog.Any("envs", envs))
+	logger.Info("Using database path", "path", envs.DBPath)
 
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
 	}
+
+	// Start PostgreSQL
+	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	postgresService, err := bootstrapPostgres(postgresCtx, logger)
+	if err != nil {
+		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
+	}
+
+	// Set up cleanup on shutdown
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		// Stop the container
+		if err := postgresService.Stop(shutdownCtx); err != nil {
+			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
+		}
+		// Remove the container to ensure clean state for next startup
+		if err := postgresService.Remove(shutdownCtx); err != nil {
+			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
+		}
+	}()
 
 	_, err = bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -89,7 +119,39 @@ func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.Post
 	}
 	logger.Info("NATS client started")
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, *dbPath)
+	store, err := db.NewStore(envs.DBPath)
+	if err != nil {
+		logger.Error("Unable to create or initialize database", "error", err)
+		panic(errors.Wrap(err, "Unable to create or initialize database"))
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Error closing store", slog.Any("error", err))
+		}
+	}()
+	logger.Info("SQLite database initialized")
+
+	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
+		logger.Error("Failed waiting for PostgreSQL to be ready", slog.Any("error", err))
+		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
+	}
+	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	chatStorage := chatrepository.NewRepository(logger, store.DB())
+
+	// Ensure enchanted_twin database exists
+	dbName := "enchanted_twin"
+	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
+		logger.Error("Failed to ensure database exists", slog.Any("error", err))
+		panic(errors.Wrap(err, "Unable to ensure database exists"))
+	}
+
+	logger.Info("PostgreSQL listening at", "connection", postgresService.GetConnectionString(dbName))
+	memory, err := graphmemory.NewGraphMemory(logger, postgresService.GetConnectionString(dbName), aiService, *recreateMemDb, envs.CompletionsModel)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create graph memory"))
+	}
+
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
