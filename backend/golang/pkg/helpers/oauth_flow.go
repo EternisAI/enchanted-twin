@@ -124,12 +124,12 @@ func fetchUserInfo(ctx context.Context, _ *slog.Logger, store *db.Store, provide
 // OAuthFlow executes the OAuth PKCE flow for the specified provider
 //
 // This is used to test the flow in pure Go.
-func OAuthFlow(provider string, logger *slog.Logger, store *db.Store) error {
+func OAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, provider string) error {
 	logger.Info("Starting OAuth flow...", "provider", provider)
 
 	flowWaitGroup.Add(1)
 
-	url, err := StartOAuthFlow(context.Background(), logger, store, provider)
+	url, err := StartOAuthFlow(ctx, logger, store, provider)
 	if err != nil {
 		return fmt.Errorf("failed to start OAuth flow: %w", err)
 	}
@@ -164,6 +164,8 @@ func StartOAuthCallbackServer(logger *slog.Logger, store *db.Store) error {
 
 	// Setup the callback handler
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
+		// At the end of processing, whether successful or not, signal completion
+		defer flowWaitGroup.Done()
 		reqCtx, reqCancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer reqCancel()
 		provider, userInfo, err := callbackHandler(reqCtx, logger, store, r)
@@ -177,8 +179,6 @@ func StartOAuthCallbackServer(logger *slog.Logger, store *db.Store) error {
 			logger.Debug("User info", "data", userJSONString)
 			fmt.Fprintf(w, "Authentication successful! You can close this window.\nUser data:\n%s", userJSONString)
 		}
-		// At the end of processing, whether successful or not, signal completion
-		flowWaitGroup.Done()
 	})
 
 	// Start the server in a goroutine

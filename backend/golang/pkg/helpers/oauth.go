@@ -106,8 +106,10 @@ func StartOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, p
 }
 
 func CompleteOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, state string, authCode string) (string, error) {
+	logger.Debug("starting OAuth completion", "state", state)
+
 	// Retrieve session data using state
-	provider, codeVerifier, err := store.GetOAuthProviderAndVerifier(ctx, state)
+	provider, codeVerifier, err := store.GetAndClearOAuthProviderAndVerifier(ctx, state)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to get OAuth state: %w", err)
