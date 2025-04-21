@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
@@ -262,12 +261,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		case "direct_message":
 			content = record.Data["text"].(string)
 			metadata = map[string]string{
-				"type":           "direct_message",
-				"id":             record.Data["conversationId"].(string),
-				"conversationId": record.Data["conversationId"].(string),
-				"myMessage":      strconv.FormatBool(record.Data["myMessage"].(bool)),
-				"recipientId":    record.Data["recipientId"].(string),
-				"senderId":       record.Data["senderId"].(string),
+				"type": "direct_message",
 			}
 			tags = append(tags, "direct_message", record.Data["conversationId"].(string), record.Data["recipientId"].(string), record.Data["senderId"].(string))
 		}
