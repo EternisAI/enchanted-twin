@@ -82,6 +82,8 @@ func main() {
 
 	logger.Info("Using database path", slog.String("path", envs.DBPath))
 
+	logger.Info("Using database path", slog.String("path", envs.DBPath))
+
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
