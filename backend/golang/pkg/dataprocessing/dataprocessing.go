@@ -198,7 +198,9 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 			}
 
 			if _, err := io.Copy(outFile, tarReader); err != nil {
-				outFile.Close()
+				if errClose := outFile.Close(); errClose != nil {
+					log.Printf("Error closing file: %v", errClose)
+				}
 				err = os.RemoveAll(tempDir)
 				if err != nil {
 					return "", fmt.Errorf("error removing temp directory: %v", err)

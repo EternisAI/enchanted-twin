@@ -1,3 +1,8 @@
+.DS_Store
+.idea
+*.log
+tmp/
+
 build/
 .idea
 .env
@@ -7,5 +12,5 @@ data_input/
 store.db*
 *.db-shm
 *.db-wal
-postgres-data/*
-data/*
+
+texfrag

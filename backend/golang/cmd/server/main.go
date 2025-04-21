@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -10,6 +11,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
@@ -37,22 +42,72 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
+// bootstrapPostgres initializes and starts a PostgreSQL service
+func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.PostgresService, error) {
+	// Get default options
+	options := bootstrap.DefaultPostgresOptions()
+
+	// Create and start PostgreSQL service
+	postgresService, err := bootstrap.NewPostgresService(logger, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
+	}
+
+	logger.Info("Starting PostgreSQL service...")
+	err = postgresService.Start(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
+	}
+
+	return postgresService, nil
+}
+
 func main() {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	logger := log.NewWithOptions(os.Stderr, log.Options{
+		ReportCaller:    true,
+		ReportTimestamp: true,
+		Level:           log.DebugLevel,
+		TimeFormat:      time.Kitchen,
+	})
 
 	// Parse command line flags
 	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
+	recreateMemDb := flag.Bool("recreate-mem-db", false, "Recreate the postgres memory database")
 	flag.Parse()
 
-	logger.Info("Using database path", slog.String("path", *dbPath))
+	logger.Info("Using database path", "path", *dbPath)
 
 	envs, _ := config.LoadConfig(true)
+	logger.Debug("Config loaded", "envs", envs)
 
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
 	}
-	logger.Info("Config loaded", slog.Any("envs", envs))
+
+	// Start PostgreSQL
+	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	postgresService, err := bootstrapPostgres(postgresCtx, logger)
+	if err != nil {
+		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
+	}
+
+	// Set up cleanup on shutdown
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		// Stop the container
+		if err := postgresService.Stop(shutdownCtx); err != nil {
+			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
+		}
+		// Remove the container to ensure clean state for next startup
+		if err := postgresService.Remove(shutdownCtx); err != nil {
+			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
+		}
+	}()
 
 	_, err = bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -78,14 +133,32 @@ func main() {
 	}()
 	logger.Info("SQLite database initialized")
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, *dbPath)
+	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
+		logger.Error("Failed waiting for PostgreSQL to be ready", slog.Any("error", err))
+		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
+	}
+	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	chatStorage := chatrepository.NewRepository(logger, store.DB())
+
+	// Ensure enchanted_twin database exists
+	dbName := "enchanted_twin"
+	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
+		logger.Error("Failed to ensure database exists", slog.Any("error", err))
+		panic(errors.Wrap(err, "Unable to ensure database exists"))
+	}
+
+	logger.Info("PostgreSQL listening at", "connection", postgresService.GetConnectionString(dbName))
+	memory, err := graphmemory.NewGraphMemory(logger, postgresService.GetConnectionString(dbName), aiService, *recreateMemDb, envs.CompletionsModel)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to create graph memory"))
+	}
+
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory, *dbPath)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	chatStorage := chatrepository.NewRepository(logger, store.DB())
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
@@ -96,13 +169,9 @@ func main() {
 		store:           store,
 	})
 
-	// Set up signal handling for graceful shutdown BEFORE starting the server
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
-
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
-		logger.Info("Starting GraphQL HTTP server", slog.String("port", envs.GraphqlPort))
+		logger.Info("Starting GraphQL HTTP server", "port", envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTP server error", slog.Any("error", err))
@@ -110,14 +179,15 @@ func main() {
 		}
 	}()
 
-	logger.Info("Server ready for GraphQL queries", slog.String("port", envs.GraphqlPort))
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
 	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, dbPath string) (client.Client, error) {
+func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, memory memory.Storage, dbPath string) (client.Client, error) {
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready, dbPath)
 	<-ready
@@ -139,8 +209,9 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 		Store:        store,
 		Nc:           nc,
 		OllamaClient: ollamaClient,
+		Memory:       memory,
 	}
-	indexingWorkflow.RegisterWorkflows(&w)
+	indexingWorkflow.RegisterWorkflowsAndActivities(&w)
 
 	err = w.Start()
 	if err != nil {
@@ -152,7 +223,7 @@ func bootstrapTemporal(logger *slog.Logger, envs *config.Config, store *db.Store
 }
 
 type graphqlServerInput struct {
-	logger          *slog.Logger
+	logger          *log.Logger
 	temporalClient  client.Client
 	port            string
 	twinChatService *twinchat.Service
@@ -166,7 +237,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AllowCredentials: true,
 		AllowedOrigins:   []string{"*"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
-		Debug:            true,
+		Debug:            false,
 	}).Handler)
 
 	srv := handler.New(gqlSchema(&graph.Resolver{

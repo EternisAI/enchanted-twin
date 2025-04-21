@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
+
+	"github.com/charmbracelet/log"
+
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -24,15 +27,17 @@ type Service struct {
 	aiService *ai.Service
 	storage   Storage
 	nc        *nats.Conn
-	logger    *slog.Logger
+	logger    *log.Logger
+	memory    memory.Storage
 }
 
-func NewService(logger *slog.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage) *Service {
 	return &Service{
 		logger:    logger,
 		aiService: aiService,
 		storage:   storage,
 		nc:        nc,
+		memory:    memory,
 	}
 }
 
@@ -100,16 +105,18 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		}
 	}
 
-	agent := agent.NewAgent(s.nc, s.aiService, preToolCallback, postToolCallback)
+	agent := agent.NewAgent(s.logger, s.nc, s.aiService, preToolCallback, postToolCallback)
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
+		tools.NewMemorySearchTool(s.logger, s.memory),
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)
 	if err != nil {
 		return nil, err
 	}
+	s.logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
 
 	subject := fmt.Sprintf("chat.%s", chatID)
 	toolResults := make([]string, len(response.ToolResults))
