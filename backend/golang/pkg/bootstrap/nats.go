@@ -3,6 +3,8 @@ package bootstrap
 import (
 	"errors"
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/charmbracelet/log"
 
@@ -18,11 +20,23 @@ const (
 )
 
 func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
+	cacheDir, err := os.UserCacheDir()
+	if err != nil {
+		return nil, errors.New("unable to get user cache directory")
+	}
+	storeDir := filepath.Join(cacheDir, "enchanted-twin", "nats")
+
+	// Ensure the directory exists
+	if err := os.MkdirAll(storeDir, 0755); err != nil {
+		return nil, errors.New("unable to create NATS store directory")
+	}
+	logger.Debug("Using NATS store directory", "path", storeDir)
+
 	opts := &server.Options{
 		Port:      4222,
 		Host:      "127.0.0.1",
 		JetStream: true,
-		StoreDir:  "./nats",
+		StoreDir:  storeDir, // Use absolute path
 	}
 
 	s, err := server.NewServer(opts)
