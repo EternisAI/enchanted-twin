@@ -9,7 +9,13 @@ import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { ApolloClientProvider } from './graphql/provider'
 import { ThemeProvider } from './lib/theme'
 
-const router = createRouter({ routeTree, defaultViewTransition: true })
+import { createHashHistory } from '@tanstack/react-router'
+
+const router = createRouter({
+  routeTree,
+  defaultViewTransition: true,
+  history: createHashHistory(),
+})
 
 // Register the router instance for type safety
 declare module '@tanstack/react-router' {
