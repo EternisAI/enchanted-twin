@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"log/slog"
 	"net/http"
 	"os"
@@ -40,13 +39,9 @@ import (
 func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	// Parse command line flags
-	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
-	flag.Parse()
-
-	logger.Info("Using database path", slog.String("path", *dbPath))
-
 	envs, _ := config.LoadConfig(true)
+
+	logger.Info("Using database path", slog.String("path", envs.DBPath))
 
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 	if err != nil {
@@ -66,7 +61,7 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	store, err := db.NewStore(*dbPath)
+	store, err := db.NewStore(envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
@@ -78,7 +73,7 @@ func main() {
 	}()
 	logger.Info("SQLite database initialized")
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, *dbPath)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, envs.DBPath)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
