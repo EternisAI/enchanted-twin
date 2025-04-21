@@ -71,6 +71,11 @@ type Query {
 }
 
 type Mutation {
+  # Start OAuth flow - returns URL to open in browser
+  startOAuthFlow(provider: String!): String!
+  # Complete OAuth flow of 'state' with 'authCode' received from callback
+  # On success, returns the provider which is now available
+  completeOAuthFlow(state: String!, authCode: String!): String!
   updateProfile(input: UpdateProfileInput!): Boolean!
   createChat(name: String!): Chat!
   sendMessage(chatId: ID!, text: String!): Message!

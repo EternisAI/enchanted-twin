@@ -86,13 +86,15 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddDataSource    func(childComplexity int, name string, path string) int
-		CreateChat       func(childComplexity int, name string) int
-		DeleteChat       func(childComplexity int, chatID string) int
-		DeleteDataSource func(childComplexity int, id string) int
-		SendMessage      func(childComplexity int, chatID string, text string) int
-		StartIndexing    func(childComplexity int) int
-		UpdateProfile    func(childComplexity int, input model.UpdateProfileInput) int
+		AddDataSource     func(childComplexity int, name string, path string) int
+		CompleteOAuthFlow func(childComplexity int, state string, authCode string) int
+		CreateChat        func(childComplexity int, name string) int
+		DeleteChat        func(childComplexity int, chatID string) int
+		DeleteDataSource  func(childComplexity int, id string) int
+		SendMessage       func(childComplexity int, chatID string, text string) int
+		StartIndexing     func(childComplexity int) int
+		StartOAuthFlow    func(childComplexity int, provider string) int
+		UpdateProfile     func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
 	Query struct {
@@ -132,6 +134,8 @@ type ChatResolver interface {
 	Messages(ctx context.Context, obj *model.Chat) ([]*model.Message, error)
 }
 type MutationResolver interface {
+	StartOAuthFlow(ctx context.Context, provider string) (string, error)
+	CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error)
@@ -344,6 +348,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.AddDataSource(childComplexity, args["name"].(string), args["path"].(string)), true
 
+	case "Mutation.completeOAuthFlow":
+		if e.complexity.Mutation.CompleteOAuthFlow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_completeOAuthFlow_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CompleteOAuthFlow(childComplexity, args["state"].(string), args["authCode"].(string)), true
+
 	case "Mutation.createChat":
 		if e.complexity.Mutation.CreateChat == nil {
 			break
@@ -398,6 +414,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.StartIndexing(childComplexity), true
+
+	case "Mutation.startOAuthFlow":
+		if e.complexity.Mutation.StartOAuthFlow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_startOAuthFlow_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.StartOAuthFlow(childComplexity, args["provider"].(string)), true
 
 	case "Mutation.updateProfile":
 		if e.complexity.Mutation.UpdateProfile == nil {
@@ -733,6 +761,47 @@ func (ec *executionContext) field_Mutation_addDataSource_argsPath(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_completeOAuthFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_completeOAuthFlow_argsState(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg0
+	arg1, err := ec.field_Mutation_completeOAuthFlow_argsAuthCode(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["authCode"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_completeOAuthFlow_argsState(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+	if tmp, ok := rawArgs["state"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_completeOAuthFlow_argsAuthCode(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("authCode"))
+	if tmp, ok := rawArgs["authCode"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_createChat_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -836,6 +905,29 @@ func (ec *executionContext) field_Mutation_sendMessage_argsText(
 ) (string, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
 	if tmp, ok := rawArgs["text"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_startOAuthFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_startOAuthFlow_argsProvider(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_startOAuthFlow_argsProvider(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("provider"))
+	if tmp, ok := rawArgs["provider"]; ok {
 		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
@@ -2145,6 +2237,116 @@ func (ec *executionContext) fieldContext_Message_createdAt(_ context.Context, fi
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_startOAuthFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_startOAuthFlow(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().StartOAuthFlow(rctx, fc.Args["provider"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_startOAuthFlow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_startOAuthFlow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_completeOAuthFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_completeOAuthFlow(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CompleteOAuthFlow(rctx, fc.Args["state"].(string), fc.Args["authCode"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_completeOAuthFlow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_completeOAuthFlow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -5911,6 +6113,20 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		switch field.Name {
 		case "__typename":
 			out.Values[i] = graphql.MarshalString("Mutation")
+		case "startOAuthFlow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_startOAuthFlow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completeOAuthFlow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_completeOAuthFlow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "updateProfile":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_updateProfile(ctx, field)
