@@ -52,7 +52,7 @@ func generateRandomState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func StartOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, provider string) (string, error) {
+func StartOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, provider string, scope string) (string, error) {
 	// Get config for supported provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
@@ -81,7 +81,7 @@ func StartOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, p
 	q.Set("response_type", "code")
 	q.Set("client_id", config.ClientID)
 	q.Set("redirect_uri", redirectURI)
-	q.Set("scope", config.Scope)
+	q.Set("scope", scope)
 	q.Set("state", state)
 	q.Set("code_challenge", codeChallenge)
 	q.Set("code_challenge_method", "S256")
@@ -94,13 +94,13 @@ func StartOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, p
 
 	authURL.RawQuery = q.Encode()
 
-	err = store.SetOAuthStateAndVerifier(ctx, provider, state, codeVerifier)
+	err = store.SetOAuthStateAndVerifier(ctx, provider, state, codeVerifier, scope)
 
 	if err != nil {
 		return "", fmt.Errorf("unable to store state and verifier for provider '%s': %w", provider, err)
 	}
 
-	logger.Debug("start OAuth flow: stored stated and verifier to database", "provider", provider, "state", state)
+	logger.Debug("start OAuth flow: stored stated and verifier to database", "provider", provider, "state", state, "scope", scope)
 
 	return authURL.String(), nil
 }
@@ -109,7 +109,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store
 	logger.Debug("starting OAuth completion", "state", state)
 
 	// Retrieve session data using state
-	provider, codeVerifier, err := store.GetAndClearOAuthProviderAndVerifier(ctx, state)
+	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(ctx, state)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to get OAuth state: %w", err)
@@ -178,6 +178,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store
 	oauthTokens := db.OAuthTokens{
 		Provider:     provider,
 		TokenType:    tokenResp.TokenType,
+		Scope:        scope,
 		AccessToken:  tokenResp.AccessToken,
 		ExpiresAt:    expiresAt,
 		RefreshToken: tokenResp.RefreshToken,
@@ -187,7 +188,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store
 		return "", fmt.Errorf("failed to store tokens: %w", err)
 	}
 
-	logger.Debug("completed OAuth flow: stored tokens to database", "provider", provider, "state", state, "expires_at", expiresAt)
+	logger.Debug("completed OAuth flow: stored tokens to database", "provider", provider, "state", state, "expires_at", expiresAt, "scope", scope)
 
 	return provider, nil
 }
