@@ -148,7 +148,7 @@ func main() {
 	}
 
 	logger.Info("PostgreSQL listening at", "connection", postgresService.GetConnectionString(dbName))
-	memory, err := graphmemory.NewGraphMemory(logger, postgresService.GetConnectionString(dbName), aiService, *recreateMemDb)
+	memory, err := graphmemory.NewGraphMemory(logger, postgresService.GetConnectionString(dbName), aiService, *recreateMemDb, envs.CompletionsModel)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create graph memory"))
 	}
@@ -234,6 +234,7 @@ type graphqlServerInput struct {
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(cors.New(cors.Options{
+		Logger:           input.logger,
 		AllowCredentials: true,
 		AllowedOrigins:   []string{"*"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Accept"},
