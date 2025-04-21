@@ -8,9 +8,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -197,4 +200,83 @@ func GetUserIDByUsername(username string, bearerToken string) (string, error) {
 	}
 
 	return userResponse.Data[0].ID, nil
+}
+
+type LikeData struct {
+	ExpandedUrl string `json:"expandedUrl"`
+	FullText    string `json:"fullText"`
+	TweetId     string `json:"tweetId"`
+	Type        string `json:"type"`
+}
+type TweetData struct {
+	FavoriteCount string `json:"favoriteCount"`
+	FullText      string `json:"fullText"`
+	Id            string `json:"id"`
+	Lang          string `json:"lang"`
+	RetweetCount  string `json:"retweetCount"`
+	Type          string `json:"type"`
+	UserId        string `json:"userId"`
+}
+
+type DirectMessageData struct {
+	ConversationId string `json:"conversationId"`
+	MyMessage      bool   `json:"myMessage"`
+	RecipientId    string `json:"recipientId"`
+	SenderId       string `json:"senderId"`
+	Text           string `json:"text"`
+	Type           string `json:"type"`
+}
+
+func ToDocuments(path string) ([]memory.TextDocument, error) {
+	records, err := helpers.ReadJSONL[types.Record](path)
+	if err != nil {
+		return nil, err
+	}
+	documents := make([]memory.TextDocument, 0, len(records))
+	for _, record := range records {
+		content := ""
+		metadata := map[string]string{}
+		tags := []string{"x"}
+		switch record.Data["type"] {
+		case "like":
+			content = record.Data["fullText"].(string)
+			metadata = map[string]string{
+				"type":        "like",
+				"id":          record.Data["tweetId"].(string),
+				"url":         record.Data["expandedUrl"].(string),
+				"tweetId":     record.Data["tweetId"].(string),
+				"expandedUrl": record.Data["expandedUrl"].(string),
+			}
+			tags = append(tags, "like", record.Data["tweetId"].(string))
+		case "tweet":
+			content = record.Data["fullText"].(string)
+			metadata = map[string]string{
+				"type":          "tweet",
+				"id":            record.Data["id"].(string),
+				"favoriteCount": record.Data["favoriteCount"].(string),
+				"retweetCount":  record.Data["retweetCount"].(string),
+				"userId":        record.Data["userId"].(string),
+				"lang":          record.Data["lang"].(string),
+			}
+			tags = append(tags, "tweet", record.Data["id"].(string), record.Data["retweetCount"].(string), record.Data["favoriteCount"].(string))
+		case "direct_message":
+			content = record.Data["text"].(string)
+			metadata = map[string]string{
+				"type":           "direct_message",
+				"id":             record.Data["conversationId"].(string),
+				"conversationId": record.Data["conversationId"].(string),
+				"myMessage":      strconv.FormatBool(record.Data["myMessage"].(bool)),
+				"recipientId":    record.Data["recipientId"].(string),
+				"senderId":       record.Data["senderId"].(string),
+			}
+			tags = append(tags, "direct_message", record.Data["conversationId"].(string), record.Data["recipientId"].(string), record.Data["senderId"].(string))
+		}
+		documents = append(documents, memory.TextDocument{
+			Content:   content,
+			Timestamp: &record.Timestamp,
+			Tags:      tags,
+			Metadata:  metadata,
+		})
+	}
+	return documents, nil
 }

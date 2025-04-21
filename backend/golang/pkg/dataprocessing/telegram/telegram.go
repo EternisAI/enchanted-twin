@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -185,4 +187,60 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]types.Record, 
 	}
 
 	return records, nil
+}
+
+func ToDocuments(path string) ([]memory.TextDocument, error) {
+	records, err := helpers.ReadJSONL[types.Record](path)
+	if err != nil {
+		return nil, err
+	}
+
+	textDocuments := []memory.TextDocument{}
+	for _, record := range records {
+		if record.Data["type"] == "message" {
+
+			message, ok := record.Data["text"].(string)
+			if !ok || message == "" {
+				continue
+			}
+			from, ok := record.Data["from"].(string)
+			if !ok || from == "" {
+				continue
+			}
+
+			textDocuments = append(textDocuments, memory.TextDocument{
+				Content:   message,
+				Timestamp: &record.Timestamp,
+				Tags:      []string{"telegram", from},
+			})
+
+		}
+		if record.Data["type"] == "contact" {
+			firstName, ok := record.Data["firstName"].(string)
+			if !ok {
+				firstName = ""
+			}
+			lastName, ok := record.Data["lastName"].(string)
+			if !ok {
+				lastName = ""
+			}
+			phoneNumber, ok := record.Data["phoneNumber"].(string)
+			if !ok {
+				phoneNumber = ""
+			}
+			textDocuments = append(textDocuments, memory.TextDocument{
+				Content:   firstName + " " + lastName,
+				Timestamp: &record.Timestamp,
+				Tags:      []string{"telegram", firstName},
+				Metadata: map[string]string{
+					"type":        "contact",
+					"firstName":   firstName,
+					"lastName":    lastName,
+					"phoneNumber": phoneNumber,
+				},
+			})
+		}
+	}
+
+	return textDocuments, nil
 }
