@@ -1,6 +1,5 @@
-import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { OnboardingLayout } from './OnboardingLayout'
-import { useMutation } from '@apollo/client'
+import { useMutation, useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
 import { HelpCircle } from 'lucide-react'
 import { Button } from '../ui/button'
@@ -10,6 +9,20 @@ import { ImportInstructionsModal } from './ImportInstructionsModal'
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
     addDataSource(name: $name, path: $path)
+  }
+`
+
+const GET_DATA_SOURCES = gql`
+  query GetDataSources {
+    getDataSources {
+      id
+      name
+      path
+      updatedAt
+      isProcessed
+      isIndexed
+      hasError
+    }
   }
 `
 
@@ -66,16 +79,9 @@ const DATA_SOURCES: {
 ]
 
 export function ImportDataStep() {
-  const { addDataSource, dataSources, removeDataSource } = useOnboardingStore()
-  const [addDataSourceMutation] = useMutation(ADD_DATA_SOURCE)
   const [selectedDataSource, setSelectedDataSource] = useState<string | null>(null)
-
-  const handleRemoveDataSource = (name: string) => {
-    const source = dataSources.find((ds) => ds.name === name)
-    if (source) {
-      removeDataSource(source.id)
-    }
-  }
+  const [addDataSourceMutation] = useMutation(ADD_DATA_SOURCE)
+  const { data, refetch } = useQuery(GET_DATA_SOURCES)
 
   const handleFileSelect = async (name: string, selectType: 'directory' | 'files') => {
     try {
@@ -87,25 +93,15 @@ export function ImportDataStep() {
       if (result.canceled) return
 
       // Call GraphQL mutation to add data source
-      const { data } = await addDataSourceMutation({
+      await addDataSourceMutation({
         variables: {
           name,
           path: result.filePaths[0]
         }
       })
 
-      if (data?.addDataSource) {
-        // Add data source to store
-        addDataSource({
-          id: crypto.randomUUID(), // Generate a unique ID
-          name,
-          path: result.filePaths[0],
-          updatedAt: new Date(),
-          isProcessed: false,
-          isIndexed: false,
-          hasError: false
-        })
-      }
+      // Refetch data sources to update the UI
+      await refetch()
     } catch (error) {
       console.error('Error selecting files:', error)
     }
@@ -126,8 +122,8 @@ export function ImportDataStep() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 grid-flow-row h-full">
           {DATA_SOURCES.map(({ name, label, description, selectType, fileRequirement }) => {
-            const isSelected = dataSources.some((ds) => ds.name === name)
-            const source = dataSources.find((ds) => ds.name === name)
+            const dataSource = data?.getDataSources?.find((ds) => ds.name === name)
+            const isSelected = !!dataSource
 
             return (
               <div key={name} className="relative h-full">
@@ -165,16 +161,9 @@ export function ImportDataStep() {
                           >
                             Change
                           </Button>
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => handleRemoveDataSource(name)}
-                          >
-                            Remove
-                          </Button>
                         </div>
                       </div>
-                      <p className="text-muted-foreground text-xs truncate">{source?.path}</p>
+                      <p className="text-muted-foreground text-xs truncate">{dataSource?.path}</p>
                     </div>
                   ) : (
                     <div className="space-y-2">

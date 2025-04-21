@@ -24,6 +24,8 @@ You must have Ollama installed \*_and running_ on your system and running.
 
 ### Backend
 
+> ⚠️ Make sure ollama is running before running the backend
+
 1. Navigate to `backend/golang`
 1. Copy `.env.sample` to `.env` and update env variables
 1. Install packages `make install`
