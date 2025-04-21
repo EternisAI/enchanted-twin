@@ -207,11 +207,20 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 			if !ok || from == "" {
 				continue
 			}
+			to, ok := record.Data["to"].(string)
+			if !ok || to == "" {
+				continue
+			}
 
 			textDocuments = append(textDocuments, memory.TextDocument{
 				Content:   message,
 				Timestamp: &record.Timestamp,
 				Tags:      []string{"telegram", from},
+				Metadata: map[string]string{
+					"type": "message",
+					"from": from,
+					"to":   to,
+				},
 			})
 
 		}
