@@ -80,6 +80,8 @@ func main() {
 	envs, _ := config.LoadConfig(true)
 	logger.Debug("Config loaded", "envs", envs)
 
+	logger.Info("Using database path", slog.String("path", envs.DBPath))
+
 	ollamaClient, err := ollamaapi.ClientFromEnvironment()
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create ollama client"))
@@ -121,7 +123,7 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	store, err := db.NewStore(*dbPath)
+	store, err := db.NewStore(envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
@@ -153,7 +155,7 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create graph memory"))
 	}
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory, *dbPath)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory, envs.DBPath)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
