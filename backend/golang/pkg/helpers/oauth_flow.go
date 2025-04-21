@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/slog"
 	"net/http"
 	"os/exec"
 	"runtime"
@@ -13,6 +12,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
 )
 
 // Global variables
@@ -39,7 +39,7 @@ func openBrowser(u string) error {
 }
 
 // callbackHandler handles the OAuth callback
-func callbackHandler(ctx context.Context, logger *slog.Logger, store *db.Store, r *http.Request) (string, interface{}, error) {
+func callbackHandler(ctx context.Context, logger *log.Logger, store *db.Store, r *http.Request) (string, interface{}, error) {
 	if err := r.URL.Query().Get("error"); err != "" {
 		return "", nil, fmt.Errorf("error: %s", err)
 	}
@@ -67,7 +67,7 @@ func callbackHandler(ctx context.Context, logger *slog.Logger, store *db.Store, 
 }
 
 // fetchUserInfo fetches user information using an access token
-func fetchUserInfo(ctx context.Context, _ *slog.Logger, store *db.Store, provider string) (interface{}, error) {
+func fetchUserInfo(ctx context.Context, _ *log.Logger, store *db.Store, provider string) (interface{}, error) {
 	// Load OAuth config for provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
@@ -124,7 +124,7 @@ func fetchUserInfo(ctx context.Context, _ *slog.Logger, store *db.Store, provide
 // OAuthFlow executes the OAuth PKCE flow for the specified provider
 //
 // This is used to test the flow in pure Go.
-func OAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, provider string) error {
+func OAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, provider string) error {
 	logger.Info("Starting OAuth flow...", "provider", provider)
 
 	flowWaitGroup.Add(1)
@@ -152,7 +152,7 @@ func OAuthFlow(ctx context.Context, logger *slog.Logger, store *db.Store, provid
 }
 
 // StartOAuthCallbackServer starts the HTTP server to handle OAuth callbacks
-func StartOAuthCallbackServer(logger *slog.Logger, store *db.Store) error {
+func StartOAuthCallbackServer(logger *log.Logger, store *db.Store) error {
 	serverMutex.Lock()
 	defer serverMutex.Unlock()
 
@@ -199,7 +199,7 @@ func StartOAuthCallbackServer(logger *slog.Logger, store *db.Store) error {
 }
 
 // ShutdownOAuthCallbackServer gracefully shuts down the callback server
-func ShutdownOAuthCallbackServer(ctx context.Context, logger *slog.Logger) error {
+func ShutdownOAuthCallbackServer(ctx context.Context, logger *log.Logger) error {
 	// Create a channel to signal when WaitGroup is done
 	done := make(chan struct{})
 
