@@ -35,16 +35,29 @@ type PostgresService struct {
 
 // DefaultPostgresOptions returns a PostgresOptions struct with default values
 func DefaultPostgresOptions() PostgresOptions {
-	// Get current working directory for default data path
-	cwd, err := os.Getwd()
+	// Use standard user config directory for data path instead of CWD or hardcoded macOS path
+	var baseDataDir string
+	configDir, err := os.UserConfigDir()
 	if err != nil {
-		cwd = "."
+		// Fallback if config directory cannot be determined: use home directory
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			// Final fallback: use relative path (less ideal but avoids root access)
+			baseDataDir = "."
+		} else {
+			// Use hidden directory in home as fallback
+			baseDataDir = filepath.Join(homeDir, ".enchanted")
+		}
+	} else {
+		baseDataDir = configDir
 	}
+
+	dataPath := filepath.Join(baseDataDir, "enchanted", "db", "postgres-data")
 
 	return PostgresOptions{
 		Version:       "17",
 		Port:          "15432",
-		DataPath:      filepath.Join(cwd, "data", "postgres"),
+		DataPath:      dataPath,
 		User:          "postgres",
 		Password:      "postgres",
 		Database:      "postgres",
@@ -78,11 +91,6 @@ func NewPostgresService(logger *log.Logger, options PostgresOptions) (*PostgresS
 	}
 	if options.ContainerName == "" {
 		options.ContainerName = defaults.ContainerName
-	}
-
-	// Ensure data directory exists
-	if err := os.MkdirAll(options.DataPath, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create PostgreSQL data directory: %w", err)
 	}
 
 	// Configure Docker container options
