@@ -61,11 +61,6 @@ export function IndexingStep() {
   }, [startIndexing])
 
   useEffect(() => {
-    // Start indexing when component mounts
-    handleStartIndexing()
-  }, [handleStartIndexing])
-
-  useEffect(() => {
     if (subscriptionError) {
       console.error('Subscription error:', subscriptionError)
       setErrorMessage('Error receiving indexing updates. Please refresh the page.')
@@ -80,12 +75,6 @@ export function IndexingStep() {
       toast.error('Failed to start indexing. Please try again.')
     }
   }, [mutationError])
-
-  useEffect(() => {
-    if (data?.indexingStatus?.status === 'COMPLETED') {
-      completeOnboarding()
-    }
-  }, [data?.indexingStatus?.status, completeOnboarding])
 
   return (
     <OnboardingLayout
