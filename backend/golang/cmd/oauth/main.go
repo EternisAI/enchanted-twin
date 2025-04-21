@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -15,6 +16,9 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	// Set up command line flags
@@ -24,7 +28,7 @@ func main() {
 	flag.Parse()
 
 	// Open database
-	store, err := db.NewStore(context.Background(), *dbPath)
+	store, err := db.NewStore(ctx, *dbPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
@@ -43,12 +47,12 @@ func main() {
 		}
 		for _, p := range strings.Split(*providerFlag, ",") {
 			// Run OAuth flow with selected provider
-			if err := helpers.OAuthFlow(p, logger, store); err != nil {
+			if err := helpers.OAuthFlow(ctx, logger, store, p); err != nil {
 				fmt.Printf("Error: %v\n", err)
 				os.Exit(1)
 			}
 		}
-		if err := helpers.ShutdownOAuthCallbackServer(context.Background(), logger); err != nil {
+		if err := helpers.ShutdownOAuthCallbackServer(ctx, logger); err != nil {
 			fmt.Printf("Error: %v\n", err)
 			os.Exit(1)
 		}

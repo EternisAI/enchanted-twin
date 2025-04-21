@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 )
@@ -57,34 +58,34 @@ type OAuthTokens struct {
 }
 
 // LogValue implements slog.LogValuer interface to safely log tokens
-// func (o OAuthTokens) LogValue() slog.Value {
-// 	// Safe display of token prefixes only
-// 	accessTokenValue := "<empty>"
-// 	if o.AccessToken != "" {
-// 		if len(o.AccessToken) > 12 {
-// 			accessTokenValue = o.AccessToken[:8] + "..."
-// 		} else {
-// 			accessTokenValue = "<short-token>"
-// 		}
-// 	}
+func (o OAuthTokens) LogValue() slog.Value {
+	// Safe display of token prefixes only
+	accessTokenValue := "<empty>"
+	if o.AccessToken != "" {
+		if len(o.AccessToken) > 12 {
+			accessTokenValue = o.AccessToken[:8] + "..."
+		} else {
+			accessTokenValue = "<short-token>"
+		}
+	}
 
-// 	refreshTokenValue := "<empty>"
-// 	if o.RefreshToken != "" {
-// 		if len(o.RefreshToken) > 12 {
-// 			refreshTokenValue = (o.RefreshToken)[:8] + "..."
-// 		} else {
-// 			refreshTokenValue = "<short-token>"
-// 		}
-// 	}
+	refreshTokenValue := "<empty>"
+	if o.RefreshToken != "" {
+		if len(o.RefreshToken) > 12 {
+			refreshTokenValue = (o.RefreshToken)[:8] + "..."
+		} else {
+			refreshTokenValue = "<short-token>"
+		}
+	}
 
-// 	return slog.GroupValue(
-// 		slog.String("provider", o.Provider),
-// 		slog.String("token_type", o.TokenType),
-// 		slog.String("access_token", accessTokenValue),
-// 		slog.Time("expires_at", o.ExpiresAt),
-// 		slog.String("refresh_token", refreshTokenValue),
-// 	)
-// }
+	return slog.GroupValue(
+		slog.String("provider", o.Provider),
+		slog.String("token_type", o.TokenType),
+		slog.String("access_token", accessTokenValue),
+		slog.Time("expires_at", o.ExpiresAt),
+		slog.String("refresh_token", refreshTokenValue),
+	)
+}
 
 // GetOAuthTokens retrieves tokens for a specific provider
 func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthTokens, error) {
@@ -120,25 +121,29 @@ func (s *Store) SetOAuthStateAndVerifier(ctx context.Context, provider string, s
 	return err
 }
 
-func (s *Store) GetOAuthProviderAndVerifier(ctx context.Context, state string) (string, string, error) {
+func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, state string) (string, string, error) {
+	// Start a transaction
+	tx, err := s.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback() // Will be ignored if tx.Commit() is called
+
 	var dest struct {
 		Provider     string    `db:"provider"`
 		CodeVerifier string    `db:"code_verifier"`
 		CreatedAt    time.Time `db:"state_created_at"`
 	}
-	err := s.db.GetContext(ctx, &dest, `
-		SELECT 
-			provider, 
-			code_verifier,
-            state_created_at
-		FROM oauth_tokens 
-		WHERE state = ?
-	`, state)
 
-	// Check if state is expired (10 minutes)
-	if time.Since(dest.CreatedAt) > 10*time.Minute {
-		return "", "", fmt.Errorf("OAuth state expired")
-	}
+	// First retrieve the data
+	err = tx.GetContext(ctx, &dest, `
+        SELECT 
+            provider, 
+            code_verifier,
+            state_created_at
+        FROM oauth_tokens 
+        WHERE state = ?
+    `, state)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -146,8 +151,59 @@ func (s *Store) GetOAuthProviderAndVerifier(ctx context.Context, state string) (
 		}
 		return "", "", fmt.Errorf("failed to get OAuth session for state '%s': %w", state, err)
 	}
+
+	// Check if state is expired (10 minutes)
+	if time.Since(dest.CreatedAt) > 10*time.Minute {
+		return "", "", fmt.Errorf("OAuth state expired")
+	}
+
+	// Clear the state and code_verifier
+	_, err = tx.ExecContext(ctx, `
+        UPDATE oauth_tokens
+        SET state = NULL, code_verifier = '', state_created_at = NULL
+        WHERE state = ?
+    `, state)
+
+	if err != nil {
+		return "", "", fmt.Errorf("failed to clear state: %w", err)
+	}
+
+	// Commit the transaction
+	if err := tx.Commit(); err != nil {
+		return "", "", fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
 	return dest.Provider, dest.CodeVerifier, nil
 }
+
+// func (s *Store) GetOAuthProviderAndVerifier(ctx context.Context, state string) (string, string, error) {
+// 	var dest struct {
+// 		Provider     string    `db:"provider"`
+// 		CodeVerifier string    `db:"code_verifier"`
+// 		CreatedAt    time.Time `db:"state_created_at"`
+// 	}
+// 	err := s.db.GetContext(ctx, &dest, `
+// 		SELECT
+// 			provider,
+// 			code_verifier,
+//             state_created_at
+// 		FROM oauth_tokens
+// 		WHERE state = ?
+// 	`, state)
+
+// 	// Check if state is expired (10 minutes)
+// 	if time.Since(dest.CreatedAt) > 10*time.Minute {
+// 		return "", "", fmt.Errorf("OAuth state expired")
+// 	}
+
+// 	if err != nil {
+// 		if err == sql.ErrNoRows {
+// 			return "", "", fmt.Errorf("no OAuth session found for state '%s'", state)
+// 		}
+// 		return "", "", fmt.Errorf("failed to get OAuth session for state '%s': %w", state, err)
+// 	}
+// 	return dest.Provider, dest.CodeVerifier, nil
+// }
 
 // SetOAuthTokens saves or updates tokens for a provider (clearing state and code_verifier)
 func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
