@@ -15,6 +15,7 @@ type Config struct {
 	EmbeddingsAPIURL string
 	CompletionsModel string
 	EmbeddingsModel  string
+	DBPath           string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -45,6 +46,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsAPIURL: getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
 		CompletionsModel: getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
 		EmbeddingsModel:  getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
+		DBPath:           getEnv("DB_PATH", "./store.db", printEnv),
 	}
 	return conf, nil
 }
