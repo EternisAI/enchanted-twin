@@ -1,5 +1,5 @@
 import Versions from './components/Versions'
-import DragNDrop from './components/onboarding/DragNDrop'
+// import DragNDrop from './components/onboarding/DragNDrop'
 import { Button } from './components/ui/button'
 
 function App(): React.JSX.Element {
@@ -18,7 +18,7 @@ function App(): React.JSX.Element {
           <h1>My Twin</h1>
         </div>
         <div className="actions">
-          <DragNDrop />
+          {/* <DragNDrop /> */}
           <Button variant="secondary" onClick={ipcHandle}>
             Send IPC
           </Button>
