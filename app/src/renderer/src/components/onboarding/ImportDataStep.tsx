@@ -1,7 +1,7 @@
 import { OnboardingLayout } from './OnboardingLayout'
 import { useMutation, useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
-import { HelpCircle, CheckCircle2, AlertCircle, File, Folder, Loader2, X } from 'lucide-react'
+import { HelpCircle, CheckCircle2, AlertCircle, File, Folder, Loader2, X, Plus } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useState } from 'react'
 import { ImportInstructionsModal } from './ImportInstructionsModal'
@@ -14,6 +14,12 @@ import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
     addDataSource(name: $name, path: $path)
+  }
+`
+
+const DELETE_DATA_SOURCE = gql`
+  mutation DeleteDataSource($id: ID!) {
+    deleteDataSource(id: $id)
   }
 `
 
@@ -92,9 +98,9 @@ const SUPPORTED_DATA_SOURCES: {
 export function ImportDataStep() {
   const { data, refetch, loading } = useQuery(GET_DATA_SOURCES)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
+  const [deleteDataSource] = useMutation(DELETE_DATA_SOURCE)
   const [showImportInstructions, setShowImportInstructions] = useState<string | null>(null)
   const [isSelecting, setIsSelecting] = useState<string | null>(null)
-  const [isValidating, setIsValidating] = useState(false)
   const { nextStep } = useOnboardingStore()
 
   const handleFileSelect = async (name: string, selectType: 'directory' | 'files') => {
@@ -108,6 +114,14 @@ export function ImportDataStep() {
         toast.info('File selection cancelled')
         return
       }
+
+      const path = result.filePaths[0]
+      await addDataSource({
+        variables: {
+          name,
+          path
+        }
+      })
 
       await refetch()
       toast.success(`${name} data source added successfully`)
@@ -125,11 +139,14 @@ export function ImportDataStep() {
       nextStep()
     }
   }
-  const handleRemoveDataSource = async (name: string) => {
+
+  const handleRemoveDataSource = async (id: string) => {
     try {
-      // TODO: Implement remove data source mutation
+      await deleteDataSource({
+        variables: { id }
+      })
       await refetch()
-      toast.success(`${name} data source removed`)
+      toast.success('Data source removed successfully')
     } catch (error) {
       console.error('Error removing data source:', error)
       toast.error('Failed to remove data source. Please try again.')
@@ -141,40 +158,21 @@ export function ImportDataStep() {
       toast.error('Please select at least one data source')
       return false
     }
-
-    setIsValidating(true)
-    try {
-      // Validate each data source
-      const validationResults = await Promise.all(
-        data.getDataSources.map(async (ds) => {
-          try {
-            await addDataSource({
-              variables: {
-                name: ds.name,
-                path: ds.path
-              }
-            })
-            return { name: ds.name, success: true }
-          } catch (error) {
-            console.error(`Error validating ${ds.name}:`, error)
-            return { name: ds.name, success: false }
-          }
-        })
-      )
-
-      const failedSources = validationResults.filter((r) => !r.success)
-      if (failedSources.length > 0) {
-        toast.error(
-          `Failed to validate ${failedSources.map((s) => s.name).join(', ')}. Please check your selections.`
-        )
-        return false
-      }
-
-      return true
-    } finally {
-      setIsValidating(false)
-    }
+    return true
   }
+
+  // Group data sources by type
+  const dataSourcesByType =
+    data?.getDataSources?.reduce(
+      (acc, ds) => {
+        if (!acc[ds.name]) {
+          acc[ds.name] = []
+        }
+        acc[ds.name].push(ds)
+        return acc
+      },
+      {} as Record<string, DataSource[]>
+    ) || {}
 
   return (
     <OnboardingLayout
@@ -204,19 +202,45 @@ export function ImportDataStep() {
                 </div>
               ))
             : SUPPORTED_DATA_SOURCES.map((source) => {
-                const dataSource = data?.getDataSources?.find((ds) => ds.name === source.name)
+                const existingSources = dataSourcesByType[source.name] || []
                 const isSelectingThisSource = isSelecting === source.name
 
                 return (
-                  <DataSourceCard
-                    key={source.name}
-                    dataSource={dataSource}
-                    sourceDetails={source}
-                    isSelecting={isSelectingThisSource}
-                    onBeginSelection={handleFileSelect}
-                    onShowInstructions={() => setShowImportInstructions(source.name)}
-                    onRemove={() => handleRemoveDataSource(source.name)}
-                  />
+                  <div key={source.name} className="flex flex-col">
+                    <div className="flex-1">
+                      <DataSourceCard
+                        dataSource={existingSources[0]}
+                        sourceDetails={source}
+                        isSelecting={isSelectingThisSource}
+                        onBeginSelection={handleFileSelect}
+                        onShowInstructions={() => setShowImportInstructions(source.name)}
+                        onRemove={handleRemoveDataSource}
+                      />
+                    </div>
+                    {existingSources.length > 0 && (
+                      <div className="mt-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full"
+                          onClick={() => handleFileSelect(source.name, source.selectType)}
+                          disabled={isSelectingThisSource}
+                        >
+                          {isSelectingThisSource ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Selecting...
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="mr-2 h-4 w-4" />
+                              Add Another {source.name} Source
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                 )
               })}
         </div>
@@ -244,7 +268,7 @@ function DataSourceCard({
   isSelecting: boolean
   onBeginSelection: (name: string, selectType: 'files' | 'directory') => void
   onShowInstructions: () => void
-  onRemove: () => void
+  onRemove: (id: string) => void
 }) {
   const isSelected = !!dataSource
   const { name, description, fileRequirement, selectType, icon } = sourceDetails
@@ -279,14 +303,14 @@ function DataSourceCard({
             >
               <HelpCircle className="h-4 w-4 text-muted-foreground" />
             </Button>
-            {isSelected && (
+            {isSelected && !dataSource.isIndexed && (
               <Button
                 variant="ghost"
                 size="icon"
                 className="h-6 w-6"
                 onClick={(e) => {
                   e.stopPropagation()
-                  onRemove()
+                  onRemove(dataSource.id)
                 }}
               >
                 <X className="h-4 w-4 text-muted-foreground" />
@@ -304,23 +328,29 @@ function DataSourceCard({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {dataSource?.hasError ? (
+                {dataSource.hasError ? (
                   <AlertCircle className="h-4 w-4 text-destructive" />
+                ) : dataSource.isIndexed ? (
+                  <CheckCircle2 className="h-4 w-4 text-green-500" />
                 ) : (
                   <CheckCircle2 className="h-4 w-4 text-primary" />
                 )}
-                <span className="text-sm">{dataSource?.hasError ? 'Error' : 'Selected'}</span>
+                <span className="text-sm">
+                  {dataSource.hasError ? 'Error' : dataSource.isIndexed ? 'Indexed' : 'Selected'}
+                </span>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => onBeginSelection(name, selectType)}
-                disabled={isSelecting}
-              >
-                Change
-              </Button>
+              {!dataSource.isIndexed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onBeginSelection(name, selectType)}
+                  disabled={isSelecting}
+                >
+                  Change
+                </Button>
+              )}
             </div>
-            <p className="text-muted-foreground text-xs truncate">{dataSource?.path}</p>
+            <p className="text-muted-foreground text-xs truncate">{dataSource.path}</p>
           </div>
         ) : (
           <Button

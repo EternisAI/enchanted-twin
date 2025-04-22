@@ -43,11 +43,7 @@ export function IndexingStep() {
   const [isRetrying, setIsRetrying] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const {
-    data,
-    error: subscriptionError,
-    loading: isIndexing
-  } = useSubscription(INDEXING_STATUS_SUBSCRIPTION)
+  const { data, error: subscriptionError } = useSubscription(INDEXING_STATUS_SUBSCRIPTION)
   const [startIndexing, { error: mutationError }] = useMutation(START_INDEXING)
 
   const handleStartIndexing = useCallback(async () => {
@@ -82,10 +78,10 @@ export function IndexingStep() {
 
   return (
     <OnboardingLayout
-      title="Indexing data…"
+      title="Processing data…"
       subtitle="We're processing your data to make it searchable. This may take a while."
     >
-      <Button variant="outline" onClick={handleStartIndexing} disabled={isIndexing}>
+      <Button variant="outline" onClick={handleStartIndexing} disabled={isRetrying}>
         <RefreshCw className="mr-2 h-4 w-4" />
         Retry
       </Button>

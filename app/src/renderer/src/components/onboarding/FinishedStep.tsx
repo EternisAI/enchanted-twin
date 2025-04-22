@@ -13,6 +13,8 @@ const GET_PROFILE = gql`
         name
         path
         isIndexed
+        isProcessed
+        hasError
       }
     }
   }
