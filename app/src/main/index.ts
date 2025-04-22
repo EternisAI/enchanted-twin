@@ -7,8 +7,43 @@ import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
+import http from 'http'
 
 const PATHNAME = 'input_data'
+
+let mainWindow: BrowserWindow | null = null
+
+function startOAuthCallbackServer() {
+  const server = http.createServer(async (req, res) => {
+    const parsedUrl = new URL(req.url!, 'http://127.0.0.1:8080')
+    console.log('parsedUrl', parsedUrl)
+    if (parsedUrl.pathname === '/callback') {
+      const code = parsedUrl.searchParams.get('code')
+      const state = parsedUrl.searchParams.get('state')
+
+      if (code && state && mainWindow) {
+        console.log('completeOAuthFlow', state, code)
+        await mainWindow.webContents.send('oauth-callback', {
+          code,
+          state
+        })
+
+        res.writeHead(200, { 'Content-Type': 'text/html' })
+        res.end('<h1>Authentication successful. You can close this window!</h1>')
+      } else {
+        res.writeHead(400)
+        res.end('Invalid callback parameters')
+      }
+    } else {
+      res.writeHead(404)
+      res.end('Not found')
+    }
+  })
+
+  server.listen(8080, () => {
+    console.log('OAuth callback server listening at http://127.0.0.1:8080')
+  })
+}
 
 // Configure electron-log
 log.transports.file.level = 'info' // Log info level and above to file
@@ -69,6 +104,7 @@ function createWindow(): BrowserWindow {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  startOAuthCallbackServer()
   // Determine the path to the Go binary based on the environment and platform
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = is.dev
@@ -92,7 +128,7 @@ app.whenReady().then(() => {
   // Define the database path
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
-  
+
   // Only start the Go server in production environment
   if (!is.dev) {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
@@ -146,10 +182,15 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  const mainWindow = createWindow()
+  mainWindow = createWindow()
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))
+
+  ipcMain.on('open-oauth-url', async (_, url) => {
+    console.log('open-oauth-url', url)
+    await shell.openExternal(url)
+  })
 
   // Handle theme changes
   ipcMain.handle('get-native-theme', () => {
@@ -168,7 +209,9 @@ app.whenReady().then(() => {
   // Listen for native theme changes and notify renderer
   nativeTheme.on('updated', () => {
     const newTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    mainWindow.webContents.send('native-theme-updated', newTheme)
+    if (mainWindow) {
+      mainWindow.webContents.send('native-theme-updated', newTheme)
+    }
   })
 
   // Handle directory selection

@@ -47,6 +47,14 @@ query GetChat($id: ID!) {
   }
 }
 
+query GetOAuthStatus {
+  getOAuthStatus {
+    provider
+    expiresAt
+    scope
+  }
+}
+
 mutation CreateChat($name: String!) {
   createChat(name: $name) {
     id
@@ -110,4 +118,12 @@ mutation AddDataSource($name: String!, $path: String!) {
 
 mutation DeleteDataSource($id: ID!) {
   deleteDataSource(id: $id)
+}
+
+mutation StartOAuthFlow($provider: String!, $scope: String!) {
+  startOAuthFlow(provider: $provider, scope: $scope)
+}
+
+mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
+  completeOAuthFlow(state: $state, authCode: $authCode)
 }

@@ -1,9 +1,9 @@
 import Versions from './components/Versions'
-import DragNDrop from './components/onboarding/DragNDrop'
-import { Button } from './components/ui/button'
+import OAuthPanel from './components/oauth/OAuthPanel'
 
 function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+  // const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+
   return (
     <div className="flex  items-center flex-col gap-8 py-10 h-full flex-1 text-foreground">
       <style>
@@ -17,11 +17,8 @@ function App(): React.JSX.Element {
         <div>
           <h1>My Twin</h1>
         </div>
+        <OAuthPanel />
         <div className="actions">
-          <DragNDrop />
-          <Button variant="secondary" onClick={ipcHandle}>
-            Send IPC
-          </Button>
           {process.env.NODE_ENV === 'development' && <Versions></Versions>}
         </div>
       </div>
