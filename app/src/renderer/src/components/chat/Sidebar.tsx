@@ -23,22 +23,17 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
   const isHome = location.pathname === '/chat' // TODO: refactor, this is a hack to check if we're on the home page
 
   return (
-    <aside className="flex flex-col justify-between gap-3 w-64 bg-muted/50 p-4 rounded-lg">
-      <div className="flex flex-col gap-3">
-        <h2 className="text-4xl mb-4 text-foreground">Chats</h2>
-        <div className="flex-1">
-          {chats.map((chat: Chat) => {
-            const isActive = location.pathname === `/chat/${chat.id}`
-            return <SidebarItem key={chat.id} chat={chat} isActive={isActive} />
-          })}
-        </div>
+    <aside className="flex flex-col w-64 bg-muted/50 p-4 rounded-lg h-full gap-4">
+      <h2 className="text-4xl mb-4 text-foreground">Chats</h2>
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        {chats.map((chat: Chat) => {
+          const isActive = location.pathname === `/chat/${chat.id}`
+          return <SidebarItem key={chat.id} chat={chat} isActive={isActive} />
+        })}
       </div>
-
-      <div>
-        <Link to="/chat" disabled={isHome}>
-          <Button className="w-full">New Chat</Button>
-        </Link>
-      </div>
+      <Link to="/chat" disabled={isHome} className="mt-4">
+        <Button className="w-full">New Chat</Button>
+      </Link>
     </aside>
   )
 }
