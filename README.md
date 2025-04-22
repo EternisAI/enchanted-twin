@@ -42,6 +42,7 @@ OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
 COMPLETIONS_MODEL='mistral-small3.1' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1/embeddings' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
+IS_PROD_BUILD='true' \
 make build-mac-silicon
 ```
 
@@ -52,5 +53,6 @@ OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
 COMPLETIONS_MODEL='mistral-small3.1' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1/embeddings' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
+IS_PROD_BUILD='true' \
 make build-all
 ```

@@ -10,9 +10,13 @@ import path from 'path'
 
 const PATHNAME = 'input_data'
 
+// Check if running in production using environment variable
+const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
+
 // Configure electron-log
 log.transports.file.level = 'info' // Log info level and above to file
 log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
+log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 
@@ -56,7 +60,7 @@ function createWindow(): BrowserWindow {
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (!IS_PRODUCTION && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -71,7 +75,7 @@ function createWindow(): BrowserWindow {
 app.whenReady().then(() => {
   // Determine the path to the Go binary based on the environment and platform
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-  const goBinaryPath = is.dev
+  const goBinaryPath = !IS_PRODUCTION
     ? join(__dirname, '..', '..', 'resources', executable) // Path in development
     : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
 
@@ -94,7 +98,7 @@ app.whenReady().then(() => {
   log.info(`Database path: ${dbPath}`)
 
   // Only start the Go server in production environment
-  if (!is.dev) {
+  if (IS_PRODUCTION) {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
