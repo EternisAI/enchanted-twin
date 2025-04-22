@@ -67,10 +67,7 @@ export default function OAuthPanel() {
       try {
         const { data } = await completeOAuthFlow({ variables: { state, authCode: code } })
 
-        if (data?.completeOAuthFlow) {
-          console.log('OAuth completed with provider:', data.completeOAuthFlow)
-          toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
-        }
+        console.log('OAuth completed with provider:', data)
       } catch (err) {
         console.error('OAuth completion failed:', err)
       }
