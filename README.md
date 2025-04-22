@@ -10,11 +10,11 @@
 
 ## setup
 
-### ollama
+### Ollama
 
 You must have Ollama installed \*_and running_ on your system and running.
 
-### frontend
+### Frontend
 
 1. Copy `.env.sample` to `.env`
 2. Set `RENDERER_VITE_API_URL` to the URL of your GraphQL API (if different from the default)
@@ -22,24 +22,33 @@ You must have Ollama installed \*_and running_ on your system and running.
 4. Install packages `pnpm install`
 5. Run the app `cd app && pnpm dev`
 
-### backend
+### Backend
 
 1. Navigate to `backend/golang`
-2. Install packages `make install`
-3. Run the server `make run`
+1. Copy `.env.sample` to `.env` and update env variables
+1. Install packages `make install`
+1. Run the server `make run`
 
-## build & release
+## Release
 
 Navigate to the root.
 
 For Mac M series use.
 
 ```sh
+OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
+COMPLETIONS_MODEL='gemma3:27b' \
+EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1/embeddings' \
+EMBEDDINGS_MODEL='nomic-embed-text' \
 make build-mac-silicon
 ```
 
 To build for all architectures
 
 ```sh
+OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
+COMPLETIONS_MODEL='mistral-small3.1' \
+EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1/embeddings' \
+EMBEDDINGS_MODEL='nomic-embed-text' \
 make build-all
 ```

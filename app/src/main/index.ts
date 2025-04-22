@@ -92,7 +92,7 @@ app.whenReady().then(() => {
   // Define the database path
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
-  
+
   // Only start the Go server in production environment
   if (!is.dev) {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
@@ -103,8 +103,10 @@ app.whenReady().then(() => {
         env: {
           ...process.env,
           DB_PATH: dbPath,
-          COMPLETIONS_MODEL: 'gpt-4o-mini',
-          EMBEDDINGS_MODEL: 'text-embedding-3-small'
+          OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+          COMPLETIONS_MODEL: process.env.COMPLETIONS_MODEL,
+          EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
+          EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL
         }
       })
 
