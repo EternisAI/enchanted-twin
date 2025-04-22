@@ -29,7 +29,6 @@ type IndexingStateQuery struct {
 }
 
 const (
-	OUTPUT_PATH              = "./output/"
 	OLLAMA_COMPLETIONS_MODEL = "gemma3:1b"
 	OLLAMA_EMBEDDING_MODEL   = "nomic-embed-text"
 )
@@ -230,7 +229,7 @@ type ProcessDataActivityResponse struct {
 
 func (w *IndexingWorkflow) ProcessDataActivity(ctx context.Context, input ProcessDataActivityInput) (ProcessDataActivityResponse, error) {
 	// TODO: replace username parameter
-	outputPath := fmt.Sprintf("%s%s_%s.jsonl", OUTPUT_PATH, input.DataSourceName, input.DataSourceID)
+	outputPath := fmt.Sprintf("%s%s_%s.jsonl", w.Config.OutputPath, input.DataSourceName, input.DataSourceID)
 	success, err := dataprocessing.ProcessSource(input.DataSourceName, input.SourcePath, outputPath, input.Username, "")
 	if err != nil {
 		w.Logger.Error("Failed to process data source", "error", err, "dataSource", input.DataSourceName)

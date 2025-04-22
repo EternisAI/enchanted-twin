@@ -16,6 +16,7 @@ type Config struct {
 	CompletionsModel string
 	EmbeddingsModel  string
 	DBPath           string
+	OutputPath       string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -47,6 +48,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		CompletionsModel: getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
 		EmbeddingsModel:  getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
 		DBPath:           getEnv("DB_PATH", "./store.db", printEnv),
+		OutputPath:       getEnv("OUTPUT_PATH", "./output", printEnv),
 	}
 	return conf, nil
 }
