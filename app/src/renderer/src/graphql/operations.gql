@@ -122,7 +122,10 @@ mutation DeleteDataSource($id: ID!) {
 }
 
 mutation StartOAuthFlow($provider: String!, $scope: String!) {
-  startOAuthFlow(provider: $provider, scope: $scope)
+  startOAuthFlow(provider: $provider, scope: $scope) {
+    authURL
+    redirectURI
+  }
 }
 
 mutation CompleteOAuthFlow($state: String!, $authCode: String!) {

@@ -21,7 +21,7 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 
-function openOAuthWindow(authUrl: string) {
+function openOAuthWindow(authUrl: string, redirectUri?: string) {
   const authWindow = new BrowserWindow({
     width: 600,
     height: 800,
@@ -33,10 +33,25 @@ function openOAuthWindow(authUrl: string) {
     }
   })
 
+  // Parse the redirectUri if provided, or use default values
+  let callbackHost = '127.0.0.1'
+  let callbackPath = '/callback'
+
+  if (redirectUri) {
+    try {
+      const parsedRedirect = new URL(redirectUri)
+      callbackHost = parsedRedirect.hostname
+      callbackPath = parsedRedirect.pathname
+      console.log(`[OAuth] Using redirect parameters: host=${callbackHost}, path=${callbackPath}`)
+    } catch (err) {
+      console.error('[OAuth] Failed to parse redirectUri, using defaults', err)
+    }
+  }
+
   const handleUrl = (url: string) => {
     try {
       const parsedUrl = new URL(url)
-      if (parsedUrl.hostname === '127.0.0.1' && parsedUrl.pathname === '/callback') {
+      if (parsedUrl.hostname === callbackHost && parsedUrl.pathname === callbackPath) {
         const code = parsedUrl.searchParams.get('code')
         const state = parsedUrl.searchParams.get('state')
         if (code && state && mainWindow) {
@@ -191,9 +206,9 @@ app.whenReady().then(() => {
 
   ipcMain.on('ping', () => console.log('pong'))
 
-  ipcMain.on('open-oauth-url', async (_, url) => {
-    console.log('[Main] Opening OAuth window for:', url)
-    openOAuthWindow(url)
+  ipcMain.on('open-oauth-url', async (_, url, redirectUri) => {
+    console.log('[Main] Opening OAuth window for:', url, 'with redirect:', redirectUri)
+    openOAuthWindow(url, redirectUri)
   })
 
   ipcMain.handle('get-native-theme', () => {
