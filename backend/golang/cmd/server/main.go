@@ -75,12 +75,11 @@ func main() {
 
 	envs, _ := config.LoadConfig(true)
 	logger.Debug("Config loaded", "envs", envs)
-
 	logger.Info("Using database path", "path", envs.DBPath)
 
-	ollamaClient, err := ollamaapi.ClientFromEnvironment()
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to create ollama client"))
+	var ollamaClient *ollamaapi.Client
+	if envs.OllamaBaseURL != "" {
+		ollamaClient = ollamaapi.NewClient(nil, http.DefaultClient)
 	}
 
 	// Start PostgreSQL

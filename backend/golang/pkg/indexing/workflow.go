@@ -371,6 +371,11 @@ type DownloadModelProgress struct {
 }
 
 func (w *IndexingWorkflow) DownloadOllamaModel(ctx context.Context, modelName string) error {
+	if w.OllamaClient == nil {
+		w.Logger.Info("Ollama client is nil, skipping model download")
+		return nil
+	}
+
 	models, err := w.OllamaClient.List(context.Background())
 	if err != nil {
 		w.Logger.Error("Failed to list ollama models", "error", err)

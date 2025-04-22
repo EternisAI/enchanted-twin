@@ -17,6 +17,7 @@ type Config struct {
 	EmbeddingsModel  string
 	DBPath           string
 	OutputPath       string
+	OllamaBaseURL    string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -49,6 +50,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsModel:  getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
 		DBPath:           getEnv("DB_PATH", "./store.db", printEnv),
 		OutputPath:       getEnv("OUTPUT_PATH", "./output", printEnv),
+		OllamaBaseURL:    getEnv("OLLAMA_BASE_URL", "", printEnv),
 	}
 	return conf, nil
 }
