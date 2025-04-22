@@ -4,13 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
-	"github.com/charmbracelet/log"
-	"github.com/pkg/errors"
-
+	"mime"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -150,9 +151,25 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 		if len(doc.Tags) > 0 {
 			tagsArray = make([]string, 0, len(doc.Tags))
 			for _, tag := range doc.Tags {
-				// Convert tag to valid ltree format (replace spaces/special chars with underscores)
-				formattedTag := strings.ReplaceAll(tag, " ", "_")
-				formattedTag = strings.ReplaceAll(formattedTag, "-", "_")
+
+				decodedTag := tag
+				if strings.Contains(tag, "=?") && strings.Contains(tag, "?=") {
+
+					decoded, err := decodeMIMEHeader(tag)
+					if err == nil {
+						decodedTag = decoded
+					}
+				}
+
+				formattedTag := strings.ToLower(decodedTag)
+
+				formattedTag = regexp.MustCompile(`[^a-z0-9_]+`).ReplaceAllString(formattedTag, "_")
+
+				formattedTag = strings.Trim(formattedTag, "_")
+
+				if len(formattedTag) > 256 {
+					formattedTag = formattedTag[:256]
+				}
 				tagsArray = append(tagsArray, formattedTag)
 			}
 		}
@@ -162,7 +179,10 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 		if len(tagsArray) > 0 {
 			escapedTags := make([]string, 0, len(tagsArray))
 			for _, tag := range tagsArray {
-				escapedTags = append(escapedTags, "\""+tag+"\"")
+				// Escape special characters for PostgreSQL array literal
+				escapedTag := strings.ReplaceAll(tag, "\"", "\\\"")
+				escapedTag = strings.ReplaceAll(escapedTag, "\\", "\\\\")
+				escapedTags = append(escapedTags, "\""+escapedTag+"\"")
 			}
 			tagsStr = "{" + strings.Join(escapedTags, ",") + "}"
 		}
@@ -228,6 +248,12 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 	}
 
 	return entriesToProcess, nil
+}
+
+// decodeMIMEHeader decodes MIME-encoded strings
+func decodeMIMEHeader(s string) (string, error) {
+	dec := new(mime.WordDecoder)
+	return dec.DecodeHeader(s)
 }
 
 // extractAndStoreFacts processes text entries in parallel to extract facts using AI
@@ -450,7 +476,6 @@ func (m *GraphMemory) storeFacts(ctx context.Context, facts []Fact, textEntryID 
 		err := tx.QueryRowContext(ctx,
 			"INSERT INTO facts (text_entry_id, sub, prd, obj) VALUES ($1, $2, $3, $4) RETURNING id",
 			textEntryID, fact.Sub, fact.Prd, fact.Obj).Scan(&factID)
-
 		if err != nil {
 			return nil, fmt.Errorf("error inserting fact: %w", err)
 		}

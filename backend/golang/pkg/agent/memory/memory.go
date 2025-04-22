@@ -10,6 +10,7 @@ type TextDocument struct {
 	Content   string
 	Timestamp *time.Time
 	Tags      []string
+	Metadata  map[string]string
 }
 
 type QueryResult struct {
