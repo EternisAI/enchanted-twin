@@ -4,9 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
 )
 
 // InitOAuth initializes both OAuth providers and tokens tables
@@ -179,8 +180,8 @@ type OAuthTokens struct {
 	RefreshToken string    `db:"refresh_token"`
 }
 
-// LogValue implements slog.LogValuer interface to safely log tokens
-func (o OAuthTokens) LogValue() slog.Value {
+// For logging with Charmbracelet log
+func (o OAuthTokens) String() string {
 	// Safe display of token prefixes only
 	accessTokenValue := "<empty>"
 	if o.AccessToken != "" {
@@ -200,14 +201,12 @@ func (o OAuthTokens) LogValue() slog.Value {
 		}
 	}
 
-	return slog.GroupValue(
-		slog.String("provider", o.Provider),
-		slog.String("token_type", o.TokenType),
-		slog.String("scope", o.Scope),
-		slog.String("access_token", accessTokenValue),
-		slog.Time("expires_at", o.ExpiresAt),
-		slog.String("refresh_token", refreshTokenValue),
-	)
+	return fmt.Sprintf("OAuthTokens{provider=%s, token_type=%s, access_token=%s, expires_at=%s, refresh_token=%s}",
+		o.Provider,
+		o.TokenType,
+		accessTokenValue,
+		o.ExpiresAt.Format(time.RFC3339),
+		refreshTokenValue)
 }
 
 // GetOAuthTokens retrieves tokens for a specific provider
@@ -245,13 +244,22 @@ func (s *Store) SetOAuthStateAndVerifier(ctx context.Context, provider string, s
 	return err
 }
 
-func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, state string) (string, string, string, error) {
+func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger *log.Logger, state string) (string, string, string, error) {
 	// Start a transaction
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback() // Will be ignored if tx.Commit() is called
+	// Compicated defer to satisfy linter which requires all errors be handled.
+	defer func() {
+		err := tx.Rollback()
+		// ErrTxDone happens if tx.Commit() is called
+		if err != nil && err != sql.ErrTxDone {
+			// Only log the error since we can't really handle it in a defer
+			// The original error from the function is more important
+			logger.Printf("Error rolling back transaction: %v", err)
+		}
+	}()
 
 	var dest struct {
 		Provider     string    `db:"provider"`
