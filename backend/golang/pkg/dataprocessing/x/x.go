@@ -231,36 +231,59 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
+
 		content := ""
 		metadata := map[string]string{}
 		tags := []string{"x"}
-		switch record.Data["type"] {
+
+		getString := func(key string) string {
+			if val, ok := record.Data[key]; ok {
+				if strVal, ok := val.(string); ok {
+					return strVal
+				}
+			}
+			return ""
+		}
+
+		recordType := getString("type")
+		switch recordType {
 		case "like":
-			content = record.Data["fullText"].(string)
+			content = getString("fullText")
+			tweetId := getString("tweetId")
 			metadata = map[string]string{
 				"type": "like",
-				"id":   record.Data["tweetId"].(string),
-				"url":  record.Data["expandedUrl"].(string),
+				"id":   tweetId,
+				"url":  getString("expandedUrl"),
 			}
-			tags = append(tags, "like", record.Data["tweetId"].(string))
+			tags = append(tags, "like", tweetId)
+
 		case "tweet":
-			content = record.Data["fullText"].(string)
+			content = getString("fullText")
+			id := getString("id")
+			favoriteCount := getString("favoriteCount")
+			retweetCount := getString("retweetCount")
 			metadata = map[string]string{
 				"type":          "tweet",
-				"id":            record.Data["id"].(string),
-				"favoriteCount": record.Data["favoriteCount"].(string),
-				"retweetCount":  record.Data["retweetCount"].(string),
+				"id":            id,
+				"favoriteCount": favoriteCount,
+				"retweetCount":  retweetCount,
 			}
-			tags = append(tags, "tweet", record.Data["id"].(string), record.Data["retweetCount"].(string), record.Data["favoriteCount"].(string))
+			tags = append(tags, "tweet", id, retweetCount, favoriteCount)
+
 		case "direct_message":
-			content = record.Data["text"].(string)
+			content = getString("text")
 			metadata = map[string]string{
 				"type": "direct_message",
 			}
-			tags = append(tags, "direct_message", record.Data["conversationId"].(string), record.Data["recipientId"].(string), record.Data["senderId"].(string))
+			tags = append(tags, "direct_message",
+				getString("conversationId"),
+				getString("recipientId"),
+				getString("senderId"))
 		}
+
 		documents = append(documents, memory.TextDocument{
 			Content:   content,
 			Timestamp: &record.Timestamp,

@@ -572,13 +572,33 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
+		// Helper function to safely get string value
+		getString := func(key string) string {
+			if val, ok := record.Data[key]; ok {
+				if strVal, ok := val.(string); ok {
+					return strVal
+				}
+			}
+			return ""
+		}
+
+		content := getString("content")
+		from := getString("from")
+		to := getString("to")
+		subject := getString("subject")
+
 		documents = append(documents, memory.TextDocument{
-			Content:   record.Data["content"].(string),
+			Content:   content,
 			Timestamp: &record.Timestamp,
-			Tags:      []string{"gmail", record.Data["from"].(string), record.Data["to"].(string), record.Data["subject"].(string)},
-			Metadata:  map[string]string{"from": record.Data["from"].(string), "to": record.Data["to"].(string), "subject": record.Data["subject"].(string)},
+			Tags:      []string{"gmail", from, to, subject},
+			Metadata: map[string]string{
+				"from":    from,
+				"to":      to,
+				"subject": subject,
+			},
 		})
 	}
 	return documents, nil

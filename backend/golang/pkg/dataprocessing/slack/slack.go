@@ -137,19 +137,24 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		return nil, err
 	}
 
-	textDocuments := []memory.TextDocument{}
+	textDocuments := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
-		message, ok := record.Data["text"].(string)
-		if !ok || message == "" {
-			continue
-		}
-		authorUsername, ok := record.Data["username"].(string)
-		if !ok || authorUsername == "" {
-			continue
+
+		getString := func(key string) string {
+			if val, ok := record.Data[key]; ok {
+				if strVal, ok := val.(string); ok {
+					return strVal
+				}
+			}
+			return ""
 		}
 
-		channelName, ok := record.Data["channelName"].(string)
-		if !ok || channelName == "" {
+		message := getString("text")
+		authorUsername := getString("username")
+		channelName := getString("channelName")
+
+		// Skip records with missing required fields
+		if message == "" || authorUsername == "" || channelName == "" {
 			continue
 		}
 
@@ -166,6 +171,5 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 			},
 		})
 	}
-
 	return textDocuments, nil
 }
