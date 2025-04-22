@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { OnboardingLayout } from './OnboardingLayout'
 import { Input } from '@renderer/components/ui/input'
-import { useMutation } from '@apollo/client'
+import { useMutation, useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
 import { toast } from 'sonner'
 import { Button } from '@renderer/components/ui/button'
@@ -13,8 +13,17 @@ const UPDATE_PROFILE = gql`
   }
 `
 
-export function WelcomeStep({ name, onContinue }: { name: string; onContinue: () => void }) {
+const GET_PROFILE = gql`
+  query GetProfile {
+    profile {
+      name
+    }
+  }
+`
+
+export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
   const [updateProfile, { loading }] = useMutation(UPDATE_PROFILE)
+  const { data } = useQuery(GET_PROFILE)
   const [error, setError] = useState<string | null>(null)
 
   const nameInputRef = useRef<HTMLInputElement>(null)
@@ -64,7 +73,7 @@ export function WelcomeStep({ name, onContinue }: { name: string; onContinue: ()
               type="text"
               id="name"
               placeholder="Enter your name"
-              defaultValue={name}
+              defaultValue={data?.profile?.name}
               className={error ? 'border-destructive' : ''}
               onChange={() => setError(null)}
             />
