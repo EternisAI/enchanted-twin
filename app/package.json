@@ -90,10 +90,9 @@
       }
     ],
     "publish": {
-      "provider": "github",
-      "owner": "EternisAI",
-      "repo": "enchanted-twin",
-      "releaseType": "release"
+      "provider": "generic",
+      "url": "https://example.com/download/",
+      "channel": "latest"
     },
     "mac": {
       "target": "dmg",
