@@ -52,11 +52,11 @@ export default function ChatHome() {
         `}
       </style>
       <div className="flex flex-col flex-1 justify-between">
-        <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-3">
+        <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-12">
           <div className="py-8">
-            <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
+            {/* <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
               <span className="text-foreground text-6xl">👤</span>
-            </div>
+            </div> */}
             <h1 className="text-3xl font-bold text-center">{twinName}</h1>
           </div>
 

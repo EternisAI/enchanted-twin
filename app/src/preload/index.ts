@@ -12,9 +12,9 @@ const api = {
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => {
     ipcRenderer.on('native-theme-updated', (_, theme) => callback(theme))
   },
-  openOAuthUrl: (url: string) => {
-    console.log('openOAuthUrl', url)
-    ipcRenderer.send('open-oauth-url', url)
+  openOAuthUrl: (url: string, redirectUri?: string) => {
+    console.log('openOAuthUrl', url, redirectUri)
+    ipcRenderer.send('open-oauth-url', url, redirectUri)
   },
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => {
     console.log('onOAuthCallback called with callback!')
