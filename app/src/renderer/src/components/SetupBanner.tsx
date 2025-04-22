@@ -7,15 +7,13 @@ export function SetupBanner() {
   const navigate = useNavigate()
   const { resetOnboarding } = useOnboardingStore()
 
-  // Only hide when we've completed all steps
-
   const handleContinueSetup = () => {
     resetOnboarding()
     navigate({ to: '/onboarding' })
   }
 
   return (
-    <div className="bg-transparent px-4 py-1.5 fixed top-0 right-0 z-50">
+    <div className="bg-transparent px-4 py-1.5 fixed top-6 right-0 z-50">
       <Button
         onClick={handleContinueSetup}
         size="sm"
