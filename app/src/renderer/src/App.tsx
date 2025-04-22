@@ -5,7 +5,7 @@ import { Button } from './components/ui/button'
 function App(): React.JSX.Element {
   const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
   return (
-    <div className="flex  items-center flex-col gap-8 py-10 h-full flex-1 text-foreground">
+    <div className="flex items-center flex-col gap-8 py-10 flex-1 text-foreground">
       <style>
         {`
           :root {
@@ -15,10 +15,9 @@ function App(): React.JSX.Element {
       </style>
       <div className="flex w-full max-w-2xl flex-col gap-4 ">
         <div>
-          <h1>My Twin</h1>
+          <h1 className="text-4xl">My Twin</h1>
         </div>
         <div className="actions">
-          {/* <DragNDrop /> */}
           <Button variant="secondary" onClick={ipcHandle}>
             Send IPC
           </Button>

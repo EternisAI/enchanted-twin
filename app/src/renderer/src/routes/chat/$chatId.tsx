@@ -1,15 +1,39 @@
 // routes/chat/$chatId.tsx
 import ChatView from '@renderer/components/chat/ChatView'
-import { GetChatDocument } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 import { createFileRoute } from '@tanstack/react-router'
+import { gql } from '@apollo/client'
+
+const GetChatWithMessageIdDocument = gql`
+  query GetChat($id: ID!) {
+    getChat(id: $id) {
+      id
+      name
+      createdAt
+      messages {
+        id
+        text
+        imageUrls
+        role
+        createdAt
+        toolResults
+        toolCalls {
+          id
+          name
+          isCompleted
+          messageId
+        }
+      }
+    }
+  }
+`
 
 export const Route = createFileRoute('/chat/$chatId')({
   component: ChatRouteComponent,
   loader: async ({ params }) => {
     try {
       const { data } = await client.query({
-        query: GetChatDocument,
+        query: GetChatWithMessageIdDocument,
         variables: { id: params.chatId },
         fetchPolicy: 'network-only'
       })

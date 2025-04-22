@@ -18,7 +18,7 @@ export function OnboardingContainer() {
 
   useEffect(() => {
     if (isCompleted) {
-      navigate({ to: '/' })
+      navigate({ to: '/chat' })
     }
   }, [isCompleted, navigate])
 
