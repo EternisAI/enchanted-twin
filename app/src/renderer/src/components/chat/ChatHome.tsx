@@ -8,6 +8,7 @@ import {
   SendMessageDocument
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
+import OAuthPanel from '../oauth/OAuthPanel'
 
 export default function ChatHome() {
   const navigate = useNavigate()
@@ -42,7 +43,7 @@ export default function ChatHome() {
   const twinName = profile?.profile?.name || 'Your Twin'
 
   return (
-    <div className="flex flex-col items-center">
+    <div className="flex flex-col items-center h-full">
       <style>
         {`
           :root {
@@ -51,14 +52,15 @@ export default function ChatHome() {
         `}
       </style>
       <div className="flex flex-col flex-1 justify-between">
-        <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-3">
+        <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-12">
           <div className="py-8">
-            <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
+            {/* <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
               <span className="text-foreground text-6xl">👤</span>
-            </div>
+            </div> */}
             <h1 className="text-3xl font-bold text-center">{twinName}</h1>
           </div>
 
+          <OAuthPanel />
           <div className="flex gap-10 p-4 border border-border rounded-lg">
             <div className="flex flex-col gap-2">
               <span>Today&apos;s Highlight</span>

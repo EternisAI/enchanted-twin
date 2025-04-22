@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ type Store struct {
 }
 
 // NewStore creates a new SQLite-backed store
-func NewStore(dbPath string) (*Store, error) {
+func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	// Create the parent directory if it doesn't exist
 	dir := filepath.Dir(dbPath)
 	if dir != "." {
@@ -29,19 +30,19 @@ func NewStore(dbPath string) (*Store, error) {
 		}
 	}
 
-	db, err := sqlx.Connect("sqlite3", dbPath)
+	db, err := sqlx.ConnectContext(ctx, "sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to SQLite: %w", err)
 	}
 
 	// Enable WAL mode for better concurrency and performance
-	_, err = db.Exec("PRAGMA journal_mode=WAL;")
+	_, err = db.ExecContext(ctx, "PRAGMA journal_mode=WAL;")
 	if err != nil {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
 	// Create user_profiles table if it doesn't exist
-	_, err = db.Exec(`
+	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS user_profiles (
 			id TEXT PRIMARY KEY,
 			name TEXT
@@ -72,14 +73,14 @@ func NewStore(dbPath string) (*Store, error) {
 	}
 
 	// Insert default profile if it doesn't exist
-	_, err = db.Exec(`
+	_, err = db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO user_profiles (id, name) VALUES ('default', '(missing name)')
 	`)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = db.Exec(`
+	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS data_sources (
 			id TEXT PRIMARY KEY,
 			name TEXT,
@@ -94,7 +95,13 @@ func NewStore(dbPath string) (*Store, error) {
 		return nil, err
 	}
 
-	return &Store{db: db}, nil
+	store := &Store{db: db}
+
+	if err = store.InitOAuth(ctx); err != nil {
+		return nil, err
+	}
+
+	return store, nil
 }
 
 // Close closes the database connection

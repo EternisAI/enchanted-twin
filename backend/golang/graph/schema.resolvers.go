@@ -9,9 +9,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
@@ -20,6 +22,20 @@ import (
 // Messages is the resolver for the messages field.
 func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.Message, error) {
 	return r.TwinChatService.GetMessagesByChatId(ctx, obj.ID)
+}
+
+// StartOAuthFlow is the resolver for the startOAuthFlow field.
+func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, scope string) (*model.OAuthFlow, error) {
+	auth, redir, err := helpers.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
+	return &model.OAuthFlow{
+		AuthURL:     auth,
+		RedirectURI: redir,
+	}, err
+}
+
+// CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
+func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
+	return helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
 }
 
 // UpdateProfile is the resolver for the updateProfile field.
@@ -176,6 +192,35 @@ func (r *queryResolver) GetDataSources(ctx context.Context) ([]*model.DataSource
 		}
 	}
 	return modelDataSources, nil
+}
+
+// GetOAuthStatus is the resolver for the getOAuthStatus field.
+func (r *queryResolver) GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatus, error) {
+	dbResults, err := r.Store.GetOAuthStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]*model.OAuthStatus, len(dbResults))
+	for i, item := range dbResults {
+		expiresAtStr := ""
+		if !item.ExpiresAt.IsZero() {
+			expiresAtStr = item.ExpiresAt.Format(time.RFC3339)
+		}
+		var scopeArray []string
+		if item.Scope != "" {
+			scopeArray = strings.Split(item.Scope, " ")
+		} else {
+			scopeArray = []string{} // Empty array instead of nil
+		}
+
+		results[i] = &model.OAuthStatus{
+			Provider:  item.Provider,
+			ExpiresAt: expiresAtStr,
+			Scope:     scopeArray,
+		}
+	}
+
+	return results, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.
