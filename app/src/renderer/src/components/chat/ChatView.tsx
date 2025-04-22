@@ -93,14 +93,16 @@ export default function ChatView({ chat }: { chat: Chat }) {
           </div>
         </div>
       </div>
-      <div className="px-6 py-4 border-t">
-        <MessageInput
-          isWaitingTwinResponse={isWaitingTwinResponse}
-          onSend={sendMessage}
-          onStop={() => {
-            setIsWaitingTwinResponse(false)
-          }}
-        />
+      <div className="px-6 py-4 flex w-full items-center justify-center">
+        <div className="max-w-3xl mx-auto w-full flex justify-center items-center">
+          <MessageInput
+            isWaitingTwinResponse={isWaitingTwinResponse}
+            onSend={sendMessage}
+            onStop={() => {
+              setIsWaitingTwinResponse(false)
+            }}
+          />
+        </div>
       </div>
     </div>
   )
