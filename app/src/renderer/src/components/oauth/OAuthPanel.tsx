@@ -55,11 +55,9 @@ export default function OAuthPanel() {
 
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const { data } = useQuery(GetOAuthStatusDocument, {
-    onCompleted: (data) => {
-      console.log('data oauth', data)
-    },
-    pollInterval: 10000 // Refetch every 10 seconds
+    pollInterval: 10000
   })
+
   console.log('data oauth', data)
 
   useEffect(() => {
@@ -68,24 +66,20 @@ export default function OAuthPanel() {
         const { data } = await completeOAuthFlow({ variables: { state, authCode: code } })
 
         console.log('OAuth completed with provider:', data)
-        // You can also update local state here if needed
       } catch (err) {
         console.error('OAuth completion failed:', err)
       }
     })
   }, [completeOAuthFlow])
 
-  // List of OAuth providers with their configs
-
-  // Trigger OAuth flow for a given provider and scope
   const loginWithProvider = async (provider: string, scope: string) => {
     const { data } = await startOAuthFlow({ variables: { provider, scope } })
     if (data?.startOAuthFlow) {
-      window.api.openOAuthUrl(data.startOAuthFlow)
+      const { authURL, redirectURI } = data.startOAuthFlow
+      window.api.openOAuthUrl(authURL, redirectURI)
     }
   }
 
-  // OAuth status entries from server
   const oAuthStatuses = data?.getOAuthStatus ?? []
 
   return (
