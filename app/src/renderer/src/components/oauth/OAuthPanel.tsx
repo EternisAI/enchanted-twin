@@ -7,6 +7,7 @@ import {
 import { Button } from '../ui/button'
 import { Slack, Linkedin, Twitter } from 'lucide-react'
 import { useEffect } from 'react'
+import { toast } from 'sonner'
 
 type Providers = 'google' | 'twitter' | 'linkedin' | 'slack'
 
@@ -65,7 +66,10 @@ export default function OAuthPanel() {
       try {
         const { data } = await completeOAuthFlow({ variables: { state, authCode: code } })
 
-        console.log('OAuth completed with provider:', data)
+        if (data?.completeOAuthFlow) {
+          console.log('OAuth completed with provider:', data.completeOAuthFlow)
+          toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
+        }
       } catch (err) {
         console.error('OAuth completion failed:', err)
       }

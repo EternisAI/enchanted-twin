@@ -8,13 +8,14 @@ import { routeTree } from '@renderer/routeTree.gen'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
 import { ApolloClientProvider } from './graphql/provider'
 import { ThemeProvider } from './lib/theme'
+import { Toaster } from 'sonner'
 
 import { createHashHistory } from '@tanstack/react-router'
 
 const router = createRouter({
   routeTree,
   defaultViewTransition: true,
-  history: createHashHistory(),
+  history: createHashHistory()
 })
 
 // Register the router instance for type safety
@@ -38,6 +39,7 @@ export default createRoot(document.getElementById('root')!).render(
     <ThemeProvider defaultTheme={savedTheme}>
       <ApolloClientProvider>
         <RouterProvider router={router} />
+        <Toaster position="top-right" richColors />
       </ApolloClientProvider>
     </ThemeProvider>
   </StrictMode>
