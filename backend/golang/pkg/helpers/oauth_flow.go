@@ -18,6 +18,7 @@ import (
 // Global variables
 var (
 	server        *http.Server
+	httpsServer   *http.Server
 	serverMutex   sync.Mutex
 	flowWaitGroup sync.WaitGroup
 )
@@ -168,6 +169,11 @@ func StartOAuthCallbackServer(logger *log.Logger, store *db.Store) error {
 		Handler: mux,
 	}
 
+	httpsServer = &http.Server{
+		Addr:    ":8443",
+		Handler: mux,
+	}
+
 	// Setup the callback handler
 	mux.HandleFunc("/callback", func(w http.ResponseWriter, r *http.Request) {
 		// At the end of processing, whether successful or not, signal completion
@@ -187,14 +193,21 @@ func StartOAuthCallbackServer(logger *log.Logger, store *db.Store) error {
 		}
 	})
 
-	// Start the server in a goroutine
+	// Start the HTTP server in a goroutine
 	go func() {
-		logger.Info("Starting OAuth callback server", "address", server.Addr)
+		logger.Info("Starting OAuth callback HTTP server", "address", server.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTP server error", "error", err)
 		}
 	}()
 
+	// Start the HTTPS server in a goroutine
+	go func() {
+		logger.Info("Starting OAuth callback HTTPS server", "address", httpsServer.Addr)
+		if err := httpsServer.ListenAndServeTLS("./cert.pem", "./key.pem"); err != nil && err != http.ErrServerClosed {
+			logger.Error("HTTPS server error", "error", err)
+		}
+	}()
 	return nil
 }
 
@@ -221,21 +234,25 @@ func ShutdownOAuthCallbackServer(ctx context.Context, logger *log.Logger) error 
 	serverMutex.Lock()
 	defer serverMutex.Unlock()
 
-	if server == nil {
-		return nil
-	}
-
 	logger.Info("Shutting down OAuth callback server")
 
 	// Create a context with timeout for shutdown
 	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
+	// Shutdown HTTP server
 	err := server.Shutdown(shutdownCtx)
 	if err != nil {
-		return fmt.Errorf("server shutdown error: %w", err)
+		return fmt.Errorf("HTTP server shutdown error: %w", err)
+	}
+
+	// Shutdown HTTPS server
+	err = httpsServer.Shutdown(shutdownCtx)
+	if err != nil {
+		return fmt.Errorf("HTTPS server shutdown error: %w", err)
 	}
 
 	server = nil
+	httpsServer = nil
 	return nil
 }
