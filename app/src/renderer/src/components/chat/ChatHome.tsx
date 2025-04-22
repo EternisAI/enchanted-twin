@@ -56,7 +56,7 @@ export default function ChatHome() {
             <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
               <span className="text-foreground text-6xl">👤</span>
             </div>
-            <h1 className="text-2xl font-bold">{twinName}</h1>
+            <h1 className="text-3xl font-bold text-center">{twinName}</h1>
           </div>
 
           <div className="flex gap-10 p-4 border border-border rounded-lg">
