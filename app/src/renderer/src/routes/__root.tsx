@@ -26,9 +26,9 @@ function RootComponent() {
   return (
     <div className="flex flex-col h-screen w-screen text-foreground">
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-20 flex items-center justify-center backdrop-blur-sm">
-        {process.env.NODE_ENV === 'development' && <DevBadge />}
+        {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
       </div>
-      {process.env.NODE_ENV === 'development' && <SetupBanner />}
+      <SetupBanner />
       <div className="flex-1 flex flex-col overflow-hidden pt-6">
         <div className="flex-1 flex overflow-hidden">
           <AppNav />
