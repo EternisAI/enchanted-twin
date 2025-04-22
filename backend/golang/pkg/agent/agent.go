@@ -14,21 +14,22 @@ import (
 )
 
 const MAX_STEPS = 10
-const MODEL = "gpt-4o-mini"
 
 type Agent struct {
 	logger           *log.Logger
 	nc               *nats.Conn
 	aiService        *ai.Service
+	CompletionsModel string
 	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
 	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)
 }
 
-func NewAgent(logger *log.Logger, nc *nats.Conn, aiService *ai.Service, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) *Agent {
+func NewAgent(logger *log.Logger, nc *nats.Conn, aiService *ai.Service, completionsModel string, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) *Agent {
 	return &Agent{
 		logger:           logger,
 		nc:               nc,
 		aiService:        aiService,
+		CompletionsModel: completionsModel,
 		PreToolCallback:  preToolCallback,
 		PostToolCallback: postToolCallback,
 	}
@@ -57,7 +58,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 	}
 
 	for currentStep < MAX_STEPS {
-		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, MODEL)
+		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, a.CompletionsModel)
 		if err != nil {
 			return AgentResponse{}, err
 		}

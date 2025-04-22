@@ -24,20 +24,22 @@ import (
 )
 
 type Service struct {
-	aiService *ai.Service
-	storage   Storage
-	nc        *nats.Conn
-	logger    *log.Logger
-	memory    memory.Storage
+	aiService        *ai.Service
+	storage          Storage
+	nc               *nats.Conn
+	logger           *log.Logger
+	memory           memory.Storage
+	completionsModel string
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string) *Service {
 	return &Service{
-		logger:    logger,
-		aiService: aiService,
-		storage:   storage,
-		nc:        nc,
-		memory:    memory,
+		logger:           logger,
+		aiService:        aiService,
+		storage:          storage,
+		nc:               nc,
+		memory:           memory,
+		completionsModel: completionsModel,
 	}
 }
 
@@ -48,6 +50,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
+	messageHistory = append(messageHistory, openai.SystemMessage("You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."))
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
 		if err != nil {
@@ -105,7 +108,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		}
 	}
 
-	agent := agent.NewAgent(s.logger, s.nc, s.aiService, preToolCallback, postToolCallback)
+	agent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},

@@ -217,8 +217,8 @@
     app-region: drag;
   }
   h1, h2 {
-    font-family: 'Imbue', var(--font-sans);
-    @apply font-medium;
+    font-family: 'Frank Ruhl Libre', var(--font-serif);
+    @apply font-light;
   }
 }
 

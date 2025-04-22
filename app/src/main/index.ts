@@ -11,6 +11,14 @@ import path from 'path'
 const PATHNAME = 'input_data'
 
 let mainWindow: BrowserWindow | null = null
+// Check if running in production using environment variable
+const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
+
+// Configure electron-log
+log.transports.file.level = 'info' // Log info level and above to file
+log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
+log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
+
 let goServerProcess: ChildProcess | null = null
 
 function openOAuthWindow(authUrl: string) {
@@ -97,7 +105,9 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  // HMR for renderer base on electron-vite cli.
+  // Load the remote URL for development or the local html file for production.
+  if (!IS_PRODUCTION && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -108,9 +118,9 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(() => {
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-  const goBinaryPath = is.dev
-    ? join(__dirname, '..', '..', 'resources', executable)
-    : join(process.resourcesPath, 'resources', executable)
+  const goBinaryPath = !IS_PRODUCTION
+    ? join(__dirname, '..', '..', 'resources', executable) // Path in development
+    : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
 
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
@@ -127,7 +137,8 @@ app.whenReady().then(() => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  if (!is.dev) {
+  // Only start the Go server in production environment
+  if (IS_PRODUCTION) {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
@@ -135,8 +146,10 @@ app.whenReady().then(() => {
         env: {
           ...process.env,
           DB_PATH: dbPath,
-          COMPLETIONS_MODEL: 'gpt-4o-mini',
-          EMBEDDINGS_MODEL: 'text-embedding-3-small'
+          OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+          COMPLETIONS_MODEL: process.env.COMPLETIONS_MODEL,
+          EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
+          EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL
         }
       })
 
