@@ -34,6 +34,7 @@ func (s *Store) InitOAuthProviders(ctx context.Context) error {
 		CREATE TABLE IF NOT EXISTS oauth_providers (
 			provider TEXT PRIMARY KEY,
 			client_id TEXT NOT NULL,
+			redirect_uri TEXT NOT NULL,
 			client_secret TEXT NOT NULL,
 			auth_endpoint TEXT NOT NULL,
 			token_endpoint TEXT NOT NULL,
@@ -50,10 +51,11 @@ func (s *Store) InitOAuthProviders(ctx context.Context) error {
 	var values []interface{}
 
 	for provider, config := range oauthConfig {
-		placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?, ?)")
+		placeholders = append(placeholders, "(?, ?, ?, ?, ?, ?, ?, ?)")
 		values = append(values,
 			provider,
 			config.ClientID,
+			config.RedirectURI,
 			config.ClientSecret,
 			config.AuthEndpoint,
 			config.TokenEndpoint,
@@ -66,7 +68,8 @@ func (s *Store) InitOAuthProviders(ctx context.Context) error {
 	query := fmt.Sprintf(`
 		INSERT INTO oauth_providers (
 			provider, 
-			client_id, 
+			client_id,
+			redirect_uri, 
 			client_secret,
 			auth_endpoint, 
 			token_endpoint, 
@@ -75,6 +78,7 @@ func (s *Store) InitOAuthProviders(ctx context.Context) error {
 		) VALUES %s
 		ON CONFLICT(provider) DO UPDATE SET
 			client_id = excluded.client_id,
+			redirect_uri = excluded.redirect_uri,
 			client_secret = excluded.client_secret,
 			auth_endpoint = excluded.auth_endpoint,
 			token_endpoint = excluded.token_endpoint,
@@ -134,6 +138,7 @@ func (s *Store) InitOAuthSessions(ctx context.Context) error {
 // OAuthConfig stores configuration for OAuth providers
 type OAuthConfig struct {
 	ClientID      string `db:"client_id"`
+	RedirectURI   string `db:"redirect_uri"`
 	ClientSecret  string `db:"client_secret"`
 	AuthEndpoint  string `db:"auth_endpoint"`
 	TokenEndpoint string `db:"token_endpoint"`
@@ -146,6 +151,7 @@ var (
 	oauthConfig = map[string]OAuthConfig{
 		"twitter": {
 			ClientID:      "bEFtUmtyNm1wUFNtRUlqQTdmQmE6MTpjaQ",
+			RedirectURI:   "http://127.0.0.1:8080/callback",
 			AuthEndpoint:  "https://twitter.com/i/oauth2/authorize",
 			TokenEndpoint: "https://api.twitter.com/2/oauth2/token",
 			UserEndpoint:  "https://api.twitter.com/2/users/me",
@@ -153,6 +159,7 @@ var (
 		},
 		"google": {
 			ClientID:      "993981911648-vtgfk8g1am6kp36pubo5l46902ua1g4t.apps.googleusercontent.com",
+			RedirectURI:   "http://127.0.0.1:8080/callback",
 			ClientSecret:  "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",
 			AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
 			TokenEndpoint: "https://oauth2.googleapis.com/token",
@@ -161,11 +168,21 @@ var (
 		},
 		"linkedin": {
 			ClientID:      "779sgzrvca0z5a",
+			RedirectURI:   "http://127.0.0.1:8080/callback",
 			ClientSecret:  "WPL_AP1.vfwo58d3MCsGiFht.izlFiA==",
 			AuthEndpoint:  "https://www.linkedin.com/oauth/v2/authorization",
 			TokenEndpoint: "https://www.linkedin.com/oauth/v2/accessToken",
 			UserEndpoint:  "https://api.linkedin.com/v2/me",
 			DefaultScope:  "r_basicprofile",
+		},
+		"slack": {
+			ClientID:      "6687557443010.8799848778913",
+			RedirectURI:   "https://127.0.0.1:8443/callback",
+			ClientSecret:  "aefeb979cb95332bd556f27b7e52b5cb",
+			AuthEndpoint:  "https://slack.com/oauth/v2/authorize",
+			TokenEndpoint: "https://slack.com/api/oauth.v2.access",
+			UserEndpoint:  "https://slack.com/api/users.identity",
+			DefaultScope:  "identity.basic identity.email identity.avatar identity.team",
 		},
 	}
 )
@@ -363,6 +380,7 @@ func (s *Store) GetOAuthConfig(ctx context.Context, provider string) (*OAuthConf
 	err := s.db.GetContext(ctx, &config, `
 		SELECT 
 			client_id,
+			redirect_uri,
 			client_secret,
 			auth_endpoint,
 			token_endpoint,
