@@ -90,9 +90,10 @@
       }
     ],
     "publish": {
-      "provider": "generic",
-      "url": "https://example.com/download/",
-      "channel": "latest"
+      "provider": "github",
+      "owner": "gluonfield",
+      "repo": "enchanted-twin",
+      "releaseType": "release"
     },
     "mac": {
       "target": "dmg",
