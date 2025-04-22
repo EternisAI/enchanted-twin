@@ -7,52 +7,61 @@ import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
-import http from 'http'
 
 const PATHNAME = 'input_data'
 
 let mainWindow: BrowserWindow | null = null
+let goServerProcess: ChildProcess | null = null
 
-function startOAuthCallbackServer() {
-  const server = http.createServer(async (req, res) => {
-    const parsedUrl = new URL(req.url!, 'http://127.0.0.1:8080')
-    console.log('parsedUrl', parsedUrl)
-    if (parsedUrl.pathname === '/callback') {
-      const code = parsedUrl.searchParams.get('code')
-      const state = parsedUrl.searchParams.get('state')
-
-      if (code && state && mainWindow) {
-        console.log('completeOAuthFlow', state, code)
-        await mainWindow.webContents.send('oauth-callback', {
-          code,
-          state
-        })
-
-        res.writeHead(200, { 'Content-Type': 'text/html' })
-        res.end('<h1>Authentication successful. You can close this window!</h1>')
-      } else {
-        res.writeHead(400)
-        res.end('Invalid callback parameters')
-      }
-    } else {
-      res.writeHead(404)
-      res.end('Not found')
+function openOAuthWindow(authUrl: string) {
+  const authWindow = new BrowserWindow({
+    width: 600,
+    height: 800,
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
     }
   })
 
-  server.listen(8080, () => {
-    console.log('OAuth callback server listening at http://127.0.0.1:8080')
+  const handleUrl = (url: string) => {
+    try {
+      const parsedUrl = new URL(url)
+      if (parsedUrl.hostname === '127.0.0.1' && parsedUrl.pathname === '/callback') {
+        const code = parsedUrl.searchParams.get('code')
+        const state = parsedUrl.searchParams.get('state')
+        if (code && state && mainWindow) {
+          console.log('[OAuth] Received callback', { code, state })
+          mainWindow.webContents.send('oauth-callback', { code, state })
+          authWindow.close()
+        }
+      }
+    } catch (err) {
+      console.error('[OAuth] Failed to parse redirect URL', err)
+    }
+  }
+
+  authWindow.webContents.on('will-redirect', (_event, url) => {
+    handleUrl(url)
   })
+
+  authWindow.webContents.on('will-navigate', (_event, url) => {
+    handleUrl(url)
+  })
+
+  authWindow.on('closed', () => {
+    console.log('[OAuth] Auth window closed by user')
+  })
+
+  authWindow.loadURL(authUrl)
 }
 
 // Configure electron-log
-log.transports.file.level = 'info' // Log info level and above to file
+log.transports.file.level = 'info'
 log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
 
-let goServerProcess: ChildProcess | null = null
-
 function createWindow(): BrowserWindow {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -67,7 +76,6 @@ function createWindow(): BrowserWindow {
     }
   })
 
-  // Add context menu for developer tools
   mainWindow.webContents.on('context-menu', (_, params) => {
     const menu = Menu.buildFromTemplate([
       {
@@ -89,8 +97,6 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -100,22 +106,15 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  startOAuthCallbackServer()
-  // Determine the path to the Go binary based on the environment and platform
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = is.dev
-    ? join(__dirname, '..', '..', 'resources', executable) // Path in development
-    : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
+    ? join(__dirname, '..', '..', 'resources', executable)
+    : join(process.resourcesPath, 'resources', executable)
 
-  // Create the database directory in user data path
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
 
-  // Ensure the database directory exists
   if (!existsSync(dbDir)) {
     try {
       mkdirSync(dbDir, { recursive: true })
@@ -125,16 +124,13 @@ app.whenReady().then(() => {
     }
   }
 
-  // Define the database path
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  // Only start the Go server in production environment
   if (!is.dev) {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
-      // Start the Go server with DB_PATH as an environment variable
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
           ...process.env,
@@ -151,7 +147,7 @@ app.whenReady().then(() => {
 
         goServerProcess.on('close', (code) => {
           log.info(`Go server process exited with code ${code}`)
-          goServerProcess = null // Reset when closed
+          goServerProcess = null
         })
 
         goServerProcess.stdout?.on('data', (data) => {
@@ -172,27 +168,21 @@ app.whenReady().then(() => {
     log.info('Running in development mode - packaged Go server not started')
   }
 
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
   mainWindow = createWindow()
 
-  // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
   ipcMain.on('open-oauth-url', async (_, url) => {
-    console.log('open-oauth-url', url)
-    await shell.openExternal(url)
+    console.log('[Main] Opening OAuth window for:', url)
+    openOAuthWindow(url)
   })
 
-  // Handle theme changes
   ipcMain.handle('get-native-theme', () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
@@ -206,7 +196,6 @@ app.whenReady().then(() => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
 
-  // Listen for native theme changes and notify renderer
   nativeTheme.on('updated', () => {
     const newTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
     if (mainWindow) {
@@ -214,7 +203,6 @@ app.whenReady().then(() => {
     }
   })
 
-  // Handle directory selection
   ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory']
@@ -222,7 +210,6 @@ app.whenReady().then(() => {
     return result
   })
 
-  // Handle file selection
   ipcMain.handle('select-files', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openFile', 'multiSelections']
@@ -230,39 +217,29 @@ app.whenReady().then(() => {
     return result
   })
 
-  // This will be used to copy the files to the app's storage directory to be read later by GO
   ipcMain.handle('copy-dropped-files', async (_event, filePaths) => {
-    console.log('copy-dropped-files', filePaths)
     const fileStoragePath =
       process.env.NODE_ENV === 'development'
         ? path.join(app.getAppPath(), PATHNAME)
         : path.join(app.getPath('userData'), PATHNAME)
 
-    // Ensure storage directory exists
     if (!fs.existsSync(fileStoragePath)) {
       fs.mkdirSync(fileStoragePath, { recursive: true })
     }
 
     const savedFiles: string[] = []
 
-    console.log('fileStoragePath', fileStoragePath)
-
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath)
       const destinationPath = path.join(fileStoragePath, fileName)
 
-      console.log('destinationPath', destinationPath)
-
       try {
-        // Copy file to storage directory
         fs.copyFileSync(filePath, destinationPath)
         savedFiles.push(destinationPath)
       } catch (error) {
         console.error('File save error:', error)
       }
     }
-
-    console.log('savedFiles', savedFiles)
 
     return savedFiles
   })
@@ -273,26 +250,20 @@ app.whenReady().then(() => {
   })
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
-// Ensure Go server is killed when the app quits (only if started by Electron, i.e., production)
 app.on('will-quit', () => {
   if (goServerProcess) {
     log.info('Attempting to kill Go server process...')
-    const killed = goServerProcess.kill() // Sends SIGTERM by default
+    const killed = goServerProcess.kill()
     if (killed) {
       log.info('Go server process killed successfully.')
     } else {
@@ -301,6 +272,3 @@ app.on('will-quit', () => {
     goServerProcess = null
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

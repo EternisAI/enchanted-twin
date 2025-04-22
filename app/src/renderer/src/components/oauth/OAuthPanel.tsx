@@ -27,17 +27,16 @@ const providers: Provider[] = [
     scope: 'tweet.read users.read offline.access'
   },
   {
+    provider: 'slack',
+    label: 'Slack',
+    icon: <Slack />,
+    scope: 'channels:read chat:write'
+  },
+  {
     provider: 'linkedin',
     label: 'LinkedIn',
     icon: <Linkedin />,
     scope: 'r_basicprofile',
-    comingSoon: true
-  },
-  {
-    provider: 'slack',
-    label: 'Slack',
-    icon: <Slack />,
-    scope: 'channels:read chat:write',
     comingSoon: true
   }
 ]
