@@ -39,7 +39,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build & package for all platforms
+      - name: Build & package for Mac Silicon
         env:
           OPENAI_BASE_URL: 'https://enchanted.ngrok.pro/v1'
           COMPLETIONS_MODEL: 'mistral-small3.1'

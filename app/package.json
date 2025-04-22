@@ -91,7 +91,7 @@
     ],
     "publish": {
       "provider": "github",
-      "owner": "gluonfield",
+      "owner": "EternisAI",
       "repo": "enchanted-twin",
       "releaseType": "release"
     },
