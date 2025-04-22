@@ -146,54 +146,44 @@ type OAuthConfig struct {
 	DefaultScope  string `db:"default_scope"`
 }
 
-var (
-	// TODO: The ClientSecret should not be stored in code.
-	oauthConfig = map[string]OAuthConfig{
-		"twitter": {
-			ClientID:      "bEFtUmtyNm1wUFNtRUlqQTdmQmE6MTpjaQ",
-			RedirectURI:   "http://127.0.0.1:8080/callback",
-			AuthEndpoint:  "https://twitter.com/i/oauth2/authorize",
-			TokenEndpoint: "https://api.twitter.com/2/oauth2/token",
-			UserEndpoint:  "https://api.twitter.com/2/users/me",
-			DefaultScope:  "tweet.read users.read offline.access",
-		},
-		"google": {
-			ClientID:      "993981911648-vtgfk8g1am6kp36pubo5l46902ua1g4t.apps.googleusercontent.com",
-			RedirectURI:   "http://127.0.0.1:8080/callback",
-			ClientSecret:  "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",
-			AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
-			TokenEndpoint: "https://oauth2.googleapis.com/token",
-			UserEndpoint:  "https://www.googleapis.com/oauth2/v3/userinfo",
-			DefaultScope:  "openid profile email",
-		},
-		"linkedin": {
-			ClientID:      "779sgzrvca0z5a",
-			RedirectURI:   "http://127.0.0.1:8080/callback",
-			ClientSecret:  "WPL_AP1.vfwo58d3MCsGiFht.izlFiA==",
-			AuthEndpoint:  "https://www.linkedin.com/oauth/v2/authorization",
-			TokenEndpoint: "https://www.linkedin.com/oauth/v2/accessToken",
-			UserEndpoint:  "https://api.linkedin.com/v2/me",
-			DefaultScope:  "r_basicprofile",
-		},
-		"slack": {
-			ClientID:      "6687557443010.8799848778913",
-			RedirectURI:   "https://127.0.0.1:8443/callback",
-			ClientSecret:  "aefeb979cb95332bd556f27b7e52b5cb",
-			AuthEndpoint:  "https://slack.com/oauth/v2/authorize",
-			TokenEndpoint: "https://slack.com/api/oauth.v2.access",
-			UserEndpoint:  "https://slack.com/api/users.identity",
-			DefaultScope:  "identity.basic identity.email identity.avatar identity.team",
-		},
-		"notion": {
-			ClientID:      "1ddd872b-594c-805b-969c-0037fd6f3b58",
-			RedirectURI:   "http://localhost:3000/callback",
-			ClientSecret:  "secret_TKTPtZhVXYMgQuElkplb8759bmBeqXn7jjphv4OexUV",
-			AuthEndpoint:  "https://api.notion.com/v1/oauth/authorize",
-			TokenEndpoint: "https://api.notion.com/v1/oauth/token",
-			UserEndpoint:  "https://api.notion.com/v1/users/me",
-		},
-	}
-)
+// TODO: The ClientSecret should not be stored in code.
+var oauthConfig = map[string]OAuthConfig{
+	"twitter": {
+		ClientID:      "bEFtUmtyNm1wUFNtRUlqQTdmQmE6MTpjaQ",
+		RedirectURI:   "http://127.0.0.1:8080/callback",
+		AuthEndpoint:  "https://twitter.com/i/oauth2/authorize",
+		TokenEndpoint: "https://api.twitter.com/2/oauth2/token",
+		UserEndpoint:  "https://api.twitter.com/2/users/me",
+		DefaultScope:  "tweet.read users.read offline.access",
+	},
+	"google": {
+		ClientID:      "993981911648-vtgfk8g1am6kp36pubo5l46902ua1g4t.apps.googleusercontent.com",
+		RedirectURI:   "http://127.0.0.1:8080/callback",
+		ClientSecret:  "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",
+		AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
+		TokenEndpoint: "https://oauth2.googleapis.com/token",
+		UserEndpoint:  "https://www.googleapis.com/oauth2/v3/userinfo",
+		DefaultScope:  "openid profile email",
+	},
+	"linkedin": {
+		ClientID:      "779sgzrvca0z5a",
+		RedirectURI:   "http://127.0.0.1:8080/callback",
+		ClientSecret:  "WPL_AP1.vfwo58d3MCsGiFht.izlFiA==",
+		AuthEndpoint:  "https://www.linkedin.com/oauth/v2/authorization",
+		TokenEndpoint: "https://www.linkedin.com/oauth/v2/accessToken",
+		UserEndpoint:  "https://api.linkedin.com/v2/me",
+		DefaultScope:  "r_basicprofile",
+	},
+	"slack": {
+		ClientID:      "6687557443010.8799848778913",
+		RedirectURI:   "https://127.0.0.1:8443/callback",
+		ClientSecret:  "aefeb979cb95332bd556f27b7e52b5cb",
+		AuthEndpoint:  "https://slack.com/oauth/v2/authorize",
+		TokenEndpoint: "https://slack.com/api/oauth.v2.access",
+		UserEndpoint:  "https://slack.com/api/users.identity",
+		DefaultScope:  "identity.basic identity.email identity.avatar identity.team",
+	},
+}
 
 // OAuthTokens represents oauth tokens for various providers
 type OAuthTokens struct {
@@ -248,7 +238,6 @@ func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthToke
 		FROM oauth_tokens
 		WHERE provider = ?
 	`, provider)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // Provider not found
@@ -302,7 +291,6 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger 
         FROM oauth_sessions 
         WHERE state = ?
     `, state)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", "", "", fmt.Errorf("no OAuth session found for state '%s'", state)
@@ -323,7 +311,6 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger 
         DELETE FROM oauth_sessions
         WHERE state = ?
     `, state)
-
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to delete session: %w", err)
 	}
@@ -397,7 +384,6 @@ func (s *Store) GetOAuthConfig(ctx context.Context, provider string) (*OAuthConf
 		FROM oauth_providers 
 		WHERE provider = ?
 	`, provider)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("provider '%s' not found", provider)
@@ -433,7 +419,6 @@ func (s *Store) ClearOAuthTokens(ctx context.Context, provider string) error {
 			refresh_token = ''
 		WHERE provider = ?
 	`, provider)
-
 	if err != nil {
 		return fmt.Errorf("failed to clear OAuth tokens for provider '%s': %w", provider, err)
 	}
@@ -454,7 +439,6 @@ func (s *Store) GetOAuthStatus(ctx context.Context) ([]OAuthStatus, error) {
         SELECT provider, expires_at, scope FROM oauth_tokens
         WHERE access_token != '' AND expires_at > ?
     `, time.Now())
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve providers: %w", err)
 	}
