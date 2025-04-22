@@ -1,0 +1,57 @@
+name: Release Enchanted Twin App
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # only run on version tags like v1.2.3
+
+jobs:
+  build-and-release:
+    runs-on: macos-latest  # mac can cross-build for win/linux too
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build & package for all platforms
+        env:
+          OPENAI_BASE_URL: 'https://enchanted.ngrok.pro/v1'
+          COMPLETIONS_MODEL: 'mistral-small3.1'
+          EMBEDDINGS_API_URL: 'https://enchanted.ngrok.pro/v1/embeddings'
+          EMBEDDINGS_MODEL: 'nomic-embed-text'
+          IS_PROD_BUILD: 'true'
+        run: make build-mac-silicon
+
+      - name: Package Mac app
+        run: |
+          cd app
+          zip -r Enchanted-${{ github.ref_name }}.zip dist/mac-arm64/Enchanted.app
+
+      - name: Upload release artifacts
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: app/Enchanted-${{ github.ref_name }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
