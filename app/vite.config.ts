@@ -23,6 +23,7 @@ export default defineConfig({
       TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
       react(),
       tailwindcss()
-    ]
+    ],
+    assetsInclude: ['**/*.splinecode']
   }
 })

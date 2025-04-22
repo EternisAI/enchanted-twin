@@ -24,6 +24,8 @@ import (
 
 	loghtml "golang.org/x/net/html"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/sirupsen/logrus"
 )
@@ -563,4 +565,41 @@ func (g *Gmail) ProcessDirectory(dirPath string, userName string) ([]types.Recor
 	}
 
 	return allRecords, nil
+}
+
+func ToDocuments(path string) ([]memory.TextDocument, error) {
+	records, err := helpers.ReadJSONL[types.Record](path)
+	if err != nil {
+		return nil, err
+	}
+
+	documents := make([]memory.TextDocument, 0, len(records))
+	for _, record := range records {
+		// Helper function to safely get string value
+		getString := func(key string) string {
+			if val, ok := record.Data[key]; ok {
+				if strVal, ok := val.(string); ok {
+					return strVal
+				}
+			}
+			return ""
+		}
+
+		content := getString("content")
+		from := getString("from")
+		to := getString("to")
+		subject := getString("subject")
+
+		documents = append(documents, memory.TextDocument{
+			Content:   content,
+			Timestamp: &record.Timestamp,
+			Tags:      []string{"google", "email"},
+			Metadata: map[string]string{
+				"from":    from,
+				"to":      to,
+				"subject": subject,
+			},
+		})
+	}
+	return documents, nil
 }

@@ -9,7 +9,10 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
@@ -138,7 +141,7 @@ func (w *IndexingWorkflow) IndexWorkflow(ctx workflow.Context, input IndexWorkfl
 		} else {
 			dataSources[i].IsProcessed = true
 			dataSources[i].HasError = false
-			dataSources[i].IsIndexed = true // TODO: to update after indexing is implemented
+			dataSources[i].IsIndexed = false
 			w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, nil)
 		}
 
@@ -272,7 +275,42 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 
+		case "telegram":
+			documents, err := telegram.ToDocuments(*dataSource.ProcessedPath)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "telegram", len(documents))
+			err = w.Memory.Store(ctx, documents)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+		case "x":
+			documents, err := x.ToDocuments(*dataSource.ProcessedPath)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "x", len(documents))
+			err = w.Memory.Store(ctx, documents)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+		case "gmail":
+			documents, err := gmail.ToDocuments(*dataSource.ProcessedPath)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "gmail", len(documents))
+			err = w.Memory.Store(ctx, documents)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+
 		}
+
 	}
 	return IndexDataActivityResponse{}, nil
 }

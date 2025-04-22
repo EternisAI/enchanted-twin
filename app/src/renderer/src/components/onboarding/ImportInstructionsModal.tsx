@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog'
 import { ExternalLink } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
 interface ImportInstructionsModalProps {
   isOpen: boolean
@@ -55,13 +56,20 @@ export function ImportInstructionsModal({
   onClose,
   dataSource
 }: ImportInstructionsModalProps) {
-  const instructions = INSTRUCTIONS[dataSource as keyof typeof INSTRUCTIONS] || []
+  const [visibleDataSource, setVisibleDataSource] = useState<string>('')
+  const instructions = INSTRUCTIONS[visibleDataSource as keyof typeof INSTRUCTIONS] || []
+
+  useEffect(() => {
+    if (isOpen) {
+      setVisibleDataSource(dataSource)
+    }
+  }, [isOpen, dataSource])
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>How to export {dataSource} data</DialogTitle>
+          <DialogTitle>How to export {visibleDataSource} data</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-4">
           <ol className="list-decimal list-inside space-y-2">

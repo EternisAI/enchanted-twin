@@ -25,7 +25,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   }
 
   return (
-    <div className="flex gap-3 items-center">
+    <div className="flex gap-3 items-center flex-1">
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}

@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestProcessLikeFile(t *testing.T) {
@@ -115,7 +118,6 @@ func TestProcessTweetFile(t *testing.T) {
       "created_at" : "Tue Apr 08 17:27:14 +0000 2025",
       "favorited" : false,
       "full_text" : "@John2Retour I dont agree",
-      "lang" : "fr",
       "in_reply_to_screen_name" : "John2Retour",
       "in_reply_to_user_id_str" : "1850280926082650112"
     }
@@ -569,4 +571,73 @@ func TestProcessDirectory(t *testing.T) {
 	if typeCount["directMessage"] != 7 {
 		t.Errorf("Expected 7 directMessage record, got %d", typeCount["directMessage"])
 	}
+}
+
+func TestToDocuments(t *testing.T) {
+	// Create a temporary test file
+	tempFile, err := os.CreateTemp("", "test-x-*.jsonl")
+	if err != nil {
+		t.Fatalf("Failed to create temp file: %v", err)
+	}
+	defer func() {
+		err = os.Remove(tempFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to remove temp file: %v", err)
+		}
+	}()
+
+	// Write test data to the file
+	testData := `{"data":{"conversationId":"1638683789647032320-1676928456225898496","myMessage":false,"recipientId":"1638683789647032320","senderId":"1676928456225898496","text":"Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks","type":"direct_message"},"timestamp":"2024-09-11T21:05:12Z","source":"x"}
+{"data":{"expandedUrl":"","fullText":"A verified internet scales humanity","tweetId":"12345","type":"like"},"timestamp":"2025-04-18T17:21:50-06:00","source":"x"}
+{"data":{"favoriteCount":"0","fullText":"@ChopJurassic @ReallyAmerican1 yes you do","id":"1904572225459806695","lang":"en","retweetCount":"0","type":"tweet","userId":"0"},"timestamp":"2025-03-25T16:32:58Z","source":"x"}`
+
+	if _, err := tempFile.WriteString(testData); err != nil {
+		t.Fatalf("Failed to write test data: %v", err)
+	}
+	err = tempFile.Close()
+	if err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
+
+	// Test the function
+	docs, err := ToDocuments(tempFile.Name())
+	if err != nil {
+		t.Fatalf("ToDocuments failed: %v", err)
+	}
+
+	// Verify results
+	assert.Equal(t, 3, len(docs), "Expected 3 documents")
+
+	// Check direct message
+	expectedTimestamp1, _ := time.Parse(time.RFC3339, "2024-09-11T21:05:12Z")
+	assert.Equal(t, "Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks", docs[0].Content)
+	assert.Equal(t, &expectedTimestamp1, docs[0].Timestamp)
+	assert.Equal(t, []string{"social", "x", "direct_message"}, docs[0].Tags)
+
+	// Check metadata fields individually
+	metadata := docs[0].Metadata
+	assert.Equal(t, "direct_message", metadata["type"])
+
+	// Check like
+	expectedTimestamp2, _ := time.Parse(time.RFC3339, "2025-04-18T17:21:50-06:00")
+	assert.Equal(t, "A verified internet scales humanity", docs[1].Content)
+	assert.Equal(t, &expectedTimestamp2, docs[1].Timestamp)
+	assert.Equal(t, []string{"social", "x", "like"}, docs[1].Tags)
+	assert.Equal(t, map[string]string{
+		"type": "like",
+		"id":   "12345",
+		"url":  "",
+	}, docs[1].Metadata)
+
+	// Check tweet
+	expectedTimestamp3, _ := time.Parse(time.RFC3339, "2025-03-25T16:32:58Z")
+	assert.Equal(t, "@ChopJurassic @ReallyAmerican1 yes you do", docs[2].Content)
+	assert.Equal(t, &expectedTimestamp3, docs[2].Timestamp)
+	assert.Equal(t, []string{"social", "x", "tweet"}, docs[2].Tags)
+	assert.Equal(t, map[string]string{
+		"type":          "tweet",
+		"id":            "1904572225459806695",
+		"favoriteCount": "0",
+		"retweetCount":  "0",
+	}, docs[2].Metadata)
 }
