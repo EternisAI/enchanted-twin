@@ -97,7 +97,9 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 
 	store := &Store{db: db}
 
-	store.InitOAuth(ctx)
+	if err = store.InitOAuth(ctx); err != nil {
+		return nil, err
+	}
 
 	return store, nil
 }

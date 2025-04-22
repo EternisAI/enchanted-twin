@@ -110,7 +110,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 	logger.Debug("starting OAuth completion", "state", state)
 
 	// Retrieve session data using state
-	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(ctx, state)
+	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(ctx, logger, state)
 
 	if err != nil {
 		return "", fmt.Errorf("failed to get OAuth state: %w", err)
