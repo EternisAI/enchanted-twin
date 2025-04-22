@@ -29,7 +29,7 @@ You must have Ollama installed \*_and running_ on your system and running.
 1. Install packages `make install`
 1. Run the server `make run`
 
-## Release
+## Release (build installer)
 
 Navigate to the root.
 
