@@ -105,12 +105,262 @@ func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, pr
 	return authURL.String(), config.RedirectURI, nil
 }
 
+// func CompleteOAuthFlowOld(ctx context.Context, logger *log.Logger, store *db.Store, state string, authCode string) (string, error) {
+// 	logger.Debug("starting OAuth completion", "state", state)
+
+// 	// Retrieve session data using state
+// 	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(ctx, logger, state)
+
+// 	if err != nil {
+// 		return "", fmt.Errorf("failed to get OAuth state: %w", err)
+// 	}
+
+// 	// Load OAuth config for provider
+// 	config, err := store.GetOAuthConfig(ctx, provider)
+// 	if err != nil {
+// 		return "", fmt.Errorf("failed to get OAuth config: %w", err)
+// 	}
+
+// 	// Exchange code for tokens
+// 	data := url.Values{}
+// 	data.Set("grant_type", "authorization_code")
+// 	data.Set("code", authCode)
+// 	data.Set("redirect_uri", config.RedirectURI)
+// 	data.Set("client_id", config.ClientID)
+// 	data.Set("code_verifier", codeVerifier)
+
+// 	if config.ClientSecret != "" {
+// 		data.Set("client_secret", config.ClientSecret)
+// 	}
+
+// 	timeBeforeTokenRequest := time.Now()
+// 	req, err := http.NewRequestWithContext(
+// 		ctx,
+// 		"POST",
+// 		config.TokenEndpoint,
+// 		strings.NewReader(data.Encode()),
+// 	)
+// 	if err != nil {
+// 		return "", fmt.Errorf("failed to create token request: %w", err)
+// 	}
+
+// 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+// 	req.Header.Set("Accept", "application/json")
+
+// 	client := &http.Client{Timeout: 30 * time.Second}
+// 	resp, err := client.Do(req)
+// 	if err != nil {
+// 		return "", fmt.Errorf("failed to send token request: %w", err)
+// 	}
+// 	defer resp.Body.Close()
+
+// 	if resp.StatusCode != http.StatusOK {
+// 		body, _ := io.ReadAll(resp.Body)
+// 		return "", fmt.Errorf("failed to obtain token: %d: %s", resp.StatusCode, body)
+// 	}
+
+// 	// Parse token response
+// 	var tokenResp struct {
+// 		AccessToken  string `json:"access_token"`
+// 		RefreshToken string `json:"refresh_token,omitempty"`
+// 		TokenType    string `json:"token_type"`
+// 		ExpiresIn    int    `json:"expires_in,omitempty"`
+// 	}
+
+// 	if provider == "slack" {
+// 		// When completing OAuth flow, parse the token response properly
+// 		var slackTokenResp struct {
+// 			OK         bool `json:"ok"`
+// 			AuthedUser struct {
+// 				ID          string `json:"id"`
+// 				AccessToken string `json:"access_token"`
+// 				TokenType   string `json:"token_type"`
+// 			} `json:"authed_user"`
+// 		}
+// 		if err := json.NewDecoder(resp.Body).Decode(&slackTokenResp); err != nil {
+// 			return "", fmt.Errorf("failed to parse slack token response: %w", err)
+// 		}
+// 		tokenResp.AccessToken = slackTokenResp.AuthedUser.AccessToken
+// 		tokenResp.TokenType = slackTokenResp.AuthedUser.TokenType
+// 		// No expiry: set to approx 10 years
+// 		tokenResp.ExpiresIn = 10 * 365 * 24 * int(time.Hour)
+// 	} else {
+// 		if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+// 			return "", fmt.Errorf("failed to parse token response: %w", err)
+// 		}
+// 	}
+
+// 	if tokenResp.AccessToken == "" {
+// 		return "", fmt.Errorf("no access token received")
+// 	}
+
+// 	if tokenResp.ExpiresIn < 60 {
+// 		return "", fmt.Errorf("access token expiry too soon: %ds", tokenResp.ExpiresIn)
+// 	}
+
+// 	// Calculate expiration
+// 	expiresAt := timeBeforeTokenRequest.Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
+
+// 	// Store tokens
+// 	oauthTokens := db.OAuthTokens{
+// 		Provider:     provider,
+// 		TokenType:    tokenResp.TokenType,
+// 		Scope:        scope,
+// 		AccessToken:  tokenResp.AccessToken,
+// 		ExpiresAt:    expiresAt,
+// 		RefreshToken: tokenResp.RefreshToken,
+// 	}
+
+// 	if err := store.SetOAuthTokens(ctx, oauthTokens); err != nil {
+// 		return "", fmt.Errorf("failed to store tokens: %w", err)
+// 	}
+
+// 	logger.Debug("completed OAuth flow: stored tokens to database", "provider", provider, "state", state, "expires_at", expiresAt, "scope", scope)
+
+// 	return provider, nil
+// }
+
+func RefreshExpiredTokens(ctx context.Context, logger *log.Logger, store *db.Store) ([]db.OAuthStatus, error) {
+	logger.Debug("refreshing expired tokens")
+	providers, err := store.GetProvidersForRefresh(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, provider := range providers {
+		RefreshOAuthToken(ctx, logger, store, provider.Provider)
+	}
+	return store.GetOAuthStatus(ctx)
+}
+
+// TokenRequest represents the parameters for token requests (both authorization and refresh)
+type TokenRequest struct {
+	GrantType    string
+	Code         string
+	RefreshToken string
+	RedirectURI  string
+	ClientID     string
+	ClientSecret string
+	CodeVerifier string
+}
+
+// TokenResponse encapsulates the response from token endpoints
+type TokenResponse struct {
+	AccessToken  string
+	RefreshToken string
+	TokenType    string
+	ExpiresAt    time.Time
+}
+
+// ExchangeToken handles the HTTP request to exchange a token (authorization or refresh)
+func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, config db.OAuthConfig, tokenReq TokenRequest) (*TokenResponse, error) {
+	// Prepare request data
+	data := url.Values{}
+	data.Set("grant_type", tokenReq.GrantType)
+	data.Set("client_id", tokenReq.ClientID)
+
+	// Set appropriate params based on grant type
+	if tokenReq.GrantType == "authorization_code" {
+		data.Set("code", tokenReq.Code)
+		data.Set("redirect_uri", tokenReq.RedirectURI)
+		if tokenReq.CodeVerifier != "" {
+			data.Set("code_verifier", tokenReq.CodeVerifier)
+		}
+	} else if tokenReq.GrantType == "refresh_token" {
+		data.Set("refresh_token", tokenReq.RefreshToken)
+	}
+
+	// Add client secret if available
+	if tokenReq.ClientSecret != "" {
+		data.Set("client_secret", tokenReq.ClientSecret)
+	}
+
+	// Track time before request for accurate expiry calculation
+	timeBeforeTokenRequest := time.Now()
+
+	// Create and execute request
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		config.TokenEndpoint,
+		strings.NewReader(data.Encode()),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send token request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to obtain token: %d: %s", resp.StatusCode, body)
+	}
+
+	// Parse token response based on provider
+	var tokenResp TokenResponse
+	var expiresIn int
+
+	if provider == "slack" {
+		// Special handling for Slack's response format
+		var slackTokenResp struct {
+			OK         bool `json:"ok"`
+			AuthedUser struct {
+				ID          string `json:"id"`
+				AccessToken string `json:"access_token"`
+				TokenType   string `json:"token_type"`
+			} `json:"authed_user"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&slackTokenResp); err != nil {
+			return nil, fmt.Errorf("failed to parse slack token response: %w", err)
+		}
+		tokenResp.AccessToken = slackTokenResp.AuthedUser.AccessToken
+		tokenResp.TokenType = slackTokenResp.AuthedUser.TokenType
+		// No expiry: set to approx 10 years
+		expiresIn = 10 * 365 * 24 * 3600
+	} else {
+		// Standard OAuth token response
+		var stdResp struct {
+			AccessToken  string `json:"access_token"`
+			RefreshToken string `json:"refresh_token,omitempty"`
+			TokenType    string `json:"token_type"`
+			ExpiresIn    int    `json:"expires_in,omitempty"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&stdResp); err != nil {
+			return nil, fmt.Errorf("failed to parse token response: %w", err)
+		}
+		tokenResp.AccessToken = stdResp.AccessToken
+		tokenResp.RefreshToken = stdResp.RefreshToken
+		tokenResp.TokenType = stdResp.TokenType
+		expiresIn = stdResp.ExpiresIn
+	}
+
+	if tokenResp.AccessToken == "" {
+		return nil, fmt.Errorf("no access token received")
+	}
+
+	if expiresIn < 60 {
+		return nil, fmt.Errorf("access token expiry too soon: %ds", expiresIn)
+	}
+
+	// Calculate expiration
+	tokenResp.ExpiresAt = timeBeforeTokenRequest.Add(time.Duration(expiresIn) * time.Second)
+
+	return &tokenResp, nil
+}
+
+// CompleteOAuthFlow handles the authorization code exchange flow
 func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, state string, authCode string) (string, error) {
 	logger.Debug("starting OAuth completion", "state", state)
 
 	// Retrieve session data using state
 	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(ctx, logger, state)
-
 	if err != nil {
 		return "", fmt.Errorf("failed to get OAuth state: %w", err)
 	}
@@ -121,85 +371,21 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 		return "", fmt.Errorf("failed to get OAuth config: %w", err)
 	}
 
-	// Exchange code for tokens
-	data := url.Values{}
-	data.Set("grant_type", "authorization_code")
-	data.Set("code", authCode)
-	data.Set("redirect_uri", config.RedirectURI)
-	data.Set("client_id", config.ClientID)
-	data.Set("code_verifier", codeVerifier)
-
-	if config.ClientSecret != "" {
-		data.Set("client_secret", config.ClientSecret)
+	// Prepare token request
+	tokenReq := TokenRequest{
+		GrantType:    "authorization_code",
+		Code:         authCode,
+		RedirectURI:  config.RedirectURI,
+		ClientID:     config.ClientID,
+		ClientSecret: config.ClientSecret,
+		CodeVerifier: codeVerifier,
 	}
 
-	timeBeforeTokenRequest := time.Now()
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		config.TokenEndpoint,
-		strings.NewReader(data.Encode()),
-	)
+	// Exchange authorization code for tokens
+	tokenResp, err := ExchangeToken(ctx, logger, provider, *config, tokenReq)
 	if err != nil {
-		return "", fmt.Errorf("failed to create token request: %w", err)
+		return "", err
 	}
-
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to send token request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("failed to obtain token: %d: %s", resp.StatusCode, body)
-	}
-
-	// Parse token response
-	var tokenResp struct {
-		AccessToken  string `json:"access_token"`
-		RefreshToken string `json:"refresh_token,omitempty"`
-		TokenType    string `json:"token_type"`
-		ExpiresIn    int    `json:"expires_in,omitempty"`
-	}
-
-	if provider == "slack" {
-		// When completing OAuth flow, parse the token response properly
-		var slackTokenResp struct {
-			OK         bool `json:"ok"`
-			AuthedUser struct {
-				ID          string `json:"id"`
-				AccessToken string `json:"access_token"`
-				TokenType   string `json:"token_type"`
-			} `json:"authed_user"`
-		}
-		if err := json.NewDecoder(resp.Body).Decode(&slackTokenResp); err != nil {
-			return "", fmt.Errorf("failed to parse slack token response: %w", err)
-		}
-		tokenResp.AccessToken = slackTokenResp.AuthedUser.AccessToken
-		tokenResp.TokenType = slackTokenResp.AuthedUser.TokenType
-		// No expiry: set to approx 10 years
-		tokenResp.ExpiresIn = 10 * 365 * 24 * int(time.Hour)
-	} else {
-		if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-			return "", fmt.Errorf("failed to parse token response: %w", err)
-		}
-	}
-
-	if tokenResp.AccessToken == "" {
-		return "", fmt.Errorf("no access token received")
-	}
-
-	if tokenResp.ExpiresIn < 60 {
-		return "", fmt.Errorf("access token expiry too soon: %ds", tokenResp.ExpiresIn)
-	}
-
-	// Calculate expiration
-	expiresAt := timeBeforeTokenRequest.Add(time.Duration(tokenResp.ExpiresIn) * time.Second)
 
 	// Store tokens
 	oauthTokens := db.OAuthTokens{
@@ -207,7 +393,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 		TokenType:    tokenResp.TokenType,
 		Scope:        scope,
 		AccessToken:  tokenResp.AccessToken,
-		ExpiresAt:    expiresAt,
+		ExpiresAt:    tokenResp.ExpiresAt,
 		RefreshToken: tokenResp.RefreshToken,
 	}
 
@@ -215,7 +401,65 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 		return "", fmt.Errorf("failed to store tokens: %w", err)
 	}
 
-	logger.Debug("completed OAuth flow: stored tokens to database", "provider", provider, "state", state, "expires_at", expiresAt, "scope", scope)
+	logger.Debug("completed OAuth flow: stored tokens to database",
+		"provider", provider,
+		"state", state,
+		"expires_at", tokenResp.ExpiresAt,
+		"scope", scope)
 
 	return provider, nil
+}
+
+// RefreshOAuthToken handles the refresh token flow
+func RefreshOAuthToken(ctx context.Context, logger *log.Logger, store *db.Store, provider string) error {
+	logger.Debug("refreshing OAuth token", "provider", provider)
+
+	// Get existing tokens
+	tokens, err := store.GetOAuthTokens(ctx, provider)
+	if err != nil {
+		return fmt.Errorf("failed to get existing tokens: %w", err)
+	}
+
+	if tokens.RefreshToken == "" {
+		return fmt.Errorf("no refresh token available for provider: %s", provider)
+	}
+
+	// Load OAuth config for provider
+	config, err := store.GetOAuthConfig(ctx, provider)
+	if err != nil {
+		return fmt.Errorf("failed to get OAuth config: %w", err)
+	}
+
+	// Prepare token request
+	tokenReq := TokenRequest{
+		GrantType:    "refresh_token",
+		RefreshToken: tokens.RefreshToken,
+		ClientID:     config.ClientID,
+		ClientSecret: config.ClientSecret,
+	}
+
+	// Exchange refresh token for new access token
+	tokenResp, err := ExchangeToken(ctx, logger, provider, *config, tokenReq)
+	if err != nil {
+		return err
+	}
+
+	// Update tokens in storage
+	tokens.AccessToken = tokenResp.AccessToken
+	tokens.ExpiresAt = tokenResp.ExpiresAt
+
+	// Update refresh token if provided in response
+	if tokenResp.RefreshToken != "" {
+		tokens.RefreshToken = tokenResp.RefreshToken
+	}
+
+	if err := store.SetOAuthTokens(ctx, *tokens); err != nil {
+		return fmt.Errorf("failed to store refreshed tokens: %w", err)
+	}
+
+	logger.Debug("successfully refreshed OAuth token",
+		"provider", provider,
+		"expires_at", tokenResp.ExpiresAt)
+
+	return nil
 }
