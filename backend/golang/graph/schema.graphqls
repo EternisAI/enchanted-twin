@@ -69,6 +69,11 @@ type OAuthStatus {
   scope: [String!]!
 }
 
+type OAuthFlow {
+  authURL: String!
+  redirectURI: String!
+}
+
 type Query {
   profile: UserProfile!
   getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
@@ -80,7 +85,7 @@ type Query {
 type Mutation {
   # Start OAuth flow - returns URL to open in browser
   # The 'scope' parameter is a of scopes to request.
-  startOAuthFlow(provider: String!, scope: String!): String!
+  startOAuthFlow(provider: String!, scope: String!): OAuthFlow!
   # Complete OAuth flow of 'state' with 'authCode' received from callback
   # On success, returns the provider which is now available
   completeOAuthFlow(state: String!, authCode: String!): String!

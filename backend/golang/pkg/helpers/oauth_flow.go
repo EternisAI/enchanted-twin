@@ -136,7 +136,7 @@ func OAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, provide
 		return fmt.Errorf("failed to get OAuth config: %w", err)
 	}
 
-	url, err := StartOAuthFlow(ctx, logger, store, provider, config.DefaultScope)
+	url, _, err := StartOAuthFlow(ctx, logger, store, provider, config.DefaultScope)
 	if err != nil {
 		return fmt.Errorf("failed to start OAuth flow: %w", err)
 	}
