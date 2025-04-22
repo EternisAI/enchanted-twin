@@ -37,7 +37,7 @@ For Mac M series use.
 
 ```sh
 OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
-COMPLETIONS_MODEL='gemma3:27b' \
+COMPLETIONS_MODEL='mistral-small3.1' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1/embeddings' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
 make build-mac-silicon
