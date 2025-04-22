@@ -93,6 +93,14 @@
       "provider": "generic",
       "url": "https://example.com/download/",
       "channel": "latest"
+    },
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false
     }
   }
 }
