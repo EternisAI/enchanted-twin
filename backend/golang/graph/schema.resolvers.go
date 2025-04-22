@@ -25,8 +25,12 @@ func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.
 }
 
 // StartOAuthFlow is the resolver for the startOAuthFlow field.
-func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, scope string) (string, error) {
-	return helpers.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
+func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, scope string) (*model.OAuthFlow, error) {
+	auth, redir, err := helpers.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
+	return &model.OAuthFlow{
+		AuthURL:     auth,
+		RedirectURI: redir,
+	}, err
 }
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.

@@ -97,6 +97,11 @@ type ComplexityRoot struct {
 		UpdateProfile     func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
+	OAuthFlow struct {
+		AuthURL     func(childComplexity int) int
+		RedirectURI func(childComplexity int) int
+	}
+
 	OAuthStatus struct {
 		ExpiresAt func(childComplexity int) int
 		Provider  func(childComplexity int) int
@@ -141,7 +146,7 @@ type ChatResolver interface {
 	Messages(ctx context.Context, obj *model.Chat) ([]*model.Message, error)
 }
 type MutationResolver interface {
-	StartOAuthFlow(ctx context.Context, provider string, scope string) (string, error)
+	StartOAuthFlow(ctx context.Context, provider string, scope string) (*model.OAuthFlow, error)
 	CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
@@ -446,6 +451,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.UpdateProfile(childComplexity, args["input"].(model.UpdateProfileInput)), true
+
+	case "OAuthFlow.authURL":
+		if e.complexity.OAuthFlow.AuthURL == nil {
+			break
+		}
+
+		return e.complexity.OAuthFlow.AuthURL(childComplexity), true
+
+	case "OAuthFlow.redirectURI":
+		if e.complexity.OAuthFlow.RedirectURI == nil {
+			break
+		}
+
+		return e.complexity.OAuthFlow.RedirectURI(childComplexity), true
 
 	case "OAuthStatus.expiresAt":
 		if e.complexity.OAuthStatus.ExpiresAt == nil {
@@ -2321,9 +2340,9 @@ func (ec *executionContext) _Mutation_startOAuthFlow(ctx context.Context, field 
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.(*model.OAuthFlow)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNOAuthFlow2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthFlow(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_startOAuthFlow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -2333,7 +2352,13 @@ func (ec *executionContext) fieldContext_Mutation_startOAuthFlow(ctx context.Con
 		IsMethod:   true,
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type String does not have child fields")
+			switch field.Name {
+			case "authURL":
+				return ec.fieldContext_OAuthFlow_authURL(ctx, field)
+			case "redirectURI":
+				return ec.fieldContext_OAuthFlow_redirectURI(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OAuthFlow", field.Name)
 		},
 	}
 	defer func() {
@@ -2811,6 +2836,94 @@ func (ec *executionContext) fieldContext_Mutation_deleteDataSource(ctx context.C
 	if fc.Args, err = ec.field_Mutation_deleteDataSource_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthFlow_authURL(ctx context.Context, field graphql.CollectedField, obj *model.OAuthFlow) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthFlow_authURL(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.AuthURL, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthFlow_authURL(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthFlow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthFlow_redirectURI(ctx context.Context, field graphql.CollectedField, obj *model.OAuthFlow) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthFlow_redirectURI(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.RedirectURI, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthFlow_redirectURI(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthFlow",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
 	}
 	return fc, nil
 }
@@ -6437,6 +6550,50 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 	return out
 }
 
+var oAuthFlowImplementors = []string{"OAuthFlow"}
+
+func (ec *executionContext) _OAuthFlow(ctx context.Context, sel ast.SelectionSet, obj *model.OAuthFlow) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, oAuthFlowImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("OAuthFlow")
+		case "authURL":
+			out.Values[i] = ec._OAuthFlow_authURL(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "redirectURI":
+			out.Values[i] = ec._OAuthFlow_redirectURI(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var oAuthStatusImplementors = []string{"OAuthStatus"}
 
 func (ec *executionContext) _OAuthStatus(ctx context.Context, sel ast.SelectionSet, obj *model.OAuthStatus) graphql.Marshaler {
@@ -7397,6 +7554,20 @@ func (ec *executionContext) marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchan
 		return graphql.Null
 	}
 	return ec._Message(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNOAuthFlow2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthFlow(ctx context.Context, sel ast.SelectionSet, v model.OAuthFlow) graphql.Marshaler {
+	return ec._OAuthFlow(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNOAuthFlow2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthFlow(ctx context.Context, sel ast.SelectionSet, v *model.OAuthFlow) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._OAuthFlow(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNOAuthStatus2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthStatusᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.OAuthStatus) graphql.Marshaler {

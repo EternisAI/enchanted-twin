@@ -46,6 +46,11 @@ type Message struct {
 type Mutation struct {
 }
 
+type OAuthFlow struct {
+	AuthURL     string `json:"authURL"`
+	RedirectURI string `json:"redirectURI"`
+}
+
 type OAuthStatus struct {
 	Provider  string   `json:"provider"`
 	ExpiresAt string   `json:"expiresAt"`

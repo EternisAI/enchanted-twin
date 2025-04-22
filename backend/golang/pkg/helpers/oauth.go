@@ -48,29 +48,29 @@ func generateRandomState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, provider string, scope string) (string, error) {
+func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, provider string, scope string) (string, string, error) {
 	// Get config for supported provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
 	// Generate PKCE codes
 	codeVerifier, codeChallenge, err := generatePKCEPair()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate PKCE pair: %w", err)
+		return "", "", fmt.Errorf("failed to generate PKCE pair: %w", err)
 	}
 
 	// Generate state
 	state, err := generateRandomState()
 	if err != nil {
-		return "", fmt.Errorf("failed to generate state: %w", err)
+		return "", "", fmt.Errorf("failed to generate state: %w", err)
 	}
 
 	// Construct the authorization URL
 	authURL, err := url.Parse(config.AuthEndpoint)
 	if err != nil {
-		return "", fmt.Errorf("invalid auth endpoint: %w", err)
+		return "", "", fmt.Errorf("invalid auth endpoint: %w", err)
 	}
 
 	q := authURL.Query()
@@ -97,12 +97,12 @@ func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, pr
 	err = store.SetOAuthStateAndVerifier(ctx, provider, state, codeVerifier, scope)
 
 	if err != nil {
-		return "", fmt.Errorf("unable to store state and verifier for provider '%s': %w", provider, err)
+		return "", "", fmt.Errorf("unable to store state and verifier for provider '%s': %w", provider, err)
 	}
 
 	logger.Debug("start OAuth flow: stored state and verifier to database", "provider", provider, "state", state, "scope", scope)
 
-	return authURL.String(), nil
+	return authURL.String(), config.RedirectURI, nil
 }
 
 func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, state string, authCode string) (string, error) {

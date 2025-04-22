@@ -184,6 +184,14 @@ var (
 			UserEndpoint:  "https://slack.com/api/users.identity",
 			DefaultScope:  "identity.basic identity.email identity.avatar identity.team",
 		},
+		"notion": {
+			ClientID:      "1ddd872b-594c-805b-969c-0037fd6f3b58",
+			RedirectURI:   "http://localhost:3000/callback",
+			ClientSecret:  "secret_TKTPtZhVXYMgQuElkplb8759bmBeqXn7jjphv4OexUV",
+			AuthEndpoint:  "https://api.notion.com/v1/oauth/authorize",
+			TokenEndpoint: "https://api.notion.com/v1/oauth/token",
+			UserEndpoint:  "https://api.notion.com/v1/users/me",
+		},
 	}
 )
 
