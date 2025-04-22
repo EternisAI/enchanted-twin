@@ -16,10 +16,8 @@ type Config struct {
 	CompletionsModel string
 	EmbeddingsModel  string
 	DBPath           string
-
-	OutputPath string
-
-	OllamaBaseURL string
+	OutputPath       string
+	OllamaBaseURL    string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
