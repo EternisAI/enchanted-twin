@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"mime"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -149,15 +151,30 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 		if len(doc.Tags) > 0 {
 			tagsArray = make([]string, 0, len(doc.Tags))
 			for _, tag := range doc.Tags {
-				// Convert tag to valid ltree format (replace spaces/special chars with underscores)
-				formattedTag := strings.ReplaceAll(tag, " ", "_")
-				formattedTag = strings.ReplaceAll(formattedTag, "-", "_")
-				// Escape special characters for PostgreSQL array literal
-				formattedTag = strings.ReplaceAll(formattedTag, "\"", "\\\"")
-				formattedTag = strings.ReplaceAll(formattedTag, "\\", "\\\\")
-				formattedTag = strings.ReplaceAll(formattedTag, "{", "\\{")
-				formattedTag = strings.ReplaceAll(formattedTag, "}", "\\}")
-				formattedTag = strings.ReplaceAll(formattedTag, ",", "\\,")
+				// Decode MIME-encoded strings if present
+				decodedTag := tag
+				if strings.Contains(tag, "=?") && strings.Contains(tag, "?=") {
+					// Try to decode MIME-encoded strings
+					decoded, err := decodeMIMEHeader(tag)
+					if err == nil {
+						decodedTag = decoded
+					}
+				}
+
+				// Convert tag to valid ltree format
+				formattedTag := strings.ToLower(decodedTag)
+				// Replace all non-alphanumeric characters with underscores
+				formattedTag = regexp.MustCompile(`[^a-z0-9_]+`).ReplaceAllString(formattedTag, "_")
+				// Remove leading/trailing underscores
+				formattedTag = strings.Trim(formattedTag, "_")
+				// Ensure tag is not empty
+				if formattedTag == "" {
+					formattedTag = "untagged"
+				}
+				// Ensure tag is not too long (PostgreSQL ltree has a limit)
+				if len(formattedTag) > 256 {
+					formattedTag = formattedTag[:256]
+				}
 				tagsArray = append(tagsArray, formattedTag)
 			}
 		}
@@ -167,7 +184,10 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 		if len(tagsArray) > 0 {
 			escapedTags := make([]string, 0, len(tagsArray))
 			for _, tag := range tagsArray {
-				escapedTags = append(escapedTags, "\""+tag+"\"")
+				// Escape special characters for PostgreSQL array literal
+				escapedTag := strings.ReplaceAll(tag, "\"", "\\\"")
+				escapedTag = strings.ReplaceAll(escapedTag, "\\", "\\\\")
+				escapedTags = append(escapedTags, "\""+escapedTag+"\"")
 			}
 			tagsStr = "{" + strings.Join(escapedTags, ",") + "}"
 		}
@@ -233,6 +253,12 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 	}
 
 	return entriesToProcess, nil
+}
+
+// decodeMIMEHeader decodes MIME-encoded strings
+func decodeMIMEHeader(s string) (string, error) {
+	dec := new(mime.WordDecoder)
+	return dec.DecodeHeader(s)
 }
 
 // extractAndStoreFacts processes text entries in parallel to extract facts using AI
