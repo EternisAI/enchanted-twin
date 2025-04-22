@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { OnboardingLayout } from './OnboardingLayout'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { CheckCircle, RefreshCw } from 'lucide-react'
 import { useSubscription, useMutation } from '@apollo/client'
 import { gql } from '@apollo/client'
 import { toast } from 'sonner'
@@ -39,7 +39,7 @@ const INDEXING_STATUS_SUBSCRIPTION = gql`
 `
 
 export function IndexingStep() {
-  const { completeOnboarding } = useOnboardingStore()
+  const { completeOnboarding, previousStep } = useOnboardingStore()
   const [isRetrying, setIsRetrying] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -81,11 +81,7 @@ export function IndexingStep() {
       title="Processing data…"
       subtitle="We're processing your data to make it searchable. This may take a while."
     >
-      <Button variant="outline" onClick={handleStartIndexing} disabled={isRetrying}>
-        <RefreshCw className="mr-2 h-4 w-4" />
-        Retry
-      </Button>
-      <div className="space-y-6">
+      <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">
           {data?.indexingStatus?.dataSources?.map((source) => (
             <div key={source.id} className="flex flex-col gap-2">
@@ -108,24 +104,10 @@ export function IndexingStep() {
         </div>
 
         <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Overall Progress</span>
-            <span className="text-sm text-muted-foreground">
-              {data?.indexingStatus?.processingDataProgress}% Processed,{' '}
-              {data?.indexingStatus?.indexingDataProgress}% Indexed
-            </span>
-          </div>
-          <div className="w-full bg-secondary rounded-full h-2">
-            <div
-              className="bg-primary h-2 rounded-full transition-all duration-300"
-              style={{
-                width: `${Math.max(
-                  data?.indexingStatus?.processingDataProgress || 0,
-                  data?.indexingStatus?.indexingDataProgress || 0
-                )}%`
-              }}
-            />
-          </div>
+          <Button size="lg" onClick={handleStartIndexing} disabled={isRetrying}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Start indexing
+          </Button>
         </div>
 
         {data?.indexingStatus?.status === 'FAILED' && (
@@ -133,27 +115,19 @@ export function IndexingStep() {
             <div className="text-destructive text-sm">
               Failed to index your data. Please try again.
             </div>
-            <Button
-              variant="outline"
-              onClick={handleStartIndexing}
-              disabled={isRetrying}
-              className="w-full"
-            >
-              {isRetrying ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Retrying...
-                </>
-              ) : (
-                <>
-                  <RefreshCw className="mr-2 h-4 w-4" />
-                  Retry
-                </>
-              )}
-            </Button>
           </div>
         )}
-        <Button onClick={completeOnboarding}>Finish</Button>
+        <div className="flex flex-row justify-between">
+          <Button variant="outline" onClick={previousStep}>
+            Back
+          </Button>
+          {!isRetrying && (
+            <Button onClick={completeOnboarding}>
+              <CheckCircle className="mr-2 h-4 w-4" />
+              Finish
+            </Button>
+          )}
+        </div>
       </div>
 
       <AlertDialog open={!!errorMessage} onOpenChange={() => setErrorMessage(null)}>
