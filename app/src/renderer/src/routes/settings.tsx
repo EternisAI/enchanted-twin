@@ -11,7 +11,10 @@ function Settings() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <div className="p-6 max-w-2xl mx-auto" style={{ viewTransitionName: 'page-content' }}>
+    <div
+      className="p-6 flex flex-col gap-6 max-w-2xl mx-auto"
+      // style={{ viewTransitionName: 'page-content' }}
+    >
       <style>
         {`
           :root {
@@ -19,11 +22,11 @@ function Settings() {
           }
         `}
       </style>
-      <h1 className="text-2xl font-semibold mb-6">Settings</h1>
+      <h2 className="text-4xl mb-6">Settings</h2>
 
       <div className="space-y-6">
         <div>
-          <h2 className="text-lg font-medium mb-2">Appearance</h2>
+          <h3 className="text-xl font-medium mb-2">Appearance</h3>
           <p className="text-sm text-muted-foreground mb-4">
             Customize how the app looks on your device.
           </p>

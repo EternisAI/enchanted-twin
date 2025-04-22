@@ -1,0 +1,12 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+- You are working in a monorepo with the frontend located in `app` and backend located in `backend/golang`
+- You are building an app with the stack: Electron, Vite, shadcn, TailWind, tanstack router, Apollo (graphql), zustand.
+- Do NOT add comments to explain every other line of your code. The code itself should be self-evident unless the code is exotic or solving a complex problem.
+
+# User interface
+
+- We are building an Electron app with a custom title bar. We use a spacing component with the class `.titlebar` to support window dragging.
