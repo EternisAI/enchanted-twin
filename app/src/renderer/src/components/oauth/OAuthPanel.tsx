@@ -5,7 +5,7 @@ import {
   StartOAuthFlowDocument
 } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
-import { Slack, Linkedin, BookOpenIcon, Twitter } from 'lucide-react'
+import { Slack, Linkedin, Twitter } from 'lucide-react'
 import { useEffect } from 'react'
 
 type Providers = 'google' | 'twitter' | 'linkedin' | 'slack'
@@ -19,7 +19,16 @@ type Provider = {
 }
 
 const providers: Provider[] = [
-  { provider: 'google', label: 'Google', icon: <BookOpenIcon />, scope: 'openid email profile' },
+  {
+    provider: 'google',
+    label: 'Google',
+    icon: (
+      <div className="w-4.5 h-4.5 rounded-full border border-current flex items-center justify-center">
+        G
+      </div>
+    ),
+    scope: 'openid email profile'
+  },
   {
     provider: 'twitter',
     label: 'X',
