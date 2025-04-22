@@ -519,7 +519,7 @@ func TestToDocuments(t *testing.T) {
 	}
 
 	// Test Tags
-	expectedTags := []string{"gmail", "support@example.com", "testuser@example.com", "Welcome to the Platform"}
+	expectedTags := []string{"google", "email"}
 	if len(doc.Tags) != len(expectedTags) {
 		t.Errorf("Expected %d tags, got %d", len(expectedTags), len(doc.Tags))
 	}

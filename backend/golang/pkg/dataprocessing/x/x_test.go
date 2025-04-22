@@ -612,7 +612,7 @@ func TestToDocuments(t *testing.T) {
 	expectedTimestamp1, _ := time.Parse(time.RFC3339, "2024-09-11T21:05:12Z")
 	assert.Equal(t, "Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks", docs[0].Content)
 	assert.Equal(t, &expectedTimestamp1, docs[0].Timestamp)
-	assert.Equal(t, []string{"x", "direct_message", "1638683789647032320-1676928456225898496", "1638683789647032320", "1676928456225898496"}, docs[0].Tags)
+	assert.Equal(t, []string{"social", "x", "direct_message"}, docs[0].Tags)
 
 	// Check metadata fields individually
 	metadata := docs[0].Metadata
@@ -622,7 +622,7 @@ func TestToDocuments(t *testing.T) {
 	expectedTimestamp2, _ := time.Parse(time.RFC3339, "2025-04-18T17:21:50-06:00")
 	assert.Equal(t, "A verified internet scales humanity", docs[1].Content)
 	assert.Equal(t, &expectedTimestamp2, docs[1].Timestamp)
-	assert.Equal(t, []string{"x", "like", "12345"}, docs[1].Tags)
+	assert.Equal(t, []string{"social", "x", "like"}, docs[1].Tags)
 	assert.Equal(t, map[string]string{
 		"type": "like",
 		"id":   "12345",
@@ -633,7 +633,7 @@ func TestToDocuments(t *testing.T) {
 	expectedTimestamp3, _ := time.Parse(time.RFC3339, "2025-03-25T16:32:58Z")
 	assert.Equal(t, "@ChopJurassic @ReallyAmerican1 yes you do", docs[2].Content)
 	assert.Equal(t, &expectedTimestamp3, docs[2].Timestamp)
-	assert.Equal(t, []string{"x", "tweet", "1904572225459806695", "0", "0"}, docs[2].Tags)
+	assert.Equal(t, []string{"social", "x", "tweet"}, docs[2].Tags)
 	assert.Equal(t, map[string]string{
 		"type":          "tweet",
 		"id":            "1904572225459806695",

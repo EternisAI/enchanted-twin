@@ -46,12 +46,12 @@ func TestToDocuments(t *testing.T) {
 	expectedTimestamp, _ := time.Parse(time.RFC3339, "2022-12-25T04:38:18Z")
 	assert.Equal(t, "I want to believe", docs[0].Content)
 	assert.Equal(t, &expectedTimestamp, docs[0].Timestamp)
-	assert.Equal(t, []string{"telegram", "Eternal22"}, docs[0].Tags)
+	assert.Equal(t, []string{"social", "telegram", "chat"}, docs[0].Tags)
 
 	// Check contact document
 	assert.Equal(t, "John Doe", docs[1].Content)
 	assert.Equal(t, &expectedTimestamp, docs[1].Timestamp)
-	assert.Equal(t, []string{"telegram", "John"}, docs[1].Tags)
+	assert.Equal(t, []string{"social", "telegram", "contact"}, docs[1].Tags)
 	assert.Equal(t, map[string]string{
 		"type":        "contact",
 		"firstName":   "John",

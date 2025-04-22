@@ -215,7 +215,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 			textDocuments = append(textDocuments, memory.TextDocument{
 				Content:   message,
 				Timestamp: &record.Timestamp,
-				Tags:      []string{"telegram", from},
+				Tags:      []string{"social", "telegram", "chat"},
 				Metadata: map[string]string{
 					"type": "message",
 					"from": from,
@@ -240,7 +240,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 			textDocuments = append(textDocuments, memory.TextDocument{
 				Content:   firstName + " " + lastName,
 				Timestamp: &record.Timestamp,
-				Tags:      []string{"telegram", firstName},
+				Tags:      []string{"social", "telegram", "contact"},
 				Metadata: map[string]string{
 					"type":        "contact",
 					"firstName":   firstName,

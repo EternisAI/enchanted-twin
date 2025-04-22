@@ -237,7 +237,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 
 		content := ""
 		metadata := map[string]string{}
-		tags := []string{"x"}
+		tags := []string{"social", "x"}
 
 		getString := func(key string) string {
 			if val, ok := record.Data[key]; ok {
@@ -258,7 +258,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 				"id":   tweetId,
 				"url":  getString("expandedUrl"),
 			}
-			tags = append(tags, "social", "twitter", "like")
+			tags = append(tags, "like")
 
 		case "tweet":
 			content = getString("fullText")
@@ -271,14 +271,14 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 				"favoriteCount": favoriteCount,
 				"retweetCount":  retweetCount,
 			}
-			tags = append(tags, "social", "twitter", "tweet")
+			tags = append(tags, "tweet")
 
 		case "direct_message":
 			content = getString("text")
 			metadata = map[string]string{
 				"type": "direct_message",
 			}
-			tags = append(tags, "social", "twitter", "direct_message")
+			tags = append(tags, "direct_message")
 
 		}
 
