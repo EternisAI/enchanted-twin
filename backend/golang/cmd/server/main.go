@@ -118,7 +118,7 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	store, err := db.NewStore(envs.DBPath)
+	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
