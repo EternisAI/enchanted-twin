@@ -25,7 +25,7 @@ export function AppNav() {
   const { location } = useRouterState()
 
   return (
-    <div className="h-full">
+    <div>
       <AnimatePresence>
         <motion.aside
           initial={{ opacity: 0 }}

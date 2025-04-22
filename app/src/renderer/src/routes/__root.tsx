@@ -13,26 +13,27 @@ function RootComponent() {
   if (!isCompleted) {
     return (
       <div className="flex flex-col h-screen w-screen text-foreground">
-        <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-50 flex items-center justify-center">
+        <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-50 flex items-center justify-center backdrop-blur-sm">
           {process.env.NODE_ENV === 'development' && <DevBadge />}
         </div>
-        <Outlet />
+        <div className="flex-1 overflow-auto pt-6">
+          <Outlet />
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 flex flex-col text-foreground">
-      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-50 flex items-center justify-center">
+    <div className="flex flex-col h-screen w-screen text-foreground">
+      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-50 flex items-center justify-center backdrop-blur-sm">
         {process.env.NODE_ENV === 'development' && <DevBadge />}
       </div>
-      <div className="flex flex-col flex-1 pt-6 gap-2">
+      <div className="flex-1 flex flex-col overflow-hidden pt-6">
         {process.env.NODE_ENV === 'development' && <SetupBanner />}
-        <div className="flex flex-1">
+        <div className="flex-1 flex overflow-hidden">
           <AppNav />
-          <div className="flex flex-1 overflow-auto rounded-lg h-full">
+          <div className="flex-1 overflow-auto">
             <Outlet />
-            {/* <TanStackRouterDevtools /> */}
           </div>
         </div>
       </div>

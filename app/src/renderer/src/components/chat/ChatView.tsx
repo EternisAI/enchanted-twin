@@ -6,7 +6,7 @@ import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 
-const INPUT_HEIGHT = '130px'
+// const INPUT_HEIGHT = '130px'
 
 export default function ChatView({ chat }: { chat: Chat }) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
@@ -84,22 +84,16 @@ export default function ChatView({ chat }: { chat: Chat }) {
   }, [messages])
 
   return (
-    <div className="flex flex-col flex-1 min-h-full max-h-full w-full justify-between">
-      <div
-        className="p-6 flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent"
-        style={{ maxHeight: `calc(100vh - ${INPUT_HEIGHT})` }}
-      >
-        <div
-          className="flex flex-col max-w-3xl w-full"
-          style={{
-            viewTransitionName: 'page-content'
-          }}
-        >
-          <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
-          <div ref={bottomRef} />
+    <div className="flex flex-col h-full w-full">
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex flex-col items-center">
+          <div className="flex flex-col max-w-3xl w-full">
+            <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
+            <div ref={bottomRef} />
+          </div>
         </div>
       </div>
-      <div className="px-6" style={{ height: INPUT_HEIGHT } as React.CSSProperties}>
+      <div className="px-6 py-4 border-t">
         <MessageInput
           isWaitingTwinResponse={isWaitingTwinResponse}
           onSend={sendMessage}

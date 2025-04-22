@@ -40,10 +40,7 @@ export default function ChatHome() {
   // const twinName = data?.profile.name || 'Your Twin'
 
   return (
-    <div
-      className="flex flex-col items-center w-full "
-      style={{ viewTransitionName: 'page-content' }}
-    >
+    <div className="flex flex-col items-center">
       <style>
         {`
           :root {
@@ -52,10 +49,7 @@ export default function ChatHome() {
         `}
       </style>
       <div className="flex flex-col flex-1 justify-between">
-        <div
-          className="p-6 flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-3"
-          style={{ maxHeight: `calc(100vh - 130px)` }}
-        >
+        <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-3">
           <div className="py-8">
             <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
               <span className="text-foreground text-6xl">👤</span>
