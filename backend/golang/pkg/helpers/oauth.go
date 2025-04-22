@@ -18,11 +18,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// Global variables
-var (
-	redirectURI = "http://127.0.0.1:8080/callback"
-)
-
 // generatePKCEPair generates PKCE code verifier and challenge
 func generatePKCEPair() (string, string, error) {
 	// Generate a random byte slice for the verifier
@@ -81,8 +76,12 @@ func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, pr
 	q := authURL.Query()
 	q.Set("response_type", "code")
 	q.Set("client_id", config.ClientID)
-	q.Set("redirect_uri", redirectURI)
-	q.Set("scope", scope)
+	q.Set("redirect_uri", config.RedirectURI)
+	if provider != "slack" {
+		q.Set("scope", scope)
+	} else {
+		q.Set("user_scope", scope)
+	}
 	q.Set("state", state)
 	q.Set("code_challenge", codeChallenge)
 	q.Set("code_challenge_method", "S256")
@@ -126,7 +125,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 	data := url.Values{}
 	data.Set("grant_type", "authorization_code")
 	data.Set("code", authCode)
-	data.Set("redirect_uri", redirectURI)
+	data.Set("redirect_uri", config.RedirectURI)
 	data.Set("client_id", config.ClientID)
 	data.Set("code_verifier", codeVerifier)
 
@@ -168,8 +167,35 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 		ExpiresIn    int    `json:"expires_in,omitempty"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return "", fmt.Errorf("failed to parse token response: %w", err)
+	if provider == "slack" {
+		// When completing OAuth flow, parse the token response properly
+		var slackTokenResp struct {
+			OK         bool `json:"ok"`
+			AuthedUser struct {
+				ID          string `json:"id"`
+				AccessToken string `json:"access_token"`
+				TokenType   string `json:"token_type"`
+			} `json:"authed_user"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&slackTokenResp); err != nil {
+			return "", fmt.Errorf("failed to parse slack token response: %w", err)
+		}
+		tokenResp.AccessToken = slackTokenResp.AuthedUser.AccessToken
+		tokenResp.TokenType = slackTokenResp.AuthedUser.TokenType
+		// No expiry: set to approx 10 years
+		tokenResp.ExpiresIn = 10 * 365 * 24 * int(time.Hour)
+	} else {
+		if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+			return "", fmt.Errorf("failed to parse token response: %w", err)
+		}
+	}
+
+	if tokenResp.AccessToken == "" {
+		return "", fmt.Errorf("no access token received")
+	}
+
+	if tokenResp.ExpiresIn < 60 {
+		return "", fmt.Errorf("access token expiry too soon: %ds", tokenResp.ExpiresIn)
 	}
 
 	// Calculate expiration
