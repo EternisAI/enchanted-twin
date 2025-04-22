@@ -234,13 +234,12 @@ func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthToke
 }
 
 func (s *Store) SetOAuthStateAndVerifier(ctx context.Context, provider string, state string, codeVerifier string, scope string) error {
-	// First, try to update an existing record
 	query := `
         INSERT OR REPLACE INTO oauth_sessions 
-        (provider, state, code_verifier, state_created_at, scope)
+        (state, provider, code_verifier, state_created_at, scope)
         VALUES (?, ?, ?, ?, ?)
     `
-	_, err := s.db.ExecContext(ctx, query, provider, state, codeVerifier, time.Now(), scope)
+	_, err := s.db.ExecContext(ctx, query, state, provider, codeVerifier, time.Now(), scope)
 	return err
 }
 
@@ -250,7 +249,7 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger 
 	if err != nil {
 		return "", "", "", fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	// Compicated defer to satisfy linter which requires all errors be handled.
+	// Complicated defer to satisfy linter which requires all errors be handled.
 	defer func() {
 		err := tx.Rollback()
 		// ErrTxDone happens if tx.Commit() is called
@@ -268,13 +267,13 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger 
 		Scope        string    `db:"scope"`
 	}
 
-	// First retrieve the data
+	// First retrieve the session data
 	err = tx.GetContext(ctx, &dest, `
         SELECT 
             provider, 
             code_verifier,
             state_created_at,
-			scope
+            scope
         FROM oauth_sessions 
         WHERE state = ?
     `, state)
@@ -286,20 +285,40 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger 
 		return "", "", "", fmt.Errorf("failed to get OAuth session for state '%s': %w", state, err)
 	}
 
+	now := time.Now()
+	sessionExpiryDuration := 10 * time.Minute
+
 	// Check if state is expired (10 minutes)
-	if time.Since(dest.CreatedAt) > 10*time.Minute {
+	if now.Sub(dest.CreatedAt) > sessionExpiryDuration {
 		return "", "", "", fmt.Errorf("OAuth state expired")
 	}
 
-	// Clear the state and code_verifier
+	// Delete the record instead of just clearing fields
 	_, err = tx.ExecContext(ctx, `
-        UPDATE oauth_sessions
-        SET state = NULL, code_verifier = '', state_created_at = NULL, scope = ''
+        DELETE FROM oauth_sessions
         WHERE state = ?
     `, state)
 
 	if err != nil {
-		return "", "", "", fmt.Errorf("failed to clear state: %w", err)
+		return "", "", "", fmt.Errorf("failed to delete session: %w", err)
+	}
+
+	// Cleanup expired sessions while we're at it
+	expiryTime := now.Add(-sessionExpiryDuration)
+	deleteResult, err := tx.ExecContext(ctx, `
+        DELETE FROM oauth_sessions
+        WHERE state_created_at < ?
+    `, expiryTime)
+
+	if err != nil {
+		logger.Warnf("Failed to cleanup expired sessions: %v", err)
+		// Continue with the function, this error shouldn't cause the main operation to fail
+	} else {
+		// Log how many expired sessions were cleaned up
+		rowsAffected, err := deleteResult.RowsAffected()
+		if err != nil && rowsAffected > 0 {
+			logger.Debugf("Cleaned up %d expired OAuth sessions", rowsAffected)
+		}
 	}
 
 	// Commit the transaction
@@ -310,19 +329,17 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger 
 	return dest.Provider, dest.CodeVerifier, dest.Scope, nil
 }
 
-// SetOAuthTokens saves or updates tokens for a provider (clearing state and code_verifier)
+// SetOAuthTokens saves or updates tokens for a provider
 func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
 	query := `
         INSERT OR REPLACE INTO oauth_tokens (
             provider,
-			state, 
-			code_verifier,
             token_type, 
 			scope,
             access_token, 
             expires_at, 
             refresh_token
-        ) VALUES (?, NULL, '', ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?)
     `
 
 	_, err := s.db.ExecContext(ctx, query,
@@ -383,9 +400,6 @@ func (s *Store) ClearOAuthTokens(ctx context.Context, provider string) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE oauth_tokens 
 		SET 
-			state = '',
-			code_verifier = '',
-			state_created_at = NULL,
 			token_type = '',
 			scope = '',
 			access_token = '',
