@@ -1,10 +1,10 @@
 // ChatHome.tsx
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import MessageInput from './MessageInput'
-import { useMutation } from '@apollo/client'
+import { useMutation, useQuery } from '@apollo/client'
 import {
   CreateChatDocument,
-  // GetProfileDocument,
+  GetProfileDocument,
   SendMessageDocument
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
@@ -14,7 +14,7 @@ export default function ChatHome() {
   const router = useRouter()
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
-  // const { data } = useQuery(GetProfileDocument)
+  const { data: profile } = useQuery(GetProfileDocument)
 
   const handleStartChat = async (text: string) => {
     try {
@@ -37,7 +37,9 @@ export default function ChatHome() {
     }
   }
 
-  // const twinName = data?.profile.name || 'Your Twin'
+  console.log(profile)
+
+  const twinName = profile?.profile?.name || 'Your Twin'
 
   return (
     <div className="flex flex-col items-center">
@@ -54,6 +56,7 @@ export default function ChatHome() {
             <div className="w-48 h-48 rounded-full bg-muted flex items-center justify-center">
               <span className="text-foreground text-6xl">👤</span>
             </div>
+            <h1 className="text-2xl font-bold">{twinName}</h1>
           </div>
 
           <div className="flex gap-10 p-4 border border-border rounded-lg">
