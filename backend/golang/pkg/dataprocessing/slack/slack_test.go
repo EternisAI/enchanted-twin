@@ -14,7 +14,12 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		err = os.Remove(tempFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to remove temp file: %v", err)
+		}
+	}()
 
 	// Write test data to the file
 	testData := `{"data":{"text":"Hello world","username":"john_doe","channelName":"general","myMessage":true},"timestamp":"2022-12-25T04:38:18Z","source":"slack"}
@@ -23,7 +28,10 @@ func TestToDocuments(t *testing.T) {
 	if _, err := tempFile.WriteString(testData); err != nil {
 		t.Fatalf("Failed to write test data: %v", err)
 	}
-	tempFile.Close()
+	err = tempFile.Close()
+	if err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
 
 	// Test the function
 	docs, err := ToDocuments(tempFile.Name())

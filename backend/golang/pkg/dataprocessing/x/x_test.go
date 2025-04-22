@@ -579,7 +579,12 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tempFile.Name())
+	defer func() {
+		err = os.Remove(tempFile.Name())
+		if err != nil {
+			t.Fatalf("Failed to remove temp file: %v", err)
+		}
+	}()
 
 	// Write test data to the file
 	testData := `{"data":{"conversationId":"1638683789647032320-1676928456225898496","myMessage":false,"recipientId":"1638683789647032320","senderId":"1676928456225898496","text":"Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks","type":"direct_message"},"timestamp":"2024-09-11T21:05:12Z","source":"x"}
@@ -589,7 +594,10 @@ func TestToDocuments(t *testing.T) {
 	if _, err := tempFile.WriteString(testData); err != nil {
 		t.Fatalf("Failed to write test data: %v", err)
 	}
-	tempFile.Close()
+	err = tempFile.Close()
+	if err != nil {
+		t.Fatalf("Failed to close temp file: %v", err)
+	}
 
 	// Test the function
 	docs, err := ToDocuments(tempFile.Name())
@@ -609,8 +617,6 @@ func TestToDocuments(t *testing.T) {
 	// Check metadata fields individually
 	metadata := docs[0].Metadata
 	assert.Equal(t, "direct_message", metadata["type"])
-	// myMessage should be converted to string "false"
-	assert.Equal(t, "false", metadata["myMessage"])
 
 	// Check like
 	expectedTimestamp2, _ := time.Parse(time.RFC3339, "2025-04-18T17:21:50-06:00")

@@ -151,27 +151,22 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 		if len(doc.Tags) > 0 {
 			tagsArray = make([]string, 0, len(doc.Tags))
 			for _, tag := range doc.Tags {
-				// Decode MIME-encoded strings if present
+
 				decodedTag := tag
 				if strings.Contains(tag, "=?") && strings.Contains(tag, "?=") {
-					// Try to decode MIME-encoded strings
+
 					decoded, err := decodeMIMEHeader(tag)
 					if err == nil {
 						decodedTag = decoded
 					}
 				}
 
-				// Convert tag to valid ltree format
 				formattedTag := strings.ToLower(decodedTag)
-				// Replace all non-alphanumeric characters with underscores
+
 				formattedTag = regexp.MustCompile(`[^a-z0-9_]+`).ReplaceAllString(formattedTag, "_")
-				// Remove leading/trailing underscores
+
 				formattedTag = strings.Trim(formattedTag, "_")
-				// Ensure tag is not empty
-				if formattedTag == "" {
-					formattedTag = "untagged"
-				}
-				// Ensure tag is not too long (PostgreSQL ltree has a limit)
+
 				if len(formattedTag) > 256 {
 					formattedTag = formattedTag[:256]
 				}
