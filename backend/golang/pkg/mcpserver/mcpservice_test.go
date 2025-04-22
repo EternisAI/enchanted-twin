@@ -93,15 +93,15 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 		t.Fatalf("Failed to add MCPServer: %v", err)
 	}
 
-	tools, err := s.GetTools(ctx)	
+	tools, err := s.GetInternalTools(ctx)	
 	if err != nil {
 		t.Fatalf("Failed to get tools: %v", err)
 	}
 
-	tool_response, err := s.ExecuteTool(ctx, tools[0].Name, map[string]any{"submitter": "John Doe"})
+	tool_response, err := tools[0].Execute(ctx, map[string]any{"submitter": "John Doe"})
 	if err != nil {
 		t.Fatalf("Failed to execute tool: %v", err)
 	}
 
-	fmt.Println(tool_response.Content[0].TextContent.Text)
+	fmt.Println(tool_response.Content)
 }

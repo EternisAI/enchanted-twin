@@ -25,11 +25,11 @@ func NewRepository(logger *log.Logger, db *sqlx.DB) *Repository {
 }
 
 const insertMCPServerQuery = `
-INSERT INTO mcp_servers (id, name, command, args, envs, created_at)
-VALUES ($1, $2, $3, $4, $5, $6);
+INSERT INTO mcp_servers (id, name, command, args, envs, created_at, enabled)
+VALUES ($1, $2, $3, $4, $5, $6, $7);
 `
 
-func (r *Repository) AddMCPServer(ctx context.Context, name string, command string, args []string, envs []*model.KeyValueInput) (*model.MCPServer, error) {
+func (r *Repository) AddMCPServer(ctx context.Context, name string, command string, args []string, envs []*model.KeyValueInput, enabled *bool) (*model.MCPServer, error) {
 	newID := uuid.NewString()
 	createdAt := time.Now().Format(time.RFC3339)
 
@@ -45,7 +45,12 @@ func (r *Repository) AddMCPServer(ctx context.Context, name string, command stri
 		return nil, err
 	}
 
-	_, err = r.db.ExecContext(ctx, insertMCPServerQuery, newID, name, command, string(argsJSON), string(envsJSON), createdAt)
+	enabledValue := false
+	if enabled != nil {
+		enabledValue = *enabled
+	}
+
+	_, err = r.db.ExecContext(ctx, insertMCPServerQuery, newID, name, command, string(argsJSON), string(envsJSON), createdAt, enabledValue)
 	if err != nil {
 		r.logger.Error("failed to insert mcp server", "error", err, "name", name)
 		return nil, err
@@ -66,13 +71,14 @@ func (r *Repository) AddMCPServer(ctx context.Context, name string, command stri
 		Args:      args,
 		Envs:      envsModel,
 		CreatedAt: createdAt,
+		Enabled:   enabledValue,
 	}
 
 	return mcpServer, nil
 }
 
 const selectMCPServersQuery = `
-SELECT id, name, command, args, envs, created_at FROM mcp_servers ORDER BY created_at DESC;
+SELECT id, name, command, args, envs, created_at, enabled FROM mcp_servers ORDER BY created_at DESC;
 `
 
 type dbMCPServer struct {
@@ -82,6 +88,7 @@ type dbMCPServer struct {
 	Args      string `db:"args"` // JSON string from DB
 	Envs      string `db:"envs"` // JSON string from DB
 	CreatedAt string `db:"created_at"`
+	Enabled   bool   `db:"enabled"`
 }
 
 func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, error) {
@@ -117,7 +124,7 @@ func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, err
 			Args:      argsSlice,
 			Envs:      envsSlice,
 			CreatedAt: dbServer.CreatedAt,
-			Enabled:   true,
+			Enabled:   dbServer.Enabled,
 		})
 	}
 

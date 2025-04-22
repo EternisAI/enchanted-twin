@@ -2,13 +2,13 @@ package mcpserver
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"slices"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	mcp "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
@@ -38,7 +38,8 @@ func NewService(ctx context.Context, repo repository.Repository) MCPService {
 // AddMCPServer adds a new MCP server using the repository.
 func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (*model.MCPServer, error) {
 	// Here you might add validation or other business logic before calling the repo
-	mcpServer, err := s.repo.AddMCPServer(ctx, input.Name, input.Command, input.Args, input.Envs)
+	enabled := true
+	mcpServer, err := s.repo.AddMCPServer(ctx, input.Name, input.Command, input.Args, input.Envs, &enabled)
 	if err != nil {
 		return nil, err
 	}
@@ -161,35 +162,34 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 	return allTools, nil
 }
 
-func (s *service) ExecuteTool(ctx context.Context, toolName string, args any) (*mcp.ToolResponse, error) {
+
+func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
+	var allTools []tools.Tool
+
 	for _, connectedServer := range s.connectedServers {
 		cursor := ""
-		tools := []mcp.ToolRetType{}
 		for {
-			tool, err := connectedServer.Client.ListTools(ctx, &cursor)
+			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
 				fmt.Println("Error getting tools for client", connectedServer.ID, err)
 				continue
 			}
-			tools = append(tools, tool.Tools...)
 
-			if tool.NextCursor == nil || *tool.NextCursor == "" {
+			if client_tools != nil && len(client_tools.Tools) > 0 {
+				for _, tool := range client_tools.Tools {
+					allTools = append(allTools, &MCPTool{
+						Client: connectedServer.Client,
+						Tool: tool,
+					})
+				}
+			}
+			if client_tools.NextCursor == nil || *client_tools.NextCursor == "" {
 				break
 			}
-			cursor = *tool.NextCursor
-		}
-		for _, tool := range tools {
-			if tool.Name == toolName {
-				response, err := connectedServer.Client.CallTool(ctx, toolName, args)
-				if err != nil {
-					return nil, err	
-				}
-				return response, nil
-			}
+			cursor = *client_tools.NextCursor
 		}
 	}
-
-	return nil, errors.New("tool not found")
+	return allTools, nil	
 }
 
 func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {

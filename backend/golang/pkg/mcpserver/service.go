@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	mcp "github.com/metoro-io/mcp-golang"
 )
 
@@ -17,6 +18,6 @@ type MCPService interface {
 	LoadMCP(ctx context.Context) error
 	// Get Tools from MCP Servers
 	GetTools(ctx context.Context) ([]mcp.ToolRetType, error)
-	// Execute Tool
-	ExecuteTool(ctx context.Context, toolName string, args any) (*mcp.ToolResponse, error)
+	// Get Tools for internal use
+	GetInternalTools(ctx context.Context) ([]tools.Tool, error)
 }

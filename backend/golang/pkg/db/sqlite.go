@@ -83,7 +83,8 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			command TEXT NOT NULL,
 			args JSON,
 			envs JSON,
-			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			enabled BOOLEAN DEFAULT FALSE
 		);
 		CREATE INDEX IF NOT EXISTS idx_mcp_servers_id ON mcp_servers(id);
 	`)

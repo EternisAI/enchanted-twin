@@ -9,7 +9,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	mcp_golang "github.com/metoro-io/mcp-golang"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 )
@@ -52,15 +51,16 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
 
-	toolsMap := make(map[string]mcp_golang.ToolRetType, 0)
+	toolsMap := make(map[string]tools.Tool, 0)
 	for _, tool := range currentTools {
-		toolsMap[definition(tool).Function.Name] = tool
-		apiToolDefinitions = append(apiToolDefinitions, definition(tool))
+		toolsMap[tool.Definition().Function.Name] = tool
+		apiToolDefinitions = append(apiToolDefinitions, tool.Definition())
 	}
 
 	for currentStep < MAX_STEPS {
 		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, a.CompletionsModel)
 		if err != nil {
+			fmt.Println("Error completing", err)
 			return AgentResponse{}, err
 		}
 
@@ -92,6 +92,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 			var args map[string]any
 			err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
 			if err != nil {
+				fmt.Println("Error unmarshalling tool call arguments", err)
 				return AgentResponse{}, err
 			}
 
@@ -99,19 +100,15 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 			toolResult, err := tool.Execute(ctx, args)
 
 			if err != nil {
+				fmt.Println("Error executing tool", err)
 				return AgentResponse{}, err
 			}
+			if toolResult.ImageURLs != nil {
+				imageURLs = append(imageURLs, toolResult.ImageURLs...)
+			}
 
-			if len(toolResult.Content) > 0 {
-				for _, content := range toolResult.Content {
-
-					if content.ImageContent != nil {
-						imageURLs = append(imageURLs, content.ImageContent.Data)
-					}
-					if content.TextContent != nil {
-						messages = append(messages, openai.ToolMessage(content.TextContent.Text, toolCall.ID))
-					}
-				}
+			if toolResult.Content != "" {
+				messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
 			}
 
 			// send message with isCompleted true
@@ -127,6 +124,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 		responseContent = completion.Content
 		currentStep++
 	}
+
 
 	return AgentResponse{
 		Content:     responseContent,
