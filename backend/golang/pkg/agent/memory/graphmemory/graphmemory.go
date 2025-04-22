@@ -4,13 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
-	"github.com/charmbracelet/log"
-	"github.com/pkg/errors"
-
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -153,6 +152,12 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 				// Convert tag to valid ltree format (replace spaces/special chars with underscores)
 				formattedTag := strings.ReplaceAll(tag, " ", "_")
 				formattedTag = strings.ReplaceAll(formattedTag, "-", "_")
+				// Escape special characters for PostgreSQL array literal
+				formattedTag = strings.ReplaceAll(formattedTag, "\"", "\\\"")
+				formattedTag = strings.ReplaceAll(formattedTag, "\\", "\\\\")
+				formattedTag = strings.ReplaceAll(formattedTag, "{", "\\{")
+				formattedTag = strings.ReplaceAll(formattedTag, "}", "\\}")
+				formattedTag = strings.ReplaceAll(formattedTag, ",", "\\,")
 				tagsArray = append(tagsArray, formattedTag)
 			}
 		}
@@ -450,7 +455,6 @@ func (m *GraphMemory) storeFacts(ctx context.Context, facts []Fact, textEntryID 
 		err := tx.QueryRowContext(ctx,
 			"INSERT INTO facts (text_entry_id, sub, prd, obj) VALUES ($1, $2, $3, $4) RETURNING id",
 			textEntryID, fact.Sub, fact.Prd, fact.Obj).Scan(&factID)
-
 		if err != nil {
 			return nil, fmt.Errorf("error inserting fact: %w", err)
 		}
