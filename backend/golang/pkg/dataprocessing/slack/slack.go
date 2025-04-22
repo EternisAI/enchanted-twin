@@ -163,7 +163,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		textDocuments = append(textDocuments, memory.TextDocument{
 			Content:   message,
 			Timestamp: &record.Timestamp,
-			Tags:      []string{"slack", authorUsername, channelName},
+			Tags:      []string{"social", "slack", "chat"},
 			Metadata: map[string]string{
 				"type":           "message",
 				"channelName":    channelName,

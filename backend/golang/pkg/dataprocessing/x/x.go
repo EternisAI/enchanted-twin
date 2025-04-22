@@ -258,7 +258,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 				"id":   tweetId,
 				"url":  getString("expandedUrl"),
 			}
-			tags = append(tags, "like", tweetId)
+			tags = append(tags, "social", "twitter", "like")
 
 		case "tweet":
 			content = getString("fullText")
@@ -271,17 +271,15 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 				"favoriteCount": favoriteCount,
 				"retweetCount":  retweetCount,
 			}
-			tags = append(tags, "tweet", id, retweetCount, favoriteCount)
+			tags = append(tags, "social", "twitter", "tweet")
 
 		case "direct_message":
 			content = getString("text")
 			metadata = map[string]string{
 				"type": "direct_message",
 			}
-			tags = append(tags, "direct_message",
-				getString("conversationId"),
-				getString("recipientId"),
-				getString("senderId"))
+			tags = append(tags, "social", "twitter", "direct_message")
+
 		}
 
 		documents = append(documents, memory.TextDocument{

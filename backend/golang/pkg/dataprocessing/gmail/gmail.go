@@ -593,7 +593,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		documents = append(documents, memory.TextDocument{
 			Content:   content,
 			Timestamp: &record.Timestamp,
-			Tags:      []string{"gmail", from, to, subject},
+			Tags:      []string{"google", "email"},
 			Metadata: map[string]string{
 				"from":    from,
 				"to":      to,
