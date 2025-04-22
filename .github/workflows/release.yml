@@ -1,9 +1,12 @@
 name: Release Enchanted Twin App
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'  # only run on version tags like v1.2.3
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g. v1.2.3)'
+        required: true
+        default: 'v0.0.0'
 
 jobs:
   build-and-release:
@@ -11,6 +14,8 @@ jobs:
 
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
 
     steps:
       - name: Checkout code
@@ -46,12 +51,14 @@ jobs:
       - name: Package Mac app
         run: |
           cd app
-          zip -r Enchanted-${{ github.ref_name }}.zip dist/mac-arm64/Enchanted.app
+          zip -r Enchanted-${{ inputs.version }}.zip dist/mac-arm64/Enchanted.app
 
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ github.ref_name }}
-          files: app/Enchanted-${{ github.ref_name }}.zip
+          tag_name: ${{ inputs.version }}
+          files: app/Enchanted-${{ inputs.version }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
