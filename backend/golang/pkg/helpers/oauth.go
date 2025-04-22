@@ -112,7 +112,9 @@ func RefreshExpiredTokens(ctx context.Context, logger *log.Logger, store *db.Sto
 		return nil, err
 	}
 	for _, provider := range providers {
-		RefreshOAuthToken(ctx, logger, store, provider.Provider)
+		if err := RefreshOAuthToken(ctx, logger, store, provider.Provider); err != nil {
+			logger.Error("failed to refresh OAuth token", "provider", provider.Provider, "error", err)
+		}
 	}
 	return store.GetOAuthStatus(ctx)
 }
@@ -144,13 +146,14 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, con
 	data.Set("client_id", tokenReq.ClientID)
 
 	// Set appropriate params based on grant type
-	if tokenReq.GrantType == "authorization_code" {
+	switch tokenReq.GrantType {
+	case "authorization_code":
 		data.Set("code", tokenReq.Code)
 		data.Set("redirect_uri", tokenReq.RedirectURI)
 		if tokenReq.CodeVerifier != "" {
 			data.Set("code_verifier", tokenReq.CodeVerifier)
 		}
-	} else if tokenReq.GrantType == "refresh_token" {
+	case "refresh_token":
 		data.Set("refresh_token", tokenReq.RefreshToken)
 	}
 
@@ -181,7 +184,11 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, con
 	if err != nil {
 		return nil, fmt.Errorf("failed to send token request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Error("failed to close token response body", "error", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
