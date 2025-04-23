@@ -361,7 +361,7 @@ export function ImportDataStep() {
             </div>
 
             {/* File Selection Section */}
-            <div className="flex flex-col gap-2 bg-card p-4 rounded-lg invert">
+            <div className="flex flex-col gap-2 bg-card p-4 rounded-lg dark text-white">
               <h4 className="font-medium flex items-center gap-2">
                 <File className="h-4 w-4 text-muted-foreground/80" /> Add data
               </h4>
