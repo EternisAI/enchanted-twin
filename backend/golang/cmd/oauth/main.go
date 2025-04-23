@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -30,6 +29,7 @@ func main() {
 
 	// Set up command line flags
 	providerFlag := flag.String("provider", "", "OAuth provides to authenticate - comma separated, e.g. 'twitter,google,linkedin'")
+	refreshFlag := flag.Bool("refresh", false, "Specify to refresh all expired tokens")
 	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
 	logger.Info("Using database path", "path", *dbPath)
 	flag.Parse()
@@ -49,22 +49,35 @@ func main() {
 
 	if *providerFlag != "" {
 		if err := helpers.StartOAuthCallbackServer(logger, store); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			logger.Error("failed to start server", "error", err)
 			os.Exit(1)
 		}
 		for _, p := range strings.Split(*providerFlag, ",") {
 			// Run OAuth flow with selected provider
 			if err := helpers.OAuthFlow(ctx, logger, store, p); err != nil {
-				fmt.Printf("Error: %v\n", err)
+				logger.Error("oauth flow failed", "error", err)
 				os.Exit(1)
 			}
 		}
 		if err := helpers.ShutdownOAuthCallbackServer(ctx, logger); err != nil {
-			fmt.Printf("Error: %v\n", err)
+			logger.Error("failed to shutdown server", "error", err)
 			os.Exit(1)
 		}
 		os.Exit(0)
-	} else {
+	}
+
+	if *refreshFlag {
+		status, err := helpers.RefreshExpiredTokens(ctx, logger, store)
+		if err != nil {
+			logger.Error("failed to refresh tokens", "error", err)
+			os.Exit(1)
+		}
+		for _, s := range status {
+			logger.Info("token status", "provider", s.Provider, "scope", s.Scope, "expires_at", s.ExpiresAt.Format(time.RFC3339))
+		}
+	}
+
+	if *providerFlag == "" && !*refreshFlag {
 		flag.Usage()
 		os.Exit(1)
 	}

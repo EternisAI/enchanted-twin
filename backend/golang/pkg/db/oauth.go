@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/charmbracelet/log"
 )
 
@@ -154,7 +155,7 @@ var oauthConfig = map[string]OAuthConfig{
 		AuthEndpoint:  "https://twitter.com/i/oauth2/authorize",
 		TokenEndpoint: "https://api.twitter.com/2/oauth2/token",
 		UserEndpoint:  "https://api.twitter.com/2/users/me",
-		DefaultScope:  "tweet.read users.read offline.access",
+		DefaultScope:  "like.read tweet.read users.read offline.access",
 	},
 	"google": {
 		ClientID:      "993981911648-vtgfk8g1am6kp36pubo5l46902ua1g4t.apps.googleusercontent.com",
@@ -432,6 +433,26 @@ type OAuthStatus struct {
 	Scope     string    `db:"scope"`
 }
 
+// For logging with Charmbracelet log
+func (item OAuthStatus) ToModel() model.OAuthStatus {
+	expiresAtStr := ""
+	if !item.ExpiresAt.IsZero() {
+		expiresAtStr = item.ExpiresAt.Format(time.RFC3339)
+	}
+	var scopeArray []string
+	if item.Scope != "" {
+		scopeArray = strings.Split(item.Scope, " ")
+	} else {
+		scopeArray = []string{} // Empty array instead of nil
+	}
+
+	return model.OAuthStatus{
+		Provider:  item.Provider,
+		ExpiresAt: expiresAtStr,
+		Scope:     scopeArray,
+	}
+}
+
 // Returns a list of all providers that have a non-expired access token.
 func (s *Store) GetOAuthStatus(ctx context.Context) ([]OAuthStatus, error) {
 	var dest []OAuthStatus
@@ -439,6 +460,29 @@ func (s *Store) GetOAuthStatus(ctx context.Context) ([]OAuthStatus, error) {
         SELECT provider, expires_at, scope FROM oauth_tokens
         WHERE access_token != '' AND expires_at > ?
     `, time.Now())
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve providers: %w", err)
+	}
+
+	return dest, nil
+}
+
+type OAuthRefresh struct {
+	Provider     string `db:"provider"`
+	RefreshToken string `db:"refresh_token"`
+}
+
+// Returns a list of all providers that have a expired access
+// token or no access token.
+func (s *Store) GetProvidersForRefresh(ctx context.Context) ([]OAuthRefresh, error) {
+	var dest []OAuthRefresh
+	// Less than a minute to expiry
+	expiryTime := time.Now().Add(time.Minute)
+	err := s.db.SelectContext(ctx, &dest, `
+        SELECT provider, refresh_token FROM oauth_tokens
+        WHERE refresh_token != '' AND expires_at < ?
+    `, expiryTime)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve providers: %w", err)
 	}
