@@ -27,20 +27,10 @@ const INSTRUCTIONS = {
     'Only the owner or administrator of the Slack workspace can usually export the data.',
     'Select your exported ZIP file'
   ],
-  Telegram: [
-    "Install the Telegram Desktop app if you haven't already.",
-    'Open Settings → Advanced.',
-    'Scroll down to Export Telegram data.',
-    'Select the data you want to export and select Chats and Contacts.',
-    'At the bottom, choose JSON as the export format (machine-readable).',
-    'Click Export.',
-    'Note: Telegram data is contained in a single .json file.',
-    "Move this file to the input folder and rename it to 'telegram_export.json'."
-  ],
+  Telegram: ['TBA'],
   Gmail: [
     'Note: Only Gmail data is currently supported.',
-    'Use Google Takeout to export your Gmail data.',
-    'Find the emails.mbox file in your export (it should be in Mail) and move it to input/google_export.'
+    'Use Google Takeout to export your Gmail data.'
   ],
   GoogleAddresses: [
     "You should find the address file in the 'Maps' folder or equivalent of your google export.",
