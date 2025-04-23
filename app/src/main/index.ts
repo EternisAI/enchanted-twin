@@ -7,6 +7,7 @@ import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
+import { autoUpdater } from 'electron-updater'
 
 const PATHNAME = 'input_data'
 
@@ -80,9 +81,66 @@ function openOAuthWindow(authUrl: string, redirectUri?: string) {
   authWindow.loadURL(authUrl)
 }
 
-// Configure electron-log
-log.transports.file.level = 'info'
-log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
+function setupAutoUpdater() {
+  if (!IS_PRODUCTION) {
+    log.info('Skipping auto-updater in development mode')
+    return
+  }
+  
+  autoUpdater.logger = log
+  log.transports.file.level = "debug"
+  
+  autoUpdater.on('checking-for-update', () => {
+    log.info('Checking for update...')
+  })
+  
+  autoUpdater.on('update-available', (info) => {
+    log.info('Update available:', info)
+  })
+  
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('Update not available:', info)
+  })
+  
+  autoUpdater.on('error', (err) => {
+    log.error('Error in auto-updater:', err)
+  })
+  
+  autoUpdater.on('download-progress', (progressObj) => {
+    let logMessage = `Download speed: ${progressObj.bytesPerSecond}`
+    logMessage += ` - Downloaded ${progressObj.percent}%`
+    logMessage += ` (${progressObj.transferred}/${progressObj.total})`
+    log.info(logMessage)
+  })
+  
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('Update downloaded:', info)
+    
+    // Show dialog to let user decide when to restart and install
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new version has been downloaded.',
+      detail: 'Would you like to restart the application now to install the update?',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        // User clicked "Restart Now"
+        log.info('User opted to restart for update')
+        autoUpdater.quitAndInstall(true, true)
+      } else {
+        // User clicked "Later"
+        log.info('User postponed update installation')
+      }
+    })
+  })
+  
+  // Check for updates
+  log.info('Checking for application updates...')
+  autoUpdater.checkForUpdatesAndNotify()
+}
 
 function createWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -137,6 +195,10 @@ app.whenReady().then(() => {
     ? join(__dirname, '..', '..', 'resources', executable) // Path in development
     : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
 
+  // Set up auto-updater
+  setupAutoUpdater()
+
+  // Create the database directory in user data path
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
 
