@@ -25,6 +25,7 @@ type ConnectMCPServerInput struct {
 	Command string           `json:"command"`
 	Args    []string         `json:"args,omitempty"`
 	Envs    []*KeyValueInput `json:"envs,omitempty"`
+	Type    MCPServerType    `json:"type"`
 }
 
 type DataSource struct {
@@ -56,23 +57,25 @@ type KeyValueInput struct {
 }
 
 type MCPServer struct {
-	ID        string      `json:"id"`
-	Command   string      `json:"command"`
-	Args      []string    `json:"args,omitempty"`
-	Envs      []*KeyValue `json:"envs,omitempty"`
-	Name      string      `json:"name"`
-	CreatedAt string      `json:"createdAt"`
-	Enabled   bool        `json:"enabled"`
+	ID        string        `json:"id"`
+	Command   string        `json:"command"`
+	Args      []string      `json:"args,omitempty"`
+	Envs      []*KeyValue   `json:"envs,omitempty"`
+	Name      string        `json:"name"`
+	CreatedAt string        `json:"createdAt"`
+	Enabled   bool          `json:"enabled"`
+	Type      MCPServerType `json:"type"`
 }
 
 type MCPServerDefinition struct {
-	ID        string      `json:"id"`
-	Name      string      `json:"name"`
-	Command   string      `json:"command"`
-	Args      []string    `json:"args,omitempty"`
-	Envs      []*KeyValue `json:"envs,omitempty"`
-	Connected bool        `json:"connected"`
-	Enabled   bool        `json:"enabled"`
+	ID        string        `json:"id"`
+	Name      string        `json:"name"`
+	Command   string        `json:"command"`
+	Args      []string      `json:"args,omitempty"`
+	Envs      []*KeyValue   `json:"envs,omitempty"`
+	Type      MCPServerType `json:"type"`
+	Connected bool          `json:"connected"`
+	Enabled   bool          `json:"enabled"`
 }
 
 type Message struct {
@@ -183,6 +186,55 @@ func (e *IndexingState) UnmarshalGQL(v any) error {
 }
 
 func (e IndexingState) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+type MCPServerType string
+
+const (
+	MCPServerTypeTwitter        MCPServerType = "TWITTER"
+	MCPServerTypeGmail          MCPServerType = "GMAIL"
+	MCPServerTypeGoogleCalendar MCPServerType = "GOOGLE_CALENDAR"
+	MCPServerTypeGoogleDrive    MCPServerType = "GOOGLE_DRIVE"
+	MCPServerTypeSLACk          MCPServerType = "SLACK"
+	MCPServerTypeOther          MCPServerType = "OTHER"
+)
+
+var AllMCPServerType = []MCPServerType{
+	MCPServerTypeTwitter,
+	MCPServerTypeGmail,
+	MCPServerTypeGoogleCalendar,
+	MCPServerTypeGoogleDrive,
+	MCPServerTypeSLACk,
+	MCPServerTypeOther,
+}
+
+func (e MCPServerType) IsValid() bool {
+	switch e {
+	case MCPServerTypeTwitter, MCPServerTypeGmail, MCPServerTypeGoogleCalendar, MCPServerTypeGoogleDrive, MCPServerTypeSLACk, MCPServerTypeOther:
+		return true
+	}
+	return false
+}
+
+func (e MCPServerType) String() string {
+	return string(e)
+}
+
+func (e *MCPServerType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = MCPServerType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid MCPServerType", str)
+	}
+	return nil
+}
+
+func (e MCPServerType) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 

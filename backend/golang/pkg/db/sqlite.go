@@ -83,6 +83,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			command TEXT NOT NULL,
 			args JSON,
 			envs JSON,
+			type TEXT,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			enabled BOOLEAN DEFAULT FALSE
 		);

@@ -2,11 +2,11 @@ package mcpserver
 
 import "github.com/EternisAI/enchanted-twin/graph/model"
 
-// getDefaultMCPServers returns a slice of default MCP server configurations.
-func getDefaultMCPServers() []*model.MCPServer {
+// getDefaultMCPServers returns a map of default MCP server configurations, keyed by server type.
+func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 	enabled := false
-	return []*model.MCPServer{
-		{
+	servers := map[model.MCPServerType]*model.MCPServer{
+		model.MCPServerTypeGmail: {
 			Name:    "GMail",
 			Command: "npx",
 			Args:    []string{"@shinzolabs/gmail-mcp"},
@@ -25,8 +25,9 @@ func getDefaultMCPServers() []*model.MCPServer {
 				},
 			},
 			Enabled: enabled,
+			Type: model.MCPServerTypeGmail,
 		},
-		{
+		model.MCPServerTypeGoogleDrive: {
 			Name:    "Google Drive",
 			Command: "npx",
 			Args:    []string{"-y","@isaacphi/mcp-gdrive"},
@@ -37,7 +38,7 @@ func getDefaultMCPServers() []*model.MCPServer {
 				},
 				{
 					Key:   "CLIENT_SECRET",
-					Value: "1234567890",	
+					Value: "1234567890",
 				},
 				{
 					Key:   "GDRIVE_CREDS_DIR",
@@ -45,8 +46,9 @@ func getDefaultMCPServers() []*model.MCPServer {
 				},
 			},
 			Enabled: enabled,
+			Type: model.MCPServerTypeGoogleDrive,
 		},
-		{
+		model.MCPServerTypeSLACk: {
 			Name:    "Slack",
 			Command: "docker",
 			Args:    []string{"run", "-i", "--rm", "-e", "SLACK_BOT_TOKEN", "-e", "SLACK_TEAM_ID", "-e", "SLACK_CHANNEL_IDS", "mcp/slack"},
@@ -61,6 +63,29 @@ func getDefaultMCPServers() []*model.MCPServer {
 				},
 			},
 			Enabled: enabled,
+			Type: model.MCPServerTypeSLACk,
+		},
+		model.MCPServerTypeTwitter: {
+			Name:    "Twitter",
+			Command: "npx",
+			Args:    []string{"-y", "@0xparashar/twitter-mcp"},
+			Envs:    []*model.KeyValue{
+				{
+					Key:   "REFRESH_TOKEN",
+					Value: "1234567890",
+				},
+				{
+					Key:   "CLIENT_ID",
+					Value: "1234567890",
+				},
+				{
+					Key:   "CLIENT_SECRET",
+					Value: "1234567890",
+				},
+			},
+			Enabled: enabled,
+			Type: model.MCPServerTypeTwitter,
 		},
 	}
+	return servers
 }

@@ -39,7 +39,7 @@ func NewService(ctx context.Context, repo repository.Repository) MCPService {
 func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (*model.MCPServer, error) {
 	// Here you might add validation or other business logic before calling the repo
 	enabled := true
-	mcpServer, err := s.repo.AddMCPServer(ctx, input.Name, input.Command, input.Args, input.Envs, &enabled)
+	mcpServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
 	if err != nil {
 		return nil, err
 	}
@@ -82,17 +82,38 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 		connectedServerIds = append(connectedServerIds, connectedServer.ID)
 	}
 
-	mcpserversDefinitions := make([]*model.MCPServerDefinition, len(mcpservers))
-	for i, mcpServer := range mcpservers {
+	defaultServers := getDefaultMCPServers() // Get default servers
+	mcpserversDefinitions := make([]*model.MCPServerDefinition, 0)
+	existingTypes := make(map[string]bool) // Track types found in the repo
 
-		mcpserversDefinitions[i] = &model.MCPServerDefinition{
-			ID: mcpServer.ID,
-			Name: mcpServer.Name,
-			Command: mcpServer.Command,
-			Args: mcpServer.Args,
-			Envs: mcpServer.Envs,
+	// Process servers from the repository
+	for _, mcpServer := range mcpservers {
+		mcpserversDefinitions = append(mcpserversDefinitions, &model.MCPServerDefinition{
+			ID:        mcpServer.ID,
+			Name:      mcpServer.Name,
+			Command:   mcpServer.Command,
+			Args:      mcpServer.Args,
+			Envs:      mcpServer.Envs,
 			Connected: slices.Contains(connectedServerIds, mcpServer.ID),
-			Enabled: mcpServer.Enabled,
+			Enabled:   mcpServer.Enabled,
+			Type:      mcpServer.Type,
+		})
+		existingTypes[string(mcpServer.Type)] = true // Mark type as existing
+	}
+
+	// Add default servers if their type is not already present
+	for _, defaultServer := range defaultServers {
+		if _, exists := existingTypes[string(defaultServer.Type)]; !exists {
+			mcpserversDefinitions = append(mcpserversDefinitions, &model.MCPServerDefinition{
+				ID:        defaultServer.ID, // Assuming defaultServer has an ID
+				Name:      defaultServer.Name,
+				Command:   defaultServer.Command,
+				Args:      defaultServer.Args,
+				Envs:      defaultServer.Envs,
+				Connected: false, // Default servers added this way are not connected
+				Enabled:   false, // Default servers added this way are not enabled by default
+				Type:      defaultServer.Type,
+			})
 		}
 	}
 
@@ -122,7 +143,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		client := mcp.NewClient(transport)
 		_, err = client.Initialize(ctx)
 		if err != nil {
-			fmt.Println("Error initializing mcp server", err)
+			fmt.Printf("Error initializing mcp server: %s\n", server.Name)
 			continue
 		}
 
