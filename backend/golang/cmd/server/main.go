@@ -252,13 +252,6 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		}
 	}
 
-	// records, err := dataprocessing.Sync("gmail", googleToken.AccessToken)
-	// if err != nil {
-	// 	logger.Error("Error syncing records", slog.Any("error", err))
-	// 	panic(errors.Wrap(err, "Error syncing records"))
-	// }
-	// fmt.Println("google records", records)
-
 	return temporalClient, nil
 }
 
