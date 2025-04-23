@@ -74,7 +74,7 @@ const SUPPORTED_DATA_SOURCES: {
     label: 'Gmail',
     description: 'Import your Gmail emails and attachments',
     selectType: 'files',
-    fileRequirement: 'Select your Gmail .mbox file from Google Takeout',
+    fileRequirement: 'Select your Google Takeout ZIP file',
     icon: <File className="h-5 w-5" />
   },
   {
