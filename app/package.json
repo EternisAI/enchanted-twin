@@ -29,6 +29,7 @@
     "@radix-ui/react-alert-dialog": "^1.1.7",
     "@radix-ui/react-dialog": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.0",
+    "@radix-ui/react-tabs": "^1.1.9",
     "@splinetool/react-spline": "^4.0.0",
     "@tailwindcss/vite": "^4.1.4",
     "@tanstack/react-router": "^1.116.0",
