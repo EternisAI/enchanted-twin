@@ -28,7 +28,8 @@ const providers: Provider[] = [
         G
       </div>
     ),
-    scope: 'openid email profile'
+    scope:
+      'openid email profile https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email'
   },
   {
     provider: 'twitter',

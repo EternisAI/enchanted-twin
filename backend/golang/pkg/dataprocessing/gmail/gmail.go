@@ -609,13 +609,7 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 	return documents, nil
 }
 
-func (g *Gmail) Sync(ctx context.Context) ([]types.Record, error) {
-	store, err := db.NewStore(ctx, "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create store: %w", err)
-	}
-
-	// Get OAuth tokens for Google
+func (g *Gmail) Sync(ctx context.Context, store *db.Store) ([]types.Record, error) {
 	tokens, err := store.GetOAuthTokens(ctx, "google")
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
@@ -624,12 +618,10 @@ func (g *Gmail) Sync(ctx context.Context) ([]types.Record, error) {
 		return nil, fmt.Errorf("no OAuth tokens found for Google")
 	}
 
-	// Create HTTP client with OAuth token
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
 
-	// Get the latest emails from Gmail API
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"GET",
@@ -642,8 +634,8 @@ func (g *Gmail) Sync(ctx context.Context) ([]types.Record, error) {
 
 	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
 	q := req.URL.Query()
-	q.Set("maxResults", "50") // Get last 50 emails
-	q.Set("q", "in:inbox")    // Only get inbox emails
+	q.Set("maxResults", "50")
+	q.Set("q", "in:inbox")
 	req.URL.RawQuery = q.Encode()
 
 	resp, err := client.Do(req)
@@ -669,7 +661,6 @@ func (g *Gmail) Sync(ctx context.Context) ([]types.Record, error) {
 
 	var records []types.Record
 	for _, msg := range messageList.Messages {
-		// Get full message details
 		msgReq, err := http.NewRequestWithContext(
 			ctx,
 			"GET",

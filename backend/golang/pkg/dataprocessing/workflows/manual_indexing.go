@@ -1,4 +1,4 @@
-package indexing
+package workflows
 
 import (
 	"context"
@@ -8,17 +8,41 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
+	nats "github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
 )
+
+type IndexingWorkflow struct {
+	Logger       *log.Logger
+	Config       *config.Config
+	Store        *db.Store
+	Nc           *nats.Conn
+	OllamaClient *ollamaapi.Client
+	Memory       memory.Storage
+}
+
+func (workflows *IndexingWorkflow) RegisterWorkflowsAndActivities(worker *worker.Worker) {
+	(*worker).RegisterWorkflow(workflows.IndexWorkflow)
+	(*worker).RegisterActivity(workflows.FetchDataSourcesActivity)
+	(*worker).RegisterActivity(workflows.ProcessDataActivity)
+	(*worker).RegisterActivity(workflows.IndexDataActivity)
+	(*worker).RegisterActivity(workflows.CompleteActivity)
+	(*worker).RegisterActivity(workflows.PublishIndexingStatus)
+	(*worker).RegisterActivity(workflows.DownloadOllamaModel)
+}
 
 type IndexWorkflowInput struct{}
 

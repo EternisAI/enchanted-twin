@@ -18,9 +18,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
-
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -166,6 +166,19 @@ func main() {
 		store:           store,
 	})
 
+	// TODO: remove test
+	// gmail := gmail.New()
+	// records, err := gmail.Sync(context.Background(), store)
+	// if err != nil {
+	// 	logger.Error("Failed to sync Gmail", slog.Any("error", err))
+	// 	panic(errors.Wrap(err, "Failed to sync Gmail"))
+	// }
+	// fmt.Println("records", records)
+
+	dataprocessing.Sync("x", "./output/xxx.json", store)
+
+	// // store.ClearOAuthTokens(context.Background(), "google")
+
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
 		logger.Info("Starting GraphQL HTTP server", "port", envs.GraphqlPort)
@@ -200,7 +213,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		MaxConcurrentActivityExecutionSize: 1,
 	})
 
-	indexingWorkflow := indexing.IndexingWorkflow{
+	indexingWorkflow := workflows.IndexingWorkflow{
 		Logger:       logger,
 		Config:       envs,
 		Store:        store,

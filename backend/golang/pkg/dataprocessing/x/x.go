@@ -1,6 +1,7 @@
 package x
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func min(a, b int) int {
@@ -290,4 +292,125 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		})
 	}
 	return documents, nil
+}
+
+func (s *Source) Sync(ctx context.Context, store *db.Store) ([]types.Record, error) {
+	// Get OAuth tokens for X
+	tokens, err := store.GetOAuthTokens(ctx, "twitter")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+	if tokens == nil {
+		return nil, fmt.Errorf("no OAuth tokens found for X")
+	}
+
+	// Create HTTP client with OAuth token
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Get user ID first
+	userReq, err := http.NewRequestWithContext(
+		ctx,
+		"GET",
+		"https://api.twitter.com/2/users/me",
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create user request: %w", err)
+	}
+
+	userReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+	userResp, err := client.Do(userReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user data: %w", err)
+	}
+	defer userResp.Body.Close()
+
+	if userResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(userResp.Body)
+		return nil, fmt.Errorf("failed to fetch user data. Status: %d, Response: %s", userResp.StatusCode, string(body))
+	}
+
+	var userResponse struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(userResp.Body).Decode(&userResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode user response: %w", err)
+	}
+
+	// Get the latest tweets
+	tweetsReq, err := http.NewRequestWithContext(
+		ctx,
+		"GET",
+		fmt.Sprintf("https://api.twitter.com/2/users/%s/tweets", userResponse.Data.ID),
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tweets request: %w", err)
+	}
+
+	tweetsReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+	q := tweetsReq.URL.Query()
+	q.Set("max_results", "50") // Get last 50 tweets
+	q.Set("tweet.fields", "created_at,public_metrics,lang")
+	tweetsReq.URL.RawQuery = q.Encode()
+
+	tweetsResp, err := client.Do(tweetsReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch tweets: %w", err)
+	}
+	defer tweetsResp.Body.Close()
+
+	if tweetsResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(tweetsResp.Body)
+		return nil, fmt.Errorf("failed to fetch tweets. Status: %d, Response: %s", tweetsResp.StatusCode, string(body))
+	}
+
+	var tweetsResponse struct {
+		Data []struct {
+			ID            string `json:"id"`
+			Text          string `json:"text"`
+			CreatedAt     string `json:"created_at"`
+			Lang          string `json:"lang"`
+			PublicMetrics struct {
+				RetweetCount int `json:"retweet_count"`
+				LikeCount    int `json:"like_count"`
+			} `json:"public_metrics"`
+		} `json:"data"`
+	}
+
+	if err := json.NewDecoder(tweetsResp.Body).Decode(&tweetsResponse); err != nil {
+		return nil, fmt.Errorf("failed to decode tweets response: %w", err)
+	}
+
+	var records []types.Record
+	for _, tweet := range tweetsResponse.Data {
+		timestamp, err := time.Parse(time.RFC3339, tweet.CreatedAt)
+		if err != nil {
+			log.Printf("Warning: Failed to parse tweet timestamp: %v", err)
+			continue
+		}
+
+		data := map[string]interface{}{
+			"type":          "tweet",
+			"id":            tweet.ID,
+			"fullText":      tweet.Text,
+			"retweetCount":  fmt.Sprintf("%d", tweet.PublicMetrics.RetweetCount),
+			"favoriteCount": fmt.Sprintf("%d", tweet.PublicMetrics.LikeCount),
+			"lang":          tweet.Lang,
+			"userId":        userResponse.Data.ID,
+		}
+
+		records = append(records, types.Record{
+			Data:      data,
+			Timestamp: timestamp,
+			Source:    s.Name(),
+		})
+	}
+
+	return records, nil
 }
