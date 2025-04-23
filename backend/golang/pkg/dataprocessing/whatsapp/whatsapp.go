@@ -177,5 +177,5 @@ func (s *Source) ProcessFile(filepath string) ([]types.Record, error) {
 }
 
 func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Telegram")
+	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }

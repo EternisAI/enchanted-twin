@@ -71,7 +71,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input 
 		},
 	})
 
-	var previousResult XSyncWorkflowResponse
+	var previousResult GmailSyncWorkflowResponse
 
 	if workflow.HasLastCompletionResult(ctx) {
 		err := workflow.GetLastCompletionResult(ctx, &previousResult)
