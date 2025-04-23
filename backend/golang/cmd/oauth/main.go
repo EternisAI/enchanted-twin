@@ -73,7 +73,7 @@ func main() {
 			os.Exit(1)
 		}
 		for _, s := range status {
-			logger.Infof("provider %s has scope %s and expires at %s", s.Provider, s.Scope, s.ExpiresAt.Format(time.RFC3339))
+			logger.Info("token status", "provider", s.Provider, "scope", s.Scope, "expires_at", s.ExpiresAt.Format(time.RFC3339))
 		}
 	}
 
