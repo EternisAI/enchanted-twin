@@ -155,7 +155,7 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel, envs.TelegramToken)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
