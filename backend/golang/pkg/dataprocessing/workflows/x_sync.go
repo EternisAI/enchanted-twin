@@ -8,6 +8,7 @@ import (
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
@@ -81,13 +82,18 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 		workflow.GetLogger(ctx).Info("Recovered last result", "value", previousResult)
 	}
 
+	_, err := helpers.RefreshExpiredTokens(context.Background(), w.Logger, w.Store)
+	if err != nil {
+		return XSyncWorkflowResponse{}, fmt.Errorf("failed to refresh expired tokens: %w", err)
+	}
+
 	workflowResponse := XSyncWorkflowResponse{
 		LastRecordID:        previousResult.LastRecordID,
 		LastRecordTimestamp: previousResult.LastRecordTimestamp,
 	}
 
 	var response XFetchActivityResponse
-	err := workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
+	err = workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err
 	}
