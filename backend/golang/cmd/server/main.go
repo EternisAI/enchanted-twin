@@ -18,6 +18,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -128,13 +129,6 @@ func main() {
 		}
 	}()
 
-	// records, err := dataprocessing.Sync("x", store)
-	// if err != nil {
-	// 	logger.Error("Error syncing records", slog.Any("error", err))
-	// 	panic(errors.Wrap(err, "Error syncing records"))
-	// }
-	// fmt.Println("records", records)
-
 	// err = store.ClearOAuthTokens(context.Background(), "twitter")
 	// if err != nil {
 	// 	logger.Error("Error clearing OAuth tokens", slog.Any("error", err))
@@ -243,6 +237,14 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 			return nil, err
 		}
 	}
+
+	// TODO: remove this
+	records, err := dataprocessing.Sync("x", xToken.AccessToken)
+	if err != nil {
+		logger.Error("Error syncing records", slog.Any("error", err))
+		panic(errors.Wrap(err, "Error syncing records"))
+	}
+	fmt.Println("records", records)
 
 	return temporalClient, nil
 }
