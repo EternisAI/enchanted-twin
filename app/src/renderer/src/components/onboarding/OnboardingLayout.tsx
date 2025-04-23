@@ -1,7 +1,6 @@
-import { ReactNode, memo } from 'react'
+import { ReactNode } from 'react'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { Lock } from 'lucide-react'
-import { Brain } from '../graphics/brain'
 import { motion } from 'framer-motion'
 import { OnboardingStep } from '@renderer/lib/stores/onboarding'
 import { cn } from '@renderer/lib/utils'
@@ -12,17 +11,6 @@ interface OnboardingLayoutProps {
   subtitle?: string
   className?: string
 }
-
-const OnboardingBackground = memo(function OnboardingBackground() {
-  return (
-    <div className="absolute bottom-0 right-0 w-full z-0 h-full opacity-35 dark:opacity-100">
-      <div className="w-full h-full bg-gradient-to-b from-background to-background/50 absolute inset-0 z-20" />
-      <div className="w-full h-full relative z-10">
-        <Brain />
-      </div>
-    </div>
-  )
-})
 
 function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -54,7 +42,6 @@ export function OnboardingLayout({ children, title, subtitle, className }: Onboa
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
-      <OnboardingBackground />
       <div
         className={cn(
           'w-full max-w-xl flex flex-col gap-12 z-10 relative bg-transparent',
