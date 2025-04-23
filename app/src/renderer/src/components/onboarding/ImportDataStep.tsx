@@ -1,20 +1,12 @@
 import { OnboardingLayout } from './OnboardingLayout'
 import { useMutation, useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
-import { HelpCircle, CheckCircle2, Loader2, X, File, Folder } from 'lucide-react'
+import { CheckCircle2, Loader2, X, MessageSquare, Mail, Twitter } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useState } from 'react'
-import { ImportInstructionsModal } from './ImportInstructionsModal'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle
-} from '../ui/dialog'
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -50,7 +42,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your WhatsApp chat history',
     selectType: 'files',
     fileRequirement: 'Select your WhatsApp SQLITE database file',
-    icon: <File className="h-5 w-5" />
+    icon: <MessageSquare className="h-5 w-5 text-green-500" />
   },
   {
     name: 'Telegram',
@@ -58,7 +50,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your Telegram messages and media',
     selectType: 'files',
     fileRequirement: 'Select your Telegram JSON export file',
-    icon: <File className="h-5 w-5" />
+    icon: <MessageSquare className="h-5 w-5 text-blue-500" />
   },
   {
     name: 'Slack',
@@ -66,7 +58,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your Slack workspace data',
     selectType: 'files',
     fileRequirement: 'Select your exported Slack ZIP file',
-    icon: <File className="h-5 w-5" />
+    icon: <MessageSquare className="h-5 w-5 text-purple-500" />
   },
   {
     name: 'Gmail',
@@ -74,7 +66,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your Gmail emails and attachments',
     selectType: 'files',
     fileRequirement: 'Select your Google Takeout ZIP file',
-    icon: <File className="h-5 w-5" />
+    icon: <Mail className="h-5 w-5 text-red-500" />
   },
   {
     name: 'X',
@@ -83,7 +75,7 @@ const SUPPORTED_DATA_SOURCES: {
     selectType: 'files',
     fileRequirement:
       'Select the ZIP file containing X .js files (like.js, direct-messages.js, tweets.js)',
-    icon: <Folder className="h-5 w-5" />
+    icon: <Twitter className="h-5 w-5 text-black dark:text-white" />
   }
   // {
   //   name: 'GoogleAddresses',
@@ -94,8 +86,16 @@ const SUPPORTED_DATA_SOURCES: {
   // }
 ]
 
-const EXPORT_INSTRUCTIONS: Record<string, { steps: string[]; link?: string }> = {
+const EXPORT_INSTRUCTIONS: Record<
+  string,
+  {
+    timeEstimate: string
+    steps: string[]
+    link?: string
+  }
+> = {
   WhatsApp: {
+    timeEstimate: '5-10 minutes',
     steps: [
       'Open WhatsApp on your phone',
       'Go to Settings > Chats > Chat Backup',
@@ -106,6 +106,7 @@ const EXPORT_INSTRUCTIONS: Record<string, { steps: string[]; link?: string }> = 
     ]
   },
   Telegram: {
+    timeEstimate: '10-30 minutes',
     steps: [
       'Open Telegram Desktop',
       'Click the menu button (three lines)',
@@ -115,6 +116,7 @@ const EXPORT_INSTRUCTIONS: Record<string, { steps: string[]; link?: string }> = 
     ]
   },
   Slack: {
+    timeEstimate: '1-2 hours',
     steps: [
       'Open Slack in your browser',
       'Click your workspace name in the top left',
@@ -124,6 +126,7 @@ const EXPORT_INSTRUCTIONS: Record<string, { steps: string[]; link?: string }> = 
     ]
   },
   Gmail: {
+    timeEstimate: '24-48 hours',
     steps: [
       'Go to Google Takeout (takeout.google.com)',
       'Sign in with your Google account',
@@ -135,6 +138,7 @@ const EXPORT_INSTRUCTIONS: Record<string, { steps: string[]; link?: string }> = 
     link: 'https://takeout.google.com'
   },
   X: {
+    timeEstimate: '24-48 hours',
     steps: [
       'Go to X (Twitter) in your browser',
       'Click your profile picture',
@@ -149,7 +153,6 @@ const EXPORT_INSTRUCTIONS: Record<string, { steps: string[]; link?: string }> = 
 export function ImportDataStep() {
   const { data, refetch } = useQuery(GET_DATA_SOURCES)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
-  const [showImportInstructions, setShowImportInstructions] = useState<string | null>(null)
   const [isSelecting, setIsSelecting] = useState<string | null>(null)
   const [pendingDataSources, setPendingDataSources] = useState<
     Record<string, { name: string; path: string }>
@@ -189,7 +192,7 @@ export function ImportDataStep() {
 
   const handleNext = async () => {
     if (Object.keys(pendingDataSources).length === 0) {
-      toast.error('Please select at least one data source')
+      nextStep()
       return
     }
 
@@ -233,26 +236,23 @@ export function ImportDataStep() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 gap-4">
           {/* Add Source Card */}
-          <div className="p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-semibold">Add Source</h3>
-            </div>
-            <div className="flex flex-col gap-1 flex-1">
-              <p className="text-sm text-muted-foreground">Select a data source to import</p>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {SUPPORTED_DATA_SOURCES.map((source) => (
                 <Button
                   key={source.name}
                   variant="outline"
-                  size="sm"
-                  className="w-full"
+                  size="lg"
+                  className="w-full h-auto py-4 px-4 flex flex-col items-center gap-2 hover:bg-accent/50"
                   onClick={() =>
                     setSelectedSource({ name: source.name, selectType: source.selectType })
                   }
                   disabled={isSelecting === source.name}
                 >
-                  {source.name}
+                  <div className="flex items-center gap-2">
+                    {source.icon}
+                    <span className="font-medium">{source.label}</span>
+                  </div>
                 </Button>
               ))}
             </div>
@@ -274,14 +274,6 @@ export function ImportDataStep() {
                       <h3 className="font-semibold">{name}</h3>
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setShowImportInstructions(name)}
-                      >
-                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -321,16 +313,6 @@ export function ImportDataStep() {
                     <div className="flex items-center gap-2">
                       <h3 className="font-semibold">{source.name}</h3>
                     </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => setShowImportInstructions(source.name)}
-                      >
-                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
-                      </Button>
-                    </div>
                   </div>
                   <div className="flex flex-col gap-1 flex-1">
                     <p className="text-sm text-muted-foreground">{sourceDetails.description}</p>
@@ -364,59 +346,79 @@ export function ImportDataStep() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add {selectedSource?.name} Data</DialogTitle>
-            <DialogDescription>
-              {SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)?.description}
-            </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6">
-            <div className="space-y-4">
-              <h4 className="font-medium">How to export your data:</h4>
-              <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
-                {selectedSource &&
-                  EXPORT_INSTRUCTIONS[selectedSource.name]?.steps.map((step, index) => (
-                    <li key={index}>{step}</li>
-                  ))}
-              </ol>
-              {selectedSource && EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
-                <Button
-                  variant="link"
-                  className="p-0 h-auto"
-                  onClick={() =>
-                    window.electron.ipcRenderer.send(
-                      'open-external-url',
-                      EXPORT_INSTRUCTIONS[selectedSource.name].link
-                    )
-                  }
-                >
-                  Open {selectedSource.name} Export Page
-                </Button>
-              )}
+          <div className="space-y-8">
+            {/* Overview Section */}
+            <div className="rounded-lg">
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-sm text-muted-foreground">
+                  Estimated time:{' '}
+                  {selectedSource && EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
+                </div>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <h4 className="font-medium">Select your exported data:</h4>
-              <p className="text-sm text-muted-foreground">
-                {
-                  SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)
-                    ?.fileRequirement
-                }
-              </p>
-              <Button
-                className="w-full"
-                onClick={() =>
-                  selectedSource && handleFileSelect(selectedSource.name, selectedSource.selectType)
-                }
-                disabled={isSelecting === selectedSource?.name}
-              >
-                {isSelecting === selectedSource?.name ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Selecting...
-                  </>
-                ) : (
-                  `Select ${selectedSource?.selectType === 'files' ? 'File' : 'Folder'}`
+            {/* Steps Section */}
+            <div className="space-y-4 py-4">
+              <div className="rounded-lg">
+                <ol className="space-y-4 flex flex-col gap-3">
+                  {selectedSource &&
+                    EXPORT_INSTRUCTIONS[selectedSource.name]?.steps.map((step, index) => (
+                      <li key={index} className="flex gap-3">
+                        <div className="flex-shrink-0 w-6 h-6 rounded-full bg-accent flex items-center justify-center text-primary font-medium text-sm">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm">{step}</p>
+                        </div>
+                      </li>
+                    ))}
+                </ol>
+                {selectedSource && EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
+                  <Button
+                    variant="link"
+                    className="mt-4 p-0 h-auto text-primary"
+                    onClick={() =>
+                      window.electron.ipcRenderer.send(
+                        'open-external-url',
+                        EXPORT_INSTRUCTIONS[selectedSource.name].link
+                      )
+                    }
+                  >
+                    Open {selectedSource.name} Export Page
+                  </Button>
                 )}
-              </Button>
+              </div>
+            </div>
+
+            {/* File Selection Section */}
+            <div className="space-y-4 bg-card p-4 rounded-lg">
+              <h4 className="font-medium">Select Your Data</h4>
+              <div className="bg-muted/50 p-4 rounded-lg">
+                <p className="text-sm text-muted-foreground mb-4">
+                  {
+                    SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)
+                      ?.fileRequirement
+                  }
+                </p>
+                <Button
+                  className="w-full"
+                  onClick={() =>
+                    selectedSource &&
+                    handleFileSelect(selectedSource.name, selectedSource.selectType)
+                  }
+                  disabled={isSelecting === selectedSource?.name}
+                >
+                  {isSelecting === selectedSource?.name ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Selecting...
+                    </>
+                  ) : (
+                    `Select ${selectedSource?.selectType === 'files' ? 'File' : 'Folder'}`
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
           <DialogFooter>
@@ -426,12 +428,6 @@ export function ImportDataStep() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      <ImportInstructionsModal
-        isOpen={!!showImportInstructions}
-        onClose={() => setShowImportInstructions(null)}
-        dataSource={showImportInstructions || ''}
-      />
     </OnboardingLayout>
   )
 }
