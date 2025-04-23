@@ -35,7 +35,7 @@ const providers: Provider[] = [
     provider: 'twitter',
     label: 'X',
     icon: <Twitter />,
-    scope: 'tweet.read users.read offline.access'
+    scope: 'tweet.read users.read offline.access like.read'
   },
   {
     provider: 'slack',

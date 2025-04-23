@@ -154,7 +154,7 @@ var oauthConfig = map[string]OAuthConfig{
 		AuthEndpoint:  "https://twitter.com/i/oauth2/authorize",
 		TokenEndpoint: "https://api.twitter.com/2/oauth2/token",
 		UserEndpoint:  "https://api.twitter.com/2/users/me",
-		DefaultScope:  "tweet.read users.read offline.access",
+		DefaultScope:  "tweet.read users.read offline.access like.read",
 	},
 	"google": {
 		ClientID:      "993981911648-vtgfk8g1am6kp36pubo5l46902ua1g4t.apps.googleusercontent.com",
