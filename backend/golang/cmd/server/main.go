@@ -127,6 +127,16 @@ func main() {
 			logger.Error("Error closing store", slog.Any("error", err))
 		}
 	}()
+
+	// records, err := dataprocessing.Sync("x", store)
+	// if err != nil {
+	// 	logger.Error("Error syncing records", slog.Any("error", err))
+	// 	panic(errors.Wrap(err, "Error syncing records"))
+	// }
+	// fmt.Println("records", records)
+
+	// store.ClearOAuthTokens(context.Background(), "google")
+
 	logger.Info("SQLite database initialized")
 
 	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
@@ -223,7 +233,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 	}
 
 	if tokens != nil {
-		err = dataProcessingWorkflow.CreateXSyncSchedule(temporalClient)
+		err = dataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(temporalClient)
 		if err != nil {
 			logger.Error("Error creating XSync schedule", slog.Any("error", err))
 			return nil, err
