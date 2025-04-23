@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -246,4 +247,8 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	}
 
 	return textDocuments, nil
+}
+
+func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
+	return nil, fmt.Errorf("sync operation not supported for Telegram")
 }

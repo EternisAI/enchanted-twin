@@ -171,7 +171,5 @@ func parseTimestamp(ts string) (time.Time, error) {
 }
 
 func (s *SlackDataSource) Sync(ctx context.Context) ([]types.Record, error) {
-	// Since Slack data is processed from local files and not via API,
-	// we can return an error indicating this operation is not supported
 	return nil, fmt.Errorf("sync operation not supported for Slack")
 }
