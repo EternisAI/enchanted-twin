@@ -9,8 +9,7 @@ import {
   AlertDialogTitle,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogCancel,
-  AlertDialogAction
+  AlertDialogCancel
 } from '../ui/alert-dialog'
 import { Button } from '../ui/button'
 import { Trash2 } from 'lucide-react'
@@ -96,14 +95,22 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Do not delete</AlertDialogCancel>
-            <AlertDialogAction
+            <Button
+              variant="destructive"
+              onClick={() => {
+                deleteChat({ variables: { chatId: chat.id } })
+              }}
+            >
+              Delete
+            </Button>
+            {/* <AlertDialogAction
               onClick={() => {
                 deleteChat({ variables: { chatId: chat.id } })
               }}
               asChild
             >
               Delete
-            </AlertDialogAction>
+            </AlertDialogAction> */}
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
