@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -36,6 +35,20 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
 	return helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+}
+
+// RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.
+func (r *mutationResolver) RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error) {
+	dbResults, err := helpers.RefreshExpiredTokens(ctx, r.Logger, r.Store)
+	if err != nil {
+		return nil, err
+	}
+	results := make([]*model.OAuthStatus, len(dbResults))
+	for i, item := range dbResults {
+		db := item.ToModel()
+		results[i] = &db
+	}
+	return results, nil
 }
 
 // UpdateProfile is the resolver for the updateProfile field.
@@ -202,24 +215,9 @@ func (r *queryResolver) GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatu
 	}
 	results := make([]*model.OAuthStatus, len(dbResults))
 	for i, item := range dbResults {
-		expiresAtStr := ""
-		if !item.ExpiresAt.IsZero() {
-			expiresAtStr = item.ExpiresAt.Format(time.RFC3339)
-		}
-		var scopeArray []string
-		if item.Scope != "" {
-			scopeArray = strings.Split(item.Scope, " ")
-		} else {
-			scopeArray = []string{} // Empty array instead of nil
-		}
-
-		results[i] = &model.OAuthStatus{
-			Provider:  item.Provider,
-			ExpiresAt: expiresAtStr,
-			Scope:     scopeArray,
-		}
+		db := item.ToModel()
+		results[i] = &db
 	}
-
 	return results, nil
 }
 

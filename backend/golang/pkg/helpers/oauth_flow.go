@@ -104,7 +104,9 @@ func fetchUserInfo(ctx context.Context, _ *log.Logger, store *db.Store, provider
 	if err != nil {
 		return nil, fmt.Errorf("failed to send user request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
@@ -182,14 +184,18 @@ func StartOAuthCallbackServer(logger *log.Logger, store *db.Store) error {
 		defer reqCancel()
 		provider, userInfo, err := callbackHandler(reqCtx, logger, store, r)
 		if err != nil {
-			fmt.Fprintf(w, "Error in handler: %s", err)
+			if _, writeErr := fmt.Fprintf(w, "Error in handler: %s", err); writeErr != nil {
+				logger.Error("failed to write error response", "error", writeErr)
+			}
 		} else {
 			logger.Info("Successfully retrieved user information", "provider", provider)
 			// Log user info details
 			userJSON, _ := json.MarshalIndent(userInfo, "", "  ")
 			userJSONString := string(userJSON)
 			logger.Debug("User info", "data", userJSONString)
-			fmt.Fprintf(w, "Authentication successful! You can close this window.\nUser data:\n%s", userJSONString)
+			if _, writeErr := fmt.Fprintf(w, "Authentication successful! You can close this window.\nUser data:\n%s", userJSONString); writeErr != nil {
+				logger.Error("failed to write success response", "error", writeErr)
+			}
 		}
 	})
 
