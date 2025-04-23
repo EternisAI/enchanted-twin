@@ -7,13 +7,11 @@ import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 
-// const INPUT_HEIGHT = '130px'
-
 export default function ChatView({ chat }: { chat: Chat }) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const [messages, setMessages] = useState<Message[]>(chat.messages)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(true)
 
   const upsertMessage = (msg: Message) => {
     setMessages((prev) => {
@@ -95,21 +93,22 @@ export default function ChatView({ chat }: { chat: Chat }) {
     <div className="flex flex-col h-full w-full">
       <div className="flex-1 overflow-y-auto p-6">
         <div className="flex flex-col items-center">
-          <div className="flex flex-col max-w-3xl w-full">
+          <div className="flex flex-col max-w-4xl w-full">
             <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
             <div ref={bottomRef} />
           </div>
         </div>
       </div>
       <div className="flex flex-col px-6 py-4 w-full items-center justify-center">
-        <div className="max-w-3xl mx-auto w-full flex justify-center items-center">
+        <div className="max-w-4xl mx-auto w-full flex justify-center items-center">
           <ChatSuggestions
             chatId={chat.id}
             visible={showSuggestions}
             onSuggestionClick={handleSuggestionClick}
+            toggleVisibility={() => setShowSuggestions(!showSuggestions)}
           />
         </div>
-        <div className="max-w-3xl mx-auto w-full flex justify-center items-center">
+        <div className="max-w-4xl mx-auto w-full flex justify-center items-center">
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}
