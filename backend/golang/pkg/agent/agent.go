@@ -58,9 +58,10 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 	}
 
 	for currentStep < MAX_STEPS {
+
 		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, a.CompletionsModel)
 		if err != nil {
-			fmt.Println("Error completing", err)
+			a.logger.Error("Error completing", "error", err)
 			return AgentResponse{}, err
 		}
 
@@ -96,19 +97,11 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 				return AgentResponse{}, err
 			}
 
-			a.logger.Debug("Executing tool", "tool", toolCall.Function.Name, "args", args)
 			toolResult, err := tool.Execute(ctx, args)
 
 			if err != nil {
 				fmt.Println("Error executing tool", err)
 				return AgentResponse{}, err
-			}
-			if toolResult.ImageURLs != nil {
-				imageURLs = append(imageURLs, toolResult.ImageURLs...)
-			}
-
-			if toolResult.Content != "" {
-				messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
 			}
 
 			// send message with isCompleted true
@@ -116,7 +109,13 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 				a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_result", toolResult)
 				a.PostToolCallback(toolCall, toolResult)
 			}
-			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
+
+			if toolResult.ImageURLs != nil {
+				imageURLs = append(imageURLs, toolResult.ImageURLs...)
+			}
+
+			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))			
+
 			toolCalls = append(toolCalls, toolCall)
 			toolResults = append(toolResults, toolResult)
 		}
