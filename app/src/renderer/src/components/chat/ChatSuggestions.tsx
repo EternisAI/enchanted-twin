@@ -1,84 +1,79 @@
-import { useEffect, useState } from 'react'
 import { useQuery } from '@apollo/client'
 import { GetChatSuggestionsDocument } from '@renderer/graphql/generated/graphql'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@renderer/components/ui/tabs'
 import { Button } from '../ui/button'
 import { motion } from 'framer-motion'
-
-const MOCK_SUGGESTIONS = {
-  getChatSuggestions: [
-    {
-      category: 'Questions',
-      suggestions: [
-        'Can you explain this in more detail?',
-        'What are the main benefits?',
-        'How does this compare to alternatives?'
-      ]
-    },
-    {
-      category: 'Actions',
-      suggestions: ['Show me an example', 'Generate some code for this', 'Summarize the key points']
-    },
-    {
-      category: 'Follow-ups',
-      suggestions: [
-        'Tell me more about this topic',
-        'What should I know next?',
-        'What are common problems with this approach?'
-      ]
-    }
-  ]
-}
+import { MessageCircleMore, MessageCircleOff } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 
 export default function ChatSuggestions({
   chatId,
   visible,
+  toggleVisibility,
   onSuggestionClick
 }: {
   chatId: string
   visible: boolean
   onSuggestionClick: (suggestion: string) => void
+  toggleVisibility: () => void
 }) {
-  const [hideSuggestions, setHideSuggestions] = useState(false)
-  const { data, loading, refetch } = useQuery(GetChatSuggestionsDocument, {
+  const { data } = useQuery(GetChatSuggestionsDocument, {
     variables: { chatId },
     skip: !visible || !chatId,
     fetchPolicy: 'network-only'
   })
 
-  useEffect(() => {
-    if (visible && chatId) {
-      refetch()
-    }
-  }, [visible, chatId, refetch])
-
-  const suggestions = data?.getChatSuggestions || MOCK_SUGGESTIONS.getChatSuggestions
+  const suggestions = data?.getChatSuggestions
 
   console.log('suggestions data', data, suggestions)
 
-  if (!visible || loading || !suggestions) {
-    return null
-  }
-
-  if (hideSuggestions) {
+  if (!visible) {
     return (
-      <div className="w-full flex justify-end pb-2">
-        <Button variant="ghost" onClick={() => setHideSuggestions(false)}>
-          Show suggestions
-        </Button>
-      </div>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.25 }}
+        className="w-full flex justify-end pb-2"
+      >
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                onClick={toggleVisibility}
+                size="icon"
+                className="rounded-full"
+              >
+                <MessageCircleMore className="h-5 w-5 opacity-70 hover:opacity-100 transition-opacity" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Show suggestions</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      </motion.div>
     )
   }
 
+  if (!suggestions || suggestions.length === 0) {
+    return null
+  }
+
   return (
-    <div className="relative w-full pb-4">
+    <motion.div
+      className="relative w-full pb-4"
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25 }}
+    >
       <Tabs defaultValue={suggestions[0].category}>
         <TabsList className="mb-2 w-full h-auto p-1 justify-start overflow-x-auto">
           {suggestions.map((category) => (
             <TabsTrigger
               key={category.category}
               value={category.category}
-              className="px-3 py-1.5 text-sm cursor-pointer"
+              className="px-3.5 py-2.5 text-sm cursor-pointer"
             >
               {category.category}
             </TabsTrigger>
@@ -87,7 +82,7 @@ export default function ChatSuggestions({
         {suggestions.map((category) => (
           <TabsContent key={category.category} value={category.category}>
             <motion.div
-              className="flex flex-wrap gap-2 h-20"
+              className="flex flex-wrap gap-2 min-h-10"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25 }}
@@ -105,14 +100,31 @@ export default function ChatSuggestions({
             </motion.div>
           </TabsContent>
         ))}
-        <Button
-          variant="ghost"
-          onClick={() => setHideSuggestions(true)}
-          className="absolute bottom-2 right-0 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200  transition-colors"
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.25 }}
+          className="absolute bottom-2 right-0"
         >
-          Hide suggestions
-        </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  onClick={toggleVisibility}
+                  size="icon"
+                  className="rounded-full"
+                >
+                  <MessageCircleOff className="h-5 w-5 opacity-70 hover:opacity-100 transition-opacity" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Hide suggestions</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </motion.div>
       </Tabs>
-    </div>
+    </motion.div>
   )
 }
