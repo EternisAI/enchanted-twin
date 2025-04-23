@@ -14,7 +14,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func (workflows *DataProcessingWorkflows) CreateXSyncSchedule(temporalClient client.Client) error {
+func (workflows *DataProcessingWorkflows) CreateIfNotExistsXSyncSchedule(temporalClient client.Client) error {
 	scheduleID := "x-sync-schedule"
 
 	// Check if schedule already exists
@@ -28,7 +28,7 @@ func (workflows *DataProcessingWorkflows) CreateXSyncSchedule(temporalClient cli
 	scheduleSpec := client.ScheduleSpec{
 		Intervals: []client.ScheduleIntervalSpec{
 			{
-				Every: 5 * time.Minute,
+				Every: 1 * time.Minute,
 			},
 		},
 	}
@@ -81,10 +81,15 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 		workflow.GetLogger(ctx).Info("Recovered last result", "value", previousResult)
 	}
 
+	workflowResponse := XSyncWorkflowResponse{
+		LastRecordID:        previousResult.LastRecordID,
+		LastRecordTimestamp: previousResult.LastRecordTimestamp,
+	}
+
 	var response XFetchActivityResponse
 	err := workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
 	if err != nil {
-		return XSyncWorkflowResponse{}, err
+		return workflowResponse, err
 	}
 
 	fmt.Println("response", response)
@@ -102,6 +107,7 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 	}
 
 	if len(filteredRecords) == 0 {
+		workflowResponse.EndTime = time.Now()
 		return XSyncWorkflowResponse{
 			EndTime:             time.Now(),
 			Success:             true,
@@ -110,14 +116,13 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 		}, nil
 	}
 
-	fmt.Println("filteredRecords", filteredRecords)
-
+	w.Logger.Info("filteredRecords", "value", filteredRecords)
 	err = workflow.ExecuteActivity(ctx, w.XIndexActivity, XIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
 	if err != nil {
 		return XSyncWorkflowResponse{}, err
 	}
 
-	lastRecord := response.Records[len(response.Records)-1]
+	lastRecord := response.Records[0]
 
 	w.Logger.Info("lastRecord", "value", lastRecord)
 
@@ -125,10 +130,12 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 	if id, ok := lastRecord.Data["id"]; ok && id != nil {
 		lastRecordID = id.(string)
 	}
+	workflowResponse.LastRecordID = lastRecordID
+	workflowResponse.LastRecordTimestamp = lastRecord.Timestamp
+	workflowResponse.Success = true
+	workflowResponse.EndTime = time.Now()
 
-	endTime := time.Now()
-
-	return XSyncWorkflowResponse{EndTime: endTime, Success: true, LastRecordID: lastRecordID, LastRecordTimestamp: lastRecord.Timestamp}, nil
+	return workflowResponse, nil
 }
 
 type XFetchActivityInput struct {
