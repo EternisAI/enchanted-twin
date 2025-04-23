@@ -1,12 +1,29 @@
 import { OnboardingLayout } from './OnboardingLayout'
 import { useMutation, useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
-import { CheckCircle2, Loader2, X, MessageSquare, Mail, Twitter } from 'lucide-react'
+import {
+  CheckCircle2,
+  Loader2,
+  X,
+  MessageSquare,
+  Mail,
+  Twitter,
+  Clock,
+  File,
+  ExternalLink
+} from 'lucide-react'
 import { Button } from '../ui/button'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '../ui/dialog'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -35,47 +52,52 @@ const SUPPORTED_DATA_SOURCES: {
   selectType: 'directory' | 'files'
   fileRequirement: string
   icon: React.ReactNode
+  fileFilters?: { name: string; extensions: string[] }[]
 }[] = [
   {
     name: 'WhatsApp',
     label: 'WhatsApp',
     description: 'Import your WhatsApp chat history',
     selectType: 'files',
-    fileRequirement: 'Select your WhatsApp SQLITE database file',
-    icon: <MessageSquare className="h-5 w-5 text-green-500" />
+    fileRequirement: 'Select WhatsApp SQLITE file',
+    icon: <MessageSquare className="h-5 w-5 text-green-500" />,
+    fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }]
   },
   {
     name: 'Telegram',
     label: 'Telegram',
     description: 'Import your Telegram messages and media',
     selectType: 'files',
-    fileRequirement: 'Select your Telegram JSON export file',
-    icon: <MessageSquare className="h-5 w-5 text-blue-500" />
+    fileRequirement: 'Select Telegram JSON export file',
+    icon: <MessageSquare className="h-5 w-5 text-blue-500" />,
+    fileFilters: [{ name: 'Telegram Export', extensions: ['json'] }]
   },
   {
     name: 'Slack',
     label: 'Slack',
     description: 'Import your Slack workspace data',
     selectType: 'files',
-    fileRequirement: 'Select your exported Slack ZIP file',
-    icon: <MessageSquare className="h-5 w-5 text-purple-500" />
+    fileRequirement: 'Select Slack ZIP file',
+    icon: <MessageSquare className="h-5 w-5 text-purple-500" />,
+    fileFilters: [{ name: 'Slack Export', extensions: ['zip'] }]
   },
   {
     name: 'Gmail',
     label: 'Gmail',
     description: 'Import your Gmail emails and attachments',
     selectType: 'files',
-    fileRequirement: 'Select your Google Takeout ZIP file',
-    icon: <Mail className="h-5 w-5 text-red-500" />
+    fileRequirement: 'Select Google Takeout ZIP file',
+    icon: <Mail className="h-5 w-5 text-red-500" />,
+    fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
   },
   {
     name: 'X',
     label: 'X',
     description: 'Import your X tweets and messages',
     selectType: 'files',
-    fileRequirement:
-      'Select the ZIP file containing X .js files (like.js, direct-messages.js, tweets.js)',
-    icon: <Twitter className="h-5 w-5 text-black dark:text-white" />
+    fileRequirement: 'Select X ZIP',
+    icon: <Twitter className="h-5 w-5 text-black dark:text-white" />,
+    fileFilters: [{ name: 'X Archive', extensions: ['zip'] }]
   }
   // {
   //   name: 'GoogleAddresses',
@@ -96,24 +118,11 @@ const EXPORT_INSTRUCTIONS: Record<
 > = {
   WhatsApp: {
     timeEstimate: '5-10 minutes',
-    steps: [
-      'Open WhatsApp on your phone',
-      'Go to Settings > Chats > Chat Backup',
-      'Tap "Back Up" to create a backup',
-      'Connect your phone to your computer',
-      'Navigate to the WhatsApp backup folder on your phone',
-      'Copy the msgstore.db.crypt12 file to your computer'
-    ]
+    steps: ['Open Finder', 'Find your ChatStorage.sqlite file']
   },
   Telegram: {
     timeEstimate: '10-30 minutes',
-    steps: [
-      'Open Telegram Desktop',
-      'Click the menu button (three lines)',
-      'Go to Settings > Advanced > Export Telegram Data',
-      'Select the data you want to export',
-      'Click "Export" and save the file'
-    ]
+    steps: ['Open Finder', 'Find your Telegram Export file']
   },
   Slack: {
     timeEstimate: '1-2 hours',
@@ -146,14 +155,14 @@ const EXPORT_INSTRUCTIONS: Record<
       'Click "Download an archive of your data"',
       'Enter your password and click "Confirm"',
       'Wait for the email with your data archive'
-    ]
+    ],
+    link: 'https://x.com/settings/download_your_data'
   }
 }
 
 export function ImportDataStep() {
   const { data, refetch } = useQuery(GET_DATA_SOURCES)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
-  const [isSelecting, setIsSelecting] = useState<string | null>(null)
   const [pendingDataSources, setPendingDataSources] = useState<
     Record<string, { name: string; path: string }>
   >({})
@@ -163,32 +172,6 @@ export function ImportDataStep() {
     selectType: 'directory' | 'files'
   } | null>(null)
   const { nextStep } = useOnboardingStore()
-
-  const handleFileSelect = async (name: string, selectType: 'directory' | 'files') => {
-    try {
-      setIsSelecting(name)
-      const result = await (selectType === 'directory'
-        ? window.api.selectDirectory()
-        : window.api.selectFiles())
-
-      if (result.canceled) {
-        toast.info('File selection cancelled')
-        return
-      }
-
-      const path = result.filePaths[0]
-      setPendingDataSources((prev) => ({
-        ...prev,
-        [name]: { name, path }
-      }))
-      setSelectedSource(null)
-    } catch (error) {
-      console.error('Error selecting files:', error)
-      toast.error('Failed to select data source. Please try again.')
-    } finally {
-      setIsSelecting(null)
-    }
-  }
 
   const handleNext = async () => {
     if (Object.keys(pendingDataSources).length === 0) {
@@ -243,11 +226,10 @@ export function ImportDataStep() {
                   key={source.name}
                   variant="outline"
                   size="lg"
-                  className="w-[200px] h-auto py-4 px-4 flex flex-col items-center gap-2 hover:bg-accent/50 bg-card"
+                  className="h-auto py-4 px-4 flex flex-col items-center gap-2 hover:bg-accent/50 bg-card"
                   onClick={() =>
                     setSelectedSource({ name: source.name, selectType: source.selectType })
                   }
-                  disabled={isSelecting === source.name}
                 >
                   <div className="flex items-center gap-2">
                     {source.icon}
@@ -259,7 +241,7 @@ export function ImportDataStep() {
           </div>
 
           {/* Selected and Indexed Sources */}
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-2 gap-4">
             {Object.entries(pendingDataSources).map(([name]) => {
               const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === name)
               if (!sourceDetails) return null
@@ -308,7 +290,7 @@ export function ImportDataStep() {
                     {sourceDetails.icon}
                     <div>
                       <h3 className="font-medium">{name}</h3>
-                      <p className="text-xs text-muted-foreground">{sourceDetails.description}</p>
+                      {/* <p className="text-xs text-muted-foreground">{sourceDetails.description}</p> */}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -337,16 +319,15 @@ export function ImportDataStep() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Add {selectedSource?.name} Data</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground flex items-center gap-2">
+              <Clock className="h-4 w-4 text-muted-foreground/50" />
+              {selectedSource && EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-8">
             {/* Overview Section */}
             <div className="rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="text-sm text-muted-foreground">
-                  Estimated time:{' '}
-                  {selectedSource && EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
-                </div>
-              </div>
+              <div className="flex items-center justify-between mb-2"></div>
             </div>
 
             {/* Steps Section */}
@@ -366,55 +347,96 @@ export function ImportDataStep() {
                     ))}
                 </ol>
                 {selectedSource && EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
-                  <Button
-                    variant="link"
-                    className="mt-4 p-0 h-auto text-primary"
-                    onClick={() =>
-                      window.electron.ipcRenderer.send(
-                        'open-external-url',
-                        EXPORT_INSTRUCTIONS[selectedSource.name].link
-                      )
-                    }
-                  >
-                    Open {selectedSource.name} Export Page
+                  <Button variant="link" className="mt-4 p-0 h-auto text-primary" asChild>
+                    <a
+                      href={EXPORT_INSTRUCTIONS[selectedSource.name].link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      Open {selectedSource.name} Export Page <ExternalLink className="h-4 w-4" />
+                    </a>
                   </Button>
                 )}
               </div>
             </div>
 
             {/* File Selection Section */}
-            <div className="space-y-4 bg-card p-4 rounded-lg">
-              <h4 className="font-medium">Select Your Data</h4>
-              <div className="bg-muted/50 p-4 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-4">
-                  {
-                    SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)
-                      ?.fileRequirement
-                  }
-                </p>
-                <Button
-                  className="w-full"
-                  onClick={() =>
-                    selectedSource &&
-                    handleFileSelect(selectedSource.name, selectedSource.selectType)
-                  }
-                  disabled={isSelecting === selectedSource?.name}
-                >
-                  {isSelecting === selectedSource?.name ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Selecting...
-                    </>
-                  ) : (
-                    `Select ${selectedSource?.selectType === 'files' ? 'File' : 'Folder'}`
-                  )}
-                </Button>
+            <div className="flex flex-col gap-2 bg-card p-4 rounded-lg invert">
+              <h4 className="font-medium flex items-center gap-2">
+                <File className="h-4 w-4 text-muted-foreground/80" /> Add data
+              </h4>
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-9 px-3 py-1 rounded-md border bg-background text-sm">
+                    {pendingDataSources[selectedSource?.name || '']?.path ||
+                      SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)
+                        ?.fileRequirement}
+                  </div>
+                  <Button
+                    onClick={async () => {
+                      if (!selectedSource) return
+
+                      try {
+                        const source = SUPPORTED_DATA_SOURCES.find(
+                          (s) => s.name === selectedSource.name
+                        )
+                        const result = await (selectedSource.selectType === 'directory'
+                          ? window.api.selectDirectory()
+                          : window.api.selectFiles({
+                              filters: source?.fileFilters || []
+                            }))
+
+                        if (result.canceled) {
+                          toast.info('File selection cancelled')
+                          return
+                        }
+
+                        const path = result.filePaths[0]
+                        setPendingDataSources((prev) => ({
+                          ...prev,
+                          [selectedSource.name]: { name: selectedSource.name, path }
+                        }))
+                      } catch (error) {
+                        console.error('Error selecting files:', error)
+                        toast.error('Failed to select data source. Please try again.')
+                      }
+                    }}
+                  >
+                    Browse
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setSelectedSource(null)}>
               Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!selectedSource) return
+
+                const source = pendingDataSources[selectedSource.name]
+                if (!source) return
+
+                try {
+                  await addDataSource({
+                    variables: {
+                      name: source.name,
+                      path: source.path
+                    }
+                  })
+                  await refetch()
+                  toast.success('Data source added successfully')
+                  setSelectedSource(null)
+                } catch (error) {
+                  console.error('Error adding data source:', error)
+                  toast.error('Failed to add data source. Please try again.')
+                }
+              }}
+              disabled={!pendingDataSources[selectedSource?.name || '']}
+            >
+              Add Source
             </Button>
           </DialogFooter>
         </DialogContent>
