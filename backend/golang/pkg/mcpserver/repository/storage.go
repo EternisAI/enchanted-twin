@@ -25,23 +25,23 @@ func NewRepository(logger *log.Logger, db *sqlx.DB) *Repository {
 }
 
 const insertMCPServerQuery = `
-INSERT INTO mcp_servers (id, name, command, args, envs, created_at, enabled)
-VALUES ($1, $2, $3, $4, $5, $6, $7);
+INSERT INTO mcp_servers (id, name, command, args, envs, type, created_at, enabled)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 `
 
-func (r *Repository) AddMCPServer(ctx context.Context, name string, command string, args []string, envs []*model.KeyValueInput, enabled *bool) (*model.MCPServer, error) {
+func (r *Repository) AddMCPServer(ctx context.Context, input *model.ConnectMCPServerInput, enabled *bool) (*model.MCPServer, error) {
 	newID := uuid.NewString()
 	createdAt := time.Now().Format(time.RFC3339)
 
-	argsJSON, err := json.Marshal(args)
+	argsJSON, err := json.Marshal(input.Args)
 	if err != nil {
-		r.logger.Error("failed to marshal command for mcp server", "error", err, "name", name)
+		r.logger.Error("failed to marshal command for mcp server", "error", err, "name", input.Name)
 		return nil, err
 	}
 
-	envsJSON, err := json.Marshal(envs)
+	envsJSON, err := json.Marshal(input.Envs)
 	if err != nil {
-		r.logger.Error("failed to marshal envs for mcp server", "error", err, "name", name)
+		r.logger.Error("failed to marshal envs for mcp server", "error", err, "name", input.Name)
 		return nil, err
 	}
 
@@ -50,14 +50,14 @@ func (r *Repository) AddMCPServer(ctx context.Context, name string, command stri
 		enabledValue = *enabled
 	}
 
-	_, err = r.db.ExecContext(ctx, insertMCPServerQuery, newID, name, command, string(argsJSON), string(envsJSON), createdAt, enabledValue)
+	_, err = r.db.ExecContext(ctx, insertMCPServerQuery, newID, input.Name, input.Command, string(argsJSON), string(envsJSON), input.Type.String(), createdAt, enabledValue)
 	if err != nil {
-		r.logger.Error("failed to insert mcp server", "error", err, "name", name)
+		r.logger.Error("failed to insert mcp server", "error", err, "name", input.Name)
 		return nil, err
 	}
 
-	envsModel := make([]*model.KeyValue, len(envs))
-	for i, env := range envs {
+	envsModel := make([]*model.KeyValue, len(input.Envs))
+	for i, env := range input.Envs {
 		envsModel[i] = &model.KeyValue{
 			Key:   env.Key,
 			Value: env.Value,
@@ -66,19 +66,20 @@ func (r *Repository) AddMCPServer(ctx context.Context, name string, command stri
 
 	mcpServer := &model.MCPServer{
 		ID:        newID,
-		Name:      name,
-		Command:   command,
-		Args:      args,
+		Name:      input.Name,
+		Command:   input.Command,
+		Args:      input.Args,
 		Envs:      envsModel,
 		CreatedAt: createdAt,
 		Enabled:   enabledValue,
+		Type:      input.Type,
 	}
 
 	return mcpServer, nil
 }
 
 const selectMCPServersQuery = `
-SELECT id, name, command, args, envs, created_at, enabled FROM mcp_servers ORDER BY created_at DESC;
+SELECT id, name, command, args, envs, type, created_at, enabled FROM mcp_servers ORDER BY created_at DESC;
 `
 
 type dbMCPServer struct {
@@ -87,6 +88,7 @@ type dbMCPServer struct {
 	Command   string `db:"command"` // JSON string from DB
 	Args      string `db:"args"` // JSON string from DB
 	Envs      string `db:"envs"` // JSON string from DB
+	Type      string `db:"type"`
 	CreatedAt string `db:"created_at"`
 	Enabled   bool   `db:"enabled"`
 }
@@ -117,6 +119,14 @@ func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, err
 				continue
 			}
 		}
+
+		var mcpType model.MCPServerType
+		if err := mcpType.UnmarshalGQL(dbServer.Type); err != nil {
+			r.logger.Error("failed to unmarshal type for mcp server", "error", err, "id", dbServer.ID)
+			// Skip this server or return error? Skipping for now.
+			continue
+		}
+
 		servers = append(servers, &model.MCPServer{
 			ID:        dbServer.ID,
 			Name:      dbServer.Name,
@@ -125,6 +135,7 @@ func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, err
 			Envs:      envsSlice,
 			CreatedAt: dbServer.CreatedAt,
 			Enabled:   dbServer.Enabled,
+			Type:      mcpType,
 		})
 	}
 

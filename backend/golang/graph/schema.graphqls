@@ -154,11 +154,21 @@ type KeyValue {
   value: String!
 }
 
+enum MCPServerType {
+  TWITTER,
+  GMAIL,
+  GOOGLE_CALENDAR,
+  GOOGLE_DRIVE,
+  SLACK,
+  OTHER
+}
+
 input ConnectMCPServerInput {
   name: String!
   command: String!
   args: [String!]
-  envs: [KeyValueInput!]
+  envs: [KeyValueInput!],
+  type: MCPServerType!
 }
 
 type MCPServer {
@@ -169,6 +179,7 @@ type MCPServer {
   name: String!
   createdAt: DateTime!
   enabled: Boolean!
+  type: MCPServerType!
 }
 
 type MCPServerDefinition {
@@ -176,7 +187,8 @@ type MCPServerDefinition {
   name: String!
   command: String!
   args: [String!]
-  envs: [KeyValue!]
+  envs: [KeyValue!],
+  type: MCPServerType!,
   connected: Boolean!
   enabled: Boolean!
 }

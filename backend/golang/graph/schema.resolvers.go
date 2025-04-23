@@ -14,7 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
+	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
 )
 
@@ -134,7 +134,6 @@ func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (boo
 
 	return result != nil, nil
 }
-
 
 // ConnectMCPServer is the resolver for the connectMCPServer field.
 func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (bool, error) {
