@@ -7,12 +7,14 @@ package graph
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
 )
 
@@ -125,8 +127,14 @@ func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path 
 
 // DeleteDataSource is the resolver for the deleteDataSource field.
 func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (bool, error) {
-	panic(fmt.Errorf("not implemented: DeleteDataSource - deleteDataSource"))
+	result, err := r.Store.DeleteDataSourceError(ctx, id)
+	if err != nil {
+		return false, err
+	}
+
+	return result != nil, nil
 }
+
 
 // ConnectMCPServer is the resolver for the connectMCPServer field.
 func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (bool, error) {
@@ -139,22 +147,74 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
-	panic(fmt.Errorf("not implemented: Profile - profile"))
+	if r.Store == nil {
+		panic("Store not initialized")
+	}
+
+	profile, err := r.Store.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	workflowID := "index"
+	workflowRunID := "" // Empty string means latest run
+	var stateQuery model.IndexingState
+	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
+	if err != nil {
+		r.Logger.Error("Error querying workflow", "error", err)
+		return profile, nil
+	}
+
+	if err := encodedValue.Get(&stateQuery); err != nil {
+		r.Logger.Error("Error querying workflow", "error", err)
+		return profile, nil
+	}
+
+	profile.IndexingStatus = &model.IndexingStatus{
+		Status:                 stateQuery,
+		ProcessingDataProgress: 0,
+		IndexingDataProgress:   0,
+	}
+
+	return profile, nil
 }
 
 // GetChats is the resolver for the getChats field.
 func (r *queryResolver) GetChats(ctx context.Context, first int32, offset int32) ([]*model.Chat, error) {
-	panic(fmt.Errorf("not implemented: GetChats - getChats"))
+	chats, err := r.TwinChatService.GetChats(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return chats, nil
 }
 
 // GetChat is the resolver for the getChat field.
 func (r *queryResolver) GetChat(ctx context.Context, id string) (*model.Chat, error) {
-	panic(fmt.Errorf("not implemented: GetChat - getChat"))
+	chat, err := r.TwinChatService.GetChat(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return &chat, nil
 }
 
 // GetDataSources is the resolver for the getDataSources field.
 func (r *queryResolver) GetDataSources(ctx context.Context) ([]*model.DataSource, error) {
-	panic(fmt.Errorf("not implemented: GetDataSources - getDataSources"))
+	dbDataSources, err := r.Store.GetDataSources(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	modelDataSources := make([]*model.DataSource, len(dbDataSources))
+	for i, ds := range dbDataSources {
+		modelDataSources[i] = &model.DataSource{
+			ID:        ds.ID,
+			Name:      ds.Name,
+			Path:      ds.Path,
+			UpdatedAt: ds.UpdatedAt,
+			IsIndexed: ds.IsIndexed != nil && *ds.IsIndexed,
+		}
+	}
+	return modelDataSources, nil
 }
 
 // GetOAuthStatus is the resolver for the getOAuthStatus field.
@@ -200,17 +260,125 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
-	panic(fmt.Errorf("not implemented: MessageAdded - messageAdded"))
+	messages := make(chan *model.Message)
+	subject := fmt.Sprintf("chat.%s", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var message model.Message
+		err := json.Unmarshal(msg.Data, &message)
+		if err != nil {
+			r.Logger.Info("unmarshal error", "Error parsing message: %v", err)
+			return
+		}
+
+		messages <- &message
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(messages)
+	}()
+
+	return messages, nil
 }
 
 // ToolCallUpdated is the resolver for the toolCallUpdated field.
 func (r *subscriptionResolver) ToolCallUpdated(ctx context.Context, chatID string) (<-chan *model.ToolCall, error) {
-	panic(fmt.Errorf("not implemented: ToolCallUpdated - toolCallUpdated"))
+	toolCalls := make(chan *model.ToolCall)
+	subject := fmt.Sprintf("chat.%s.tool_call", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var toolCall model.ToolCall
+		err := json.Unmarshal(msg.Data, &toolCall)
+		if err != nil {
+			r.Logger.Info("unmarshal error", "Error parsing message: %v", err)
+			return
+		}
+
+		toolCalls <- &toolCall
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(toolCalls)
+	}()
+
+	return toolCalls, nil
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
 func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *model.IndexingStatus, error) {
-	panic(fmt.Errorf("not implemented: IndexingStatus - indexingStatus"))
+	if r.Nc == nil {
+		return nil, errors.New("NATS connection is nil")
+	}
+
+	if !r.Nc.IsConnected() {
+		return nil, errors.New("NATS connection is not connected")
+	}
+
+	r.Logger.Info("Subscribing to indexing status",
+		"connected", r.Nc.IsConnected(),
+		"status", r.Nc.Status().String())
+
+	statusChan := make(chan *model.IndexingStatus, 100)
+	subject := "indexing_data"
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		r.Logger.Info("Received indexing status message",
+			"subject", msg.Subject,
+			"data", string(msg.Data),
+			"connected", r.Nc.IsConnected(),
+			"status", r.Nc.Status().String())
+
+		var status model.IndexingStatus
+		err := json.Unmarshal(msg.Data, &status)
+		if err != nil {
+			r.Logger.Error("Failed to unmarshal indexing status",
+				"error", err,
+				"data", string(msg.Data))
+			return
+		}
+
+		select {
+		case statusChan <- &status:
+			r.Logger.Info("Successfully sent status to channel", "subject", msg.Subject)
+		case <-ctx.Done():
+			r.Logger.Info("Context cancelled while sending status", "subject", msg.Subject)
+			return
+		default:
+			r.Logger.Warn("Status channel is full, dropping message", "subject", msg.Subject)
+		}
+	})
+	if err != nil {
+		r.Logger.Error("Failed to subscribe to indexing status",
+			"error", err,
+			"subject", subject,
+			"connected", r.Nc.IsConnected(),
+			"status", r.Nc.Status().String())
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		r.Logger.Info("Unsubscribing from indexing status",
+			"subject", subject,
+			"connected", r.Nc.IsConnected(),
+			"status", r.Nc.Status().String())
+		if err := sub.Unsubscribe(); err != nil {
+			r.Logger.Error("Error unsubscribing", "error", err)
+		}
+		close(statusChan)
+	}()
+
+	return statusChan, nil
 }
 
 // Chat returns ChatResolver implementation.
