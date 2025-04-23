@@ -165,17 +165,6 @@ func main() {
 		store:           store,
 	})
 
-	// TODO: remove test
-	// gmail := gmail.New()
-	// records, err := gmail.Sync(context.Background(), store)
-	// if err != nil {
-	// 	logger.Error("Failed to sync Gmail", slog.Any("error", err))
-	// 	panic(errors.Wrap(err, "Failed to sync Gmail"))
-	// }
-	// fmt.Println("records", records)
-
-	// // store.ClearOAuthTokens(context.Background(), "google")
-
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
 		logger.Info("Starting GraphQL HTTP server", "port", envs.GraphqlPort)
@@ -224,6 +213,21 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 	if err != nil {
 		logger.Error("Error starting worker", slog.Any("error", err))
 		return nil, err
+	}
+
+	// Create the XSync schedule
+	tokens, err := store.GetOAuthTokens(context.Background(), "twitter")
+	if err != nil {
+		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
+		return nil, err
+	}
+
+	if tokens != nil {
+		err = dataProcessingWorkflow.CreateXSyncSchedule(temporalClient)
+		if err != nil {
+			logger.Error("Error creating XSync schedule", slog.Any("error", err))
+			return nil, err
+		}
 	}
 
 	return temporalClient, nil

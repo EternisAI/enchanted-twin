@@ -8,13 +8,36 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/pkg/errors"
+	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
 
-type XSyncWorkflowInput struct {
-	Username string `json:"username"`
+func (workflows *DataProcessingWorkflows) CreateXSyncSchedule(temporalClient client.Client) error {
+	scheduleID := "x-sync-schedule"
+	scheduleSpec := client.ScheduleSpec{
+		Intervals: []client.ScheduleIntervalSpec{
+			{
+				Every: 1 * time.Minute,
+			},
+		},
+	}
+
+	scheduleAction := &client.ScheduleWorkflowAction{
+		Workflow:  "XSyncWorkflow",
+		TaskQueue: "default",
+		Args:      []interface{}{XSyncWorkflowInput{}},
+	}
+
+	_, err := temporalClient.ScheduleClient().Create(context.Background(), client.ScheduleOptions{
+		ID:     scheduleID,
+		Spec:   scheduleSpec,
+		Action: scheduleAction,
+	})
+	return err
 }
+
+type XSyncWorkflowInput struct{}
 
 type XSyncWorkflowResponse struct {
 	EndTime time.Time `json:"endTime"`
@@ -36,7 +59,7 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 		},
 	})
 	var response XFetchActivityResponse
-	err := workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{Username: input.Username}).Get(ctx, &response)
+	err := workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
 	if err != nil {
 		return XSyncWorkflowResponse{}, err
 	}
