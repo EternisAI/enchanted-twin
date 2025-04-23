@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
@@ -38,11 +37,8 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 		return ToolResult{}, fmt.Errorf("message parameter is required and must be a string")
 	}
 
-	// Get chat ID from environment variable or use a default
-	chatID := os.Getenv("TELEGRAM_CHAT_ID")
-	if chatID == "" {
-		return ToolResult{}, fmt.Errorf("TELEGRAM_CHAT_ID environment variable not set")
-	}
+	// TODO: replace with the actual chat ID with user
+	chatID := "-4699301290"
 
 	// Construct the Telegram API URL
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.Token)
@@ -66,6 +62,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	}
 	req.Header.Set("Content-Type", "application/json")
 
+	t.Logger.Info("Sending message to Telegram", "message", req)
 	// Send the request
 	client := &http.Client{}
 	resp, err := client.Do(req)
