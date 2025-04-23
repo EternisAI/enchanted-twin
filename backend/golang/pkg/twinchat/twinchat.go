@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/log"
-
-	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
@@ -30,9 +29,10 @@ type Service struct {
 	logger           *log.Logger
 	memory           memory.Storage
 	completionsModel string
+	telegramToken    string
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string, telegramToken string) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -40,6 +40,7 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		nc:               nc,
 		memory:           memory,
 		completionsModel: completionsModel,
+		telegramToken:    telegramToken,
 	}
 }
 
@@ -113,6 +114,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
+		tools.NewTelegramTool(s.logger, s.telegramToken),
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)
@@ -149,7 +151,6 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		ToolCalls:   toolCalls,
 		ToolResults: toolResults,
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -216,7 +217,6 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
-
 	if err != nil {
 		return nil, err
 	}
