@@ -288,8 +288,6 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 }
 
 func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
-	// Get OAuth tokens for X
-
 	// Create HTTP client with OAuth token
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -327,6 +325,8 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	if err := json.NewDecoder(userResp.Body).Decode(&userResponse); err != nil {
 		return nil, fmt.Errorf("failed to decode user response: %w", err)
 	}
+
+	var records []types.Record
 
 	// Get the latest tweets
 	tweetsReq, err := http.NewRequestWithContext(
@@ -373,7 +373,6 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 		return nil, fmt.Errorf("failed to decode tweets response: %w", err)
 	}
 
-	var records []types.Record
 	for _, tweet := range tweetsResponse.Data {
 		timestamp, err := time.Parse(time.RFC3339, tweet.CreatedAt)
 		if err != nil {
@@ -397,6 +396,83 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 			Source:    s.Name(),
 		})
 	}
+
+	// Get the latest likes
+	// likesReq, err := http.NewRequestWithContext(
+	// 	ctx,
+	// 	"GET",
+	// 	fmt.Sprintf("https://api.twitter.com/2/users/%s/likes", userResponse.Data.ID),
+	// 	nil,
+	// )
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to create likes request: %w", err)
+	// }
+
+	// likesReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	// q = likesReq.URL.Query()
+	// q.Set("max_results", "50") // Get last 50 likes
+	// q.Set("tweet.fields", "created_at,public_metrics,lang,entities")
+	// q.Set("expansions", "author_id")
+	// likesReq.URL.RawQuery = q.Encode()
+
+	// likesResp, err := client.Do(likesReq)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to fetch likes: %w", err)
+	// }
+	// defer likesResp.Body.Close()
+
+	// if likesResp.StatusCode != http.StatusOK {
+	// 	body, _ := io.ReadAll(likesResp.Body)
+	// 	return nil, fmt.Errorf("failed to fetch likes. Status: %d, Response: %s", likesResp.StatusCode, string(body))
+	// }
+
+	// var likesResponse struct {
+	// 	Data []struct {
+	// 		ID            string `json:"id"`
+	// 		Text          string `json:"text"`
+	// 		CreatedAt     string `json:"created_at"`
+	// 		Lang          string `json:"lang"`
+	// 		PublicMetrics struct {
+	// 			RetweetCount int `json:"retweet_count"`
+	// 			LikeCount    int `json:"like_count"`
+	// 		} `json:"public_metrics"`
+	// 		Entities struct {
+	// 			Urls []struct {
+	// 				ExpandedURL string `json:"expanded_url"`
+	// 			} `json:"urls"`
+	// 		} `json:"entities"`
+	// 	} `json:"data"`
+	// }
+
+	// if err := json.NewDecoder(likesResp.Body).Decode(&likesResponse); err != nil {
+	// 	return nil, fmt.Errorf("failed to decode likes response: %w", err)
+	// }
+
+	// for _, like := range likesResponse.Data {
+	// 	timestamp, err := time.Parse(time.RFC3339, like.CreatedAt)
+	// 	if err != nil {
+	// 		log.Printf("Warning: Failed to parse like timestamp: %v", err)
+	// 		continue
+	// 	}
+
+	// 	expandedUrl := ""
+	// 	if len(like.Entities.Urls) > 0 {
+	// 		expandedUrl = like.Entities.Urls[0].ExpandedURL
+	// 	}
+
+	// 	data := map[string]interface{}{
+	// 		"type":        "like",
+	// 		"tweetId":     like.ID,
+	// 		"fullText":    like.Text,
+	// 		"expandedUrl": expandedUrl,
+	// 	}
+
+	// 	records = append(records, types.Record{
+	// 		Data:      data,
+	// 		Timestamp: timestamp,
+	// 		Source:    s.Name(),
+	// 	})
+	// }
 
 	return records, nil
 }
