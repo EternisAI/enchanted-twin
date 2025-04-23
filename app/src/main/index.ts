@@ -7,9 +7,11 @@ import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
+import { autoUpdater } from 'electron-updater'
 
 const PATHNAME = 'input_data'
 
+let mainWindow: BrowserWindow | null = null
 // Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
@@ -20,8 +22,127 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 
+function openOAuthWindow(authUrl: string, redirectUri?: string) {
+  const authWindow = new BrowserWindow({
+    width: 600,
+    height: 800,
+    show: true,
+    autoHideMenuBar: true,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true
+    }
+  })
+
+  // Parse the redirectUri if provided, or use default values
+  let callbackHost = '127.0.0.1'
+  let callbackPath = '/callback'
+
+  if (redirectUri) {
+    try {
+      const parsedRedirect = new URL(redirectUri)
+      callbackHost = parsedRedirect.hostname
+      callbackPath = parsedRedirect.pathname
+      console.log(`[OAuth] Using redirect parameters: host=${callbackHost}, path=${callbackPath}`)
+    } catch (err) {
+      console.error('[OAuth] Failed to parse redirectUri, using defaults', err)
+    }
+  }
+
+  const handleUrl = (url: string) => {
+    try {
+      const parsedUrl = new URL(url)
+      if (parsedUrl.hostname === callbackHost && parsedUrl.pathname === callbackPath) {
+        const code = parsedUrl.searchParams.get('code')
+        const state = parsedUrl.searchParams.get('state')
+        if (code && state && mainWindow) {
+          console.log('[OAuth] Received callback', { code, state })
+          mainWindow.webContents.send('oauth-callback', { code, state })
+          authWindow.close()
+        }
+      }
+    } catch (err) {
+      console.error('[OAuth] Failed to parse redirect URL', err)
+    }
+  }
+
+  authWindow.webContents.on('will-redirect', (_event, url) => {
+    handleUrl(url)
+  })
+
+  authWindow.webContents.on('will-navigate', (_event, url) => {
+    handleUrl(url)
+  })
+
+  authWindow.on('closed', () => {
+    console.log('[OAuth] Auth window closed by user')
+  })
+
+  authWindow.loadURL(authUrl)
+}
+
+function setupAutoUpdater() {
+  if (!IS_PRODUCTION) {
+    log.info('Skipping auto-updater in development mode')
+    return
+  }
+  
+  autoUpdater.logger = log
+  log.transports.file.level = "debug"
+  
+  autoUpdater.on('checking-for-update', () => {
+    log.info('Checking for update...')
+  })
+  
+  autoUpdater.on('update-available', (info) => {
+    log.info('Update available:', info)
+  })
+  
+  autoUpdater.on('update-not-available', (info) => {
+    log.info('Update not available:', info)
+  })
+  
+  autoUpdater.on('error', (err) => {
+    log.error('Error in auto-updater:', err)
+  })
+  
+  autoUpdater.on('download-progress', (progressObj) => {
+    let logMessage = `Download speed: ${progressObj.bytesPerSecond}`
+    logMessage += ` - Downloaded ${progressObj.percent}%`
+    logMessage += ` (${progressObj.transferred}/${progressObj.total})`
+    log.info(logMessage)
+  })
+  
+  autoUpdater.on('update-downloaded', (info) => {
+    log.info('Update downloaded:', info)
+    
+    // Show dialog to let user decide when to restart and install
+    dialog.showMessageBox({
+      type: 'info',
+      title: 'Update Ready',
+      message: 'A new version has been downloaded.',
+      detail: 'Would you like to restart the application now to install the update?',
+      buttons: ['Restart Now', 'Later'],
+      defaultId: 0,
+      cancelId: 1
+    }).then(({ response }) => {
+      if (response === 0) {
+        // User clicked "Restart Now"
+        log.info('User opted to restart for update')
+        autoUpdater.quitAndInstall(true, true)
+      } else {
+        // User clicked "Later"
+        log.info('User postponed update installation')
+      }
+    })
+  })
+  
+  // Check for updates
+  log.info('Checking for application updates...')
+  autoUpdater.checkForUpdatesAndNotify()
+}
+
 function createWindow(): BrowserWindow {
-  // Create the browser window.
   const mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -36,7 +157,6 @@ function createWindow(): BrowserWindow {
     }
   })
 
-  // Add context menu for developer tools
   mainWindow.webContents.on('context-menu', (_, params) => {
     const menu = Menu.buildFromTemplate([
       {
@@ -69,21 +189,19 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
-  // Determine the path to the Go binary based on the environment and platform
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
     ? join(__dirname, '..', '..', 'resources', executable) // Path in development
     : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
 
+  // Set up auto-updater
+  setupAutoUpdater()
+
   // Create the database directory in user data path
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
 
-  // Ensure the database directory exists
   if (!existsSync(dbDir)) {
     try {
       mkdirSync(dbDir, { recursive: true })
@@ -93,7 +211,6 @@ app.whenReady().then(() => {
     }
   }
 
-  // Define the database path
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
@@ -102,7 +219,6 @@ app.whenReady().then(() => {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
-      // Start the Go server with DB_PATH as an environment variable
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
           ...process.env,
@@ -121,7 +237,7 @@ app.whenReady().then(() => {
 
         goServerProcess.on('close', (code) => {
           log.info(`Go server process exited with code ${code}`)
-          goServerProcess = null // Reset when closed
+          goServerProcess = null
         })
 
         goServerProcess.stdout?.on('data', (data) => {
@@ -142,22 +258,21 @@ app.whenReady().then(() => {
     log.info('Running in development mode - packaged Go server not started')
   }
 
-  // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  const mainWindow = createWindow()
+  mainWindow = createWindow()
 
-  // IPC test
   ipcMain.on('ping', () => console.log('pong'))
 
-  // Handle theme changes
+  ipcMain.on('open-oauth-url', async (_, url, redirectUri) => {
+    console.log('[Main] Opening OAuth window for:', url, 'with redirect:', redirectUri)
+    openOAuthWindow(url, redirectUri)
+  })
+
   ipcMain.handle('get-native-theme', () => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
@@ -171,13 +286,13 @@ app.whenReady().then(() => {
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
   })
 
-  // Listen for native theme changes and notify renderer
   nativeTheme.on('updated', () => {
     const newTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-    mainWindow.webContents.send('native-theme-updated', newTheme)
+    if (mainWindow) {
+      mainWindow.webContents.send('native-theme-updated', newTheme)
+    }
   })
 
-  // Handle directory selection
   ipcMain.handle('select-directory', async () => {
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory']
@@ -185,47 +300,37 @@ app.whenReady().then(() => {
     return result
   })
 
-  // Handle file selection
-  ipcMain.handle('select-files', async () => {
+  ipcMain.handle('select-files', async (_event, options?: { filters?: { name: string; extensions: string[] }[] }) => {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'multiSelections']
+      properties: ['openFile'],
+      filters: options?.filters
     })
     return result
   })
 
-  // This will be used to copy the files to the app's storage directory to be read later by GO
   ipcMain.handle('copy-dropped-files', async (_event, filePaths) => {
-    console.log('copy-dropped-files', filePaths)
     const fileStoragePath =
       process.env.NODE_ENV === 'development'
         ? path.join(app.getAppPath(), PATHNAME)
         : path.join(app.getPath('userData'), PATHNAME)
 
-    // Ensure storage directory exists
     if (!fs.existsSync(fileStoragePath)) {
       fs.mkdirSync(fileStoragePath, { recursive: true })
     }
 
     const savedFiles: string[] = []
 
-    console.log('fileStoragePath', fileStoragePath)
-
     for (const filePath of filePaths) {
       const fileName = path.basename(filePath)
       const destinationPath = path.join(fileStoragePath, fileName)
 
-      console.log('destinationPath', destinationPath)
-
       try {
-        // Copy file to storage directory
         fs.copyFileSync(filePath, destinationPath)
         savedFiles.push(destinationPath)
       } catch (error) {
         console.error('File save error:', error)
       }
     }
-
-    console.log('savedFiles', savedFiles)
 
     return savedFiles
   })
@@ -236,26 +341,20 @@ app.whenReady().then(() => {
   })
 
   app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 })
 
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
   }
 })
 
-// Ensure Go server is killed when the app quits (only if started by Electron, i.e., production)
 app.on('will-quit', () => {
   if (goServerProcess) {
     log.info('Attempting to kill Go server process...')
-    const killed = goServerProcess.kill() // Sends SIGTERM by default
+    const killed = goServerProcess.kill()
     if (killed) {
       log.info('Go server process killed successfully.')
     } else {
@@ -264,6 +363,3 @@ app.on('will-quit', () => {
     goServerProcess = null
   }
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

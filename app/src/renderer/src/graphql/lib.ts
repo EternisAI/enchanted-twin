@@ -4,12 +4,12 @@ import { getMainDefinition } from '@apollo/client/utilities'
 import { createClient } from 'graphql-ws'
 
 const httpLink = new HttpLink({
-  uri: "http://localhost:3000/query"
+  uri: 'http://localhost:3000/query'
 })
 
 const wsLink = new GraphQLWsLink(
   createClient({
-    url: "http://localhost:3000/query".replace('http', 'ws')
+    url: 'http://localhost:3000/query'.replace('http', 'ws')
     // Optional: add connectionParams for authentication if needed
     // connectionParams: {
     //   authToken: localStorage.getItem('auth-token')
