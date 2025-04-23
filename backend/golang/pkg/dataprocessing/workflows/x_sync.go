@@ -82,7 +82,7 @@ type XFetchActivityResponse struct {
 	Records []types.Record `json:"records"`
 }
 
-func (w *DataProcessingWorkflows) XFetchActivity(ctx workflow.Context, input XFetchActivityInput) (XFetchActivityResponse, error) {
+func (w *DataProcessingWorkflows) XFetchActivity(ctx context.Context, input XFetchActivityInput) (XFetchActivityResponse, error) {
 	records, err := dataprocessing.Sync("x", w.Store)
 	if err != nil {
 		return XFetchActivityResponse{}, err
