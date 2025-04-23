@@ -2,139 +2,139 @@ scalar DateTime
 scalar JSON
 
 directive @goModel(
-    model: String
-    models: [String!]
-    forceGenerate: Boolean
+  model: String
+  models: [String!]
+  forceGenerate: Boolean
 ) on OBJECT | INPUT_OBJECT | SCALAR | ENUM | INTERFACE | UNION
 
 directive @goField(
-    forceResolver: Boolean
-    name: String
-    omittable: Boolean
+  forceResolver: Boolean
+  name: String
+  omittable: Boolean
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
 directive @goTag(
-    key: String!
-    value: String
+  key: String!
+  value: String
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
 type UserProfile {
-    name: String
-    indexingStatus: IndexingStatus
-    connectedDataSources: [DataSource!]!
+  name: String
+  indexingStatus: IndexingStatus
+  connectedDataSources: [DataSource!]!
 }
 
 input UpdateProfileInput {
-    name: String
+  name: String
 }
 
 type ToolCall {
-    id: String!
-    name: String!
-    isCompleted: Boolean!
-    messageId: String!
-    result: ToolCallResult
+  id: String!
+  name: String!
+  isCompleted: Boolean!
+  messageId: String!
+  result: ToolCallResult
 }
 
 type ToolCallResult {
-    content: String
-    imageUrls: [String!]!
+  content: String
+  imageUrls: [String!]!
 }
 
 type Chat {
-    id: ID!
-    name: String!
-    messages: [Message!]! @goField(forceResolver: true)
-    createdAt: DateTime!
+  id: ID!
+  name: String!
+  messages: [Message!]! @goField(forceResolver: true)
+  createdAt: DateTime!
 }
 
 type Message {
-    id: ID!
-    text: String
-    imageUrls: [String!]!
-    role: Role!
-    toolCalls: [ToolCall!]!
-    toolResults: [String!]!
-    createdAt: DateTime!
+  id: ID!
+  text: String
+  imageUrls: [String!]!
+  role: Role!
+  toolCalls: [ToolCall!]!
+  toolResults: [String!]!
+  createdAt: DateTime!
 }
 
 enum Role {
-    USER
-    ASSISTANT
+  USER
+  ASSISTANT
 }
 
 type OAuthStatus {
-    provider: String!
-    expiresAt: DateTime!
-    scope: [String!]!
+  provider: String!
+  expiresAt: DateTime!
+  scope: [String!]!
 }
 
 type OAuthFlow {
-    authURL: String!
-    redirectURI: String!
+  authURL: String!
+  redirectURI: String!
 }
 
 type Query {
-    profile: UserProfile!
-    getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
-    getChat(id: ID!): Chat!
-    getDataSources: [DataSource!]!
-    getOAuthStatus: [OAuthStatus!]!
-    getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
+  profile: UserProfile!
+  getChats(first: Int! = 10, offset: Int! = 0): [Chat!]!
+  getChat(id: ID!): Chat!
+  getDataSources: [DataSource!]!
+  getOAuthStatus: [OAuthStatus!]!
+  getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
 }
 
 type Mutation {
-    # Start OAuth flow - returns URL to open in browser
-    # The 'scope' parameter is a of scopes to request.
-    startOAuthFlow(provider: String!, scope: String!): OAuthFlow!
-    # Complete OAuth flow of 'state' with 'authCode' received from callback
-    # On success, returns the provider which is now available
-    completeOAuthFlow(state: String!, authCode: String!): String!
-    refreshExpiredOAuthTokens: [OAuthStatus!]!
-    updateProfile(input: UpdateProfileInput!): Boolean!
-    createChat(name: String!): Chat!
-    sendMessage(chatId: ID!, text: String!): Message!
-    deleteChat(chatId: ID!): Chat!
-    startIndexing: Boolean!
-    addDataSource(name: String!, path: String!): Boolean!
-    deleteDataSource(id: ID!): Boolean!
+  # Start OAuth flow - returns URL to open in browser
+  # The 'scope' parameter is a of scopes to request.
+  startOAuthFlow(provider: String!, scope: String!): OAuthFlow!
+  # Complete OAuth flow of 'state' with 'authCode' received from callback
+  # On success, returns the provider which is now available
+  completeOAuthFlow(state: String!, authCode: String!): String!
+  refreshExpiredOAuthTokens: [OAuthStatus!]!
+  updateProfile(input: UpdateProfileInput!): Boolean!
+  createChat(name: String!): Chat!
+  sendMessage(chatId: ID!, text: String!): Message!
+  deleteChat(chatId: ID!): Chat!
+  startIndexing: Boolean!
+  addDataSource(name: String!, path: String!): Boolean!
+  deleteDataSource(id: ID!): Boolean!
 }
 
 type Subscription {
-    messageAdded(chatId: ID!): Message!
-    toolCallUpdated(chatId: ID!): ToolCall!
-    indexingStatus: IndexingStatus!
+  messageAdded(chatId: ID!): Message!
+  toolCallUpdated(chatId: ID!): ToolCall!
+  indexingStatus: IndexingStatus!
 }
 
 type DataSource {
-    id: ID!
-    name: String!
-    path: String!
-    updatedAt: DateTime!
-    isProcessed: Boolean!
-    isIndexed: Boolean!
-    hasError: Boolean!
+  id: ID!
+  name: String!
+  path: String!
+  updatedAt: DateTime!
+  isProcessed: Boolean!
+  isIndexed: Boolean!
+  hasError: Boolean!
 }
 
 enum IndexingState {
-    NOT_STARTED
-    DOWNLOADING_MODEL
-    PROCESSING_DATA #[1 part, 2 ?]
-    INDEXING_DATA
-    CLEAN_UP # delete `input_files`
-    COMPLETED
-    FAILED
+  NOT_STARTED
+  DOWNLOADING_MODEL
+  PROCESSING_DATA #[1 part, 2 ?]
+  INDEXING_DATA
+  CLEAN_UP # delete `input_files`
+  COMPLETED
+  FAILED
 }
 
 type IndexingStatus {
-    status: IndexingState!
-    processingDataProgress: Int!
-    indexingDataProgress: Int!
-    dataSources: [DataSource!]!
-    error: String
+  status: IndexingState!
+  processingDataProgress: Int!
+  indexingDataProgress: Int!
+  dataSources: [DataSource!]!
+  error: String
 }
 
 type ChatSuggestionsCategory {
-    category: String!
-    suggestions: [String!]!
+  category: String!
+  suggestions: [String!]!
 }
