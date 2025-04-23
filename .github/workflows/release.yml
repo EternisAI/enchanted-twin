@@ -36,9 +36,6 @@ jobs:
         with:
           go-version: "1.20"
 
-      - name: Install dependencies
-        run: pnpm install
-
       - name: Build & package for Mac Silicon
         env:
           OPENAI_BASE_URL: "https://enchanted.ngrok.pro/v1"
