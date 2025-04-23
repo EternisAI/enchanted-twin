@@ -21,7 +21,7 @@ type XSyncWorkflowResponse struct {
 	Success bool      `json:"success"`
 }
 
-func (w *SyncWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyncWorkflowInput) (XSyncWorkflowResponse, error) {
+func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyncWorkflowInput) (XSyncWorkflowResponse, error) {
 	if w.Store == nil {
 		return XSyncWorkflowResponse{}, errors.New("store is nil")
 	}
@@ -59,7 +59,7 @@ type XFetchActivityResponse struct {
 	Records []types.Record `json:"records"`
 }
 
-func (w *SyncWorkflows) XFetchActivity(ctx workflow.Context, input XFetchActivityInput) (XFetchActivityResponse, error) {
+func (w *DataProcessingWorkflows) XFetchActivity(ctx workflow.Context, input XFetchActivityInput) (XFetchActivityResponse, error) {
 	records, err := dataprocessing.Sync("x", w.Store)
 	if err != nil {
 		return XFetchActivityResponse{}, err
@@ -73,7 +73,7 @@ type XIndexActivityInput struct {
 
 type XIndexActivityResponse struct{}
 
-func (w *SyncWorkflows) XIndexActivity(ctx context.Context, input XIndexActivityInput) (XIndexActivityResponse, error) {
+func (w *DataProcessingWorkflows) XIndexActivity(ctx context.Context, input XIndexActivityInput) (XIndexActivityResponse, error) {
 	documents, err := gmail.ToDocuments(input.Records)
 	if err != nil {
 		return XIndexActivityResponse{}, err

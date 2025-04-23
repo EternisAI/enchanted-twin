@@ -210,7 +210,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		MaxConcurrentActivityExecutionSize: 1,
 	})
 
-	indexingWorkflow := workflows.IndexingWorkflow{
+	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
 		Logger:       logger,
 		Config:       envs,
 		Store:        store,
@@ -218,7 +218,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		OllamaClient: ollamaClient,
 		Memory:       memory,
 	}
-	indexingWorkflow.RegisterWorkflowsAndActivities(&w)
+	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
 	err = w.Start()
 	if err != nil {
