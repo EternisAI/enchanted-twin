@@ -20,7 +20,7 @@ export function UserMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-background text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:bg-card">
+      <div className="bg-accent dark:bg-black dark:border dark:border-border text-foreground rounded-lg px-4 py-2 max-w-md">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
           <div className="flex gap-2 mt-2">
@@ -50,7 +50,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-background text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:bg-muted/50">
+      <div className="bg-white text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:border dark:bg-muted">
         {message.text && <Markdown>{message.text}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="flex flex-col gap-2 my-2">
@@ -100,7 +100,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
             <pre>{JSON.stringify(message.toolResults, null, 2)}</pre>
           </div>
         )} */}
-        <div className="text-xs text-muted-foreground pt-1">
+        <div className="text-xs text-muted-foreground ">
           {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>
