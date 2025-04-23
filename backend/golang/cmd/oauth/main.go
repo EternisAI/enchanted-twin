@@ -60,7 +60,7 @@ func main() {
 			}
 		}
 		if err := helpers.ShutdownOAuthCallbackServer(ctx, logger); err != nil {
-			logger.Errorf("shutdown server: %v\n", err)
+			logger.Error("failed to shutdown server", "error", err)
 			os.Exit(1)
 		}
 		os.Exit(0)
