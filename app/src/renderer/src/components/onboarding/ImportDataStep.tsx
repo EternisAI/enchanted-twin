@@ -237,13 +237,13 @@ export function ImportDataStep() {
         <div className="grid grid-cols-1 gap-4">
           {/* Add Source Card */}
           <div className="">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            <div className="flex flex-wrap justify-center gap-3">
               {SUPPORTED_DATA_SOURCES.map((source) => (
                 <Button
                   key={source.name}
                   variant="outline"
                   size="lg"
-                  className="w-full h-auto py-4 px-4 flex flex-col items-center gap-2 hover:bg-accent/50"
+                  className="w-[200px] h-auto py-4 px-4 flex flex-col items-center gap-2 hover:bg-accent/50 bg-card"
                   onClick={() =>
                     setSelectedSource({ name: source.name, selectType: source.selectType })
                   }
@@ -259,70 +259,61 @@ export function ImportDataStep() {
           </div>
 
           {/* Selected and Indexed Sources */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {Object.entries(pendingDataSources).map(([name, source]) => {
+          <div className="grid grid-cols-1 gap-4">
+            {Object.entries(pendingDataSources).map(([name]) => {
               const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === name)
               if (!sourceDetails) return null
 
               return (
                 <div
                   key={name}
-                  className="p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3"
+                  className="p-4 rounded-lg bg-card border h-full flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{name}</h3>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => handleRemoveDataSource(name)}
-                      >
-                        <X className="h-4 w-4 text-muted-foreground" />
-                      </Button>
+                  <div className="flex items-center gap-3">
+                    {sourceDetails.icon}
+                    <div>
+                      <h3 className="font-medium">{name}</h3>
+                      <p className="text-xs text-muted-foreground">{sourceDetails.description}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1 flex-1">
-                    <p className="text-sm text-muted-foreground">{sourceDetails.description}</p>
-                    <p className="text-muted-foreground text-xs">{sourceDetails.fileRequirement}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-primary" />
-                      <span className="text-sm">Selected</span>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <CheckCircle2 className="h-3 w-3 text-primary" />
+                      <span>Selected</span>
                     </div>
-                    <p className="text-muted-foreground text-xs truncate">{source.path}</p>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => handleRemoveDataSource(name)}
+                    >
+                      <X className="h-4 w-4 text-muted-foreground" />
+                    </Button>
                   </div>
                 </div>
               )
             })}
 
             {/* Indexed Sources */}
-            {data?.getDataSources?.map((source) => {
-              const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === source.name)
+            {data?.getDataSources?.map(({ id, name }) => {
+              const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === name)
               if (!sourceDetails) return null
 
               return (
                 <div
-                  key={source.id}
-                  className="p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3"
+                  key={id}
+                  className="p-4 rounded-lg bg-muted/50 border h-full flex items-center justify-between gap-3"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold">{source.name}</h3>
+                  <div className="flex items-center gap-3">
+                    {sourceDetails.icon}
+                    <div>
+                      <h3 className="font-medium">{name}</h3>
+                      <p className="text-xs text-muted-foreground">{sourceDetails.description}</p>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1 flex-1">
-                    <p className="text-sm text-muted-foreground">{sourceDetails.description}</p>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="h-4 w-4 text-green-500" />
-                      <span className="text-sm">Indexed</span>
-                    </div>
-                    <p className="text-muted-foreground text-xs truncate">{source.path}</p>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    <span>Indexed</span>
                   </div>
                 </div>
               )
