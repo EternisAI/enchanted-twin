@@ -78,8 +78,16 @@ export function IndexingStep() {
 
   return (
     <OnboardingLayout
-      title="Processing data…"
-      subtitle="We're processing your data to make it searchable. This may take a while."
+      title={
+        data?.indexingStatus?.status === 'IN_PROGRESS'
+          ? 'Processing data…'
+          : 'Ready to process data'
+      }
+      subtitle={
+        data?.indexingStatus?.status === 'IN_PROGRESS'
+          ? "We're processing your data to make it searchable. This may take a while."
+          : "Click 'Start indexing' to begin processing your data."
+      }
     >
       <div className="flex flex-col gap-6">
         <div className="flex flex-col gap-4">

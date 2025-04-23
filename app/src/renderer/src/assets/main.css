@@ -57,7 +57,7 @@
 }
 
 :root {
-  --background: oklch(0.99 0 0);
+  --background: oklch(0.98 0 0);
   --foreground: oklch(0 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0 0 0);
@@ -89,7 +89,7 @@
   --sidebar-accent-foreground: oklch(0 0 0);
   --sidebar-border: oklch(0.94 0 0);
   --sidebar-ring: oklch(0 0 0);
-  --font-sans: Geist, sans-serif;
+  --font-sans: Sen, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
   --radius: 0.5rem;
@@ -136,7 +136,7 @@
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(0.32 0 0);
   --sidebar-ring: oklch(0.72 0 0);
-  --font-sans: Geist, sans-serif;
+  --font-sans: Sen, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
   --radius: 0.5rem;
@@ -217,8 +217,8 @@
     app-region: drag;
   }
   h1, h2 {
-    font-family: 'Frank Ruhl Libre', var(--font-serif);
-    @apply font-light;
+    /* font-family: var(--font-sans); */
+    @apply font-semibold;
   }
 }
 
