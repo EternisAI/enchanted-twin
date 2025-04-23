@@ -55,7 +55,7 @@ func main() {
 		for _, p := range strings.Split(*providerFlag, ",") {
 			// Run OAuth flow with selected provider
 			if err := helpers.OAuthFlow(ctx, logger, store, p); err != nil {
-				logger.Errorf("oauth flow: %v\n", err)
+				logger.Error("oauth flow failed", "error", err)
 				os.Exit(1)
 			}
 		}
