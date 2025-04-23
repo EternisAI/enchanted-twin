@@ -135,7 +135,10 @@ func main() {
 	// }
 	// fmt.Println("records", records)
 
-	// store.ClearOAuthTokens(context.Background(), "google")
+	// err = store.ClearOAuthTokens(context.Background(), "twitter")
+	// if err != nil {
+	// 	logger.Error("Error clearing OAuth tokens", slog.Any("error", err))
+	// }
 
 	logger.Info("SQLite database initialized")
 
@@ -225,14 +228,15 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		return nil, err
 	}
 
-	// Create the XSync schedule
-	tokens, err := store.GetOAuthTokens(context.Background(), "twitter")
+	// Create the XSync schedule only if the token exists
+	// TODO: check freshness
+	xToken, err := store.GetOAuthTokens(context.Background(), "twitter")
 	if err != nil {
 		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
-		return nil, err
+		return temporalClient, nil
 	}
 
-	if tokens != nil {
+	if xToken != nil {
 		err = dataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(temporalClient)
 		if err != nil {
 			logger.Error("Error creating XSync schedule", slog.Any("error", err))
