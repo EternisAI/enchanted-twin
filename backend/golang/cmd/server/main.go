@@ -18,7 +18,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -174,8 +173,6 @@ func main() {
 	// 	panic(errors.Wrap(err, "Failed to sync Gmail"))
 	// }
 	// fmt.Println("records", records)
-
-	dataprocessing.Sync("x", "./output/xxx.json", store)
 
 	// // store.ClearOAuthTokens(context.Background(), "google")
 

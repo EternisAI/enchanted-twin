@@ -423,7 +423,7 @@ func SaveRecords(records []types.Record, outputPath string) error {
 	return nil
 }
 
-func Sync(sourceName string, outputPath string, store *db.Store) error {
+func Sync(sourceName string, store *db.Store) ([]types.Record, error) {
 	var records []types.Record
 	var err error
 
@@ -433,13 +433,12 @@ func Sync(sourceName string, outputPath string, store *db.Store) error {
 	case "x":
 		records, err = x.New("").Sync(context.Background(), store)
 	default:
-		return fmt.Errorf("unsupported source: %s", sourceName)
+		return nil, fmt.Errorf("unsupported source: %s", sourceName)
 	}
 
-	fmt.Println("records", records)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return SaveRecords(records, outputPath)
+	return records, nil
 }
