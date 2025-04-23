@@ -22,7 +22,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 // Record represents a single data record that will be written to CSV
@@ -423,15 +422,15 @@ func SaveRecords(records []types.Record, outputPath string) error {
 	return nil
 }
 
-func Sync(sourceName string, store *db.Store) ([]types.Record, error) {
+func Sync(sourceName string, accessToken string) ([]types.Record, error) {
 	var records []types.Record
 	var err error
 
 	switch sourceName {
 	case "gmail":
-		records, err = gmail.New().Sync(context.Background(), store)
+		records, err = gmail.New().Sync(context.Background(), accessToken)
 	case "x":
-		records, err = x.New("").Sync(context.Background(), store)
+		records, err = x.New("").Sync(context.Background(), accessToken)
 	default:
 		return nil, fmt.Errorf("unsupported source: %s", sourceName)
 	}

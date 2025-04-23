@@ -29,7 +29,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
 	"github.com/sirupsen/logrus"
 )
@@ -603,15 +602,7 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	return documents, nil
 }
 
-func (g *Gmail) Sync(ctx context.Context, store *db.Store) ([]types.Record, error) {
-	tokens, err := store.GetOAuthTokens(ctx, "google")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
-	}
-	if tokens == nil {
-		return nil, fmt.Errorf("no OAuth tokens found for Google")
-	}
-
+func (g *Gmail) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
@@ -626,7 +617,7 @@ func (g *Gmail) Sync(ctx context.Context, store *db.Store) ([]types.Record, erro
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	q := req.URL.Query()
 	q.Set("maxResults", "50")
 	q.Set("q", "in:inbox")
@@ -666,7 +657,7 @@ func (g *Gmail) Sync(ctx context.Context, store *db.Store) ([]types.Record, erro
 			continue
 		}
 
-		msgReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+		msgReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 		msgResp, err := client.Do(msgReq)
 		if err != nil {
 			log.Printf("Failed to fetch message: %v", err)

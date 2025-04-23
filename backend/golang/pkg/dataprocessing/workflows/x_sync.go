@@ -147,7 +147,15 @@ type XFetchActivityResponse struct {
 }
 
 func (w *DataProcessingWorkflows) XFetchActivity(ctx context.Context, input XFetchActivityInput) (XFetchActivityResponse, error) {
-	records, err := dataprocessing.Sync("x", w.Store)
+	tokens, err := w.Store.GetOAuthTokens(ctx, "twitter")
+	if err != nil {
+		return XFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+	if tokens == nil {
+		return XFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
+	}
+
+	records, err := dataprocessing.Sync("x", tokens.AccessToken)
 	if err != nil {
 		return XFetchActivityResponse{}, err
 	}

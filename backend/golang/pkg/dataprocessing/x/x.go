@@ -14,7 +14,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func min(a, b int) int {
@@ -288,15 +287,8 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	return documents, nil
 }
 
-func (s *Source) Sync(ctx context.Context, store *db.Store) ([]types.Record, error) {
+func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
 	// Get OAuth tokens for X
-	tokens, err := store.GetOAuthTokens(ctx, "twitter")
-	if err != nil {
-		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
-	}
-	if tokens == nil {
-		return nil, fmt.Errorf("no OAuth tokens found for X")
-	}
 
 	// Create HTTP client with OAuth token
 	client := &http.Client{
@@ -314,7 +306,7 @@ func (s *Source) Sync(ctx context.Context, store *db.Store) ([]types.Record, err
 		return nil, fmt.Errorf("failed to create user request: %w", err)
 	}
 
-	userReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+	userReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	userResp, err := client.Do(userReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user data: %w", err)
@@ -347,7 +339,7 @@ func (s *Source) Sync(ctx context.Context, store *db.Store) ([]types.Record, err
 		return nil, fmt.Errorf("failed to create tweets request: %w", err)
 	}
 
-	tweetsReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokens.AccessToken))
+	tweetsReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	q := tweetsReq.URL.Query()
 	q.Set("max_results", "50") // Get last 50 tweets
 	q.Set("tweet.fields", "created_at,public_metrics,lang")
