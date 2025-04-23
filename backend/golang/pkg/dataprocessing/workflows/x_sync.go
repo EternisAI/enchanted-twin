@@ -15,6 +15,15 @@ import (
 
 func (workflows *DataProcessingWorkflows) CreateXSyncSchedule(temporalClient client.Client) error {
 	scheduleID := "x-sync-schedule"
+
+	// Check if schedule already exists
+	handle := temporalClient.ScheduleClient().GetHandle(context.Background(), scheduleID)
+	_, err := handle.Describe(context.Background())
+	if err == nil {
+		return nil
+	}
+
+	// Only create if schedule doesn't exist
 	scheduleSpec := client.ScheduleSpec{
 		Intervals: []client.ScheduleIntervalSpec{
 			{
@@ -29,7 +38,7 @@ func (workflows *DataProcessingWorkflows) CreateXSyncSchedule(temporalClient cli
 		Args:      []interface{}{XSyncWorkflowInput{}},
 	}
 
-	_, err := temporalClient.ScheduleClient().Create(context.Background(), client.ScheduleOptions{
+	_, err = temporalClient.ScheduleClient().Create(context.Background(), client.ScheduleOptions{
 		ID:     scheduleID,
 		Spec:   scheduleSpec,
 		Action: scheduleAction,
