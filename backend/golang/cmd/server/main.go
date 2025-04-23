@@ -129,7 +129,8 @@ func main() {
 		}
 	}()
 
-	// err = store.ClearOAuthTokens(context.Background(), "twitter")
+	// TODO: remove this
+	// err = store.ClearOAuthTokens(context.Background(), "google")
 	// if err != nil {
 	// 	logger.Error("Error clearing OAuth tokens", slog.Any("error", err))
 	// }
@@ -222,8 +223,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		return nil, err
 	}
 
-	// Create the XSync schedule only if the token exists
-	// TODO: check freshness
+	// Create the Sync schedule only if the token exists
 	xToken, err := store.GetOAuthTokens(context.Background(), "twitter")
 	if err != nil {
 		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
@@ -239,12 +239,18 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 	}
 
 	// TODO: remove this
-	records, err := dataprocessing.Sync("x", xToken.AccessToken)
+	googleToken, err := store.GetOAuthTokens(context.Background(), "google")
+	if err != nil {
+		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
+		return temporalClient, nil
+	}
+
+	records, err := dataprocessing.Sync("gmail", googleToken.AccessToken)
 	if err != nil {
 		logger.Error("Error syncing records", slog.Any("error", err))
 		panic(errors.Wrap(err, "Error syncing records"))
 	}
-	fmt.Println("records", records)
+	fmt.Println("google records", records)
 
 	return temporalClient, nil
 }

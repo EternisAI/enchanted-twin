@@ -164,7 +164,7 @@ var oauthConfig = map[string]OAuthConfig{
 		AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
 		TokenEndpoint: "https://oauth2.googleapis.com/token",
 		UserEndpoint:  "https://www.googleapis.com/oauth2/v3/userinfo",
-		DefaultScope:  "openid profile email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email",
+		DefaultScope:  "openid profile email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly	",
 	},
 	"linkedin": {
 		ClientID:      "779sgzrvca0z5a",
