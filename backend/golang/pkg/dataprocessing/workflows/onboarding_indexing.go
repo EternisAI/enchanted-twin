@@ -12,8 +12,10 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
@@ -285,9 +287,16 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 			continue
 		}
 
+		records, err := helpers.ReadJSONL[types.Record](*dataSource.ProcessedPath)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+
 		switch strings.ToLower(dataSource.Name) {
 		case "slack":
-			documents, err := slack.ToDocuments(*dataSource.ProcessedPath)
+			slackSource := slack.New(*dataSource.ProcessedPath)
+
+			documents, err := slackSource.ToDocuments(records)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -299,7 +308,7 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 
 		case "telegram":
-			documents, err := telegram.ToDocuments(*dataSource.ProcessedPath)
+			documents, err := telegram.ToDocuments(records)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -310,7 +319,7 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 		case "x":
-			documents, err := x.ToDocuments(*dataSource.ProcessedPath)
+			documents, err := x.ToDocuments(records)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -321,7 +330,7 @@ func (w *IndexingWorkflow) IndexDataActivity(ctx context.Context) (IndexDataActi
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 		case "gmail":
-			documents, err := gmail.ToDocuments(*dataSource.ProcessedPath)
+			documents, err := gmail.ToDocuments(records)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}

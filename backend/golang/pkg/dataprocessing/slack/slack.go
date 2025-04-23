@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -24,36 +24,21 @@ type SlackMessage struct {
 	Timestamp   string      `json:"ts"`
 }
 
-type Source struct {
+type SlackDataSource struct {
 	inputPath string
 }
 
-func New(inputPath string) *Source {
-	return &Source{
+func New(inputPath string) *SlackDataSource {
+	return &SlackDataSource{
 		inputPath: inputPath,
 	}
 }
 
-func (s *Source) Name() string {
+func (s *SlackDataSource) Name() string {
 	return "slack"
 }
 
-func parseTimestamp(ts string) (time.Time, error) {
-	// Slack timestamps are in the format "1735051993.888329"
-	parts := strings.Split(ts, ".")
-	if len(parts) != 2 {
-		return time.Time{}, fmt.Errorf("invalid timestamp format: %s", ts)
-	}
-
-	seconds, err := strconv.ParseInt(parts[0], 10, 64)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return time.Unix(seconds, 0), nil
-}
-
-func (s *Source) ProcessFile(filePath string, username string) ([]types.Record, error) {
+func (s *SlackDataSource) ProcessFile(filePath string, username string) ([]types.Record, error) {
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -97,7 +82,7 @@ func (s *Source) ProcessFile(filePath string, username string) ([]types.Record, 
 	return records, nil
 }
 
-func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
+func (s *SlackDataSource) ProcessDirectory(userName string) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
@@ -131,13 +116,9 @@ func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
 	return allRecords, nil
 }
 
-func ToDocuments(path string) ([]memory.TextDocument, error) {
-	records, err := helpers.ReadJSONL[types.Record](path)
-	if err != nil {
-		return nil, err
-	}
-
+func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	textDocuments := make([]memory.TextDocument, 0, len(records))
+
 	for _, record := range records {
 
 		getString := func(key string) string {
@@ -172,4 +153,25 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		})
 	}
 	return textDocuments, nil
+}
+
+func parseTimestamp(ts string) (time.Time, error) {
+	// Slack timestamps are in the format "1735051993.888329"
+	parts := strings.Split(ts, ".")
+	if len(parts) != 2 {
+		return time.Time{}, fmt.Errorf("invalid timestamp format: %s", ts)
+	}
+
+	seconds, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return time.Unix(seconds, 0), nil
+}
+
+func (s *SlackDataSource) Sync(ctx context.Context) ([]types.Record, error) {
+	// Since Slack data is processed from local files and not via API,
+	// we can return an error indicating this operation is not supported
+	return nil, fmt.Errorf("sync operation not supported for Slack")
 }

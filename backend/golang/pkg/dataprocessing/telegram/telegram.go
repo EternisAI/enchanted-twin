@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -189,12 +188,7 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]types.Record, 
 	return records, nil
 }
 
-func ToDocuments(path string) ([]memory.TextDocument, error) {
-	records, err := helpers.ReadJSONL[types.Record](path)
-	if err != nil {
-		return nil, err
-	}
-
+func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	textDocuments := []memory.TextDocument{}
 	for _, record := range records {
 		if record.Data["type"] == "message" {

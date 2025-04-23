@@ -28,7 +28,6 @@ import (
 	loghtml "golang.org/x/net/html"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
@@ -572,12 +571,7 @@ func (g *Gmail) ProcessDirectory(dirPath string, userName string) ([]types.Recor
 	return allRecords, nil
 }
 
-func ToDocuments(path string) ([]memory.TextDocument, error) {
-	records, err := helpers.ReadJSONL[types.Record](path)
-	if err != nil {
-		return nil, err
-	}
-
+func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		// Helper function to safely get string value

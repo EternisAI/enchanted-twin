@@ -7,6 +7,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func TestGmailProcessor(t *testing.T) {
@@ -481,7 +484,11 @@ func TestToDocuments(t *testing.T) {
 	}
 
 	// Test ToDocuments function
-	documents, err := ToDocuments(tmpFile)
+	records, err := helpers.ReadJSONL[types.Record](tmpFile)
+	if err != nil {
+		t.Fatalf("Failed to convert to documents: %v", err)
+	}
+	documents, err := ToDocuments(records)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
