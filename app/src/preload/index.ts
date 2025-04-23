@@ -5,7 +5,8 @@ const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
   copyDroppedFiles: (paths: string[]) => ipcRenderer.invoke('copy-dropped-files', paths),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
-  selectFiles: () => ipcRenderer.invoke('select-files'),
+  selectFiles: (options?: { filters?: { name: string; extensions: string[] }[] }) => 
+    ipcRenderer.invoke('select-files', options),
   getNativeTheme: () => ipcRenderer.invoke('get-native-theme'),
   setNativeTheme: (theme: 'system' | 'light' | 'dark') =>
     ipcRenderer.invoke('set-native-theme', theme),

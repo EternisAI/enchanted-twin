@@ -1,28 +1,18 @@
-import { ReactNode, memo } from 'react'
+import { ReactNode } from 'react'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { Lock } from 'lucide-react'
-import { Brain } from '../graphics/brain'
+import { Lock, X } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { OnboardingStep } from '@renderer/lib/stores/onboarding'
 import { cn } from '@renderer/lib/utils'
+import { Button } from '../ui/button'
 
 interface OnboardingLayoutProps {
   children: ReactNode
   title: string
   subtitle?: string
   className?: string
+  onClose?: () => void
 }
-
-const OnboardingBackground = memo(function OnboardingBackground() {
-  return (
-    <div className="absolute bottom-0 right-0 w-full z-0 h-full opacity-35 dark:opacity-100">
-      <div className="w-full h-full bg-gradient-to-b from-background to-background/50 absolute inset-0 z-20" />
-      <div className="w-full h-full relative z-10">
-        <Brain />
-      </div>
-    </div>
-  )
-})
 
 function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
@@ -49,12 +39,22 @@ function OnboardingPrivacyNotice() {
   )
 }
 
-export function OnboardingLayout({ children, title, subtitle, className }: OnboardingLayoutProps) {
+export function OnboardingLayout({
+  children,
+  title,
+  subtitle,
+  className,
+  onClose
+}: OnboardingLayoutProps) {
   const { currentStep } = useOnboardingStore()
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
-      <OnboardingBackground />
+      {onClose && (
+        <Button variant="ghost" size="icon" className="absolute top-4 right-4" onClick={onClose}>
+          <X className="h-4 w-4" />
+        </Button>
+      )}
       <div
         className={cn(
           'w-full max-w-xl flex flex-col gap-12 z-10 relative bg-transparent',

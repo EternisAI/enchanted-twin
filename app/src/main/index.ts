@@ -300,9 +300,10 @@ app.whenReady().then(() => {
     return result
   })
 
-  ipcMain.handle('select-files', async () => {
+  ipcMain.handle('select-files', async (_event, options?: { filters?: { name: string; extensions: string[] }[] }) => {
     const result = await dialog.showOpenDialog({
-      properties: ['openFile', 'multiSelections']
+      properties: ['openFile'],
+      filters: options?.filters
     })
     return result
   })
