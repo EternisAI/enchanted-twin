@@ -49,7 +49,7 @@ func main() {
 
 	if *providerFlag != "" {
 		if err := helpers.StartOAuthCallbackServer(logger, store); err != nil {
-			logger.Errorf("start server %v\n", err)
+			logger.Error("failed to start server", "error", err)
 			os.Exit(1)
 		}
 		for _, p := range strings.Split(*providerFlag, ",") {
