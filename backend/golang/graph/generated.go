@@ -86,15 +86,16 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		AddDataSource     func(childComplexity int, name string, path string) int
-		CompleteOAuthFlow func(childComplexity int, state string, authCode string) int
-		CreateChat        func(childComplexity int, name string) int
-		DeleteChat        func(childComplexity int, chatID string) int
-		DeleteDataSource  func(childComplexity int, id string) int
-		SendMessage       func(childComplexity int, chatID string, text string) int
-		StartIndexing     func(childComplexity int) int
-		StartOAuthFlow    func(childComplexity int, provider string, scope string) int
-		UpdateProfile     func(childComplexity int, input model.UpdateProfileInput) int
+		AddDataSource             func(childComplexity int, name string, path string) int
+		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
+		CreateChat                func(childComplexity int, name string) int
+		DeleteChat                func(childComplexity int, chatID string) int
+		DeleteDataSource          func(childComplexity int, id string) int
+		RefreshExpiredOAuthTokens func(childComplexity int) int
+		SendMessage               func(childComplexity int, chatID string, text string) int
+		StartIndexing             func(childComplexity int) int
+		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
+		UpdateProfile             func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
 	OAuthFlow struct {
@@ -148,6 +149,7 @@ type ChatResolver interface {
 type MutationResolver interface {
 	StartOAuthFlow(ctx context.Context, provider string, scope string) (*model.OAuthFlow, error)
 	CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
+	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error)
@@ -408,6 +410,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.DeleteDataSource(childComplexity, args["id"].(string)), true
+
+	case "Mutation.refreshExpiredOAuthTokens":
+		if e.complexity.Mutation.RefreshExpiredOAuthTokens == nil {
+			break
+		}
+
+		return e.complexity.Mutation.RefreshExpiredOAuthTokens(childComplexity), true
 
 	case "Mutation.sendMessage":
 		if e.complexity.Mutation.SendMessage == nil {
@@ -2426,6 +2435,58 @@ func (ec *executionContext) fieldContext_Mutation_completeOAuthFlow(ctx context.
 	if fc.Args, err = ec.field_Mutation_completeOAuthFlow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_refreshExpiredOAuthTokens(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_refreshExpiredOAuthTokens(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().RefreshExpiredOAuthTokens(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.OAuthStatus)
+	fc.Result = res
+	return ec.marshalNOAuthStatus2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthStatusᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_refreshExpiredOAuthTokens(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "provider":
+				return ec.fieldContext_OAuthStatus_provider(ctx, field)
+			case "expiresAt":
+				return ec.fieldContext_OAuthStatus_expiresAt(ctx, field)
+			case "scope":
+				return ec.fieldContext_OAuthStatus_scope(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type OAuthStatus", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -6474,6 +6535,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "completeOAuthFlow":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_completeOAuthFlow(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "refreshExpiredOAuthTokens":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_refreshExpiredOAuthTokens(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

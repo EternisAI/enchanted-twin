@@ -89,6 +89,7 @@ type Mutation {
   # Complete OAuth flow of 'state' with 'authCode' received from callback
   # On success, returns the provider which is now available
   completeOAuthFlow(state: String!, authCode: String!): String!
+  refreshExpiredOAuthTokens : [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
   createChat(name: String!): Chat!
   sendMessage(chatId: ID!, text: String!): Message!
