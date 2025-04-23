@@ -69,7 +69,7 @@ func main() {
 	if *refreshFlag {
 		status, err := helpers.RefreshExpiredTokens(ctx, logger, store)
 		if err != nil {
-			logger.Errorf("refresh tokens: %v\n", err)
+			logger.Error("failed to refresh tokens", "error", err)
 			os.Exit(1)
 		}
 		for _, s := range status {
