@@ -2,11 +2,12 @@ package workflows
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
@@ -27,7 +28,7 @@ func (workflows *DataProcessingWorkflows) CreateXSyncSchedule(temporalClient cli
 	scheduleSpec := client.ScheduleSpec{
 		Intervals: []client.ScheduleIntervalSpec{
 			{
-				Every: 1 * time.Minute,
+				Every: 5 * time.Minute,
 			},
 		},
 	}
@@ -49,8 +50,10 @@ func (workflows *DataProcessingWorkflows) CreateXSyncSchedule(temporalClient cli
 type XSyncWorkflowInput struct{}
 
 type XSyncWorkflowResponse struct {
-	EndTime time.Time `json:"endTime"`
-	Success bool      `json:"success"`
+	EndTime             time.Time `json:"endTime"`
+	Success             bool      `json:"success"`
+	LastRecordID        string    `json:"lastRecordID"`
+	LastRecordTimestamp time.Time `json:"lastRecordTimestamp"`
 }
 
 func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyncWorkflowInput) (XSyncWorkflowResponse, error) {
@@ -67,20 +70,65 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 			MaximumAttempts:    1,
 		},
 	})
+
+	var previousResult XSyncWorkflowResponse
+
+	if workflow.HasLastCompletionResult(ctx) {
+		err := workflow.GetLastCompletionResult(ctx, &previousResult)
+		if err != nil {
+			return XSyncWorkflowResponse{}, err
+		}
+		workflow.GetLogger(ctx).Info("Recovered last result", "value", previousResult)
+	}
+
 	var response XFetchActivityResponse
 	err := workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
 	if err != nil {
 		return XSyncWorkflowResponse{}, err
 	}
 
-	err = workflow.ExecuteActivity(ctx, w.XIndexActivity, XIndexActivityInput{Records: response.Records}).Get(ctx, nil)
+	fmt.Println("response", response)
+
+	filteredRecords := []types.Record{}
+	for _, record := range response.Records {
+		if previousResult.LastRecordTimestamp.IsZero() {
+			filteredRecords = append(filteredRecords, record)
+			continue
+		}
+
+		if record.Timestamp.After(previousResult.LastRecordTimestamp) {
+			filteredRecords = append(filteredRecords, record)
+		}
+	}
+
+	if len(filteredRecords) == 0 {
+		return XSyncWorkflowResponse{
+			EndTime:             time.Now(),
+			Success:             true,
+			LastRecordID:        previousResult.LastRecordID,
+			LastRecordTimestamp: previousResult.LastRecordTimestamp,
+		}, nil
+	}
+
+	fmt.Println("filteredRecords", filteredRecords)
+
+	err = workflow.ExecuteActivity(ctx, w.XIndexActivity, XIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
 	if err != nil {
 		return XSyncWorkflowResponse{}, err
 	}
 
+	lastRecord := response.Records[len(response.Records)-1]
+
+	w.Logger.Info("lastRecord", "value", lastRecord)
+
+	lastRecordID := ""
+	if id, ok := lastRecord.Data["id"]; ok && id != nil {
+		lastRecordID = id.(string)
+	}
+
 	endTime := time.Now()
 
-	return XSyncWorkflowResponse{EndTime: endTime, Success: true}, nil
+	return XSyncWorkflowResponse{EndTime: endTime, Success: true, LastRecordID: lastRecordID, LastRecordTimestamp: lastRecord.Timestamp}, nil
 }
 
 type XFetchActivityInput struct {
@@ -106,16 +154,15 @@ type XIndexActivityInput struct {
 type XIndexActivityResponse struct{}
 
 func (w *DataProcessingWorkflows) XIndexActivity(ctx context.Context, input XIndexActivityInput) (XIndexActivityResponse, error) {
-	documents, err := gmail.ToDocuments(input.Records)
+	documents, err := x.ToDocuments(input.Records)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}
-	w.Logger.Info("Documents", "gmail", len(documents))
+	w.Logger.Info("X", "tweets", len(documents))
 	err = w.Memory.Store(ctx, documents)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}
-	w.Logger.Info("Indexed documents", "documents", len(documents))
 
 	return XIndexActivityResponse{}, nil
 }

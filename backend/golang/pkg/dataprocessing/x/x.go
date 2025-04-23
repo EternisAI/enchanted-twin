@@ -82,7 +82,7 @@ func (s *Source) ProcessFile(filePath string, userId string) ([]types.Record, er
 	return records, nil
 }
 
-func parseTwitterTimestamp(timestampStr string) (time.Time, error) {
+func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	formats := []string{
 		"Mon Jan 02 15:04:05 -0700 2006",
 		"2006-01-02T15:04:05.000Z",
