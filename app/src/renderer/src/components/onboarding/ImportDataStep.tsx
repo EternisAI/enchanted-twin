@@ -1,25 +1,24 @@
 import { OnboardingLayout } from './OnboardingLayout'
 import { useMutation, useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
-import { HelpCircle, CheckCircle2, AlertCircle, File, Folder, Loader2, X, Plus } from 'lucide-react'
+import { HelpCircle, CheckCircle2, Loader2, X, File, Folder } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useState } from 'react'
 import { ImportInstructionsModal } from './ImportInstructionsModal'
-import { DataSource } from '@renderer/graphql/generated/graphql'
-import { cn } from '@renderer/lib/utils'
 import { toast } from 'sonner'
-import { Skeleton } from '@renderer/components/ui/skeleton'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../ui/dialog'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
     addDataSource(name: $name, path: $path)
-  }
-`
-
-const DELETE_DATA_SOURCE = gql`
-  mutation DeleteDataSource($id: ID!) {
-    deleteDataSource(id: $id)
   }
 `
 
@@ -95,12 +94,71 @@ const SUPPORTED_DATA_SOURCES: {
   // }
 ]
 
+const EXPORT_INSTRUCTIONS: Record<string, { steps: string[]; link?: string }> = {
+  WhatsApp: {
+    steps: [
+      'Open WhatsApp on your phone',
+      'Go to Settings > Chats > Chat Backup',
+      'Tap "Back Up" to create a backup',
+      'Connect your phone to your computer',
+      'Navigate to the WhatsApp backup folder on your phone',
+      'Copy the msgstore.db.crypt12 file to your computer'
+    ]
+  },
+  Telegram: {
+    steps: [
+      'Open Telegram Desktop',
+      'Click the menu button (three lines)',
+      'Go to Settings > Advanced > Export Telegram Data',
+      'Select the data you want to export',
+      'Click "Export" and save the file'
+    ]
+  },
+  Slack: {
+    steps: [
+      'Open Slack in your browser',
+      'Click your workspace name in the top left',
+      'Go to Settings & Administration > Workspace Settings',
+      'Click "Import/Export Data" in the left sidebar',
+      'Click "Export" and follow the prompts'
+    ]
+  },
+  Gmail: {
+    steps: [
+      'Go to Google Takeout (takeout.google.com)',
+      'Sign in with your Google account',
+      'Deselect all services',
+      'Select only "Mail"',
+      'Click "Next" and choose your export options',
+      'Click "Create Export"'
+    ],
+    link: 'https://takeout.google.com'
+  },
+  X: {
+    steps: [
+      'Go to X (Twitter) in your browser',
+      'Click your profile picture',
+      'Go to Settings and Privacy',
+      'Click "Download an archive of your data"',
+      'Enter your password and click "Confirm"',
+      'Wait for the email with your data archive'
+    ]
+  }
+}
+
 export function ImportDataStep() {
-  const { data, refetch, loading } = useQuery(GET_DATA_SOURCES)
+  const { data, refetch } = useQuery(GET_DATA_SOURCES)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
-  const [deleteDataSource] = useMutation(DELETE_DATA_SOURCE)
   const [showImportInstructions, setShowImportInstructions] = useState<string | null>(null)
   const [isSelecting, setIsSelecting] = useState<string | null>(null)
+  const [pendingDataSources, setPendingDataSources] = useState<
+    Record<string, { name: string; path: string }>
+  >({})
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedSource, setSelectedSource] = useState<{
+    name: string
+    selectType: 'directory' | 'files'
+  } | null>(null)
   const { nextStep } = useOnboardingStore()
 
   const handleFileSelect = async (name: string, selectType: 'directory' | 'files') => {
@@ -116,261 +174,264 @@ export function ImportDataStep() {
       }
 
       const path = result.filePaths[0]
-      await addDataSource({
-        variables: {
-          name,
-          path
-        }
-      })
-
-      await refetch()
-      toast.success(`${name} data source added successfully`)
+      setPendingDataSources((prev) => ({
+        ...prev,
+        [name]: { name, path }
+      }))
+      setSelectedSource(null)
     } catch (error) {
       console.error('Error selecting files:', error)
-      toast.error('Failed to add data source. Please try again.')
+      toast.error('Failed to select data source. Please try again.')
     } finally {
       setIsSelecting(null)
     }
   }
 
   const handleNext = async () => {
-    const isValid = await validateDataSources()
-    if (isValid) {
-      nextStep()
-    }
-  }
-
-  const handleRemoveDataSource = async (id: string) => {
-    try {
-      await deleteDataSource({
-        variables: { id }
-      })
-      await refetch()
-      toast.success('Data source removed successfully')
-    } catch (error) {
-      console.error('Error removing data source:', error)
-      toast.error('Failed to remove data source. Please try again.')
-    }
-  }
-
-  const validateDataSources = async () => {
-    if (!data?.getDataSources?.length) {
+    if (Object.keys(pendingDataSources).length === 0) {
       toast.error('Please select at least one data source')
-      return false
+      return
     }
-    return true
+
+    setIsProcessing(true)
+    try {
+      // Add all pending data sources
+      for (const source of Object.values(pendingDataSources)) {
+        await addDataSource({
+          variables: {
+            name: source.name,
+            path: source.path
+          }
+        })
+      }
+
+      await refetch()
+      toast.success('Data sources added successfully')
+      nextStep()
+    } catch (error) {
+      console.error('Error adding data sources:', error)
+      toast.error('Failed to add data sources. Please try again.')
+    } finally {
+      setIsProcessing(false)
+    }
   }
 
-  // Group data sources by type
-  const dataSourcesByType =
-    data?.getDataSources?.reduce(
-      (acc, ds) => {
-        if (!acc[ds.name]) {
-          acc[ds.name] = []
-        }
-        acc[ds.name].push(ds)
-        return acc
-      },
-      {} as Record<string, DataSource[]>
-    ) || {}
+  const handleRemoveDataSource = (name: string) => {
+    setPendingDataSources((prev) => {
+      const newState = { ...prev }
+      delete newState[name]
+      return newState
+    })
+  }
 
   return (
     <OnboardingLayout
       title="Import Your Data"
       subtitle="Select the data sources you'd like to import. You can always add more later."
+      onClose={nextStep}
     >
       <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {loading
-            ? // Skeleton loading state
-              Array.from({ length: SUPPORTED_DATA_SOURCES.length }).map((_, index) => (
-                <div key={index} className="relative h-full">
-                  <div className="p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Skeleton className="h-5 w-5" />
-                        <Skeleton className="h-5 w-24" />
-                      </div>
-                      <Skeleton className="h-6 w-6" />
+        <div className="grid grid-cols-1 gap-4">
+          {/* Add Source Card */}
+          <div className="p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Add Source</h3>
+            </div>
+            <div className="flex flex-col gap-1 flex-1">
+              <p className="text-sm text-muted-foreground">Select a data source to import</p>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {SUPPORTED_DATA_SOURCES.map((source) => (
+                <Button
+                  key={source.name}
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() =>
+                    setSelectedSource({ name: source.name, selectType: source.selectType })
+                  }
+                  disabled={isSelecting === source.name}
+                >
+                  {source.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/* Selected and Indexed Sources */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {Object.entries(pendingDataSources).map(([name, source]) => {
+              const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === name)
+              if (!sourceDetails) return null
+
+              return (
+                <div
+                  key={name}
+                  className="p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{name}</h3>
                     </div>
-                    <div className="flex flex-col gap-1 flex-1">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-3 w-3/4" />
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setShowImportInstructions(name)}
+                      >
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => handleRemoveDataSource(name)}
+                      >
+                        <X className="h-4 w-4 text-muted-foreground" />
+                      </Button>
                     </div>
-                    <Skeleton className="h-9 w-full" />
+                  </div>
+                  <div className="flex flex-col gap-1 flex-1">
+                    <p className="text-sm text-muted-foreground">{sourceDetails.description}</p>
+                    <p className="text-muted-foreground text-xs">{sourceDetails.fileRequirement}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-primary" />
+                      <span className="text-sm">Selected</span>
+                    </div>
+                    <p className="text-muted-foreground text-xs truncate">{source.path}</p>
                   </div>
                 </div>
-              ))
-            : SUPPORTED_DATA_SOURCES.map((source) => {
-                const existingSources = dataSourcesByType[source.name] || []
-                const isSelectingThisSource = isSelecting === source.name
+              )
+            })}
 
-                return (
-                  <div key={source.name} className="flex flex-col">
-                    <div className="flex-1">
-                      <DataSourceCard
-                        dataSource={existingSources[0]}
-                        sourceDetails={source}
-                        isSelecting={isSelectingThisSource}
-                        onBeginSelection={handleFileSelect}
-                        onShowInstructions={() => setShowImportInstructions(source.name)}
-                        onRemove={handleRemoveDataSource}
-                      />
+            {/* Indexed Sources */}
+            {data?.getDataSources?.map((source) => {
+              const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === source.name)
+              if (!sourceDetails) return null
+
+              return (
+                <div
+                  key={source.id}
+                  className="p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold">{source.name}</h3>
                     </div>
-                    {existingSources.length > 0 && (
-                      <div className="mt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="w-full"
-                          onClick={() => handleFileSelect(source.name, source.selectType)}
-                          disabled={isSelectingThisSource}
-                        >
-                          {isSelectingThisSource ? (
-                            <>
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                              Selecting...
-                            </>
-                          ) : (
-                            <>
-                              <Plus className="mr-2 h-4 w-4" />
-                              Add Another {source.name} Source
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => setShowImportInstructions(source.name)}
+                      >
+                        <HelpCircle className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
                   </div>
-                )
-              })}
+                  <div className="flex flex-col gap-1 flex-1">
+                    <p className="text-sm text-muted-foreground">{sourceDetails.description}</p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500" />
+                      <span className="text-sm">Indexed</span>
+                    </div>
+                    <p className="text-muted-foreground text-xs truncate">{source.path}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
-        <Button onClick={handleNext}>Next</Button>
+        <Button onClick={handleNext} disabled={isProcessing}>
+          {isProcessing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            'Next'
+          )}
+        </Button>
       </div>
+
+      {/* Data Source Selection Modal */}
+      <Dialog open={!!selectedSource} onOpenChange={() => setSelectedSource(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add {selectedSource?.name} Data</DialogTitle>
+            <DialogDescription>
+              {SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)?.description}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <h4 className="font-medium">How to export your data:</h4>
+              <ol className="list-decimal list-inside space-y-2 text-sm text-muted-foreground">
+                {selectedSource &&
+                  EXPORT_INSTRUCTIONS[selectedSource.name]?.steps.map((step, index) => (
+                    <li key={index}>{step}</li>
+                  ))}
+              </ol>
+              {selectedSource && EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
+                <Button
+                  variant="link"
+                  className="p-0 h-auto"
+                  onClick={() =>
+                    window.electron.ipcRenderer.send(
+                      'open-external-url',
+                      EXPORT_INSTRUCTIONS[selectedSource.name].link
+                    )
+                  }
+                >
+                  Open {selectedSource.name} Export Page
+                </Button>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <h4 className="font-medium">Select your exported data:</h4>
+              <p className="text-sm text-muted-foreground">
+                {
+                  SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)
+                    ?.fileRequirement
+                }
+              </p>
+              <Button
+                className="w-full"
+                onClick={() =>
+                  selectedSource && handleFileSelect(selectedSource.name, selectedSource.selectType)
+                }
+                disabled={isSelecting === selectedSource?.name}
+              >
+                {isSelecting === selectedSource?.name ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Selecting...
+                  </>
+                ) : (
+                  `Select ${selectedSource?.selectType === 'files' ? 'File' : 'Folder'}`
+                )}
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedSource(null)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <ImportInstructionsModal
         isOpen={!!showImportInstructions}
         onClose={() => setShowImportInstructions(null)}
         dataSource={showImportInstructions || ''}
       />
     </OnboardingLayout>
-  )
-}
-
-function DataSourceCard({
-  dataSource,
-  sourceDetails,
-  isSelecting,
-  onBeginSelection,
-  onShowInstructions,
-  onRemove
-}: {
-  dataSource?: DataSource
-  sourceDetails: (typeof SUPPORTED_DATA_SOURCES)[0]
-  isSelecting: boolean
-  onBeginSelection: (name: string, selectType: 'files' | 'directory') => void
-  onShowInstructions: () => void
-  onRemove: (id: string) => void
-}) {
-  const isSelected = !!dataSource
-  const { name, description, fileRequirement, selectType, icon } = sourceDetails
-
-  return (
-    <div
-      className={cn(
-        'relative h-full transition-all duration-200',
-        isSelected && 'ring-2 ring-primary ring-offset-2 rounded-lg'
-      )}
-    >
-      <div
-        className={cn(
-          'p-4 rounded-lg bg-card border h-full flex flex-col justify-between gap-3 transition-colors',
-          isSelected && 'border-primary'
-        )}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {icon}
-            <h3 className="font-semibold">{name}</h3>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6"
-              onClick={(e) => {
-                e.stopPropagation()
-                onShowInstructions()
-              }}
-            >
-              <HelpCircle className="h-4 w-4 text-muted-foreground" />
-            </Button>
-            {isSelected && !dataSource.isIndexed && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onRemove(dataSource.id)
-                }}
-              >
-                <X className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-1 flex-1">
-          <p className="text-sm text-muted-foreground">{description}</p>
-          <p className="text-muted-foreground text-xs">{fileRequirement}</p>
-        </div>
-
-        {isSelected ? (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {dataSource.hasError ? (
-                  <AlertCircle className="h-4 w-4 text-destructive" />
-                ) : dataSource.isIndexed ? (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 text-primary" />
-                )}
-                <span className="text-sm">
-                  {dataSource.hasError ? 'Error' : dataSource.isIndexed ? 'Indexed' : 'Selected'}
-                </span>
-              </div>
-              {!dataSource.isIndexed && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => onBeginSelection(name, selectType)}
-                  disabled={isSelecting}
-                >
-                  Change
-                </Button>
-              )}
-            </div>
-            <p className="text-muted-foreground text-xs truncate">{dataSource.path}</p>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full"
-            onClick={() => onBeginSelection(name, selectType)}
-            disabled={isSelecting}
-          >
-            {isSelecting ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Selecting...
-              </>
-            ) : (
-              `Select ${selectType === 'files' ? 'File' : 'Folder'}`
-            )}
-          </Button>
-        )}
-      </div>
-    </div>
   )
 }

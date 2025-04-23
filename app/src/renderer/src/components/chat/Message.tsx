@@ -20,7 +20,7 @@ export function UserMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-accent dark:bg-card text-foreground rounded-lg px-4 py-2 max-w-md">
+      <div className="bg-accent dark:bg-black dark:border dark:border-border text-foreground rounded-lg px-4 py-2 max-w-md">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
           <div className="flex gap-2 mt-2">
@@ -50,7 +50,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-white dark:bg-card text-foreground rounded-lg px-4 py-2 shadow max-w-md">
+      <div className="bg-white text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:border dark:bg-muted">
         {message.text && <Markdown>{message.text}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="flex flex-col gap-2 my-2">
