@@ -18,7 +18,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -245,12 +244,20 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		return temporalClient, nil
 	}
 
-	records, err := dataprocessing.Sync("gmail", googleToken.AccessToken)
-	if err != nil {
-		logger.Error("Error syncing records", slog.Any("error", err))
-		panic(errors.Wrap(err, "Error syncing records"))
+	if googleToken != nil {
+		err = dataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(temporalClient)
+		if err != nil {
+			logger.Error("Error creating GmailSync schedule", slog.Any("error", err))
+			return nil, err
+		}
 	}
-	fmt.Println("google records", records)
+
+	// records, err := dataprocessing.Sync("gmail", googleToken.AccessToken)
+	// if err != nil {
+	// 	logger.Error("Error syncing records", slog.Any("error", err))
+	// 	panic(errors.Wrap(err, "Error syncing records"))
+	// }
+	// fmt.Println("google records", records)
 
 	return temporalClient, nil
 }

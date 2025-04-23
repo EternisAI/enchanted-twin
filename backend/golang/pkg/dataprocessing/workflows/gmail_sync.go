@@ -15,8 +15,8 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func (workflows *DataProcessingWorkflows) CreateIfNotExistsXSyncSchedule(temporalClient client.Client) error {
-	scheduleID := "x-sync-schedule"
+func (workflows *DataProcessingWorkflows) CreateIfNotExistsGmailSyncSchedule(temporalClient client.Client) error {
+	scheduleID := "gmail-sync-schedule"
 
 	// Check if schedule already exists
 	handle := temporalClient.ScheduleClient().GetHandle(context.Background(), scheduleID)
@@ -29,15 +29,15 @@ func (workflows *DataProcessingWorkflows) CreateIfNotExistsXSyncSchedule(tempora
 	scheduleSpec := client.ScheduleSpec{
 		Intervals: []client.ScheduleIntervalSpec{
 			{
-				Every: 60 * time.Minute,
+				Every: 1 * time.Minute,
 			},
 		},
 	}
 
 	scheduleAction := &client.ScheduleWorkflowAction{
-		Workflow:  "XSyncWorkflow",
+		Workflow:  "GmailSyncWorkflow",
 		TaskQueue: "default",
-		Args:      []interface{}{XSyncWorkflowInput{}},
+		Args:      []interface{}{GmailSyncWorkflowInput{}},
 	}
 
 	_, err = temporalClient.ScheduleClient().Create(context.Background(), client.ScheduleOptions{
@@ -48,18 +48,17 @@ func (workflows *DataProcessingWorkflows) CreateIfNotExistsXSyncSchedule(tempora
 	return err
 }
 
-type XSyncWorkflowInput struct{}
+type GmailSyncWorkflowInput struct{}
 
-type XSyncWorkflowResponse struct {
+type GmailSyncWorkflowResponse struct {
 	EndTime             time.Time `json:"endTime"`
 	Success             bool      `json:"success"`
-	LastRecordID        string    `json:"lastRecordID"`
 	LastRecordTimestamp time.Time `json:"lastRecordTimestamp"`
 }
 
-func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyncWorkflowInput) (XSyncWorkflowResponse, error) {
+func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input GmailSyncWorkflowInput) (GmailSyncWorkflowResponse, error) {
 	if w.Store == nil {
-		return XSyncWorkflowResponse{}, errors.New("store is nil")
+		return GmailSyncWorkflowResponse{}, errors.New("store is nil")
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -77,23 +76,22 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 	if workflow.HasLastCompletionResult(ctx) {
 		err := workflow.GetLastCompletionResult(ctx, &previousResult)
 		if err != nil {
-			return XSyncWorkflowResponse{}, err
+			return GmailSyncWorkflowResponse{}, err
 		}
 		workflow.GetLogger(ctx).Info("Recovered last result", "value", previousResult)
 	}
 
 	_, err := helpers.RefreshExpiredTokens(context.Background(), w.Logger, w.Store)
 	if err != nil {
-		return XSyncWorkflowResponse{}, fmt.Errorf("failed to refresh expired tokens: %w", err)
+		return GmailSyncWorkflowResponse{}, fmt.Errorf("failed to refresh expired tokens: %w", err)
 	}
 
-	workflowResponse := XSyncWorkflowResponse{
-		LastRecordID:        previousResult.LastRecordID,
+	workflowResponse := GmailSyncWorkflowResponse{
 		LastRecordTimestamp: previousResult.LastRecordTimestamp,
 	}
 
-	var response XFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
+	var response GmailFetchActivityResponse
+	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput{}).Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err
 	}
@@ -114,29 +112,23 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 
 	if len(filteredRecords) == 0 {
 		workflowResponse.EndTime = time.Now()
-		return XSyncWorkflowResponse{
+		return GmailSyncWorkflowResponse{
 			EndTime:             time.Now(),
 			Success:             true,
-			LastRecordID:        previousResult.LastRecordID,
 			LastRecordTimestamp: previousResult.LastRecordTimestamp,
 		}, nil
 	}
 
 	w.Logger.Info("filteredRecords", "value", filteredRecords)
-	err = workflow.ExecuteActivity(ctx, w.XIndexActivity, XIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
+	err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
 	if err != nil {
-		return XSyncWorkflowResponse{}, err
+		return GmailSyncWorkflowResponse{}, err
 	}
 
 	lastRecord := response.Records[0]
 
 	w.Logger.Info("lastRecord", "value", lastRecord)
 
-	lastRecordID := ""
-	if id, ok := lastRecord.Data["id"]; ok && id != nil {
-		lastRecordID = id.(string)
-	}
-	workflowResponse.LastRecordID = lastRecordID
 	workflowResponse.LastRecordTimestamp = lastRecord.Timestamp
 	workflowResponse.Success = true
 	workflowResponse.EndTime = time.Now()
@@ -144,46 +136,46 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 	return workflowResponse, nil
 }
 
-type XFetchActivityInput struct {
+type GmailFetchActivityInput struct {
 	Username string `json:"username"`
 }
 
-type XFetchActivityResponse struct {
+type GmailFetchActivityResponse struct {
 	Records []types.Record `json:"records"`
 }
 
-func (w *DataProcessingWorkflows) XFetchActivity(ctx context.Context, input XFetchActivityInput) (XFetchActivityResponse, error) {
-	tokens, err := w.Store.GetOAuthTokens(ctx, "twitter")
+func (w *DataProcessingWorkflows) GmailFetchActivity(ctx context.Context, input GmailFetchActivityInput) (GmailFetchActivityResponse, error) {
+	tokens, err := w.Store.GetOAuthTokens(ctx, "google")
 	if err != nil {
-		return XFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
+		return GmailFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}
 	if tokens == nil {
-		return XFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
+		return GmailFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
 	}
 
-	records, err := dataprocessing.Sync("x", tokens.AccessToken)
+	records, err := dataprocessing.Sync("gmail", tokens.AccessToken)
 	if err != nil {
-		return XFetchActivityResponse{}, err
+		return GmailFetchActivityResponse{}, err
 	}
-	return XFetchActivityResponse{Records: records}, nil
+	return GmailFetchActivityResponse{Records: records}, nil
 }
 
-type XIndexActivityInput struct {
+type GmailIndexActivityInput struct {
 	Records []types.Record `json:"records"`
 }
 
-type XIndexActivityResponse struct{}
+type GmailIndexActivityResponse struct{}
 
-func (w *DataProcessingWorkflows) XIndexActivity(ctx context.Context, input XIndexActivityInput) (XIndexActivityResponse, error) {
+func (w *DataProcessingWorkflows) GmailIndexActivity(ctx context.Context, input GmailIndexActivityInput) (GmailIndexActivityResponse, error) {
 	documents, err := x.ToDocuments(input.Records)
 	if err != nil {
-		return XIndexActivityResponse{}, err
+		return GmailIndexActivityResponse{}, err
 	}
-	w.Logger.Info("X", "tweets", len(documents))
+	w.Logger.Info("Gmail", "emails", len(documents))
 	err = w.Memory.Store(ctx, documents)
 	if err != nil {
-		return XIndexActivityResponse{}, err
+		return GmailIndexActivityResponse{}, err
 	}
 
-	return XIndexActivityResponse{}, nil
+	return GmailIndexActivityResponse{}, nil
 }
