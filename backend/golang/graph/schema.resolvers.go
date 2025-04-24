@@ -34,7 +34,42 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
-	return helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+
+	result, err := helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+
+	if err != nil {
+		return "", err
+	}
+
+	switch result {
+		case "twitter":
+			_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
+				Name:    "Twitter",
+				Command: "npx",
+				Args:    []string{},
+				Envs:    []*model.KeyValueInput{},
+				Type:    model.MCPServerTypeTwitter,
+			})
+			if err != nil {
+				return "", fmt.Errorf("Oauth successful but failed to create Twitter server: %w", err)
+			}
+			
+		case "google":
+			_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
+				Name:    "Gmail",
+				Command: "npx",
+				Args:    []string{},
+				Envs:    []*model.KeyValueInput{},
+				Type:    model.MCPServerTypeGmail,
+			})
+			if err != nil {
+				return "", fmt.Errorf("Oauth successful but failed to create Gmail server: %w", err)
+			}
+		default:
+			// Nothing to do
+	}
+
+	return result, nil
 }
 
 // RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.

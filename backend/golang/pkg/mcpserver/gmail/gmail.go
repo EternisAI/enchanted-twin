@@ -45,7 +45,11 @@ func (c *GmailClient) CallTool(ctx context.Context, name string, arguments any) 
 	}
 
 
-	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "gmail")
+	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "google")
+
+	if err != nil {
+		return nil, err
+	}
 
 	var content []*mcp_golang.Content
 

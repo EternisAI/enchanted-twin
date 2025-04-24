@@ -50,13 +50,12 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 		fmt.Println("Error initializing Gmail service:", err)
 		return nil, err
 	}
-
+	fmt.Println("Gmail service initialized")
 	request := gmailService.Users.Messages.List("me").MaxResults(int64(arguments.Limit))
-
+	fmt.Println("Request:", request)
 	if arguments.PageToken != "" {
 		request = request.PageToken(arguments.PageToken)
 	}
-
 	response, err := request.Do()
 	if err != nil {
 		fmt.Println("Error listing emails:", err)
@@ -66,10 +65,11 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 	contents := make([]*mcp_golang.Content, 0)
 
 	for _, message := range response.Messages {
+
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: message.Payload.Body.Data,
+				Text: fmt.Sprintf("Message ID: %s, Snippet: %s", message.Id, message.Snippet),
 			},
 		})
 	}

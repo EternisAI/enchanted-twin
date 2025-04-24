@@ -20,9 +20,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
-
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
+	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -158,7 +157,10 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store)
+	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
+	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
+
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store, mcpService)
 
 	// Initialize and start Telegram service
 	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
@@ -174,10 +176,6 @@ func main() {
 			logger.Error("Telegram service error", slog.Any("error", err))
 		}
 	}()
-	mcpRepository := repository.NewRepository(logger, store.DB())
-	mcpService := mcpserver.NewService(context.Background(), *mcpRepository, store)
-
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel, mcpService)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
@@ -267,10 +265,10 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Logger:          input.logger,
 		TemporalClient:  input.temporalClient,
 		TwinChatService: input.twinChatService,
-		MCPService:      input.mcpService,
 		Nc:              input.natsClient,
 		Store:           input.store,
 		AiService:       input.aiService,
+		MCPService:      input.mcpService,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

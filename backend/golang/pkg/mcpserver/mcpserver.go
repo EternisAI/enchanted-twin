@@ -182,8 +182,9 @@ func (s *service) LoadMCP(ctx context.Context) error {
 						},
 					})
 				default:
-					continue
+					// nothing to do
 			}
+			continue
 		}
 
 		cmd := exec.Command(server.Command, server.Args...)	
