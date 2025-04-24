@@ -55,8 +55,8 @@ export default function OAuthPanel() {
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
 
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
-  const { data } = useQuery(GetOAuthStatusDocument, {
-    pollInterval: 10000
+  const { data, refetch } = useQuery(GetOAuthStatusDocument, {
+    pollInterval: 60000
   })
 
   console.log('data oauth', data)
@@ -69,12 +69,13 @@ export default function OAuthPanel() {
         if (data?.completeOAuthFlow) {
           console.log('OAuth completed with provider:', data.completeOAuthFlow)
           toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
+          refetch()
         }
       } catch (err) {
         console.error('OAuth completion failed:', err)
       }
     })
-  }, [completeOAuthFlow])
+  }, [completeOAuthFlow, refetch])
 
   const loginWithProvider = async (provider: string, scope: string) => {
     const { data } = await startOAuthFlow({ variables: { provider, scope } })

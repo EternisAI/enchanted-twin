@@ -156,7 +156,7 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel, envs.TelegramToken, store)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store)
 
 	// Initialize and start Telegram service
 	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
@@ -177,14 +177,15 @@ func main() {
 		logger:          logger,
 		temporalClient:  temporalClient,
 		port:            envs.GraphqlPort,
-		twinChatService: twinChatService,
+		twinChatService: *twinChatService,
 		natsClient:      nc,
 		store:           store,
+		aiService:       aiService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
-		logger.Info("Starting GraphQL HTTP server", "port", envs.GraphqlPort)
+		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTP server error", slog.Any("error", err))
@@ -239,9 +240,10 @@ type graphqlServerInput struct {
 	logger          *log.Logger
 	temporalClient  client.Client
 	port            string
-	twinChatService *twinchat.Service
+	twinChatService twinchat.Service
 	natsClient      *nats.Conn
 	store           *db.Store
+	aiService       *ai.Service
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -256,9 +258,10 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	srv := handler.New(gqlSchema(&graph.Resolver{
 		Logger:          input.logger,
 		TemporalClient:  input.temporalClient,
-		TwinChatService: *input.twinChatService,
+		TwinChatService: input.twinChatService,
 		Nc:              input.natsClient,
 		Store:           input.store,
+		AiService:       input.aiService,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

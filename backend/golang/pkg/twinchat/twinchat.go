@@ -21,6 +21,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
 )
 
 type Service struct {
@@ -29,12 +30,13 @@ type Service struct {
 	nc               *nats.Conn
 	logger           *log.Logger
 	memory           memory.Storage
+	authStorage      *db.Store
 	completionsModel string
 	telegramToken    string
 	store            *db.Store
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string, telegramToken string, store *db.Store) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -44,6 +46,7 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		completionsModel: completionsModel,
 		telegramToken:    telegramToken,
 		store:            store,
+		authStorage:      authStorage,
 	}
 }
 
@@ -113,11 +116,13 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	agent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
+	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
 		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
+		twitterReverseChronTimelineTool,
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)
@@ -185,6 +190,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	if len(response.ToolCalls) > 0 {
 		toolCalls := make([]model.ToolCall, 0)
 		for _, toolCall := range response.ToolCalls {
+			s.logger.Info("Tool call", "name", toolCall.Function.Name)
 
 			toolCall := model.ToolCall{
 				ID:          toolCall.ID,
@@ -251,4 +257,68 @@ func (s *Service) GetMessagesByChatId(ctx context.Context, chatID string) ([]*mo
 
 func (s *Service) DeleteChat(ctx context.Context, chatID string) error {
 	return s.storage.DeleteChat(ctx, chatID)
+}
+
+func (s *Service) GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error) {
+	historicalMessages, err := s.storage.GetMessagesByChatId(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	var conversationContext string
+	for _, message := range historicalMessages {
+		conversationContext += fmt.Sprintf("%s: %s\n\n", message.Role, *message.Text)
+	}
+
+	isntruction := fmt.Sprintf("Generate 3 chat suggestions that user might ask for each of the category based on the chat history. Category names: Ask (should be questions about the content, should predict what user might wanna do next). Search (should be a plausible search based on the content). Research (should be a plausible research question based on the content).\n\n\nConversation history:\n%s", conversationContext)
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(isntruction),
+	}
+
+	tool := openai.ChatCompletionToolParam{
+		Type: "function",
+		Function: openai.FunctionDefinitionParam{
+			Name:        "generate_suggestion",
+			Description: param.NewOpt("This tool generates chat suggestions for a user based on the existing context"),
+			Parameters: openai.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"category": map[string]string{
+						"type": "string",
+					},
+					"suggestions": map[string]any{
+						"type": "array",
+						"items": map[string]string{
+							"type": "string",
+						},
+					},
+				},
+				"required": []string{"category", "suggestions"},
+			},
+		},
+	}
+
+	choice, err := s.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{tool}, s.completionsModel)
+	if err != nil {
+		return nil, err
+	}
+
+	suggestionsList := make([]*model.ChatSuggestionsCategory, 0)
+	for _, choice := range choice.ToolCalls {
+		var suggestions struct {
+			Category    string   `json:"category"`
+			Suggestions []string `json:"suggestions"`
+		}
+		err := json.Unmarshal([]byte(choice.Function.Arguments), &suggestions)
+		if err != nil {
+			return nil, err
+		}
+		suggestionsList = append(suggestionsList, &model.ChatSuggestionsCategory{
+			Category:    suggestions.Category,
+			Suggestions: suggestions.Suggestions,
+		})
+	}
+
+	return suggestionsList, nil
 }

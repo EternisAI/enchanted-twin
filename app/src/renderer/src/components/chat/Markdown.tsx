@@ -3,6 +3,12 @@ import remarkGfm from 'remark-gfm'
 import rehypeRaw from 'rehype-raw'
 
 export const Markdown = ({ children }: { children: string; isChat?: boolean }) => {
+  const handleLinkClick = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    e.preventDefault()
+    if (!href) return
+    window.open(href, '_blank', 'noopener,noreferrer')
+  }
+
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -53,7 +59,17 @@ export const Markdown = ({ children }: { children: string; isChat?: boolean }) =
               {children}
             </code>
           )
-        }
+        },
+        a: ({ href, children, ...props }) => (
+          <a
+            href={href}
+            onClick={(e) => handleLinkClick(e, href || '')}
+            className="text-primary underline hover:text-primary/80 transition-colors"
+            {...props}
+          >
+            {children}
+          </a>
+        )
       }}
     >
       {children}
