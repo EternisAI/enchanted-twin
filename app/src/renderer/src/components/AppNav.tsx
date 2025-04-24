@@ -36,7 +36,8 @@ export function AppNav() {
         >
           <nav className="flex flex-col gap-2">
             {LINKS.map(({ label, href, icon: Icon }) => {
-              const isActive = location.pathname.startsWith(href)
+              const isActive =
+                href === '/' ? location.pathname === '/' : location.pathname.startsWith(href)
               return (
                 <Link
                   key={href}
