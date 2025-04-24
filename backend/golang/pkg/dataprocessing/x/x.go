@@ -179,11 +179,7 @@ func GetUserIDByUsername(username string, bearerToken string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error making request: %v", err)
 	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("Error closing response body: %v", err)
-		}
-	}()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -311,7 +307,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user data: %w", err)
 	}
-	defer userResp.Body.Close()
+	defer func() { _ = userResp.Body.Close() }()
 
 	// Read the body
 	bodyBytes, err := io.ReadAll(userResp.Body)
@@ -364,7 +360,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch tweets: %w", err)
 	}
-	defer tweetsResp.Body.Close()
+	defer func() { _ = tweetsResp.Body.Close() }()
 
 	if tweetsResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(tweetsResp.Body)
@@ -433,7 +429,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch likes: %w", err)
 	}
-	defer likesResp.Body.Close()
+	defer func() { _ = likesResp.Body.Close() }()
 
 	if likesResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(likesResp.Body)

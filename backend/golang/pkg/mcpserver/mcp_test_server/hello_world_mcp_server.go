@@ -27,7 +27,6 @@ func main() {
 		panic(err)
 	}
 
-
 	err = server.Serve()
 	if err != nil {
 		panic(err)

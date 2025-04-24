@@ -18,14 +18,14 @@ import (
 )
 
 type ConnectedMCPServer struct {
-	ID string
+	ID     string
 	Client MCPClient
 }
 
 // service implements the MCPServerService interface.
 type service struct {
-	store *db.Store
-	repo repository.Repository
+	store            *db.Store
+	repo             repository.Repository
 	connectedServers []*ConnectedMCPServer
 }
 
@@ -54,33 +54,32 @@ func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPSe
 		}
 
 		switch input.Type {
-			case model.MCPServerTypeTwitter:
-				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-					ID: mcpServer.ID,
-					Client: &twitter.TwitterClient{
-						Store: s.store,
-					},
-				})
-			case model.MCPServerTypeGoogle:
-				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-					ID: mcpServer.ID,
-					Client: &gmail.GmailClient{
-						Store: s.store,
-					},
-				})
-			default:
-				return nil, fmt.Errorf("unsupported server type")
+		case model.MCPServerTypeTwitter:
+			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+				ID: mcpServer.ID,
+				Client: &twitter.TwitterClient{
+					Store: s.store,
+				},
+			})
+		case model.MCPServerTypeGoogle:
+			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+				ID: mcpServer.ID,
+				Client: &gmail.GmailClient{
+					Store: s.store,
+				},
+			})
+		default:
+			return nil, fmt.Errorf("unsupported server type")
 		}
 		return mcpServer, nil
 	}
-
 
 	mcpServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
 	if err != nil {
 		return nil, err
 	}
 
-	cmd := exec.Command(mcpServer.Command, mcpServer.Args...)	
+	cmd := exec.Command(mcpServer.Command, mcpServer.Args...)
 	cmd.Env = os.Environ()
 	for _, env := range mcpServer.Envs {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
@@ -98,7 +97,7 @@ func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPSe
 	}
 
 	s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-		ID: mcpServer.ID,
+		ID:     mcpServer.ID,
 		Client: client,
 	})
 
@@ -167,27 +166,27 @@ func (s *service) LoadMCP(ctx context.Context) error {
 
 		if server.Type != model.MCPServerTypeOther {
 			switch server.Type {
-				case model.MCPServerTypeTwitter:
-					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-						ID: server.ID,
-						Client: &twitter.TwitterClient{
-							Store: s.store,
-						},
-					})
-				case model.MCPServerTypeGoogle:
-					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-						ID: server.ID,
-						Client: &gmail.GmailClient{
-							Store: s.store,
-						},
-					})
-				default:
-					// nothing to do
+			case model.MCPServerTypeTwitter:
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID: server.ID,
+					Client: &twitter.TwitterClient{
+						Store: s.store,
+					},
+				})
+			case model.MCPServerTypeGoogle:
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID: server.ID,
+					Client: &gmail.GmailClient{
+						Store: s.store,
+					},
+				})
+			default:
+				// nothing to do
 			}
 			continue
 		}
 
-		cmd := exec.Command(server.Command, server.Args...)	
+		cmd := exec.Command(server.Command, server.Args...)
 
 		cmd.Env = os.Environ()
 		for _, env := range server.Envs {
@@ -207,7 +206,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		}
 
 		s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-			ID: server.ID,
+			ID:     server.ID,
 			Client: client,
 		})
 	}
@@ -242,7 +241,6 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 	return allTools, nil
 }
 
-
 func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 	var allTools []tools.Tool
 
@@ -259,7 +257,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 				for _, tool := range client_tools.Tools {
 					allTools = append(allTools, &MCPTool{
 						Client: connectedServer.Client,
-						Tool: tool,
+						Tool:   tool,
 					})
 				}
 			}
@@ -269,7 +267,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 			cursor = *client_tools.NextCursor
 		}
 	}
-	return allTools, nil	
+	return allTools, nil
 }
 
 func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
@@ -291,4 +289,3 @@ func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
 
 	return clientTransport, nil
 }
-

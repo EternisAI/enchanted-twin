@@ -12,27 +12,22 @@ import (
 	"google.golang.org/api/option"
 )
 
-
 const LIST_EMAILS_TOOL_NAME = "list_emails"
 const SEND_EMAIL_TOOL_NAME = "send_email"
 
 const LIST_EMAILS_TOOL_DESCRIPTION = "List the emails from the user's inbox"
 const SEND_EMAIL_TOOL_DESCRIPTION = "Send an email"
 
-
-
 type ListEmailsArguments struct {
-	PageToken string 	`json:"page_token" jsonschema:"required,description=The page token to list, default is empty"`
-	Limit     int 		`json:"limit" jsonschema:"required,description=The number of emails to list"`
+	PageToken string `json:"page_token" jsonschema:"required,description=The page token to list, default is empty"`
+	Limit     int    `json:"limit" jsonschema:"required,description=The number of emails to list"`
 }
-
 
 type SendEmailArguments struct {
 	To      string `json:"to" jsonschema:"required,description=The email address to send the email to"`
 	Subject string `json:"subject" jsonschema:"required,description=The subject of the email"`
 	Body    string `json:"body" jsonschema:"required,description=The body of the email"`
 }
-
 
 func processListEmails(ctx context.Context, accessToken string, arguments ListEmailsArguments) ([]*mcp_golang.Content, error) {
 
@@ -62,7 +57,7 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 		fmt.Println("Error listing emails:", err)
 		return nil, err
 	}
-	
+
 	contents := make([]*mcp_golang.Content, 0)
 
 	for _, message := range response.Messages {
@@ -72,7 +67,7 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 			fmt.Println("Error getting message details:", err)
 			continue
 		}
-		
+
 		// Convert message to JSON
 		msgJSON, err := json.Marshal(msg)
 		if err != nil {
@@ -91,10 +86,7 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 	return contents, nil
 }
 
-
-
 func processSendEmail(ctx context.Context, accessToken string, arguments SendEmailArguments) ([]*mcp_golang.Content, error) {
-
 
 	token := &oauth2.Token{
 		AccessToken: accessToken,
@@ -108,7 +100,6 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 		fmt.Println("Error initializing Gmail service:", err)
 		return nil, err
 	}
-	
 
 	message := &gmail.Message{
 		Raw: arguments.Body,
@@ -132,4 +123,3 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 		},
 	}, nil
 }
-

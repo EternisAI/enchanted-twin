@@ -55,8 +55,6 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 
 func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) (agent.AgentResponse, error) {
 	newAgent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
-	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
-
 
 	mcpTools, err := s.mcpService.GetInternalTools(ctx)
 	if err != nil {
@@ -68,7 +66,6 @@ func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompl
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
 		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
-		twitterReverseChronTimelineTool,
 	}
 
 	tools = append(tools, mcpTools...)
@@ -253,12 +250,12 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	return &model.Message{
-		ID:        idAssistant,
-		Text:      &response.Content,
-		Role:      model.RoleUser,
-		ImageUrls: response.ImageURLs,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		ToolCalls: assistantMessageDb.ToModel().ToolCalls,
+		ID:          idAssistant,
+		Text:        &response.Content,
+		Role:        model.RoleUser,
+		ImageUrls:   response.ImageURLs,
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
 		ToolResults: assistantMessageDb.ToModel().ToolResults,
 	}, nil
 }

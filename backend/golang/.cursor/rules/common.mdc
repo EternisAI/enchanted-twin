@@ -13,3 +13,4 @@ alwaysApply: true
 - When writing code use `make build` to make sure that your proposed code still builds.
 - Don't add comment to explain every other line of your code. The code itself should self-sufficient unless where code is non-trivial.
 - When modifying code, do not remove comments. comments are there for a reason.
+- You must never add comments for function definitions.

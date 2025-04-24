@@ -48,7 +48,7 @@ func GetUser(accessToken string) (*User, error) {
 		fmt.Printf("Error making request: %v\n", err)
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {
@@ -72,10 +72,9 @@ func GetUser(accessToken string) (*User, error) {
 	return &user, nil
 }
 
-
 type ListFeedTweetsArguments struct {
-	PaginationToken   string    `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
-	Limit    		  int    	`json:"limit" jsonschema:"required,description=The number of tweets to list"`
+	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
+	Limit           int    `json:"limit" jsonschema:"required,description=The number of tweets to list"`
 }
 
 type PostTweetArguments struct {
@@ -87,7 +86,6 @@ type SearchTweetsArguments struct {
 	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the search from, empty if first page"`
 	Limit           int    `json:"limit" jsonschema:"required,description=The number of tweets to search for"`
 }
-
 
 type authorize struct {
 	Token string
@@ -107,17 +105,15 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 		Host:   "https://api.twitter.com",
 	}
 
-
 	user, err := GetUser(accessToken)
 	if err != nil {
 		return nil, err
 	}
 
-
 	feed, err := client.UserTweetReverseChronologicalTimeline(ctx, user.Data.ID, twitter.UserTweetReverseChronologicalTimelineOpts{
-		MaxResults: arguments.Limit,
+		MaxResults:      arguments.Limit,
 		PaginationToken: arguments.PaginationToken,
-		TweetFields: []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
+		TweetFields:     []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
 	})
 
 	if err != nil {
@@ -143,15 +139,12 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 		},
 	})
 
-
 	return contents, nil
 }
 
 func processPostTweet(_ string, _arguments PostTweetArguments) ([]*mcp_golang.Content, error) {
 
 	fmt.Println("Posting tweet", _arguments.Content)
-
-	
 
 	return []*mcp_golang.Content{
 		{
@@ -174,12 +167,11 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 	}
 
 	search, err := client.TweetRecentSearch(ctx, arguments.Query, twitter.TweetRecentSearchOpts{
-		MaxResults: arguments.Limit,
-		NextToken: arguments.PaginationToken,
-		Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
+		MaxResults:  arguments.Limit,
+		NextToken:   arguments.PaginationToken,
+		Expansions:  []twitter.Expansion{twitter.ExpansionAuthorID},
 		TweetFields: []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
 	})
-
 
 	if err != nil {
 		return nil, err
@@ -204,5 +196,3 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 
 	return contents, nil
 }
-
-
