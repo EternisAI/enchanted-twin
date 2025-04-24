@@ -164,6 +164,7 @@ func main() {
 		twinChatService: twinChatService,
 		natsClient:      nc,
 		store:           store,
+		aiService:       aiService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -226,6 +227,7 @@ type graphqlServerInput struct {
 	twinChatService *twinchat.Service
 	natsClient      *nats.Conn
 	store           *db.Store
+	aiService       *ai.Service
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -243,6 +245,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		TwinChatService: *input.twinChatService,
 		Nc:              input.natsClient,
 		Store:           input.store,
+		AiService:       input.aiService,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
