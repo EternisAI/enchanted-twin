@@ -39,6 +39,7 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
@@ -155,7 +156,22 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store)
+
+	// Initialize and start Telegram service
+	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
+	go func() {
+		chatID, err := telegramService.GetChatID(context.Background())
+		if err != nil {
+			logger.Error("Telegram service error", slog.Any("error", err))
+		}
+		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatID)
+		logger.Info("Telegram chat URL", "chatURL", chatURL)
+
+		if err := telegramService.Start(context.Background()); err != nil {
+			logger.Error("Telegram service error", slog.Any("error", err))
+		}
+	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,

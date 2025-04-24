@@ -2,10 +2,12 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -96,6 +98,34 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
+	// Create config table if it doesn't exist
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS config (
+			key TEXT PRIMARY KEY,
+			value TEXT
+		)
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	uuid := uuid.New().String()
+	_, err = db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO config (key, value) 
+		VALUES ('telegram_chat_uuid', ?)
+	`, uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO config (key, value) 
+		VALUES ('telegram_chat_id', NULL)
+	`)
+	if err != nil {
+		return nil, err
+	}
+
 	store := &Store{db: db}
 
 	if err = store.InitOAuth(ctx); err != nil {
@@ -114,4 +144,36 @@ func (s *Store) Close() error {
 func (s *Store) DB() *sqlx.DB {
 	db := s.db
 	return db
+}
+
+func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
+	var value sql.NullString
+
+	fmt.Println("GetValue", key)
+	err := s.db.GetContext(ctx, &value, "SELECT value FROM config WHERE key = ?", key)
+	if err != nil {
+		return "", err
+	}
+	if !value.Valid {
+		return "", nil // Return empty string for NULL values
+	}
+	fmt.Println("GetValue", key, value.String)
+	return value.String, nil
+}
+
+func (s *Store) SetValue(ctx context.Context, key string, value string) error {
+	_, err := s.db.ExecContext(ctx, "UPDATE config SET value = ? WHERE key = ?", value, key)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) GetAllKeys(ctx context.Context) ([]string, error) {
+	var keys []string
+	err := s.db.SelectContext(ctx, &keys, "SELECT key FROM config")
+	if err != nil {
+		return nil, err
+	}
+	return keys, nil
 }
