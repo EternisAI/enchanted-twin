@@ -6,5 +6,9 @@ export const TOOL_NAMES = {
   image_tool: {
     inProgress: 'Generating Image',
     completed: 'Generated Image'
+  },
+  twitter_get_timeline: {
+    inProgress: 'Checking Twitter feed',
+    completed: 'Loaded Twitter feed'
   }
 }
