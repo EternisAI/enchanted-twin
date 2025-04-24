@@ -9,7 +9,9 @@ import (
 	"net/http"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	telegram "github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+
+	types "github.com/EternisAI/enchanted-twin/types"
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
@@ -48,14 +50,14 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 		return ToolResult{}, fmt.Errorf("message parameter is required and must be a string")
 	}
 
-	chatID, err := t.Store.GetValue(ctx, telegram.TelegramChatIDKey)
+	chatID, err := t.Store.GetValue(ctx, types.TelegramChatIDKey)
 	if err != nil || chatID == "" {
-		chatUUID, err := t.Store.GetValue(ctx, telegram.TelegramChatUUIDKey)
+		chatUUID, err := t.Store.GetValue(ctx, types.TelegramChatUUIDKey)
 		if err != nil {
 			return ToolResult{}, fmt.Errorf("error getting value from store: %w", err)
 		}
 
-		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatUUID)
+		chatURL := helpers.GetChatURL(types.TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
 		if qErr != nil {
 			t.Logger.Error("failed to generate QR code", "error", qErr)
@@ -71,7 +73,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	}
 
 	// Construct Telegram API request
-	url := fmt.Sprintf("%s/bot%s/sendMessage", telegram.TelegramAPIBase, t.Token)
+	url := fmt.Sprintf("%s/bot%s/sendMessage", types.TelegramAPIBase, t.Token)
 	body := map[string]any{
 		"chat_id":    chatID,
 		"text":       message,

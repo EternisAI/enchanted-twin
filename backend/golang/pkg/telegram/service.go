@@ -8,19 +8,14 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	types "github.com/EternisAI/enchanted-twin/types"
 	"github.com/charmbracelet/log"
-)
-
-const (
-	// TelegramChatUUIDKey allows to identifies the chat with a specific user, after the first message
-	TelegramChatUUIDKey = "telegram_chat_uuid"
-	// TelegramChatIDKey is the telegram chat id to be used for sending messages
-	TelegramChatIDKey = "telegram_chat_id"
-	// TelegramBotName is the telegram bot name to be used for sending messages
-	TelegramBotName = "HelloIamBernieBot"
-
-	TelegramAPIBase = "https://api.telegram.org"
+	"github.com/openai/openai-go"
 )
 
 type Update struct {
@@ -51,25 +46,42 @@ type Chat struct {
 }
 
 type TelegramService struct {
-	logger *log.Logger
-	token  string
-	client *http.Client
-	store  *db.Store
+	Logger           *log.Logger
+	Token            string
+	Client           *http.Client
+	Store            *db.Store
+	AiService        *ai.Service
+	CompletionsModel string
+	Memory           memory.Storage
+	AuthStorage      *db.Store
 }
 
-func NewTelegramService(logger *log.Logger, token string, store *db.Store) *TelegramService {
+type TelegramServiceInput struct {
+	Logger           *log.Logger
+	Token            string
+	Client           *http.Client
+	Store            *db.Store
+	AiService        *ai.Service
+	CompletionsModel string
+	Memory           memory.Storage
+	AuthStorage      *db.Store
+}
+
+func NewTelegramService(input TelegramServiceInput) *TelegramService {
 	return &TelegramService{
-		logger: logger,
-		token:  token,
-		store:  store,
-		client: &http.Client{
-			Timeout: time.Second * 30,
-		},
+		Logger:           input.Logger,
+		Token:            input.Token,
+		Store:            input.Store,
+		Client:           &http.Client{Timeout: time.Second * 30},
+		AiService:        input.AiService,
+		CompletionsModel: input.CompletionsModel,
+		Memory:           input.Memory,
+		AuthStorage:      input.AuthStorage,
 	}
 }
 
 func (s *TelegramService) Start(ctx context.Context) error {
-	if s.token == "" {
+	if s.Token == "" {
 		return fmt.Errorf("telegram token not set")
 	}
 
@@ -81,31 +93,31 @@ func (s *TelegramService) Start(ctx context.Context) error {
 			return nil
 		default:
 
-			url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30", s.token, lastUpdateID+1)
+			url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30", s.Token, lastUpdateID+1)
 
 			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 			if err != nil {
-				s.logger.Error("Failed to create request", "error", err)
+				s.Logger.Error("Failed to create request", "error", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
 
-			resp, err := s.client.Do(req)
+			resp, err := s.Client.Do(req)
 			if err != nil {
-				s.logger.Error("Failed to send request", "error", err)
+				s.Logger.Error("Failed to send request", "error", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
 
 			body, err := io.ReadAll(resp.Body)
 			if err != nil {
-				s.logger.Error("failed to read response body", "error", err)
+				s.Logger.Error("failed to read response body", "error", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
 			err = resp.Body.Close()
 			if err != nil {
-				s.logger.Error("failed to read response body", "error", err)
+				s.Logger.Error("failed to read response body", "error", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
@@ -118,13 +130,13 @@ func (s *TelegramService) Start(ctx context.Context) error {
 			}
 
 			if err := json.Unmarshal(body, &result); err != nil {
-				s.logger.Error("Failed to decode response", "error", err, "body", string(body))
+				s.Logger.Error("Failed to decode response", "error", err, "body", string(body))
 				time.Sleep(time.Second * 5)
 				continue
 			}
 
 			if !result.OK {
-				s.logger.Error("Telegram API returned error",
+				s.Logger.Error("Telegram API returned error",
 					"error_code", result.ErrorCode,
 					"description", result.Description,
 					"body", string(body),
@@ -135,15 +147,15 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 			chatID, err := s.GetChatID(ctx)
 			if err != nil {
-				s.logger.Error("Failed to get chat ID", "error", err)
+				s.Logger.Error("Failed to get chat ID", "error", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
-			s.logger.Info("Chat ID", "chat_id", chatID)
+			s.Logger.Info("Chat ID", "chat_id", chatID)
 
 			for _, update := range result.Result {
 				lastUpdateID = update.UpdateID
-				s.logger.Info("Received message",
+				s.Logger.Info("Received message",
 					"message_id", update.Message.MessageID,
 					"from", update.Message.From.Username,
 					"chat_id", update.Message.Chat.ID,
@@ -156,17 +168,17 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 						storedUUID, err := s.GetChatUUID(ctx)
 						if err != nil {
-							s.logger.Error("Failed to get stored chat UUID", "error", err)
+							s.Logger.Error("Failed to get stored chat UUID", "error", err)
 							continue
 						}
 
 						if uuid == storedUUID {
-							err = s.store.SetValue(ctx, TelegramChatIDKey, fmt.Sprintf("%d", update.Message.Chat.ID))
+							err = s.Store.SetValue(ctx, types.TelegramChatIDKey, fmt.Sprintf("%d", update.Message.Chat.ID))
 							if err != nil {
-								s.logger.Error("Failed to set chat ID", "error", err)
+								s.Logger.Error("Failed to set chat ID", "error", err)
 								continue
 							}
-							s.logger.Info("Chat ID set successfully", "chat_id", update.Message.Chat.ID)
+							s.Logger.Info("Chat ID set successfully", "chat_id", update.Message.Chat.ID)
 						}
 					}
 				}
@@ -181,7 +193,7 @@ func (s *TelegramService) Start(ctx context.Context) error {
 }
 
 func (s *TelegramService) GetChatID(ctx context.Context) (string, error) {
-	chatID, err := s.store.GetValue(ctx, TelegramChatIDKey)
+	chatID, err := s.Store.GetValue(ctx, types.TelegramChatIDKey)
 	if err != nil {
 		return "", err
 	}
@@ -189,13 +201,30 @@ func (s *TelegramService) GetChatID(ctx context.Context) (string, error) {
 }
 
 func (s *TelegramService) GetChatUUID(ctx context.Context) (string, error) {
-	chatUUID, err := s.store.GetValue(ctx, TelegramChatUUIDKey)
+	chatUUID, err := s.Store.GetValue(ctx, types.TelegramChatUUIDKey)
 	if err != nil {
 		return "", err
 	}
 	return chatUUID, nil
 }
 
-func GetChatURL(botName string, chatUUID string) string {
-	return fmt.Sprintf("https://t.me/%s?start=%s", botName, chatUUID)
+func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, message string) (agent.AgentResponse, error) {
+	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, nil, nil)
+
+	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.Store)
+	tools := []tools.Tool{
+		&tools.SearchTool{},
+		&tools.ImageTool{},
+		tools.NewMemorySearchTool(s.Logger, s.Memory),
+		tools.NewTelegramTool(s.Logger, s.Token, s.Store),
+		twitterReverseChronTimelineTool,
+	}
+
+	response, err := newAgent.Execute(ctx, messageHistory, tools)
+	if err != nil {
+		return agent.AgentResponse{}, err
+	}
+	s.Logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
+
+	return response, nil
 }
