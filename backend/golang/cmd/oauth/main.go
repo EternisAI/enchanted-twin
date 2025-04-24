@@ -10,8 +10,8 @@ import (
 
 	"github.com/charmbracelet/log"
 
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 
 	"github.com/pkg/errors"
 )
@@ -48,18 +48,18 @@ func main() {
 	logger.Info("SQLite database initialized")
 
 	if *providerFlag != "" {
-		if err := helpers.StartOAuthCallbackServer(logger, store); err != nil {
+		if err := auth.StartOAuthCallbackServer(logger, store); err != nil {
 			logger.Error("failed to start server", "error", err)
 			os.Exit(1)
 		}
 		for _, p := range strings.Split(*providerFlag, ",") {
 			// Run OAuth flow with selected provider
-			if err := helpers.OAuthFlow(ctx, logger, store, p); err != nil {
+			if err := auth.OAuthFlow(ctx, logger, store, p); err != nil {
 				logger.Error("oauth flow failed", "error", err)
 				os.Exit(1)
 			}
 		}
-		if err := helpers.ShutdownOAuthCallbackServer(ctx, logger); err != nil {
+		if err := auth.ShutdownOAuthCallbackServer(ctx, logger); err != nil {
 			logger.Error("failed to shutdown server", "error", err)
 			os.Exit(1)
 		}
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	if *refreshFlag {
-		status, err := helpers.RefreshExpiredTokens(ctx, logger, store)
+		status, err := auth.RefreshExpiredTokens(ctx, logger, store)
 		if err != nil {
 			logger.Error("failed to refresh tokens", "error", err)
 			os.Exit(1)

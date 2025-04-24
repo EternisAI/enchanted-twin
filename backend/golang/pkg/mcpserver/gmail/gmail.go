@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/charmbracelet/log"
@@ -26,7 +27,7 @@ func (c *GmailClient) ListTools(ctx context.Context, cursor *string) (*mcp_golan
 	}
 	desc := LIST_EMAILS_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.ToolRetType{
-		Name: LIST_EMAILS_TOOL_NAME,
+		Name:        LIST_EMAILS_TOOL_NAME,
 		Description: &desc,
 		InputSchema: inputSchema,
 	})
@@ -40,12 +41,10 @@ func (c *GmailClient) CallTool(ctx context.Context, name string, arguments any) 
 	// Convert generic arguments to the expected Go struct.
 	fmt.Println("Call tool GMAIL", name, arguments)
 
-
 	bytes, err := helpers.ConvertToBytes(arguments)
 	if err != nil {
 		return nil, err
 	}
-
 
 	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "google")
 
@@ -56,7 +55,7 @@ func (c *GmailClient) CallTool(ctx context.Context, name string, arguments any) 
 	logger := log.Default()
 	if oauthTokens.ExpiresAt.Before(time.Now()) {
 		fmt.Println("Refreshing token for gmail")
-		err = helpers.RefreshOAuthToken(ctx, logger, c.Store, "google")
+		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "google")
 		if err != nil {
 			return nil, err
 		}
@@ -69,32 +68,31 @@ func (c *GmailClient) CallTool(ctx context.Context, name string, arguments any) 
 	var content []*mcp_golang.Content
 
 	switch name {
-		case "list_emails":
-			var argumentsTyped ListEmailsArguments
-			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-				return nil, err
-			}
-			result, err := processListEmails(ctx, oauthTokens.AccessToken, argumentsTyped)
-			if err != nil {
-				return nil, err
-			}
-			content = result
-		case "send_email":
-			var argumentsTyped SendEmailArguments
-			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-				return nil, err
-			}
-			result, err := processSendEmail(ctx, oauthTokens.AccessToken, argumentsTyped)
-			if err != nil {
-				return nil, err
-			}
-			content = result
-		default:
-			return nil, fmt.Errorf("tool not found")
+	case "list_emails":
+		var argumentsTyped ListEmailsArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		result, err := processListEmails(ctx, oauthTokens.AccessToken, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case "send_email":
+		var argumentsTyped SendEmailArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		result, err := processSendEmail(ctx, oauthTokens.AccessToken, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	default:
+		return nil, fmt.Errorf("tool not found")
 	}
 
 	return &mcp_golang.ToolResponse{
 		Content: content,
 	}, nil
 }
-
