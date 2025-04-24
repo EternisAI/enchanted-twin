@@ -156,9 +156,7 @@ type KeyValue {
 
 enum MCPServerType {
   TWITTER,
-  GMAIL,
-  GOOGLE_CALENDAR,
-  GOOGLE_DRIVE,
+  GOOGLE,
   SLACK,
   OTHER
 }

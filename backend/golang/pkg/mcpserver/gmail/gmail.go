@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/charmbracelet/log"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 )
 
@@ -49,6 +51,19 @@ func (c *GmailClient) CallTool(ctx context.Context, name string, arguments any) 
 
 	if err != nil {
 		return nil, err
+	}
+
+	logger := log.Default()
+	if oauthTokens.ExpiresAt.Before(time.Now()) {
+		fmt.Println("Refreshing token for gmail")
+		err = helpers.RefreshOAuthToken(ctx, logger, c.Store, "google")
+		if err != nil {
+			return nil, err
+		}
+		oauthTokens, err = c.Store.GetOAuthTokens(ctx, "google")
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var content []*mcp_golang.Content

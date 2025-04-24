@@ -61,7 +61,7 @@ func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPSe
 						Store: s.store,
 					},
 				})
-			case model.MCPServerTypeGmail:
+			case model.MCPServerTypeGoogle:
 				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 					ID: mcpServer.ID,
 					Client: &gmail.GmailClient{
@@ -174,7 +174,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 							Store: s.store,
 						},
 					})
-				case model.MCPServerTypeGmail:
+				case model.MCPServerTypeGoogle:
 					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 						ID: server.ID,
 						Client: &gmail.GmailClient{
