@@ -1,14 +1,14 @@
 import { cn } from '@renderer/lib/utils'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, Settings } from 'lucide-react'
+import { Home, MessageCircle, Settings } from 'lucide-react'
 
 const LINKS = [
-  // {
-  //   label: 'Feed',
-  //   href: '/feed',
-  //   icon: HeartPulse
-  // },
+  {
+    label: 'Home',
+    href: '/',
+    icon: Home
+  },
   {
     label: 'Chats',
     href: '/chat',
