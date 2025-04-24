@@ -269,3 +269,33 @@ func (s *RootWorkflowTestSuite) Test_RootWorkflow_MessageQueue() {
 	// - Test message queue append/pop operations
 	// - Test deterministic replay safety
 }
+
+// Test_RootWorkflow_StopWorkflow tests the ability to stop the workflow with the special command
+func (s *RootWorkflowTestSuite) Test_RootWorkflow_StopWorkflow() {
+	// Setup the test environment
+	env := s.NewTestWorkflowEnvironment()
+
+	// Set a 2-second timeout for the test
+	env.SetTestTimeout(2 * time.Second)
+
+	// Register mock PlanAgentWorkflow
+	env.RegisterWorkflow(func(ctx workflow.Context, blueprint []byte, input []byte) error {
+		return nil
+	})
+
+	// Start the root workflow with nil state (will initialize)
+	env.ExecuteWorkflow(RootWorkflow, (*RootState)(nil))
+
+	// Send the stop workflow command immediately
+	env.SignalWorkflow(SignalCommand, Command{
+		Cmd:   CmdStopWorkflow,
+		Args:  map[string]any{},
+		CmdID: "stop_cmd",
+	})
+
+	// Workflow should have panicked, which Temporal test env converts to an error
+	// We expect an error containing our panic message
+	err := env.GetWorkflowError()
+	s.Error(err)
+	s.Contains(err.Error(), "Test-only workflow termination")
+}

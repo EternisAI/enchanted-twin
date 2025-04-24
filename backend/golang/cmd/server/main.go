@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,7 +14,8 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/root"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
@@ -73,9 +73,6 @@ func main() {
 		Level:           log.DebugLevel,
 		TimeFormat:      time.Kitchen,
 	})
-
-	recreateMemDb := flag.Bool("recreate-mem-db", false, "Recreate the postgres memory database")
-	flag.Parse()
 
 	envs, _ := config.LoadConfig(true)
 	logger.Debug("Config loaded", "envs", envs)
@@ -140,51 +137,62 @@ func main() {
 
 	logger.Info("SQLite database initialized")
 
-	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", slog.Any("error", err))
-		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
-	}
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	aiServiceEmbeddings := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
+	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
+		logger.Error("Failed waiting for PostgreSQL to be ready", slog.Any("error", err))
+		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
+	}
+
 	dbName := "enchanted_twin"
 	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
 		logger.Error("Failed to ensure database exists", slog.Any("error", err))
 		panic(errors.Wrap(err, "Unable to ensure database exists"))
 	}
-
 	logger.Info("PostgreSQL listening at", "connection", postgresService.GetConnectionString(dbName))
-	mem, err := embeddingsmemory.NewEmbeddingsMemory(logger, postgresService.GetConnectionString(dbName), aiServiceEmbeddings, *recreateMemDb, envs.EmbeddingsModel)
+	recreateMemDb := false
+	memory, err := graphmemory.NewGraphMemory(logger, postgresService.GetConnectionString(dbName), aiService, recreateMemDb, envs.CompletionsModel)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create memory"))
 	}
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, mem)
+	temporalClient, err := bootstrapTemporalServer(logger, envs)
 	if err != nil {
-		panic(errors.Wrap(err, "Unable to start temporal"))
+		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
+	// Initialize MCP Service
 	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
 	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, mem, store, envs.CompletionsModel, envs.TelegramToken, store, mcpService)
+	// Initialize and start the temporal worker
+	temporalWorker, err := bootstrapTemporalWorker(logger, temporalClient, envs, store, nc, ollamaClient, memory)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start temporal worker"))
+	}
+	defer temporalWorker.Stop()
 
-	// Initialize and start Telegram service
-	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
-	go func() {
-		chatID, err := telegramService.GetChatID(context.Background())
-		if err != nil {
-			logger.Error("Telegram service error", slog.Any("error", err))
-		}
-		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatID)
-		logger.Info("Telegram chat URL", "chatURL", chatURL)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel)
 
-		if err := telegramService.Start(context.Background()); err != nil {
-			logger.Error("Telegram service error", slog.Any("error", err))
-		}
-	}()
+	// Initialize and start Telegram service if token is provided
+	if envs.TelegramToken != "" {
+		telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
+		go func() {
+			chatID, err := telegramService.GetChatID(context.Background())
+			if err != nil {
+				logger.Error("Telegram service error", slog.Any("error", err))
+			}
+			chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatID)
+			logger.Info("Telegram chat URL", "chatURL", chatURL)
+
+			if err := telegramService.Start(context.Background()); err != nil {
+				logger.Error("Telegram service error", slog.Any("error", err))
+			}
+		}()
+	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
@@ -215,7 +223,7 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, memory memory.Storage) (client.Client, error) {
+func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
 	<-ready
@@ -227,6 +235,11 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 	}
 	logger.Info("Temporal client created")
 
+	return temporalClient, nil
+}
+
+// bootstrapTemporalWorker creates and starts a Temporal worker with registered workflows
+func bootstrapTemporalWorker(logger *log.Logger, temporalClient client.Client, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, memory memory.Storage) (worker.Worker, error) {
 	w := worker.New(temporalClient, "default", worker.Options{
 		MaxConcurrentActivityExecutionSize: 1,
 	})
@@ -244,13 +257,18 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 	authActivities := auth.NewOAuthActivities(store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
-	err = w.Start()
+	// Register the root workflow - using default queue for now
+	w.RegisterWorkflow(root.RootWorkflow)
+	logger.Info("Registered root workflow")
+
+	// Start the worker
+	err := w.Start()
 	if err != nil {
 		logger.Error("Error starting worker", slog.Any("error", err))
 		return nil, err
 	}
 
-	return temporalClient, nil
+	return w, nil
 }
 
 type graphqlServerInput struct {

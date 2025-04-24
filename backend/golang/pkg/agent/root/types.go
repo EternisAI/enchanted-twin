@@ -6,7 +6,7 @@ const (
 	RootWorkflowID = "enchanted_twin_root"
 
 	// WorkflowTaskQueue is the task queue for all agent workflows
-	WorkflowTaskQueue = "enchanted_twin_queue"
+	WorkflowTaskQueue = "default"
 
 	// Default heartbeat interval (5 minutes)
 	DefaultHeartbeat = 5 * 60 * 1000 // milliseconds
@@ -58,6 +58,9 @@ const (
 
 	// CmdDeregisterTool is the command name for deregistering a tool
 	CmdDeregisterTool = "deregister_tool"
+
+	// CmdStopWorkflow is a special command for testing only - not exposed as a tool
+	CmdStopWorkflow = "_stop_workflow"
 )
 
 // Command argument keys
