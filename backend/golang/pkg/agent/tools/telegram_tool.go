@@ -46,7 +46,12 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 		chatUUID, err := t.Store.GetValue(ctx, telegram.TelegramChatUUIDKey)
 		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatUUID)
 		if err != nil {
-			return ToolResult{}, fmt.Errorf("You need to start the conversation first. Please go to the following URL and start the conversation: %s", chatURL)
+			return ToolResult{}, fmt.Errorf("Error getting chat UUID: %w", err)
+		}
+		if chatID == "" {
+			return ToolResult{
+				Content: fmt.Sprintf("You need to start the conversation first. Please go to the following URL and start the conversation: %s", chatURL),
+			}, nil
 		}
 	}
 
