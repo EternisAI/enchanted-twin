@@ -6,8 +6,8 @@ import (
 	"time"
 
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/client"
@@ -167,7 +167,7 @@ type GmailIndexActivityInput struct {
 type GmailIndexActivityResponse struct{}
 
 func (w *DataProcessingWorkflows) GmailIndexActivity(ctx context.Context, input GmailIndexActivityInput) (GmailIndexActivityResponse, error) {
-	documents, err := x.ToDocuments(input.Records)
+	documents, err := gmail.ToDocuments(input.Records)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err
 	}
