@@ -5,11 +5,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestToDocuments(t *testing.T) {
 	// Create a temporary test file
+	slack := New("testdata/slack")
 	tempFile, err := os.CreateTemp("", "test-slack-*.jsonl")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -34,7 +37,11 @@ func TestToDocuments(t *testing.T) {
 	}
 
 	// Test the function
-	docs, err := ToDocuments(tempFile.Name())
+	records, err := helpers.ReadJSONL[types.Record](tempFile.Name())
+	if err != nil {
+		t.Fatalf("ReadJSONL failed: %v", err)
+	}
+	docs, err := slack.ToDocuments(records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
 	}

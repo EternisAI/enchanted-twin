@@ -34,7 +34,19 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
-	return helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	provider, err := helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	if err != nil {
+		return provider, err
+	}
+
+	if provider == "twitter" {
+		err = r.DataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(r.TemporalClient)
+	}
+	if provider == "google" {
+		err = r.DataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(r.TemporalClient)
+	}
+
+	return provider, err
 }
 
 // RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.
@@ -108,7 +120,7 @@ func (r *mutationResolver) StartIndexing(ctx context.Context) (bool, error) {
 		ID:        "index",
 		TaskQueue: "default",
 	}
-	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "IndexWorkflow", map[string]interface{}{})
+	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "InitializeWorkflow", map[string]interface{}{})
 	if err != nil {
 		return false, fmt.Errorf("error executing workflow: %v", err)
 	}
@@ -127,7 +139,7 @@ func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path 
 
 // DeleteDataSource is the resolver for the deleteDataSource field.
 func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (bool, error) {
-	result, err := r.Store.DeleteDataSourceError(ctx, id)
+	result, err := r.Store.DeleteDataSource(ctx, id)
 	if err != nil {
 		return false, err
 	}
@@ -361,7 +373,9 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)

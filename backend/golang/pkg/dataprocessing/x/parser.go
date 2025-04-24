@@ -52,7 +52,7 @@ func parseTweets(arrayContent string, userId string) ([]types.Record, error) {
 
 	var records []types.Record
 	for _, tweet := range tweets {
-		timestamp, err := parseTwitterTimestamp(tweet.Tweet.CreatedAt)
+		timestamp, err := ParseTwitterTimestamp(tweet.Tweet.CreatedAt)
 		if err != nil {
 			fmt.Printf("Warning: Failed to parse tweet timestamp: %v\n", err)
 			continue
@@ -169,7 +169,7 @@ func parseDirectMessages(arrayContent string, userId string) ([]types.Record, er
 				createdAt = createdAtMatch[2] // Handle text in single quotes
 			}
 
-			timestamp, err := parseTwitterTimestamp(createdAt)
+			timestamp, err := ParseTwitterTimestamp(createdAt)
 			if err != nil {
 				fmt.Printf("Warning: Failed to parse direct message timestamp: %v\n", err)
 				continue

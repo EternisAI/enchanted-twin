@@ -28,13 +28,14 @@ const providers: Provider[] = [
         G
       </div>
     ),
-    scope: 'openid email profile'
+    scope:
+      'openid email profile https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly'
   },
   {
     provider: 'twitter',
     label: 'X',
     icon: <Twitter />,
-    scope: 'tweet.read users.read offline.access'
+    scope: 'tweet.read users.read offline.access like.read'
   },
   {
     provider: 'slack',
