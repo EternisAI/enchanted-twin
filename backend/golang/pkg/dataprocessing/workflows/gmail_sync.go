@@ -96,8 +96,6 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input 
 		return workflowResponse, err
 	}
 
-	fmt.Println("response", response)
-
 	filteredRecords := []types.Record{}
 	for _, record := range response.Records {
 		if previousResult.LastRecordTimestamp.IsZero() {
