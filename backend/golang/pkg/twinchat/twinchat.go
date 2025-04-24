@@ -268,7 +268,7 @@ func (s *Service) GetChatSuggestions(ctx context.Context, chatID string) ([]*mod
 		conversationContext += fmt.Sprintf("%s: %s\n\n", message.Role, *message.Text)
 	}
 
-	isntruction := fmt.Sprintf("Generate 3 chat suggestions for each of the category based on the chat history. Category names: Ask (should be questions about the content, should predict what user might wanna do next). Search (should be a plausible search based on the content). Research (should be a plausible research question based on the content).\n\n\nConversation history:\n%s", conversationContext)
+	isntruction := fmt.Sprintf("Generate 3 chat suggestions that user might ask for each of the category based on the chat history. Category names: Ask (should be questions about the content, should predict what user might wanna do next). Search (should be a plausible search based on the content). Research (should be a plausible research question based on the content).\n\n\nConversation history:\n%s", conversationContext)
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(isntruction),
