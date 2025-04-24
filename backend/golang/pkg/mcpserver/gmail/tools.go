@@ -2,6 +2,7 @@ package gmail
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	mcp_golang "github.com/metoro-io/mcp-golang"
@@ -65,11 +66,24 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 	contents := make([]*mcp_golang.Content, 0)
 
 	for _, message := range response.Messages {
+		// Get the message details
+		msg, err := gmailService.Users.Messages.Get("me", message.Id).Do()
+		if err != nil {
+			fmt.Println("Error getting message details:", err)
+			continue
+		}
+		
+		// Convert message to JSON
+		msgJSON, err := json.Marshal(msg)
+		if err != nil {
+			fmt.Println("Error marshaling message to JSON:", err)
+			continue
+		}
 
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Message ID: %s, Snippet: %s", message.Id, message.Snippet),
+				Text: string(msgJSON),
 			},
 		})
 	}
