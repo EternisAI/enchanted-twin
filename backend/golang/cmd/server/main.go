@@ -254,7 +254,6 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		}
 	}
 
-	// TODO: remove this
 	googleToken, err := store.GetOAuthTokens(context.Background(), "google")
 	if err != nil {
 		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
