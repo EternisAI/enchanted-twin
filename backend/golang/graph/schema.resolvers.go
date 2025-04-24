@@ -60,7 +60,7 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			return "", err
 		}
 
-		err = r.DataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(r.TemporalClient)
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "x-sync-schedule", time.Minute*1, "XSyncWorkflow", []any{})
 		if err != nil {
 			r.Logger.Error("Error creating schedule", "error", err)
 			return "", err
@@ -84,7 +84,7 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			return "", err
 		}
 
-		err = r.DataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(r.TemporalClient)
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "gmail-sync-schedule", time.Minute*1, "GmailSyncWorkflow", []any{})
 		if err != nil {
 			r.Logger.Error("Error creating schedule", "error", err)
 			return "", err

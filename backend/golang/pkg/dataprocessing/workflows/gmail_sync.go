@@ -10,43 +10,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/pkg/errors"
-	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
-
-func (workflows *DataProcessingWorkflows) CreateIfNotExistsGmailSyncSchedule(temporalClient client.Client) error {
-	scheduleID := "gmail-sync-schedule"
-
-	// Check if schedule already exists
-	handle := temporalClient.ScheduleClient().GetHandle(context.Background(), scheduleID)
-	_, err := handle.Describe(context.Background())
-	if err == nil {
-		return nil
-	}
-
-	// Only create if schedule doesn't exist
-	scheduleSpec := client.ScheduleSpec{
-		Intervals: []client.ScheduleIntervalSpec{
-			{
-				Every: 15 * time.Minute,
-			},
-		},
-	}
-
-	scheduleAction := &client.ScheduleWorkflowAction{
-		Workflow:  "GmailSyncWorkflow",
-		TaskQueue: "default",
-		Args:      []interface{}{GmailSyncWorkflowInput{}},
-	}
-
-	_, err = temporalClient.ScheduleClient().Create(context.Background(), client.ScheduleOptions{
-		ID:     scheduleID,
-		Spec:   scheduleSpec,
-		Action: scheduleAction,
-	})
-	return err
-}
 
 type GmailSyncWorkflowInput struct{}
 
