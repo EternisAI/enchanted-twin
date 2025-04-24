@@ -1,6 +1,6 @@
 import { gql, useQuery, useMutation } from '@apollo/client'
 import { PlusIcon } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '../ui/card'
 import {
@@ -9,8 +9,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
-  SheetDescription,
-  SheetFooter
+  SheetDescription
 } from '../ui/sheet'
 import { Textarea } from '../ui/textarea'
 import { toast } from 'sonner'
@@ -32,8 +31,14 @@ const GET_PROFILE = gql`
 export function ContextCard() {
   const { data: userData, loading, refetch } = useQuery(GET_PROFILE)
   const [updateProfile, { loading: updateLoading }] = useMutation(UPDATE_PROFILE)
-  const [context, setContext] = useState(userData?.profile?.bio || '')
+  const [context, setContext] = useState('')
   const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    if (userData?.profile?.bio) {
+      setContext(userData.profile.bio)
+    }
+  }, [userData?.profile?.bio])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,6 +49,13 @@ export function ContextCard() {
       toast.success('Context updated successfully')
     } else {
       toast.error('Failed to update context')
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit(e as unknown as React.FormEvent)
     }
   }
 
@@ -68,16 +80,15 @@ export function ContextCard() {
             your twin understand you better.
           </SheetDescription>
         </SheetHeader>
-        <form className="space-y-4 px-4" onSubmit={handleSubmit}>
+        <form className="px-4 flex flex-col gap-4" onSubmit={handleSubmit}>
           <Textarea
             placeholder="Enter any information that might help your twin understand you better..."
             value={context}
             onChange={(e) => setContext(e.target.value)}
-            className="min-h-[200px]"
+            onKeyDown={handleKeyDown}
+            className="min-h-[200px] px-4"
           />
-          <SheetFooter>
-            <Button disabled={updateLoading}>Save Context</Button>
-          </SheetFooter>
+          <Button disabled={updateLoading}>Save Context</Button>
         </form>
       </SheetContent>
     </Sheet>

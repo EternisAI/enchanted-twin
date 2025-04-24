@@ -1,14 +1,14 @@
 import { cn } from '@renderer/lib/utils'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, Settings } from 'lucide-react'
+import { Home, MessageCircle, Settings } from 'lucide-react'
 
 const LINKS = [
-  // {
-  //   label: 'Feed',
-  //   href: '/feed',
-  //   icon: HeartPulse
-  // },
+  {
+    label: 'Home',
+    href: '/',
+    icon: Home
+  },
   {
     label: 'Chats',
     href: '/chat',
@@ -36,7 +36,8 @@ export function AppNav() {
         >
           <nav className="flex flex-col gap-2">
             {LINKS.map(({ label, href, icon: Icon }) => {
-              const isActive = location.pathname.startsWith(href)
+              const isActive =
+                href === '/' ? location.pathname === '/' : location.pathname.startsWith(href)
               return (
                 <Link
                   key={href}
