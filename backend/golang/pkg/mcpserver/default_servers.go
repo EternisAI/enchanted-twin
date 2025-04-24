@@ -6,8 +6,8 @@ import "github.com/EternisAI/enchanted-twin/graph/model"
 func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 	enabled := false
 	servers := map[model.MCPServerType]*model.MCPServer{
-		model.MCPServerTypeGmail: {
-			Name:    "GMail",
+		model.MCPServerTypeGoogle: {
+			Name:    "Google",
 			Command: "npx",
 			Args:    []string{"@shinzolabs/gmail-mcp"},
 			Envs:    []*model.KeyValue{
@@ -25,28 +25,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 				},
 			},
 			Enabled: enabled,
-			Type: model.MCPServerTypeGmail,
-		},
-		model.MCPServerTypeGoogleDrive: {
-			Name:    "Google Drive",
-			Command: "npx",
-			Args:    []string{"-y","@isaacphi/mcp-gdrive"},
-			Envs:    []*model.KeyValue{
-				{
-					Key:   "CLIENT_ID",
-					Value: "1234567890",
-				},
-				{
-					Key:   "CLIENT_SECRET",
-					Value: "1234567890",
-				},
-				{
-					Key:   "GDRIVE_CREDS_DIR",
-					Value: "/tmp/gdrive_creds",
-				},
-			},
-			Enabled: enabled,
-			Type: model.MCPServerTypeGoogleDrive,
+			Type: model.MCPServerTypeGoogle,
 		},
 		model.MCPServerTypeSLACk: {
 			Name:    "Slack",

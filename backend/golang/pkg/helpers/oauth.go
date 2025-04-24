@@ -13,9 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/log"
-
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
+	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/workflow"
 )
 
 // generatePKCEPair generates PKCE code verifier and challenge
@@ -247,6 +248,50 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, con
 	return &tokenResp, nil
 }
 
+// TokenRefreshWorkflow is a workflow that refreshes an OAuth token at the scheduled time
+func TokenRefreshWorkflow(ctx workflow.Context, provider string, refreshAfter time.Duration) error {
+	logger := workflow.GetLogger(ctx)
+	logger.Info("Started token refresh workflow", "provider", provider, "refreshAfter", refreshAfter)
+
+
+	// Define activity options
+	activityOptions := workflow.ActivityOptions{
+		StartToCloseTimeout: 2 * time.Minute,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    time.Minute,
+			MaximumAttempts:    5,
+		},
+	}
+	
+	activityCtx := workflow.WithActivityOptions(ctx, activityOptions)
+	
+	// Execute token refresh activity
+	if err := workflow.ExecuteActivity(activityCtx, RefreshTokenActivity, provider).Get(activityCtx, nil); err != nil {
+		logger.Error("Failed to refresh token", "provider", provider, "error", err)
+		return err
+	}
+
+	logger.Info("Successfully refreshed token", "provider", provider)
+	return nil
+}
+
+// RefreshTokenActivity is the activity that calls the token refresh function
+func RefreshTokenActivity(ctx context.Context, provider string) error {
+	// Get dependencies from context
+	logger := log.Default()
+	
+	// Create store with appropriate parameters based on the db.NewStore implementation
+	store, err := db.NewStore(ctx, "")
+	if err != nil {
+		return fmt.Errorf("failed to create store: %w", err)
+	}
+
+	// Call the actual refresh function
+	return RefreshOAuthToken(ctx, logger, store, provider)
+}
+
 // CompleteOAuthFlow handles the authorization code exchange flow
 func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, state string, authCode string) (string, error) {
 	logger.Debug("starting OAuth completion", "state", state)
@@ -298,6 +343,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 		"state", state,
 		"expires_at", tokenResp.ExpiresAt,
 		"scope", scope)
+
 
 	return provider, nil
 }

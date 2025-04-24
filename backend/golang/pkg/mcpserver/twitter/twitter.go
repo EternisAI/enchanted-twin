@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/charmbracelet/log"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 )
 
@@ -76,6 +78,13 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 	if err != nil {
 		return nil, err
 	}
+
+	logger := log.Default()
+	if oauthTokens.ExpiresAt.Before(time.Now()) {
+		logger.Debug("Refreshing token for twitter")
+		helpers.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
+	}
+
 
 
 	var content []*mcp_golang.Content

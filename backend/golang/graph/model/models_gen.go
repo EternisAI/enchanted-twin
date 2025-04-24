@@ -192,26 +192,22 @@ func (e IndexingState) MarshalGQL(w io.Writer) {
 type MCPServerType string
 
 const (
-	MCPServerTypeTwitter        MCPServerType = "TWITTER"
-	MCPServerTypeGmail          MCPServerType = "GMAIL"
-	MCPServerTypeGoogleCalendar MCPServerType = "GOOGLE_CALENDAR"
-	MCPServerTypeGoogleDrive    MCPServerType = "GOOGLE_DRIVE"
-	MCPServerTypeSLACk          MCPServerType = "SLACK"
-	MCPServerTypeOther          MCPServerType = "OTHER"
+	MCPServerTypeTwitter MCPServerType = "TWITTER"
+	MCPServerTypeGoogle  MCPServerType = "GOOGLE"
+	MCPServerTypeSLACk   MCPServerType = "SLACK"
+	MCPServerTypeOther   MCPServerType = "OTHER"
 )
 
 var AllMCPServerType = []MCPServerType{
 	MCPServerTypeTwitter,
-	MCPServerTypeGmail,
-	MCPServerTypeGoogleCalendar,
-	MCPServerTypeGoogleDrive,
+	MCPServerTypeGoogle,
 	MCPServerTypeSLACk,
 	MCPServerTypeOther,
 }
 
 func (e MCPServerType) IsValid() bool {
 	switch e {
-	case MCPServerTypeTwitter, MCPServerTypeGmail, MCPServerTypeGoogleCalendar, MCPServerTypeGoogleDrive, MCPServerTypeSLACk, MCPServerTypeOther:
+	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther:
 		return true
 	}
 	return false
