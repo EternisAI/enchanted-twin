@@ -168,7 +168,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 						storedUUID, err := s.GetChatUUID(ctx)
 						if err != nil {
-							s.Logger.Error("Failed to get stored chat UUID", "error", err)
 							continue
 						}
 
