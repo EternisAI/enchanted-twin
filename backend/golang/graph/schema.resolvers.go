@@ -221,6 +221,11 @@ func (r *queryResolver) GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatu
 	return results, nil
 }
 
+// GetChatSuggestions is the resolver for the getChatSuggestions field.
+func (r *queryResolver) GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error) {
+	return r.TwinChatService.GetChatSuggestions(ctx, chatID)
+}
+
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)

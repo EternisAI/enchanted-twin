@@ -38,6 +38,7 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
@@ -161,20 +162,36 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store)
+
+	// Initialize and start Telegram service
+	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
+	go func() {
+		chatID, err := telegramService.GetChatID(context.Background())
+		if err != nil {
+			logger.Error("Telegram service error", slog.Any("error", err))
+		}
+		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatID)
+		logger.Info("Telegram chat URL", "chatURL", chatURL)
+
+		if err := telegramService.Start(context.Background()); err != nil {
+			logger.Error("Telegram service error", slog.Any("error", err))
+		}
+	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
 		temporalClient:  temporalClient,
 		port:            envs.GraphqlPort,
-		twinChatService: twinChatService,
+		twinChatService: *twinChatService,
 		natsClient:      nc,
 		store:           store,
+		aiService:       aiService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
-		logger.Info("Starting GraphQL HTTP server", "port", envs.GraphqlPort)
+		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTP server error", slog.Any("error", err))
@@ -259,9 +276,10 @@ type graphqlServerInput struct {
 	logger          *log.Logger
 	temporalClient  client.Client
 	port            string
-	twinChatService *twinchat.Service
+	twinChatService twinchat.Service
 	natsClient      *nats.Conn
 	store           *db.Store
+	aiService       *ai.Service
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -276,9 +294,10 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	srv := handler.New(gqlSchema(&graph.Resolver{
 		Logger:          input.logger,
 		TemporalClient:  input.temporalClient,
-		TwinChatService: *input.twinChatService,
+		TwinChatService: input.twinChatService,
 		Nc:              input.natsClient,
 		Store:           input.store,
+		AiService:       input.aiService,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
@@ -302,7 +321,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 
 		if resp != nil && resp.Errors != nil && len(resp.Errors) > 0 {
 			oc := graphql.GetOperationContext(ctx)
-			input.logger.Error("gql error", "operation_name", oc.OperationName, "raw_query", oc.RawQuery, "errors", resp.Errors)
+			input.logger.Error("gql error", "operation_name", oc.OperationName, "raw_query", oc.RawQuery, "variables", oc.Variables, "errors", resp.Errors)
 		}
 
 		return resp

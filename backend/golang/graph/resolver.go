@@ -3,6 +3,7 @@ package graph
 import (
 	"github.com/charmbracelet/log"
 
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 
@@ -20,4 +21,5 @@ type Resolver struct {
 	TwinChatService twinchat.Service
 	Nc              *nats.Conn
 	Store           *db.Store
+	AiService       *ai.Service
 }

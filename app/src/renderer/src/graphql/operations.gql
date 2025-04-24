@@ -56,6 +56,13 @@ query GetOAuthStatus {
   }
 }
 
+query GetChatSuggestions($chatId: ID!) {
+  getChatSuggestions(chatId: $chatId) {
+    category
+    suggestions
+  }
+}
+
 mutation CreateChat($name: String!) {
   createChat(name: $name) {
     id

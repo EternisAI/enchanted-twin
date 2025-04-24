@@ -31,6 +31,16 @@ You must have Ollama installed \*_and running_ on your system and running.
 1. Install packages `make install`
 1. Run the server `make run`
 
+### GraphQL
+
+On the backend side GraphQL resolvers (`schema.resolvers.go`) are code-generated from the schema `schema.graphqls`. Steps to update the schema
+
+1. Propose schema changes in `schema.graphqls`.
+1. Generate resolvers using `make gqlgen` in `backend/golang` directory.
+1. This will generate additional code in `schema.resolvers.go`.
+
+Frontend uses `schema.graphqls` as the source of truth to code generate queries/mutations/subscriptions using `pnpm codegen`.
+
 ## Release (build installer)
 
 Navigate to the root.
@@ -43,6 +53,7 @@ COMPLETIONS_MODEL='mistral-small3.1' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1/embeddings' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
 IS_PROD_BUILD='true' \
+OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
 make build-mac-silicon
 ```
 
@@ -54,5 +65,6 @@ COMPLETIONS_MODEL='mistral-small3.1' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1/embeddings' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
 IS_PROD_BUILD='true' \
+OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
 make build-all
 ```

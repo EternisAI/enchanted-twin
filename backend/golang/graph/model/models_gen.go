@@ -15,6 +15,11 @@ type Chat struct {
 	CreatedAt string     `json:"createdAt"`
 }
 
+type ChatSuggestionsCategory struct {
+	Category    string   `json:"category"`
+	Suggestions []string `json:"suggestions"`
+}
+
 type DataSource struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`
@@ -78,10 +83,12 @@ type ToolCallResult struct {
 
 type UpdateProfileInput struct {
 	Name *string `json:"name,omitempty"`
+	Bio  *string `json:"bio,omitempty"`
 }
 
 type UserProfile struct {
 	Name                 *string         `json:"name,omitempty"`
+	Bio                  *string         `json:"bio,omitempty"`
 	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
 	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
 }

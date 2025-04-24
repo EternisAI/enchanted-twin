@@ -16,10 +16,9 @@ type Config struct {
 	CompletionsModel string
 	EmbeddingsModel  string
 	DBPath           string
-
-	OutputPath string
-
-	OllamaBaseURL string
+	OutputPath       string
+	OllamaBaseURL    string
+	TelegramToken    string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -53,6 +52,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		DBPath:           getEnv("DB_PATH", "./store.db", printEnv),
 		OutputPath:       getEnv("OUTPUT_PATH", "./output", printEnv),
 		OllamaBaseURL:    getEnv("OLLAMA_BASE_URL", "", printEnv),
+		TelegramToken:    getEnv("TELEGRAM_TOKEN", "", printEnv),
 	}
 	return conf, nil
 }

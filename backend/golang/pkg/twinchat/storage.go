@@ -14,4 +14,5 @@ type Storage interface {
 	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
 	CreateChat(ctx context.Context, name string) (model.Chat, error)
 	DeleteChat(ctx context.Context, chatID string) error
+	// SendAssistantMessage(ctx context.Context, chatID string, message string) (*model.Message, error)
 }
