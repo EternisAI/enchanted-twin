@@ -10,43 +10,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/pkg/errors"
-	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
-
-func (workflows *DataProcessingWorkflows) CreateIfNotExistsXSyncSchedule(temporalClient client.Client) error {
-	scheduleID := "x-sync-schedule"
-
-	// Check if schedule already exists
-	handle := temporalClient.ScheduleClient().GetHandle(context.Background(), scheduleID)
-	_, err := handle.Describe(context.Background())
-	if err == nil {
-		return nil
-	}
-
-	// Only create if schedule doesn't exist
-	scheduleSpec := client.ScheduleSpec{
-		Intervals: []client.ScheduleIntervalSpec{
-			{
-				Every: 60 * time.Minute,
-			},
-		},
-	}
-
-	scheduleAction := &client.ScheduleWorkflowAction{
-		Workflow:  "XSyncWorkflow",
-		TaskQueue: "default",
-		Args:      []interface{}{XSyncWorkflowInput{}},
-	}
-
-	_, err = temporalClient.ScheduleClient().Create(context.Background(), client.ScheduleOptions{
-		ID:     scheduleID,
-		Spec:   scheduleSpec,
-		Action: scheduleAction,
-	})
-	return err
-}
 
 type XSyncWorkflowInput struct{}
 
