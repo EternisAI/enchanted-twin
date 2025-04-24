@@ -4,6 +4,7 @@ go 1.24.2
 
 require (
 	github.com/99designs/gqlgen v0.17.70
+	github.com/g8rswimmer/go-twitter/v2 v2.1.5
 	github.com/go-chi/chi v1.5.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
@@ -176,7 +177,7 @@ require (
 	golang.org/x/crypto v0.37.0 // indirect
 	golang.org/x/exp v0.0.0-20250408133849-7e4ce0ab07d0 // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/oauth2 v0.29.0 // indirect
+	golang.org/x/oauth2 v0.29.0
 	golang.org/x/sync v0.13.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.24.0 // indirect
