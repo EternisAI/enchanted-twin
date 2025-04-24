@@ -56,6 +56,13 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) (agent.AgentResponse, error) {
 	newAgent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
 	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
+
+
+	mcpTools, err := s.mcpService.GetInternalTools(ctx)
+	if err != nil {
+		return agent.AgentResponse{}, err
+	}
+
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
@@ -63,6 +70,8 @@ func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompl
 		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
 		twitterReverseChronTimelineTool,
 	}
+
+	tools = append(tools, mcpTools...)
 
 	response, err := newAgent.Execute(ctx, messageHistory, tools)
 	if err != nil {
