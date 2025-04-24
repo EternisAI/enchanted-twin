@@ -9,6 +9,19 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 import OAuthPanel from '../oauth/OAuthPanel'
+import { Button } from '../ui/button'
+import { Textarea } from '../ui/textarea'
+import { useState } from 'react'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+  SheetFooter,
+  SheetTrigger
+} from '../ui/sheet'
+import { Card, CardDescription, CardHeader, CardTitle } from '../ui/card'
 
 export default function ChatHome() {
   const navigate = useNavigate()
@@ -75,11 +88,62 @@ export default function ChatHome() {
               <span className="text-muted-foreground text-sm">Go Walk</span>
             </div>
           </div>
+          <ContextCard />
         </div>
         <div className="px-6 py-6 border-t border-border h-[130px]">
           <MessageInput isWaitingTwinResponse={false} onSend={handleStartChat} />
         </div>
       </div>
     </div>
+  )
+}
+
+function ContextCard() {
+  const [context, setContext] = useState('')
+
+  const handleSubmit = async () => {
+    // Mock mutation for now
+    console.log('Submitting context:', context)
+    setContext('')
+  }
+
+  return (
+    <>
+      <Sheet>
+        <SheetTrigger asChild>
+          <Card className="w-full">
+            <CardHeader>
+              <CardTitle>Add Context</CardTitle>
+              <CardDescription>
+                Share information about yourself, your preferences, or any other context that might
+                help your twin understand you better.
+              </CardDescription>
+            </CardHeader>
+          </Card>
+        </SheetTrigger>
+        <SheetContent>
+          <SheetHeader>
+            <SheetTitle>Add Context</SheetTitle>
+            <SheetDescription>
+              Share information about yourself, your preferences, or any other context that might
+              help your twin understand you better.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="space-y-4 px-4">
+            <Textarea
+              placeholder="Enter any information that might help your twin understand you better..."
+              value={context}
+              onChange={(e) => setContext(e.target.value)}
+              className="min-h-[200px]"
+            />
+          </div>
+          <SheetFooter>
+            <Button onClick={handleSubmit} disabled={!context.trim()}>
+              Save Context
+            </Button>
+          </SheetFooter>
+        </SheetContent>
+      </Sheet>
+    </>
   )
 }
