@@ -208,11 +208,13 @@ export type ToolCallResult = {
 };
 
 export type UpdateProfileInput = {
+  bio?: InputMaybe<Scalars['String']['input']>;
   name?: InputMaybe<Scalars['String']['input']>;
 };
 
 export type UserProfile = {
   __typename?: 'UserProfile';
+  bio?: Maybe<Scalars['String']['output']>;
   connectedDataSources: Array<DataSource>;
   indexingStatus?: Maybe<IndexingStatus>;
   name?: Maybe<Scalars['String']['output']>;
