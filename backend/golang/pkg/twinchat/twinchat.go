@@ -187,6 +187,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	if len(response.ToolCalls) > 0 {
 		toolCalls := make([]model.ToolCall, 0)
 		for _, toolCall := range response.ToolCalls {
+			s.logger.Info("Tool call", "name", toolCall.Function.Name)
 
 			toolCall := model.ToolCall{
 				ID:          toolCall.ID,
