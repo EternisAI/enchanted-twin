@@ -4,13 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html"
 	"io"
 	"mime"
 	"mime/multipart"
 	"mime/quotedprintable"
+	"net/http"
 	"net/mail"
 	"os"
 	"path/filepath"
@@ -25,8 +28,8 @@ import (
 	loghtml "golang.org/x/net/html"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/charmbracelet/log"
 	"github.com/sirupsen/logrus"
 )
 
@@ -567,12 +570,7 @@ func (g *Gmail) ProcessDirectory(dirPath string, userName string) ([]types.Recor
 	return allRecords, nil
 }
 
-func ToDocuments(path string) ([]memory.TextDocument, error) {
-	records, err := helpers.ReadJSONL[types.Record](path)
-	if err != nil {
-		return nil, err
-	}
-
+func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		// Helper function to safely get string value
@@ -602,4 +600,161 @@ func ToDocuments(path string) ([]memory.TextDocument, error) {
 		})
 	}
 	return documents, nil
+}
+
+func (g *Gmail) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"GET",
+		"https://gmail.googleapis.com/gmail/v1/users/me/messages",
+		nil,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	q := req.URL.Query()
+	q.Set("maxResults", "50")
+	q.Set("q", "in:inbox")
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch emails: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to fetch emails. Status: %d, Response: %s", resp.StatusCode, string(body))
+	}
+
+	var messageList struct {
+		Messages []struct {
+			ID string `json:"id"`
+		} `json:"messages"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&messageList); err != nil {
+		return nil, fmt.Errorf("failed to decode message list: %w", err)
+	}
+
+	var records []types.Record
+	for _, msg := range messageList.Messages {
+		msgReq, err := http.NewRequestWithContext(
+			ctx,
+			"GET",
+			fmt.Sprintf("https://gmail.googleapis.com/gmail/v1/users/me/messages/%s", msg.ID),
+			nil,
+		)
+		if err != nil {
+			log.Printf("Failed to create message request: %v", err)
+			continue
+		}
+
+		msgReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+		msgResp, err := client.Do(msgReq)
+		if err != nil {
+			log.Printf("Failed to fetch message: %v", err)
+			continue
+		}
+
+		if msgResp.StatusCode != http.StatusOK {
+			msgResp.Body.Close()
+			log.Printf("Failed to fetch message. Status: %d", msgResp.StatusCode)
+			continue
+		}
+
+		var message struct {
+			Payload struct {
+				Headers []struct {
+					Name  string `json:"name"`
+					Value string `json:"value"`
+				} `json:"headers"`
+				Body struct {
+					Data string `json:"data"`
+				} `json:"body"`
+				Parts []struct {
+					Body struct {
+						Data string `json:"data"`
+					} `json:"body"`
+					MimeType string `json:"mimeType"`
+				} `json:"parts"`
+			} `json:"payload"`
+		}
+
+		if err := json.NewDecoder(msgResp.Body).Decode(&message); err != nil {
+			msgResp.Body.Close()
+			log.Printf("Failed to decode message: %v", err)
+			continue
+		}
+		msgResp.Body.Close()
+
+		// Extract headers
+		headers := make(map[string]string)
+		for _, h := range message.Payload.Headers {
+			headers[h.Name] = h.Value
+		}
+
+		// Extract content
+		var content string
+		if len(message.Payload.Parts) > 0 {
+			for _, part := range message.Payload.Parts {
+				if part.MimeType == "text/plain" {
+					decoded, err := decodeBase64URL(part.Body.Data)
+					if err == nil {
+						content = decoded
+						break
+					}
+				}
+			}
+		} else if message.Payload.Body.Data != "" {
+			decoded, err := decodeBase64URL(message.Payload.Body.Data)
+			if err == nil {
+				content = decoded
+			}
+		}
+
+		// Parse date
+		date, err := mail.ParseDate(headers["Date"])
+		if err != nil {
+			date = time.Now()
+		}
+
+		records = append(records, types.Record{
+			Data: map[string]interface{}{
+				"from":      headers["From"],
+				"to":        headers["To"],
+				"subject":   headers["Subject"],
+				"content":   content,
+				"myMessage": false,
+			},
+			Timestamp: date,
+			Source:    g.Name(),
+		})
+	}
+
+	return records, nil
+}
+
+// decodeBase64URL decodes base64url encoded strings
+func decodeBase64URL(s string) (string, error) {
+	// Add padding if needed
+	if len(s)%4 != 0 {
+		s += strings.Repeat("=", 4-len(s)%4)
+	}
+	// Replace URL-safe characters
+	s = strings.ReplaceAll(s, "-", "+")
+	s = strings.ReplaceAll(s, "_", "/")
+
+	decoded, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
 }

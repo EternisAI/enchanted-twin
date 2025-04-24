@@ -67,3 +67,11 @@ func (s *Store) DeleteDataSourceError(ctx context.Context, id string) (*DataSour
 	}
 	return &DataSource{ID: id}, nil
 }
+
+func (s *Store) DeleteDataSource(ctx context.Context, id string) (*DataSource, error) {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM data_sources WHERE id = ?`, id)
+	if err != nil {
+		return nil, err
+	}
+	return &DataSource{ID: id}, nil
+}

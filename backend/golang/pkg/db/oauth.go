@@ -164,7 +164,7 @@ var oauthConfig = map[string]OAuthConfig{
 		AuthEndpoint:  "https://accounts.google.com/o/oauth2/v2/auth",
 		TokenEndpoint: "https://oauth2.googleapis.com/token",
 		UserEndpoint:  "https://www.googleapis.com/oauth2/v3/userinfo",
-		DefaultScope:  "openid profile email",
+		DefaultScope:  "openid profile email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/gmail.readonly	",
 	},
 	"linkedin": {
 		ClientID:      "779sgzrvca0z5a",
@@ -223,6 +223,18 @@ func (o OAuthTokens) String() string {
 		accessTokenValue,
 		o.ExpiresAt.Format(time.RFC3339),
 		refreshTokenValue)
+}
+
+// GetAllOAuthTokens retrieves all OAuth tokens from the database
+func (s *Store) GetAllOAuthTokens(ctx context.Context) ([]OAuthTokens, error) {
+	var tokens []OAuthTokens
+	err := s.db.SelectContext(ctx, &tokens, `
+		SELECT * FROM oauth_tokens
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all OAuth tokens: %w", err)
+	}
+	return tokens, nil
 }
 
 // GetOAuthTokens retrieves tokens for a specific provider
@@ -482,7 +494,6 @@ func (s *Store) GetProvidersForRefresh(ctx context.Context) ([]OAuthRefresh, err
         SELECT provider, refresh_token FROM oauth_tokens
         WHERE refresh_token != '' AND expires_at < ?
     `, expiryTime)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve providers: %w", err)
 	}
