@@ -95,11 +95,39 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 
 func processSendEmail(ctx context.Context, accessToken string, arguments SendEmailArguments) ([]*mcp_golang.Content, error) {
 
+
+	token := &oauth2.Token{
+		AccessToken: accessToken,
+	}
+
+	config := oauth2.Config{}
+	client := config.Client(ctx, token)
+
+	gmailService, err := gmail.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		fmt.Println("Error initializing Gmail service:", err)
+		return nil, err
+	}
+	
+
+	message := &gmail.Message{
+		Raw: arguments.Body,
+	}
+
+	message.Header.Add("To", arguments.To)
+	message.Header.Add("Subject", arguments.Subject)
+
+	_, err = gmailService.Users.Messages.Send("me", message).Do()
+	if err != nil {
+		fmt.Println("Error sending email:", err)
+		return nil, err
+	}
+
 	return []*mcp_golang.Content{
 		{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: "Sent email to " + arguments.To,
+				Text: "Successfully sent email to " + arguments.To,
 			},
 		},
 	}, nil

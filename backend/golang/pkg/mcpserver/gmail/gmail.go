@@ -64,7 +64,16 @@ func (c *GmailClient) CallTool(ctx context.Context, name string, arguments any) 
 				return nil, err
 			}
 			content = result
-			break
+		case "send_email":
+			var argumentsTyped SendEmailArguments
+			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+				return nil, err
+			}
+			result, err := processSendEmail(ctx, oauthTokens.AccessToken, argumentsTyped)
+			if err != nil {
+				return nil, err
+			}
+			content = result
 		default:
 			return nil, fmt.Errorf("tool not found")
 	}

@@ -91,7 +91,6 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 				return nil, err
 			}
 			content = result
-			break
 		case POST_TWEET_TOOL_NAME:
 			var argumentsTyped PostTweetArguments
 			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
@@ -102,7 +101,6 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 				return nil, err
 			}
 			content = result
-			break
 		case SEARCH_TWEETS_TOOL_NAME:
 			var argumentsTyped SearchTweetsArguments
 			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
@@ -113,7 +111,6 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 				return nil, err
 			}
 			content = result
-			break
 		default:
 			return nil, fmt.Errorf("tool not found")
 	}
