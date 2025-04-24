@@ -129,12 +129,6 @@ func main() {
 		}
 	}()
 
-	// TODO: remove this
-	// err = store.ClearOAuthTokens(context.Background(), "google")
-	// if err != nil {
-	// 	logger.Error("Error clearing OAuth tokens", slog.Any("error", err))
-	// }
-
 	logger.Info("SQLite database initialized")
 
 	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
@@ -272,13 +266,14 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 }
 
 type graphqlServerInput struct {
-	logger          *log.Logger
-	temporalClient  client.Client
-	port            string
-	twinChatService twinchat.Service
-	natsClient      *nats.Conn
-	store           *db.Store
-	aiService       *ai.Service
+	logger                 *log.Logger
+	temporalClient         client.Client
+	port                   string
+	twinChatService        twinchat.Service
+	natsClient             *nats.Conn
+	store                  *db.Store
+	aiService              *ai.Service
+	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -291,12 +286,13 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	}).Handler)
 
 	srv := handler.New(gqlSchema(&graph.Resolver{
-		Logger:          input.logger,
-		TemporalClient:  input.temporalClient,
-		TwinChatService: input.twinChatService,
-		Nc:              input.natsClient,
-		Store:           input.store,
-		AiService:       input.aiService,
+		Logger:                 input.logger,
+		TemporalClient:         input.temporalClient,
+		TwinChatService:        input.twinChatService,
+		Nc:                     input.natsClient,
+		Store:                  input.store,
+		AiService:              input.aiService,
+		DataProcessingWorkflow: input.dataProcessingWorkflow,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

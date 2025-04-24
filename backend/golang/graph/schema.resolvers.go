@@ -34,7 +34,19 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
-	return helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	provider, err := helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	if err != nil {
+		return provider, err
+	}
+
+	if provider == "twitter" {
+		err = r.DataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(r.TemporalClient)
+	}
+	if provider == "google" {
+		err = r.DataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(r.TemporalClient)
+	}
+
+	return provider, err
 }
 
 // RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.

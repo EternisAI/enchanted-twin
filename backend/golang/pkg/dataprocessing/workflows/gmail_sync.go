@@ -29,7 +29,7 @@ func (workflows *DataProcessingWorkflows) CreateIfNotExistsGmailSyncSchedule(tem
 	scheduleSpec := client.ScheduleSpec{
 		Intervals: []client.ScheduleIntervalSpec{
 			{
-				Every: 1 * time.Minute,
+				Every: 15 * time.Minute,
 			},
 		},
 	}
