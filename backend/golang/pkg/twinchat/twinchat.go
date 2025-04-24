@@ -33,10 +33,9 @@ type Service struct {
 	authStorage      *db.Store
 	completionsModel string
 	telegramToken    string
-	store            *db.Store
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -45,7 +44,6 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		memory:           memory,
 		completionsModel: completionsModel,
 		telegramToken:    telegramToken,
-		store:            store,
 		authStorage:      authStorage,
 	}
 }
@@ -57,7 +55,7 @@ func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompl
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
-		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
+		tools.NewTelegramTool(s.logger, s.telegramToken, s.authStorage),
 		twitterReverseChronTimelineTool,
 	}
 
