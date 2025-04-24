@@ -16,6 +16,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -231,6 +232,9 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		Memory:       memory,
 	}
 	indexingWorkflow.RegisterWorkflowsAndActivities(&w)
+
+	authActivities := auth.NewOAuthActivities(store)
+	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	err = w.Start()
 	if err != nil {

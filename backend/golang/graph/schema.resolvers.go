@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
@@ -25,7 +26,7 @@ func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.
 
 // StartOAuthFlow is the resolver for the startOAuthFlow field.
 func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, scope string) (*model.OAuthFlow, error) {
-	auth, redir, err := helpers.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
+	auth, redir, err := auth.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
 	return &model.OAuthFlow{
 		AuthURL:     auth,
 		RedirectURI: redir,
@@ -34,7 +35,7 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
-	result, err := helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	result, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
 
 	if err != nil {
 		return "", err
@@ -50,7 +51,11 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			Type:    model.MCPServerTypeTwitter,
 		})
 		if err != nil {
-			return "", fmt.Errorf("Oauth successful but failed to create Twitter server: %w", err)
+			return "", fmt.Errorf("oauth successful but failed to create Twitter server: %w", err)
+		}
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "refresh-twitter-token", time.Minute*30, auth.TokenRefreshWorkflow, []any{auth.TokenRefreshWorkflowInput{Provider: "twitter"}})
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
 		}
 
 	case "google":
@@ -62,7 +67,11 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			Type:    model.MCPServerTypeGoogle,
 		})
 		if err != nil {
-			return "", fmt.Errorf("Oauth successful but failed to create Gmail server: %w", err)
+			return "", fmt.Errorf("oauth successful but failed to create Gmail server: %w", err)
+		}
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "refresh-gmail-token", time.Minute*30, auth.TokenRefreshWorkflow, []any{auth.TokenRefreshWorkflowInput{Provider: "google"}})
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
 		}
 	default:
 		// Nothing to do
@@ -73,7 +82,7 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 
 // RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.
 func (r *mutationResolver) RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error) {
-	dbResults, err := helpers.RefreshExpiredTokens(ctx, r.Logger, r.Store)
+	dbResults, err := auth.RefreshExpiredTokens(ctx, r.Logger, r.Store)
 	if err != nil {
 		return nil, err
 	}

@@ -6,20 +6,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/charmbracelet/log"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 )
 
-
 type TwitterClient struct {
-	Store   *db.Store
+	Store *db.Store
 }
 
-
 func (c *TwitterClient) ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error) {
-
 
 	inputSchema, err := helpers.ConverToInputSchema(ListFeedTweetsArguments{})
 	if err != nil {
@@ -65,9 +63,8 @@ func (c *TwitterClient) ListTools(ctx context.Context, cursor *string) (*mcp_gol
 }
 
 func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error) {
-	
-	fmt.Println("Call tool TWITTER", name, arguments)
 
+	fmt.Println("Call tool TWITTER", name, arguments)
 
 	bytes, err := helpers.ConvertToBytes(arguments)
 	if err != nil {
@@ -82,7 +79,7 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 	logger := log.Default()
 	if oauthTokens.ExpiresAt.Before(time.Now()) {
 		logger.Debug("Refreshing token for twitter")
-		err = helpers.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
+		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
 		if err != nil {
 			return nil, err
 		}
@@ -92,44 +89,42 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 		}
 	}
 
-
 	var content []*mcp_golang.Content
-	
-	switch name {
-		case LIST_FEED_TOOL_NAME:
-			var argumentsTyped ListFeedTweetsArguments
-			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-				return nil, err
-			}
-			result, err := processListFeedTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
-			if err != nil {
-				return nil, err
-			}
-			content = result
-		case POST_TWEET_TOOL_NAME:
-			var argumentsTyped PostTweetArguments
-			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-				return nil, err
-			}			
-			result, err := processPostTweet(oauthTokens.AccessToken, argumentsTyped)
-			if err != nil {
-				return nil, err
-			}
-			content = result
-		case SEARCH_TWEETS_TOOL_NAME:
-			var argumentsTyped SearchTweetsArguments
-			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-				return nil, err
-			}			
-			result, err := processSearchTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
-			if err != nil {
-				return nil, err
-			}
-			content = result
-		default:
-			return nil, fmt.Errorf("tool not found")
-	}
 
+	switch name {
+	case LIST_FEED_TOOL_NAME:
+		var argumentsTyped ListFeedTweetsArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		result, err := processListFeedTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case POST_TWEET_TOOL_NAME:
+		var argumentsTyped PostTweetArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		result, err := processPostTweet(oauthTokens.AccessToken, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case SEARCH_TWEETS_TOOL_NAME:
+		var argumentsTyped SearchTweetsArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		result, err := processSearchTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	default:
+		return nil, fmt.Errorf("tool not found")
+	}
 
 	return &mcp_golang.ToolResponse{
 		Content: content,
