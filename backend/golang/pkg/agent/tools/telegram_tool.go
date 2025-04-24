@@ -7,14 +7,18 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	telegram "github.com/EternisAI/enchanted-twin/pkg/telegram"
 )
 
 type TelegramTool struct {
 	Logger *log.Logger
 	Token  string
+	Store  *db.Store
 }
 
 func NewTelegramTool(logger *log.Logger, token string) *TelegramTool {
@@ -37,8 +41,14 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 		return ToolResult{}, fmt.Errorf("message parameter is required and must be a string")
 	}
 
-	// TODO: replace with the actual chat ID with user
-	chatID := "-4699301290"
+	chatID, err := t.Store.GetValue(ctx, telegram.TelegramChatIDKey)
+	if err != nil || chatID == "" {
+		chatUUID, err := t.Store.GetValue(ctx, telegram.TelegramChatUUIDKey)
+		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatUUID)
+		if err != nil {
+			return ToolResult{}, fmt.Errorf("You need to start the conversation first. Please go to the following URL and start the conversation: %s", chatURL)
+		}
+	}
 
 	// Construct the Telegram API URL
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.Token)
