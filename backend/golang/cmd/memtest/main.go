@@ -54,7 +54,7 @@ func main() {
 	logger.Info("Starting PostgreSQL service")
 	postgresService, err := bootstrapPostgres(postgresCtx, logger)
 	if err != nil {
-		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
+		logger.Error("Failed to start PostgreSQL", "error", err)
 		os.Exit(1)
 	}
 
@@ -63,10 +63,10 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		if err := postgresService.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
+			logger.Error("Error stopping PostgreSQL", "error", err)
 		}
 		if err := postgresService.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
+			logger.Error("Error removing PostgreSQL container", "error", err)
 		}
 	}()
 

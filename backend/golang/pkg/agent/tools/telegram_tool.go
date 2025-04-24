@@ -52,7 +52,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	if err != nil || chatID == "" {
 		chatUUID, err := t.Store.GetValue(ctx, telegram.TelegramChatUUIDKey)
 		if err != nil {
-			return ToolResult{}, fmt.Errorf("error getting chat UUID: %w", err)
+			return ToolResult{}, fmt.Errorf("error getting value from store: %w", err)
 		}
 
 		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatUUID)
