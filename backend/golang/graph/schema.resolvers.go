@@ -127,7 +127,7 @@ func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path 
 
 // DeleteDataSource is the resolver for the deleteDataSource field.
 func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (bool, error) {
-	result, err := r.Store.DeleteDataSourceError(ctx, id)
+	result, err := r.Store.DeleteDataSource(ctx, id)
 	if err != nil {
 		return false, err
 	}
