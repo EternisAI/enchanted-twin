@@ -50,6 +50,26 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 	}
 }
 
+func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) (agent.AgentResponse, error) {
+	newAgent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
+	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
+	tools := []tools.Tool{
+		&tools.SearchTool{},
+		&tools.ImageTool{},
+		tools.NewMemorySearchTool(s.logger, s.memory),
+		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
+		twitterReverseChronTimelineTool,
+	}
+
+	response, err := newAgent.Execute(ctx, messageHistory, tools)
+	if err != nil {
+		return agent.AgentResponse{}, err
+	}
+	s.logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
+
+	return response, nil
+}
+
 func (s *Service) SendMessage(ctx context.Context, chatID string, message string) (*model.Message, error) {
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
@@ -115,17 +135,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		}
 	}
 
-	agent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
-	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
-	tools := []tools.Tool{
-		&tools.SearchTool{},
-		&tools.ImageTool{},
-		tools.NewMemorySearchTool(s.logger, s.memory),
-		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
-		twitterReverseChronTimelineTool,
-	}
-
-	response, err := agent.Execute(ctx, messageHistory, tools)
+	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback)
 	if err != nil {
 		return nil, err
 	}
