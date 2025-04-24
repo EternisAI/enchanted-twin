@@ -191,7 +191,7 @@ func main() {
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
-		logger.Info("Starting GraphQL HTTP server", "port", envs.GraphqlPort)
+		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTP server error", slog.Any("error", err))
