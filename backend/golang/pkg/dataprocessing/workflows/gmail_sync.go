@@ -150,7 +150,7 @@ func (w *DataProcessingWorkflows) GmailFetchActivity(ctx context.Context, input 
 		return GmailFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}
 	if tokens == nil {
-		return GmailFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
+		return GmailFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
 	}
 
 	records, err := dataprocessing.Sync("gmail", tokens.AccessToken)
