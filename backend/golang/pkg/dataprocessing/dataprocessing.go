@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,37 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 )
+
+// Record represents a single data record that will be written to CSV
+type Record struct {
+	Data      map[string]any
+	Timestamp time.Time
+	Source    string
+}
+
+// Source interface defines methods that each data source must implement
+type Source interface {
+	// ProcessFile processes the input file and returns records
+	ProcessFile(filepath string, userName string) ([]Record, error)
+	// Name returns the source identifier
+	Name() string
+	// Sync returns the records from the source
+	Sync(ctx context.Context) ([]types.Record, error)
+}
+
+// ToCSVRecord converts a Record to a CSV record format
+func (r Record) ToCSVRecord() ([]string, error) {
+	dataJSON, err := json.Marshal(r.Data)
+	if err != nil {
+		return nil, err
+	}
+
+	return []string{
+		string(dataJSON),
+		r.Timestamp.Format(time.RFC3339),
+		r.Source,
+	}, nil
+}
 
 func extractZip(zipPath string) (extractedPath string, err error) {
 	tempDir, err := os.MkdirTemp("", "extracted_zip_")
@@ -282,17 +314,22 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 		return false, fmt.Errorf("unsupported source type: %s", sourceType)
 	}
 
+	err = SaveRecords(records, outputPath)
 	if err != nil {
-		return false, fmt.Errorf("error processing input: %v", err)
+		return false, err
 	}
 
+	return true, nil
+}
+
+func SaveRecords(records []types.Record, outputPath string) error {
 	if err := os.MkdirAll("./output", 0o755); err != nil {
-		return false, fmt.Errorf("error creating output directory: %v", err)
+		return fmt.Errorf("error creating output directory: %v", err)
 	}
 
 	file, err := os.Create(outputPath)
 	if err != nil {
-		return false, fmt.Errorf("error creating output file: %v", err)
+		return fmt.Errorf("error creating output file: %v", err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -301,7 +338,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 	}()
 
 	// Determine output format based on file extension
-	ext = strings.ToLower(filepath.Ext(outputPath))
+	ext := strings.ToLower(filepath.Ext(outputPath))
 	switch ext {
 	case ".json":
 		// For JSON output, create a slice of records with their data
@@ -323,7 +360,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 		encoder := json.NewEncoder(file)
 		encoder.SetIndent("", "  ")
 		if err := encoder.Encode(jsonRecords); err != nil {
-			return false, fmt.Errorf("error writing JSON: %v", err)
+			return fmt.Errorf("error writing JSON: %v", err)
 		}
 
 	case ".jsonl":
@@ -361,7 +398,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 
 		header := []string{"data", "timestamp", "source"}
 		if err := writer.Write(header); err != nil {
-			return false, fmt.Errorf("error writing CSV header: %v", err)
+			return fmt.Errorf("error writing CSV header: %v", err)
 		}
 
 		for _, record := range records {
@@ -378,9 +415,29 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 		}
 
 	default:
-		return false, fmt.Errorf("unsupported output format: %s (use .csv or .json)", ext)
+		return fmt.Errorf("unsupported output format: %s (use .csv, .jsonl, .json)", ext)
 	}
 
 	fmt.Printf("Successfully processed %d records and wrote to %s\n", len(records), outputPath)
-	return true, nil
+	return nil
+}
+
+func Sync(sourceName string, accessToken string) ([]types.Record, error) {
+	var records []types.Record
+	var err error
+
+	switch sourceName {
+	case "gmail":
+		records, err = gmail.New().Sync(context.Background(), accessToken)
+	case "x":
+		records, err = x.New("").Sync(context.Background(), accessToken)
+	default:
+		return nil, fmt.Errorf("unsupported source: %s", sourceName)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return records, nil
 }

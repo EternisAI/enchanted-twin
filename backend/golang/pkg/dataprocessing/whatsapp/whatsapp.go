@@ -1,6 +1,7 @@
 package whatsapp
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -173,4 +174,8 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 
 func (s *Source) ProcessFile(filepath string) ([]types.Record, error) {
 	return ReadWhatsAppDB(filepath)
+}
+
+func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
+	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }

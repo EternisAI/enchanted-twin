@@ -18,9 +18,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
-
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -129,6 +128,7 @@ func main() {
 			logger.Error("Error closing store", slog.Any("error", err))
 		}
 	}()
+
 	logger.Info("SQLite database initialized")
 
 	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
@@ -217,7 +217,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		MaxConcurrentActivityExecutionSize: 1,
 	})
 
-	indexingWorkflow := indexing.IndexingWorkflow{
+	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
 		Logger:       logger,
 		Config:       envs,
 		Store:        store,
@@ -225,7 +225,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		OllamaClient: ollamaClient,
 		Memory:       memory,
 	}
-	indexingWorkflow.RegisterWorkflowsAndActivities(&w)
+	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
 	err = w.Start()
 	if err != nil {
@@ -233,17 +233,47 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		return nil, err
 	}
 
+	// Create the Sync schedule only if the token exists
+	xToken, err := store.GetOAuthTokens(context.Background(), "twitter")
+	if err != nil {
+		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
+		return temporalClient, nil
+	}
+
+	if xToken != nil {
+		err = dataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(temporalClient)
+		if err != nil {
+			logger.Error("Error creating XSync schedule", slog.Any("error", err))
+			return nil, err
+		}
+	}
+
+	googleToken, err := store.GetOAuthTokens(context.Background(), "google")
+	if err != nil {
+		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
+		return temporalClient, nil
+	}
+
+	if googleToken != nil {
+		err = dataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(temporalClient)
+		if err != nil {
+			logger.Error("Error creating GmailSync schedule", slog.Any("error", err))
+			return nil, err
+		}
+	}
+
 	return temporalClient, nil
 }
 
 type graphqlServerInput struct {
-	logger          *log.Logger
-	temporalClient  client.Client
-	port            string
-	twinChatService twinchat.Service
-	natsClient      *nats.Conn
-	store           *db.Store
-	aiService       *ai.Service
+	logger                 *log.Logger
+	temporalClient         client.Client
+	port                   string
+	twinChatService        twinchat.Service
+	natsClient             *nats.Conn
+	store                  *db.Store
+	aiService              *ai.Service
+	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -256,12 +286,13 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	}).Handler)
 
 	srv := handler.New(gqlSchema(&graph.Resolver{
-		Logger:          input.logger,
-		TemporalClient:  input.temporalClient,
-		TwinChatService: input.twinChatService,
-		Nc:              input.natsClient,
-		Store:           input.store,
-		AiService:       input.aiService,
+		Logger:                 input.logger,
+		TemporalClient:         input.temporalClient,
+		TwinChatService:        input.twinChatService,
+		Nc:                     input.natsClient,
+		Store:                  input.store,
+		AiService:              input.aiService,
+		DataProcessingWorkflow: input.dataProcessingWorkflow,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
