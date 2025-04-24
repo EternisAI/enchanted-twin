@@ -29,6 +29,7 @@ func TestMCPService_GetTools(t *testing.T) {
 		Name:    "hello_world_mcp_server",
 		Command: "go",
 		Args: []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
+		Type: model.MCPServerTypeOther,
 	})
 
 	if err != nil {
@@ -87,6 +88,7 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 		Name:    "hello_world_mcp_server",
 		Command: "go",
 		Args: []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
+		Type: model.MCPServerTypeOther,
 	})
 
 	if err != nil {

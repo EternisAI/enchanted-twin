@@ -120,6 +120,11 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 		TweetFields: []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
 	})
 
+	if err != nil {
+		fmt.Println("Error getting feed:", err)
+		return nil, err
+	}
+
 	contents := []*mcp_golang.Content{}
 	for _, tweet := range feed.Raw.Tweets {
 
