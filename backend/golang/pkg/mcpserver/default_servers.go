@@ -10,7 +10,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 			Name:    "Google",
 			Command: "npx",
 			Args:    []string{"@shinzolabs/gmail-mcp"},
-			Envs:    []*model.KeyValue{
+			Envs: []*model.KeyValue{
 				{
 					Key:   "CLIENT_ID",
 					Value: "1234567890",
@@ -25,13 +25,13 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 				},
 			},
 			Enabled: enabled,
-			Type: model.MCPServerTypeGoogle,
+			Type:    model.MCPServerTypeGoogle,
 		},
 		model.MCPServerTypeSLACk: {
 			Name:    "Slack",
 			Command: "docker",
 			Args:    []string{"run", "-i", "--rm", "-e", "SLACK_BOT_TOKEN", "-e", "SLACK_TEAM_ID", "-e", "SLACK_CHANNEL_IDS", "mcp/slack"},
-			Envs:    []*model.KeyValue{
+			Envs: []*model.KeyValue{
 				{
 					Key:   "SLACK_BOT_TOKEN",
 					Value: "xoxb-1234567890",
@@ -42,13 +42,13 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 				},
 			},
 			Enabled: enabled,
-			Type: model.MCPServerTypeSLACk,
+			Type:    model.MCPServerTypeSLACk,
 		},
 		model.MCPServerTypeTwitter: {
 			Name:    "Twitter",
 			Command: "npx",
 			Args:    []string{"-y", "@0xparashar/twitter-mcp"},
-			Envs:    []*model.KeyValue{
+			Envs: []*model.KeyValue{
 				{
 					Key:   "REFRESH_TOKEN",
 					Value: "1234567890",
@@ -63,7 +63,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 				},
 			},
 			Enabled: enabled,
-			Type: model.MCPServerTypeTwitter,
+			Type:    model.MCPServerTypeTwitter,
 		},
 	}
 	return servers

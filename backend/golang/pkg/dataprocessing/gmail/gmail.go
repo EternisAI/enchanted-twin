@@ -627,7 +627,7 @@ func (g *Gmail) Sync(ctx context.Context, accessToken string) ([]types.Record, e
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch emails: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
@@ -665,7 +665,7 @@ func (g *Gmail) Sync(ctx context.Context, accessToken string) ([]types.Record, e
 		}
 
 		if msgResp.StatusCode != http.StatusOK {
-			msgResp.Body.Close()
+			_ = msgResp.Body.Close()
 			log.Printf("Failed to fetch message. Status: %d", msgResp.StatusCode)
 			continue
 		}
@@ -689,11 +689,11 @@ func (g *Gmail) Sync(ctx context.Context, accessToken string) ([]types.Record, e
 		}
 
 		if err := json.NewDecoder(msgResp.Body).Decode(&message); err != nil {
-			msgResp.Body.Close()
+			_ = msgResp.Body.Close()
 			log.Printf("Failed to decode message: %v", err)
 			continue
 		}
-		msgResp.Body.Close()
+		_ = msgResp.Body.Close()
 
 		// Extract headers
 		headers := make(map[string]string)

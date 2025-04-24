@@ -12,7 +12,6 @@ import (
 	"github.com/openai/openai-go/packages/param"
 )
 
-
 type MCPClient interface {
 	CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error)
 	ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error)
@@ -20,11 +19,10 @@ type MCPClient interface {
 
 type MCPTool struct {
 	Client MCPClient
-	Tool mcp_golang.ToolRetType
+	Tool   mcp_golang.ToolRetType
 }
 
 func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (tools.ToolResult, error) {
-	
 
 	if t.Client == nil {
 		fmt.Println("Client not found")
@@ -68,7 +66,7 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 		Function: openai.FunctionDefinitionParam{
 			Name:        t.Tool.Name,
 			Description: param.NewOpt(*t.Tool.Description),
-			Parameters: params,
+			Parameters:  params,
 		},
 	}
 }

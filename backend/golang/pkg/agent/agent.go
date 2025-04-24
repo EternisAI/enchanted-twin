@@ -114,7 +114,7 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 				imageURLs = append(imageURLs, toolResult.ImageURLs...)
 			}
 
-			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))			
+			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
 
 			toolCalls = append(toolCalls, toolCall)
 			toolResults = append(toolResults, toolResult)
@@ -123,7 +123,6 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 		responseContent = completion.Content
 		currentStep++
 	}
-
 
 	return AgentResponse{
 		Content:     responseContent,

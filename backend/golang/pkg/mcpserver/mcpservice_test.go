@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-
 func TestMCPService_GetTools(t *testing.T) {
 	ctx := context.Background()
 
@@ -24,12 +23,11 @@ func TestMCPService_GetTools(t *testing.T) {
 	repo := repository.NewRepository(logger, db.DB())
 	s := NewService(ctx, *repo, db)
 
-
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
 		Command: "go",
-		Args: []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
-		Type: model.MCPServerTypeOther,
+		Args:    []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
+		Type:    model.MCPServerTypeOther,
 	})
 
 	if err != nil {
@@ -58,7 +56,6 @@ func TestMCPService_GetTools(t *testing.T) {
 
 	fmt.Println("MCPServer added")
 
-
 	tools, err := s.GetTools(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get tools: %v", err)
@@ -70,7 +67,6 @@ func TestMCPService_GetTools(t *testing.T) {
 	}
 }
 
-
 func TestMCPService_ExecuteTool(t *testing.T) {
 	ctx := context.Background()
 
@@ -81,21 +77,20 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	}
 
 	repo := repository.NewRepository(logger, db.DB())
-	s := NewService(ctx, *repo, db)	
-	
+	s := NewService(ctx, *repo, db)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
 		Command: "go",
-		Args: []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
-		Type: model.MCPServerTypeOther,
+		Args:    []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
+		Type:    model.MCPServerTypeOther,
 	})
 
 	if err != nil {
 		t.Fatalf("Failed to add MCPServer: %v", err)
 	}
 
-	tools, err := s.GetInternalTools(ctx)	
+	tools, err := s.GetInternalTools(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get tools: %v", err)
 	}

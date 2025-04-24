@@ -93,7 +93,6 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
-
 	// Insert default profile if it doesn't exist
 	_, err = db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO user_profiles (id, name, bio) VALUES ('default', '(missing name)', '')

@@ -86,8 +86,8 @@ type dbMCPServer struct {
 	ID        string `db:"id"`
 	Name      string `db:"name"`
 	Command   string `db:"command"` // JSON string from DB
-	Args      string `db:"args"` // JSON string from DB
-	Envs      string `db:"envs"` // JSON string from DB
+	Args      string `db:"args"`    // JSON string from DB
+	Envs      string `db:"envs"`    // JSON string from DB
 	Type      string `db:"type"`
 	CreatedAt string `db:"created_at"`
 	Enabled   bool   `db:"enabled"`

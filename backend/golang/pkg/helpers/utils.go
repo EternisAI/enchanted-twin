@@ -9,20 +9,20 @@ import (
 
 var (
 	jsonSchemaReflector = jsonschema.Reflector{
-		BaseSchemaID:               "",
-		Anonymous:                  true,
-		AssignAnchor:               false,
-		AllowAdditionalProperties:  true,
-		DoNotReference:             true,
-		ExpandedStruct:             true,
-		FieldNameTag:               "",
-		IgnoredTypes:               nil,
-		Lookup:                     nil,
-		Mapper:                     nil,
-		Namer:                      nil,
-		KeyNamer:                   nil,
-		AdditionalFields:           nil,
-		CommentMap:                 nil,
+		BaseSchemaID:              "",
+		Anonymous:                 true,
+		AssignAnchor:              false,
+		AllowAdditionalProperties: true,
+		DoNotReference:            true,
+		ExpandedStruct:            true,
+		FieldNameTag:              "",
+		IgnoredTypes:              nil,
+		Lookup:                    nil,
+		Mapper:                    nil,
+		Namer:                     nil,
+		KeyNamer:                  nil,
+		AdditionalFields:          nil,
+		CommentMap:                nil,
 	}
 )
 
