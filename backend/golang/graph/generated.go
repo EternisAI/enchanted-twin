@@ -57,6 +57,11 @@ type ComplexityRoot struct {
 		Name      func(childComplexity int) int
 	}
 
+	ChatSuggestionsCategory struct {
+		Category    func(childComplexity int) int
+		Suggestions func(childComplexity int) int
+	}
+
 	DataSource struct {
 		HasError    func(childComplexity int) int
 		ID          func(childComplexity int) int
@@ -110,11 +115,12 @@ type ComplexityRoot struct {
 	}
 
 	Query struct {
-		GetChat        func(childComplexity int, id string) int
-		GetChats       func(childComplexity int, first int32, offset int32) int
-		GetDataSources func(childComplexity int) int
-		GetOAuthStatus func(childComplexity int) int
-		Profile        func(childComplexity int) int
+		GetChat            func(childComplexity int, id string) int
+		GetChatSuggestions func(childComplexity int, chatID string) int
+		GetChats           func(childComplexity int, first int32, offset int32) int
+		GetDataSources     func(childComplexity int) int
+		GetOAuthStatus     func(childComplexity int) int
+		Profile            func(childComplexity int) int
 	}
 
 	Subscription struct {
@@ -137,6 +143,7 @@ type ComplexityRoot struct {
 	}
 
 	UserProfile struct {
+		Bio                  func(childComplexity int) int
 		ConnectedDataSources func(childComplexity int) int
 		IndexingStatus       func(childComplexity int) int
 		Name                 func(childComplexity int) int
@@ -164,6 +171,7 @@ type QueryResolver interface {
 	GetChat(ctx context.Context, id string) (*model.Chat, error)
 	GetDataSources(ctx context.Context) ([]*model.DataSource, error)
 	GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatus, error)
+	GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error)
 }
 type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
@@ -217,6 +225,20 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Chat.Name(childComplexity), true
+
+	case "ChatSuggestionsCategory.category":
+		if e.complexity.ChatSuggestionsCategory.Category == nil {
+			break
+		}
+
+		return e.complexity.ChatSuggestionsCategory.Category(childComplexity), true
+
+	case "ChatSuggestionsCategory.suggestions":
+		if e.complexity.ChatSuggestionsCategory.Suggestions == nil {
+			break
+		}
+
+		return e.complexity.ChatSuggestionsCategory.Suggestions(childComplexity), true
 
 	case "DataSource.hasError":
 		if e.complexity.DataSource.HasError == nil {
@@ -508,6 +530,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.GetChat(childComplexity, args["id"].(string)), true
 
+	case "Query.getChatSuggestions":
+		if e.complexity.Query.GetChatSuggestions == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getChatSuggestions_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetChatSuggestions(childComplexity, args["chatId"].(string)), true
+
 	case "Query.getChats":
 		if e.complexity.Query.GetChats == nil {
 			break
@@ -620,6 +654,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ToolCallResult.ImageUrls(childComplexity), true
+
+	case "UserProfile.bio":
+		if e.complexity.UserProfile.Bio == nil {
+			break
+		}
+
+		return e.complexity.UserProfile.Bio(childComplexity), true
 
 	case "UserProfile.connectedDataSources":
 		if e.complexity.UserProfile.ConnectedDataSources == nil {
@@ -1063,6 +1104,29 @@ func (ec *executionContext) field_Query___type_argsName(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Query_getChatSuggestions_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Query_getChatSuggestions_argsChatID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Query_getChatSuggestions_argsChatID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
+	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Query_getChat_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1460,6 +1524,94 @@ func (ec *executionContext) fieldContext_Chat_createdAt(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChatSuggestionsCategory_category(ctx context.Context, field graphql.CollectedField, obj *model.ChatSuggestionsCategory) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ChatSuggestionsCategory_category(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Category, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ChatSuggestionsCategory_category(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChatSuggestionsCategory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ChatSuggestionsCategory_suggestions(ctx context.Context, field graphql.CollectedField, obj *model.ChatSuggestionsCategory) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ChatSuggestionsCategory_suggestions(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Suggestions, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ChatSuggestionsCategory_suggestions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ChatSuggestionsCategory",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -3162,6 +3314,8 @@ func (ec *executionContext) fieldContext_Query_profile(_ context.Context, field 
 			switch field.Name {
 			case "name":
 				return ec.fieldContext_UserProfile_name(ctx, field)
+			case "bio":
+				return ec.fieldContext_UserProfile_bio(ctx, field)
 			case "indexingStatus":
 				return ec.fieldContext_UserProfile_indexingStatus(ctx, field)
 			case "connectedDataSources":
@@ -3411,6 +3565,67 @@ func (ec *executionContext) fieldContext_Query_getOAuthStatus(_ context.Context,
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OAuthStatus", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Query_getChatSuggestions(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_getChatSuggestions(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetChatSuggestions(rctx, fc.Args["chatId"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.ChatSuggestionsCategory)
+	fc.Result = res
+	return ec.marshalNChatSuggestionsCategory2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatSuggestionsCategoryᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_getChatSuggestions(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "category":
+				return ec.fieldContext_ChatSuggestionsCategory_category(ctx, field)
+			case "suggestions":
+				return ec.fieldContext_ChatSuggestionsCategory_suggestions(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type ChatSuggestionsCategory", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Query_getChatSuggestions_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -4119,6 +4334,47 @@ func (ec *executionContext) _UserProfile_name(ctx context.Context, field graphql
 }
 
 func (ec *executionContext) fieldContext_UserProfile_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserProfile_bio(ctx context.Context, field graphql.CollectedField, obj *model.UserProfile) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserProfile_bio(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Bio, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserProfile_bio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "UserProfile",
 		Field:      field,
@@ -6202,7 +6458,7 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name"}
+	fieldsInOrder := [...]string{"name", "bio"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -6216,6 +6472,13 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 				return it, err
 			}
 			it.Name = data
+		case "bio":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bio"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bio = data
 		}
 	}
 
@@ -6291,6 +6554,50 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			out.Values[i] = ec._Chat_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var chatSuggestionsCategoryImplementors = []string{"ChatSuggestionsCategory"}
+
+func (ec *executionContext) _ChatSuggestionsCategory(ctx context.Context, sel ast.SelectionSet, obj *model.ChatSuggestionsCategory) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, chatSuggestionsCategoryImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("ChatSuggestionsCategory")
+		case "category":
+			out.Values[i] = ec._ChatSuggestionsCategory_category(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "suggestions":
+			out.Values[i] = ec._ChatSuggestionsCategory_suggestions(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -6840,6 +7147,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "getChatSuggestions":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getChatSuggestions(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -7005,6 +7334,8 @@ func (ec *executionContext) _UserProfile(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = graphql.MarshalString("UserProfile")
 		case "name":
 			out.Values[i] = ec._UserProfile_name(ctx, field, obj)
+		case "bio":
+			out.Values[i] = ec._UserProfile_bio(ctx, field, obj)
 		case "indexingStatus":
 			out.Values[i] = ec._UserProfile_indexingStatus(ctx, field, obj)
 		case "connectedDataSources":
@@ -7441,6 +7772,60 @@ func (ec *executionContext) marshalNChat2ᚖgithubᚗcomᚋEternisAIᚋenchanted
 		return graphql.Null
 	}
 	return ec._Chat(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNChatSuggestionsCategory2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatSuggestionsCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ChatSuggestionsCategory) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNChatSuggestionsCategory2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatSuggestionsCategory(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNChatSuggestionsCategory2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatSuggestionsCategory(ctx context.Context, sel ast.SelectionSet, v *model.ChatSuggestionsCategory) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._ChatSuggestionsCategory(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalNDataSource2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐDataSourceᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.DataSource) graphql.Marshaler {
