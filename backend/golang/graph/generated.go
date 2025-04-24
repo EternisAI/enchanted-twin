@@ -143,6 +143,7 @@ type ComplexityRoot struct {
 	}
 
 	UserProfile struct {
+		Bio                  func(childComplexity int) int
 		ConnectedDataSources func(childComplexity int) int
 		IndexingStatus       func(childComplexity int) int
 		Name                 func(childComplexity int) int
@@ -653,6 +654,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ToolCallResult.ImageUrls(childComplexity), true
+
+	case "UserProfile.bio":
+		if e.complexity.UserProfile.Bio == nil {
+			break
+		}
+
+		return e.complexity.UserProfile.Bio(childComplexity), true
 
 	case "UserProfile.connectedDataSources":
 		if e.complexity.UserProfile.ConnectedDataSources == nil {
@@ -3306,6 +3314,8 @@ func (ec *executionContext) fieldContext_Query_profile(_ context.Context, field 
 			switch field.Name {
 			case "name":
 				return ec.fieldContext_UserProfile_name(ctx, field)
+			case "bio":
+				return ec.fieldContext_UserProfile_bio(ctx, field)
 			case "indexingStatus":
 				return ec.fieldContext_UserProfile_indexingStatus(ctx, field)
 			case "connectedDataSources":
@@ -4324,6 +4334,47 @@ func (ec *executionContext) _UserProfile_name(ctx context.Context, field graphql
 }
 
 func (ec *executionContext) fieldContext_UserProfile_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "UserProfile",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _UserProfile_bio(ctx context.Context, field graphql.CollectedField, obj *model.UserProfile) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_UserProfile_bio(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Bio, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_UserProfile_bio(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "UserProfile",
 		Field:      field,
@@ -6407,7 +6458,7 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"name"}
+	fieldsInOrder := [...]string{"name", "bio"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
@@ -6421,6 +6472,13 @@ func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context
 				return it, err
 			}
 			it.Name = data
+		case "bio":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("bio"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Bio = data
 		}
 	}
 
@@ -7276,6 +7334,8 @@ func (ec *executionContext) _UserProfile(ctx context.Context, sel ast.SelectionS
 			out.Values[i] = graphql.MarshalString("UserProfile")
 		case "name":
 			out.Values[i] = ec._UserProfile_name(ctx, field, obj)
+		case "bio":
+			out.Values[i] = ec._UserProfile_bio(ctx, field, obj)
 		case "indexingStatus":
 			out.Values[i] = ec._UserProfile_indexingStatus(ctx, field, obj)
 		case "connectedDataSources":

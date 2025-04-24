@@ -83,10 +83,12 @@ type ToolCallResult struct {
 
 type UpdateProfileInput struct {
 	Name *string `json:"name,omitempty"`
+	Bio  *string `json:"bio,omitempty"`
 }
 
 type UserProfile struct {
 	Name                 *string         `json:"name,omitempty"`
+	Bio                  *string         `json:"bio,omitempty"`
 	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
 	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
 }
