@@ -14,6 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/pkg/errors"
@@ -29,10 +30,11 @@ type Service struct {
 	nc               *nats.Conn
 	logger           *log.Logger
 	memory           memory.Storage
+	authStorage      *db.Store
 	completionsModel string
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -40,6 +42,7 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		nc:               nc,
 		memory:           memory,
 		completionsModel: completionsModel,
+		authStorage:      authStorage,
 	}
 }
 
@@ -109,10 +112,12 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	agent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
+	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
+		twitterReverseChronTimelineTool,
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)
