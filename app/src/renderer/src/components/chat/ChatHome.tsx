@@ -21,7 +21,8 @@ import {
   SheetFooter,
   SheetTrigger
 } from '../ui/sheet'
-import { Card, CardDescription, CardHeader, CardTitle } from '../ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
+import { PlusIcon } from 'lucide-react'
 
 export default function ChatHome() {
   const navigate = useNavigate()
@@ -74,6 +75,8 @@ export default function ChatHome() {
           </div>
 
           <OAuthPanel />
+          <ContextCard />
+
           <div className="flex gap-10 p-4 border border-border rounded-lg">
             <div className="flex flex-col gap-2">
               <span>Today&apos;s Highlight</span>
@@ -88,7 +91,6 @@ export default function ChatHome() {
               <span className="text-muted-foreground text-sm">Go Walk</span>
             </div>
           </div>
-          <ContextCard />
         </div>
         <div className="px-6 py-6 border-t border-border h-[130px]">
           <MessageInput isWaitingTwinResponse={false} onSend={handleStartChat} />
@@ -99,6 +101,7 @@ export default function ChatHome() {
 }
 
 function ContextCard() {
+  // TODO: Get context from backend
   const [context, setContext] = useState('')
 
   const handleSubmit = async () => {
@@ -110,17 +113,20 @@ function ContextCard() {
   return (
     <>
       <Sheet>
-        <SheetTrigger asChild>
-          <Card className="w-full">
-            <CardHeader>
-              <CardTitle>Add Context</CardTitle>
-              <CardDescription>
-                Share information about yourself, your preferences, or any other context that might
-                help your twin understand you better.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        </SheetTrigger>
+        <Card className="w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-2">
+              <span className="text-muted-foreground">Context</span>
+              <SheetTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <PlusIcon className="size-4" />
+                  Add Context
+                </Button>
+              </SheetTrigger>
+            </CardTitle>
+          </CardHeader>
+          {context && <CardContent>{context}</CardContent>}
+        </Card>
         <SheetContent>
           <SheetHeader>
             <SheetTitle>Add Context</SheetTitle>
