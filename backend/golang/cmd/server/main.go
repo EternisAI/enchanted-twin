@@ -20,10 +20,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-	"github.com/EternisAI/enchanted-twin/types"
 
 	"github.com/EternisAI/enchanted-twin/graph"
 
@@ -173,12 +171,11 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 	go func() {
-		chatID, err := telegramService.GetChatID(context.Background())
+		lastMessages, err := telegramService.GetLatestMessages(context.Background())
 		if err != nil {
 			logger.Error("Telegram service error", slog.Any("error", err))
 		}
-		chatURL := helpers.GetChatURL(types.TelegramBotName, chatID)
-		logger.Info("Telegram chat URL", "chatURL", chatURL)
+		logger.Info("Last messages", "messages", lastMessages)
 
 		if err := telegramService.Start(context.Background()); err != nil {
 			logger.Error("Telegram service error", slog.Any("error", err))

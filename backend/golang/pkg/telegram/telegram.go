@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -43,6 +44,19 @@ type Chat struct {
 	Username  string `json:"username"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
+}
+
+type Message struct {
+	MessageID int    `json:"message_id"`
+	From      User   `json:"from"`
+	Chat      Chat   `json:"chat"`
+	Date      int    `json:"date"`
+	Text      string `json:"text"`
+}
+
+type GetUpdatesResponse struct {
+	OK     bool      `json:"ok"`
+	Result []Message `json:"result"`
 }
 
 type TelegramService struct {
@@ -164,6 +178,7 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 				if update.Message.Text != "" {
 					var uuid string
+
 					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
 
 						storedUUID, err := s.GetChatUUID(ctx)
@@ -180,6 +195,18 @@ func (s *TelegramService) Start(ctx context.Context) error {
 							s.Logger.Info("Chat ID set successfully", "chat_id", update.Message.Chat.ID)
 						}
 					}
+
+					response, err := s.Execute(ctx, s.TransformToOpenAIMessages([]Message{update.Message}), update.Message.Text)
+					if err != nil {
+						s.Logger.Error("Failed to execute message", "error", err)
+						continue
+					}
+					err = s.SendMessage(ctx, update.Message.Chat.ID, response.Content)
+					if err != nil {
+						s.Logger.Error("Failed to send message", "error", err)
+						continue
+					}
+
 				}
 
 			}
@@ -207,6 +234,12 @@ func (s *TelegramService) GetChatUUID(ctx context.Context) (string, error) {
 	return chatUUID, nil
 }
 
+func (s *TelegramService) ConstructMessageHistory(ctx context.Context, chatID string, message string) ([]openai.ChatCompletionMessageParamUnion, error) {
+	messageHistory := []openai.ChatCompletionMessageParamUnion{}
+
+	return messageHistory, nil
+}
+
 func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, message string) (agent.AgentResponse, error) {
 	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, nil, nil)
 
@@ -226,4 +259,105 @@ func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.C
 	s.Logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
 
 	return response, nil
+}
+
+func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, error) {
+	chatID, err := s.GetChatID(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chat ID: %w", err)
+	}
+	url := fmt.Sprintf("%s/bot%s/getUpdates?chat_id=%s&limit=10", types.TelegramAPIBase, s.Token, chatID)
+
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var result GetUpdatesResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	if !result.OK {
+		return nil, fmt.Errorf("telegram API returned error: %s", string(body))
+	}
+
+	return result.Result, nil
+}
+
+func (s *TelegramService) TransformToOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUnion {
+	openAIMessages := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
+
+	for _, msg := range messages {
+		// Skip empty messages
+		if msg.Text == "" {
+			continue
+		}
+
+		// Determine the role based on the message sender
+		if msg.From.Username == "enchanted_twin_bot" {
+			openAIMessages = append(openAIMessages, openai.AssistantMessage(msg.Text))
+		} else {
+			openAIMessages = append(openAIMessages, openai.UserMessage(msg.Text))
+		}
+	}
+
+	return openAIMessages
+}
+
+func (s *TelegramService) SendMessage(ctx context.Context, chatID int, message string) error {
+	url := fmt.Sprintf("%s/bot%s/sendMessage", types.TelegramAPIBase, s.Token)
+	body := map[string]any{
+		"chat_id":    chatID,
+		"text":       message,
+		"parse_mode": "HTML",
+	}
+	jsonBody, err := json.Marshal(body)
+	if err != nil {
+		return fmt.Errorf("marshal body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	s.Logger.Info("Sending message to Telegram", "url", url, "body", body)
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		return fmt.Errorf("send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("telegram API non-OK status: %d", resp.StatusCode)
+	}
+
+	var result struct {
+		OK          bool   `json:"ok"`
+		Description string `json:"description"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return fmt.Errorf("decode response: %w", err)
+	}
+
+	if !result.OK {
+		return fmt.Errorf("telegram API error: %s", result.Description)
+	}
+
+	return nil
 }
