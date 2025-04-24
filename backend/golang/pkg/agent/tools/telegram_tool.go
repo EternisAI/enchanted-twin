@@ -51,7 +51,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	}
 
 	// Construct the Telegram API URL
-	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", t.Token)
+	url := fmt.Sprintf("%s/bot%s/sendMessage", telegram.TelegramAPIBase, t.Token)
 
 	// Prepare the request body
 	body := map[string]interface{}{

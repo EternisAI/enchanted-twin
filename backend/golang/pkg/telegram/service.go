@@ -19,6 +19,8 @@ const (
 	TelegramChatIDKey = "telegram_chat_id"
 	// TelegramBotName is the telegram bot name to be used for sending messages
 	TelegramBotName = "HelloIamBernieBot"
+
+	TelegramAPIBase = "https://api.telegram.org"
 )
 
 type Update struct {
