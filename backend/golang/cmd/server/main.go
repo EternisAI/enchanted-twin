@@ -156,7 +156,7 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken)
 
 	// Initialize and start Telegram service
 	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
