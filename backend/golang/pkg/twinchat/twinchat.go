@@ -29,12 +29,13 @@ type Service struct {
 	nc               *nats.Conn
 	logger           *log.Logger
 	memory           memory.Storage
+	authStorage      *db.Store
 	completionsModel string
 	telegramToken    string
 	store            *db.Store
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string, telegramToken string, store *db.Store) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -44,6 +45,7 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		completionsModel: completionsModel,
 		telegramToken:    telegramToken,
 		store:            store,
+		authStorage:      authStorage,
 	}
 }
 
@@ -113,11 +115,13 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	agent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
+	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
 		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
+		twitterReverseChronTimelineTool,
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)
