@@ -17,9 +17,9 @@ export default function ChatSuggestions({
   onSuggestionClick: (suggestion: string) => void
   toggleVisibility: () => void
 }) {
-  const { data, error } = useQuery(GetChatSuggestionsDocument, {
+  const { data, error, loading } = useQuery(GetChatSuggestionsDocument, {
     variables: { chatId },
-    skip: !visible || !chatId,
+    skip: !chatId,
     fetchPolicy: 'network-only'
   })
 
@@ -56,7 +56,7 @@ export default function ChatSuggestions({
     )
   }
 
-  if (error || !suggestions || suggestions.length === 0) {
+  if (loading || error || !suggestions || suggestions.length === 0) {
     return null
   }
 
@@ -82,7 +82,7 @@ export default function ChatSuggestions({
         {suggestions.map((category) => (
           <TabsContent key={category.category} value={category.category}>
             <motion.div
-              className="flex flex-wrap gap-2 min-h-10"
+              className="flex flex-col items-start flex-wrap gap-2 min-h-10"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.25 }}
