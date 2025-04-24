@@ -81,9 +81,14 @@ export default function ChatView({ chat }: { chat: Chat }) {
     updateToolCallInMessage(toolCall as ToolCall & { messageId: string })
   })
 
+  const [mounted, setMounted] = useState(false)
+
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+    bottomRef.current?.scrollIntoView({ behavior: mounted ? 'smooth' : 'instant' })
+    if (!mounted) {
+      setMounted(true)
+    }
+  }, [messages, mounted])
 
   const handleSuggestionClick = (suggestion: string) => {
     sendMessage(suggestion)

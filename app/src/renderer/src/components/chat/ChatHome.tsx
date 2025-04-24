@@ -9,6 +9,7 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 import OAuthPanel from '../oauth/OAuthPanel'
+import { ContextCard } from './ContextCard'
 
 export default function ChatHome() {
   const navigate = useNavigate()
@@ -61,6 +62,8 @@ export default function ChatHome() {
           </div>
 
           <OAuthPanel />
+          <ContextCard />
+
           <div className="flex gap-10 p-4 border border-border rounded-lg">
             <div className="flex flex-col gap-2">
               <span>Today&apos;s Highlight</span>
