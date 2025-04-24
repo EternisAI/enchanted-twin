@@ -47,7 +47,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 		chatUUID, err := t.Store.GetValue(ctx, telegram.TelegramChatUUIDKey)
 		chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatUUID)
 		if err != nil {
-			return ToolResult{}, fmt.Errorf("Error getting chat UUID: %w", err)
+			return ToolResult{}, fmt.Errorf("error getting chat UUID: %w", err)
 		}
 		if chatID == "" {
 			return ToolResult{
@@ -85,7 +85,11 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logger.Error("failed to close response body", "error", err)
+		}
+	}()
 
 	// Check response status
 	if resp.StatusCode != http.StatusOK {

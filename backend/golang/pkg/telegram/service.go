@@ -51,11 +51,10 @@ type Chat struct {
 }
 
 type TelegramService struct {
-	logger  *log.Logger
-	token   string
-	client  *http.Client
-	store   *db.Store
-	botName string
+	logger *log.Logger
+	token  string
+	client *http.Client
+	store  *db.Store
 }
 
 func NewTelegramService(logger *log.Logger, token string, store *db.Store) *TelegramService {
@@ -99,9 +98,14 @@ func (s *TelegramService) Start(ctx context.Context) error {
 			}
 
 			body, err := io.ReadAll(resp.Body)
-			resp.Body.Close()
 			if err != nil {
-				s.logger.Error("Failed to read response body", "error", err)
+				s.logger.Error("failed to read response body", "error", err)
+				time.Sleep(time.Second * 5)
+				continue
+			}
+			err = resp.Body.Close()
+			if err != nil {
+				s.logger.Error("failed to read response body", "error", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
