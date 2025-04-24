@@ -175,7 +175,7 @@ func main() {
 		}
 	}()
 	mcpRepository := repository.NewRepository(logger, store.DB())
-	mcpService := mcpserver.NewService(context.Background(), *mcpRepository)
+	mcpService := mcpserver.NewService(context.Background(), *mcpRepository, store)
 
 	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel, mcpService)
 
