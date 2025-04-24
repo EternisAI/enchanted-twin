@@ -29,10 +29,6 @@ func NewTelegramTool(logger *log.Logger, token string, store *db.Store) *Telegra
 	return &TelegramTool{Logger: logger, Token: token, Store: store}
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// helpers
-// ────────────────────────────────────────────────────────────────────────────────
-
 func generateQRCodePNGDataURL(data string) (string, error) {
 	png, err := qrcode.Encode(data, qrcode.Medium, 256) // 256 px square
 	if err != nil {
@@ -41,10 +37,6 @@ func generateQRCodePNGDataURL(data string) (string, error) {
 	b64 := base64.StdEncoding.EncodeToString(png)
 	return "data:image/png;base64," + b64, nil
 }
-
-// ────────────────────────────────────────────────────────────────────────────────
-// Execute
-// ────────────────────────────────────────────────────────────────────────────────
 
 func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolResult, error) {
 	if t.Token == "" {
@@ -122,16 +114,12 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	return ToolResult{Content: fmt.Sprintf("Message sent successfully to chat %s", chatID)}, nil
 }
 
-// ────────────────────────────────────────────────────────────────────────────────
-// Tool definition
-// ────────────────────────────────────────────────────────────────────────────────
-
 func (t *TelegramTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "telegram",
-			Description: param.NewOpt("Send a message to a Telegram channel"),
+			Name:        "telegram_send_message",
+			Description: param.NewOpt("Send a Telegram message to your human"),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
