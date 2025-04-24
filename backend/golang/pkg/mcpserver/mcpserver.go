@@ -9,26 +9,31 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/twitter"
 	mcp "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 )
 
 type ConnectedMCPServer struct {
 	ID string
-	Client *mcp.Client
+	Client MCPClient
 }
 
 // service implements the MCPServerService interface.
 type service struct {
+	store *db.Store
 	repo repository.Repository
 	connectedServers []*ConnectedMCPServer
 }
 
 // NewService creates a new MCPServerService.
-func NewService(ctx context.Context, repo repository.Repository) MCPService {
-	service := &service{repo: repo, connectedServers: []*ConnectedMCPServer{}}
+func NewService(ctx context.Context, repo repository.Repository, store *db.Store) MCPService {
+	service := &service{repo: repo, connectedServers: []*ConnectedMCPServer{}, store: store}
 	err := service.LoadMCP(ctx)
+
 	if err != nil {
 		fmt.Println("Error loading MCP servers", err)
 	}
@@ -39,6 +44,37 @@ func NewService(ctx context.Context, repo repository.Repository) MCPService {
 func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (*model.MCPServer, error) {
 	// Here you might add validation or other business logic before calling the repo
 	enabled := true
+
+	if input.Type != model.MCPServerTypeOther {
+		input.Command = "npx"
+
+		mcpServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
+		if err != nil {
+			return nil, err
+		}
+
+		switch input.Type {
+			case model.MCPServerTypeTwitter:
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID: mcpServer.ID,
+					Client: &twitter.TwitterClient{
+						Store: s.store,
+					},
+				})
+			case model.MCPServerTypeGmail:
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID: mcpServer.ID,
+					Client: &gmail.GmailClient{
+						Store: s.store,
+					},
+				})
+			default:
+				return nil, fmt.Errorf("unsupported server type")
+		}
+		return mcpServer, nil
+	}
+
+
 	mcpServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
 	if err != nil {
 		return nil, err
@@ -128,6 +164,28 @@ func (s *service) LoadMCP(ctx context.Context) error {
 	}
 
 	for _, server := range servers {
+
+		if server.Type != model.MCPServerTypeOther {
+			switch server.Type {
+				case model.MCPServerTypeTwitter:
+					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+						ID: server.ID,
+						Client: &twitter.TwitterClient{
+							Store: s.store,
+						},
+					})
+				case model.MCPServerTypeGmail:
+					s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+						ID: server.ID,
+						Client: &gmail.GmailClient{
+							Store: s.store,
+						},
+					})
+				default:
+					continue
+			}
+		}
+
 		cmd := exec.Command(server.Command, server.Args...)	
 
 		cmd.Env = os.Environ()

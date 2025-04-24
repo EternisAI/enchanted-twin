@@ -22,7 +22,7 @@ func TestMCPService_GetTools(t *testing.T) {
 	}
 
 	repo := repository.NewRepository(logger, db.DB())
-	s := NewService(ctx, *repo)
+	s := NewService(ctx, *repo, db)
 
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
@@ -80,7 +80,7 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	}
 
 	repo := repository.NewRepository(logger, db.DB())
-	s := NewService(ctx, *repo)	
+	s := NewService(ctx, *repo, db)	
 	
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{

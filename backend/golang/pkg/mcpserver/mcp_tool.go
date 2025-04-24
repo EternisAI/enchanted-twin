@@ -12,8 +12,14 @@ import (
 	"github.com/openai/openai-go/packages/param"
 )
 
+
+type MCPClient interface {
+	CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error)
+	ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error)
+}
+
 type MCPTool struct {
-	Client *mcp_golang.Client
+	Client MCPClient
 	Tool mcp_golang.ToolRetType
 }
 
@@ -36,10 +42,14 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (tools.Too
 		}, nil
 	}
 	result := tools.ToolResult{}
-	if response.Content[0].ImageContent != nil {
-		result.ImageURLs = []string{response.Content[0].ImageContent.Data}
+	for _, content := range response.Content {
+		if content.ImageContent != nil {
+			result.ImageURLs = append(result.ImageURLs, content.ImageContent.Data)
+		}
+		if content.TextContent != nil {
+			result.Content = fmt.Sprintf("%s\n%s", result.Content, content.TextContent.Text)
+		}
 	}
-	result.Content = response.Content[0].TextContent.Text
 	return result, nil
 }
 

@@ -27,7 +27,13 @@ require (
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-131.0
 	golang.org/x/net v0.39.0
-	google.golang.org/grpc v1.71.1
+	google.golang.org/grpc v1.72.0
+)
+
+require (
+	github.com/g8rswimmer/go-twitter/v2 v2.1.5 // indirect
+	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
+	github.com/zeebo/errs v1.4.0 // indirect
 )
 
 require (
@@ -189,7 +195,7 @@ require (
 	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.32.0 // indirect
-	google.golang.org/api v0.229.0 // indirect
+	google.golang.org/api v0.230.0 // indirect
 	google.golang.org/genproto v0.0.0-20250414145226-207652e42e2e // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250414145226-207652e42e2e // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250414145226-207652e42e2e // indirect
