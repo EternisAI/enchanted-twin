@@ -9,20 +9,7 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 import OAuthPanel from '../oauth/OAuthPanel'
-import { Button } from '../ui/button'
-import { Textarea } from '../ui/textarea'
-import { useState } from 'react'
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription,
-  SheetFooter,
-  SheetTrigger
-} from '../ui/sheet'
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card'
-import { PlusIcon } from 'lucide-react'
+import { ContextCard } from './ContextCard'
 
 export default function ChatHome() {
   const navigate = useNavigate()
@@ -97,59 +84,5 @@ export default function ChatHome() {
         </div>
       </div>
     </div>
-  )
-}
-
-function ContextCard() {
-  // TODO: Get context from backend
-  const [context, setContext] = useState('')
-
-  const handleSubmit = async () => {
-    // Mock mutation for now
-    console.log('Submitting context:', context)
-    setContext('')
-  }
-
-  return (
-    <>
-      <Sheet>
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Context</span>
-              <SheetTrigger asChild>
-                <Button size="sm" variant="outline">
-                  <PlusIcon className="size-4" />
-                  Add Context
-                </Button>
-              </SheetTrigger>
-            </CardTitle>
-          </CardHeader>
-          {context && <CardContent>{context}</CardContent>}
-        </Card>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle>Add Context</SheetTitle>
-            <SheetDescription>
-              Share information about yourself, your preferences, or any other context that might
-              help your twin understand you better.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="space-y-4 px-4">
-            <Textarea
-              placeholder="Enter any information that might help your twin understand you better..."
-              value={context}
-              onChange={(e) => setContext(e.target.value)}
-              className="min-h-[200px]"
-            />
-          </div>
-          <SheetFooter>
-            <Button onClick={handleSubmit} disabled={!context.trim()}>
-              Save Context
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-    </>
   )
 }
