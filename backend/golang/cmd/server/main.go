@@ -19,8 +19,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	indexing "github.com/EternisAI/enchanted-twin/pkg/indexing"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -131,6 +131,7 @@ func main() {
 			logger.Error("Error closing store", slog.Any("error", err))
 		}
 	}()
+
 	logger.Info("SQLite database initialized")
 
 	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
@@ -223,7 +224,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		MaxConcurrentActivityExecutionSize: 1,
 	})
 
-	indexingWorkflow := indexing.IndexingWorkflow{
+	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
 		Logger:       logger,
 		Config:       envs,
 		Store:        store,
@@ -231,7 +232,7 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 		OllamaClient: ollamaClient,
 		Memory:       memory,
 	}
-	indexingWorkflow.RegisterWorkflowsAndActivities(&w)
+	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
 	authActivities := auth.NewOAuthActivities(store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
@@ -246,14 +247,15 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 }
 
 type graphqlServerInput struct {
-	logger          *log.Logger
-	temporalClient  client.Client
-	port            string
-	twinChatService twinchat.Service
-	natsClient      *nats.Conn
-	store           *db.Store
-	aiService       *ai.Service
-	mcpService      mcpserver.MCPService
+	logger                 *log.Logger
+	temporalClient         client.Client
+	port                   string
+	twinChatService        twinchat.Service
+	natsClient             *nats.Conn
+	store                  *db.Store
+	aiService              *ai.Service
+	mcpService             mcpserver.MCPService
+	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -266,13 +268,14 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 	}).Handler)
 
 	srv := handler.New(gqlSchema(&graph.Resolver{
-		Logger:          input.logger,
-		TemporalClient:  input.temporalClient,
-		TwinChatService: input.twinChatService,
-		Nc:              input.natsClient,
-		Store:           input.store,
-		AiService:       input.aiService,
-		MCPService:      input.mcpService,
+		Logger:                 input.logger,
+		TemporalClient:         input.temporalClient,
+		TwinChatService:        input.twinChatService,
+		Nc:                     input.natsClient,
+		Store:                  input.store,
+		AiService:              input.aiService,
+		MCPService:             input.mcpService,
+		DataProcessingWorkflow: input.dataProcessingWorkflow,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

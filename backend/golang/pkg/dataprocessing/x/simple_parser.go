@@ -179,7 +179,7 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 					}
 					if createdAtEnd != -1 {
 						createdAt := part[createdAtStart : createdAtStart+createdAtEnd]
-						parsedTime, err := parseTwitterTimestamp(createdAt)
+						parsedTime, err := ParseTwitterTimestamp(createdAt)
 						if err == nil {
 							timestamp = parsedTime
 						}

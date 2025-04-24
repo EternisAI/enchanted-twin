@@ -53,9 +53,17 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		if err != nil {
 			return "", fmt.Errorf("oauth successful but failed to create Twitter server: %w", err)
 		}
+
 		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "refresh-twitter-token", time.Minute*30, auth.TokenRefreshWorkflow, []any{auth.TokenRefreshWorkflowInput{Provider: "twitter"}})
 		if err != nil {
 			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
+		}
+
+		err = r.DataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(r.TemporalClient)
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
 		}
 
 	case "google":
@@ -69,15 +77,24 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		if err != nil {
 			return "", fmt.Errorf("oauth successful but failed to create Gmail server: %w", err)
 		}
+
 		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "refresh-gmail-token", time.Minute*30, auth.TokenRefreshWorkflow, []any{auth.TokenRefreshWorkflowInput{Provider: "google"}})
 		if err != nil {
 			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
 		}
+
+		err = r.DataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(r.TemporalClient)
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
+		}
+
 	default:
 		// Nothing to do
 	}
 
-	return result, nil
+	return result, err
 }
 
 // RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.
@@ -151,7 +168,7 @@ func (r *mutationResolver) StartIndexing(ctx context.Context) (bool, error) {
 		ID:        "index",
 		TaskQueue: "default",
 	}
-	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "IndexWorkflow", map[string]interface{}{})
+	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "InitializeWorkflow", map[string]interface{}{})
 	if err != nil {
 		return false, fmt.Errorf("error executing workflow: %v", err)
 	}
@@ -170,7 +187,7 @@ func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path 
 
 // DeleteDataSource is the resolver for the deleteDataSource field.
 func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (bool, error) {
-	result, err := r.Store.DeleteDataSourceError(ctx, id)
+	result, err := r.Store.DeleteDataSource(ctx, id)
 	if err != nil {
 		return false, err
 	}
@@ -435,7 +452,9 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)
