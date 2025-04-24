@@ -13,6 +13,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/pkg/errors"
@@ -30,9 +31,10 @@ type Service struct {
 	memory           memory.Storage
 	completionsModel string
 	telegramToken    string
+	store            *db.Store
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string, telegramToken string) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, completionsModel string, telegramToken string, store *db.Store) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -41,6 +43,7 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		memory:           memory,
 		completionsModel: completionsModel,
 		telegramToken:    telegramToken,
+		store:            store,
 	}
 }
 
@@ -114,7 +117,7 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
-		tools.NewTelegramTool(s.logger, s.telegramToken),
+		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, tools)

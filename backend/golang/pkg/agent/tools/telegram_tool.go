@@ -21,13 +21,14 @@ type TelegramTool struct {
 	Store  *db.Store
 }
 
-func NewTelegramTool(logger *log.Logger, token string) *TelegramTool {
+func NewTelegramTool(logger *log.Logger, token string, store *db.Store) *TelegramTool {
 	if token == "" {
 		logger.Error("TELEGRAM_TOKEN environment variable not set")
 	}
 	return &TelegramTool{
 		Logger: logger,
 		Token:  token,
+		Store:  store,
 	}
 }
 
