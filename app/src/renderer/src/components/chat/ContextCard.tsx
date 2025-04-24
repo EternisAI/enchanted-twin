@@ -52,6 +52,13 @@ export function ContextCard() {
     }
   }
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit(e as unknown as React.FormEvent)
+    }
+  }
+
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
@@ -78,6 +85,7 @@ export function ContextCard() {
             placeholder="Enter any information that might help your twin understand you better..."
             value={context}
             onChange={(e) => setContext(e.target.value)}
+            onKeyDown={handleKeyDown}
             className="min-h-[200px] px-4"
           />
           <Button disabled={updateLoading}>Save Context</Button>
