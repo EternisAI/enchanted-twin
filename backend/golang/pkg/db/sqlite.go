@@ -75,6 +75,24 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
+	// Create mcp_servers table if it doesn't exist
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS mcp_servers (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			command TEXT NOT NULL,
+			args JSON,
+			envs JSON,
+			type TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			enabled BOOLEAN DEFAULT FALSE
+		);
+		CREATE INDEX IF NOT EXISTS idx_mcp_servers_id ON mcp_servers(id);
+	`)
+	if err != nil {
+		return nil, err
+	}
+
 	// Insert default profile if it doesn't exist
 	_, err = db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO user_profiles (id, name, bio) VALUES ('default', '(missing name)', '')

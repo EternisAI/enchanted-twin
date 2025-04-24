@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
@@ -25,7 +26,7 @@ func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.
 
 // StartOAuthFlow is the resolver for the startOAuthFlow field.
 func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, scope string) (*model.OAuthFlow, error) {
-	auth, redir, err := helpers.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
+	auth, redir, err := auth.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
 	return &model.OAuthFlow{
 		AuthURL:     auth,
 		RedirectURI: redir,
@@ -34,24 +35,71 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
-	provider, err := helpers.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	result, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+
 	if err != nil {
-		return provider, err
+		return "", err
 	}
 
-	if provider == "twitter" {
-		err = r.DataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(r.TemporalClient)
-	}
-	if provider == "google" {
-		err = r.DataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(r.TemporalClient)
+	switch result {
+	case "twitter":
+		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
+			Name:    "Twitter",
+			Command: "npx",
+			Args:    []string{},
+			Envs:    []*model.KeyValueInput{},
+			Type:    model.MCPServerTypeTwitter,
+		})
+		if err != nil {
+			return "", fmt.Errorf("oauth successful but failed to create Twitter server: %w", err)
+		}
+
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "refresh-twitter-token", time.Minute*30, auth.TokenRefreshWorkflow, []any{auth.TokenRefreshWorkflowInput{Provider: "twitter"}})
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
+		}
+
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "x-sync-schedule", time.Minute*10, "XSyncWorkflow", []any{})
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
+		}
+
+	case "google":
+		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
+			Name:    "Gmail",
+			Command: "npx",
+			Args:    []string{},
+			Envs:    []*model.KeyValueInput{},
+			Type:    model.MCPServerTypeGoogle,
+		})
+		if err != nil {
+			return "", fmt.Errorf("oauth successful but failed to create Gmail server: %w", err)
+		}
+
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "refresh-gmail-token", time.Minute*30, auth.TokenRefreshWorkflow, []any{auth.TokenRefreshWorkflowInput{Provider: "google"}})
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
+		}
+
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "gmail-sync-schedule", time.Minute*2, "GmailSyncWorkflow", []any{})
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
+		}
+
+	default:
+		// Nothing to do
 	}
 
-	return provider, err
+	return result, err
 }
 
 // RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.
 func (r *mutationResolver) RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error) {
-	dbResults, err := helpers.RefreshExpiredTokens(ctx, r.Logger, r.Store)
+	dbResults, err := auth.RefreshExpiredTokens(ctx, r.Logger, r.Store)
 	if err != nil {
 		return nil, err
 	}
@@ -147,6 +195,15 @@ func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (boo
 	return result != nil, nil
 }
 
+// ConnectMCPServer is the resolver for the connectMCPServer field.
+func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (bool, error) {
+	_, err := r.MCPService.ConnectMCPServer(ctx, input)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -236,6 +293,28 @@ func (r *queryResolver) GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatu
 // GetChatSuggestions is the resolver for the getChatSuggestions field.
 func (r *queryResolver) GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error) {
 	return r.TwinChatService.GetChatSuggestions(ctx, chatID)
+}
+
+// GetMCPServers is the resolver for the getMCPServers field.
+func (r *queryResolver) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error) {
+	return r.MCPService.GetMCPServers(ctx)
+}
+
+// GetTools is the resolver for the getTools field.
+func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
+	tools, err := r.MCPService.GetTools(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	toolsDefinitions := make([]*model.Tool, len(tools))
+	for i, tool := range tools {
+		toolsDefinitions[i] = &model.Tool{
+			Name:        tool.Name,
+			Description: *tool.Description,
+		}
+	}
+	return toolsDefinitions, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.

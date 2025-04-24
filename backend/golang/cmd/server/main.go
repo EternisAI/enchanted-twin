@@ -16,10 +16,13 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
+	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -156,7 +159,10 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store)
+	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
+	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
+
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store, mcpService)
 
 	// Initialize and start Telegram service
 	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
@@ -181,6 +187,7 @@ func main() {
 		natsClient:      nc,
 		store:           store,
 		aiService:       aiService,
+		mcpService:      mcpService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -227,39 +234,13 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
+	authActivities := auth.NewOAuthActivities(store)
+	authActivities.RegisterWorkflowsAndActivities(&w)
+
 	err = w.Start()
 	if err != nil {
 		logger.Error("Error starting worker", slog.Any("error", err))
 		return nil, err
-	}
-
-	// Create the Sync schedule only if the token exists
-	xToken, err := store.GetOAuthTokens(context.Background(), "twitter")
-	if err != nil {
-		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
-		return temporalClient, nil
-	}
-
-	if xToken != nil {
-		err = dataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(temporalClient)
-		if err != nil {
-			logger.Error("Error creating XSync schedule", slog.Any("error", err))
-			return nil, err
-		}
-	}
-
-	googleToken, err := store.GetOAuthTokens(context.Background(), "google")
-	if err != nil {
-		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
-		return temporalClient, nil
-	}
-
-	if googleToken != nil {
-		err = dataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(temporalClient)
-		if err != nil {
-			logger.Error("Error creating GmailSync schedule", slog.Any("error", err))
-			return nil, err
-		}
 	}
 
 	return temporalClient, nil
@@ -273,6 +254,7 @@ type graphqlServerInput struct {
 	natsClient             *nats.Conn
 	store                  *db.Store
 	aiService              *ai.Service
+	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 }
 
@@ -292,6 +274,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Nc:                     input.natsClient,
 		Store:                  input.store,
 		AiService:              input.aiService,
+		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 	}))
 	srv.AddTransport(transport.SSE{})

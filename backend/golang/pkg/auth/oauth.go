@@ -1,4 +1,4 @@
-package helpers
+package auth
 
 import (
 	"context"
@@ -13,9 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/log"
-
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
 )
 
 // generatePKCEPair generates PKCE code verifier and challenge
@@ -112,7 +111,8 @@ func RefreshExpiredTokens(ctx context.Context, logger *log.Logger, store *db.Sto
 		return nil, err
 	}
 	for _, provider := range providers {
-		if err := RefreshOAuthToken(ctx, logger, store, provider.Provider); err != nil {
+		_, err := RefreshOAuthToken(ctx, logger, store, provider.Provider)
+		if err != nil {
 			logger.Error("failed to refresh OAuth token", "provider", provider.Provider, "error", err)
 		}
 	}
@@ -303,23 +303,23 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 }
 
 // RefreshOAuthToken handles the refresh token flow
-func RefreshOAuthToken(ctx context.Context, logger *log.Logger, store *db.Store, provider string) error {
+func RefreshOAuthToken(ctx context.Context, logger *log.Logger, store *db.Store, provider string) (TokenRequest, error) {
 	logger.Debug("refreshing OAuth token", "provider", provider)
 
 	// Get existing tokens
 	tokens, err := store.GetOAuthTokens(ctx, provider)
 	if err != nil {
-		return fmt.Errorf("failed to get existing tokens: %w", err)
+		return TokenRequest{}, fmt.Errorf("failed to get existing tokens: %w", err)
 	}
 
 	if tokens.RefreshToken == "" {
-		return fmt.Errorf("no refresh token available for provider: %s", provider)
+		return TokenRequest{}, fmt.Errorf("no refresh token available for provider: %s", provider)
 	}
 
 	// Load OAuth config for provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
-		return fmt.Errorf("failed to get OAuth config: %w", err)
+		return TokenRequest{}, fmt.Errorf("failed to get OAuth config: %w", err)
 	}
 
 	// Prepare token request
@@ -333,7 +333,7 @@ func RefreshOAuthToken(ctx context.Context, logger *log.Logger, store *db.Store,
 	// Exchange refresh token for new access token
 	tokenResp, err := ExchangeToken(ctx, logger, provider, *config, tokenReq)
 	if err != nil {
-		return err
+		return TokenRequest{}, err
 	}
 
 	// Update tokens in storage
@@ -346,12 +346,12 @@ func RefreshOAuthToken(ctx context.Context, logger *log.Logger, store *db.Store,
 	}
 
 	if err := store.SetOAuthTokens(ctx, *tokens); err != nil {
-		return fmt.Errorf("failed to store refreshed tokens: %w", err)
+		return TokenRequest{}, fmt.Errorf("failed to store refreshed tokens: %w", err)
 	}
 
 	logger.Debug("successfully refreshed OAuth token",
 		"provider", provider,
 		"expires_at", tokenResp.ExpiresAt)
 
-	return nil
+	return tokenReq, nil
 }
