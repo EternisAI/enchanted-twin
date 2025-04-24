@@ -108,7 +108,7 @@ func (r *mutationResolver) StartIndexing(ctx context.Context) (bool, error) {
 		ID:        "index",
 		TaskQueue: "default",
 	}
-	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "IndexWorkflow", map[string]interface{}{})
+	_, err := (r.TemporalClient).ExecuteWorkflow(ctx, options, "InitializeWorkflow", map[string]interface{}{})
 	if err != nil {
 		return false, fmt.Errorf("error executing workflow: %v", err)
 	}
@@ -356,7 +356,9 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)
