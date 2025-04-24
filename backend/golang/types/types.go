@@ -5,6 +5,8 @@ const (
 	TelegramChatUUIDKey = "telegram_chat_uuid"
 	// TelegramChatIDKey is the telegram chat id to be used for sending messages
 	TelegramChatIDKey = "telegram_chat_id"
+	// TelegramLastUpdateIDKey is used to track the last update ID for Telegram messages
+	TelegramLastUpdateIDKey = "telegram_last_update_id"
 	// TelegramBotName is the telegram bot name to be used for sending messages
 	TelegramBotName = "HelloIamBernieBot"
 	// TelegramAPIBase is the base url for the telegram api

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
@@ -68,6 +69,7 @@ type TelegramService struct {
 	CompletionsModel string
 	Memory           memory.Storage
 	AuthStorage      *db.Store
+	LastMessages     []Message
 }
 
 type TelegramServiceInput struct {
@@ -91,6 +93,7 @@ func NewTelegramService(input TelegramServiceInput) *TelegramService {
 		CompletionsModel: input.CompletionsModel,
 		Memory:           input.Memory,
 		AuthStorage:      input.AuthStorage,
+		LastMessages:     []Message{},
 	}
 }
 
@@ -179,6 +182,7 @@ func (s *TelegramService) Start(ctx context.Context) error {
 				if update.Message.Text != "" {
 					var uuid string
 
+					// Register chat ID at start
 					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
 
 						storedUUID, err := s.GetChatUUID(ctx)
@@ -196,15 +200,29 @@ func (s *TelegramService) Start(ctx context.Context) error {
 						}
 					}
 
-					response, err := s.Execute(ctx, s.TransformToOpenAIMessages([]Message{update.Message}), update.Message.Text)
+					s.LastMessages = append(s.LastMessages, update.Message)
+
+					fmt.Println("latestMessages", s.LastMessages)
+
+					response, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), update.Message.Text)
 					if err != nil {
 						s.Logger.Error("Failed to execute message", "error", err)
 						continue
 					}
+					s.LastMessages = append(s.LastMessages, Message{
+						MessageID: update.Message.MessageID,
+						From:      update.Message.From,
+						Chat:      update.Message.Chat,
+						Date:      update.Message.Date,
+						Text:      response.Content,
+					})
 					err = s.SendMessage(ctx, update.Message.Chat.ID, response.Content)
 					if err != nil {
 						s.Logger.Error("Failed to send message", "error", err)
 						continue
+					}
+					if len(s.LastMessages) > 10 {
+						s.LastMessages = s.LastMessages[len(s.LastMessages)-10:]
 					}
 
 				}
@@ -262,11 +280,19 @@ func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.C
 }
 
 func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, error) {
-	chatID, err := s.GetChatID(ctx)
+	// Get the last update ID from storage
+	lastUpdateID, err := s.Store.GetValue(ctx, types.TelegramLastUpdateIDKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get chat ID: %w", err)
+		// If no last update ID exists, start from 0
+		lastUpdateID = "0"
 	}
-	url := fmt.Sprintf("%s/bot%s/getUpdates?chat_id=%s&limit=10", types.TelegramAPIBase, s.Token, chatID)
+
+	lastUpdateIDInt, err := strconv.Atoi(lastUpdateID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert last update ID to int: %w", err)
+	}
+
+	url := fmt.Sprintf("%s/bot%s/getUpdates?offset=%d&limit=10", types.TelegramAPIBase, s.Token, lastUpdateIDInt)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -284,7 +310,11 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	var result GetUpdatesResponse
+	var result struct {
+		OK     bool     `json:"ok"`
+		Result []Update `json:"result"`
+	}
+
 	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w", err)
 	}
@@ -293,7 +323,23 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 		return nil, fmt.Errorf("telegram API returned error: %s", string(body))
 	}
 
-	return result.Result, nil
+	// Convert Updates to Messages and update the last update ID
+	messages := make([]Message, 0, len(result.Result))
+	for _, update := range result.Result {
+		messages = append(messages, update.Message)
+		// Update the last update ID
+		if update.UpdateID > lastUpdateIDInt {
+			lastUpdateIDInt = update.UpdateID
+		}
+	}
+
+	// Store the new last update ID
+	err = s.Store.SetValue(ctx, types.TelegramLastUpdateIDKey, strconv.Itoa(lastUpdateIDInt))
+	if err != nil {
+		s.Logger.Error("Failed to store last update ID", "error", err)
+	}
+
+	return messages, nil
 }
 
 func (s *TelegramService) TransformToOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUnion {
