@@ -153,7 +153,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 	w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, nil)
 
 	var indexDataResponse IndexDataActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{}).Get(ctx, &indexDataResponse)
+	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{DataSourcesInput: dataSources}).Get(ctx, &indexDataResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
 		errMsg := err.Error()
@@ -163,18 +163,13 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 	}
 
 	err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
-		DataSources: dataSources,
+		DataSources: indexDataResponse.DataSourcesResponse,
 	}).Get(ctx, &completeResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to complete indexing", "error", err)
 		errMsg := err.Error()
 		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0, &errMsg)
 		return InitializeWorkflowResponse{}, fmt.Errorf("failed to complete indexing: %w", err)
-	}
-
-	for i := range dataSources {
-		dataSources[i].IsIndexed = true
-		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
 	}
 
 	indexingState = model.IndexingStateCompleted
@@ -246,31 +241,40 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(ctx context.Context, input
 	return ProcessDataActivityResponse{Success: success}, nil
 }
 
-type IndexDataActivityInput struct{}
+type IndexDataActivityInput struct {
+	DataSourcesInput []*model.DataSource `json:"dataSources"`
+}
 
-type IndexDataActivityResponse struct{}
+type IndexDataActivityResponse struct {
+	DataSourcesResponse []*model.DataSource `json:"dataSources"`
+}
 
-func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context) (IndexDataActivityResponse, error) {
-	dataSources, err := w.Store.GetUnindexedDataSources(ctx)
+func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
+	dataSourcesDB, err := w.Store.GetUnindexedDataSources(ctx)
 	if err != nil {
-		return IndexDataActivityResponse{}, err
+		return IndexDataActivityResponse{}, fmt.Errorf("failed to get unindexed data sources: %w", err)
 	}
 
-	for _, dataSource := range dataSources {
-		w.Logger.Info("Indexing data source", "dataSource", dataSource.Name)
-		if dataSource.ProcessedPath == nil {
-			w.Logger.Error("Processed path is nil", "dataSource", dataSource.Name)
+	dataSourcesResponse := make([]*model.DataSource, len(input.DataSourcesInput))
+
+	copy(dataSourcesResponse, input.DataSourcesInput)
+
+	for i, dataSourceDB := range dataSourcesDB {
+		w.Logger.Info("Indexing data source", "dataSource", dataSourceDB.Name)
+		if dataSourceDB.ProcessedPath == nil {
+			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
+
 			continue
 		}
 
-		records, err := helpers.ReadJSONL[types.Record](*dataSource.ProcessedPath)
+		records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
 		if err != nil {
 			return IndexDataActivityResponse{}, err
 		}
 
-		switch strings.ToLower(dataSource.Name) {
+		switch strings.ToLower(dataSourceDB.Name) {
 		case "slack":
-			slackSource := slack.New(*dataSource.ProcessedPath)
+			slackSource := slack.New(*dataSourceDB.ProcessedPath)
 
 			documents, err := slackSource.ToDocuments(records)
 			if err != nil {
@@ -282,6 +286,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context) (IndexD
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
 
 		case "telegram":
 			documents, err := telegram.ToDocuments(records)
@@ -294,6 +299,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context) (IndexD
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
 		case "x":
 			documents, err := x.ToDocuments(records)
 			if err != nil {
@@ -305,6 +311,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context) (IndexD
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
 		case "gmail":
 			documents, err := gmail.ToDocuments(records)
 			if err != nil {
@@ -316,11 +323,12 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context) (IndexD
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
 
 		}
 
 	}
-	return IndexDataActivityResponse{}, nil
+	return IndexDataActivityResponse{DataSourcesResponse: dataSourcesResponse}, nil
 }
 
 type CompleteActivityInput struct {
