@@ -20,12 +20,14 @@ directive @goTag(
 
 type UserProfile {
   name: String
+  bio: String
   indexingStatus: IndexingStatus
   connectedDataSources: [DataSource!]!
 }
 
 input UpdateProfileInput {
   name: String
+  bio: String
 }
 
 type ToolCall {

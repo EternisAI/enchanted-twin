@@ -45,7 +45,8 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS user_profiles (
 			id TEXT PRIMARY KEY,
-			name TEXT
+			name TEXT,
+			bio TEXT
 		);
 
 		CREATE TABLE IF NOT EXISTS chats (
@@ -74,7 +75,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 
 	// Insert default profile if it doesn't exist
 	_, err = db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO user_profiles (id, name) VALUES ('default', '(missing name)')
+		INSERT OR IGNORE INTO user_profiles (id, name, bio) VALUES ('default', '(missing name)', '')
 	`)
 	if err != nil {
 		return nil, err
