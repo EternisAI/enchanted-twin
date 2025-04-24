@@ -17,7 +17,7 @@ export default function ChatSuggestions({
   onSuggestionClick: (suggestion: string) => void
   toggleVisibility: () => void
 }) {
-  const { data } = useQuery(GetChatSuggestionsDocument, {
+  const { data, error } = useQuery(GetChatSuggestionsDocument, {
     variables: { chatId },
     skip: !visible || !chatId,
     fetchPolicy: 'network-only'
@@ -56,7 +56,7 @@ export default function ChatSuggestions({
     )
   }
 
-  if (!suggestions || suggestions.length === 0) {
+  if (error || !suggestions || suggestions.length === 0) {
     return null
   }
 
@@ -73,7 +73,7 @@ export default function ChatSuggestions({
             <TabsTrigger
               key={category.category}
               value={category.category}
-              className="px-3.5 py-2.5 text-sm cursor-pointer"
+              className="px-3.5 py-2.5 text-sm cursor-pointer capitalize"
             >
               {category.category}
             </TabsTrigger>
