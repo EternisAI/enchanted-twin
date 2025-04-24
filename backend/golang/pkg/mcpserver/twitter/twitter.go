@@ -82,9 +82,15 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 	logger := log.Default()
 	if oauthTokens.ExpiresAt.Before(time.Now()) {
 		logger.Debug("Refreshing token for twitter")
-		helpers.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
+		err = helpers.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
+		if err != nil {
+			return nil, err
+		}
+		oauthTokens, err = c.Store.GetOAuthTokens(ctx, "twitter")
+		if err != nil {
+			return nil, err
+		}
 	}
-
 
 
 	var content []*mcp_golang.Content
