@@ -15,6 +15,11 @@ type Chat struct {
 	CreatedAt string     `json:"createdAt"`
 }
 
+type ChatSuggestionsCategory struct {
+	Category    string   `json:"category"`
+	Suggestions []string `json:"suggestions"`
+}
+
 type DataSource struct {
 	ID          string `json:"id"`
 	Name        string `json:"name"`

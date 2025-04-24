@@ -8,8 +8,11 @@ import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
+import http from 'http'
+import { URL } from 'url'
 
 const PATHNAME = 'input_data'
+const DEFAULT_OAUTH_SERVER_PORT = 8080
 
 let mainWindow: BrowserWindow | null = null
 // Check if running in production using environment variable
@@ -21,64 +24,121 @@ log.info(`Log file will be written to: ${log.transports.file.getFile().path}`)
 log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
+let oauthServer: http.Server | null = null
+
+function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
+  return new Promise((resolve, reject) => {
+    if (oauthServer) {
+      oauthServer.close()
+      oauthServer = null
+    }
+
+    const server = http.createServer((req, res) => {
+      log.info(`[OAuth] Received request: ${req.url}`)
+
+      if (req.url && req.url.startsWith(callbackPath)) {
+        log.info(`[OAuth] Received callback: ${req.url}`)
+
+        try {
+          const parsedUrl = new URL(`http://localhost:${DEFAULT_OAUTH_SERVER_PORT}${req.url}`)
+          const code = parsedUrl.searchParams.get('code')
+          const state = parsedUrl.searchParams.get('state')
+
+          if (code && state && mainWindow) {
+            mainWindow.webContents.send('oauth-callback', { code, state })
+            res.writeHead(200, { 'Content-Type': 'text/html' })
+            res.end(`
+              <!DOCTYPE html>
+              <html>
+                <head>
+                  <title>Authentication Successful</title>
+                  <style>
+                    body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 40px; }
+                    h1 { color: #333; }
+                    p { color: #666; }
+                    .success { color: #4CAF50; font-weight: bold; }
+                  </style>
+                </head>
+                <body>
+                  <h1>Authentication Successful</h1>
+                  <p class="success">You have successfully authenticated!</p>
+                  <p>You can close this window and return to the application.</p>
+                </body>
+              </html>
+            `)
+
+            setTimeout(() => {
+              if (oauthServer) {
+                oauthServer.close()
+                oauthServer = null
+                log.info('[OAuth] Callback server closed after successful authentication')
+              }
+            }, 3000)
+          } else {
+            res.writeHead(400, { 'Content-Type': 'text/html' })
+            res.end(
+              '<html><body><h1>Authentication Error</h1><p>Invalid or missing parameters.</p></body></html>'
+            )
+          }
+        } catch (err) {
+          log.error('[OAuth] Failed to parse callback URL', err)
+          res.writeHead(500, { 'Content-Type': 'text/plain' })
+          res.end('Internal Server Error')
+        }
+      } else {
+        log.info(`[OAuth] Received non-callback request: ${req.url}`)
+        res.writeHead(404, { 'Content-Type': 'text/plain' })
+        res.end('Not Found')
+      }
+    })
+
+    server.on('error', (err) => {
+      log.error(`[OAuth] Server error on port ${DEFAULT_OAUTH_SERVER_PORT}:`, err)
+      reject(err)
+    })
+
+    server.listen(DEFAULT_OAUTH_SERVER_PORT, '127.0.0.1', () => {
+      log.info(
+        `[OAuth] Callback server listening on http://127.0.0.1:${DEFAULT_OAUTH_SERVER_PORT}${callbackPath}`
+      )
+      resolve(server)
+    })
+  })
+}
 
 function openOAuthWindow(authUrl: string, redirectUri?: string) {
-  const authWindow = new BrowserWindow({
-    width: 600,
-    height: 800,
-    show: true,
-    autoHideMenuBar: true,
-    webPreferences: {
-      nodeIntegration: false,
-      contextIsolation: true
-    }
-  })
-
-  // Parse the redirectUri if provided, or use default values
-  let callbackHost = '127.0.0.1'
   let callbackPath = '/callback'
-
   if (redirectUri) {
     try {
       const parsedRedirect = new URL(redirectUri)
-      callbackHost = parsedRedirect.hostname
       callbackPath = parsedRedirect.pathname
-      console.log(`[OAuth] Using redirect parameters: host=${callbackHost}, path=${callbackPath}`)
+
+      startOAuthCallbackServer(callbackPath)
+        .then((server) => {
+          oauthServer = server
+          log.info('[OAuth] Server started, opening auth URL in browser')
+          return shell.openExternal(authUrl)
+        })
+        .then(() => {
+          log.info('[OAuth] Opened auth URL in default browser')
+        })
+        .catch((err) => {
+          log.error('[OAuth] Error in OAuth flow:', err)
+        })
     } catch (err) {
-      console.error('[OAuth] Failed to parse redirectUri, using defaults', err)
+      log.error('[OAuth] Failed to parse redirectUri', err)
+
+      shell
+        .openExternal(authUrl)
+        .then(() => log.info('[OAuth] Opened auth URL in default browser'))
+        .catch((err) => log.error('[OAuth] Failed to open auth URL in default browser', err))
     }
+  } else {
+    shell
+      .openExternal(authUrl)
+      .then(() => log.info('[OAuth] Opened auth URL in default browser'))
+      .catch((err) => log.error('[OAuth] Failed to open auth URL in default browser', err))
   }
-
-  const handleUrl = (url: string) => {
-    try {
-      const parsedUrl = new URL(url)
-      if (parsedUrl.hostname === callbackHost && parsedUrl.pathname === callbackPath) {
-        const code = parsedUrl.searchParams.get('code')
-        const state = parsedUrl.searchParams.get('state')
-        if (code && state && mainWindow) {
-          console.log('[OAuth] Received callback', { code, state })
-          mainWindow.webContents.send('oauth-callback', { code, state })
-          authWindow.close()
-        }
-      }
-    } catch (err) {
-      console.error('[OAuth] Failed to parse redirect URL', err)
-    }
-  }
-
-  authWindow.webContents.on('will-redirect', (_event, url) => {
-    handleUrl(url)
-  })
-
-  authWindow.webContents.on('will-navigate', (_event, url) => {
-    handleUrl(url)
-  })
-
-  authWindow.on('closed', () => {
-    console.log('[OAuth] Auth window closed by user')
-  })
-
-  authWindow.loadURL(authUrl)
 }
 
 function setupAutoUpdater() {
@@ -86,57 +146,59 @@ function setupAutoUpdater() {
     log.info('Skipping auto-updater in development mode')
     return
   }
-  
+
   autoUpdater.logger = log
-  log.transports.file.level = "debug"
-  
+  log.transports.file.level = 'debug'
+
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
   })
-  
+
   autoUpdater.on('update-available', (info) => {
     log.info('Update available:', info)
   })
-  
+
   autoUpdater.on('update-not-available', (info) => {
     log.info('Update not available:', info)
   })
-  
+
   autoUpdater.on('error', (err) => {
     log.error('Error in auto-updater:', err)
   })
-  
+
   autoUpdater.on('download-progress', (progressObj) => {
     let logMessage = `Download speed: ${progressObj.bytesPerSecond}`
     logMessage += ` - Downloaded ${progressObj.percent}%`
     logMessage += ` (${progressObj.transferred}/${progressObj.total})`
     log.info(logMessage)
   })
-  
+
   autoUpdater.on('update-downloaded', (info) => {
     log.info('Update downloaded:', info)
-    
+
     // Show dialog to let user decide when to restart and install
-    dialog.showMessageBox({
-      type: 'info',
-      title: 'Update Ready',
-      message: 'A new version has been downloaded.',
-      detail: 'Would you like to restart the application now to install the update?',
-      buttons: ['Restart Now', 'Later'],
-      defaultId: 0,
-      cancelId: 1
-    }).then(({ response }) => {
-      if (response === 0) {
-        // User clicked "Restart Now"
-        log.info('User opted to restart for update')
-        autoUpdater.quitAndInstall(true, true)
-      } else {
-        // User clicked "Later"
-        log.info('User postponed update installation')
-      }
-    })
+    dialog
+      .showMessageBox({
+        type: 'info',
+        title: 'Update Ready',
+        message: 'A new version has been downloaded.',
+        detail: 'Would you like to restart the application now to install the update?',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          // User clicked "Restart Now"
+          log.info('User opted to restart for update')
+          autoUpdater.quitAndInstall(true, true)
+        } else {
+          // User clicked "Later"
+          log.info('User postponed update installation')
+        }
+      })
   })
-  
+
   // Check for updates
   log.info('Checking for application updates...')
   autoUpdater.checkForUpdatesAndNotify()
@@ -300,13 +362,16 @@ app.whenReady().then(() => {
     return result
   })
 
-  ipcMain.handle('select-files', async (_event, options?: { filters?: { name: string; extensions: string[] }[] }) => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openFile'],
-      filters: options?.filters
-    })
-    return result
-  })
+  ipcMain.handle(
+    'select-files',
+    async (_event, options?: { filters?: { name: string; extensions: string[] }[] }) => {
+      const result = await dialog.showOpenDialog({
+        properties: ['openFile'],
+        filters: options?.filters
+      })
+      return result
+    }
+  )
 
   ipcMain.handle('copy-dropped-files', async (_event, filePaths) => {
     const fileStoragePath =
@@ -361,5 +426,12 @@ app.on('will-quit', () => {
       log.warn('Failed to kill Go server process. It might have already exited.')
     }
     goServerProcess = null
+  }
+
+  // Clean up the OAuth server if it exists
+  if (oauthServer) {
+    log.info('Closing OAuth callback server...')
+    oauthServer.close()
+    oauthServer = null
   }
 })
