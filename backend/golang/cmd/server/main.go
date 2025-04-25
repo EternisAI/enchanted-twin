@@ -15,6 +15,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
+	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/root"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -137,8 +138,8 @@ func main() {
 
 	logger.Info("SQLite database initialized")
 
-	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	aiServiceEmbeddings := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	// Initialize the AI service singleton
+	aiService := ai.InitSingleton(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
@@ -240,6 +241,7 @@ func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Cl
 
 // bootstrapTemporalWorker creates and starts a Temporal worker with registered workflows
 func bootstrapTemporalWorker(logger *log.Logger, temporalClient client.Client, envs *config.Config, store *db.Store, nc *nats.Conn, ollamaClient *ollamaapi.Client, memory memory.Storage) (worker.Worker, error) {
+	// Create worker
 	w := worker.New(temporalClient, "default", worker.Options{
 		MaxConcurrentActivityExecutionSize: 1,
 	})
@@ -260,6 +262,10 @@ func bootstrapTemporalWorker(logger *log.Logger, temporalClient client.Client, e
 	// Register the root workflow - using default queue for now
 	w.RegisterWorkflow(root.RootWorkflow)
 	logger.Info("Registered root workflow")
+
+	// Register the planned agent v2 workflow
+	planned.RegisterPlannedAgentWorkflow(w, logger)
+	logger.Info("Registered planned agent workflow")
 
 	// Start the worker
 	err := w.Start()

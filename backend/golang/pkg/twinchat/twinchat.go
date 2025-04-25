@@ -13,6 +13,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
@@ -38,7 +39,7 @@ type Service struct {
 	mcpService       mcpserver.MCPService
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store, mcpService mcpserver.MCPService) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, store *db.Store, completionsModel string, telegramToken string, authStore *db.Store) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -48,29 +49,42 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		completionsModel: completionsModel,
 		telegramToken:    telegramToken,
 		store:            store,
-		authStorage:      authStorage,
-		mcpService:       mcpService,
+		authStorage:      authStore,
 	}
 }
 
 func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) (agent.AgentResponse, error) {
-	newAgent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
+	agent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
+	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
 
-	mcpTools, err := s.mcpService.GetInternalTools(ctx)
+	// Create temporal client for the plan tool
+	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
 	if err != nil {
-		return agent.AgentResponse{}, err
+		s.logger.Error("Failed to create temporal client for plan tool", "error", err)
 	}
 
-	tools := []tools.Tool{
+	// Tool list
+	toolsList := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
 		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
+		twitterReverseChronTimelineTool,
 	}
 
-	tools = append(tools, mcpTools...)
+	// Add planned agent tool if temporal client is available
+	if temporalClient != nil {
+		plannedAgentTool := tools.NewPlannedAgentTool(s.logger, temporalClient, s.completionsModel)
+		toolsList = append(toolsList, plannedAgentTool)
+	}
 
-	response, err := newAgent.Execute(ctx, messageHistory, tools)
+	// Add MCP tools
+	mcpTools, err := s.mcpService.GetInternalTools(ctx)
+	if err == nil {
+		toolsList = append(toolsList, mcpTools...)
+	}
+
+	response, err := agent.Execute(ctx, messageHistory, toolsList)
 	if err != nil {
 		return agent.AgentResponse{}, err
 	}
