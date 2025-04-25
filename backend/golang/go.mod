@@ -33,6 +33,7 @@ require (
 require (
 	github.com/coder/websocket v1.8.12 // indirect
 	github.com/hasura/go-graphql-client v0.13.1 // indirect
+	github.com/slack-go/slack v0.16.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 )
