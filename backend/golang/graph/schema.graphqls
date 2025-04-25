@@ -109,6 +109,7 @@ type Subscription {
   messageAdded(chatId: ID!): Message!
   toolCallUpdated(chatId: ID!): ToolCall!
   indexingStatus: IndexingStatus!
+  telegramMessageAdded(chatId: ID!): Message!
 }
 
 type DataSource {

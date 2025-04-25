@@ -3,13 +3,12 @@ package bootstrap
 import (
 	"errors"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/charmbracelet/log"
-
-	"net"
-	"time"
 
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
@@ -27,7 +26,7 @@ func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
 	storeDir := filepath.Join(cacheDir, "enchanted-twin", "nats")
 
 	// Ensure the directory exists
-	if err := os.MkdirAll(storeDir, 0755); err != nil {
+	if err := os.MkdirAll(storeDir, 0o755); err != nil {
 		return nil, errors.New("unable to create NATS store directory")
 	}
 	logger.Debug("Using NATS store directory", "path", storeDir)
@@ -37,6 +36,8 @@ func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
 		Host:      "127.0.0.1",
 		JetStream: true,
 		StoreDir:  storeDir, // Use absolute path
+		Debug:     true,     // Enable debug logging
+		Trace:     true,     // Enable trace logging
 	}
 
 	s, err := server.NewServer(opts)
@@ -46,8 +47,18 @@ func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
 
 	go s.Start()
 
-	if !s.ReadyForConnections(5 * time.Second) {
-		return nil, errors.New("NATS server not ready in time")
+	// Increase timeout to 30 seconds and add more detailed logging
+	timeout := 30 * time.Second
+	startTime := time.Now()
+	for {
+		if s.ReadyForConnections(1 * time.Second) {
+			break
+		}
+		if time.Since(startTime) > timeout {
+			return nil, errors.New("NATS server not ready in time")
+		}
+		logger.Debug("Waiting for NATS server to be ready...", "elapsed", time.Since(startTime))
+		time.Sleep(1 * time.Second)
 	}
 
 	addr := s.Addr()

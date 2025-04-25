@@ -17,6 +17,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	types "github.com/EternisAI/enchanted-twin/types"
 	"github.com/charmbracelet/log"
+	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 )
 
@@ -70,6 +71,7 @@ type TelegramService struct {
 	Memory           memory.Storage
 	AuthStorage      *db.Store
 	LastMessages     []Message
+	NatsClient       *nats.Conn
 }
 
 type TelegramServiceInput struct {
@@ -81,6 +83,7 @@ type TelegramServiceInput struct {
 	CompletionsModel string
 	Memory           memory.Storage
 	AuthStorage      *db.Store
+	NatsClient       *nats.Conn
 }
 
 func NewTelegramService(input TelegramServiceInput) *TelegramService {
@@ -94,6 +97,7 @@ func NewTelegramService(input TelegramServiceInput) *TelegramService {
 		Memory:           input.Memory,
 		AuthStorage:      input.AuthStorage,
 		LastMessages:     []Message{},
+		NatsClient:       input.NatsClient,
 	}
 }
 
@@ -109,7 +113,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-
 			url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30", s.Token, lastUpdateID+1)
 
 			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
@@ -162,14 +165,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 				continue
 			}
 
-			chatID, err := s.GetChatID(ctx)
-			if err != nil {
-				s.Logger.Error("Failed to get chat ID", "error", err)
-				time.Sleep(time.Second * 5)
-				continue
-			}
-			s.Logger.Info("Chat ID", "chat_id", chatID)
-
 			for _, update := range result.Result {
 				lastUpdateID = update.UpdateID
 				s.Logger.Info("Received message",
@@ -184,7 +179,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 					// Register chat ID at start
 					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
-
 						storedUUID, err := s.GetChatUUID(ctx)
 						if err != nil {
 							continue
@@ -200,33 +194,23 @@ func (s *TelegramService) Start(ctx context.Context) error {
 						}
 					}
 
-					s.LastMessages = append(s.LastMessages, update.Message)
+					// Publish message to NATS
+					if s.NatsClient != nil {
+						subject := fmt.Sprintf("telegram.chat.%d", update.Message.Chat.ID)
+						messageBytes, err := json.Marshal(update.Message)
+						if err != nil {
+							s.Logger.Error("Failed to marshal message", "error", err)
+							continue
+						}
 
-					fmt.Println("latestMessages", s.LastMessages)
-
-					response, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), update.Message.Text)
-					if err != nil {
-						s.Logger.Error("Failed to execute message", "error", err)
-						continue
+						err = s.NatsClient.Publish(subject, messageBytes)
+						if err != nil {
+							s.Logger.Error("Failed to publish message to NATS", "error", err)
+							continue
+						}
+						s.Logger.Info("Published message to NATS", "subject", subject)
 					}
-					s.LastMessages = append(s.LastMessages, Message{
-						MessageID: update.Message.MessageID,
-						From:      update.Message.From,
-						Chat:      update.Message.Chat,
-						Date:      update.Message.Date,
-						Text:      response.Content,
-					})
-					err = s.SendMessage(ctx, update.Message.Chat.ID, response.Content)
-					if err != nil {
-						s.Logger.Error("Failed to send message", "error", err)
-						continue
-					}
-					if len(s.LastMessages) > 10 {
-						s.LastMessages = s.LastMessages[len(s.LastMessages)-10:]
-					}
-
 				}
-
 			}
 
 			if len(result.Result) == 0 {
