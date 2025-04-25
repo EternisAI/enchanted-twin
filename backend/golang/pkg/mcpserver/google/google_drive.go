@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
@@ -13,12 +12,15 @@ import (
 	"google.golang.org/api/option"
 )
 
-const SEARCH_FILES_TOOL_NAME = "search_drive_files"
-const READ_FILE_TOOL_NAME = "read_drive_file"
+const (
+	SEARCH_FILES_TOOL_NAME = "search_drive_files"
+	READ_FILE_TOOL_NAME    = "read_drive_file"
+)
 
-const SEARCH_FILES_TOOL_DESCRIPTION = "Search for files in Google Drive based on a query string. Returns a list of files matching the query."
-const READ_FILE_TOOL_DESCRIPTION = "Read the content of a specific file in Google Drive using its file ID. Handles Google Docs, Sheets, and Slides by exporting them."
-
+const (
+	SEARCH_FILES_TOOL_DESCRIPTION = "Search for files in Google Drive based on a query string. Returns a list of files matching the query."
+	READ_FILE_TOOL_DESCRIPTION    = "Read the content of a specific file in Google Drive using its file ID. Handles Google Docs, Sheets, and Slides by exporting them."
+)
 
 type SearchFilesArguments struct {
 	Query     string `json:"query" jsonschema:"required,description=The query string to search for file titles"`
@@ -31,7 +33,6 @@ type ReadFileArguments struct {
 }
 
 func processSearchFiles(ctx context.Context, accessToken string, args SearchFilesArguments) ([]*mcp_golang.Content, error) {
-	
 	driveService, err := getDriveService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
@@ -40,7 +41,7 @@ func processSearchFiles(ctx context.Context, accessToken string, args SearchFile
 	q := args.Query
 	if q == "" {
 		q = "trashed=false"
-	}else{
+	} else {
 		q = fmt.Sprintf("name contains '%s'", q)
 	}
 
@@ -62,6 +63,7 @@ func processSearchFiles(ctx context.Context, accessToken string, args SearchFile
 
 	fileList, err := request.Do()
 	if err != nil {
+		fmt.Println("Error searching files", err)
 		return nil, fmt.Errorf("error searching files: %v", err)
 	}
 
@@ -80,7 +82,6 @@ func processSearchFiles(ctx context.Context, accessToken string, args SearchFile
 }
 
 func processReadFile(ctx context.Context, accessToken string, args ReadFileArguments) ([]*mcp_golang.Content, error) {
-	
 	driveService, err := getDriveService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
@@ -211,7 +212,6 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 		contentText = contentText[:maxReturnLength] + "... (truncated)"
 	}
 
-
 	return []*mcp_golang.Content{
 		{
 			Type: "text",
@@ -223,7 +223,6 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 }
 
 func getDriveService(ctx context.Context, accessToken string) (*drive.Service, error) {
-
 	token := &oauth2.Token{
 		AccessToken: accessToken,
 	}
@@ -235,32 +234,4 @@ func getDriveService(ctx context.Context, accessToken string) (*drive.Service, e
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
 	}
 	return driveService, nil
-}
-
-func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
-	var tools []mcp_golang.ToolRetType
-
-	searchFilesSchema, err := helpers.ConverToInputSchema(SearchFilesArguments{})
-	if err != nil {
-		return nil, fmt.Errorf("error generating schema for search_drive_files: %w", err)
-	}
-	desc := SEARCH_FILES_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEARCH_FILES_TOOL_NAME,
-		Description: &desc,
-		InputSchema: searchFilesSchema,
-	})
-
-	readFileSchema, err := helpers.ConverToInputSchema(ReadFileArguments{})
-	if err != nil {
-		return nil, fmt.Errorf("error generating schema for read_drive_file: %w", err)
-	}
-	desc = READ_FILE_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        READ_FILE_TOOL_NAME,
-		Description: &desc,
-		InputSchema: readFileSchema,
-	})
-
-	return tools, nil
 }

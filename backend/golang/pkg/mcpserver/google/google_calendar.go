@@ -5,19 +5,21 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 )
 
-const LIST_CALENDAR_EVENTS_TOOL_NAME = "list_calendar_events"
-const CREATE_CALENDAR_EVENT_TOOL_NAME = "create_calendar_event"
+const (
+	LIST_CALENDAR_EVENTS_TOOL_NAME  = "list_calendar_events"
+	CREATE_CALENDAR_EVENT_TOOL_NAME = "create_calendar_event"
+)
 
-const LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION = "List events from a specified Google Calendar within a time range."
-const CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION = "Create a new event in a specified Google Calendar."
-
+const (
+	LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION  = "List events from a specified Google Calendar within a time range."
+	CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION = "Create a new event in a specified Google Calendar."
+)
 
 type ListEventsArguments struct {
 	CalendarID string `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'. Use 'primary' for the primary calendar of the authenticated user."`
@@ -27,7 +29,6 @@ type ListEventsArguments struct {
 	PageToken  string `json:"page_token,omitempty" jsonschema:"description=Token specifying which result page to return."`
 	Query      string `json:"q,omitempty" jsonschema:"description=Free text search query terms to find events that match these terms in any field, except for extended properties."`
 }
-
 
 type CreateEventArgs struct {
 	CalendarID  string   `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'."`
@@ -87,16 +88,10 @@ func processListEvents(ctx context.Context, accessToken string, args ListEventsA
 	contents := []*mcp_golang.Content{}
 
 	for _, event := range events.Items {
-
-		sourceTitle := "Unknown"
-		if event.Source != nil && event.Source.Title != "" {
-			sourceTitle = event.Source.Title
-		}
-
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Event: %s - %s, Start: %s, End: %s", sourceTitle, event.Summary, event.Start.DateTime, event.End.DateTime),
+				Text: fmt.Sprintf("Event: %s - %s, Start: %s, End: %s", event.Source.Title, event.Summary, event.Start.DateTime, event.End.DateTime),
 			},
 		})
 	}
@@ -119,7 +114,6 @@ func processCreateEvent(ctx context.Context, accessToken string, args CreateEven
 		return nil, fmt.Errorf("summary, start time, and end time are required")
 	}
 
-	
 	_, err = time.Parse(time.RFC3339, args.StartTime)
 	if err != nil {
 		return nil, fmt.Errorf("invalid start time format, requires RFC3339: %w", err)
@@ -135,11 +129,9 @@ func processCreateEvent(ctx context.Context, accessToken string, args CreateEven
 		Description: args.Description,
 		Start: &calendar.EventDateTime{
 			DateTime: args.StartTime,
-			
 		},
 		End: &calendar.EventDateTime{
 			DateTime: args.EndTime,
-			
 		},
 	}
 
@@ -179,34 +171,4 @@ func getCalendarService(ctx context.Context, accessToken string) (*calendar.Serv
 		return nil, fmt.Errorf("error initializing Calendar service: %w", err)
 	}
 	return calendarService, nil
-}
-
-func GenerateGoogleCalendarTools() ([]mcp_golang.ToolRetType, error) {
-	var tools []mcp_golang.ToolRetType
-
-
-	listEventsSchema, err := helpers.ConverToInputSchema(ListEventsArguments{})
-	if err != nil {
-		return nil, fmt.Errorf("error generating schema for list_calendar_events: %w", err)
-	}
-	desc := LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        LIST_CALENDAR_EVENTS_TOOL_NAME,
-		Description: &desc,
-		InputSchema: listEventsSchema,
-	})
-
-
-	createEventSchema, err := helpers.ConverToInputSchema(CreateEventArgs{})
-	if err != nil {
-		return nil, fmt.Errorf("error generating schema for create_calendar_event: %w", err)
-	}
-	desc = CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        CREATE_CALENDAR_EVENT_TOOL_NAME,
-		Description: &desc,
-		InputSchema: createEventSchema,
-	})
-
-	return tools, nil
 }
