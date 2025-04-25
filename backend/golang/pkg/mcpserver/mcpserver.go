@@ -10,8 +10,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/gmail"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/google"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/twitter"
 	mcp "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
@@ -64,7 +65,14 @@ func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPSe
 		case model.MCPServerTypeGoogle:
 			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 				ID: mcpServer.ID,
-				Client: &gmail.GmailClient{
+				Client: &google.GoogleClient{
+					Store: s.store,
+				},
+			})
+		case model.MCPServerTypeSLACk:
+			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+				ID: mcpServer.ID,
+				Client: &slack.SlackClient{
 					Store: s.store,
 				},
 			})
@@ -176,7 +184,14 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			case model.MCPServerTypeGoogle:
 				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 					ID: server.ID,
-					Client: &gmail.GmailClient{
+					Client: &google.GoogleClient{
+						Store: s.store,
+					},
+				})
+			case model.MCPServerTypeSLACk:
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID: server.ID,
+					Client: &slack.SlackClient{
 						Store: s.store,
 					},
 				})
