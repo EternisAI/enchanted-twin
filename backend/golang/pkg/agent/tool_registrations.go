@@ -2,12 +2,17 @@ package agent
 
 import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/client"
 )
+
+// ToolProvider is an interface for services that provide tools.
+type ToolProvider interface {
+	Tools() []tools.Tool
+}
 
 // RegisterStandardTools registers all standard tools with the registry.
 // Returns a slice of the registered tools.
@@ -60,6 +65,32 @@ func RegisterStandardTools(
 	}
 
 	logger.Info("Registered standard tools", "count", len(registeredTools))
+	return registeredTools
+}
+
+// RegisterToolProviders registers tools from a list of tool providers.
+// Returns the list of successfully registered tools.
+func RegisterToolProviders(
+	registry *tools.Registry,
+	logger *log.Logger,
+	providers ...ToolProvider,
+) []tools.Tool {
+	registeredTools := []tools.Tool{}
+
+	for _, provider := range providers {
+		for _, tool := range provider.Tools() {
+			if err := registry.Register(tool); err == nil {
+				registeredTools = append(registeredTools, tool)
+			} else {
+				logger.Warn("Failed to register tool", "error", err)
+			}
+		}
+	}
+
+	if len(registeredTools) > 0 {
+		logger.Info("Registered tools from providers", "count", len(registeredTools))
+	}
+
 	return registeredTools
 }
 

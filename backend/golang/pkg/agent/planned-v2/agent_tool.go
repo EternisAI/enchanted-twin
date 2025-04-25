@@ -124,7 +124,7 @@ func (t *PlannedAgentTool) Execute(
 	// Set workflow options
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        workflowID,
-		TaskQueue: WorkflowName,
+		TaskQueue: "default",
 		// WorkflowExecutionTimeout: 30 * time.Minute,  // TODO: pass this as a plan parameter
 	}
 

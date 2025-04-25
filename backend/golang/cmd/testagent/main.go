@@ -67,12 +67,10 @@ func main() {
 	})
 
 	// Register workflows
-	// Register the planned agent v2 workflow for testing
 	w.RegisterWorkflow(plannedv2.PlannedAgentWorkflow)
 	plannedv2.RegisterActivities(w)
 	logger.Info("Registered PlannedV2 Workflows and Activities")
 
-	// Register root workflow in the default queue for now
 	w.RegisterWorkflow(root.RootWorkflow)
 	logger.Info("Registered RootWorkflow")
 
@@ -85,12 +83,12 @@ func main() {
 	defer w.Stop()
 
 	// Ensure root workflow is running
-	rootRun, err := root.EnsureRootWorkflow(temporalClient)
-	if err != nil {
-		logger.Error("Failed to ensure root workflow is running", "error", err)
-		os.Exit(1)
-	}
-	logger.Info("Root workflow is running", "id", rootRun.GetID(), "run_id", rootRun.GetRunID())
+	// rootRun, err := root.EnsureRootWorkflow(temporalClient)
+	// if err != nil {
+	// 	logger.Error("Failed to ensure root workflow is running", "error", err)
+	// 	os.Exit(1)
+	// }
+	// logger.Info("Root workflow is running", "id", rootRun.GetID(), "run_id", rootRun.GetRunID())
 
 	// Initialize OpenAI API instance
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
