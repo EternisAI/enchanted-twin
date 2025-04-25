@@ -4,77 +4,110 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version number (e.g. v1.2.3)"
+        description: Version number (e.g. v1.2.3)
         required: true
-        default: "v0.0.0"
+        default: v0.0.0
   release:
     types: [published]
 
 jobs:
   build-and-release:
     runs-on: macos-latest
+    defaults:
+      run:
+        shell: bash
 
+    # ------------------------- ✨  CI secrets  ✨ -------------------------
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      CSC_LINK: ${{ secrets.CSC_LINK }}
-      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      # GitHub
+      GH_TOKEN:           ${{ secrets.GITHUB_TOKEN }}       # electron-builder / gh-release
+      # macOS code-signing cert       (base64-encoded .p12 + password)
+      CSC_LINK:           ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD:   ${{ secrets.CSC_KEY_PASSWORD }}
+      # Apple notarisation -- notarytool with .p8 key
+      NOTARY_API_KEY_ID:  ${{ secrets.NOTARY_API_KEY_ID }}
+      NOTARY_API_ISSUER:  ${{ secrets.NOTARY_API_ISSUER }}
+      NOTARY_TEAM_ID:     ${{ secrets.NOTARY_TEAM_ID }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    # -------------------------------------------------------------------
+    - name: 🛎️  Checkout
+      uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
+    - name: 🧰  Set up Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: 20
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: 8
+    - name: 📦  Install pnpm
+      uses: pnpm/action-setup@v2
+      with:
+        version: 8
 
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.24.2"
+    - name: 🦫  Set up Go (needed by your Makefile)
+      uses: actions/setup-go@v4
+      with:
+        go-version: 1.24.2
 
-      - name: Install dependencies
-        run: pnpm install
-        working-directory: app
+    # ---------------------- Install JS/TS deps --------------------------
+    - name: 🔗  Install dependencies
+      run: pnpm install
+      working-directory: app
 
-      - name: Write Apple API key (.p8) to disk
-        run: |
-          mkdir -p app/build
-          echo "$APPLE_API_KEY" > app/build/AuthKey.p8
-        env:
-          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+    # ---------------- Store Apple .p8 key where notarize.js expects -----
+    - name: 🔑  Write Apple API key (.p8)
+      run: |
+        mkdir -p app/build
+        echo "$APPLE_API_KEY" > app/build/AuthKey.p8
+      env:
+        APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
 
-      - name: Build & notarize macOS app
-        run: make build-mac-silicon
-        env:
-          OPENAI_BASE_URL: "https://enchanted.ngrok.pro/v1"
-          COMPLETIONS_MODEL: "mistral-small3.1"
-          EMBEDDINGS_API_URL: "https://enchanted.ngrok.pro/v1/embeddings"
-          EMBEDDINGS_MODEL: "nomic-embed-text"
-          IS_PROD_BUILD: "true"
-          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
-          NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
-          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+    # ------------------ Build → sign → notarise -------------------------
+    - name: 🏗️  Build & Notarise macOS app
+      working-directory: app
+      run: |
+        # Your Makefile target already calls electron-vite build && electron-builder --mac
+        # If you prefer, you can replace this with: pnpm run build:mac
+        make build-mac-silicon
+      env:
+        # runtime-env for your app – tweak as needed
+        OPENAI_BASE_URL:   "https://enchanted.ngrok.pro/v1"
+        COMPLETIONS_MODEL: "mistral-small3.1"
+        EMBEDDINGS_API_URL:"https://enchanted.ngrok.pro/v1/embeddings"
+        EMBEDDINGS_MODEL:  "nomic-embed-text"
+        IS_PROD_BUILD:     "true"
+        # (The NOTARY_* / CSC_* variables are already inherited from the job env)
 
-      - name: Upload release artifacts
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ inputs.version }}
-          files: app/dist/Enchanted-${{ inputs.version }}-arm64.dmg
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # ------------------ Debug: show what we actually produced -----------
+    - name: 📂  List dist folder
+      run: ls -lh app/dist
 
-      - name: Verify notarization
-        run: |
-          RESULT=$(spctl --assess --type exec --verbose=4 app/dist/mac-arm64/Enchanted.app 2>&1)
-          echo "$RESULT"
-          if [[ "$RESULT" != *"accepted"* ]]; then
-            echo "❌ App is not notarized!"
-            exit 1
-          fi
-          echo "✅ App is notarized and accepted by Gatekeeper."
+    # ------------------ Gatekeeper / staple verification ----------------
+    - name: ✅  Verify Gatekeeper ticket
+      run: |
+        DMG_PATH=$(ls app/dist/*.dmg | head -n1)
+        APP_PATH=$(ls -d app/dist/mac-arm64/*.app | head -n1)
+
+        echo "DMG found: $DMG_PATH"
+        echo "App found: $APP_PATH"
+
+        # Verify staple
+        xcrun stapler validate "$APP_PATH"
+
+        # Gatekeeper assessment
+        RESULT=$(spctl --assess --type exec --verbose=4 "$APP_PATH" 2>&1)
+        echo "$RESULT"
+        if ! grep -q "accepted" <<< "$RESULT"; then
+          echo "❌  Gatekeeper did not accept the app."
+          exit 1
+        fi
+        echo "🎉  App passes Gatekeeper."
+
+    # ------------------ Upload DMG to GitHub Release --------------------
+    - name: 🚀  Upload release artifact(s)
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
+        files: app/dist/*.dmg
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
