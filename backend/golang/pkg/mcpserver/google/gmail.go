@@ -1,7 +1,8 @@
-package gmail
+package google
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -91,7 +92,7 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 	token := &oauth2.Token{
 		AccessToken: accessToken,
 	}
-
+	
 	config := oauth2.Config{}
 	client := config.Client(ctx, token)
 
@@ -101,16 +102,17 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 		return nil, err
 	}
 
-	message := &gmail.Message{
-		Raw: arguments.Body,
+	profile, err := gmailService.Users.GetProfile("me").Do()
+	if err != nil {
+		fmt.Println("Error retrieving user profile:", err)
+		return nil, err
 	}
 
-	message.Header.Add("To", arguments.To)
-	message.Header.Add("Subject", arguments.Subject)
+	message := createMessage(profile.EmailAddress, arguments.To, arguments.Subject, arguments.Body)
 
 	_, err = gmailService.Users.Messages.Send("me", message).Do()
 	if err != nil {
-		fmt.Println("Error sending email:", err)
+		fmt.Printf("Error sending email: %s\n", err)
 		return nil, err
 	}
 
@@ -118,8 +120,30 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 		{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: "Successfully sent email to " + arguments.To,
+				Text: "Successfully sent email",
 			},
 		},
 	}, nil
+}
+
+func createMessage(from, to, subject, bodyContent string) *gmail.Message {
+	// Compose email
+	header := make(map[string]string)
+	header["From"] = from
+	header["To"] = to
+	header["Subject"] = subject
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+
+	var message string
+	for k, v := range header {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
+	message += "\r\n" + bodyContent
+
+	// Encode as base64
+	return &gmail.Message{
+		Raw: base64.URLEncoding.EncodeToString([]byte(message)),
+	}
 }
