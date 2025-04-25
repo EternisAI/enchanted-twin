@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/calendar/v3"
@@ -88,10 +89,16 @@ func processListEvents(ctx context.Context, accessToken string, args ListEventsA
 	contents := []*mcp_golang.Content{}
 
 	for _, event := range events.Items {
+
+		sourceTitle := "Unknown"
+		if event.Source != nil && event.Source.Title != "" {
+			sourceTitle = event.Source.Title
+		}
+
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Event: %s - %s, Start: %s, End: %s", event.Source.Title, event.Summary, event.Start.DateTime, event.End.DateTime),
+				Text: fmt.Sprintf("Event: %s - %s, Start: %s, End: %s", sourceTitle, event.Summary, event.Start.DateTime, event.End.DateTime),
 			},
 		})
 	}
@@ -171,4 +178,34 @@ func getCalendarService(ctx context.Context, accessToken string) (*calendar.Serv
 		return nil, fmt.Errorf("error initializing Calendar service: %w", err)
 	}
 	return calendarService, nil
+}
+
+func GenerateGoogleCalendarTools() ([]mcp_golang.ToolRetType, error) {
+	var tools []mcp_golang.ToolRetType
+
+
+	listEventsSchema, err := helpers.ConverToInputSchema(ListEventsArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for list_calendar_events: %w", err)
+	}
+	desc := LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        LIST_CALENDAR_EVENTS_TOOL_NAME,
+		Description: &desc,
+		InputSchema: listEventsSchema,
+	})
+
+
+	createEventSchema, err := helpers.ConverToInputSchema(CreateEventArgs{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for create_calendar_event: %w", err)
+	}
+	desc = CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        CREATE_CALENDAR_EVENT_TOOL_NAME,
+		Description: &desc,
+		InputSchema: createEventSchema,
+	})
+
+	return tools, nil
 }
