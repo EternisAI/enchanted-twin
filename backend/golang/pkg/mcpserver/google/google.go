@@ -18,32 +18,78 @@ type GoogleClient struct {
 }
 
 func (c *GoogleClient) ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error) {
-
 	tools := []mcp_golang.ToolRetType{}
 
-	gmailTools, err := GenerateGmailTools()
+	inputSchema, err := helpers.ConverToInputSchema(ListEmailsArguments{})
 	if err != nil {
 		return nil, err
 	}
-	tools = append(tools, gmailTools...)
+	desc := LIST_EMAILS_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        LIST_EMAILS_TOOL_NAME,
+		Description: &desc,
+		InputSchema: inputSchema,
+	})
 
-	googleCalendarTools, err := GenerateGoogleCalendarTools	()
+	inputSchema, err = helpers.ConverToInputSchema(SendEmailArguments{})
 	if err != nil {
 		return nil, err
 	}
-	tools = append(tools, googleCalendarTools...)
+	desc = SEND_EMAIL_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        SEND_EMAIL_TOOL_NAME,
+		Description: &desc,
+		InputSchema: inputSchema,
+	})
 
-	googleDriveTools, err := GenerateGoogleDriveTools()
+	inputSchema, err = helpers.ConverToInputSchema(SearchFilesArguments{})
 	if err != nil {
 		return nil, err
 	}
-	tools = append(tools, googleDriveTools...)
+	desc = SEARCH_FILES_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        SEARCH_FILES_TOOL_NAME,
+		Description: &desc,
+		InputSchema: inputSchema,
+	})
+
+	inputSchema, err = helpers.ConverToInputSchema(ReadFileArguments{})
+	if err != nil {
+		return nil, err
+	}
+	desc = READ_FILE_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        READ_FILE_TOOL_NAME,
+		Description: &desc,
+		InputSchema: inputSchema,
+	})
+
+	inputSchema, err = helpers.ConverToInputSchema(ListEventsArguments{})
+	if err != nil {
+		return nil, err
+	}
+	desc = LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        LIST_CALENDAR_EVENTS_TOOL_NAME,
+		Description: &desc,
+		InputSchema: inputSchema,
+	})
+
+	inputSchema, err = helpers.ConverToInputSchema(CreateEventArgs{})
+	if err != nil {
+		return nil, err
+	}
+	desc = CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        CREATE_CALENDAR_EVENT_TOOL_NAME,
+		Description: &desc,
+		InputSchema: inputSchema,
+	})
 
 	return &mcp_golang.ToolsResponse{
 		Tools: tools,
 	}, nil
 }
-
 
 func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error) {
 	// Convert generic arguments to the expected Go struct.
@@ -55,7 +101,6 @@ func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any)
 	}
 
 	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "google")
-
 	if err != nil {
 		return nil, err
 	}
@@ -144,5 +189,3 @@ func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any)
 		Content: content,
 	}, nil
 }
-
-

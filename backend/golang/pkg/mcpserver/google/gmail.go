@@ -13,11 +13,15 @@ import (
 	"google.golang.org/api/option"
 )
 
-const LIST_EMAILS_TOOL_NAME = "list_emails"
-const SEND_EMAIL_TOOL_NAME = "send_email"
+const (
+	LIST_EMAILS_TOOL_NAME = "list_emails"
+	SEND_EMAIL_TOOL_NAME  = "send_email"
+)
 
-const LIST_EMAILS_TOOL_DESCRIPTION = "List the emails from the user's inbox"
-const SEND_EMAIL_TOOL_DESCRIPTION = "Send an email to recipient email address"
+const (
+	LIST_EMAILS_TOOL_DESCRIPTION = "List the emails from the user's inbox"
+	SEND_EMAIL_TOOL_DESCRIPTION  = "Send an email to recipient email address"
+)
 
 type ListEmailsArguments struct {
 	PageToken string `json:"page_token" jsonschema:"required,description=The page token to list, default is empty"`
@@ -31,7 +35,6 @@ type SendEmailArguments struct {
 }
 
 func processListEmails(ctx context.Context, accessToken string, arguments ListEmailsArguments) ([]*mcp_golang.Content, error) {
-
 	// Configure OAuth2 token
 	token := &oauth2.Token{
 		AccessToken: accessToken,
@@ -85,10 +88,10 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 				date = header.Value
 			}
 		}
-		
-		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s", 
+
+		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s",
 			from, subject, date, msg.Id)
-		
+
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
@@ -102,11 +105,10 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 }
 
 func processSendEmail(ctx context.Context, accessToken string, arguments SendEmailArguments) ([]*mcp_golang.Content, error) {
-
 	token := &oauth2.Token{
 		AccessToken: accessToken,
 	}
-	
+
 	config := oauth2.Config{}
 	client := config.Client(ctx, token)
 
@@ -161,7 +163,6 @@ func createMessage(from, to, subject, bodyContent string) *gmail.Message {
 		Raw: base64.URLEncoding.EncodeToString([]byte(message)),
 	}
 }
-
 
 func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType
