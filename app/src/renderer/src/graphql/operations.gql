@@ -63,6 +63,22 @@ query GetChatSuggestions($chatId: ID!) {
   }
 }
 
+query GetMCPServers {
+  getMCPServers {
+    id
+    name
+    command
+    args
+    envs {
+      key
+      value
+    }
+    type
+    enabled
+    connected
+  }
+}
+
 mutation CreateChat($name: String!) {
   createChat(name: $name) {
     id
