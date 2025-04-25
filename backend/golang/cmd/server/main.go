@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -82,7 +83,12 @@ func main() {
 
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
-		ollamaClient = ollamaapi.NewClient(nil, http.DefaultClient)
+		baseURL, err := url.Parse(envs.OllamaBaseURL)
+		if err != nil {
+			logger.Error("Failed to parse Ollama base URL", slog.Any("error", err))
+		} else {
+			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
+		}
 	}
 
 	// Start PostgreSQL
