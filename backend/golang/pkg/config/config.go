@@ -12,9 +12,10 @@ type Config struct {
 	OpenAIAPIKey     string
 	GraphqlPort      string
 	OpenAIBaseURL    string
-	EmbeddingsAPIURL string
 	CompletionsModel string
+	EmbeddingsAPIURL string
 	EmbeddingsModel  string
+	EmbeddingsAPIKey string
 	DBPath           string
 	OutputPath       string
 	OllamaBaseURL    string
@@ -46,9 +47,10 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		OpenAIAPIKey:     getEnv("OPENAI_API_KEY", "", printEnv),
 		GraphqlPort:      getEnv("GRAPHQL_PORT", "3000", printEnv),
 		OpenAIBaseURL:    getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
-		EmbeddingsAPIURL: getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
 		CompletionsModel: getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
+		EmbeddingsAPIURL: getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
 		EmbeddingsModel:  getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
+		EmbeddingsAPIKey: getEnv("EMBEDDINGS_API_KEY", "", printEnv),
 		DBPath:           getEnv("DB_PATH", "./store.db", printEnv),
 		OutputPath:       getEnv("OUTPUT_PATH", "./output", printEnv),
 		OllamaBaseURL:    getEnv("OLLAMA_BASE_URL", "", printEnv),

@@ -14,7 +14,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
@@ -139,6 +139,7 @@ func main() {
 		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
 	}
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	aiServiceEmbeddings := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
@@ -149,12 +150,12 @@ func main() {
 	}
 
 	logger.Info("PostgreSQL listening at", "connection", postgresService.GetConnectionString(dbName))
-	memory, err := graphmemory.NewGraphMemory(logger, postgresService.GetConnectionString(dbName), aiService, *recreateMemDb, envs.CompletionsModel)
+	mem, err := embeddingsmemory.NewEmbeddingsMemory(logger, postgresService.GetConnectionString(dbName), aiServiceEmbeddings, *recreateMemDb, envs.EmbeddingsModel)
 	if err != nil {
-		panic(errors.Wrap(err, "Unable to create graph memory"))
+		panic(errors.Wrap(err, "Unable to create memory"))
 	}
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, mem)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
@@ -162,7 +163,7 @@ func main() {
 	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
 	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken, store, mcpService)
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, mem, store, envs.CompletionsModel, envs.TelegramToken, store, mcpService)
 
 	// Initialize and start Telegram service
 	telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)

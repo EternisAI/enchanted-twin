@@ -16,7 +16,7 @@ const LIST_EMAILS_TOOL_NAME = "list_emails"
 const SEND_EMAIL_TOOL_NAME = "send_email"
 
 const LIST_EMAILS_TOOL_DESCRIPTION = "List the emails from the user's inbox"
-const SEND_EMAIL_TOOL_DESCRIPTION = "Send an email"
+const SEND_EMAIL_TOOL_DESCRIPTION = "Send an email to recipient email address"
 
 type ListEmailsArguments struct {
 	PageToken string `json:"page_token" jsonschema:"required,description=The page token to list, default is empty"`

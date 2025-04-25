@@ -110,10 +110,17 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 		return nil, err
 	}
 
+	maxResults := 100
+	if arguments.Limit > 5 {
+		maxResults = arguments.Limit
+	}
+
 	feed, err := client.UserTweetReverseChronologicalTimeline(ctx, user.Data.ID, twitter.UserTweetReverseChronologicalTimelineOpts{
-		MaxResults:      arguments.Limit,
+		MaxResults:      maxResults,
 		PaginationToken: arguments.PaginationToken,
 		TweetFields:     []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
+		UserFields:      []twitter.UserField{twitter.UserFieldUserName},
+		Expansions:      []twitter.Expansion{twitter.ExpansionAuthorID},
 	})
 
 	if err != nil {
@@ -122,12 +129,18 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 	}
 
 	contents := []*mcp_golang.Content{}
+	users := feed.Raw.Includes.UsersByID()
 	for _, tweet := range feed.Raw.Tweets {
+		author, ok := users[tweet.AuthorID]
+		if !ok {
+			continue
+		}
 
+		tweetURL := fmt.Sprintf("https://twitter.com/%s/status/%s", author.UserName, tweet.ID)
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Tweet: %s\nCreated at: %s\nAuthor: %s\n", tweet.Text, tweet.CreatedAt, tweet.AuthorID),
+				Text: fmt.Sprintf("Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n", tweet.Text, tweet.CreatedAt, tweet.AuthorID, tweetURL),
 			},
 		})
 	}

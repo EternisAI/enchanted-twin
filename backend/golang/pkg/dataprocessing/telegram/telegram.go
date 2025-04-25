@@ -212,9 +212,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 				Timestamp: &record.Timestamp,
 				Tags:      []string{"social", "telegram", "chat"},
 				Metadata: map[string]string{
-					"type": "message",
-					"from": from,
-					"to":   to,
+					"type":   "message",
+					"from":   from,
+					"to":     to,
+					"source": "telegram",
 				},
 			})
 
