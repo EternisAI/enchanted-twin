@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
@@ -36,7 +38,6 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
 	result, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
-
 	if err != nil {
 		return "", err
 	}
@@ -440,6 +441,65 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 	return statusChan, nil
 }
 
+// TelegramMessageAdded is the resolver for the telegramMessageAdded field.
+func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
+	if r.Nc == nil {
+		return nil, errors.New("NATS connection is not initialized")
+	}
+
+	messages := make(chan *model.Message, 100) // Add buffer to prevent blocking
+	subject := fmt.Sprintf("telegram.chat.%s", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		if msg == nil || msg.Data == nil {
+			r.Logger.Error("Received nil message or data")
+			return
+		}
+
+		var telegramMessage telegram.Message
+		if err := json.Unmarshal(msg.Data, &telegramMessage); err != nil {
+			r.Logger.Error("Failed to unmarshal Telegram message", "error", err)
+			return
+		}
+
+		// Convert Telegram message to GraphQL message model
+		text := telegramMessage.Text
+		message := &model.Message{
+			ID:          strconv.Itoa(telegramMessage.MessageID),
+			Text:        &text,
+			CreatedAt:   time.Unix(int64(telegramMessage.Date), 0).Format(time.RFC3339),
+			Role:        model.RoleUser,
+			ImageUrls:   []string{},
+			ToolCalls:   []*model.ToolCall{},
+			ToolResults: []string{},
+		}
+
+		select {
+		case messages <- message:
+			r.Logger.Info("Sent message to channel", "chat_id", chatID)
+		case <-ctx.Done():
+			r.Logger.Info("Context cancelled while sending message", "chat_id", chatID)
+			return
+		default:
+			r.Logger.Warn("Message channel is full, dropping message", "chat_id", chatID)
+		}
+	})
+	if err != nil {
+		close(messages)
+		return nil, fmt.Errorf("failed to subscribe to NATS subject: %w", err)
+	}
+
+	go func() {
+		<-ctx.Done()
+		if err := sub.Unsubscribe(); err != nil {
+			r.Logger.Error("Error unsubscribing from NATS", "error", err)
+		}
+		close(messages)
+	}()
+
+	return messages, nil
+}
+
 // Chat returns ChatResolver implementation.
 func (r *Resolver) Chat() ChatResolver { return &chatResolver{r} }
 
@@ -452,9 +512,7 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
