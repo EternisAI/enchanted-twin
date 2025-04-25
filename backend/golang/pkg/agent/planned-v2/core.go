@@ -245,10 +245,10 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 	state.Tools = append(state.Tools, ToolDefinition{
 		Name:        "echo",
 		Description: "Echoes back the input text",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"text": map[string]interface{}{
+			"properties": map[string]any{
+				"text": map[string]any{
 					"type": "string",
 				},
 			},
@@ -263,17 +263,17 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 	state.Tools = append(state.Tools, ToolDefinition{
 		Name:        "math",
 		Description: "Performs basic math operations",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"operation": map[string]interface{}{
+			"properties": map[string]any{
+				"operation": map[string]any{
 					"type": "string",
 					"enum": []string{"add", "subtract", "multiply", "divide"},
 				},
-				"a": map[string]interface{}{
+				"a": map[string]any{
 					"type": "number",
 				},
-				"b": map[string]interface{}{
+				"b": map[string]any{
 					"type": "number",
 				},
 			},
@@ -288,14 +288,14 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 	state.Tools = append(state.Tools, ToolDefinition{
 		Name:        "sleep",
 		Description: "Pauses execution for a specified duration in seconds",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"duration": map[string]interface{}{
+			"properties": map[string]any{
+				"duration": map[string]any{
 					"type":        "number",
 					"description": "Duration to sleep in seconds",
 				},
-				"reason": map[string]interface{}{
+				"reason": map[string]any{
 					"type":        "string",
 					"description": "Optional reason for the sleep",
 				},
@@ -311,14 +311,14 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 	state.Tools = append(state.Tools, ToolDefinition{
 		Name:        "sleep_until",
 		Description: "Pauses execution until a specific time (ISO8601 format)",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"timestamp": map[string]interface{}{
+			"properties": map[string]any{
+				"timestamp": map[string]any{
 					"type":        "string",
 					"description": "ISO8601 timestamp to sleep until (e.g. 2023-06-15T14:30:00Z)",
 				},
-				"reason": map[string]interface{}{
+				"reason": map[string]any{
 					"type":        "string",
 					"description": "Optional reason for the sleep",
 				},
