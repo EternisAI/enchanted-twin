@@ -33,7 +33,8 @@ func LLMCompletionActivity(
 	messages []Message,
 	tools []openai.ChatCompletionToolParam,
 ) (openai.ChatCompletionMessage, error) {
-	logger := activity.GetLogger(ctx)
+	// We don't need the logger for now
+	// logger := activity.GetLogger(ctx)
 
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
