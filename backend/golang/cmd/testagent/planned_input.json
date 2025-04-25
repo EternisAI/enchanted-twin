@@ -1,0 +1,4 @@
+{
+  "plan": "1. Echo 'Hello, world!' to test basic functionality. 2. Perform a simple math operation: add 2 and 3. 3. Report back the results of both operations.",
+  "tool_names": ["echo", "math"]
+}

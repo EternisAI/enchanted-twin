@@ -4,12 +4,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
-
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 type RootWorkflowTestSuite struct {
@@ -17,12 +16,12 @@ type RootWorkflowTestSuite struct {
 	testsuite.WorkflowTestSuite
 }
 
-// Test_RootWorkflow is the entry point for running the test suite
+// Test_RootWorkflow is the entry point for running the test suite.
 func Test_RootWorkflow(t *testing.T) {
 	suite.Run(t, new(RootWorkflowTestSuite))
 }
 
-// Test_RootWorkflow_Basic tests the basic functionality of the root workflow
+// Test_RootWorkflow_Basic tests the basic functionality of the root workflow.
 func (s *RootWorkflowTestSuite) Test_RootWorkflow_Basic() {
 	// Skip for now until we have a way to terminate the workflow properly
 	s.T().Skip("Workflow tests will be fixed in a future PR - skipping for now")
@@ -43,7 +42,8 @@ func (s *RootWorkflowTestSuite) Test_RootWorkflow_Basic() {
 	env.OnWorkflow("PlanAgentWorkflow", mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	// Mock SignalExternalWorkflow function
-	env.OnSignalExternalWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(workflow.Future(nil))
+	env.OnSignalExternalWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(workflow.Future(nil))
 
 	// Start the root workflow with nil state (will initialize)
 	env.ExecuteWorkflow(RootWorkflow, (*RootState)(nil))
@@ -102,8 +102,12 @@ func (s *RootWorkflowTestSuite) Test_RootWorkflow_Basic() {
 
 	// 3. Test signaling the agent
 	env.SignalWorkflow(SignalCommand, Command{
-		Cmd:   CmdSignalAgent,
-		Args:  map[string]any{ArgRunID: runID, ArgSignal: "test_signal", ArgPayload: map[string]string{"message": "hello"}},
+		Cmd: CmdSignalAgent,
+		Args: map[string]any{
+			ArgRunID:   runID,
+			ArgSignal:  "test_signal",
+			ArgPayload: map[string]string{"message": "hello"},
+		},
 		CmdID: "cmd3",
 	})
 
@@ -170,7 +174,7 @@ func (s *RootWorkflowTestSuite) Test_RootWorkflow_Basic() {
 	s.Len(agents, 1) // Still there because it has active runs
 }
 
-// Test_RootWorkflow_ErrorCases tests error handling in the root workflow
+// Test_RootWorkflow_ErrorCases tests error handling in the root workflow.
 func (s *RootWorkflowTestSuite) Test_RootWorkflow_ErrorCases() {
 	// Skip for now until we have a way to terminate the workflow properly
 	s.T().Skip("Workflow tests will be fixed in a future PR - skipping for now")
@@ -186,7 +190,8 @@ func (s *RootWorkflowTestSuite) Test_RootWorkflow_ErrorCases() {
 	})
 
 	// Mock SignalExternalWorkflow function
-	env.OnSignalExternalWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(workflow.Future(nil))
+	env.OnSignalExternalWorkflow(mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+		Return(workflow.Future(nil))
 
 	// Start the root workflow
 	env.ExecuteWorkflow(RootWorkflow, (*RootState)(nil))
@@ -252,15 +257,14 @@ func (s *RootWorkflowTestSuite) Test_RootWorkflow_ErrorCases() {
 	s.NotContains(agents, "another_agent")
 }
 
-// Test_RootWorkflow_ContinueAsNew tests the ContinueAsNew functionality
+// Test_RootWorkflow_ContinueAsNew tests the ContinueAsNew functionality.
 func (s *RootWorkflowTestSuite) Test_RootWorkflow_ContinueAsNew() {
 	// This test requires modifying the historyCutoff constant to force ContinueAsNew
 	// We'll skip it for now as it would require a more complex test setup
 	s.T().Skip("ContinueAsNew test requires more sophisticated test setup - deferred")
 }
 
-// Test_RootWorkflow_MessageQueue tests failing message queue operations
-// which will be implemented in the next PR
+// which will be implemented in the next PR.
 func (s *RootWorkflowTestSuite) Test_RootWorkflow_MessageQueue() {
 	s.T().Skip("MessageQueue not yet implemented - will be completed in PR 0-B")
 
@@ -270,7 +274,7 @@ func (s *RootWorkflowTestSuite) Test_RootWorkflow_MessageQueue() {
 	// - Test deterministic replay safety
 }
 
-// Test_RootWorkflow_StopWorkflow tests the ability to stop the workflow with the special command
+// Test_RootWorkflow_StopWorkflow tests the ability to stop the workflow with the special command.
 func (s *RootWorkflowTestSuite) Test_RootWorkflow_StopWorkflow() {
 	// Skip for now until we have a way to test the ContinueAsNew path
 	s.T().Skip("StopWorkflow will be tested in a future PR after refining test harness")

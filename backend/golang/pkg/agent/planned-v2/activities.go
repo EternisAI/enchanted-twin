@@ -12,19 +12,10 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-// LLMCompletion represents a simplified response structure for LLM completions
-type LLMCompletion struct {
-	// Content of the response
-	Content string `json:"content"`
-
-	// Tool calls in the response
-	ToolCalls []openai.ChatCompletionMessageToolCall `json:"tool_calls"`
-}
-
-// DefaultToolTimeout is the default timeout for tool execution
+// DefaultToolTimeout is the default timeout for tool execution.
 const DefaultToolTimeout = 1 * time.Minute
 
-// RegisterActivities registers all activities with the Temporal worker
+// RegisterActivities registers all activities with the Temporal worker.
 func RegisterActivities(w worker.Worker) {
 	// Register LLM activities
 	w.RegisterActivity(LLMCompletionActivity)
@@ -35,8 +26,13 @@ func RegisterActivities(w worker.Worker) {
 	w.RegisterActivity(MathActivity)
 }
 
-// LLMCompletionActivity executes a completion request against the LLM API
-func LLMCompletionActivity(ctx context.Context, model string, messages []Message, tools []openai.ChatCompletionToolParam) (openai.ChatCompletionMessage, error) {
+// LLMCompletionActivity executes a completion request against the LLM API.
+func LLMCompletionActivity(
+	ctx context.Context,
+	model string,
+	messages []Message,
+	tools []openai.ChatCompletionToolParam,
+) (openai.ChatCompletionMessage, error) {
 	logger := activity.GetLogger(ctx)
 
 	params := openai.ChatCompletionNewParams{
@@ -45,7 +41,8 @@ func LLMCompletionActivity(ctx context.Context, model string, messages []Message
 		Tools:    tools,
 	}
 
-	logger.Info("[XXX] Executing LLM completion", "params", params.Messages)
+	s, _ := json.MarshalIndent(params.Messages, "", "  ")
+	logger.Info("[XXX] Executing LLM completion", "messages", string(s))
 
 	// Get AI service singleton
 	aiService := ai.GetInstance()
@@ -57,8 +54,12 @@ func LLMCompletionActivity(ctx context.Context, model string, messages []Message
 	return aiService.ParamsCompletions(ctx, params)
 }
 
-// ExecuteToolActivity is a generic activity for executing tools
-func ExecuteToolActivity(ctx context.Context, toolName string, args map[string]interface{}) (*ToolResult, error) {
+// ExecuteToolActivity is a generic activity for executing tools.
+func ExecuteToolActivity(
+	ctx context.Context,
+	toolName string,
+	args map[string]interface{},
+) (*ToolResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Executing tool", "tool", toolName, "args", args)
 
@@ -73,7 +74,7 @@ func ExecuteToolActivity(ctx context.Context, toolName string, args map[string]i
 	}
 }
 
-// EchoActivity is a simple activity that echoes back the input text
+// EchoActivity is a simple activity that echoes back the input text.
 func EchoActivity(ctx context.Context, text string) (string, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Executing EchoActivity", "text", text)
@@ -82,7 +83,7 @@ func EchoActivity(ctx context.Context, text string) (string, error) {
 	return fmt.Sprintf("Echo: %s", text), nil
 }
 
-// MathActivity performs basic math operations
+// MathActivity performs basic math operations.
 func MathActivity(ctx context.Context, operation string, a, b float64) (float64, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Executing MathActivity", "operation", operation, "a", a, "b", b)
@@ -105,7 +106,7 @@ func MathActivity(ctx context.Context, operation string, a, b float64) (float64,
 	}
 }
 
-// executeEchoTool executes the echo tool
+// executeEchoTool executes the echo tool.
 func executeEchoTool(ctx context.Context, params map[string]interface{}) (*ToolResult, error) {
 	// Extract text parameter
 	text, ok := params["text"].(string)
@@ -128,7 +129,7 @@ func executeEchoTool(ctx context.Context, params map[string]interface{}) (*ToolR
 	}, nil
 }
 
-// executeMathTool executes the math tool
+// executeMathTool executes the math tool.
 func executeMathTool(ctx context.Context, params map[string]interface{}) (*ToolResult, error) {
 	// Extract parameters
 	operation, ok1 := params["operation"].(string)

@@ -6,13 +6,13 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// Signal types for the planned agent workflow
+// Signal types for the planned agent workflow.
 const (
 	SignalStop       = "stop_execution"
 	SignalUpdatePlan = "update_plan"
 )
 
-// Query types for the planned agent workflow
+// Query types for the planned agent workflow.
 const (
 	QueryGetState       = "get_state"
 	QueryGetHistory     = "get_history"
@@ -21,7 +21,7 @@ const (
 	QueryGetCurrentStep = "get_current_step"
 )
 
-// registerQueries registers all query handlers for the workflow
+// registerQueries registers all query handlers for the workflow.
 func registerQueries(ctx workflow.Context, state *PlanState) error {
 	// Register query to get current state
 	if err := workflow.SetQueryHandler(ctx, QueryGetState, func() (PlanState, error) {
@@ -65,7 +65,7 @@ func registerQueries(ctx workflow.Context, state *PlanState) error {
 	return nil
 }
 
-// registerSignals registers all signal handlers for the workflow
+// registerSignals registers all signal handlers for the workflow.
 func registerSignals(ctx workflow.Context, state *PlanState) error {
 	// Register signal to stop execution
 	stopChan := workflow.GetSignalChannel(ctx, SignalStop)
@@ -92,7 +92,10 @@ func registerSignals(ctx workflow.Context, state *PlanState) error {
 			updateChan.Receive(ctx, &newPlan)
 			if newPlan != "" {
 				// Add a system message to indicate plan update
-				state.Messages = append(state.Messages, SystemMessage(fmt.Sprintf("The plan has been updated to: %s", newPlan)))
+				state.Messages = append(
+					state.Messages,
+					SystemMessage(fmt.Sprintf("The plan has been updated to: %s", newPlan)),
+				)
 				// Add to history
 				state.History = append(state.History, HistoryEntry{
 					Type:      "system",

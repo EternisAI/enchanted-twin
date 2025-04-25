@@ -5,10 +5,10 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-// WorkflowName is the name of the planned agent workflow
+// WorkflowName is the name of the planned agent workflow.
 const WorkflowName = "PlannedAgentWorkflow"
 
-// RegisterPlannedAgentWorkflow registers the planner workflow and activities with a Temporal worker
+// RegisterPlannedAgentWorkflow registers the planner workflow and activities with a Temporal worker.
 func RegisterPlannedAgentWorkflow(w worker.Worker, logger *log.Logger) {
 	logger.Info("Registering PlannedAgentWorkflow")
 

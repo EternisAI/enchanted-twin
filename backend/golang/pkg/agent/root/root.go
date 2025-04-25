@@ -13,10 +13,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/workflow"
-
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 /*───────────────────────────────────────────────────────────────────────────*
@@ -68,15 +67,15 @@ type RootHandlers struct{ st *RootState }
 
 // ---------- Queries ----------
 
-// QueryGetState returns the entire root state (for debugging)
+// QueryGetState returns the entire root state (for debugging).
 func (h *RootHandlers) QueryGetState() (RootState, error) { return *h.st, nil }
 
-// QueryListAgents returns a map of all registered agents
+// QueryListAgents returns a map of all registered agents.
 func (h *RootHandlers) QueryListAgents() (map[string]*AgentInfo, error) {
 	return h.st.Registry, nil
 }
 
-// QueryGetAgent returns metadata for a specific agent
+// QueryGetAgent returns metadata for a specific agent.
 func (h *RootHandlers) QueryGetAgent(agentID string) (*AgentInfo, error) {
 	a, ok := h.st.Registry[agentID]
 	if !ok {
@@ -85,23 +84,24 @@ func (h *RootHandlers) QueryGetAgent(agentID string) (*AgentInfo, error) {
 	return a, nil
 }
 
-// QueryListRuns returns a map of all active workflow runs
+// QueryListRuns returns a map of all active workflow runs.
 func (h *RootHandlers) QueryListRuns() (map[string]*ChildRunInfo, error) {
 	return h.st.ActiveRuns, nil
 }
 
-// QueryListTools returns a map of all registered tools
+// QueryListTools returns a map of all registered tools.
 func (h *RootHandlers) QueryListTools() (map[string]types.ToolDef, error) {
 	return h.st.Tools, nil
 }
 
 // ---------- Commands (Signal handlers) ----------
 
-// CmdCreateAgent registers a new agent blueprint
+// CmdCreateAgent registers a new agent blueprint.
 func (h *RootHandlers) CmdCreateAgent(ctx workflow.Context, args struct {
 	AgentID   string `json:"agent_id"`
 	Blueprint string `json:"blueprint"`
-}) error {
+},
+) error {
 	if _, dup := h.st.Registry[args.AgentID]; dup {
 		return nil
 	}
@@ -114,10 +114,11 @@ func (h *RootHandlers) CmdCreateAgent(ctx workflow.Context, args struct {
 	return nil
 }
 
-// CmdDeleteAgent removes an agent (fails if the agent has active runs)
+// CmdDeleteAgent removes an agent (fails if the agent has active runs).
 func (h *RootHandlers) CmdDeleteAgent(ctx workflow.Context, args struct {
 	AgentID string `json:"agent_id"`
-}) error {
+},
+) error {
 	for _, r := range h.st.ActiveRuns {
 		if r.AgentID == args.AgentID {
 			return fmt.Errorf("agent has active runs")
@@ -127,39 +128,51 @@ func (h *RootHandlers) CmdDeleteAgent(ctx workflow.Context, args struct {
 	return nil
 }
 
-// CmdStartAgent creates a new workflow run of a registered agent
+// CmdStartAgent creates a new workflow run of a registered agent.
 func (h *RootHandlers) CmdStartAgent(ctx workflow.Context, args struct {
 	AgentID string `json:"agent_id"`
 	Input   any    `json:"input"`
-}) (string, error) {
+},
+) (string, error) {
 	ai, ok := h.st.Registry[args.AgentID]
 	if !ok {
 		return "", fmt.Errorf("agent not found")
 	}
 	inputJSON, _ := json.Marshal(args.Input)
-	childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{TaskQueue: WorkflowTaskQueue})
+	childCtx := workflow.WithChildOptions(
+		ctx,
+		workflow.ChildWorkflowOptions{TaskQueue: WorkflowTaskQueue},
+	)
 	var runID string
 	fut := workflow.ExecuteChildWorkflow(childCtx, "PlanAgentWorkflow", ai.Blueprint, inputJSON)
 	if err := fut.GetChildWorkflowExecution().Get(ctx, &runID); err != nil {
 		return "", err
 	}
-	h.st.ActiveRuns[runID] = &ChildRunInfo{RunID: runID, AgentID: args.AgentID, Started: workflow.Now(ctx), Status: StatusRunning}
+	h.st.ActiveRuns[runID] = &ChildRunInfo{
+		RunID:   runID,
+		AgentID: args.AgentID,
+		Started: workflow.Now(ctx),
+		Status:  StatusRunning,
+	}
 	return runID, nil
 }
 
-// CmdSignalAgent forwards a signal to a running agent workflow
+// CmdSignalAgent forwards a signal to a running agent workflow.
 func (h *RootHandlers) CmdSignalAgent(ctx workflow.Context, args struct {
 	RunID   string `json:"run_id"`
 	Signal  string `json:"signal"`
 	Payload any    `json:"payload"`
-}) error {
-	return workflow.SignalExternalWorkflow(ctx, args.RunID, "", args.Signal, args.Payload).Get(ctx, nil)
+},
+) error {
+	return workflow.SignalExternalWorkflow(ctx, args.RunID, "", args.Signal, args.Payload).
+		Get(ctx, nil)
 }
 
-// CmdRegisterTool adds a global tool definition
+// CmdRegisterTool adds a global tool definition.
 func (h *RootHandlers) CmdRegisterTool(_ workflow.Context, args struct {
 	ToolDef string `json:"tool_def"`
-}) error {
+},
+) error {
 	var td types.ToolDef
 	if err := json.Unmarshal([]byte(args.ToolDef), &td); err != nil {
 		return err
@@ -168,10 +181,11 @@ func (h *RootHandlers) CmdRegisterTool(_ workflow.Context, args struct {
 	return nil
 }
 
-// CmdDeregisterTool removes a global tool definition
+// CmdDeregisterTool removes a global tool definition.
 func (h *RootHandlers) CmdDeregisterTool(_ workflow.Context, args struct {
 	ToolName string `json:"tool_name"`
-}) error {
+},
+) error {
 	delete(h.st.Tools, args.ToolName)
 	return nil
 }
@@ -239,14 +253,14 @@ func RootWorkflow(ctx workflow.Context, prev *RootState) error {
 | 5. Reflection & dispatch utilities                                       |
 *───────────────────────────────────────────────────────────────────────────*/
 
-// ToolReg represents a tool registration with its metadata and handler
+// ToolReg represents a tool registration with its metadata and handler.
 type ToolReg struct {
 	Tool  types.ToolDef
 	Query func(*RootHandlers, any) (any, error)
 	Cmd   func(*RootHandlers, workflow.Context, any) error
 }
 
-// RegisteredTools returns the list of tool registrations
+// RegisteredTools returns the list of tool registrations.
 func (h *RootHandlers) RegisteredTools() []ToolReg {
 	emptyObj := types.JSONSchema{"type": "object"}
 	emptyParams := types.JSONSchema{"type": "object", "properties": map[string]any{}}
@@ -281,9 +295,12 @@ func (h *RootHandlers) RegisteredTools() []ToolReg {
 			Tool: types.ToolDef{
 				Name:        "get_agent",
 				Description: "Get metadata for one agent",
-				Parameters:  types.JSONSchema{"type": "object", "properties": map[string]any{"agent_id": map[string]any{"type": "string"}}},
-				Returns:     emptyObj,
-				Entrypoint:  types.ToolDefEntrypoint{Type: types.ToolDefEntrypointTypeQuery},
+				Parameters: types.JSONSchema{
+					"type":       "object",
+					"properties": map[string]any{"agent_id": map[string]any{"type": "string"}},
+				},
+				Returns:    emptyObj,
+				Entrypoint: types.ToolDefEntrypoint{Type: types.ToolDefEntrypointTypeQuery},
 			},
 			Query: func(h *RootHandlers, args any) (any, error) {
 				m, ok := args.(map[string]any)
@@ -386,7 +403,10 @@ func (h *RootHandlers) RegisteredTools() []ToolReg {
 					"input":    map[string]any{"type": "object"},
 				}},
 				Entrypoint: types.ToolDefEntrypoint{Type: types.ToolDefEntrypointTypeSignal},
-				Returns:    types.JSONSchema{"type": "object", "properties": map[string]any{"run_id": map[string]any{"type": "string"}}},
+				Returns: types.JSONSchema{
+					"type":       "object",
+					"properties": map[string]any{"run_id": map[string]any{"type": "string"}},
+				},
 			},
 			Cmd: func(h *RootHandlers, ctx workflow.Context, args any) error {
 				m, ok := args.(map[string]any)

@@ -9,22 +9,29 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// generateNextAction uses the LLM to determine the next action based on the plan and history
-func generateNextAction(ctx workflow.Context, state *PlanState, tools []openai.ChatCompletionToolParam, model string) (ActionRequest, error) {
+// generateNextAction uses the LLM to determine the next actions based on the plan and history.
+func generateNextAction(
+	ctx workflow.Context,
+	state *PlanState,
+	tools []openai.ChatCompletionToolParam,
+	model string,
+) ([]ToolCall, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Execute LLM completion to get next action
-	var completion LLMCompletion
+	var completion openai.ChatCompletionMessage
 
-	logger.Info("[XXX] Generating next action", "messages", state.Messages, "tools", tools)
-
-	err := workflow.ExecuteActivity(ctx, LLMCompletionActivity, model, state.Messages, tools).Get(ctx, &completion)
+	err := workflow.ExecuteActivity(ctx, LLMCompletionActivity, model, state.Messages, tools).
+		Get(ctx, &completion)
 	if err != nil {
-		return ActionRequest{}, fmt.Errorf("failed to generate next action: %w", err)
+		return nil, fmt.Errorf("failed to generate next actions: %w", err)
 	}
 
 	// Add the LLM's response to the message history
-	state.Messages = append(state.Messages, AssistantMessage(completion.Content, completion.ToolCalls))
+	state.Messages = append(
+		state.Messages,
+		AssistantMessage(completion.Content, completion.ToolCalls),
+	)
 
 	// Add as thought to history
 	state.History = append(state.History, HistoryEntry{
@@ -33,88 +40,140 @@ func generateNextAction(ctx workflow.Context, state *PlanState, tools []openai.C
 		Timestamp: workflow.Now(ctx),
 	})
 
+	s, _ := json.MarshalIndent(state.Messages, "", "  ")
+	logger.Info("[XXX] messages after LLM return", "messages", string(s))
+
 	// If no tool calls, we treat this as a final response
 	if len(completion.ToolCalls) == 0 {
 		logger.Info("LLM provided final response with no tool calls")
-		return ActionRequest{
-			Tool: "final_response",
-			Params: map[string]interface{}{
-				"output": completion.Content,
+
+		// Create a special "final_response" tool call
+		finalResponseCall := ToolCall{
+			ID:   "final_response_" + workflow.Now(ctx).Format(time.RFC3339),
+			Type: "function",
+			Function: ToolCallFunction{
+				Name:      "final_response",
+				Arguments: fmt.Sprintf(`{"output": %q}`, completion.Content),
 			},
-		}, nil
+		}
+
+		return []ToolCall{finalResponseCall}, nil
 	}
 
-	// Process the first tool call
-	// (We could handle multiple tool calls, but for simplicity, we're just taking the first one)
-	toolCall := completion.ToolCalls[0]
+	// Convert OpenAI tool calls to our custom format
+	toolCalls := make([]ToolCall, 0, len(completion.ToolCalls))
 
-	// Add to the tool calls history
-	state.ToolCalls = append(state.ToolCalls, toolCall)
+	for _, toolCall := range completion.ToolCalls {
+		// Parse arguments
+		var args map[string]any
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			logger.Warn("Failed to parse tool arguments", "error", err)
+			continue
+		}
 
-	// Parse arguments
-	var args map[string]interface{}
-	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-		return ActionRequest{}, fmt.Errorf("failed to parse tool arguments: %w", err)
+		// Create the tool call
+		customToolCall := ToolCall{
+			ID:   toolCall.ID,
+			Type: string(toolCall.Type), // Convert from constant.Function to string
+			Function: ToolCallFunction{
+				Name:      toolCall.Function.Name,
+				Arguments: toolCall.Function.Arguments,
+			},
+		}
+
+		// Add to the tool calls
+		toolCalls = append(toolCalls, customToolCall)
+
+		// Also add to the history for tracking
+		state.ToolCalls = append(state.ToolCalls, customToolCall)
 	}
 
-	logger.Info("Generated next action", "tool", toolCall.Function.Name)
+	logger.Info("Generated next actions", "total_tool_calls", len(toolCalls))
 
-	// Return the action request
-	return ActionRequest{
-		Tool:   toolCall.Function.Name,
-		Params: args,
-	}, nil
+	return toolCalls, nil
 }
 
-// executeAction executes a tool action and returns the result
-func executeAction(ctx workflow.Context, action ActionRequest, state *PlanState) (*ToolResult, error) {
+// executeAction executes a tool call and returns the result.
+func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
-	logger.Info("Executing action", "tool", action.Tool, "params", action.Params)
+	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
+
+	// Parse arguments if not already parsed
+	var params map[string]interface{}
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &params); err != nil {
+		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+	}
+
+	toolName := toolCall.Function.Name
 
 	// Special case for final response
-	if action.Tool == "final_response" {
-		output, _ := action.Params["output"].(string)
-		return &ToolResult{
-			Tool:    action.Tool,
-			Params:  action.Params,
+	if toolName == "final_response" {
+		output, _ := params["output"].(string)
+		result := &ToolResult{
+			Tool:    toolName,
+			Params:  params,
 			Content: output,
 			Data:    output,
-		}, nil
+		}
+
+		// Store the result in the tool call
+		toolCall.Result = result
+
+		return result, nil
 	}
 
 	// Handle special tools that execute directly in the workflow
-	if action.Tool == "sleep" {
-		return executeSleep(ctx, action.Params)
+	if toolName == "sleep" {
+		result, err := executeSleep(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store the result in the tool call
+		toolCall.Result = result
+
+		return result, nil
 	}
 
-	if action.Tool == "sleep_until" {
-		return executeSleepUntil(ctx, action.Params)
+	if toolName == "sleep_until" {
+		result, err := executeSleepUntil(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+
+		// Store the result in the tool call
+		toolCall.Result = result
+
+		return result, nil
 	}
 
 	// Check if tool exists
 	var found bool
 	for _, tool := range state.Tools {
-		if tool.Name == action.Tool {
+		if tool.Name == toolName {
 			found = true
 			break
 		}
 	}
 
 	if !found {
-		return nil, fmt.Errorf("tool not found: %s", action.Tool)
+		return nil, fmt.Errorf("tool not found: %s", toolName)
 	}
 
 	// Execute the tool activity
 	var result ToolResult
-	err := workflow.ExecuteActivity(ctx, ExecuteToolActivity, action.Tool, action.Params).Get(ctx, &result)
+	err := workflow.ExecuteActivity(ctx, ExecuteToolActivity, toolName, params).Get(ctx, &result)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute tool %s: %w", action.Tool, err)
+		return nil, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
 	}
+
+	// Store the result in the tool call
+	toolCall.Result = &result
 
 	return &result, nil
 }
 
-// SleepConfig holds common configuration for sleep operations
+// SleepConfig holds common configuration for sleep operations.
 type SleepConfig struct {
 	Duration time.Duration
 	Reason   string
@@ -122,12 +181,20 @@ type SleepConfig struct {
 	Params   map[string]interface{}
 }
 
-// executeSleepWithConfig performs the actual sleep operation and returns a result
+// executeSleepWithConfig performs the actual sleep operation and returns a result.
 func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Log the sleep
-	logger.Info("Workflow sleeping", "duration", config.Duration, "reason", config.Reason, "tool", config.ToolName)
+	logger.Info(
+		"Workflow sleeping",
+		"duration",
+		config.Duration,
+		"reason",
+		config.Reason,
+		"tool",
+		config.ToolName,
+	)
 
 	// Sleep in the workflow
 	if err := workflow.Sleep(ctx, config.Duration); err != nil {
@@ -138,7 +205,11 @@ func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*ToolResu
 	// Create result message
 	var message string
 	if config.ToolName == "sleep" {
-		message = fmt.Sprintf("Slept for %.2f seconds. Reason: %s", config.Duration.Seconds(), config.Reason)
+		message = fmt.Sprintf(
+			"Slept for %.2f seconds. Reason: %s",
+			config.Duration.Seconds(),
+			config.Reason,
+		)
 	} else {
 		// For sleep_until
 		actualTime := workflow.Now(ctx)
@@ -155,7 +226,7 @@ func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*ToolResu
 	}, nil
 }
 
-// executeSleep pauses workflow execution for the specified duration
+// executeSleep pauses workflow execution for the specified duration.
 func executeSleep(ctx workflow.Context, params map[string]interface{}) (*ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
@@ -189,7 +260,13 @@ func executeSleep(ctx workflow.Context, params map[string]interface{}) (*ToolRes
 	// Cap the maximum sleep duration for safety
 	maxSleepSec := 24 * 60 * 60.0 // 24 hours in seconds
 	if durationSec > maxSleepSec {
-		logger.Warn("Sleep duration capped", "requested_seconds", durationSec, "max_seconds", maxSleepSec)
+		logger.Warn(
+			"Sleep duration capped",
+			"requested_seconds",
+			durationSec,
+			"max_seconds",
+			maxSleepSec,
+		)
 		durationSec = maxSleepSec
 	}
 
@@ -210,7 +287,7 @@ func executeSleep(ctx workflow.Context, params map[string]interface{}) (*ToolRes
 	return executeSleepWithConfig(ctx, config)
 }
 
-// executeSleepUntil pauses workflow execution until the specified time
+// executeSleepUntil pauses workflow execution until the specified time.
 func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
@@ -235,17 +312,26 @@ func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*To
 	// Check if time is in the past
 	if sleepDuration <= 0 {
 		return &ToolResult{
-			Tool:    "sleep_until",
-			Params:  params,
-			Content: fmt.Sprintf("Target time %s is in the past. No sleep performed.", targetTime.Format(time.RFC3339)),
-			Data:    "Target time is in the past",
+			Tool:   "sleep_until",
+			Params: params,
+			Content: fmt.Sprintf(
+				"Target time %s is in the past. No sleep performed.",
+				targetTime.Format(time.RFC3339),
+			),
+			Data: "Target time is in the past",
 		}, nil
 	}
 
 	// Cap the maximum sleep duration for safety
 	maxSleepDuration := 24 * time.Hour // 24 hours
 	if sleepDuration > maxSleepDuration {
-		logger.Warn("Sleep duration capped", "requested_duration", sleepDuration, "max_duration", maxSleepDuration)
+		logger.Warn(
+			"Sleep duration capped",
+			"requested_duration",
+			sleepDuration,
+			"max_duration",
+			maxSleepDuration,
+		)
 		sleepDuration = maxSleepDuration
 		// Max duration applied
 	}
@@ -264,7 +350,7 @@ func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*To
 	return executeSleepWithConfig(ctx, config)
 }
 
-// extractReason extracts the optional reason parameter from the params map
+// extractReason extracts the optional reason parameter from the params map.
 func extractReason(params map[string]interface{}) string {
 	reason := "No reason specified"
 	if reasonParam, hasReason := params["reason"].(string); hasReason && reasonParam != "" {

@@ -11,16 +11,16 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// DefaultMaxSteps is the default number of iterations for ReAct loop
+// DefaultMaxSteps is the default number of iterations for ReAct loop.
 const DefaultMaxSteps = 15
 
-// Constants for workflow operations
+// Constants for workflow operations.
 const (
 	DefaultExecutionTimeout = 30 * time.Second // Reduced for tests
 	HeartbeatInterval       = 100 * time.Millisecond
 )
 
-// PlannedAgentWorkflow is the main workflow for executing an agent plan
+// PlannedAgentWorkflow is the main workflow for executing an agent plan.
 func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	// Configure workflow
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
@@ -59,7 +59,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 		CurrentStep: 0,
 		Complete:    false,
 		Messages:    []Message{},
-		ToolCalls:   []openai.ChatCompletionMessageToolCall{},
+		ToolCalls:   []ToolCall{},
 		ToolResults: []ToolResult{},
 		History:     []HistoryEntry{},
 		Tools:       []ToolDefinition{},
@@ -77,7 +77,10 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	// Add system prompt
 	systemPrompt := planInput.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = fmt.Sprintf("You are a helpful assistant that follows a plan. Your task is to execute this plan step by step:\n\n%s\n\nAs you work through the plan, think step-by-step, use tools when needed, and provide a clear final answer.", planInput.Plan)
+		systemPrompt = fmt.Sprintf(
+			"You are a helpful assistant that follows a plan. Your task is to execute this plan step by step:\n\n%s\n\nAs you work through the plan, think step-by-step, use tools when needed, and provide a clear final answer.",
+			planInput.Plan,
+		)
 	}
 	state.Messages = append(state.Messages, SystemMessage(systemPrompt))
 
@@ -110,7 +113,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	return nil
 }
 
-// executeReActLoop implements the ReAct loop for executing the plan
+// executeReActLoop implements the ReAct loop for executing the plan.
 func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
 	logger := workflow.GetLogger(ctx)
 
@@ -121,74 +124,131 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 	}
 
 	// Prompt the agent to start executing the plan
-	state.Messages = append(state.Messages, UserMessage(fmt.Sprintf("Please start executing this plan: %s", state.Plan)))
+	state.Messages = append(
+		state.Messages,
+		UserMessage(fmt.Sprintf("Please start executing this plan: %s", state.Plan)),
+	)
 
 	// Main ReAct loop
 	for state.CurrentStep < maxSteps && !state.Complete {
-		logger.Info("Executing step", "step", state.CurrentStep+1, "of", maxSteps)
+		openaiMessages := ToOpenAIMessages(state.Messages)
+		oaiMsgs, _ := json.MarshalIndent(openaiMessages, "", "  ")
+		sMsgs, _ := json.MarshalIndent(state.Messages, "", "  ")
+		logger.Info(
+			"[XXX] Executing step",
+			"step",
+			state.CurrentStep+1,
+			"openai_messages",
+			string(oaiMsgs),
+		)
+		logger.Info(
+			"[YYY] Executing step",
+			"step",
+			state.CurrentStep+1,
+			"openai_messages",
+			string(sMsgs),
+		)
 
-		logger.Info("[XXX] messages", "messages", state.Messages)
-
-		// Generate the next action using LLM
-		action, err := generateNextAction(ctx, state, apiToolDefinitions, model)
+		// Generate the next actions using LLM
+		toolCalls, err := generateNextAction(ctx, state, apiToolDefinitions, model)
 		if err != nil {
-			logger.Error("Failed to generate next action", "error", err)
+			logger.Error("Failed to generate next actions", "error", err)
 			state.History = append(state.History, HistoryEntry{
 				Type:      "error",
-				Content:   fmt.Sprintf("Failed to generate next action: %v", err),
+				Content:   fmt.Sprintf("Failed to generate next actions: %v", err),
 				Timestamp: workflow.Now(ctx),
 			})
-			return err
+			// Add an error message to help the LLM recover
+			errorMsg := fmt.Sprintf("Error: %v. Please try a different approach.", err)
+			state.Messages = append(
+				state.Messages,
+				ToolMessage(errorMsg, "error_"+workflow.Now(ctx).Format(time.RFC3339)),
+			)
+			continue // continue instead of returning, to let the LLM try again
 		}
 
-		// Record the action in history
-		actionJson, _ := json.Marshal(action)
+		// Record the tool calls in history
+		toolCallsJson, _ := json.Marshal(toolCalls)
 		state.History = append(state.History, HistoryEntry{
-			Type:      "action",
-			Content:   string(actionJson),
+			Type:      "actions",
+			Content:   string(toolCallsJson),
 			Timestamp: workflow.Now(ctx),
 		})
 
-		// If this is a final response with no tool calls, we're done
-		if action.Tool == "final_response" {
-			logger.Info("Plan execution complete with final response", "output", action.Params["output"].(string))
-			state.Output = action.Params["output"].(string)
-			state.Complete = true
+		// Process each tool call
+		for _, toolCall := range toolCalls {
+			// Check if this is a final response
+			if toolCall.Function.Name == "final_response" {
+				// Parse arguments
+				var params map[string]interface{}
+				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &params); err != nil {
+					logger.Error("Failed to parse final response arguments", "error", err)
+					errorMsg := fmt.Sprintf("Error parsing final response: %v", err)
+					state.Messages = append(state.Messages, ToolMessage(errorMsg, toolCall.ID))
+					continue
+				}
+
+				output, _ := params["output"].(string)
+				logger.Info("Plan execution complete with final response", "output", output)
+				state.Output = output
+				state.Complete = true
+				break
+			}
+
+			// Execute the tool call
+			result, err := executeAction(ctx, toolCall, state)
+
+			// Always add a tool message, either with result or error
+			if err != nil {
+				logger.Error("Failed to execute tool call", "tool_call", toolCall, "error", err)
+
+				// Record the error in history
+				state.History = append(state.History, HistoryEntry{
+					Type:      "error",
+					Content:   fmt.Sprintf("Failed to execute tool call: %v", err),
+					Timestamp: workflow.Now(ctx),
+				})
+
+				// Create an error result
+				errorMsg := fmt.Sprintf("Error executing %s: %v", toolCall.Function.Name, err)
+
+				// Add error message as a tool result
+				errorResult := ToolResult{
+					Tool:    toolCall.Function.Name,
+					Params:  make(map[string]interface{}),
+					Content: errorMsg,
+					Error:   err.Error(),
+				}
+
+				// Add the error result to our collection
+				state.ToolResults = append(state.ToolResults, errorResult)
+
+				// Add tool message to message history with error
+				state.Messages = append(state.Messages, ToolMessage(errorMsg, toolCall.ID))
+			} else {
+				// Add the successful tool result to our collection
+				state.ToolResults = append(state.ToolResults, *result)
+
+				// Add tool message to message history with result
+				state.Messages = append(state.Messages, ToolMessage(result.Content, toolCall.ID))
+
+				// Record the observation in history
+				state.History = append(state.History, HistoryEntry{
+					Type:      "observation",
+					Content:   result.Content,
+					Timestamp: workflow.Now(ctx),
+				})
+
+				// Collect image URLs if any
+				if len(result.ImageURLs) > 0 {
+					state.ImageURLs = append(state.ImageURLs, result.ImageURLs...)
+				}
+			}
+		}
+
+		// If we completed the plan, break out of the loop
+		if state.Complete {
 			break
-		}
-
-		// Execute the action
-		result, err := executeAction(ctx, action, state)
-		if err != nil {
-			logger.Error("Failed to execute action", "action", action, "error", err)
-			state.History = append(state.History, HistoryEntry{
-				Type:      "error",
-				Content:   fmt.Sprintf("Failed to execute action: %v", err),
-				Timestamp: workflow.Now(ctx),
-			})
-			return err
-		}
-
-		// Add the tool result
-		state.ToolResults = append(state.ToolResults, *result)
-
-		// Add to message history
-		// For LLM API compatibility, we need to add the tool message
-		if len(state.ToolCalls) > 0 && len(state.ToolCalls) > len(state.ToolResults) {
-			latestToolCall := state.ToolCalls[len(state.ToolCalls)-1]
-			state.Messages = append(state.Messages, ToolMessage(result.Content, latestToolCall.ID))
-		}
-
-		// Record the observation in history
-		state.History = append(state.History, HistoryEntry{
-			Type:      "observation",
-			Content:   result.Content,
-			Timestamp: workflow.Now(ctx),
-		})
-
-		// Collect image URLs if any
-		if len(result.ImageURLs) > 0 {
-			state.ImageURLs = append(state.ImageURLs, result.ImageURLs...)
 		}
 
 		logger.Info("Step completed", "step", state.CurrentStep, "of max", maxSteps)
@@ -208,13 +268,22 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 			Content:   "Reached maximum number of steps without completing the plan",
 			Timestamp: workflow.Now(ctx),
 		})
-		state.Messages = append(state.Messages, SystemMessage("Reached maximum number of steps without completing the plan"))
+		state.Messages = append(
+			state.Messages,
+			SystemMessage("Reached maximum number of steps without completing the plan"),
+		)
 
 		// Ask the LLM for a summary
-		state.Messages = append(state.Messages, UserMessage("You've reached the maximum number of steps. Please provide a summary of what you've accomplished so far and what remains to be done."))
+		state.Messages = append(
+			state.Messages,
+			UserMessage(
+				"You've reached the maximum number of steps. Please provide a summary of what you've accomplished so far and what remains to be done.",
+			),
+		)
 
-		var finalCompletion LLMCompletion
-		err := workflow.ExecuteActivity(ctx, LLMCompletionActivity, model, state.Messages, []openai.ChatCompletionToolParam{}).Get(ctx, &finalCompletion)
+		var finalCompletion openai.ChatCompletionMessage
+		err := workflow.ExecuteActivity(ctx, LLMCompletionActivity, model, state.Messages, []openai.ChatCompletionToolParam{}).
+			Get(ctx, &finalCompletion)
 		if err != nil {
 			logger.Error("Failed to get final summary", "error", err)
 			state.Output = "Reached maximum number of steps without completing. Unable to get summary."
@@ -233,7 +302,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 	return nil
 }
 
-// fetchAndRegisterTools fetches available tools and registers them
+// fetchAndRegisterTools fetches available tools and registers them.
 func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []string) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Fetching and registering tools", "requested_tools", toolNames)

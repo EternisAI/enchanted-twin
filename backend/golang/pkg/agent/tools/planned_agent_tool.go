@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
@@ -14,7 +14,7 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
-// PlannedAgentTool implements a tool for planned agent execution
+// PlannedAgentTool implements a tool for planned agent execution.
 type PlannedAgentTool struct {
 	logger         *log.Logger
 	temporalClient client.Client
@@ -22,8 +22,12 @@ type PlannedAgentTool struct {
 	maxSteps       int
 }
 
-// NewPlannedAgentTool creates a new PlannedAgentTool
-func NewPlannedAgentTool(logger *log.Logger, temporalClient client.Client, model string) *PlannedAgentTool {
+// NewPlannedAgentTool creates a new PlannedAgentTool.
+func NewPlannedAgentTool(
+	logger *log.Logger,
+	temporalClient client.Client,
+	model string,
+) *PlannedAgentTool {
 	return &PlannedAgentTool{
 		logger:         logger,
 		temporalClient: temporalClient,
@@ -32,13 +36,15 @@ func NewPlannedAgentTool(logger *log.Logger, temporalClient client.Client, model
 	}
 }
 
-// Definition returns the tool definition
+// Definition returns the tool definition.
 func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "execute_plan",
-			Description: param.NewOpt("Execute a multi-step plan using tools and reasoning capabilities"),
+			Name: "execute_plan",
+			Description: param.NewOpt(
+				"Execute a multi-step plan using tools and reasoning capabilities",
+			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]interface{}{
@@ -68,8 +74,11 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// Execute starts the planned agent workflow and waits for completion
-func (t *PlannedAgentTool) Execute(ctx context.Context, args map[string]interface{}) (ToolResult, error) {
+// Execute starts the planned agent workflow and waits for completion.
+func (t *PlannedAgentTool) Execute(
+	ctx context.Context,
+	args map[string]interface{},
+) (ToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
 		return ToolResult{}, fmt.Errorf("plan is required")
@@ -121,12 +130,23 @@ func (t *PlannedAgentTool) Execute(ctx context.Context, args map[string]interfac
 
 	// Start the workflow
 	t.logger.Info("Starting planned agent workflow", "plan_length", len(plan), "tools", toolNames)
-	execution, err := t.temporalClient.ExecuteWorkflow(ctx, workflowOptions, plannedv2.WorkflowName, inputJSON)
+	execution, err := t.temporalClient.ExecuteWorkflow(
+		ctx,
+		workflowOptions,
+		plannedv2.WorkflowName,
+		inputJSON,
+	)
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
-	t.logger.Info("Workflow started", "workflow_id", execution.GetID(), "run_id", execution.GetRunID())
+	t.logger.Info(
+		"Workflow started",
+		"workflow_id",
+		execution.GetID(),
+		"run_id",
+		execution.GetRunID(),
+	)
 
 	// Wait for workflow completion with timeout
 	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
@@ -137,12 +157,21 @@ func (t *PlannedAgentTool) Execute(ctx context.Context, args map[string]interfac
 	if err != nil {
 		// Try to query for output in case of timeout
 		var output string
-		resp, queryErr := t.temporalClient.QueryWorkflow(ctx, execution.GetID(), execution.GetRunID(), plannedv2.QueryGetOutput, nil)
+		resp, queryErr := t.temporalClient.QueryWorkflow(
+			ctx,
+			execution.GetID(),
+			execution.GetRunID(),
+			plannedv2.QueryGetOutput,
+			nil,
+		)
 		if queryErr == nil {
 			queryErr = resp.Get(&output)
 			if queryErr == nil && output != "" {
 				return ToolResult{
-					Content:   fmt.Sprintf("Plan execution in progress. Current output: %s", output),
+					Content: fmt.Sprintf(
+						"Plan execution in progress. Current output: %s",
+						output,
+					),
 					ImageURLs: []string{},
 				}, nil
 			}

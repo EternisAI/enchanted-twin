@@ -15,12 +15,12 @@ type PlannedAgentTestSuite struct {
 	testsuite.WorkflowTestSuite
 }
 
-// TestPlannedAgentWorkflow is the entry point for running the test suite
+// TestPlannedAgentWorkflow is the entry point for running the test suite.
 func TestPlannedAgentWorkflow(t *testing.T) {
 	suite.Run(t, new(PlannedAgentTestSuite))
 }
 
-// TestBasicPlanExecution tests the basic execution of a plan
+// TestBasicPlanExecution tests the basic execution of a plan.
 func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 	env := s.NewTestWorkflowEnvironment()
 
@@ -33,12 +33,12 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 	// Mock LLM completion activity with a callback function
 	env.OnActivity(LLMCompletionActivity,
 		mustMatchAny, mustMatchAny, mustMatchAny, mustMatchAny).
-		Return(func(ctx interface{}, messages interface{}, tools interface{}, model string) (LLMCompletion, error) {
+		Return(func(ctx interface{}, messages interface{}, tools interface{}, model string) (openai.ChatCompletionMessage, error) {
 			mockCounter++
 
 			// First call - return a tool call
 			if mockCounter == 1 {
-				return LLMCompletion{
+				return openai.ChatCompletionMessage{
 					Content: "I'll help you execute this plan. First, let me echo the plan.",
 					ToolCalls: []openai.ChatCompletionMessageToolCall{
 						{
@@ -54,7 +54,7 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 			}
 
 			// Second call - final response
-			return LLMCompletion{
+			return openai.ChatCompletionMessage{
 				Content: "I've completed the plan successfully!",
 			}, nil
 		})
@@ -98,7 +98,7 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 	s.Equal("I've completed the plan successfully!", state.Output)
 }
 
-// TestSleepTool tests the sleep tool functionality
+// TestSleepTool tests the sleep tool functionality.
 func (s *PlannedAgentTestSuite) TestSleepTool() {
 	env := s.NewTestWorkflowEnvironment()
 
@@ -109,12 +109,12 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 	mockCalls := 0
 	env.OnActivity(LLMCompletionActivity,
 		mustMatchAny, mustMatchAny, mustMatchAny, mustMatchAny).
-		Return(func(ctx interface{}, messages interface{}, tools interface{}, model string) (LLMCompletion, error) {
+		Return(func(ctx interface{}, messages interface{}, tools interface{}, model string) (openai.ChatCompletionMessage, error) {
 			mockCalls++
 
 			// First call: return sleep tool call
 			if mockCalls == 1 {
-				return LLMCompletion{
+				return openai.ChatCompletionMessage{
 					Content: "I'll wait for 2 seconds before proceeding.",
 					ToolCalls: []openai.ChatCompletionMessageToolCall{
 						{
@@ -130,7 +130,7 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 			}
 
 			// Second call: return final response
-			return LLMCompletion{
+			return openai.ChatCompletionMessage{
 				Content: "I've completed the task after waiting.",
 			}, nil
 		})
@@ -187,5 +187,5 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 	s.True(hasSleepEntry, "History should contain a sleep action entry")
 }
 
-// mustMatchAny is a helper matcher for mock activity calls
+// mustMatchAny is a helper matcher for mock activity calls.
 var mustMatchAny interface{}
