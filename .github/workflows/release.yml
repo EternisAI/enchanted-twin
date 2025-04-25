@@ -57,9 +57,9 @@ jobs:
           EMBEDDINGS_API_URL: "https://enchanted.ngrok.pro/v1/embeddings"
           EMBEDDINGS_MODEL: "nomic-embed-text"
           IS_PROD_BUILD: "true"
-          APPLE_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
-          APPLE_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
-          APPLE_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          NOTARY_API_KEY_ID: ${{ secrets.NOTARY_API_KEY_ID }}
+          NOTARY_API_ISSUER: ${{ secrets.NOTARY_API_ISSUER }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
 
       - name: Upload release artifacts
         uses: softprops/action-gh-release@v1
