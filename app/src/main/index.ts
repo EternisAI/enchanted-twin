@@ -113,6 +113,106 @@ function openOAuthWindow(authUrl: string, redirectUri?: string) {
       const parsedRedirect = new URL(redirectUri)
       callbackPath = parsedRedirect.pathname
 
+      if (parsedRedirect.protocol === 'https:') {
+        log.info('[OAuth] Using custom Electron window for HTTPS redirect')
+
+        const authWindow = new BrowserWindow({
+          width: 800,
+          height: 600,
+          show: true,
+          webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            webSecurity: true
+          }
+        })
+
+        app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+          if (webContents.id === authWindow.webContents.id) {
+            log.info('[OAuth] Handling certificate error for auth window')
+            event.preventDefault()
+            callback(true)
+          } else {
+            callback(false)
+          }
+        })
+
+        const filter = { urls: [parsedRedirect.origin + callbackPath + '*'] }
+
+        authWindow.webContents.session.webRequest.onBeforeRequest(filter, (details, callback) => {
+          log.info(`[OAuth] Intercepted request to: ${details.url}`)
+
+          try {
+            const parsedUrl = new URL(details.url)
+            const code = parsedUrl.searchParams.get('code')
+            const state = parsedUrl.searchParams.get('state')
+
+            if (code && state && mainWindow) {
+              mainWindow.webContents.send('oauth-callback', { code, state })
+
+              authWindow.loadURL(
+                'data:text/html,' +
+                  encodeURIComponent(`
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <title>Authentication Successful</title>
+                    <style>
+                      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding: 40px; }
+                      h1 { color: #333; }
+                      p { color: #666; }
+                      .success { color: #4CAF50; font-weight: bold; }
+                    </style>
+                  </head>
+                  <body>
+                    <h1>Authentication Successful</h1>
+                    <p class="success">You have successfully authenticated!</p>
+                    <p>You can close this window and return to the application.</p>
+                  </body>
+                </html>
+              `)
+              )
+
+              setTimeout(() => {
+                try {
+                  if (!authWindow.isDestroyed()) {
+                    authWindow.close()
+                  }
+                } catch (err) {
+                  log.error('[OAuth] Error closing auth window:', err)
+                }
+              }, 3000)
+            }
+          } catch (err) {
+            log.error('[OAuth] Error parsing callback URL:', err)
+          }
+
+          callback({})
+        })
+
+        authWindow.on('closed', () => {
+          log.info('[OAuth] Auth window closed')
+          app.removeAllListeners('certificate-error')
+        })
+
+        authWindow.webContents.on(
+          'did-fail-load',
+          (_, errorCode, errorDescription, validatedURL) => {
+            log.error(
+              `[OAuth] Failed to load URL: ${validatedURL}. Error: ${errorCode} - ${errorDescription}`
+            )
+          }
+        )
+
+        // Load the auth URL
+        log.info(`[OAuth] Loading auth URL in BrowserWindow: ${authUrl}`)
+        authWindow.loadURL(authUrl).catch((err) => {
+          log.error('[OAuth] Error loading auth URL:', err)
+        })
+
+        return
+      }
+
       startOAuthCallbackServer(callbackPath)
         .then((server) => {
           oauthServer = server

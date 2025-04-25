@@ -14,7 +14,7 @@ function inlineEnvVars(prefix: string, raw: Record<string, string>) {
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  console.log('[electron-vite] Loaded ENV:', env)
+  // console.log('[electron-vite] Loaded ENV:', env)
   return {
     main: {
       plugins: [externalizeDepsPlugin()],

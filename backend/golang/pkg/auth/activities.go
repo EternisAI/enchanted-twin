@@ -1,0 +1,30 @@
+package auth
+
+import (
+	"context"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
+	"go.temporal.io/sdk/worker"
+)
+
+func NewOAuthActivities(authStore *db.Store) *OAuthActivities {
+	return &OAuthActivities{
+		authStore: authStore,
+	}
+}
+
+type OAuthActivities struct {
+	authStore *db.Store
+}
+
+func (a *OAuthActivities) RegisterWorkflowsAndActivities(worker *worker.Worker) {
+	(*worker).RegisterWorkflow(TokenRefreshWorkflow)
+	(*worker).RegisterActivity(a.RefreshTokenActivity)
+}
+
+func (w *OAuthActivities) RefreshTokenActivity(ctx context.Context, provider string) (TokenRequest, error) {
+	logger := log.Default()
+
+	return RefreshOAuthToken(ctx, logger, w.authStore, provider)
+}

@@ -393,7 +393,7 @@ func (w *DataProcessingWorkflows) DownloadOllamaModel(ctx context.Context, model
 		return nil
 	}
 
-	models, err := w.OllamaClient.List(context.Background())
+	models, err := w.OllamaClient.List(ctx)
 	if err != nil {
 		w.Logger.Error("Failed to list ollama models", "error", err)
 		return err

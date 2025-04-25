@@ -98,12 +98,17 @@
       "releaseType": "release"
     },
     "mac": {
-      "target": "dmg",
-      "category": "public.app-category.utilities",
+      "target": {
+        "target": "dmg",
+        "arch": [
+          "arm64"
+        ]
+      },
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "gatekeeperAssess": false
-    }
+    },
+    "afterSign": "./build/notarize.js"
   }
 }

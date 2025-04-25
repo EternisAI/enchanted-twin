@@ -96,7 +96,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return ToolResult{}, fmt.Errorf("telegram API non-OK status: %d", resp.StatusCode)
