@@ -9,6 +9,7 @@ require (
 	github.com/go-chi/chi v1.5.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
+	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
@@ -22,6 +23,7 @@ require (
 	github.com/rs/cors v1.11.1
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
+	github.com/slack-go/slack v0.16.0
 	github.com/temporalio/ui-server/v2 v2.37.0
 	github.com/vektah/gqlparser/v2 v2.5.23
 	go.temporal.io/sdk v1.34.0
@@ -31,8 +33,10 @@ require (
 )
 
 require (
-	github.com/slack-go/slack v0.16.0 // indirect
+	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
+	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 )
 
