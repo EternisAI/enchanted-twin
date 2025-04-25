@@ -54,7 +54,7 @@ func (m *EmbeddingsMemory) Query(ctx context.Context, query string) (memory.Quer
 	if err != nil {
 		return memory.QueryResult{}, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	// 3) stream rows
 	var docs []memory.TextDocument
