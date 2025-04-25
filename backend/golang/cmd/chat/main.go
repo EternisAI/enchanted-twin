@@ -77,10 +77,11 @@ func main() {
 
 	graphqlPort := "3001"
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:     logger,
-		port:       graphqlPort,
-		natsClient: nc,
-		store:      store,
+		logger:          logger,
+		port:            graphqlPort,
+		natsClient:      nc,
+		store:           store,
+		telegramService: telegramService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -118,6 +119,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		TelegramService:        input.telegramService,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
@@ -163,4 +165,5 @@ type graphqlServerInput struct {
 	aiService              *ai.Service
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
+	telegramService        *telegram.TelegramService
 }
