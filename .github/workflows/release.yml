@@ -50,7 +50,6 @@ jobs:
 
       - name: Build & notarize macOS app
         run: make build-mac-silicon
-        working-directory: app
         env:
           OPENAI_BASE_URL: "https://enchanted.ngrok.pro/v1"
           COMPLETIONS_MODEL: "mistral-small3.1"
