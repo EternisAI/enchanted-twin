@@ -1,10 +1,11 @@
-package gmail
+package google
 
 import (
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"fmt"
 
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"golang.org/x/oauth2"
 
@@ -46,9 +47,7 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 		fmt.Println("Error initializing Gmail service:", err)
 		return nil, err
 	}
-	fmt.Println("Gmail service initialized")
 	request := gmailService.Users.Messages.List("me").MaxResults(int64(arguments.Limit))
-	fmt.Println("Request:", request)
 	if arguments.PageToken != "" {
 		request = request.PageToken(arguments.PageToken)
 	}
@@ -68,19 +67,35 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 			continue
 		}
 
-		// Convert message to JSON
-		msgJSON, err := json.Marshal(msg)
-		if err != nil {
-			fmt.Println("Error marshaling message to JSON:", err)
-			continue
-		}
+		// // Convert message to JSON
+		// msgJSON, err := json.Marshal(msg)
+		// if err != nil {
+		// 	fmt.Println("Error marshaling message to JSON:", err)
+		// 	continue
+		// }
 
+		var subject, from, date string
+		for _, header := range msg.Payload.Headers {
+			switch header.Name {
+			case "Subject":
+				subject = header.Value
+			case "From":
+				from = header.Value
+			case "Date":
+				date = header.Value
+			}
+		}
+		
+		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s", 
+			from, subject, date, msg.Id)
+		
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: string(msgJSON),
+				Text: formattedText,
 			},
 		})
+
 	}
 
 	return contents, nil
@@ -91,7 +106,7 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 	token := &oauth2.Token{
 		AccessToken: accessToken,
 	}
-
+	
 	config := oauth2.Config{}
 	client := config.Client(ctx, token)
 
@@ -101,16 +116,17 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 		return nil, err
 	}
 
-	message := &gmail.Message{
-		Raw: arguments.Body,
+	profile, err := gmailService.Users.GetProfile("me").Do()
+	if err != nil {
+		fmt.Println("Error retrieving user profile:", err)
+		return nil, err
 	}
 
-	message.Header.Add("To", arguments.To)
-	message.Header.Add("Subject", arguments.Subject)
+	message := createMessage(profile.EmailAddress, arguments.To, arguments.Subject, arguments.Body)
 
 	_, err = gmailService.Users.Messages.Send("me", message).Do()
 	if err != nil {
-		fmt.Println("Error sending email:", err)
+		fmt.Printf("Error sending email: %s\n", err)
 		return nil, err
 	}
 
@@ -118,8 +134,59 @@ func processSendEmail(ctx context.Context, accessToken string, arguments SendEma
 		{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: "Successfully sent email to " + arguments.To,
+				Text: "Successfully sent email",
 			},
 		},
 	}, nil
+}
+
+func createMessage(from, to, subject, bodyContent string) *gmail.Message {
+	// Compose email
+	header := make(map[string]string)
+	header["From"] = from
+	header["To"] = to
+	header["Subject"] = subject
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+
+	var message string
+	for k, v := range header {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
+	message += "\r\n" + bodyContent
+
+	// Encode as base64
+	return &gmail.Message{
+		Raw: base64.URLEncoding.EncodeToString([]byte(message)),
+	}
+}
+
+
+func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
+	var tools []mcp_golang.ToolRetType
+
+	listEmailsSchema, err := helpers.ConverToInputSchema(ListEmailsArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for list_emails: %w", err)
+	}
+	desc := LIST_EMAILS_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        LIST_EMAILS_TOOL_NAME,
+		Description: &desc,
+		InputSchema: listEmailsSchema,
+	})
+
+	sendEmailSchema, err := helpers.ConverToInputSchema(SendEmailArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for send_email: %w", err)
+	}
+	desc = SEND_EMAIL_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        SEND_EMAIL_TOOL_NAME,
+		Description: &desc,
+		InputSchema: sendEmailSchema,
+	})
+
+	return tools, nil
 }
