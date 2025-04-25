@@ -1,4 +1,4 @@
-package tools
+package plannedv2
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
@@ -78,10 +78,10 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 func (t *PlannedAgentTool) Execute(
 	ctx context.Context,
 	args map[string]interface{},
-) (ToolResult, error) {
+) (tools.ToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
-		return ToolResult{}, fmt.Errorf("plan is required")
+		return tools.ToolResult{}, fmt.Errorf("plan is required")
 	}
 
 	// Extract optional parameters
@@ -105,7 +105,7 @@ func (t *PlannedAgentTool) Execute(
 	}
 
 	// Create workflow input
-	input := plannedv2.PlanInput{
+	input := PlanInput{
 		Plan:         plan,
 		ToolNames:    toolNames,
 		Model:        t.model,
@@ -115,16 +115,16 @@ func (t *PlannedAgentTool) Execute(
 
 	inputJSON, err := json.Marshal(input)
 	if err != nil {
-		return ToolResult{}, fmt.Errorf("failed to marshal input: %w", err)
+		return tools.ToolResult{}, fmt.Errorf("failed to marshal input: %w", err)
 	}
 
 	// Generate a unique workflow ID using UUID
-	workflowID := fmt.Sprintf("%s_%s", plannedv2.WorkflowName, uuid.New().String())
+	workflowID := fmt.Sprintf("%s_%s", WorkflowName, uuid.New().String())
 
 	// Set workflow options
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        workflowID,
-		TaskQueue: plannedv2.WorkflowName,
+		TaskQueue: WorkflowName,
 		// WorkflowExecutionTimeout: 30 * time.Minute,  // TODO: pass this as a plan parameter
 	}
 
@@ -133,11 +133,11 @@ func (t *PlannedAgentTool) Execute(
 	execution, err := t.temporalClient.ExecuteWorkflow(
 		ctx,
 		workflowOptions,
-		plannedv2.WorkflowName,
+		WorkflowName,
 		inputJSON,
 	)
 	if err != nil {
-		return ToolResult{}, fmt.Errorf("failed to start workflow: %w", err)
+		return tools.ToolResult{}, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
 	t.logger.Info(
@@ -161,13 +161,13 @@ func (t *PlannedAgentTool) Execute(
 			ctx,
 			execution.GetID(),
 			execution.GetRunID(),
-			plannedv2.QueryGetOutput,
+			QueryGetOutput,
 			nil,
 		)
 		if queryErr == nil {
 			queryErr = resp.Get(&output)
 			if queryErr == nil && output != "" {
-				return ToolResult{
+				return tools.ToolResult{
 					Content: fmt.Sprintf(
 						"Plan execution in progress. Current output: %s",
 						output,
@@ -177,11 +177,11 @@ func (t *PlannedAgentTool) Execute(
 			}
 		}
 
-		return ToolResult{}, fmt.Errorf("workflow execution failed: %w", err)
+		return tools.ToolResult{}, fmt.Errorf("workflow execution failed: %w", err)
 	}
 
 	// Create the result
-	return ToolResult{
+	return tools.ToolResult{
 		Content:   result,
 		ImageURLs: []string{},
 	}, nil

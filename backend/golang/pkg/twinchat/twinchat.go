@@ -10,13 +10,9 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/pkg/errors"
 
@@ -31,57 +27,38 @@ type Service struct {
 	storage          Storage
 	nc               *nats.Conn
 	logger           *log.Logger
-	memory           memory.Storage
-	authStorage      *db.Store
 	completionsModel string
-	telegramToken    string
-	store            *db.Store
-	mcpService       mcpserver.MCPService
+	toolRegistry     *tools.Registry
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, store *db.Store, completionsModel string, telegramToken string, authStore *db.Store) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, completionsModel string) *Service {
+	// Get the global tool registry
+	registry := tools.GetGlobal(logger)
+
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
 		storage:          storage,
 		nc:               nc,
-		memory:           memory,
 		completionsModel: completionsModel,
-		telegramToken:    telegramToken,
-		store:            store,
-		authStorage:      authStore,
+		toolRegistry:     registry,
 	}
 }
 
 func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
-	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
 
-	// Create temporal client for the plan tool
-	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
-	if err != nil {
-		s.logger.Error("Failed to create temporal client for plan tool", "error", err)
+	// Ensure we have a valid registry
+	if s.toolRegistry == nil {
+		s.toolRegistry = tools.GetGlobal(s.logger)
 	}
 
-	// Tool list
-	toolsList := []tools.Tool{
-		&tools.SearchTool{},
-		&tools.ImageTool{},
-		tools.NewMemorySearchTool(s.logger, s.memory),
-		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
-		twitterReverseChronTimelineTool,
-	}
-
-	// Add planned agent tool if temporal client is available
-	if temporalClient != nil {
-		plannedAgentTool := tools.NewPlannedAgentTool(s.logger, temporalClient, s.completionsModel)
-		toolsList = append(toolsList, plannedAgentTool)
-	}
-
-	// Add MCP tools
-	mcpTools, err := s.mcpService.GetInternalTools(ctx)
-	if err == nil {
-		toolsList = append(toolsList, mcpTools...)
+	// Get the tool list from the registry
+	toolsList := []tools.Tool{}
+	for _, name := range s.toolRegistry.List() {
+		if tool, exists := s.toolRegistry.Get(name); exists {
+			toolsList = append(toolsList, tool)
+		}
 	}
 
 	response, err := agent.Execute(ctx, messageHistory, toolsList)

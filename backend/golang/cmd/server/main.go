@@ -13,10 +13,12 @@ import (
 
 	"github.com/charmbracelet/log"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
 	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/root"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
@@ -176,7 +178,34 @@ func main() {
 	}
 	defer temporalWorker.Stop()
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, envs.CompletionsModel)
+	// Initialize global tool registry
+	toolRegistry := tools.GetGlobal(logger)
+
+	// Register standard tools
+	standardTools := agent.RegisterStandardTools(
+		toolRegistry,
+		logger,
+		memory,
+		envs.TelegramToken,
+		store,
+		temporalClient,
+		envs.CompletionsModel,
+	)
+	logger.Info("Standard tools registered", "count", len(standardTools))
+
+	// Register MCP tools
+	mcpTools, err := mcpService.GetInternalTools(context.Background())
+	if err == nil {
+		registeredMCPTools := agent.RegisterMCPTools(toolRegistry, mcpTools)
+		logger.Info("MCP tools registered", "count", len(registeredMCPTools))
+	} else {
+		logger.Warn("Failed to get MCP tools", "error", err)
+	}
+
+	logger.Info("Tool registry initialized with all tools", "count", len(toolRegistry.List()), "names", toolRegistry.List())
+
+	// Create TwinChat service with minimal dependencies
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, envs.CompletionsModel)
 
 	// Initialize and start Telegram service if token is provided
 	if envs.TelegramToken != "" {

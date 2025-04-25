@@ -399,12 +399,16 @@ type ToolDefEntrypoint struct {
 
 type ToolDefEntrypointType string
 
+const ToolDefEntrypointTypeActivity ToolDefEntrypointType = "activity"
+const ToolDefEntrypointTypeFunction ToolDefEntrypointType = "function"
 const ToolDefEntrypointTypeQuery ToolDefEntrypointType = "query"
 const ToolDefEntrypointTypeSignal ToolDefEntrypointType = "signal"
 const ToolDefEntrypointTypeUpdate ToolDefEntrypointType = "update"
 const ToolDefEntrypointTypeWorkflow ToolDefEntrypointType = "workflow"
 
 var enumValues_ToolDefEntrypointType = []interface{}{
+	"function",
+	"activity",
 	"workflow",
 	"query",
 	"signal",

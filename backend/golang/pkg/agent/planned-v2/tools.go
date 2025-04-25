@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/workflow"
 )
@@ -91,7 +92,7 @@ func generateNextAction(
 }
 
 // executeAction executes a tool call and returns the result.
-func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*ToolResult, error) {
+func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
@@ -106,7 +107,7 @@ func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*
 	// Special case for final response
 	if toolName == "final_response" {
 		output, _ := params["output"].(string)
-		result := &ToolResult{
+		result := &types.ToolResult{
 			Tool:    toolName,
 			Params:  params,
 			Content: output,
@@ -158,7 +159,7 @@ func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*
 	}
 
 	// Execute the tool activity
-	var result ToolResult
+	var result types.ToolResult
 	err := workflow.ExecuteActivity(ctx, ExecuteToolActivity, toolName, params).Get(ctx, &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
@@ -179,7 +180,7 @@ type SleepConfig struct {
 }
 
 // executeSleepWithConfig performs the actual sleep operation and returns a result.
-func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*ToolResult, error) {
+func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Log the sleep
@@ -215,7 +216,7 @@ func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*ToolResu
 	}
 
 	// Return result
-	return &ToolResult{
+	return &types.ToolResult{
 		Tool:    config.ToolName,
 		Params:  config.Params,
 		Content: message,
@@ -224,7 +225,7 @@ func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*ToolResu
 }
 
 // executeSleep pauses workflow execution for the specified duration.
-func executeSleep(ctx workflow.Context, params map[string]interface{}) (*ToolResult, error) {
+func executeSleep(ctx workflow.Context, params map[string]interface{}) (*types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract duration parameter
@@ -285,7 +286,7 @@ func executeSleep(ctx workflow.Context, params map[string]interface{}) (*ToolRes
 }
 
 // executeSleepUntil pauses workflow execution until the specified time.
-func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*ToolResult, error) {
+func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract timestamp parameter
@@ -308,7 +309,7 @@ func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*To
 
 	// Check if time is in the past
 	if sleepDuration <= 0 {
-		return &ToolResult{
+		return &types.ToolResult{
 			Tool:   "sleep_until",
 			Params: params,
 			Content: fmt.Sprintf(

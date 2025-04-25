@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
@@ -61,7 +62,7 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 
 	// Mock execute tool activity
 	env.OnActivity(ExecuteToolActivity, "echo", mustMatchAny).Return(
-		&ToolResult{
+		&types.ToolResult{
 			Tool:    "echo",
 			Content: "Echo: Starting execution of the plan",
 			Data:    "Echo: Starting execution of the plan",
@@ -137,7 +138,7 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 
 	// Mock for sleep tool execution
 	env.OnActivity(ExecuteToolActivity, "sleep", mustMatchAny).Return(
-		&ToolResult{
+		&types.ToolResult{
 			Tool:    "sleep",
 			Content: "Slept for 2 seconds. Reason: Testing sleep functionality",
 			Data:    "Sleep completed",

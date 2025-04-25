@@ -24,7 +24,7 @@ type ToolCall struct {
 	Type     string           `json:"type"` // Usually "function"
 	Function ToolCallFunction `json:"function"`
 	// Result of the tool execution (nil if not yet executed)
-	Result *ToolResult `json:"result,omitempty"`
+	Result *types.ToolResult `json:"result,omitempty"`
 }
 
 // ToolCallFunction represents a function call in a serializable format.
@@ -91,13 +91,13 @@ type PlanState struct {
 	ToolCalls []ToolCall `json:"tool_calls"`
 
 	// Tool results (results from executed tools)
-	ToolResults []ToolResult `json:"tool_results"`
+	ToolResults []types.ToolResult `json:"tool_results"`
 
 	// Typed history entries (for structured logging and UI)
 	History []HistoryEntry `json:"history"`
 
 	// Available tools for the agent
-	Tools []ToolDefinition `json:"tools"`
+	Tools []types.ToolDef `json:"tools"`
 
 	// Image URLs generated (if any)
 	ImageURLs []string `json:"image_urls"`
@@ -127,44 +127,6 @@ type ActionRequest struct {
 	Params map[string]interface{} `json:"params"`
 }
 
-// ToolResult contains the result of tool execution.
-type ToolResult struct {
-	// Name of the tool that was executed
-	Tool string `json:"tool"`
-
-	// Parameters used for the execution
-	Params map[string]interface{} `json:"params"`
-
-	// Content result from the tool
-	Content string `json:"content"`
-
-	// Structured result data (if any)
-	Data interface{} `json:"data,omitempty"`
-
-	// Image URLs produced (if any)
-	ImageURLs []string `json:"image_urls,omitempty"`
-
-	// Error message (if execution failed)
-	Error string `json:"error,omitempty"`
-}
-
-// ToolDefinition represents a unified tool definition.
-type ToolDefinition struct {
-	// Name of the tool
-	Name string `json:"name"`
-
-	// Description of what the tool does
-	Description string `json:"description"`
-
-	// Tool parameters schema (JSON Schema)
-	Parameters map[string]interface{} `json:"parameters"`
-
-	// Entrypoint details
-	Entrypoint types.ToolDefEntrypoint `json:"entrypoint"`
-
-	// Return schema (if applicable)
-	Returns map[string]interface{} `json:"returns,omitempty"`
-}
 
 // PlanInput represents the input for the planned agent workflow.
 type PlanInput struct {
@@ -184,18 +146,6 @@ type PlanInput struct {
 	SystemPrompt string `json:"system_prompt,omitempty"`
 }
 
-// ToOpenAITool converts a ToolDefinition to OpenAI tool format.
-func (t ToolDefinition) ToOpenAITool() openai.ChatCompletionToolParam {
-	// Convert our tool definition to OpenAI format
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        t.Name,
-			Description: param.NewOpt(t.Description),
-			Parameters:  t.Parameters,
-		},
-	}
-}
 
 // OpenAIToCustomToolCalls converts OpenAI tool calls to our custom format.
 func OpenAIToCustomToolCalls(openaiToolCalls []openai.ChatCompletionMessageToolCall) []ToolCall {

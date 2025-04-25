@@ -419,10 +419,10 @@ func handleTestPlanned(c client.Client, logger *log.Logger, envs *config.Config)
 	logger.Info("Using model", "model", model)
 
 	input := plannedv2.PlanInput{
-		Plan:      *testPlanFlag,
-		ToolNames: []string{"echo", "sleep"},
-		Model:     model,
-		MaxSteps:  5,
+		Plan: *testPlanFlag,
+		// ToolNames: []string{"echo", "sleep"},  // TODO: add flag for these
+		Model:    model,
+		MaxSteps: 5,
 	}
 
 	// Marshal input to JSON

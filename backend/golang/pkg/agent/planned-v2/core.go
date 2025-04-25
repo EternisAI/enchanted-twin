@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/temporal"
@@ -45,7 +46,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 
 	// Set default model if not provided
 	if planInput.Model == "" {
-		planInput.Model = "claude-3-sonnet-20240229" // Default model
+		planInput.Model = "gpt-4o" // Default model
 	}
 
 	// Set default max steps if not provided
@@ -60,9 +61,9 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 		Complete:    false,
 		Messages:    []Message{},
 		ToolCalls:   []ToolCall{},
-		ToolResults: []ToolResult{},
+		ToolResults: []types.ToolResult{},
 		History:     []HistoryEntry{},
-		Tools:       []ToolDefinition{},
+		Tools:       []types.ToolDef{},
 		Output:      "",
 		ImageURLs:   []string{},
 		StartTime:   workflow.Now(ctx),
@@ -120,7 +121,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 	// Convert our tools to OpenAI format for the API
 	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0, len(state.Tools))
 	for _, tool := range state.Tools {
-		apiToolDefinitions = append(apiToolDefinitions, tool.ToOpenAITool())
+		apiToolDefinitions = append(apiToolDefinitions, tool.ToOpenAIToolParam())
 	}
 
 	// Prompt the agent to start executing the plan
@@ -196,7 +197,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 				errorMsg := fmt.Sprintf("Error executing %s: %v", toolCall.Function.Name, err)
 
 				// Add error message as a tool result
-				errorResult := ToolResult{
+				errorResult := types.ToolResult{
 					Tool:    toolCall.Function.Name,
 					Params:  make(map[string]interface{}),
 					Content: errorMsg,
@@ -290,54 +291,70 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Fetching and registering tools", "requested_tools", toolNames)
 
-	// TODO: This would query tools from the Root workflow or a tool registry
-	// For now, we'll just add some default tools for testing
+	// Always add built-in workflow tools
+	addBuiltInWorkflowTools(state)
 
-	// Add echo tool
-	state.Tools = append(state.Tools, ToolDefinition{
-		Name:        "echo",
-		Description: "Echoes back the input text",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"text": map[string]any{
-					"type": "string",
-				},
+	// Get the global tool registry - now we can import it directly
+	registry := tools.GetGlobal(nil) // Logger not needed here as it's already initialized
+	registeredTools := []tools.Tool{}
+
+	// If specific tools were requested, get only those
+	if len(toolNames) > 0 {
+		for _, name := range toolNames {
+			// Skip built-in workflow tools as they're added separately
+			if name == "sleep" || name == "sleep_until" {
+				continue
+			}
+
+			if tool, exists := registry.Get(name); exists {
+				registeredTools = append(registeredTools, tool)
+			} else {
+				logger.Warn("Requested tool not found in registry", "tool", name)
+			}
+		}
+	} else {
+		// No specific tools requested, get all tools from registry
+		for _, name := range registry.List() {
+			// Skip built-in workflow tools as they're added separately
+			if name == "sleep" || name == "sleep_until" {
+				continue
+			}
+
+			if tool, exists := registry.Get(name); exists {
+				registeredTools = append(registeredTools, tool)
+			}
+		}
+	}
+
+	// Convert registry tools to our ToolDefinition format
+	for _, tool := range registeredTools {
+		def := tool.Definition()
+		if def.Type != "function" {
+			logger.Warn("Skipping non-function tool", "name", def.Function.Name)
+			continue
+		}
+
+		toolDef := types.ToolDef{
+			Name:        def.Function.Name,
+			Description: def.Function.Description.Value,
+			Parameters:  types.JSONSchema(def.Function.Parameters),
+			Entrypoint: types.ToolDefEntrypoint{
+				Type: types.ToolDefEntrypointTypeActivity,
 			},
-			"required": []string{"text"},
-		},
-		Entrypoint: types.ToolDefEntrypoint{
-			Type: types.ToolDefEntrypointTypeWorkflow,
-		},
-	})
+		}
 
-	// Add math tool
-	state.Tools = append(state.Tools, ToolDefinition{
-		Name:        "math",
-		Description: "Performs basic math operations",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"operation": map[string]any{
-					"type": "string",
-					"enum": []string{"add", "subtract", "multiply", "divide"},
-				},
-				"a": map[string]any{
-					"type": "number",
-				},
-				"b": map[string]any{
-					"type": "number",
-				},
-			},
-			"required": []string{"operation", "a", "b"},
-		},
-		Entrypoint: types.ToolDefEntrypoint{
-			Type: types.ToolDefEntrypointTypeWorkflow,
-		},
-	})
+		state.Tools = append(state.Tools, toolDef)
+	}
 
+	logger.Info("Tools registered for workflow", "count", len(state.Tools), "workflow_tools", 2, "registry_tools", len(registeredTools))
+	return nil
+}
+
+// TODO: move to pkg/agent/tools
+// addBuiltInWorkflowTools adds the built-in workflow tools to the state
+func addBuiltInWorkflowTools(state *PlanState) {
 	// Add sleep tool
-	state.Tools = append(state.Tools, ToolDefinition{
+	state.Tools = append(state.Tools, types.ToolDef{
 		Name:        "sleep",
 		Description: "Pauses execution for a specified duration in seconds",
 		Parameters: map[string]any{
@@ -360,7 +377,7 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 	})
 
 	// Add sleep_until tool
-	state.Tools = append(state.Tools, ToolDefinition{
+	state.Tools = append(state.Tools, types.ToolDef{
 		Name:        "sleep_until",
 		Description: "Pauses execution until a specific time (ISO8601 format)",
 		Parameters: map[string]any{
@@ -381,10 +398,4 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 			Type: types.ToolDefEntrypointTypeWorkflow,
 		},
 	})
-
-	// If specific tools were requested, we would query them here
-	// For now, we'll keep the default tools
-
-	logger.Info("Registered tools", "count", len(state.Tools))
-	return nil
 }

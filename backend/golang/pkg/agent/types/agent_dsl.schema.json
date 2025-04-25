@@ -142,6 +142,7 @@
                         "type": {
                             "type": "string",
                             "enum": [
+                                "function",
                                 "activity",
                                 "workflow",
                                 "query",

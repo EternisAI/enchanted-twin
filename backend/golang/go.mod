@@ -33,8 +33,16 @@ require (
 )
 
 require (
+	github.com/atombender/go-jsonschema v0.18.0 // indirect
+	github.com/goccy/go-yaml v1.15.23 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
+	github.com/mitchellh/go-wordwrap v1.0.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
+	github.com/sanity-io/litter v1.5.8 // indirect
+	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
