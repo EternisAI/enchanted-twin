@@ -21,71 +21,23 @@ func (c *GoogleClient) ListTools(ctx context.Context, cursor *string) (*mcp_gola
 
 	tools := []mcp_golang.ToolRetType{}
 
-	inputSchema, err := helpers.ConverToInputSchema(ListEmailsArguments{})
+	gmailTools, err := GenerateGmailTools()
 	if err != nil {
 		return nil, err
 	}
-	desc := LIST_EMAILS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        LIST_EMAILS_TOOL_NAME,
-		Description: &desc,
-		InputSchema: inputSchema,
-	})
+	tools = append(tools, gmailTools...)
 
-	inputSchema, err = helpers.ConverToInputSchema(SendEmailArguments{})
+	googleCalendarTools, err := GenerateGoogleCalendarTools	()
 	if err != nil {
 		return nil, err
 	}
-	desc = SEND_EMAIL_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEND_EMAIL_TOOL_NAME,
-		Description: &desc,
-		InputSchema: inputSchema,
-	})
+	tools = append(tools, googleCalendarTools...)
 
-	inputSchema, err = helpers.ConverToInputSchema(SearchFilesArguments{})
+	googleDriveTools, err := GenerateGoogleDriveTools()
 	if err != nil {
 		return nil, err
 	}
-	desc = SEARCH_FILES_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEARCH_FILES_TOOL_NAME,
-		Description: &desc,
-		InputSchema: inputSchema,
-	})
-
-	inputSchema, err = helpers.ConverToInputSchema(ReadFileArguments{})
-	if err != nil {
-		return nil, err
-	}
-	desc = READ_FILE_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        READ_FILE_TOOL_NAME,
-		Description: &desc,
-		InputSchema: inputSchema,
-	})
-
-	inputSchema, err = helpers.ConverToInputSchema(ListEventsArguments{})
-	if err != nil {
-		return nil, err
-	}
-	desc = LIST_CALENDAR_EVENTS_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        LIST_CALENDAR_EVENTS_TOOL_NAME,
-		Description: &desc,
-		InputSchema: inputSchema,
-	})
-
-	inputSchema, err = helpers.ConverToInputSchema(CreateEventArgs{})
-	if err != nil {
-		return nil, err
-	}
-	desc = CREATE_CALENDAR_EVENT_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        CREATE_CALENDAR_EVENT_TOOL_NAME,
-		Description: &desc,
-		InputSchema: inputSchema,
-	})
+	tools = append(tools, googleDriveTools...)
 
 	return &mcp_golang.ToolsResponse{
 		Tools: tools,

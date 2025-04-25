@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
@@ -61,7 +62,6 @@ func processSearchFiles(ctx context.Context, accessToken string, args SearchFile
 
 	fileList, err := request.Do()
 	if err != nil {
-		fmt.Println("Error searching files", err)
 		return nil, fmt.Errorf("error searching files: %v", err)
 	}
 
@@ -235,4 +235,32 @@ func getDriveService(ctx context.Context, accessToken string) (*drive.Service, e
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
 	}
 	return driveService, nil
+}
+
+func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
+	var tools []mcp_golang.ToolRetType
+
+	searchFilesSchema, err := helpers.ConverToInputSchema(SearchFilesArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for search_drive_files: %w", err)
+	}
+	desc := SEARCH_FILES_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        SEARCH_FILES_TOOL_NAME,
+		Description: &desc,
+		InputSchema: searchFilesSchema,
+	})
+
+	readFileSchema, err := helpers.ConverToInputSchema(ReadFileArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for read_drive_file: %w", err)
+	}
+	desc = READ_FILE_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        READ_FILE_TOOL_NAME,
+		Description: &desc,
+		InputSchema: readFileSchema,
+	})
+
+	return tools, nil
 }
