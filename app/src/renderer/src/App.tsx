@@ -1,9 +1,6 @@
-import Versions from './components/Versions'
-import OAuthPanel from './components/oauth/OAuthPanel'
+import MCPPanel from './components/oauth/MCPPanel'
 
 function App(): React.JSX.Element {
-  // const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
-
   return (
     <div className="flex items-center flex-col gap-8 py-10 flex-1 text-foreground">
       <style>
@@ -13,14 +10,11 @@ function App(): React.JSX.Element {
           }
         `}
       </style>
-      <div className="flex w-full max-w-2xl flex-col gap-4 ">
+      <div className="flex w-full max-w-4xl flex-col gap-8">
         <div>
           <h1 className="text-4xl">My Twin</h1>
         </div>
-        <OAuthPanel />
-        <div className="actions">
-          {process.env.NODE_ENV === 'development' && <Versions></Versions>}
-        </div>
+        <MCPPanel />
       </div>
     </div>
   )

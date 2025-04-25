@@ -4,6 +4,7 @@ import { useOnboardingStore, OnboardingStep } from '@renderer/lib/stores/onboard
 import { WelcomeStep } from './WelcomeStep'
 import { ImportDataStep } from './ImportDataStep'
 import { IndexingStep } from './IndexingStep'
+import MCPServersStep from './MCPServersStep'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Brain } from '../graphics/brain'
 
@@ -45,6 +46,8 @@ export function OnboardingContainer() {
         return <WelcomeStep onContinue={nextStep} />
       case OnboardingStep.DataSources:
         return <ImportDataStep />
+      case OnboardingStep.MCPServers:
+        return <MCPServersStep />
       case OnboardingStep.Indexing:
         return <IndexingStep />
       default:
