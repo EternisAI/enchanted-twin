@@ -32,6 +32,14 @@ export type ChatSuggestionsCategory = {
   suggestions: Array<Scalars['String']['output']>;
 };
 
+export type ConnectMcpServerInput = {
+  args?: InputMaybe<Array<Scalars['String']['input']>>;
+  command: Scalars['String']['input'];
+  envs?: InputMaybe<Array<KeyValueInput>>;
+  name: Scalars['String']['input'];
+  type: McpServerType;
+};
+
 export type DataSource = {
   __typename?: 'DataSource';
   hasError: Scalars['Boolean']['output'];
@@ -62,6 +70,48 @@ export type IndexingStatus = {
   status: IndexingState;
 };
 
+export type KeyValue = {
+  __typename?: 'KeyValue';
+  key: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type KeyValueInput = {
+  key: Scalars['String']['input'];
+  value: Scalars['String']['input'];
+};
+
+export type McpServer = {
+  __typename?: 'MCPServer';
+  args?: Maybe<Array<Scalars['String']['output']>>;
+  command: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  enabled: Scalars['Boolean']['output'];
+  envs?: Maybe<Array<KeyValue>>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  type: McpServerType;
+};
+
+export type McpServerDefinition = {
+  __typename?: 'MCPServerDefinition';
+  args?: Maybe<Array<Scalars['String']['output']>>;
+  command: Scalars['String']['output'];
+  connected: Scalars['Boolean']['output'];
+  enabled: Scalars['Boolean']['output'];
+  envs?: Maybe<Array<KeyValue>>;
+  id: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  type: McpServerType;
+};
+
+export enum McpServerType {
+  Google = 'GOOGLE',
+  Other = 'OTHER',
+  Slack = 'SLACK',
+  Twitter = 'TWITTER'
+}
+
 export type Message = {
   __typename?: 'Message';
   createdAt: Scalars['DateTime']['output'];
@@ -77,6 +127,7 @@ export type Mutation = {
   __typename?: 'Mutation';
   addDataSource: Scalars['Boolean']['output'];
   completeOAuthFlow: Scalars['String']['output'];
+  connectMCPServer: Scalars['Boolean']['output'];
   createChat: Chat;
   deleteChat: Chat;
   deleteDataSource: Scalars['Boolean']['output'];
@@ -97,6 +148,11 @@ export type MutationAddDataSourceArgs = {
 export type MutationCompleteOAuthFlowArgs = {
   authCode: Scalars['String']['input'];
   state: Scalars['String']['input'];
+};
+
+
+export type MutationConnectMcpServerArgs = {
+  input: ConnectMcpServerInput;
 };
 
 
@@ -150,7 +206,9 @@ export type Query = {
   getChatSuggestions: Array<ChatSuggestionsCategory>;
   getChats: Array<Chat>;
   getDataSources: Array<DataSource>;
+  getMCPServers: Array<McpServerDefinition>;
   getOAuthStatus: Array<OAuthStatus>;
+  getTools: Array<Tool>;
   profile: UserProfile;
 };
 
@@ -190,6 +248,12 @@ export type SubscriptionMessageAddedArgs = {
 
 export type SubscriptionToolCallUpdatedArgs = {
   chatId: Scalars['ID']['input'];
+};
+
+export type Tool = {
+  __typename?: 'Tool';
+  description: Scalars['String']['output'];
+  name: Scalars['String']['output'];
 };
 
 export type ToolCall = {
@@ -251,6 +315,11 @@ export type GetChatSuggestionsQueryVariables = Exact<{
 
 
 export type GetChatSuggestionsQuery = { __typename?: 'Query', getChatSuggestions: Array<{ __typename?: 'ChatSuggestionsCategory', category: string, suggestions: Array<string> }> };
+
+export type GetMcpServersQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type GetMcpServersQuery = { __typename?: 'Query', getMCPServers: Array<{ __typename?: 'MCPServerDefinition', id: string, name: string, command: string, args?: Array<string> | null, type: McpServerType, enabled: boolean, connected: boolean, envs?: Array<{ __typename?: 'KeyValue', key: string, value: string }> | null }> };
 
 export type CreateChatMutationVariables = Exact<{
   name: Scalars['String']['input'];
@@ -325,6 +394,7 @@ export const GetChatsDocument = {"kind":"Document","definitions":[{"kind":"Opera
 export const GetChatDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetChat"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getChat"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"messages"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrls"}},{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}},{"kind":"Field","name":{"kind":"Name","value":"messageId"}}]}},{"kind":"Field","name":{"kind":"Name","value":"toolResults"}}]}}]}}]}}]} as unknown as DocumentNode<GetChatQuery, GetChatQueryVariables>;
 export const GetOAuthStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetOAuthStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getOAuthStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"provider"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"scope"}}]}}]}}]} as unknown as DocumentNode<GetOAuthStatusQuery, GetOAuthStatusQueryVariables>;
 export const GetChatSuggestionsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetChatSuggestions"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getChatSuggestions"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"category"}},{"kind":"Field","name":{"kind":"Name","value":"suggestions"}}]}}]}}]} as unknown as DocumentNode<GetChatSuggestionsQuery, GetChatSuggestionsQueryVariables>;
+export const GetMcpServersDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetMCPServers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getMCPServers"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"command"}},{"kind":"Field","name":{"kind":"Name","value":"args"}},{"kind":"Field","name":{"kind":"Name","value":"envs"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"key"}},{"kind":"Field","name":{"kind":"Name","value":"value"}}]}},{"kind":"Field","name":{"kind":"Name","value":"type"}},{"kind":"Field","name":{"kind":"Name","value":"enabled"}},{"kind":"Field","name":{"kind":"Name","value":"connected"}}]}}]}}]} as unknown as DocumentNode<GetMcpServersQuery, GetMcpServersQueryVariables>;
 export const CreateChatDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CreateChat"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"name"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"createChat"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"name"},"value":{"kind":"Variable","name":{"kind":"Name","value":"name"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}}]}}]}}]} as unknown as DocumentNode<CreateChatMutation, CreateChatMutationVariables>;
 export const SendMessageDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"SendMessage"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"text"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"sendMessage"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}},{"kind":"Argument","name":{"kind":"Name","value":"text"},"value":{"kind":"Variable","name":{"kind":"Name","value":"text"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrls"}},{"kind":"Field","name":{"kind":"Name","value":"toolResults"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}}]}}]}}]}}]} as unknown as DocumentNode<SendMessageMutation, SendMessageMutationVariables>;
 export const DeleteChatDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteChat"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteChat"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatId"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatId"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<DeleteChatMutation, DeleteChatMutationVariables>;
