@@ -630,9 +630,10 @@ func TestToDocuments(t *testing.T) {
 	assert.Equal(t, &expectedTimestamp2, docs[1].Timestamp)
 	assert.Equal(t, []string{"social", "x", "like"}, docs[1].Tags)
 	assert.Equal(t, map[string]string{
-		"type": "like",
-		"id":   "12345",
-		"url":  "",
+		"type":   "like",
+		"id":     "12345",
+		"url":    "",
+		"source": "x",
 	}, docs[1].Metadata)
 
 	// Check tweet
@@ -645,5 +646,6 @@ func TestToDocuments(t *testing.T) {
 		"id":            "1904572225459806695",
 		"favoriteCount": "0",
 		"retweetCount":  "0",
+		"source":        "x",
 	}, docs[2].Metadata)
 }

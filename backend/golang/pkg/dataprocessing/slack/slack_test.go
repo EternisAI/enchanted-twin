@@ -58,6 +58,7 @@ func TestToDocuments(t *testing.T) {
 		"type":           "message",
 		"channelName":    "general",
 		"authorUsername": "john_doe",
+		"source":         "slack",
 	}, docs[0].Metadata)
 
 	// Check second message
@@ -69,5 +70,6 @@ func TestToDocuments(t *testing.T) {
 		"type":           "message",
 		"channelName":    "general",
 		"authorUsername": "jane_doe",
+		"source":         "slack",
 	}, docs[1].Metadata)
 }
