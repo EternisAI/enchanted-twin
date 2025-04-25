@@ -14,7 +14,7 @@ import (
 )
 
 func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
-	batchSize := 1
+	batchSize := 30
 	// filter out empty documents
 	filteredDocuments := []memory.TextDocument{}
 	for _, document := range documents {
