@@ -131,23 +131,6 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 
 	// Main ReAct loop
 	for state.CurrentStep < maxSteps && !state.Complete {
-		openaiMessages := ToOpenAIMessages(state.Messages)
-		oaiMsgs, _ := json.MarshalIndent(openaiMessages, "", "  ")
-		sMsgs, _ := json.MarshalIndent(state.Messages, "", "  ")
-		logger.Info(
-			"[XXX] Executing step",
-			"step",
-			state.CurrentStep+1,
-			"openai_messages",
-			string(oaiMsgs),
-		)
-		logger.Info(
-			"[YYY] Executing step",
-			"step",
-			state.CurrentStep+1,
-			"openai_messages",
-			string(sMsgs),
-		)
 
 		// Generate the next actions using LLM
 		toolCalls, err := generateNextAction(ctx, state, apiToolDefinitions, model)
@@ -180,7 +163,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 			// Check if this is a final response
 			if toolCall.Function.Name == "final_response" {
 				// Parse arguments
-				var params map[string]interface{}
+				var params map[string]any
 				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &params); err != nil {
 					logger.Error("Failed to parse final response arguments", "error", err)
 					errorMsg := fmt.Sprintf("Error parsing final response: %v", err)

@@ -40,9 +40,6 @@ func generateNextAction(
 		Timestamp: workflow.Now(ctx),
 	})
 
-	s, _ := json.MarshalIndent(state.Messages, "", "  ")
-	logger.Info("[XXX] messages after LLM return", "messages", string(s))
-
 	// If no tool calls, we treat this as a final response
 	if len(completion.ToolCalls) == 0 {
 		logger.Info("LLM provided final response with no tool calls")

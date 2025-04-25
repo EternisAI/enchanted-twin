@@ -41,9 +41,6 @@ func LLMCompletionActivity(
 		Tools:    tools,
 	}
 
-	s, _ := json.MarshalIndent(params.Messages, "", "  ")
-	logger.Info("[XXX] Executing LLM completion", "messages", string(s))
-
 	// Get AI service singleton
 	aiService := ai.GetInstance()
 	if aiService == nil {
