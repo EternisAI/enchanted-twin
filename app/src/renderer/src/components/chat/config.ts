@@ -10,5 +10,9 @@ export const TOOL_NAMES = {
   twitter_get_timeline: {
     inProgress: 'Checking Twitter feed',
     completed: 'Loaded Twitter feed'
+  },
+  telegram_send_message: {
+    inProgress: 'Sending message',
+    completed: 'Message sent to Telegram'
   }
 }
