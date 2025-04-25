@@ -18,7 +18,7 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 	for i, batch := range batches {
 		m.logger.Info("Storing documents batch", "batch", fmt.Sprintf("%d/%d", i+1, len(batches)))
 		textInputs := make([]string, len(batch))
-		for i, _ := range batch {
+		for i := range batch {
 			textInputs[i] = batch[i].Content
 		}
 		embeddings, err := m.ai.Embeddings(ctx, textInputs, "text-embedding-3-small")
@@ -64,7 +64,7 @@ func (m *EmbeddingsMemory) storeDocuments(
 	}
 	defer func() { _ = embedStmt.Close() }()
 
-	for i, _ := range documents {
+	for i := range documents {
 		m.logger.Info("Storing document", "document", fmt.Sprintf("%d/%d", i+1, len(documents)))
 		metaBytes := []byte("{}")
 		if documents[i].Metadata != nil {
