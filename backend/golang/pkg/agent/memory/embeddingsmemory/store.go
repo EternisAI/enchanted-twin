@@ -15,10 +15,11 @@ import (
 
 func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
 	batches := helpers.Batch(documents, 10)
-	for _, batch := range batches {
+	for i, batch := range batches {
+		m.logger.Info("Storing documents batch", "batch", fmt.Sprintf("%d/%d", i+1, len(batches)))
 		textInputs := make([]string, len(batch))
-		for i, doc := range batch {
-			textInputs[i] = doc.Content
+		for i, _ := range batch {
+			textInputs[i] = batch[i].Content
 		}
 		embeddings, err := m.ai.Embeddings(ctx, textInputs, "text-embedding-3-small")
 		if err != nil {
@@ -44,7 +45,7 @@ func (m *EmbeddingsMemory) storeDocuments(
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback() // safe even after Commit
+	defer func() { _ = tx.Rollback() }()
 
 	// Plain INSERTs – one for text, one for embedding
 	textStmt, err := tx.PrepareContext(ctx,
@@ -53,7 +54,7 @@ func (m *EmbeddingsMemory) storeDocuments(
 	if err != nil {
 		return err
 	}
-	defer textStmt.Close()
+	defer func() { _ = textStmt.Close() }()
 
 	embedStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO embeddings (text_entry_id, embedding)
@@ -61,24 +62,25 @@ func (m *EmbeddingsMemory) storeDocuments(
 	if err != nil {
 		return err
 	}
-	defer embedStmt.Close()
+	defer func() { _ = embedStmt.Close() }()
 
-	for i, doc := range documents {
+	for i, _ := range documents {
+		m.logger.Info("Storing document", "document", fmt.Sprintf("%d/%d", i+1, len(documents)))
 		metaBytes := []byte("{}")
-		if doc.Metadata != nil {
-			if metaBytes, err = json.Marshal(doc.Metadata); err != nil {
+		if documents[i].Metadata != nil {
+			if metaBytes, err = json.Marshal(documents[i].Metadata); err != nil {
 				return err
 			}
 		}
 
 		createdAt := time.Now()
-		if doc.Timestamp != nil {
-			createdAt = *doc.Timestamp
+		if documents[i].Timestamp != nil {
+			createdAt = *documents[i].Timestamp
 		}
 
 		id := uuid.New().String()
 
-		if _, err := textStmt.ExecContext(ctx, id, doc.Content, metaBytes, createdAt); err != nil {
+		if _, err := textStmt.ExecContext(ctx, id, documents[i].Content, metaBytes, createdAt); err != nil {
 			return err
 		}
 
