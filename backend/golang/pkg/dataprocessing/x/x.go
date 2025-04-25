@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -486,6 +487,10 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 			Source:    s.Name(),
 		})
 	}
+
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].Timestamp.After(records[j].Timestamp)
+	})
 
 	return records, nil
 }
