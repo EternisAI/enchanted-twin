@@ -5,10 +5,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"html"
 	"io"
 	"mime"
 	"mime/multipart"
@@ -17,397 +15,270 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
-
-	loghtml "golang.org/x/net/html"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/charmbracelet/log"
+	"github.com/jaytaylor/html2text"
 	"github.com/sirupsen/logrus"
 )
 
 type Gmail struct{}
 
-func New() *Gmail {
-	return &Gmail{}
-}
+func New() *Gmail             { return &Gmail{} }
+func (g *Gmail) Name() string { return "gmail" }
 
-func (g *Gmail) Name() string {
-	return "gmail"
-}
+/* ────────────────────────────────────────────  MBOX helpers  ─────────────────────────────────────────── */
 
-// countEmails efficiently counts emails in an mbox file
-func countEmails(filepath string) (int, error) {
-	file, err := os.Open(filepath)
+func countEmails(path string) (int, error) {
+	f, err := os.Open(path)
 	if err != nil {
-		return 0, fmt.Errorf("error opening file for counting: %w", err)
+		return 0, err
 	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			logrus.Printf("Error closing file: %v", err)
-		}
-	}()
+	defer f.Close()
 
-	count := 0
-	scanner := bufio.NewScanner(file)
+	const maxCap = 1024 * 1024
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, maxCap), maxCap)
 
-	// Increase the buffer size to handle potentially long lines
-	const maxCapacity = 1024 * 1024  // 1 MB; adjust if needed
-	buf := make([]byte, maxCapacity) // Start with a large initial buffer
-	scanner.Buffer(buf, maxCapacity)
-
-	for scanner.Scan() {
-		if strings.HasPrefix(scanner.Text(), "From ") {
-			count++
+	n := 0
+	for sc.Scan() {
+		if strings.HasPrefix(sc.Text(), "From ") {
+			n++
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		// Check if the error is specifically ErrTooLong
-		if err == bufio.ErrTooLong {
-			return 0, fmt.Errorf("line too long, increase maxCapacity in countEmails: %w", err)
-		}
-		return 0, fmt.Errorf("error scanning file for counting: %w", err)
+	if err := sc.Err(); err != nil {
+		return 0, err
 	}
-	return count, nil
+	return n, nil
 }
 
-type job struct {
-	emailIndex int
-	emailData  string
-}
+type (
+	job struct {
+		idx int
+		raw string
+	}
+	result struct {
+		idx   int
+		rec   types.Record
+		raw   string
+		size  int
+		err   error
+		elaps time.Duration
+	}
+)
 
-type result struct {
-	emailIndex   int
-	record       types.Record
-	originalData string // Holds original data ONLY for failed/timed out emails
-	originalSize int    // Size of the original email data
-	err          error
-	duration     time.Duration
-}
+const processTimeout = time.Second
 
-// Define timeout for processing a single email
-const processTimeout = 1 * time.Second
-
-func (g *Gmail) ProcessFile(filepath string, userName string) ([]types.Record, error) {
-	// Count emails first
-	totalEmails, err := countEmails(filepath)
+func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
+	total, err := countEmails(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count emails: %w", err)
+		return nil, err
 	}
-	if totalEmails == 0 {
-		return nil, fmt.Errorf("no emails found in the file")
+	if total == 0 {
+		return nil, fmt.Errorf("no emails in %s", path)
 	}
-	fmt.Printf("Found %d emails. Starting processing using %d workers...\n", totalEmails, runtime.NumCPU())
+	fmt.Printf("Found %d emails, processing with %d workers …\n", total, runtime.NumCPU())
 
-	// Setup Worker Pool
-	numWorkers := runtime.NumCPU()
-	jobs := make(chan job, numWorkers)        // Buffered channel for jobs
-	results := make(chan result, totalEmails) // Buffer results for collection
+	jobs := make(chan job, runtime.NumCPU())
+	results := make(chan result, total)
+
 	var wg sync.WaitGroup
-	var processedCount atomic.Int64 // Count emails processed (OK or Error/Timeout)
-	var failedCount atomic.Int64    // Counter for failed/timed out emails
+	var seen, fails atomic.Int64
 
-	// Open file for failed emails in the output directory
-	failedEmailFilepath := "output/failed_emails.mbox" // Changed path
-	failedFile, err := os.Create(failedEmailFilepath)
-	if err != nil {
-		// Try to create the output directory if it doesn't exist
-		if os.IsNotExist(err) {
-			errMkdir := os.Mkdir("output", 0o755) // Use default permissions
-			if errMkdir == nil {
-				// Try creating the file again
-				failedFile, err = os.Create(failedEmailFilepath)
-			}
-		}
-		// If file still couldn't be created, log warning
-		if failedFile == nil {
-			fmt.Fprintf(os.Stderr, "\nWARNING: Could not create %s: %v. Failed emails will not be separated.\n", failedEmailFilepath, err)
-		}
+	// failed-email sink
+	failPath := "output/failed_emails.mbox"
+	failF, _ := os.Create(failPath)
+	if failF != nil {
+		defer failF.Close()
 	}
-	if failedFile != nil {
-		defer func() {
-			if err := failedFile.Close(); err != nil {
-				logrus.Printf("Error closing failed emails file: %v", err)
+
+	// workers
+	for w := 0; w < cap(jobs); w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := range jobs {
+				ctx, cancel := context.WithTimeout(context.Background(), processTimeout)
+				start := time.Now()
+
+				done := make(chan struct {
+					r   types.Record
+					err error
+				})
+				go func(raw string) {
+					rec, e := g.processEmail(raw, user)
+					done <- struct {
+						r   types.Record
+						err error
+					}{rec, e}
+				}(j.raw)
+
+				var out result
+				select {
+				case v := <-done:
+					out = result{idx: j.idx, rec: v.r, err: v.err, size: len(j.raw), elaps: time.Since(start)}
+					if v.err != nil {
+						out.raw = j.raw
+					}
+				case <-ctx.Done():
+					out = result{idx: j.idx, err: fmt.Errorf("timeout after %s", processTimeout), raw: j.raw, size: len(j.raw), elaps: time.Since(start)}
+				}
+				cancel()
+				results <- out
 			}
 		}()
 	}
 
-	// Start workers with timeout logic
-	for w := 1; w <= numWorkers; w++ {
-		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			for j := range jobs {
-				// Note: Size check happens here before detailed logging/processing
-				originalSize := len(j.emailData) // Get size early
-
-				processResultChan := make(chan result, 1)
-				ctx, cancel := context.WithTimeout(context.Background(), processTimeout)
-
-				startTime := time.Now()
-				go func() {
-					record, err := g.processEmail(j.emailData, userName)
-					duration := time.Since(startTime)
-					originalDataOnError := ""
-					if err != nil {
-						originalDataOnError = j.emailData
-					}
-					processResultChan <- result{
-						emailIndex:   j.emailIndex,
-						record:       record,
-						originalData: originalDataOnError,
-						originalSize: originalSize, // Pass size along
-						err:          err,
-						duration:     duration,
-					}
-				}()
-
-				select {
-				case res := <-processResultChan:
-					results <- res
-				case <-ctx.Done():
-					duration := time.Since(startTime)
-					timeoutErr := fmt.Errorf("processing timed out after %v", processTimeout)
-					results <- result{
-						emailIndex:   j.emailIndex,
-						record:       types.Record{},
-						originalData: j.emailData,
-						originalSize: originalSize, // Pass size along on timeout too
-						err:          timeoutErr,
-						duration:     duration,
-					}
-				}
-				cancel()
-			}
-		}(w)
-	}
-
-	// Distribute Work
+	// feed jobs
 	go func() {
-		file, err := os.Open(filepath)
+		f, err := os.Open(path)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "\nERROR opening file for processing: %v\n", err)
+			log.Errorf("open %s: %v", path, err)
 			close(jobs)
 			return
 		}
-		defer func() {
-			if err := file.Close(); err != nil {
-				logrus.Printf("Error closing file: %v", err)
-			}
-		}()
+		defer f.Close()
 
-		reader := bufio.NewReader(file)
-		var emailBuffer bytes.Buffer
-		var inEmail bool
-		emailIndex := 0
-
+		var buf bytes.Buffer
+		r := bufio.NewReader(f)
+		idx := 0
+		in := false
 		for {
-			line, err := reader.ReadString('\n')
+			line, err := r.ReadString('\n')
 			if err == io.EOF {
-				if inEmail {
-					emailIndex++
-					// Send all emails to workers
-					jobs <- job{emailIndex: emailIndex, emailData: emailBuffer.String()}
+				if in {
+					jobs <- job{idx: idx + 1, raw: buf.String()}
 				}
 				break
 			}
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "\nERROR reading file: %v\n", err)
+				log.Errorf("read: %v", err)
 				break
 			}
-
 			if strings.HasPrefix(line, "From ") {
-				if inEmail {
-					emailIndex++
-					// Send all emails to workers
-					jobs <- job{emailIndex: emailIndex, emailData: emailBuffer.String()}
-					emailBuffer.Reset()
+				if in {
+					jobs <- job{idx: idx + 1, raw: buf.String()}
+					buf.Reset()
 				}
-				inEmail = true
+				in = true
+				idx++
 			}
-
-			if inEmail {
-				emailBuffer.WriteString(line)
+			if in {
+				buf.WriteString(line)
 			}
 		}
 		close(jobs)
 	}()
 
-	// Collect Results, Separate Failed Emails, & Report Progress
-	recordsMap := make(map[int]types.Record)
+	// collect
+	go func() { wg.Wait(); close(results) }()
 
-	// Goroutine to wait for workers and close results channel
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	// Reporting setup (1% interval)
-	var lastReportCount int64 = 0
-	reportInterval := int64(float64(totalEmails) * 0.01)
-	if reportInterval < 1 {
-		reportInterval = 1
-	} else if reportInterval < 10 {
-		reportInterval = 10
-	}
-
-	const progressBarWidth = 50 // Width of the visual progress bar
+	records := make(map[int]types.Record)
 
 	for res := range results {
-		currentProcessed := processedCount.Add(1) // Count all attempts
-
+		seen.Add(1)
 		if res.err != nil {
-			// Handle error or timeout -> move to failed file
-			failedCount.Add(1)
-
-			// Differentiate log prefix and include size
-			logPrefix := "ERROR"
-			if strings.Contains(res.err.Error(), "processing timed out") {
-				logPrefix = "TIMEOUT"
-			}
-			fmt.Fprintf(os.Stderr, "%s - Email %d moved to %s (Size: %d bytes, %v, %dms)\n",
-				logPrefix, res.emailIndex, failedEmailFilepath,
-				res.originalSize, res.err, res.duration.Milliseconds())
-
-			if failedFile != nil {
-				_, writeErr := failedFile.WriteString(res.originalData)
-				if writeErr != nil {
-					// Log warning about write failure, but continue
-					fmt.Fprintf(os.Stderr, "\nWARNING: Failed to write failed email %d to %s: %v\n", res.emailIndex, failedEmailFilepath, writeErr)
-				}
+			fails.Add(1)
+			if failF != nil {
+				_, _ = failF.WriteString(res.raw)
 			}
 		} else {
-			// Handle successful email
-			recordsMap[res.emailIndex] = res.record
-		}
-
-		// Percentage milestone report
-		if currentProcessed-lastReportCount >= reportInterval || int(currentProcessed) == totalEmails {
-			percent := float64(currentProcessed) * 100.0 / float64(totalEmails)
-			filledWidth := int(float64(progressBarWidth) * percent / 100.0)
-			bar := strings.Repeat("#", filledWidth) + strings.Repeat("-", progressBarWidth-filledWidth)
-
-			fmt.Fprintf(os.Stderr, "\r[%s] %.2f%% [Failed: %d]        ",
-				bar, percent, failedCount.Load())
-			lastReportCount = currentProcessed
+			records[res.idx] = res.rec
 		}
 	}
 
-	// --- 5. Final Summary & Cleanup ---
-	// Ensure the progress line is cleared and we start fresh for stdout
-	fmt.Fprint(os.Stderr, "\r"+strings.Repeat(" ", progressBarWidth+30)+"\r") // Clear the progress line on stderr
-	if finalFailedCount := failedCount.Load(); finalFailedCount > 0 {
-		fmt.Printf("%d emails failed (error or >%v timeout) and were moved to %s.\n",
-			finalFailedCount, processTimeout, failedEmailFilepath)
-	}
-	fmt.Println("Processing finished.")
-
-	// Convert map to slice in original order (best effort)
-	finalRecords := make([]types.Record, 0, len(recordsMap))
-	for i := 1; i <= totalEmails; i++ {
-		if record, ok := recordsMap[i]; ok {
-			finalRecords = append(finalRecords, record)
+	out := make([]types.Record, 0, len(records))
+	for i := 1; i <= total; i++ {
+		if r, ok := records[i]; ok {
+			out = append(out, r)
 		}
 	}
-
-	return finalRecords, nil
+	if fc := fails.Load(); fc > 0 {
+		fmt.Printf("%d messages failed (see %s)\n", fc, failPath)
+	}
+	return out, nil
 }
 
-func (g *Gmail) processEmail(content string, userName string) (types.Record, error) {
-	msg, err := mail.ReadMessage(strings.NewReader(content))
+/* ────────────────────────────────────────────  single-email helper  ─────────────────────────────────── */
+
+func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
+	msg, err := mail.ReadMessage(strings.NewReader(raw))
 	if err != nil {
 		return types.Record{}, err
 	}
 
-	header := msg.Header
+	h := msg.Header
+	date, _ := mail.ParseDate(h.Get("Date"))
 
-	// Parse date
-	date, err := mail.ParseDate(header.Get("Date"))
-	if err != nil {
-		// Fallback to current time if date parsing fails
-		date = time.Now()
-	}
-
-	// Extract email data
 	data := map[string]interface{}{
-		"from":      header.Get("From"),
-		"to":        header.Get("To"),
-		"subject":   header.Get("Subject"),
-		"myMessage": strings.EqualFold(header.Get("From"), userName),
+		"from":      h.Get("From"),
+		"to":        h.Get("To"),
+		"subject":   h.Get("Subject"),
+		"myMessage": strings.EqualFold(h.Get("From"), user),
 	}
 
-	// Get Content-Type
-	mediaType, params, err := mime.ParseMediaType(header.Get("Content-Type"))
-	if err == nil && strings.HasPrefix(mediaType, "multipart/") {
+	mt, params, _ := mime.ParseMediaType(h.Get("Content-Type"))
+	var final string
+
+	// ── multipart ───────────────────────────────────────
+	if strings.HasPrefix(mt, "multipart/") {
 		mr := multipart.NewReader(msg.Body, params["boundary"])
-		var contentBuilder strings.Builder
+		var plain, html string
 		for {
-			part, err := mr.NextPart()
+			p, err := mr.NextPart()
 			if err == io.EOF {
 				break
 			}
 			if err != nil {
 				continue
 			}
-			defer func() {
-				if err := part.Close(); err != nil {
-					logrus.Printf("Error closing part: %v", err)
-				}
-			}()
-
-			partType, _, err := mime.ParseMediaType(part.Header.Get("Content-Type"))
-			if err != nil {
-				continue
+			pt, _, _ := mime.ParseMediaType(p.Header.Get("Content-Type"))
+			enc := strings.ToLower(p.Header.Get("Content-Transfer-Encoding"))
+			r := io.Reader(p)
+			if enc == "quoted-printable" {
+				r = quotedprintable.NewReader(r)
 			}
-			encoding := strings.ToLower(part.Header.Get("Content-Transfer-Encoding"))
-
-			var partReader io.Reader = part
-			if encoding == "quoted-printable" {
-				partReader = quotedprintable.NewReader(partReader)
-			}
+			b, _ := io.ReadAll(r)
 
 			switch {
-			case strings.HasPrefix(partType, "text/plain"):
-				bodyBytes, err := io.ReadAll(partReader)
-				if err == nil {
-					contentBuilder.Write(bodyBytes)
-					contentBuilder.WriteByte('\n')
-				}
-			case strings.HasPrefix(partType, "text/html"):
-				bodyBytes, err := io.ReadAll(partReader)
-				if err == nil {
-					textContent := extractTextFromHTML(string(bodyBytes))
-					if textContent != "" {
-						contentBuilder.WriteString(textContent)
-						contentBuilder.WriteByte('\n')
-					}
+			case strings.HasPrefix(pt, "text/plain") && plain == "":
+				plain = string(b)
+			case strings.HasPrefix(pt, "text/html") && html == "":
+				if t, err := html2text.FromString(string(b), html2text.Options{OmitLinks: true, TextOnly: true}); err == nil {
+					html = t
 				}
 			}
+			p.Close()
 		}
-		data["content"] = strings.TrimSpace(contentBuilder.String())
-	} else {
-		encoding := strings.ToLower(header.Get("Content-Transfer-Encoding"))
-		bodyReader := msg.Body
-		if encoding == "quoted-printable" {
-			bodyReader = quotedprintable.NewReader(bodyReader)
+		if plain != "" {
+			final = plain
+		} else {
+			final = html
 		}
 
-		bodyBytes, err := io.ReadAll(bodyReader)
-		if err == nil {
-			content := string(bodyBytes)
-			if strings.Contains(strings.ToLower(mediaType), "html") {
-				content = extractTextFromHTML(content)
-			}
-			data["content"] = strings.TrimSpace(content)
+	} else { // ── single part ─────────────────────────────
+		enc := strings.ToLower(h.Get("Content-Transfer-Encoding"))
+		r := io.Reader(msg.Body)
+		if enc == "quoted-printable" {
+			r = quotedprintable.NewReader(r)
+		}
+		b, _ := io.ReadAll(r)
+
+		if strings.Contains(strings.ToLower(mt), "html") {
+			html, _ := html2text.FromString(string(b), html2text.Options{OmitLinks: true, TextOnly: true})
+			final = html
+		} else {
+			final = string(b)
 		}
 	}
+
+	data["content"] = strings.TrimSpace(cleanEmailText(final))
 
 	return types.Record{
 		Data:      data,
@@ -416,346 +287,223 @@ func (g *Gmail) processEmail(content string, userName string) (types.Record, err
 	}, nil
 }
 
-// extractTextFromHTML extracts readable text content from HTML
-func extractTextFromHTML(htmlContent string) string {
-	// NOTE: Quoted-printable decoding is now handled *before* this function is called,
-	// by checking Content-Transfer-Encoding and using quotedprintable.Reader.
-	// We remove the manual QP decoding steps here.
+/* ────────────────────────────────────────────  Gmail API sync  ───────────────────────────────────────── */
 
-	// Decode common HTML entities and remaining UTF-8 sequences (like =E2=80=99)
-	// Keep this part for entities and potentially mis-encoded sequences not handled by QP reader
-	r := strings.NewReplacer(
-		"=E2=80=99", "'",
-		"=E2=9A=BD", "⚽",
-		"=EF=B8=8F", "",
-		"&nbsp;", " ",
-		"&amp;", "&",
-		"&lt;", "<",
-		"&gt;", ">",
-		"&quot;", "\"",
-		"&apos;", "'",
-	)
-	htmlContent = r.Replace(htmlContent)
+func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, error) {
+	c := &http.Client{Timeout: 30 * time.Second}
 
-	// Try to decode any remaining specific UTF-8 sequences (that might not be QP encoded)
-	if decodedContent, err := decodeUTF8Sequences(htmlContent); err == nil {
-		htmlContent = decodedContent
-	}
-
-	// Unescape basic HTML entities not covered by replacer
-	htmlContent = html.UnescapeString(htmlContent)
-
-	doc, err := loghtml.Parse(strings.NewReader(htmlContent))
-	if err != nil {
-		return ""
-	}
-
-	var textBuilder strings.Builder
-	var lastText string
-	var extract func(*loghtml.Node)
-	extract = func(n *loghtml.Node) {
-		switch n.Type {
-		case loghtml.ElementNode:
-			// Skip style, script, and other non-content tags
-			switch strings.ToLower(n.Data) {
-			case "style", "script", "noscript", "iframe", "head", "meta", "link":
-				return
-			}
-		case loghtml.TextNode:
-			text := strings.TrimSpace(n.Data)
-			if text != "" {
-				// Add spacing between text nodes if needed
-				if lastText != "" && !strings.HasSuffix(lastText, "\n") {
-					textBuilder.WriteString(" ")
-				}
-				textBuilder.WriteString(text)
-				lastText = text
-			}
-		}
-
-		for c := n.FirstChild; c != nil; c = c.NextSibling {
-			extract(c)
-		}
-
-		// Add newline after block elements
-		if n.Type == loghtml.ElementNode {
-			switch strings.ToLower(n.Data) {
-			case "p", "div", "br", "h1", "h2", "h3", "h4", "h5", "h6", "li":
-				if lastText != "" && !strings.HasSuffix(lastText, "\n") {
-					textBuilder.WriteString("\n")
-					lastText = "\n"
-				}
-			}
-		}
-	}
-	extract(doc)
-
-	// Clean up the final text
-	result := textBuilder.String()
-	// Remove extra whitespace
-	result = strings.Join(strings.Fields(result), " ")
-	// Remove duplicate newlines
-	for strings.Contains(result, "\n\n") {
-		result = strings.ReplaceAll(result, "\n\n", "\n")
-	}
-	return strings.TrimSpace(result)
-}
-
-// decodeUTF8Sequences attempts to decode remaining UTF-8 sequences in the text
-func decodeUTF8Sequences(text string) (string, error) {
-	// Find sequences like =E2=80=99 and try to decode them
-	re := regexp.MustCompile(`=([0-9A-F]{2})(=([0-9A-F]{2}))?(=([0-9A-F]{2}))?`)
-	return re.ReplaceAllStringFunc(text, func(match string) string {
-		parts := re.FindStringSubmatch(match)
-		if len(parts) < 2 {
-			return match
-		}
-
-		// Convert hex strings to bytes
-		bytes := make([]byte, 0, 3)
-		for i := 1; i < len(parts); i += 2 {
-			if parts[i] != "" {
-				b, err := hex.DecodeString(parts[i])
-				if err != nil {
-					return match
-				}
-				bytes = append(bytes, b[0])
-			}
-		}
-
-		// Try to decode as UTF-8
-		if str := string(bytes); utf8.ValidString(str) {
-			return str
-		}
-		return match
-	}), nil
-}
-
-func (g *Gmail) ProcessDirectory(dirPath string, userName string) ([]types.Record, error) {
-	var allRecords []types.Record
-	var mu sync.Mutex // To protect allRecords slice
-
-	// Walk through the directory recursively
-	err := filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		// Skip directories
-		if info.IsDir() {
-			return nil
-		}
-
-		// Check if the file is named emails.mbox
-		if strings.Contains(info.Name(), ".mbox") {
-			// Process the file
-			records, err := g.ProcessFile(path, userName)
-			if err != nil {
-				logrus.Printf("Error processing file %s: %v", path, err)
-				return nil // Continue processing other files
-			}
-
-			// Safely append records to the shared slice
-			mu.Lock()
-			allRecords = append(allRecords, records...)
-			mu.Unlock()
-		}
-
-		return nil
-	})
-	if err != nil {
-		return nil, fmt.Errorf("error walking directory: %w", err)
-	}
-
-	return allRecords, nil
-}
-
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
-	documents := make([]memory.TextDocument, 0, len(records))
-	for _, record := range records {
-		// Helper function to safely get string value
-		getString := func(key string) string {
-			if val, ok := record.Data[key]; ok {
-				if strVal, ok := val.(string); ok {
-					return strVal
-				}
-			}
-			return ""
-		}
-
-		content := getString("content")
-		from := getString("from")
-		to := getString("to")
-		subject := getString("subject")
-
-		documents = append(documents, memory.TextDocument{
-			Content:   content,
-			Timestamp: &record.Timestamp,
-			Tags:      []string{"google", "email"},
-			Metadata: map[string]string{
-				"source":  "email",
-				"from":    from,
-				"to":      to,
-				"subject": subject,
-			},
-		})
-	}
-	return documents, nil
-}
-
-func (g *Gmail) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-	}
-
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"GET",
-		"https://gmail.googleapis.com/gmail/v1/users/me/messages",
-		nil,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://gmail.googleapis.com/gmail/v1/users/me/messages", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
 	q := req.URL.Query()
 	q.Set("maxResults", "50")
 	q.Set("q", "in:inbox")
 	req.URL.RawQuery = q.Encode()
 
-	resp, err := client.Do(req)
+	resp, err := c.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch emails: %w", err)
+		return nil, err
 	}
-	defer func() { _ = resp.Body.Close() }()
-
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to fetch emails. Status: %d, Response: %s", resp.StatusCode, string(body))
+		b, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("gmail list: %d %s", resp.StatusCode, b)
 	}
 
-	var messageList struct {
-		Messages []struct {
-			ID string `json:"id"`
-		} `json:"messages"`
+	var list struct {
+		Messages []struct{ ID string } `json:"messages"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, err
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&messageList); err != nil {
-		return nil, fmt.Errorf("failed to decode message list: %w", err)
-	}
-
-	var records []types.Record
-	for _, msg := range messageList.Messages {
-		msgReq, err := http.NewRequestWithContext(
-			ctx,
-			"GET",
-			fmt.Sprintf("https://gmail.googleapis.com/gmail/v1/users/me/messages/%s", msg.ID),
-			nil,
-		)
+	var out []types.Record
+	for _, m := range list.Messages {
+		rec, err := g.fetchMessage(ctx, c, token, m.ID)
 		if err != nil {
-			log.Printf("Failed to create message request: %v", err)
+			log.Errorf("message %s: %v", m.ID, err)
 			continue
 		}
-
-		msgReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
-		msgResp, err := client.Do(msgReq)
-		if err != nil {
-			log.Printf("Failed to fetch message: %v", err)
-			continue
-		}
-
-		if msgResp.StatusCode != http.StatusOK {
-			_ = msgResp.Body.Close()
-			log.Printf("Failed to fetch message. Status: %d", msgResp.StatusCode)
-			continue
-		}
-
-		var message struct {
-			Payload struct {
-				Headers []struct {
-					Name  string `json:"name"`
-					Value string `json:"value"`
-				} `json:"headers"`
-				Body struct {
-					Data string `json:"data"`
-				} `json:"body"`
-				Parts []struct {
-					Body struct {
-						Data string `json:"data"`
-					} `json:"body"`
-					MimeType string `json:"mimeType"`
-				} `json:"parts"`
-			} `json:"payload"`
-		}
-
-		if err := json.NewDecoder(msgResp.Body).Decode(&message); err != nil {
-			_ = msgResp.Body.Close()
-			log.Printf("Failed to decode message: %v", err)
-			continue
-		}
-		_ = msgResp.Body.Close()
-
-		// Extract headers
-		headers := make(map[string]string)
-		for _, h := range message.Payload.Headers {
-			headers[h.Name] = h.Value
-		}
-
-		// Extract content
-		var content string
-		if len(message.Payload.Parts) > 0 {
-			for _, part := range message.Payload.Parts {
-				if part.MimeType == "text/plain" {
-					decoded, err := decodeBase64URL(part.Body.Data)
-					if err == nil {
-						content = decoded
-						break
-					}
-				}
-			}
-		} else if message.Payload.Body.Data != "" {
-			decoded, err := decodeBase64URL(message.Payload.Body.Data)
-			if err == nil {
-				content = decoded
-			}
-		}
-
-		// Parse date
-		date, err := mail.ParseDate(headers["Date"])
-		if err != nil {
-			date = time.Now()
-		}
-
-		records = append(records, types.Record{
-			Data: map[string]interface{}{
-				"from":      headers["From"],
-				"to":        headers["To"],
-				"subject":   headers["Subject"],
-				"content":   content,
-				"myMessage": false,
-			},
-			Timestamp: date,
-			Source:    g.Name(),
-		})
+		out = append(out, rec)
 	}
-
-	return records, nil
+	return out, nil
 }
 
-// decodeBase64URL decodes base64url encoded strings
-func decodeBase64URL(s string) (string, error) {
-	// Add padding if needed
-	if len(s)%4 != 0 {
-		s += strings.Repeat("=", 4-len(s)%4)
+func (g *Gmail) fetchMessage(ctx context.Context, c *http.Client, token, id string) (types.Record, error) {
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
+		fmt.Sprintf("https://gmail.googleapis.com/gmail/v1/users/me/messages/%s", id), nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return types.Record{}, err
 	}
-	// Replace URL-safe characters
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return types.Record{}, fmt.Errorf("fetch %s: %d", id, resp.StatusCode)
+	}
+
+	var msg struct {
+		Payload struct {
+			MimeType string `json:"mimeType"`
+			Headers  []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+			} `json:"headers"`
+			Body  struct{ Data string } `json:"body"`
+			Parts []struct {
+				MimeType string                `json:"mimeType"`
+				Body     struct{ Data string } `json:"body"`
+			} `json:"parts"`
+		} `json:"payload"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&msg); err != nil {
+		return types.Record{}, err
+	}
+
+	// headers → map
+	h := map[string]string{}
+	for _, v := range msg.Payload.Headers {
+		h[v.Name] = v.Value
+	}
+	date, _ := mail.ParseDate(h["Date"])
+
+	// ── extract preferred body ───────────────────────────
+	var plain, html string
+
+	for _, p := range msg.Payload.Parts {
+		switch {
+		case p.MimeType == "text/plain" && plain == "":
+			plain, _ = decodeBase64URL(p.Body.Data)
+		case strings.HasPrefix(p.MimeType, "text/html") && html == "":
+			raw, _ := decodeBase64URL(p.Body.Data)
+			if t, err := html2text.FromString(raw, html2text.Options{OmitLinks: true, TextOnly: true}); err == nil {
+				html = t
+			}
+		}
+	}
+
+	// single-part fallback
+	if plain == "" && html == "" && msg.Payload.Body.Data != "" {
+		switch {
+		case strings.HasPrefix(msg.Payload.MimeType, "text/plain"):
+			plain, _ = decodeBase64URL(msg.Payload.Body.Data)
+		case strings.HasPrefix(msg.Payload.MimeType, "text/html"):
+			raw, _ := decodeBase64URL(msg.Payload.Body.Data)
+			html, _ = html2text.FromString(raw, html2text.Options{OmitLinks: true, TextOnly: true})
+		}
+	}
+
+	content := plain
+	if content == "" {
+		content = html
+	}
+	content = strings.TrimSpace(cleanEmailText(content))
+
+	return types.Record{
+		Data: map[string]interface{}{
+			"from":      h["From"],
+			"to":        h["To"],
+			"subject":   h["Subject"],
+			"content":   content,
+			"myMessage": false,
+		},
+		Timestamp: date,
+		Source:    g.Name(),
+	}, nil
+}
+
+/* ────────────────────────────────────────────  misc helpers  ────────────────────────────────────────── */
+
+func decodeBase64URL(s string) (string, error) {
+	if m := len(s) % 4; m != 0 {
+		s += strings.Repeat("=", 4-m)
+	}
 	s = strings.ReplaceAll(s, "-", "+")
 	s = strings.ReplaceAll(s, "_", "/")
+	b, err := base64.StdEncoding.DecodeString(s)
+	return string(b), err
+}
 
-	decoded, err := base64.StdEncoding.DecodeString(s)
-	if err != nil {
-		return "", err
+func (g *Gmail) ProcessDirectory(dir, user string) ([]types.Record, error) {
+	var all []types.Record
+	var mu sync.Mutex
+	err := filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
+		if err != nil || fi.IsDir() || !strings.Contains(fi.Name(), ".mbox") {
+			return err
+		}
+		recs, err := g.ProcessFile(p, user)
+		if err != nil {
+			logrus.Errorf("process %s: %v", p, err)
+			return nil
+		}
+		mu.Lock()
+		all = append(all, recs...)
+		mu.Unlock()
+		return nil
+	})
+	return all, err
+}
+
+func ToDocuments(recs []types.Record) ([]memory.TextDocument, error) {
+	out := []memory.TextDocument{}
+	for _, r := range recs {
+		get := func(k string) string {
+			if v, ok := r.Data[k]; ok {
+				if s, ok := v.(string); ok {
+					return s
+				}
+			}
+			return ""
+		}
+		if get("content") == "" {
+			continue
+		}
+		out = append(out, memory.TextDocument{
+			Content:   get("content"),
+			Timestamp: &r.Timestamp,
+			Tags:      []string{"google", "email"},
+			Metadata: map[string]string{
+				"source":  "email",
+				"from":    get("from"),
+				"to":      get("to"),
+				"subject": get("subject"),
+			},
+		})
 	}
-	return string(decoded), nil
+	return out, nil
+}
+
+// cleanEmailText normalises line-breaks, zaps zero-width & NBSP chars,
+// collapses excess whitespace, and chops common footer / unsubscribe sections.
+func cleanEmailText(s string) string {
+	// 1) normalise breaks + common “invisible” chars
+	repl := strings.NewReplacer(
+		"\r\n", "\n", "\r", "\n",
+		"\u00a0", " ", // NBSP
+		"\u200c", "", // zero-width
+		"\u2007", " ",
+	)
+	s = repl.Replace(s)
+
+	// 2) per-line cleanup, stop at first footer clue
+	var out []string
+	for _, ln := range strings.Split(s, "\n") {
+		ln = strings.TrimSpace(ln)
+		if ln == "" {
+			continue
+		}
+		lc := strings.ToLower(ln)
+		if strings.HasPrefix(lc, "unsubscribe") ||
+			strings.Contains(lc, "to unsubscribe") ||
+			strings.HasPrefix(lc, "update your preferences") ||
+			strings.HasPrefix(lc, "©") ||
+			strings.HasPrefix(lc, "google llc") ||
+			strings.HasPrefix(lc, "this email was sent") {
+			break // discard everything after the first footer hit
+		}
+		out = append(out, ln)
+	}
+
+	return strings.Join(out, "\n")
 }
