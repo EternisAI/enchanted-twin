@@ -263,7 +263,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 		w.Logger.Info("Indexing data source", "dataSource", dataSourceDB.Name)
 		if dataSourceDB.ProcessedPath == nil {
 			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
-
 			continue
 		}
 
