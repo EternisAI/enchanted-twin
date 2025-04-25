@@ -15,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/pkg/errors"
 
@@ -33,9 +34,11 @@ type Service struct {
 	authStorage      *db.Store
 	completionsModel string
 	telegramToken    string
+	store            *db.Store
+	mcpService       mcpserver.MCPService
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string) *Service {
+func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store, mcpService mcpserver.MCPService) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -45,19 +48,26 @@ func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *
 		completionsModel: completionsModel,
 		telegramToken:    telegramToken,
 		authStorage:      authStorage,
+		mcpService:       mcpService,
 	}
 }
 
 func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) (agent.AgentResponse, error) {
 	newAgent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
-	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.authStorage)
+
+	mcpTools, err := s.mcpService.GetInternalTools(ctx)
+	if err != nil {
+		return agent.AgentResponse{}, err
+	}
+
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
-		tools.NewTelegramTool(s.logger, s.telegramToken, s.authStorage),
-		twitterReverseChronTimelineTool,
+		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
 	}
+
+	tools = append(tools, mcpTools...)
 
 	response, err := newAgent.Execute(ctx, messageHistory, tools)
 	if err != nil {
@@ -239,11 +249,13 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	}
 
 	return &model.Message{
-		ID:        idAssistant,
-		Text:      &response.Content,
-		Role:      model.RoleUser,
-		ImageUrls: response.ImageURLs,
-		CreatedAt: time.Now().Format(time.RFC3339),
+		ID:          idAssistant,
+		Text:        &response.Content,
+		Role:        model.RoleUser,
+		ImageUrls:   response.ImageURLs,
+		CreatedAt:   time.Now().Format(time.RFC3339),
+		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
+		ToolResults: assistantMessageDb.ToModel().ToolResults,
 	}, nil
 }
 

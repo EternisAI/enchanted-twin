@@ -5,48 +5,14 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/pkg/errors"
-	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
-
-func (workflows *DataProcessingWorkflows) CreateIfNotExistsGmailSyncSchedule(temporalClient client.Client) error {
-	scheduleID := "gmail-sync-schedule"
-
-	// Check if schedule already exists
-	handle := temporalClient.ScheduleClient().GetHandle(context.Background(), scheduleID)
-	_, err := handle.Describe(context.Background())
-	if err == nil {
-		return nil
-	}
-
-	// Only create if schedule doesn't exist
-	scheduleSpec := client.ScheduleSpec{
-		Intervals: []client.ScheduleIntervalSpec{
-			{
-				Every: 15 * time.Minute,
-			},
-		},
-	}
-
-	scheduleAction := &client.ScheduleWorkflowAction{
-		Workflow:  "GmailSyncWorkflow",
-		TaskQueue: "default",
-		Args:      []interface{}{GmailSyncWorkflowInput{}},
-	}
-
-	_, err = temporalClient.ScheduleClient().Create(context.Background(), client.ScheduleOptions{
-		ID:     scheduleID,
-		Spec:   scheduleSpec,
-		Action: scheduleAction,
-	})
-	return err
-}
 
 type GmailSyncWorkflowInput struct{}
 
@@ -81,7 +47,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input 
 		workflow.GetLogger(ctx).Info("Recovered last result", "value", previousResult)
 	}
 
-	_, err := helpers.RefreshExpiredTokens(context.Background(), w.Logger, w.Store)
+	_, err := auth.RefreshExpiredTokens(context.Background(), w.Logger, w.Store)
 	if err != nil {
 		return GmailSyncWorkflowResponse{}, fmt.Errorf("failed to refresh expired tokens: %w", err)
 	}

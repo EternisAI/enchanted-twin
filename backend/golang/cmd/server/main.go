@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"syscall"
@@ -14,12 +15,15 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
+	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -79,7 +83,12 @@ func main() {
 
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
-		ollamaClient = ollamaapi.NewClient(nil, http.DefaultClient)
+		baseURL, err := url.Parse(envs.OllamaBaseURL)
+		if err != nil {
+			logger.Error("Failed to parse Ollama base URL", slog.Any("error", err))
+		} else {
+			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
+		}
 	}
 
 	// Start PostgreSQL
@@ -136,6 +145,7 @@ func main() {
 		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
 	}
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	aiServiceEmbeddings := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
@@ -146,17 +156,20 @@ func main() {
 	}
 
 	logger.Info("PostgreSQL listening at", "connection", postgresService.GetConnectionString(dbName))
-	memory, err := graphmemory.NewGraphMemory(logger, postgresService.GetConnectionString(dbName), aiService, *recreateMemDb, envs.CompletionsModel)
+	mem, err := embeddingsmemory.NewEmbeddingsMemory(logger, postgresService.GetConnectionString(dbName), aiServiceEmbeddings, *recreateMemDb, envs.EmbeddingsModel)
 	if err != nil {
-		panic(errors.Wrap(err, "Unable to create graph memory"))
+		panic(errors.Wrap(err, "Unable to create memory"))
 	}
 
-	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, memory)
+	temporalClient, err := bootstrapTemporal(logger, envs, store, nc, ollamaClient, mem)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal"))
 	}
 
-	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, memory, store, envs.CompletionsModel, envs.TelegramToken)
+	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
+	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
+
+	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, mem, store, envs.CompletionsModel, envs.TelegramToken, store, mcpService)
 
 	// Initialize and start Telegram service
 	telegramServiceInput := telegram.TelegramServiceInput{
@@ -166,7 +179,7 @@ func main() {
 		Store:            store,
 		AiService:        aiService,
 		CompletionsModel: envs.CompletionsModel,
-		Memory:           memory,
+		Memory:           mem,
 		AuthStorage:      store,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
@@ -190,6 +203,7 @@ func main() {
 		natsClient:      nc,
 		store:           store,
 		aiService:       aiService,
+		mcpService:      mcpService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -236,39 +250,13 @@ func bootstrapTemporal(logger *log.Logger, envs *config.Config, store *db.Store,
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
+	authActivities := auth.NewOAuthActivities(store)
+	authActivities.RegisterWorkflowsAndActivities(&w)
+
 	err = w.Start()
 	if err != nil {
 		logger.Error("Error starting worker", slog.Any("error", err))
 		return nil, err
-	}
-
-	// Create the Sync schedule only if the token exists
-	xToken, err := store.GetOAuthTokens(context.Background(), "twitter")
-	if err != nil {
-		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
-		return temporalClient, nil
-	}
-
-	if xToken != nil {
-		err = dataProcessingWorkflow.CreateIfNotExistsXSyncSchedule(temporalClient)
-		if err != nil {
-			logger.Error("Error creating XSync schedule", slog.Any("error", err))
-			return nil, err
-		}
-	}
-
-	googleToken, err := store.GetOAuthTokens(context.Background(), "google")
-	if err != nil {
-		logger.Error("Error getting OAuth tokens", slog.Any("error", err))
-		return temporalClient, nil
-	}
-
-	if googleToken != nil {
-		err = dataProcessingWorkflow.CreateIfNotExistsGmailSyncSchedule(temporalClient)
-		if err != nil {
-			logger.Error("Error creating GmailSync schedule", slog.Any("error", err))
-			return nil, err
-		}
 	}
 
 	return temporalClient, nil
@@ -282,6 +270,7 @@ type graphqlServerInput struct {
 	natsClient             *nats.Conn
 	store                  *db.Store
 	aiService              *ai.Service
+	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 }
 
@@ -301,6 +290,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Nc:                     input.natsClient,
 		Store:                  input.store,
 		AiService:              input.aiService,
+		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 	}))
 	srv.AddTransport(transport.SSE{})

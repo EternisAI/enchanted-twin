@@ -149,6 +149,7 @@ func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocu
 				"type":           "message",
 				"channelName":    channelName,
 				"authorUsername": authorUsername,
+				"source":         "slack",
 			},
 		})
 	}
