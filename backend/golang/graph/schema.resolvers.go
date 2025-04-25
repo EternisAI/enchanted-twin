@@ -205,6 +205,26 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 	return true, nil
 }
 
+// CreateTelegramChat is the resolver for the createTelegramChat field.
+func (r *mutationResolver) CreateTelegramChat(ctx context.Context, id string) (bool, error) {
+	panic(fmt.Errorf("not implemented: CreateTelegramChat - createTelegramChat"))
+}
+
+// SendTelegramMessage is the resolver for the sendTelegramMessage field.
+func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatID string, text string) (bool, error) {
+	chatIDInt, err := strconv.Atoi(chatID)
+	if err != nil {
+		return false, fmt.Errorf("invalid chat ID format: %w", err)
+	}
+
+	err = r.TelegramService.SendMessage(ctx, chatIDInt, text)
+	if err != nil {
+		return false, fmt.Errorf("failed to send telegram message: %w", err)
+	}
+
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -512,7 +532,9 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+)
