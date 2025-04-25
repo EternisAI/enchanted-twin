@@ -72,6 +72,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input 
 		if record.Timestamp.After(previousResult.LastRecordTimestamp) {
 			filteredRecords = append(filteredRecords, record)
 		}
+
 	}
 
 	if len(filteredRecords) == 0 {

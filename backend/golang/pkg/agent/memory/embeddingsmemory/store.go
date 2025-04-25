@@ -14,9 +14,18 @@ import (
 )
 
 func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
-	batches := helpers.Batch(documents, 10)
+	batchSize := 1
+	// filter out empty documents
+	filteredDocuments := []memory.TextDocument{}
+	for _, document := range documents {
+		if document.Content != "" {
+			filteredDocuments = append(filteredDocuments, document)
+		}
+	}
+
+	batches := helpers.Batch(filteredDocuments, batchSize)
 	for i, batch := range batches {
-		m.logger.Info("Storing documents batch", "batch", fmt.Sprintf("%d/%d", i+1, len(batches)))
+		m.logger.Info("Storing documents batch", "batchSize", batchSize, "progress", fmt.Sprintf("%d/%d", i+1, len(batches)))
 		textInputs := make([]string, len(batch))
 		for i := range batch {
 			textInputs[i] = batch[i].Content
@@ -65,7 +74,6 @@ func (m *EmbeddingsMemory) storeDocuments(
 	defer func() { _ = embedStmt.Close() }()
 
 	for i := range documents {
-		m.logger.Info("Storing document", "document", fmt.Sprintf("%d/%d", i+1, len(documents)))
 		metaBytes := []byte("{}")
 		if documents[i].Metadata != nil {
 			if metaBytes, err = json.Marshal(documents[i].Metadata); err != nil {

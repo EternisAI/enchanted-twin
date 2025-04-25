@@ -2,9 +2,9 @@ package config
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 
+	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 )
 
@@ -23,9 +23,10 @@ type Config struct {
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
+	logger := log.Default()
 	value := os.Getenv(key)
 	if printEnv {
-		fmt.Println("Env", slog.Any("key", key), slog.Any("value", value))
+		logger.Debug("Env", "key", key, "value", value)
 	}
 	if value == "" {
 		return defaultValue
