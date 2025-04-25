@@ -44,7 +44,7 @@ func (m *EmbeddingsMemory) storeDocuments(
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback() // safe even after Commit
+	defer func() { _ = tx.Rollback() }()
 
 	// Plain INSERTs – one for text, one for embedding
 	textStmt, err := tx.PrepareContext(ctx,
@@ -53,7 +53,7 @@ func (m *EmbeddingsMemory) storeDocuments(
 	if err != nil {
 		return err
 	}
-	defer textStmt.Close()
+	defer func() { _ = textStmt.Close() }()
 
 	embedStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO embeddings (text_entry_id, embedding)
@@ -61,7 +61,7 @@ func (m *EmbeddingsMemory) storeDocuments(
 	if err != nil {
 		return err
 	}
-	defer embedStmt.Close()
+	defer func() { _ = embedStmt.Close() }()
 
 	for i, doc := range documents {
 		metaBytes := []byte("{}")
