@@ -246,9 +246,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			content = getString("fullText")
 			tweetId := getString("tweetId")
 			metadata = map[string]string{
-				"type": "like",
-				"id":   tweetId,
-				"url":  getString("expandedUrl"),
+				"type":   "like",
+				"id":     tweetId,
+				"url":    getString("expandedUrl"),
+				"source": "x",
 			}
 			tags = append(tags, "like")
 
@@ -262,13 +263,15 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 				"id":            id,
 				"favoriteCount": favoriteCount,
 				"retweetCount":  retweetCount,
+				"source":        "x",
 			}
 			tags = append(tags, "tweet")
 
 		case "direct_message":
 			content = getString("text")
 			metadata = map[string]string{
-				"type": "direct_message",
+				"type":   "direct_message",
+				"source": "x",
 			}
 			tags = append(tags, "direct_message")
 

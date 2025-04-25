@@ -55,7 +55,7 @@ func DefaultPostgresOptions() PostgresOptions {
 	dataPath := filepath.Join(baseDataDir, "enchanted", "db", "postgres-data")
 
 	return PostgresOptions{
-		Version:       "17",
+		Version:       "pg17",
 		Port:          "15432",
 		DataPath:      dataPath,
 		User:          "postgres",
@@ -95,7 +95,7 @@ func NewPostgresService(logger *log.Logger, options PostgresOptions) (*PostgresS
 
 	// Configure Docker container options
 	containerOptions := docker.ContainerOptions{
-		ImageName:     "postgres",
+		ImageName:     "pgvector/pgvector",
 		ImageTag:      options.Version,
 		ContainerName: options.ContainerName,
 		EnvVars: map[string]string{

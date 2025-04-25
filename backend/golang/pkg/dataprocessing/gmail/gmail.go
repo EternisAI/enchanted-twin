@@ -593,6 +593,7 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			Timestamp: &record.Timestamp,
 			Tags:      []string{"google", "email"},
 			Metadata: map[string]string{
+				"source":  "email",
 				"from":    from,
 				"to":      to,
 				"subject": subject,
