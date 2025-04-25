@@ -136,14 +136,6 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
-	_, err = db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO config (key, value) 
-		VALUES ('telegram_chat_id', NULL)
-	`)
-	if err != nil {
-		return nil, err
-	}
-
 	store := &Store{db: db}
 
 	if err = store.InitOAuth(ctx); err != nil {
@@ -167,7 +159,6 @@ func (s *Store) DB() *sqlx.DB {
 func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 	var value sql.NullString
 
-	fmt.Println("GetValue", key)
 	err := s.db.GetContext(ctx, &value, "SELECT value FROM config WHERE key = ?", key)
 	if err != nil {
 		return "", err
@@ -175,12 +166,12 @@ func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 	if !value.Valid {
 		return "", nil // Return empty string for NULL values
 	}
-	fmt.Println("GetValue", key, value.String)
+
 	return value.String, nil
 }
 
 func (s *Store) SetValue(ctx context.Context, key string, value string) error {
-	_, err := s.db.ExecContext(ctx, "UPDATE config SET value = ? WHERE key = ?", value, key)
+	_, err := s.db.ExecContext(ctx, "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", key, value)
 	if err != nil {
 		return err
 	}

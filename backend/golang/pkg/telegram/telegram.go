@@ -166,6 +166,7 @@ func (s *TelegramService) Start(ctx context.Context) error {
 			}
 
 			for _, update := range result.Result {
+
 				lastUpdateID = update.UpdateID
 				s.Logger.Info("Received message",
 					"message_id", update.Message.MessageID,
@@ -177,22 +178,17 @@ func (s *TelegramService) Start(ctx context.Context) error {
 				if update.Message.Text != "" {
 					var uuid string
 
-					// Register chat ID at start
 					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
-						storedUUID, err := s.GetChatUUID(ctx)
+						chatID := fmt.Sprintf("%d", update.Message.Chat.ID)
+						_, err := s.CreateChat(ctx, chatID, uuid)
 						if err != nil {
+							s.Logger.Error("Failed to create chat", "error", err)
 							continue
 						}
 
-						if uuid == storedUUID {
-							err = s.Store.SetValue(ctx, types.TelegramChatIDKey, fmt.Sprintf("%d", update.Message.Chat.ID))
-							if err != nil {
-								s.Logger.Error("Failed to set chat ID", "error", err)
-								continue
-							}
-							s.Logger.Info("Chat ID set successfully", "chat_id", update.Message.Chat.ID)
-						}
 					}
+
+					s.Logger.Info("Chat ID", "chat_id", update.Message.Chat)
 
 					// Publish message to NATS
 					if s.NatsClient != nil {
@@ -220,8 +216,30 @@ func (s *TelegramService) Start(ctx context.Context) error {
 	}
 }
 
+func (s *TelegramService) CreateChat(ctx context.Context, chatID string, chatUUID string) (string, error) {
+	fmt.Println("chatID", chatID)
+	fmt.Println("chatUUID", chatUUID)
+	err := s.Store.SetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID), chatID)
+	if err != nil {
+		return "", err
+	}
+	return chatID, nil
+}
+
 func (s *TelegramService) GetChatID(ctx context.Context) (string, error) {
-	chatID, err := s.Store.GetValue(ctx, types.TelegramChatIDKey)
+	chatUUID, err := s.Store.GetValue(ctx, types.TelegramChatUUIDKey)
+	if err != nil {
+		return "", err
+	}
+	chatID, err := s.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil {
+		return "", err
+	}
+	return chatID, nil
+}
+
+func (s *TelegramService) GetChatIDFromChatUUID(ctx context.Context, chatUUID string) (string, error) {
+	chatID, err := s.Store.GetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID))
 	if err != nil {
 		return "", err
 	}
@@ -346,10 +364,15 @@ func (s *TelegramService) TransformToOpenAIMessages(messages []Message) []openai
 	return openAIMessages
 }
 
-func (s *TelegramService) SendMessage(ctx context.Context, chatID int, message string) error {
+func (s *TelegramService) SendMessage(ctx context.Context, chatID string, message string) error {
+	chatIDInt, err := strconv.Atoi(chatID)
+	if err != nil {
+		return fmt.Errorf("invalid chat ID format: %w", err)
+	}
+
 	url := fmt.Sprintf("%s/bot%s/sendMessage", types.TelegramAPIBase, s.Token)
 	body := map[string]any{
-		"chat_id":    chatID,
+		"chat_id":    chatIDInt,
 		"text":       message,
 		"parse_mode": "HTML",
 	}
