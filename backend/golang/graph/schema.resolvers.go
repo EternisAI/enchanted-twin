@@ -205,19 +205,14 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 	return true, nil
 }
 
-// CreateTelegramChat is the resolver for the createTelegramChat field.
-func (r *mutationResolver) CreateTelegramChat(ctx context.Context, id string) (bool, error) {
-	panic(fmt.Errorf("not implemented: CreateTelegramChat - createTelegramChat"))
-}
-
 // SendTelegramMessage is the resolver for the sendTelegramMessage field.
-func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatID string, text string) (bool, error) {
-	chatIDInt, err := strconv.Atoi(chatID)
-	if err != nil {
-		return false, fmt.Errorf("invalid chat ID format: %w", err)
+func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
+	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil || chatID == "" {
+		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
 
-	err = r.TelegramService.SendMessage(ctx, chatIDInt, text)
+	err = r.TelegramService.SendMessage(ctx, chatID, text)
 	if err != nil {
 		return false, fmt.Errorf("failed to send telegram message: %w", err)
 	}
@@ -462,12 +457,17 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 }
 
 // TelegramMessageAdded is the resolver for the telegramMessageAdded field.
-func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
+func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error) {
 	if r.Nc == nil {
 		return nil, errors.New("NATS connection is not initialized")
 	}
+	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get telegram chat ID: %w", err)
+	}
 
 	messages := make(chan *model.Message, 100) // Add buffer to prevent blocking
+
 	subject := fmt.Sprintf("telegram.chat.%s", chatID)
 
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
@@ -532,9 +532,7 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }

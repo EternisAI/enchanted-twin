@@ -184,11 +184,11 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 	go func() {
-		chatID, err := telegramService.GetChatID(context.Background())
+		chatUUID, err := telegramService.GetChatUUID(context.Background())
 		if err != nil {
 			logger.Error("Telegram service error", slog.Any("error", err))
 		}
-		logger.Info("Chat ID", "chat_id", chatID)
+		logger.Info("Chat UUID", "chat_uuid", chatUUID)
 
 		lastMessages, err := telegramService.GetLatestMessages(context.Background())
 		if err != nil {

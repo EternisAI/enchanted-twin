@@ -98,7 +98,6 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 			}
 
 			toolResult, err := tool.Execute(ctx, args)
-
 			if err != nil {
 				fmt.Println("Error executing tool", err)
 				return AgentResponse{}, err

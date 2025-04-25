@@ -64,7 +64,7 @@ func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompl
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.logger, s.memory),
-		tools.NewTelegramTool(s.logger, s.telegramToken, s.store),
+		tools.NewTelegramTool(s.logger, s.telegramToken, s.authStorage),
 	}
 
 	tools = append(tools, mcpTools...)
