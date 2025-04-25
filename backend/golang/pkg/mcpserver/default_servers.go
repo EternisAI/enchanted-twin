@@ -7,6 +7,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 	enabled := false
 	servers := map[model.MCPServerType]*model.MCPServer{
 		model.MCPServerTypeGoogle: {
+			ID:      "google",
 			Name:    "Google",
 			Command: "npx",
 			Args:    []string{"@shinzolabs/gmail-mcp"},
@@ -28,6 +29,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 			Type:    model.MCPServerTypeGoogle,
 		},
 		model.MCPServerTypeSLACk: {
+			ID:      "slack",
 			Name:    "Slack",
 			Command: "docker",
 			Args:    []string{"run", "-i", "--rm", "-e", "SLACK_BOT_TOKEN", "-e", "SLACK_TEAM_ID", "-e", "SLACK_CHANNEL_IDS", "mcp/slack"},
@@ -45,6 +47,7 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 			Type:    model.MCPServerTypeSLACk,
 		},
 		model.MCPServerTypeTwitter: {
+			ID:      "twitter",
 			Name:    "Twitter",
 			Command: "npx",
 			Args:    []string{"-y", "@0xparashar/twitter-mcp"},
