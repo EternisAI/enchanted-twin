@@ -68,14 +68,14 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 
 	case "google":
 		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
-			Name:    "Gmail",
+			Name:    "Google",
 			Command: "npx",
 			Args:    []string{},
 			Envs:    []*model.KeyValueInput{},
 			Type:    model.MCPServerTypeGoogle,
 		})
 		if err != nil {
-			return "", fmt.Errorf("oauth successful but failed to create Gmail server: %w", err)
+			return "", fmt.Errorf("oauth successful but failed to create Google server: %w", err)
 		}
 
 		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "refresh-gmail-token", time.Minute*30, auth.TokenRefreshWorkflow, []any{auth.TokenRefreshWorkflowInput{Provider: "google"}})
@@ -90,6 +90,23 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			return "", err
 		}
 
+	case "slack":
+		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
+			Name:    "Slack",
+			Command: "npx",
+			Args:    []string{},
+			Envs:    []*model.KeyValueInput{},
+			Type:    model.MCPServerTypeSLACk,
+		})
+		if err != nil {
+			return "", fmt.Errorf("oauth successful but failed to create Slack server: %w", err)
+		}
+
+		err = helpers.CreateScheduleIfNotExists(r.Logger, r.TemporalClient, "slack-sync-schedule", time.Minute*2, "SlackSyncWorkflow", []any{})
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return "", err
+		}
 	default:
 		// Nothing to do
 	}
