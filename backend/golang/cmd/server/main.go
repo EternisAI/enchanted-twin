@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -68,12 +69,26 @@ func bootstrapPostgres(
 }
 
 func main() {
+	// Define command line flags
+	recreateMemDbFlag := flag.Bool("recreate-mem-db", false, "Recreate memory database on startup")
+	flag.Parse()
+
+	// Log flag values
+	flagValues := make(map[string]interface{})
+	flag.Visit(func(f *flag.Flag) {
+		flagValues[f.Name] = f.Value
+	})
+
 	logger := log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           log.DebugLevel,
 		TimeFormat:      time.Kitchen,
 	})
+
+	if len(flagValues) > 0 {
+		logger.Info("Command line flags", "flags", flagValues)
+	}
 
 	envs, _ := config.LoadConfig(true)
 	logger.Debug("Config loaded", "envs", envs)
@@ -158,12 +173,11 @@ func main() {
 		"connection",
 		postgresService.GetConnectionString(dbName),
 	)
-	recreateMemDb := false
 	memory, err := graphmemory.NewGraphMemory(
 		logger,
 		postgresService.GetConnectionString(dbName),
 		aiService,
-		recreateMemDb,
+		*recreateMemDbFlag,
 		envs.CompletionsModel,
 	)
 	if err != nil {
