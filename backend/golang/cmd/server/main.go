@@ -24,6 +24,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 
@@ -42,7 +43,6 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
-	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	ollamaapi "github.com/ollama/ollama/api"
 )
 
@@ -115,11 +115,11 @@ func main() {
 		}
 	}()
 
-	_, err = bootstrap.StartEmbeddedNATSServer(logger)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start nats server"))
-	}
-	logger.Info("NATS server started")
+	// _, err = bootstrap.StartEmbeddedNATSServer(logger)
+	// if err != nil {
+	// 	panic(errors.Wrap(err, "Unable to start nats server"))
+	// }
+	// logger.Info("NATS server started")
 
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
@@ -181,12 +181,14 @@ func main() {
 		CompletionsModel: envs.CompletionsModel,
 		Memory:           mem,
 		AuthStorage:      store,
+		NatsClient:       nc,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
+
 	go func() {
-		chatUUID, err := telegramService.GetChatUUID(context.Background())
+		err := telegramService.Subscribe(context.Background(), "05170687-dc2a-4ed3-adde-4556a8444f85")
 		if err != nil {
-			logger.Error("Telegram service error", slog.Any("error", err))
+			logger.Error("Error subscribing to Telegram", slog.Any("error", err))
 		}
 		logger.Info("Chat UUID", "chat_uuid", chatUUID)
 
