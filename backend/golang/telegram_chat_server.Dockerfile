@@ -2,7 +2,7 @@ FROM golang:1.24 AS builder
 WORKDIR /app
 
 # Copy module files from the correct location in the build context
-COPY backend/golang/go.mod backend/golang/go.sum ./
+COPY go.mod go.sum ./
 
 # Download dependencies
 RUN go mod download
@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the application, specifying the correct package path
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./backend/golang/cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
 
 # --- Final Stage ---
 FROM alpine:latest
