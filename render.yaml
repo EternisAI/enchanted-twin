@@ -31,6 +31,5 @@ services:
     sync: false
   region: virginia
   buildCommand: go build -o bin/telegram_chat_server cmd/telegram_chat_server/main.go
-  startCommand: ./bin/telegram_chat_server
   rootDir: backend/golang
 version: "1"
