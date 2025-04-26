@@ -182,6 +182,7 @@ func main() {
 		Memory:           mem,
 		AuthStorage:      store,
 		NatsClient:       nc,
+		ChatServerUrl:    envs.TelegramChatServer,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
