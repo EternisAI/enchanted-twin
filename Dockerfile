@@ -1,4 +1,4 @@
-FROM golang:1.24 AS builder
+FROM golang:1.24.2 AS builder
 WORKDIR /app
 
 # Copy module files from the correct location in the build context
