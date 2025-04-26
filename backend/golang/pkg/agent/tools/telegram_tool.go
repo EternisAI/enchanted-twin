@@ -94,7 +94,11 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("send request: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			t.Logger.Error("Failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return ToolResult{}, fmt.Errorf("telegram API non-OK status: %d", resp.StatusCode)

@@ -28,7 +28,6 @@ require (
 	github.com/vektah/gqlparser/v2 v2.5.23
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-131.0
-	golang.org/x/net v0.39.0
 	google.golang.org/grpc v1.72.0
 )
 
@@ -38,6 +37,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
+	golang.org/x/net v0.39.0 // indirect
 )
 
 require (

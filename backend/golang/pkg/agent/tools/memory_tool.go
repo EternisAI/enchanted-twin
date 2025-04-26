@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/charmbracelet/log"
-
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 )
@@ -41,10 +40,23 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (T
 		resultText += fmt.Sprintf("Answer %d: %s\n", i, text)
 	}
 	for _, doc := range result.Documents {
-		resultText += fmt.Sprintf("Memory Document %s: %s. At %s\n", doc.ID, doc.Content, doc.Timestamp)
+		resultText += fmt.Sprintf(
+			"Memory Document %s: %s. At %s\n",
+			doc.ID,
+			doc.Content,
+			doc.Timestamp,
+		)
 	}
 
-	t.Logger.Debug("Memory tool result", "documents_count", len(result.Documents), "text_count", len(result.Text), "response", resultText)
+	t.Logger.Debug(
+		"Memory tool result",
+		"documents_count",
+		len(result.Documents),
+		"text_count",
+		len(result.Text),
+		"response",
+		resultText,
+	)
 
 	return ToolResult{
 		Content: resultText,
@@ -55,8 +67,10 @@ func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "memory_tool",
-			Description: param.NewOpt("Information that should be retrieved from the user's memory."),
+			Name: "memory_tool",
+			Description: param.NewOpt(
+				"Information that should be retrieved from the user's memory.",
+			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
