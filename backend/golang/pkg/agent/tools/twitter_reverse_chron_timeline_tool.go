@@ -65,14 +65,15 @@ func (t *TwitterReverseChronologicalTimelineTool) Execute(
 	ctx context.Context,
 	_ map[string]any,
 ) (ToolResult, error) {
-
 	token, err := t.store.GetOAuthTokens(ctx, "twitter")
 	if err != nil {
 		return ToolResult{}, fmt.Errorf("oauth tokens: %w", err)
 	}
 
 	if token == nil {
-		return ToolResult{Content: "You must first connect your Twitter account to use this tool."}, nil
+		return ToolResult{
+			Content: "You must first connect your Twitter account to use this tool.",
+		}, nil
 	}
 
 	out, err := t.GetReverseChronologicalTimeline(ctx, token)
@@ -83,7 +84,10 @@ func (t *TwitterReverseChronologicalTimelineTool) Execute(
 	return ToolResult{Content: out}, nil
 }
 
-func (t *TwitterReverseChronologicalTimelineTool) GetReverseChronologicalTimeline(ctx context.Context, token *db.OAuthTokens) (string, error) {
+func (t *TwitterReverseChronologicalTimelineTool) GetReverseChronologicalTimeline(
+	ctx context.Context,
+	token *db.OAuthTokens,
+) (string, error) {
 	base := &oauth2.Token{
 		AccessToken:  token.AccessToken,
 		RefreshToken: token.RefreshToken,
@@ -182,8 +186,10 @@ func (t *TwitterReverseChronologicalTimelineTool) Definition() openai.ChatComple
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "twitter_get_timeline",
-			Description: param.NewOpt("Return the user's most recent Twitter home-timeline tweets."),
+			Name: "twitter_get_timeline",
+			Description: param.NewOpt(
+				"Return the user's most recent Twitter home-timeline tweets.",
+			),
 		},
 	}
 }
