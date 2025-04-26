@@ -21,7 +21,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/root"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
