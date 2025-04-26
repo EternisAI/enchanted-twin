@@ -190,17 +190,6 @@ func main() {
 		if err != nil {
 			logger.Error("Error subscribing to Telegram", slog.Any("error", err))
 		}
-		logger.Info("Chat UUID", "chat_uuid", chatUUID)
-
-		lastMessages, err := telegramService.GetLatestMessages(context.Background())
-		if err != nil {
-			logger.Error("Telegram service error", slog.Any("error", err))
-		}
-		logger.Info("Last messages", "messages", lastMessages)
-
-		if err := telegramService.Start(context.Background()); err != nil {
-			logger.Error("Telegram service error", slog.Any("error", err))
-		}
 	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{

@@ -190,8 +190,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 					}
 
-					// s.LastMessages = append(s.LastMessages, update.Message)
-
 					// fmt.Println("latestMessages", s.LastMessages)
 
 					// response, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), update.Message.Text)
@@ -436,6 +434,81 @@ func (s *TelegramService) SendMessage(ctx context.Context, chatID string, messag
 	return nil
 }
 
+// transformWebSocketDataToMessage converts the data received from the WebSocket
+// subscription into a standard Message struct.
+func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, data struct {
+	ID        string
+	Text      *string
+	Role      string
+	CreatedAt string
+}, chatUUID string,
+) (*Message, error) {
+	if data.Text == nil {
+		return nil, fmt.Errorf("received WebSocket data with nil text")
+	}
+	messageText := *data.Text
+
+	// --- Start of Conversions ---
+
+	// 1. Convert MessageID from string to int
+	// NOTE: The GraphQL ID is likely a UUID, not directly convertible to our integer MessageID.
+	// Using a placeholder or potentially changing MessageID type might be necessary.
+	// For now, attempting conversion and logging error. Consider using 0 or another strategy.
+	messageID, err := strconv.Atoi(data.ID)
+	if err != nil {
+		s.Logger.Warn("Failed to convert WebSocket message ID (GraphQL ID) to int. Using 0.", "error", err, "graphQL_ID", data.ID)
+		messageID = 0 // Using 0 as a placeholder ID on conversion failure
+	}
+
+	// 2. Create a placeholder User struct based on the role
+	// TODO: Fetch actual user details if available/needed
+	fromUser := User{
+		Username: data.Role, // Using role as username for now
+		// ID, FirstName, LastName are not available from the subscription
+	}
+
+	// 3. Get chatID, convert to int, and create a placeholder Chat struct
+	chatIDStr, err := s.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chat ID from UUID for WebSocket message: %w", err)
+	}
+	chatID, err := strconv.Atoi(chatIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert chat ID to int for WebSocket message: %w", err)
+	}
+	// TODO: Fetch actual chat details if available/needed
+	chatInfo := Chat{
+		ID: chatID,
+		// Type, Title, Username, FirstName, LastName are not available here
+	}
+
+	// 4. Convert CreatedAt string (assuming RFC3339 format) to Unix timestamp int
+	parsedTime, err := time.Parse(time.RFC3339, data.CreatedAt)
+	if err != nil {
+		// Log error but continue with zero date? Or return error?
+		s.Logger.Error("Failed to parse CreatedAt timestamp from WebSocket", "error", err, "timestamp", data.CreatedAt)
+		// Returning error for now, as date might be important.
+		return nil, fmt.Errorf("failed to parse CreatedAt timestamp from WebSocket: %w", err)
+
+	}
+	date := int(parsedTime.Unix())
+
+	// 5. Text is already a string, no conversion needed
+
+	// --- End of Conversions ---
+
+	// Create the Message struct
+	msg := &Message{
+		MessageID: messageID,
+		From:      fromUser,
+		Chat:      chatInfo,
+		Date:      date,
+		Text:      messageText,
+	}
+
+	return msg, nil
+}
+
 func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error {
 	if s == nil {
 		return fmt.Errorf("telegram service is nil")
@@ -451,7 +524,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 	wsURL := "ws://localhost:3001/query"
 	s.Logger.Info("Attempting to connect to WebSocket", "url", wsURL)
 
-	// Create a new WebSocket connection
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket (%s): %w", wsURL, err)
@@ -460,7 +532,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 	s.Logger.Info("WebSocket connection established")
 
-	// Send connection initialization message
 	initMsg := map[string]interface{}{
 		"type": "connection_init",
 		"payload": map[string]interface{}{
@@ -473,7 +544,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return fmt.Errorf("failed to send connection initialization: %w", err)
 	}
 
-	// Wait for connection acknowledgment
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	var ackResponse struct {
 		Type string `json:"type"`
@@ -486,9 +556,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return fmt.Errorf("unexpected response type: %s", ackResponse.Type)
 	}
 
-	s.Logger.Info("Received connection acknowledgment")
-
-	// Send subscription request
 	subscription := map[string]interface{}{
 		"type": "start",
 		"id":   "1",
@@ -516,7 +583,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 	}
 	s.Logger.Info("Subscription request sent successfully")
 
-	// Reset deadlines for the main message loop
 	conn.SetReadDeadline(time.Time{})
 	conn.SetWriteDeadline(time.Time{})
 
@@ -527,8 +593,8 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		reconnectAttempts := 0
 		maxReconnectAttempts := 5
 		lastSuccessfulConnection := time.Now()
-		// lastMessageTime := time.Now() // Commented out
-		connectionAcknowledged := true // We've already received the ack
+
+		connectionAcknowledged := true
 
 		for {
 			select {
@@ -536,30 +602,17 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				s.Logger.Info("Context cancelled, stopping WebSocket subscription")
 				return
 			default:
-				/*
-					// Check if we haven't received any messages for too long
-					if time.Since(lastMessageTime) > 30*time.Second {
-						s.Logger.Warn("No messages received for 30 seconds, checking connection")
-						if err := conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-							s.Logger.Error("Ping failed", "error", err)
-							// Connection is dead, trigger reconnection
-							conn.Close()
-							continue
-						}
-					}
-				*/
-
 				var response struct {
 					Type    string `json:"type"`
 					ID      string `json:"id"`
 					Payload struct {
 						Data struct {
-							TelegramMessageAdded struct {
+							TelegramMessageAdded struct { // Renamed nested struct for clarity
 								ID        string
 								Text      *string
 								Role      string
 								CreatedAt string
-							}
+							} `json:"telegramMessageAdded"` // Match GraphQL response field
 						} `json:"data"`
 						Errors []struct {
 							Message string `json:"message"`
@@ -568,29 +621,17 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if err := conn.ReadJSON(&response); err != nil {
-					// Log the specific error directly
 					s.Logger.Error("!!! conn.ReadJSON returned error !!!", "error", err)
 
-					/* // Temporarily comment out specific error type checking
-					if websocket.IsUnexpectedCloseError(err) {
-						s.Logger.Info("WebSocket connection closed unexpectedly", "error_details", err) // Keep specific error here too
-					} else {
-						s.Logger.Error("Error reading message (non-close error)", "error", err)
-					}
-					*/
-
-					// Reset reconnect attempts if we've been connected for a while
 					if time.Since(lastSuccessfulConnection) > time.Minute {
 						reconnectAttempts = 0
 					}
 
-					// Check if we've exceeded max reconnection attempts
 					if reconnectAttempts >= maxReconnectAttempts {
 						s.Logger.Error("Max reconnection attempts reached, stopping subscription")
 						return
 					}
 
-					// Attempt to reconnect
 					for {
 						select {
 						case <-ctx.Done():
@@ -661,16 +702,91 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							break
 						}
 					}
-					continue
+
 				}
 
-				// Update last message time
-				// lastMessageTime = time.Now() // Commented out
+				if response.Type == "data" {
+					// Use the new transformation function
+					newMessage, err := s.transformWebSocketDataToMessage(ctx, response.Payload.Data.TelegramMessageAdded, chatUUID)
+					if err != nil {
+						s.Logger.Error("Failed to transform WebSocket data to message", "error", err)
+						continue // Skip processing this message
+					}
 
-				// Process the message
-				if response.Type == "data" && response.Payload.Data.TelegramMessageAdded.Text != nil {
-					message := *response.Payload.Data.TelegramMessageAdded.Text
-					s.Logger.Info("Received message", "message", message)
+					s.Logger.Info("Received and transformed message", "message", newMessage.Text)
+
+					// Append the properly typed message to LastMessages
+					s.LastMessages = append(s.LastMessages, *newMessage) // Dereference pointer
+
+					// Execute the message
+					agentResponse, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), newMessage.Text)
+					if err != nil {
+						s.Logger.Error("Failed to execute message", "error", err)
+						// Should we remove the last message if execution fails? Depends on desired behavior.
+						continue
+					}
+					s.Logger.Info("Agent response", "content", agentResponse.Content, "tool_calls", len(agentResponse.ToolCalls), "tool_results", len(agentResponse.ToolResults))
+
+					// Send the agent's response back via GraphQL mutation
+					if agentResponse.Content != "" {
+						mutationPayload := map[string]interface{}{
+							"query": `
+								mutation SendTelegramMessage($chatUUID: ID!, $text: String!) {
+									sendTelegramMessage(chatUUID: $chatUUID, text: $text)
+								}
+							`,
+							"variables": map[string]interface{}{
+								"chatUUID": chatUUID,
+								"text":     agentResponse.Content,
+							},
+							"operationName": "SendTelegramMessage",
+						}
+						mutationBody, err := json.Marshal(mutationPayload)
+						if err != nil {
+							s.Logger.Error("Failed to marshal GraphQL mutation payload", "error", err)
+							continue // Or handle error differently
+						}
+
+						// Assuming the GraphQL endpoint is http://localhost:3001/query
+						gqlURL := "http://localhost:3001/query"
+						req, err := http.NewRequestWithContext(ctx, http.MethodPost, gqlURL, bytes.NewBuffer(mutationBody))
+						if err != nil {
+							s.Logger.Error("Failed to create GraphQL request", "error", err)
+							continue
+						}
+						req.Header.Set("Content-Type", "application/json")
+
+						resp, err := s.Client.Do(req)
+						if err != nil {
+							s.Logger.Error("Failed to send GraphQL mutation request", "error", err)
+							continue
+						}
+						defer resp.Body.Close()
+
+						if resp.StatusCode != http.StatusOK {
+							bodyBytes, _ := io.ReadAll(resp.Body)
+							s.Logger.Error("GraphQL mutation request failed", "status_code", resp.StatusCode, "response_body", string(bodyBytes))
+							continue
+						}
+
+						// Optionally decode and check the GraphQL response body for errors
+						var gqlResponse struct {
+							Data   interface{} `json:"data"`
+							Errors []struct {
+								Message string `json:"message"`
+							} `json:"errors"`
+						}
+						if err := json.NewDecoder(resp.Body).Decode(&gqlResponse); err != nil {
+							s.Logger.Error("Failed to decode GraphQL mutation response", "error", err)
+							// Continue even if decoding fails? Or handle more strictly?
+						} else if len(gqlResponse.Errors) > 0 {
+							s.Logger.Error("GraphQL mutation returned errors", "errors", gqlResponse.Errors)
+							// Handle GraphQL-level errors
+						} else {
+							s.Logger.Info("Successfully sent agent response via GraphQL mutation")
+						}
+					}
+
 				} else if response.Type == "connection_ack" {
 					s.Logger.Info("Received connection acknowledgment")
 					connectionAcknowledged = true
@@ -681,8 +797,8 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					// If we get an error and haven't received a connection_ack, try to reconnect
 					if !connectionAcknowledged {
 						s.Logger.Warn("No connection acknowledgment received before error, attempting to reconnect")
-						conn.Close()
-						continue
+						conn.Close() // Close the connection to trigger reconnection logic below
+						// No explicit 'continue' here, let the ReadJSON error handle reconnection attempt
 					}
 				} else {
 					s.Logger.Info("Received message of type", "type", response.Type, "response", response)
