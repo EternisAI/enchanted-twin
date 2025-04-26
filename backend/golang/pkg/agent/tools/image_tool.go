@@ -11,8 +11,10 @@ type ImageTool struct{}
 
 func (e *ImageTool) Execute(ctx context.Context, inputs map[string]any) (ToolResult, error) {
 	return ToolResult{
-		Content:   "Here are the image URLs. <system>user has received the images</system>",
-		ImageURLs: []string{"https://i2.seadn.io/ethereum/0x3bfb2f2b61be8f2f147f5f53a906af00c263d9b3/8c7e2492a18542d66d8716aa6b504f/308c7e2492a18542d66d8716aa6b504f.png?w=350"},
+		Content: "Here are the image URLs. <system>user has received the images</system>",
+		ImageURLs: []string{
+			"https://i2.seadn.io/ethereum/0x3bfb2f2b61be8f2f147f5f53a906af00c263d9b3/8c7e2492a18542d66d8716aa6b504f/308c7e2492a18542d66d8716aa6b504f.png?w=350",
+		},
 	}, nil
 }
 

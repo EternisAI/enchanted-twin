@@ -19,8 +19,10 @@ func (e *SearchTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "search_tool",
-			Description: param.NewOpt("This tool searches the web for the most relevant information"),
+			Name: "search_tool",
+			Description: param.NewOpt(
+				"This tool searches the web for the most relevant information",
+			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{

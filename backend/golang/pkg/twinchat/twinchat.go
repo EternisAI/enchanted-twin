@@ -6,23 +6,18 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/log"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-	"github.com/pkg/errors"
-
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+	"github.com/pkg/errors"
 )
 
 type Service struct {
@@ -30,62 +25,92 @@ type Service struct {
 	storage          Storage
 	nc               *nats.Conn
 	logger           *log.Logger
-	memory           memory.Storage
-	authStorage      *db.Store
 	completionsModel string
-	telegramToken    string
-	store            *db.Store
-	mcpService       mcpserver.MCPService
+	toolRegistry     *tools.Registry
 }
 
-func NewService(logger *log.Logger, aiService *ai.Service, storage Storage, nc *nats.Conn, memory memory.Storage, authStorage *db.Store, completionsModel string, telegramToken string, store *db.Store, mcpService mcpserver.MCPService) *Service {
+func NewService(
+	logger *log.Logger,
+	aiService *ai.Service,
+	storage Storage,
+	nc *nats.Conn,
+	completionsModel string,
+) *Service {
+	// Get the global tool registry
+	registry := tools.GetGlobal(logger)
+
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
 		storage:          storage,
 		nc:               nc,
-		memory:           memory,
 		completionsModel: completionsModel,
-		telegramToken:    telegramToken,
-		authStorage:      authStorage,
-		mcpService:       mcpService,
+		toolRegistry:     registry,
 	}
 }
 
-func (s *Service) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) (agent.AgentResponse, error) {
-	newAgent := agent.NewAgent(s.logger, s.nc, s.aiService, s.completionsModel, preToolCallback, postToolCallback)
+func (s *Service) Execute(
+	ctx context.Context,
+	messageHistory []openai.ChatCompletionMessageParamUnion,
+	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
+) (*agent.AgentResponse, error) {
+	agent := agent.NewAgent(
+		s.logger,
+		s.nc,
+		s.aiService,
+		s.completionsModel,
+		preToolCallback,
+		postToolCallback,
+	)
 
-	mcpTools, err := s.mcpService.GetInternalTools(ctx)
+	// Ensure we have a valid registry
+	if s.toolRegistry == nil {
+		s.toolRegistry = tools.GetGlobal(s.logger)
+	}
+
+	// Get the tool list from the registry
+	toolsList := []tools.Tool{}
+	for _, name := range s.toolRegistry.List() {
+		if tool, exists := s.toolRegistry.Get(name); exists {
+			toolsList = append(toolsList, tool)
+		}
+	}
+
+	response, err := agent.Execute(ctx, messageHistory, toolsList)
 	if err != nil {
-		return agent.AgentResponse{}, err
+		return nil, err
 	}
+	s.logger.Debug(
+		"Agent response",
+		"content",
+		response.Content,
+		"tool_calls",
+		len(response.ToolCalls),
+		"tool_results",
+		len(response.ToolResults),
+	)
 
-	tools := []tools.Tool{
-		&tools.SearchTool{},
-		&tools.ImageTool{},
-		tools.NewMemorySearchTool(s.logger, s.memory),
-		tools.NewTelegramTool(s.logger, s.telegramToken, s.authStorage),
-	}
-
-	tools = append(tools, mcpTools...)
-
-	response, err := newAgent.Execute(ctx, messageHistory, tools)
-	if err != nil {
-		return agent.AgentResponse{}, err
-	}
-	s.logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
-
-	return response, nil
+	return &response, nil
 }
 
-func (s *Service) SendMessage(ctx context.Context, chatID string, message string) (*model.Message, error) {
+func (s *Service) SendMessage(
+	ctx context.Context,
+	chatID string,
+	message string,
+) (*model.Message, error) {
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
-	messageHistory = append(messageHistory, openai.SystemMessage("You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."))
+	messageHistory = append(
+		messageHistory,
+		openai.SystemMessage(
+			"You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level.",
+		),
+	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
 		if err != nil {
@@ -147,7 +172,15 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
+	s.logger.Debug(
+		"Agent response",
+		"content",
+		response.Content,
+		"tool_calls",
+		len(response.ToolCalls),
+		"tool_results",
+		len(response.ToolResults),
+	)
 
 	subject := fmt.Sprintf("chat.%s", chatID)
 	toolResults := make([]string, len(response.ToolResults))
@@ -185,16 +218,45 @@ func (s *Service) SendMessage(ctx context.Context, chatID string, message string
 		return nil, err
 	}
 
-	// user message
-	_, err = s.storage.AddMessageToChat(ctx, repository.Message{
-		ID:           uuid.New().String(),
+	// user message - add to db and publish to NATS channel
+	userMsgID := uuid.New().String()
+	createdAt := time.Now().Format(time.RFC3339)
+
+	// Create the message for DB
+	userMsg := repository.Message{
+		ID:           userMsgID,
 		ChatID:       chatID,
 		Text:         message,
 		Role:         model.RoleUser.String(),
-		CreatedAtStr: time.Now().Format(time.RFC3339),
-	})
+		CreatedAtStr: createdAt,
+	}
+
+	// Add to database
+	_, err = s.storage.AddMessageToChat(ctx, userMsg)
 	if err != nil {
 		return nil, err
+	}
+
+	// Publish to NATS
+	userNatsMsg := model.Message{
+		ID:        userMsgID,
+		Text:      &message,
+		ImageUrls: []string{},
+		CreatedAt: createdAt,
+		Role:      model.RoleUser,
+	}
+
+	userNatsMsgJSON, err := json.Marshal(userNatsMsg)
+	if err != nil {
+		s.logger.Error("failed to marshal user NATS message", "error", err)
+		// Continue anyway - db storage succeeded
+	} else {
+		// Publish on the chat channel
+		subject := fmt.Sprintf("chat.%s", chatID)
+		if err := s.nc.Publish(subject, userNatsMsgJSON); err != nil {
+			s.logger.Error("failed to publish user message to NATS", "error", err)
+			// Continue anyway - db storage succeeded
+		}
 	}
 
 	// assistant message
@@ -271,7 +333,10 @@ func (s *Service) CreateChat(ctx context.Context, name string) (model.Chat, erro
 	return s.storage.CreateChat(ctx, name)
 }
 
-func (s *Service) GetMessagesByChatId(ctx context.Context, chatID string) ([]*model.Message, error) {
+func (s *Service) GetMessagesByChatId(
+	ctx context.Context,
+	chatID string,
+) ([]*model.Message, error) {
 	return s.storage.GetMessagesByChatId(ctx, chatID)
 }
 
@@ -279,7 +344,10 @@ func (s *Service) DeleteChat(ctx context.Context, chatID string) error {
 	return s.storage.DeleteChat(ctx, chatID)
 }
 
-func (s *Service) GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error) {
+func (s *Service) GetChatSuggestions(
+	ctx context.Context,
+	chatID string,
+) ([]*model.ChatSuggestionsCategory, error) {
 	historicalMessages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
 		return nil, err
@@ -290,7 +358,10 @@ func (s *Service) GetChatSuggestions(ctx context.Context, chatID string) ([]*mod
 		conversationContext += fmt.Sprintf("%s: %s\n\n", message.Role, *message.Text)
 	}
 
-	isntruction := fmt.Sprintf("Generate 3 chat suggestions that user might ask for each of the category based on the chat history. Category names: Ask (should be questions about the content, should predict what user might wanna do next). Search (should be a plausible search based on the content). Research (should be a plausible research question based on the content).\n\n\nConversation history:\n%s", conversationContext)
+	isntruction := fmt.Sprintf(
+		"Generate 3 chat suggestions that user might ask for each of the category based on the chat history. Category names: Ask (should be questions about the content, should predict what user might wanna do next). Search (should be a plausible search based on the content). Research (should be a plausible research question based on the content).\n\n\nConversation history:\n%s",
+		conversationContext,
+	)
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(isntruction),
@@ -299,8 +370,10 @@ func (s *Service) GetChatSuggestions(ctx context.Context, chatID string) ([]*mod
 	tool := openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "generate_suggestion",
-			Description: param.NewOpt("This tool generates chat suggestions for a user based on the existing context"),
+			Name: "generate_suggestion",
+			Description: param.NewOpt(
+				"This tool generates chat suggestions for a user based on the existing context",
+			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
@@ -319,7 +392,12 @@ func (s *Service) GetChatSuggestions(ctx context.Context, chatID string) ([]*mod
 		},
 	}
 
-	choice, err := s.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{tool}, s.completionsModel)
+	choice, err := s.aiService.Completions(
+		ctx,
+		messages,
+		[]openai.ChatCompletionToolParam{tool},
+		s.completionsModel,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -341,4 +419,27 @@ func (s *Service) GetChatSuggestions(ctx context.Context, chatID string) ([]*mod
 	}
 
 	return suggestionsList, nil
+}
+
+// Tools returns the tools provided by the TwinChat service.
+func (s *Service) Tools() []tools.Tool {
+	if s.storage == nil || s.nc == nil {
+		return []tools.Tool{}
+	}
+
+	// Create and return the ChatMessageTool
+	// Get the repository object from the storage
+	repo, ok := s.storage.(*repository.Repository)
+	if !ok {
+		s.logger.Error("Failed to cast storage to repository.Repository")
+		return []tools.Tool{}
+	}
+
+	chatMessageTool := NewChatMessageTool(
+		s.logger,
+		*repo,
+		s.nc,
+	)
+
+	return []tools.Tool{chatMessageTool}
 }

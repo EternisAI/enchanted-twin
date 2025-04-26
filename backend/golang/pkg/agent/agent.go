@@ -5,10 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/charmbracelet/log"
-
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 )
@@ -24,7 +23,14 @@ type Agent struct {
 	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)
 }
 
-func NewAgent(logger *log.Logger, nc *nats.Conn, aiService *ai.Service, completionsModel string, preToolCallback func(toolCall openai.ChatCompletionMessageToolCall), postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)) *Agent {
+func NewAgent(
+	logger *log.Logger,
+	nc *nats.Conn,
+	aiService *ai.Service,
+	completionsModel string,
+	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
+) *Agent {
 	return &Agent{
 		logger:           logger,
 		nc:               nc,
@@ -42,7 +48,11 @@ type AgentResponse struct {
 	ImageURLs   []string
 }
 
-func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, currentTools []tools.Tool) (AgentResponse, error) {
+func (a *Agent) Execute(
+	ctx context.Context,
+	messages []openai.ChatCompletionMessageParamUnion,
+	currentTools []tools.Tool,
+) (AgentResponse, error) {
 	currentStep := 0
 	responseContent := ""
 	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
@@ -58,8 +68,12 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 	}
 
 	for currentStep < MAX_STEPS {
-
-		completion, err := a.aiService.Completions(ctx, messages, apiToolDefinitions, a.CompletionsModel)
+		completion, err := a.aiService.Completions(
+			ctx,
+			messages,
+			apiToolDefinitions,
+			a.CompletionsModel,
+		)
 		if err != nil {
 			a.logger.Error("Error completing", "error", err)
 			return AgentResponse{}, err
@@ -105,7 +119,13 @@ func (a *Agent) Execute(ctx context.Context, messages []openai.ChatCompletionMes
 
 			// send message with isCompleted true
 			if a.PostToolCallback != nil {
-				a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_result", toolResult)
+				a.logger.Debug(
+					"Post tool callback",
+					"tool_call",
+					toolCall,
+					"tool_result",
+					toolResult,
+				)
 				a.PostToolCallback(toolCall, toolResult)
 			}
 

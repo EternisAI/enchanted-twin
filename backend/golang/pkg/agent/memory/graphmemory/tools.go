@@ -9,8 +9,10 @@ func extractSQLQueriesToolDefinition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "submit_sql_queries",
-			Description: param.NewOpt("Return one or more SQL statements plus the aliases of every column they select"),
+			Name: "submit_sql_queries",
+			Description: param.NewOpt(
+				"Return one or more SQL statements plus the aliases of every column they select",
+			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
