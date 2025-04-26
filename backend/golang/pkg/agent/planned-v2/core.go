@@ -18,7 +18,6 @@ const DefaultMaxSteps = 15
 // Constants for workflow operations.
 const (
 	DefaultExecutionTimeout = 30 * time.Second // Reduced for tests
-	HeartbeatInterval       = 100 * time.Millisecond
 )
 
 // PlannedAgentWorkflow is the main workflow for executing an agent plan.
@@ -238,10 +237,6 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 		logger.Info("Step completed", "step", state.CurrentStep, "of max", maxSteps)
 
 		state.CurrentStep++
-
-		if err := workflow.Sleep(ctx, HeartbeatInterval); err != nil {
-			logger.Error("Error during heartbeat sleep", "error", err)
-		}
 	}
 
 	// Check if we hit the max steps without completing
