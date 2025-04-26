@@ -10,14 +10,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/log"
-	"github.com/pkg/errors"
-
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-
+	"github.com/charmbracelet/log"
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/openai/openai-go"
+	"github.com/pkg/errors"
 )
 
 type GraphMemory struct {
@@ -27,7 +25,13 @@ type GraphMemory struct {
 	completionsModelName string
 }
 
-func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreate bool, completionsModelName string) (*GraphMemory, error) {
+func NewGraphMemory(
+	logger *log.Logger,
+	pgString string,
+	ai *ai.Service,
+	recreate bool,
+	completionsModelName string,
+) (*GraphMemory, error) {
 	db, err := sql.Open("postgres", pgString)
 	if err != nil {
 		return nil, err
@@ -44,7 +48,11 @@ func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreat
 	if err := mem.ensureDbSchema(recreate); err != nil {
 		// Close database connection on error
 		if closeErr := db.Close(); closeErr != nil {
-			return nil, fmt.Errorf("failed to create database schema: %w (close error: %v)", err, closeErr)
+			return nil, fmt.Errorf(
+				"failed to create database schema: %w (close error: %v)",
+				err,
+				closeErr,
+			)
 		}
 		return nil, fmt.Errorf("failed to create database schema: %w", err)
 	}
@@ -52,7 +60,7 @@ func NewGraphMemory(logger *log.Logger, pgString string, ai *ai.Service, recreat
 	return mem, nil
 }
 
-// EntryInfo holds information about a text entry to process
+// EntryInfo holds information about a text entry to process.
 type EntryInfo struct {
 	index       int
 	textEntryID int64
@@ -60,12 +68,12 @@ type EntryInfo struct {
 	tags        []string
 }
 
-// Constants for parallel processing
+// Constants for parallel processing.
 const (
 	MaxConcurrentWorkers = 5
 )
 
-// Fact represents a subject-predicate-object triple extracted from text
+// Fact represents a subject-predicate-object triple extracted from text.
 type Fact struct {
 	ID          int64
 	TextEntryID int64
@@ -107,8 +115,11 @@ func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument
 	return nil
 }
 
-// prepareTextEntries inserts text documents into the database and prepares them for further processing
-func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory.TextDocument) ([]EntryInfo, error) {
+// prepareTextEntries inserts text documents into the database and prepares them for further processing.
+func (m *GraphMemory) prepareTextEntries(
+	ctx context.Context,
+	documents []memory.TextDocument,
+) ([]EntryInfo, error) {
 	// Begin a transaction
 	tx, err := m.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -151,10 +162,8 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 		if len(doc.Tags) > 0 {
 			tagsArray = make([]string, 0, len(doc.Tags))
 			for _, tag := range doc.Tags {
-
 				decodedTag := tag
 				if strings.Contains(tag, "=?") && strings.Contains(tag, "?=") {
-
 					decoded, err := decodeMIMEHeader(tag)
 					if err == nil {
 						decodedTag = decoded
@@ -250,14 +259,17 @@ func (m *GraphMemory) prepareTextEntries(ctx context.Context, documents []memory
 	return entriesToProcess, nil
 }
 
-// decodeMIMEHeader decodes MIME-encoded strings
+// decodeMIMEHeader decodes MIME-encoded strings.
 func decodeMIMEHeader(s string) (string, error) {
 	dec := new(mime.WordDecoder)
 	return dec.DecodeHeader(s)
 }
 
-// extractAndStoreFacts processes text entries in parallel to extract facts using AI
-func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryInfo) ([][]Fact, []error) {
+// extractAndStoreFacts processes text entries in parallel to extract facts using AI.
+func (m *GraphMemory) extractAndStoreFacts(
+	ctx context.Context,
+	entries []EntryInfo,
+) ([][]Fact, []error) {
 	allFacts := make([][]Fact, len(entries))
 	allErrors := make([]error, len(entries))
 
@@ -311,11 +323,16 @@ func (m *GraphMemory) extractAndStoreFacts(ctx context.Context, entries []EntryI
 	return allFacts, allErrors
 }
 
-func (m *GraphMemory) getUniqueTripleValues(ctx context.Context) ([]string, []string, []string, error) {
+func (m *GraphMemory) getUniqueTripleValues(
+	ctx context.Context,
+) ([]string, []string, []string, error) {
 	// Helper function to query and process unique values
 	getUniqueValues := func(column string) ([]string, error) {
 		var values []string
-		rows, err := m.db.QueryContext(ctx, fmt.Sprintf("SELECT DISTINCT %s FROM facts LIMIT 100", column))
+		rows, err := m.db.QueryContext(
+			ctx,
+			fmt.Sprintf("SELECT DISTINCT %s FROM facts LIMIT 100", column),
+		)
 		if err != nil {
 			return nil, err
 		}
@@ -361,8 +378,12 @@ func (m *GraphMemory) getUniqueTripleValues(ctx context.Context) ([]string, []st
 	return subs, preds, objs, nil
 }
 
-// extractFacts uses the AI service to extract subject-predicate-object triples from text
-func (m *GraphMemory) extractFacts(ctx context.Context, text string, textEntryID int64) ([]Fact, error) {
+// extractFacts uses the AI service to extract subject-predicate-object triples from text.
+func (m *GraphMemory) extractFacts(
+	ctx context.Context,
+	text string,
+	textEntryID int64,
+) ([]Fact, error) {
 	// Check if AI service is available
 	if m.ai == nil {
 		return nil, fmt.Errorf("AI service is not available for fact extraction")
@@ -405,7 +426,7 @@ func (m *GraphMemory) extractFacts(ctx context.Context, text string, textEntryID
 	return storedFacts, nil
 }
 
-// parseAIFactResponse parses the AI's response and extracts facts
+// parseAIFactResponse parses the AI's response and extracts facts.
 func (m *GraphMemory) parseAIFactResponse(content string, textEntryID int64) []Fact {
 	facts := []Fact{}
 
@@ -452,8 +473,12 @@ func (m *GraphMemory) parseAIFactResponse(content string, textEntryID int64) []F
 	return facts
 }
 
-// storeFacts inserts facts into the database
-func (m *GraphMemory) storeFacts(ctx context.Context, facts []Fact, textEntryID int64) ([]Fact, error) {
+// storeFacts inserts facts into the database.
+func (m *GraphMemory) storeFacts(
+	ctx context.Context,
+	facts []Fact,
+	textEntryID int64,
+) ([]Fact, error) {
 	if len(facts) == 0 {
 		return []Fact{}, nil
 	}
@@ -492,7 +517,7 @@ func (m *GraphMemory) storeFacts(ctx context.Context, facts []Fact, textEntryID 
 	return storedFacts, nil
 }
 
-// createFactExtractionPrompt creates a prompt for the AI to extract facts from text
+// createFactExtractionPrompt creates a prompt for the AI to extract facts from text.
 func createFactExtractionPrompt(text string, uniqueSubs, uniquePreds, uniqueObjs []string) string {
 	prompt := "Extract subject-predicate-object facts from the following text.\n\n"
 
@@ -515,7 +540,7 @@ func createFactExtractionPrompt(text string, uniqueSubs, uniquePreds, uniqueObjs
 	return prompt
 }
 
-// min returns the minimum of two integers
+// min returns the minimum of two integers.
 func min(a, b int) int {
 	if a < b {
 		return a

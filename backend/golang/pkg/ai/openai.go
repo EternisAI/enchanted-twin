@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"sync"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -17,6 +18,31 @@ type Service struct {
 	client *openai.Client
 }
 
+// Global singleton instance
+var (
+	instance *Service
+	once     sync.Once
+)
+
+// GetInstance returns the singleton instance of the AI service
+func GetInstance() *Service {
+	return instance
+}
+
+// InitSingleton initializes the singleton instance
+func InitSingleton(apiKey string, baseUrl string) *Service {
+	once.Do(func() {
+		instance = NewOpenAIService(apiKey, baseUrl)
+	})
+	return instance
+}
+
+// SetInstance explicitly sets the singleton instance
+// This is useful for testing when we want to override the instance
+func SetInstance(service *Service) {
+	instance = service
+}
+
 func NewOpenAIService(apiKey string, baseUrl string) *Service {
 	client := openai.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseUrl))
 	return &Service{
@@ -24,17 +50,21 @@ func NewOpenAIService(apiKey string, baseUrl string) *Service {
 	}
 }
 
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	completion, err := s.client.Chat.Completions.New(ctx, openai.ChatCompletionNewParams{
-		Messages: messages,
-		Model:    model,
-		Tools:    tools,
-	})
+func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
+	completion, err := s.client.Chat.Completions.New(ctx, params)
 
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
 	}
 	return completion.Choices[0].Message, nil
+}
+
+func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
+		Messages: messages,
+		Model:    model,
+		Tools:    tools,
+	})
 }
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {

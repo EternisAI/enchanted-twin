@@ -14,12 +14,11 @@ import (
 	openai "github.com/openai/openai-go"
 )
 
-// graphmemory/query.go
+// graphmemory/query.go.
 func (g *GraphMemory) Query(
 	ctx context.Context,
 	nlQuestion string,
 ) (memory.QueryResult, error) {
-
 	g.logger.Debug("Query called",
 		"question", nlQuestion,
 	)
@@ -187,7 +186,6 @@ func (g *GraphMemory) GenerateSQLQueries(
 	ctx context.Context,
 	question string,
 ) ([]queryPayload, error) {
-
 	subs, prds, objs, err := g.getUniqueTripleValues(ctx)
 	if err != nil {
 		return nil, err
@@ -226,12 +224,11 @@ func (g *GraphMemory) GenerateSQLQueries(
 	return wrap.Queries, nil
 }
 
-// graphmemory/prompt.go
+// graphmemory/prompt.go.
 func createSQLGenerationPrompt(
 	nlQuestion string,
 	uniqueSubs, uniquePrds, uniqueObjs []string,
 ) string {
-
 	subs := strings.Join(helpers.SafeSlice(uniqueSubs, 10), ", ")
 	prds := strings.Join(uniquePrds, ", ")
 	objs := strings.Join(helpers.SafeSlice(uniqueObjs, 10), ", ")

@@ -1,0 +1,269 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "$id": "file://agent_dsl.schema.json",
+    "title": "AgentDSL",
+    "type": "object",
+    "required": [
+        "agent",
+        "graph",
+        "on_finish"
+    ],
+    "properties": {
+        "agent": {
+            "$ref": "#/definitions/AgentHeader"
+        },
+        "graph": {
+            "$ref": "#/definitions/Graph"
+        },
+        "on_finish": {
+            "$ref": "#/definitions/OnFinish"
+        }
+    },
+    "definitions": {
+        "JSONSchema": {
+            "description": "Arbitrary JSON-Schema fragment",
+            "type": "object"
+        },
+        "AgentHeader": {
+            "type": "object",
+            "required": [
+                "id",
+                "version",
+                "description",
+                "llm",
+                "budget"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "pattern": "^[A-Za-z0-9_\\-]+$"
+                },
+                "version": {
+                    "type": "string",
+                    "pattern": "^v?\\d+\\.\\d+\\.\\d+$"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "inputs": {
+                    "$ref": "#/definitions/JSONSchema"
+                },
+                "outputs": {
+                    "$ref": "#/definitions/JSONSchema"
+                },
+                "llm": {
+                    "type": "object",
+                    "required": [
+                        "model"
+                    ],
+                    "properties": {
+                        "model": {
+                            "type": "string"
+                        },
+                        "temperature": {
+                            "type": "number",
+                            "minimum": 0,
+                            "maximum": 1
+                        },
+                        "max_tokens": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "budget": {
+                    "type": "object",
+                    "required": [
+                        "max_steps",
+                        "max_tokens_total"
+                    ],
+                    "properties": {
+                        "max_steps": {
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "max_tokens_total": {
+                            "type": "integer",
+                            "minimum": 1
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "schedule": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "signals": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object"
+                    }
+                },
+                "queries": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object"
+                    }
+                },
+                "provides": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ToolDef"
+                    },
+                    "default": []
+                }
+            },
+            "additionalProperties": false
+        },
+        "ToolDef": {
+            "type": "object",
+            "required": [
+                "name",
+                "description",
+                "entrypoint",
+                "parameters"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "entrypoint": {
+                    "type": "object",
+                    "required": [
+                        "type"
+                    ],
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "function",
+                                "activity",
+                                "workflow",
+                                "query",
+                                "signal",
+                                "update"
+                            ]
+                        }
+                    },
+                    "additionalProperties": false
+                },
+                "parameters": {
+                    "$ref": "#/definitions/JSONSchema"
+                },
+                "returns": {
+                    "$ref": "#/definitions/JSONSchema"
+                }
+            },
+            "additionalProperties": false
+        },
+        "Graph": {
+            "type": "object",
+            "required": [
+                "revision",
+                "nodes"
+            ],
+            "properties": {
+                "revision": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "nodes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Node"
+                    },
+                    "minItems": 1
+                }
+            },
+            "additionalProperties": false
+        },
+        "Node": {
+            "type": "object",
+            "required": [
+                "id",
+                "spawn",
+                "prompt"
+            ],
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "spawn": {
+                    "type": "string",
+                    "enum": [
+                        "inline",
+                        "child",
+                        "schedule"
+                    ]
+                },
+                "depends_on": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "rrule": {
+                    "type": [
+                        "string",
+                        "null"
+                    ]
+                },
+                "uses": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    },
+                    "default": []
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "task_args": {
+                    "type": [
+                        "object",
+                        "null"
+                    ]
+                }
+            },
+            "additionalProperties": false
+        },
+        "OnFinish": {
+            "type": "object",
+            "required": [
+                "emit_signal"
+            ],
+            "properties": {
+                "emit_signal": {
+                    "type": "object",
+                    "required": [
+                        "target",
+                        "name"
+                    ],
+                    "properties": {
+                        "target": {
+                            "type": "string"
+                        },
+                        "name": {
+                            "type": "string"
+                        },
+                        "payload": {
+                            "type": [
+                                "object",
+                                "null"
+                            ]
+                        }
+                    },
+                    "additionalProperties": false
+                }
+            },
+            "additionalProperties": false
+        }
+    }
+}
