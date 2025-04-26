@@ -198,14 +198,17 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	// Check if we have image URLs
 	var imageURLs []string
 	stateResp, err := t.temporalClient.QueryWorkflow(ctx, workflowID, run.GetRunID(), "get_state")
-	if err == nil {
-		var state map[string]any
-		if err = stateResp.Get(&state); err == nil {
-			if urls, ok := state["image_urls"].([]any); ok {
-				for _, url := range urls {
-					if urlStr, ok := url.(string); ok {
-						imageURLs = append(imageURLs, urlStr)
-					}
+	if err != nil {
+		t.logger.Error("Failed to query workflow state", "error", err)
+		return ToolResult{}, errors.Wrap(err, "failed to query workflow state")
+	}
+
+	var state map[string]any
+	if err = stateResp.Get(&state); err == nil {
+		if urls, ok := state["image_urls"].([]any); ok {
+			for _, url := range urls {
+				if urlStr, ok := url.(string); ok {
+					imageURLs = append(imageURLs, urlStr)
 				}
 			}
 		}

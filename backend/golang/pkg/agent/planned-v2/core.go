@@ -252,10 +252,6 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 			Content:   "Reached maximum number of steps without completing the plan",
 			Timestamp: workflow.Now(ctx),
 		})
-		state.Messages = append(
-			state.Messages,
-			SystemMessage("Reached maximum number of steps without completing the plan"),
-		)
 
 		// Ask the LLM for a summary
 		state.Messages = append(
