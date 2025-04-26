@@ -32,4 +32,4 @@ services:
   region: virginia
   buildCommand: go build -o bin/telegram_chat_server cmd/telegram_chat_server/main.go
   rootDir: backend/golang
-version: "1"
+version: "1.0.0"
