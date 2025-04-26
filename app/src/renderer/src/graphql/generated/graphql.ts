@@ -32,6 +32,14 @@ export type ChatSuggestionsCategory = {
   suggestions: Array<Scalars['String']['output']>;
 };
 
+export type ConnectMcpServerInput = {
+  args?: InputMaybe<Array<Scalars['String']['input']>>;
+  command: Scalars['String']['input'];
+  envs?: InputMaybe<Array<KeyValueInput>>;
+  name: Scalars['String']['input'];
+  type: McpServerType;
+};
+
 export type DataSource = {
   __typename?: 'DataSource';
   hasError: Scalars['Boolean']['output'];
@@ -62,6 +70,48 @@ export type IndexingStatus = {
   status: IndexingState;
 };
 
+export type KeyValue = {
+  __typename?: 'KeyValue';
+  key: Scalars['String']['output'];
+  value: Scalars['String']['output'];
+};
+
+export type KeyValueInput = {
+  key: Scalars['String']['input'];
+  value: Scalars['String']['input'];
+};
+
+export type McpServer = {
+  __typename?: 'MCPServer';
+  args?: Maybe<Array<Scalars['String']['output']>>;
+  command: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  enabled: Scalars['Boolean']['output'];
+  envs?: Maybe<Array<KeyValue>>;
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
+  type: McpServerType;
+};
+
+export type McpServerDefinition = {
+  __typename?: 'MCPServerDefinition';
+  args?: Maybe<Array<Scalars['String']['output']>>;
+  command: Scalars['String']['output'];
+  connected: Scalars['Boolean']['output'];
+  enabled: Scalars['Boolean']['output'];
+  envs?: Maybe<Array<KeyValue>>;
+  id: Scalars['String']['output'];
+  name: Scalars['String']['output'];
+  type: McpServerType;
+};
+
+export enum McpServerType {
+  Google = 'GOOGLE',
+  Other = 'OTHER',
+  Slack = 'SLACK',
+  Twitter = 'TWITTER'
+}
+
 export type Message = {
   __typename?: 'Message';
   createdAt: Scalars['DateTime']['output'];
@@ -77,11 +127,13 @@ export type Mutation = {
   __typename?: 'Mutation';
   addDataSource: Scalars['Boolean']['output'];
   completeOAuthFlow: Scalars['String']['output'];
+  connectMCPServer: Scalars['Boolean']['output'];
   createChat: Chat;
   deleteChat: Chat;
   deleteDataSource: Scalars['Boolean']['output'];
   refreshExpiredOAuthTokens: Array<OAuthStatus>;
   sendMessage: Message;
+  sendTelegramMessage: Scalars['Boolean']['output'];
   startIndexing: Scalars['Boolean']['output'];
   startOAuthFlow: OAuthFlow;
   updateProfile: Scalars['Boolean']['output'];
@@ -97,6 +149,11 @@ export type MutationAddDataSourceArgs = {
 export type MutationCompleteOAuthFlowArgs = {
   authCode: Scalars['String']['input'];
   state: Scalars['String']['input'];
+};
+
+
+export type MutationConnectMcpServerArgs = {
+  input: ConnectMcpServerInput;
 };
 
 
@@ -117,6 +174,12 @@ export type MutationDeleteDataSourceArgs = {
 
 export type MutationSendMessageArgs = {
   chatId: Scalars['ID']['input'];
+  text: Scalars['String']['input'];
+};
+
+
+export type MutationSendTelegramMessageArgs = {
+  chatUUID: Scalars['ID']['input'];
   text: Scalars['String']['input'];
 };
 
@@ -150,7 +213,9 @@ export type Query = {
   getChatSuggestions: Array<ChatSuggestionsCategory>;
   getChats: Array<Chat>;
   getDataSources: Array<DataSource>;
+  getMCPServers: Array<McpServerDefinition>;
   getOAuthStatus: Array<OAuthStatus>;
+  getTools: Array<Tool>;
   profile: UserProfile;
 };
 
@@ -179,6 +244,7 @@ export type Subscription = {
   __typename?: 'Subscription';
   indexingStatus: IndexingStatus;
   messageAdded: Message;
+  telegramMessageAdded: Message;
   toolCallUpdated: ToolCall;
 };
 
@@ -188,8 +254,19 @@ export type SubscriptionMessageAddedArgs = {
 };
 
 
+export type SubscriptionTelegramMessageAddedArgs = {
+  chatUUID: Scalars['ID']['input'];
+};
+
+
 export type SubscriptionToolCallUpdatedArgs = {
   chatId: Scalars['ID']['input'];
+};
+
+export type Tool = {
+  __typename?: 'Tool';
+  description: Scalars['String']['output'];
+  name: Scalars['String']['output'];
 };
 
 export type ToolCall = {
@@ -319,6 +396,13 @@ export type CompleteOAuthFlowMutationVariables = Exact<{
 
 export type CompleteOAuthFlowMutation = { __typename?: 'Mutation', completeOAuthFlow: string };
 
+export type TelegramMessageAddedSubscriptionVariables = Exact<{
+  chatUUID: Scalars['ID']['input'];
+}>;
+
+
+export type TelegramMessageAddedSubscription = { __typename?: 'Subscription', telegramMessageAdded: { __typename?: 'Message', id: string, text?: string | null, role: Role, createdAt: any, imageUrls: Array<string>, toolResults: Array<string>, toolCalls: Array<{ __typename?: 'ToolCall', id: string, name: string, isCompleted: boolean, messageId: string }> } };
+
 
 export const GetProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetProfile"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"profile"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<GetProfileQuery, GetProfileQueryVariables>;
 export const GetChatsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetChats"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"first"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"offset"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"Int"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getChats"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"first"},"value":{"kind":"Variable","name":{"kind":"Name","value":"first"}}},{"kind":"Argument","name":{"kind":"Name","value":"offset"},"value":{"kind":"Variable","name":{"kind":"Name","value":"offset"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"messages"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrls"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}},{"kind":"Field","name":{"kind":"Name","value":"messageId"}}]}},{"kind":"Field","name":{"kind":"Name","value":"toolResults"}}]}}]}}]}}]} as unknown as DocumentNode<GetChatsQuery, GetChatsQueryVariables>;
@@ -334,3 +418,4 @@ export const AddDataSourceDocument = {"kind":"Document","definitions":[{"kind":"
 export const DeleteDataSourceDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"DeleteDataSource"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"deleteDataSource"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<DeleteDataSourceMutation, DeleteDataSourceMutationVariables>;
 export const StartOAuthFlowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"StartOAuthFlow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"provider"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"scope"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startOAuthFlow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"provider"},"value":{"kind":"Variable","name":{"kind":"Name","value":"provider"}}},{"kind":"Argument","name":{"kind":"Name","value":"scope"},"value":{"kind":"Variable","name":{"kind":"Name","value":"scope"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"authURL"}},{"kind":"Field","name":{"kind":"Name","value":"redirectURI"}}]}}]}}]} as unknown as DocumentNode<StartOAuthFlowMutation, StartOAuthFlowMutationVariables>;
 export const CompleteOAuthFlowDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"CompleteOAuthFlow"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"state"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"authCode"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"completeOAuthFlow"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"state"},"value":{"kind":"Variable","name":{"kind":"Name","value":"state"}}},{"kind":"Argument","name":{"kind":"Name","value":"authCode"},"value":{"kind":"Variable","name":{"kind":"Name","value":"authCode"}}}]}]}}]} as unknown as DocumentNode<CompleteOAuthFlowMutation, CompleteOAuthFlowMutationVariables>;
+export const TelegramMessageAddedDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"subscription","name":{"kind":"Name","value":"TelegramMessageAdded"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"chatUUID"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"telegramMessageAdded"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"chatUUID"},"value":{"kind":"Variable","name":{"kind":"Name","value":"chatUUID"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"text"}},{"kind":"Field","name":{"kind":"Name","value":"role"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"imageUrls"}},{"kind":"Field","name":{"kind":"Name","value":"toolResults"}},{"kind":"Field","name":{"kind":"Name","value":"toolCalls"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"name"}},{"kind":"Field","name":{"kind":"Name","value":"isCompleted"}},{"kind":"Field","name":{"kind":"Name","value":"messageId"}}]}}]}}]}}]} as unknown as DocumentNode<TelegramMessageAddedSubscription, TelegramMessageAddedSubscriptionVariables>;

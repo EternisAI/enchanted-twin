@@ -138,3 +138,20 @@ mutation StartOAuthFlow($provider: String!, $scope: String!) {
 mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
   completeOAuthFlow(state: $state, authCode: $authCode)
 }
+
+subscription TelegramMessageAdded($chatUUID: ID!) {
+  telegramMessageAdded(chatUUID: $chatUUID) {
+    id
+    text
+    role
+    createdAt
+    imageUrls
+    toolResults
+    toolCalls {
+      id
+      name
+      isCompleted
+      messageId
+    }
+  }
+}
