@@ -1,0 +1,36 @@
+services:
+- type: web
+  name: enchanted-twin
+  runtime: docker
+  repo: https://github.com/EternisAI/enchanted-twin
+  dockerfilePath: backend/golang/telegram_chat_server.Dockerfile
+  branch: feat/telegram-chat
+  plan: starter
+  envVars:
+  - key: RAILWAY_DOCKERFILE_PATH
+    sync: false
+  - key: TELEGRAM_CHAT_SERVER
+    sync: false
+  - key: TELEGRAM_TOKEN
+    sync: false
+  - key: OLLAMA_BASE_URL
+    sync: false
+  - key: GRAPHQL_PORT
+    sync: false
+  - key: EMBEDDINGS_MODEL
+    sync: false
+  - key: EMBEDDINGS_API_URL
+    sync: false
+  - key: EMBEDDINGS_API_KEY
+    sync: false
+  - key: COMPLETIONS_MODEL
+    sync: false
+  - key: OPENAI_BASE_URL
+    sync: false
+  - key: OPENAI_API_KEY
+    sync: false
+  region: virginia
+  buildCommand: go build -o bin/telegram_chat_server cmd/telegram_chat_server/main.go
+  startCommand: ./bin/telegram_chat_server
+  rootDir: backend/golang
+version: "1"
