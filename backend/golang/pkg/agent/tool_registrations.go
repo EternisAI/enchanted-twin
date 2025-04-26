@@ -29,39 +29,57 @@ func RegisterStandardTools(
 
 	// Register basic tools
 	searchTool := &tools.SearchTool{}
-	registry.Register(searchTool)
-	registeredTools = append(registeredTools, searchTool)
+	if err := registry.Register(searchTool); err == nil {
+		registeredTools = append(registeredTools, searchTool)
+	} else {
+		logger.Warn("Failed to register search tool", "error", err)
+	}
 
 	imageTool := &tools.ImageTool{}
-	registry.Register(imageTool)
-	registeredTools = append(registeredTools, imageTool)
+	if err := registry.Register(imageTool); err == nil {
+		registeredTools = append(registeredTools, imageTool)
+	} else {
+		logger.Warn("Failed to register image tool", "error", err)
+	}
 
 	// Register tools that need dependencies
 	if memoryStorage != nil {
 		memoryTool := tools.NewMemorySearchTool(logger, memoryStorage)
-		registry.Register(memoryTool)
-		registeredTools = append(registeredTools, memoryTool)
+		if err := registry.Register(memoryTool); err == nil {
+			registeredTools = append(registeredTools, memoryTool)
+		} else {
+			logger.Warn("Failed to register memory tool", "error", err)
+		}
 	}
 
 	// Register Telegram tool if token is available
 	if telegramToken != "" && store != nil {
 		telegramTool := tools.NewTelegramTool(logger, telegramToken, store)
-		registry.Register(telegramTool)
-		registeredTools = append(registeredTools, telegramTool)
+		if err := registry.Register(telegramTool); err == nil {
+			registeredTools = append(registeredTools, telegramTool)
+		} else {
+			logger.Warn("Failed to register telegram tool", "error", err)
+		}
 	}
 
 	// Register Twitter tool if store is available
 	if store != nil {
 		twitterTool := tools.NewTwitterTool(*store)
-		registry.Register(twitterTool)
-		registeredTools = append(registeredTools, twitterTool)
+		if err := registry.Register(twitterTool); err == nil {
+			registeredTools = append(registeredTools, twitterTool)
+		} else {
+			logger.Warn("Failed to register twitter tool", "error", err)
+		}
 	}
 
 	// Register PlannedAgentTool if temporal client is available
 	if temporalClient != nil && completionsModel != "" {
 		plannedAgentTool := plannedv2.NewPlannedAgentTool(logger, temporalClient, completionsModel)
-		registry.Register(plannedAgentTool)
-		registeredTools = append(registeredTools, plannedAgentTool)
+		if err := registry.Register(plannedAgentTool); err == nil {
+			registeredTools = append(registeredTools, plannedAgentTool)
+		} else {
+			logger.Warn("Failed to register planned agent tool", "error", err)
+		}
 	}
 
 	logger.Info("Registered standard tools", "count", len(registeredTools))

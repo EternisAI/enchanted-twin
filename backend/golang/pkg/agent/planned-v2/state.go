@@ -94,6 +94,8 @@ type PlanState struct {
 	ToolResults []types.ToolResult `json:"tool_results"`
 
 	// Typed history entries (for structured logging and UI)
+	// NOTE: currently this mostly duplicates the Messages field
+	// it may be useful for future UI or logging needs
 	History []HistoryEntry `json:"history"`
 
 	// Available tools for the agent
