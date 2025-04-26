@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
@@ -74,6 +75,7 @@ type TelegramService struct {
 	AuthStorage      *db.Store
 	LastMessages     []Message
 	NatsClient       *nats.Conn
+	ChatServerUrl    string
 }
 
 type TelegramServiceInput struct {
@@ -86,6 +88,7 @@ type TelegramServiceInput struct {
 	Memory           memory.Storage
 	AuthStorage      *db.Store
 	NatsClient       *nats.Conn
+	ChatServerUrl    string
 }
 
 func NewTelegramService(input TelegramServiceInput) *TelegramService {
@@ -100,6 +103,7 @@ func NewTelegramService(input TelegramServiceInput) *TelegramService {
 		AuthStorage:      input.AuthStorage,
 		LastMessages:     []Message{},
 		NatsClient:       input.NatsClient,
+		ChatServerUrl:    input.ChatServerUrl,
 	}
 }
 
@@ -520,8 +524,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 	s.Logger.Info("Starting WebSocket subscription", "chatUUID", chatUUID)
 
-	// Hardcode WebSocket URL
-	wsURL := "ws://localhost:3001/query"
+	wsURL := strings.Replace(s.ChatServerUrl, "http", "ws", 1)
 	s.Logger.Info("Attempting to connect to WebSocket", "url", wsURL)
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
@@ -747,8 +750,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							continue // Or handle error differently
 						}
 
-						// Assuming the GraphQL endpoint is http://localhost:3001/query
-						gqlURL := "http://localhost:3001/query"
+						gqlURL := s.ChatServerUrl
 						req, err := http.NewRequestWithContext(ctx, http.MethodPost, gqlURL, bytes.NewBuffer(mutationBody))
 						if err != nil {
 							s.Logger.Error("Failed to create GraphQL request", "error", err)
