@@ -196,9 +196,9 @@ func main() {
 		}
 		logger.Info("Last messages", "messages", lastMessages)
 
-		// if err := telegramService.Start(context.Background()); err != nil {
-		// 	logger.Error("Telegram service error", slog.Any("error", err))
-		// }
+		if err := telegramService.Start(context.Background()); err != nil {
+			logger.Error("Telegram service error", slog.Any("error", err))
+		}
 	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{

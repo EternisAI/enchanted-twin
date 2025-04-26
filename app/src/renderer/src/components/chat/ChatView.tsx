@@ -5,6 +5,7 @@ import ChatSuggestions from './ChatSuggestions'
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
+import { useTelegramMessageSubscription } from '@renderer/hooks/useTelegramMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 
 export default function ChatView({ chat }: { chat: Chat }) {
@@ -79,6 +80,15 @@ export default function ChatView({ chat }: { chat: Chat }) {
 
   useToolCallUpdate(chat.id, (toolCall) => {
     updateToolCallInMessage(toolCall as ToolCall & { messageId: string })
+  })
+  
+  useTelegramMessageSubscription(chat.id, (msg) => {
+    if (msg.role === Role.User) {
+      return
+    }
+    upsertMessage(msg)
+    setIsWaitingTwinResponse(false)
+    setShowSuggestions(true)
   })
 
   const [mounted, setMounted] = useState(false)
