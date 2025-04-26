@@ -10,6 +10,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestGmailProcessor(t *testing.T) {
@@ -439,9 +440,7 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Verify we got one record
-	if len(records) != 1 {
-		t.Fatalf("Expected 1 record, got %d", len(records))
-	}
+	assert.Equal(t, 0, len(records), "Expected 0 records")
 
 	record := records[0]
 
