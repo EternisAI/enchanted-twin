@@ -6,7 +6,7 @@ const (
 	// TelegramLastUpdateIDKey is used to track the last update ID for Telegram messages
 	TelegramLastUpdateIDKey = "telegram_last_update_id"
 	// TelegramBotName is the telegram bot name to be used for sending messages
-	TelegramBotName = "@MyTwinSlimBot"
+	TelegramBotName = "MyTwinSlimBot"
 	// TelegramAPIBase is the base url for the telegram api
 	TelegramAPIBase = "https://api.telegram.org"
 )
