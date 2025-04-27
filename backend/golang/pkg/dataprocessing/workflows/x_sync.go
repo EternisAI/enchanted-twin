@@ -124,8 +124,8 @@ func (w *DataProcessingWorkflows) XFetchActivity(ctx context.Context, input XFet
 	if tokens == nil {
 		return XFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
 	}
-
-	records, err := dataprocessing.Sync("x", tokens.AccessToken)
+	w.Logger.Debug("XFetchActivity", "tokens", tokens)
+	records, err := dataprocessing.Sync(ctx, "x", tokens.AccessToken)
 	if err != nil {
 		return XFetchActivityResponse{}, err
 	}

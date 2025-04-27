@@ -270,7 +270,7 @@ func (s *Service) SendMessage(
 	if len(response.ToolCalls) > 0 {
 		toolCalls := make([]model.ToolCall, 0)
 		for _, toolCall := range response.ToolCalls {
-			s.logger.Info("Tool call", "name", toolCall.Function.Name)
+			s.logger.Info("Tool call", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments)
 
 			toolCall := model.ToolCall{
 				ID:          toolCall.ID,
