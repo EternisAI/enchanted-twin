@@ -171,7 +171,6 @@ func main() {
 
 	twinChatService := twinchat.NewService(logger, aiService, chatStorage, nc, mem, store, envs.CompletionsModel, envs.TelegramToken, store, mcpService)
 
-	// Initialize and start Telegram service
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
 		Token:            envs.TelegramToken,
@@ -185,10 +184,16 @@ func main() {
 		ChatServerUrl:    envs.TelegramChatServer,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
-
-	err = telegramService.Subscribe(context.Background(), "05170687-dc2a-4ed3-adde-4556a8444f85")
+	chatUUID, err := telegramService.GetChatUUID(context.Background())
+	fmt.Println("chatUUID", chatUUID)
 	if err != nil {
-		logger.Error("Error subscribing to Telegram", slog.Any("error", err))
+		logger.Error("Error getting chat UUID", slog.Any("error", err))
+	}
+	if chatUUID != "" {
+		err = telegramService.Subscribe(context.Background(), chatUUID)
+		if err != nil {
+			logger.Error("Error subscribing to Telegram", slog.Any("error", err))
+		}
 	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
