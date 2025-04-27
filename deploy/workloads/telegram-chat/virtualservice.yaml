@@ -1,0 +1,18 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: telegram-chat
+spec:
+  exportTo:
+  - istio-ingress
+  gateways:
+  - istio-ingress/${tenant}
+  hosts:
+  - telegram-chat
+  http:
+  - name: ${tenant}-telegram-chat
+    route:
+    - destination:
+        host: api
+        port:
+          number: 80

@@ -1,0 +1,27 @@
+name: '[CI] Telegram Chat'
+
+on:
+  push:
+    branches:
+    - main
+    - dev
+    paths:
+    - '!*'
+    - backend/golang/**
+    - '!backend/golang/cmd/**'
+    - backend/golang/cmd/telegram_chat_server/**
+
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow_ref }}-${{ github.ref_type == 'tag' && 'refs/heads/production' || github.ref }}
+  cancel-in-progress: ${{ github.ref_type == 'branch' && github.ref_name != 'production' }}
+
+jobs:
+  ci:
+    uses: EternisAI/github-workflows/.github/workflows/ci.yaml@006bcdc16570da60a323e0e2ab541807bf478bcb
+    with:
+      component: telegram-chat
+      tenant: enchanted-twin
+      context: '{{defaultContext}}:backend/golang'
+      dockerfile: telegram_chat_server.Dockerfile
