@@ -14,27 +14,11 @@ import {
   AlertDialogTitle
 } from '../ui/alert-dialog'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { IndexingStatusDocument, IndexingState } from '@renderer/graphql/generated/graphql'
 
 const START_INDEXING = gql`
   mutation StartIndexing {
     startIndexing
-  }
-`
-
-const INDEXING_STATUS_SUBSCRIPTION = gql`
-  subscription IndexingStatus {
-    indexingStatus {
-      status
-      processingDataProgress
-      indexingDataProgress
-      dataSources {
-        id
-        name
-        isProcessed
-        isIndexed
-        hasError
-      }
-    }
   }
 `
 
@@ -43,7 +27,9 @@ export function IndexingStep() {
   const [isRetrying, setIsRetrying] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const { data, error: subscriptionError } = useSubscription(INDEXING_STATUS_SUBSCRIPTION)
+  const { data, error: subscriptionError } = useSubscription(IndexingStatusDocument)
+
+  // const { data, error: subscriptionError } = useSubscription(INDEXING_STATUS_SUBSCRIPTION)
   const [startIndexing, { error: mutationError }] = useMutation(START_INDEXING)
 
   const handleStartIndexing = useCallback(async () => {
@@ -76,15 +62,19 @@ export function IndexingStep() {
     }
   }, [mutationError])
 
+  useEffect(() => {
+    console.log({ data })
+  }, [data])
+
   return (
     <OnboardingLayout
       title={
-        data?.indexingStatus?.status === 'IN_PROGRESS'
+        data?.indexingStatus?.status === IndexingState.ProcessingData
           ? 'Processing data…'
           : 'Ready to process data'
       }
       subtitle={
-        data?.indexingStatus?.status === 'IN_PROGRESS'
+        data?.indexingStatus?.status === IndexingState.ProcessingData
           ? "We're processing your data to make it searchable. This may take a while."
           : "Click 'Start indexing' to begin processing your data."
       }

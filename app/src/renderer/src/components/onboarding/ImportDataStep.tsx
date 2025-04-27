@@ -10,7 +10,8 @@ import {
   Twitter,
   Clock,
   File,
-  ExternalLink
+  ExternalLink,
+  ArrowRight
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useState } from 'react'
@@ -302,16 +303,20 @@ export function ImportDataStep() {
             })}
           </div>
         </div>
-        <Button onClick={handleNext} disabled={isProcessing}>
-          {isProcessing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            'Next'
-          )}
-        </Button>
+        <div className="flex justify-end pt-8">
+          <Button onClick={handleNext} disabled={isProcessing}>
+            {isProcessing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                Next <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Data Source Selection Modal */}
@@ -392,6 +397,9 @@ export function ImportDataStep() {
                         }
 
                         const path = result.filePaths[0]
+                        setSelectedSource({
+                          ...selectedSource
+                        })
                         setPendingDataSources((prev) => ({
                           ...prev,
                           [selectedSource.name]: { name: selectedSource.name, path }
@@ -420,14 +428,6 @@ export function ImportDataStep() {
                 if (!source) return
 
                 try {
-                  await addDataSource({
-                    variables: {
-                      name: source.name,
-                      path: source.path
-                    }
-                  })
-                  await refetch()
-                  toast.success('Data source added successfully')
                   setSelectedSource(null)
                 } catch (error) {
                   console.error('Error adding data source:', error)

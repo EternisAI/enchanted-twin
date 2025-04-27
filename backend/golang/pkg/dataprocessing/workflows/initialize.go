@@ -153,7 +153,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 	w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, nil)
 
 	var indexDataResponse IndexDataActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{DataSourcesInput: dataSources}).Get(ctx, &indexDataResponse)
+	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{DataSourcesInput: dataSources, IndexingState: indexingState}).Get(ctx, &indexDataResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
 		errMsg := err.Error()
@@ -174,6 +174,9 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 
 	indexingState = model.IndexingStateCompleted
 	workflow.GetLogger(ctx).Info("Indexing completed successfully")
+	for _, dataSource := range dataSources {
+		dataSource.IsIndexed = true
+	}
 	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, dataSources, 100, 100, nil)
 	return InitializeWorkflowResponse{}, nil
 }
@@ -243,6 +246,7 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(ctx context.Context, input
 
 type IndexDataActivityInput struct {
 	DataSourcesInput []*model.DataSource `json:"dataSources"`
+	IndexingState    model.IndexingState `json:"indexingState"`
 }
 
 type IndexDataActivityResponse struct {
@@ -286,7 +290,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
-
 		case "telegram":
 			documents, err := telegram.ToDocuments(records)
 			if err != nil {
@@ -323,10 +326,30 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
+		}
 
+		// update indexing status
+		status := &model.IndexingStatus{
+			Status:                 input.IndexingState,
+			ProcessingDataProgress: 100,
+			IndexingDataProgress:   int32(i+1) * 100 / int32(len(dataSourcesDB)),
+			DataSources:            dataSourcesResponse,
+			Error:                  nil,
+		}
+		statusJson, _ := json.Marshal(status)
+		subject := "indexing_data"
+
+		input := PublishIndexingStatusInput{
+			Subject: subject,
+			Data:    statusJson,
+		}
+		err = w.PublishIndexingStatus(ctx, input)
+		if err != nil {
+			w.Logger.Error("Failed to publish indexing status", "error", err)
 		}
 
 	}
+
 	return IndexDataActivityResponse{DataSourcesResponse: dataSourcesResponse}, nil
 }
 
