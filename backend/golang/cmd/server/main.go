@@ -190,10 +190,33 @@ func main() {
 		logger.Error("Error getting chat UUID", slog.Any("error", err))
 	}
 	if chatUUID != "" {
-		err = telegramService.Subscribe(context.Background(), chatUUID)
-		if err != nil {
-			logger.Error("Error subscribing to Telegram", slog.Any("error", err))
-		}
+		// Start a goroutine to attempt subscription periodically
+		go func() {
+			ticker := time.NewTicker(10 * time.Second) // Poll every minute
+			defer ticker.Stop()
+
+			// Create a context that respects application shutdown
+			appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+			defer appCancel()
+
+			logger.Info("Starting Telegram subscription poller", "chatUUID", chatUUID)
+
+			for {
+				select {
+				case <-ticker.C:
+					err := telegramService.Subscribe(context.Background(), chatUUID) // Use a short-lived context for the attempt
+					if err == nil {
+						logger.Info("Successfully subscribed to Telegram", "chatUUID", chatUUID)
+						return // Subscription successful, exit goroutine
+					}
+					// Log error at debug level to avoid spamming logs if connection isn't ready
+					logger.Debug("Failed to subscribe to Telegram, will retry...", "chatUUID", chatUUID, slog.Any("error", err))
+				case <-appCtx.Done():
+					logger.Info("Stopping Telegram subscription poller due to application shutdown", "chatUUID", chatUUID)
+					return // Application is shutting down
+				}
+			}
+		}()
 	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
