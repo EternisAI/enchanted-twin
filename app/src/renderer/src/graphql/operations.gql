@@ -136,6 +136,21 @@ subscription ToolCallUpdated($chatId: ID!) {
   }
 }
 
+subscription IndexingStatus {
+  indexingStatus {
+    status
+    processingDataProgress
+    indexingDataProgress
+    dataSources {
+      id
+      name
+      isProcessed
+      isIndexed
+      hasError
+    }
+  }
+}
+
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }
