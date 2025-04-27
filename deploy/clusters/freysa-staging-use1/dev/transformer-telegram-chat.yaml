@@ -5,7 +5,7 @@ metadata:
 imageTag:
   name: telegram-chat
   newName: ${account_id}.dkr.ecr.${region}.amazonaws.com/${tenant}/telegram-chat
-  digest: 'sha256:latest'
+  digest: 'sha256:4e8f826a23f93b1c87c4e21d807af93204e9ae8a81782d7e712d11e7c065353d'
 ---
 apiVersion: builtin
 kind: PatchTransformer
@@ -23,5 +23,5 @@ patch: |
     template:
       metadata:
         labels:
-          app.kubernetes.io/version: 'sha-latest'
-          version: 'sha-latest'
+          app.kubernetes.io/version: 'sha-34bce92'
+          version: 'sha-34bce92'
