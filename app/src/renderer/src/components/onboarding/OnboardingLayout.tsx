@@ -57,7 +57,7 @@ export function OnboardingLayout({
       )}
       <div
         className={cn(
-          'w-full max-w-xl flex flex-col gap-12 z-10 relative bg-transparent',
+          'w-full max-w-3xl flex flex-col gap-12 z-10 relative bg-transparent',
           className
         )}
       >
