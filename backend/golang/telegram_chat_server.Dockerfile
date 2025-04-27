@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the application, specifying the correct package path
-RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/server ./cmd/telegram_chat_server
 
 # --- Final Stage ---
 FROM alpine:latest
