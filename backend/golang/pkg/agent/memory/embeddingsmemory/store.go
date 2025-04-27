@@ -30,7 +30,7 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 		for i := range batch {
 			textInputs[i] = batch[i].Content
 		}
-		embeddings, err := m.ai.Embeddings(ctx, textInputs, "text-embedding-3-small")
+		embeddings, err := m.ai.Embeddings(ctx, textInputs, m.embeddingsModelName)
 		if err != nil {
 			return err
 		}

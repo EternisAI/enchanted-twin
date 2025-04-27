@@ -8,15 +8,12 @@ import (
 // WorkflowName is the name of the planned agent workflow.
 const WorkflowName = "PlannedAgentWorkflow"
 
-// RegisterPlannedAgentWorkflow registers the planner workflow and activities with a Temporal worker.
-func RegisterPlannedAgentWorkflow(w worker.Worker, logger *log.Logger) {
+func (a *AgentActivities) RegisterPlannedAgentWorkflow(w worker.Worker, logger *log.Logger) {
 	logger.Info("Registering PlannedAgentWorkflow")
 
-	// Register the workflow
 	w.RegisterWorkflow(PlannedAgentWorkflow)
 
-	// Register the activities
-	RegisterActivities(w)
+	a.RegisterActivities(w)
 
 	logger.Info("Planned agent workflow and activities registered")
 }

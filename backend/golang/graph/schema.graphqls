@@ -21,8 +21,8 @@ directive @goTag(
 type UserProfile {
   name: String
   bio: String
-  indexingStatus: IndexingStatus
-  connectedDataSources: [DataSource!]!
+  indexingStatus: IndexingStatus @goField(forceResolver: true)
+  connectedDataSources: [DataSource!]! @goField(forceResolver: true)
 }
 
 input UpdateProfileInput {
