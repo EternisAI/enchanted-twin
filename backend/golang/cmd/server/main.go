@@ -115,11 +115,11 @@ func main() {
 		}
 	}()
 
-	// _, err = bootstrap.StartEmbeddedNATSServer(logger)
-	// if err != nil {
-	// 	panic(errors.Wrap(err, "Unable to start nats server"))
-	// }
-	// logger.Info("NATS server started")
+	_, err = bootstrap.StartEmbeddedNATSServer(logger)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start nats server"))
+	}
+	logger.Info("NATS server started")
 
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
