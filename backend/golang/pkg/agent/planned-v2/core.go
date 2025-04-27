@@ -30,6 +30,8 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 		},
 	})
 
+	var a *AgentActivities
+
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting PlannedAgentWorkflow", "input_size", len(input))
 
@@ -104,7 +106,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	}
 
 	// Execute the plan
-	err := executeReActLoop(ctx, &state, planInput.Model, planInput.MaxSteps)
+	err := a.executeReActLoop(ctx, &state, planInput.Model, planInput.MaxSteps)
 	if err != nil {
 		state.Error = fmt.Sprintf("execution failed: %v", err)
 		return fmt.Errorf("execution failed: %w", err)
@@ -114,7 +116,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 }
 
 // executeReActLoop implements the ReAct loop for executing the plan.
-func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
+func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Convert our tools to OpenAI format for the API
@@ -133,7 +135,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 	for state.CurrentStep < maxSteps && !state.Complete {
 
 		// Generate the next actions using LLM
-		toolCalls, err := generateNextAction(ctx, state, apiToolDefinitions, model)
+		toolCalls, err := a.generateNextAction(ctx, state, apiToolDefinitions, model)
 		if err != nil {
 			logger.Error("Failed to generate next actions", "error", err)
 			state.History = append(state.History, HistoryEntry{
@@ -179,7 +181,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 			}
 
 			// Execute the tool call
-			result, err := executeAction(ctx, toolCall, state)
+			result, err := a.executeAction(ctx, toolCall, state)
 
 			// Always add a tool message, either with result or error
 			if err != nil {
@@ -257,7 +259,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 		)
 
 		var finalCompletion openai.ChatCompletionMessage
-		err := workflow.ExecuteActivity(ctx, LLMCompletionActivity, model, state.Messages, []openai.ChatCompletionToolParam{}).
+		err := workflow.ExecuteActivity(ctx, a.LLMCompletionActivity, model, state.Messages, []openai.ChatCompletionToolParam{}).
 			Get(ctx, &finalCompletion)
 		if err != nil {
 			logger.Error("Failed to get final summary", "error", err)

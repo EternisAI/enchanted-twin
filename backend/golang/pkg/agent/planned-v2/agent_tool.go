@@ -41,9 +41,9 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name: "execute_plan",
+			Name: "schedule_task",
 			Description: param.NewOpt(
-				"Execute a multi-step plan using tools and reasoning capabilities",
+				"Schedule a task to be executed periodically by the agent with planning and reasoning",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
