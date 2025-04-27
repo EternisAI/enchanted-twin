@@ -186,12 +186,10 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
-	go func() {
-		err := telegramService.Subscribe(context.Background(), "05170687-dc2a-4ed3-adde-4556a8444f85")
-		if err != nil {
-			logger.Error("Error subscribing to Telegram", slog.Any("error", err))
-		}
-	}()
+	err = telegramService.Subscribe(context.Background(), "05170687-dc2a-4ed3-adde-4556a8444f85")
+	if err != nil {
+		logger.Error("Error subscribing to Telegram", slog.Any("error", err))
+	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
