@@ -43,7 +43,7 @@ type User struct {
 }
 
 type Chat struct {
-	ID        int    `json:"id"`
+	ID        string `json:"id"`
 	Type      string `json:"type"`
 	Title     string `json:"title"`
 	Username  string `json:"username"`
@@ -452,56 +452,28 @@ func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, d
 	}
 	messageText := *data.Text
 
-	// --- Start of Conversions ---
-
-	// 1. Convert MessageID from string to int
-	// NOTE: The GraphQL ID is likely a UUID, not directly convertible to our integer MessageID.
-	// Using a placeholder or potentially changing MessageID type might be necessary.
-	// For now, attempting conversion and logging error. Consider using 0 or another strategy.
 	messageID, err := strconv.Atoi(data.ID)
 	if err != nil {
 		s.Logger.Warn("Failed to convert WebSocket message ID (GraphQL ID) to int. Using 0.", "error", err, "graphQL_ID", data.ID)
-		messageID = 0 // Using 0 as a placeholder ID on conversion failure
+		messageID = 0
 	}
 
-	// 2. Create a placeholder User struct based on the role
-	// TODO: Fetch actual user details if available/needed
 	fromUser := User{
-		Username: data.Role, // Using role as username for now
-		// ID, FirstName, LastName are not available from the subscription
+		Username: data.Role,
 	}
 
-	// 3. Get chatID, convert to int, and create a placeholder Chat struct
-	chatIDStr, err := s.GetChatIDFromChatUUID(ctx, chatUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chat ID from UUID for WebSocket message: %w", err)
-	}
-	chatID, err := strconv.Atoi(chatIDStr)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert chat ID to int for WebSocket message: %w", err)
-	}
-	// TODO: Fetch actual chat details if available/needed
 	chatInfo := Chat{
-		ID: chatID,
-		// Type, Title, Username, FirstName, LastName are not available here
+		ID: chatUUID,
 	}
 
-	// 4. Convert CreatedAt string (assuming RFC3339 format) to Unix timestamp int
 	parsedTime, err := time.Parse(time.RFC3339, data.CreatedAt)
 	if err != nil {
-		// Log error but continue with zero date? Or return error?
 		s.Logger.Error("Failed to parse CreatedAt timestamp from WebSocket", "error", err, "timestamp", data.CreatedAt)
-		// Returning error for now, as date might be important.
 		return nil, fmt.Errorf("failed to parse CreatedAt timestamp from WebSocket: %w", err)
 
 	}
 	date := int(parsedTime.Unix())
 
-	// 5. Text is already a string, no conversion needed
-
-	// --- End of Conversions ---
-
-	// Create the Message struct
 	msg := &Message{
 		MessageID: messageID,
 		From:      fromUser,
