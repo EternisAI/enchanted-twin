@@ -12,7 +12,7 @@ const OnboardingBackground = memo(function OnboardingBackground() {
   return (
     <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 z-0 opacity-35 dark:opacity-100">
       <div className="w-full h-full bg-gradient-to-b from-background to-background/50 absolute inset-0 z-20" />
-      <div className="w-full h-full relative z-10">
+      <div className="w-full h-full relative z-0">
         <Brain />
       </div>
     </div>
@@ -22,22 +22,16 @@ const OnboardingBackground = memo(function OnboardingBackground() {
 export function OnboardingContainer() {
   const { currentStep, isCompleted, nextStep } = useOnboardingStore()
   const navigate = useNavigate()
-  const prevStepRef = useRef<OnboardingStep | undefined>(undefined)
-  const direction =
-    prevStepRef.current !== undefined ? (currentStep > prevStepRef.current ? 1 : -1) : 0
 
-  console.log('currentStep', currentStep)
-  console.log('prevStep', prevStepRef.current)
-  console.log('direction', direction === 1 ? 'right' : direction === -1 ? 'left' : 'none')
+  const prev = useRef<OnboardingStep | null>(null)
+  const direction = prev.current === null ? 0 : currentStep > (prev.current as number) ? 1 : -1
 
   useEffect(() => {
-    prevStepRef.current = currentStep
+    prev.current = currentStep
   }, [currentStep])
 
   useEffect(() => {
-    if (isCompleted) {
-      navigate({ to: '/chat' })
-    }
+    if (isCompleted) navigate({ to: '/chat' })
   }, [isCompleted, navigate])
 
   const renderStep = () => {
@@ -55,19 +49,45 @@ export function OnboardingContainer() {
     }
   }
 
+  const variants = {
+    enter: (dir: number) => ({
+      x: dir > 0 ? 72 : -72,
+      opacity: 0,
+      scale: 0.97
+    }),
+    center: { x: 0, opacity: 1, scale: 1 },
+    exit: (dir: number) => ({
+      x: dir > 0 ? -72 : 72,
+      opacity: 0,
+      scale: 0.97
+    })
+  }
+
+  const transition = {
+    x: { type: 'tween', ease: [0.25, 0.46, 0.45, 0.94], duration: 0.4 },
+    opacity: { duration: 0.3 },
+    scale: { duration: 0.4 }
+  }
+
   return (
     <>
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div
-          key={currentStep}
-          initial={{ x: direction * 100, opacity: 0 }}
-          animate={{ x: 0, opacity: 1 }}
-          exit={{ x: direction * 100, opacity: 0 }}
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-        >
-          {renderStep()}
-        </motion.div>
-      </AnimatePresence>
+      <div className="relative h-full w-full overflow-hidden">
+        <AnimatePresence custom={direction} initial={false}>
+          <motion.div
+            key={currentStep}
+            custom={direction}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={transition}
+            className="absolute inset-0 will-change-transform z-10"
+          >
+            {renderStep()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
       <OnboardingBackground />
     </>
   )

@@ -49,7 +49,7 @@ export function OnboardingLayout({
   const { currentStep } = useOnboardingStore()
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-8">
+    <div className="min-h-screen flex flex-col items-center justify-center p-8">
       {onClose && (
         <Button variant="ghost" size="icon" className="absolute top-4 right-4" onClick={onClose}>
           <X className="h-4 w-4" />
