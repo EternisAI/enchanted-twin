@@ -66,7 +66,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 
 		return ToolResult{
 			Content: fmt.Sprintf(
-				"You need to start the conversation first. Open %s or scan the QR code below.",
+				"You need to start the conversation first. Open %s or scan the QR code below. Then restart the app.",
 				chatURL,
 			),
 			ImageURLs: []string{qr},
