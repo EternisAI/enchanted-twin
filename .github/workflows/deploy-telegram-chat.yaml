@@ -1,0 +1,40 @@
+name: '[Deploy] Telegram Chat'
+
+on:
+  push:
+    branches:
+    - main
+    - dev
+    paths:
+    - deploy/**
+    - '!deploy/clusters/**/transformer-*.yaml'
+    - deploy/clusters/**/transformer-telegram-chat.yaml
+    - '!deploy/workloads/**'
+    - deploy/workloads/telegram-chat/**
+    - deploy/workloads/kustomization.yaml
+
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow_ref }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref_type == 'branch' && github.ref_name != 'production' }}
+
+jobs:
+  config:
+    uses: EternisAI/github-workflows/.github/workflows/configure-deployment-jobs.yaml@006bcdc16570da60a323e0e2ab541807bf478bcb
+    with:
+      component: telegram-chat
+      tenant: enchanted-twin
+
+  deploy:
+    uses: EternisAI/github-workflows/.github/workflows/deploy.yaml@006bcdc16570da60a323e0e2ab541807bf478bcb
+    needs:
+    - config
+    with:
+      component: telegram-chat
+      tenant: enchanted-twin
+      registries: ${{ needs.config.outputs.registries }}
+      clusters: ${{ needs.config.outputs.clusters }}
+      environment-name: ${{ needs.config.outputs.environment-name }}
+      environment-instance: ${{ needs.config.outputs.environment-instance }}
+      environment-suffix: ${{ needs.config.outputs.environment-suffix }}

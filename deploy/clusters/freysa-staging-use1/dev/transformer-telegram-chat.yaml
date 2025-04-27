@@ -1,0 +1,27 @@
+apiVersion: builtin
+kind: ImageTagTransformer
+metadata:
+  name: telegram-chat
+imageTag:
+  name: telegram-chat
+  newName: ${account_id}.dkr.ecr.${region}.amazonaws.com/${tenant}/telegram-chat
+  digest: 'sha256:latest'
+---
+apiVersion: builtin
+kind: PatchTransformer
+metadata:
+  name: telegram-chat-version
+target:
+  kind: StatefulSet
+  name: telegram-chat
+patch: |
+  apiVersion: apps/v1
+  kind: StatefulSet
+  metadata:
+    name: telegram-chat
+  spec:
+    template:
+      metadata:
+        labels:
+          app.kubernetes.io/version: 'sha-latest'
+          version: 'sha-latest'

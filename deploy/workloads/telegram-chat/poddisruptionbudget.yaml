@@ -1,0 +1,10 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: &instance telegram-chat
+spec:
+  maxUnavailable: 30%
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: telegram-chat
+      app.kubernetes.io/instance: *instance

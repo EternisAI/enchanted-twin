@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: &instance telegram-chat
+  annotations:
+    networking.istio.io/exportTo: istio-ingress
+spec:
+  selector:
+    app.kubernetes.io/name: telegram-chat
+    app.kubernetes.io/instance: *instance
+  ports:
+  - name: http
+    port: 80
+    targetPort: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telegram-chat-pods
+  annotations:
+    networking.istio.io/exportTo: istio-ingress
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: telegram-chat
+    app.kubernetes.io/instance: telegram-chat
+  ports:
+  - name: http
+    port: 80
+    targetPort: api

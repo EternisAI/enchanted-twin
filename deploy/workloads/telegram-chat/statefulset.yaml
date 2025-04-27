@@ -1,0 +1,120 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: &instance telegram-chat
+spec:
+  serviceName: telegram-chat-pods
+  selector: &labelSelector
+    matchLabels: &selectorLabels
+      app.kubernetes.io/name: &app telegram-chat
+      app.kubernetes.io/instance: *instance
+  template:
+    metadata:
+      labels:
+        <<: *selectorLabels
+        app: *app
+        instance: *instance
+        sidecar.istio.io/inject: 'true'
+      annotations:
+        fluentbit.io/exclude-istio-proxy: 'false'
+    spec:
+      containers:
+      - name: api
+        image: telegram-chat:latest
+        envFrom:
+        - secretRef:
+            name: global
+            optional: true
+        - secretRef:
+            name: shared
+            optional: true
+        - configMapRef:
+            name: environment
+            optional: true
+        - secretRef:
+            name: environment
+            optional: true
+        - configMapRef:
+            name: tenant
+            optional: true
+        - secretRef:
+            name: tenant
+            optional: true
+        - configMapRef:
+            name: telegram-chat
+        - secretRef:
+            name: telegram-chat
+            optional: true
+        ports:
+        - name: api
+          containerPort: 3000
+        resources:
+          requests:
+            cpu: 50m
+            memory: 100Mi
+        livenessProbe:
+          httpGet: &apiProbe
+            port: api
+            path: /
+          initialDelaySeconds: 5
+          failureThreshold: 6
+        readinessProbe:
+          httpGet: *apiProbe
+          initialDelaySeconds: 5
+        volumeMounts:
+        - name: cache
+          mountPath: /home/appuser/.cache
+        - name: data
+          mountPath: /app/data
+        - name: db
+          mountPath: /app/db
+      enableServiceLinks: false
+      serviceAccountName: *instance
+      nodeSelector:
+        nodegroup: main
+        kubernetes.io/arch: amd64
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 50
+            podAffinityTerm:
+              topologyKey: &nodeTopologyKey kubernetes.io/hostname
+              labelSelector: *labelSelector
+          - weight: 50
+            podAffinityTerm:
+              topologyKey: &zoneTopologyKey topology.kubernetes.io/zone
+              labelSelector: *labelSelector
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: *nodeTopologyKey
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector: *labelSelector
+      - maxSkew: 1
+        topologyKey: *zoneTopologyKey
+        whenUnsatisfiable: DoNotSchedule
+        labelSelector: *labelSelector
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+      volumes:
+      - name: cache
+        emptyDir: {}
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 100Gi
+  - metadata:
+      name: db
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi

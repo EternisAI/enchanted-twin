@@ -1,0 +1,28 @@
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultAuth
+metadata:
+  name: &instance telegram-chat
+spec:
+  vaultAuthGlobalRef:
+    name: eternis
+    namespace: tenants
+  jwt:
+    role: ${tenant}-telegram-chat-${environment}
+    serviceAccount: *instance
+---
+apiVersion: secrets.hashicorp.com/v1beta1
+kind: VaultStaticSecret
+metadata:
+  name: &instance telegram-chat
+spec:
+  vaultAuthRef: *instance
+  type: kv-v2
+  mount: eternis
+  path: ${environment}/${tenant}/telegram-chat
+  destination:
+    name: *instance
+    create: true
+  rolloutRestartTargets:
+  - kind: Deployment
+    name: *instance
+  refreshAfter: 10m

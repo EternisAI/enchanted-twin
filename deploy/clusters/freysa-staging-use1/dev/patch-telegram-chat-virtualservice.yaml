@@ -1,0 +1,7 @@
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata:
+  name: telegram-chat
+spec:
+  hosts:
+  - telegram-chat-dev.et-use1.ghostagent.org

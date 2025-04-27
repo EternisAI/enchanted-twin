@@ -33,7 +33,7 @@ RUN chmod +x /app/server
 RUN mkdir -p /app/data
 
 # Create a non-root user
-RUN useradd -r -u 1000 -m appuser && chown -R appuser:appuser /app/data
+RUN groupadd -g 999 appuser && useradd -r -u 1000 -g 999 -m appuser && chown -R appuser:appuser /app/data
 RUN chown appuser:appuser /app
 USER appuser
 

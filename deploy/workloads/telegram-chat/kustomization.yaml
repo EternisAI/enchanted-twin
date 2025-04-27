@@ -1,0 +1,25 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+labels:
+- pairs:
+    app.kubernetes.io/name: &app telegram-chat
+    app.kubernetes.io/instance: &instance telegram-chat
+  includeSelectors: true
+  includeTemplates: true
+- pairs:
+    app: *app
+    instance: *instance
+    part-of: &partOf ${tenant}
+    app.kubernetes.io/part-of: *partOf
+  includeTemplates: true
+configMapGenerator:
+- name: *instance
+  options:
+    immutable: true
+resources:
+- poddisruptionbudget.yaml
+- service.yaml
+- serviceaccount.yaml
+- statefulset.yaml
+- vault.yaml
+- virtualservice.yaml
