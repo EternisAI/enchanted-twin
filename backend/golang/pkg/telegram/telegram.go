@@ -709,6 +709,12 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
+					// Check if the text is nil before attempting transformation
+					if response.Payload.Data.TelegramMessageAdded.Text == nil {
+						s.Logger.Warn("Received WebSocket data message with nil text, skipping.", "message_id", response.Payload.Data.TelegramMessageAdded.ID)
+						continue
+					}
+
 					// Use the new transformation function
 					newMessage, err := s.transformWebSocketDataToMessage(ctx, response.Payload.Data.TelegramMessageAdded, chatUUID)
 					if err != nil {
@@ -786,6 +792,20 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							// Handle GraphQL-level errors
 						} else {
 							s.Logger.Info("Successfully sent agent response via GraphQL mutation")
+							// Add the agent's response to the history
+							agentMessage := Message{
+								MessageID: 0,                                    // Placeholder ID for agent response
+								From:      User{Username: "enchanted_twin_bot"}, // TODO: Use a more definitive bot identifier if possible
+								Chat:      newMessage.Chat,                      // Use the same chat context
+								Date:      int(time.Now().Unix()),
+								Text:      agentResponse.Content,
+							}
+							s.LastMessages = append(s.LastMessages, agentMessage)
+
+							// Optional: Limit history size (e.g., keep last 10 messages)
+							if len(s.LastMessages) > 10 {
+								s.LastMessages = s.LastMessages[len(s.LastMessages)-10:]
+							}
 						}
 					}
 
