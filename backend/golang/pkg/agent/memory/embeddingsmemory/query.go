@@ -28,7 +28,7 @@ type entryRow struct {
 
 func (m *EmbeddingsMemory) Query(ctx context.Context, query string) (memory.QueryResult, error) {
 	// 1) embed
-	vec, err := m.ai.Embedding(ctx, query, "text-embedding-3-small")
+	vec, err := m.ai.Embedding(ctx, query, m.embeddingsModelName)
 	if err != nil {
 		return memory.QueryResult{}, err
 	}

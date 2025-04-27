@@ -18,7 +18,7 @@ func (r *Repository) GetChat(ctx context.Context, id string) (model.Chat, error)
 	err := r.db.GetContext(ctx, &chatDB, query, id)
 	if err != nil {
 		r.logger.Error("Failed to get chat", "error", err)
-		return model.Chat{}, fmt.Errorf("chat not found: %w", err)
+		return model.Chat{}, fmt.Errorf("chat not found in the database: %w", err)
 	}
 
 	chat := chatDB.ToModel()

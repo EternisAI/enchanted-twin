@@ -82,9 +82,8 @@ type PostTweetArguments struct {
 }
 
 type SearchTweetsArguments struct {
-	Query           string `json:"query" jsonschema:"required,description=The query to search for"`
-	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the search from, empty if first page"`
-	Limit           int    `json:"limit" jsonschema:"required,description=The number of tweets to search for"`
+	Query string `json:"query" jsonschema:"required,description=The query to search for"`
+	Limit int    `json:"limit" jsonschema:"required,description=The number of tweets to search for"`
 }
 
 type authorize struct {
@@ -170,7 +169,6 @@ func processPostTweet(_ string, _arguments PostTweetArguments) ([]*mcp_golang.Co
 }
 
 func processSearchTweets(ctx context.Context, accessToken string, arguments SearchTweetsArguments) ([]*mcp_golang.Content, error) {
-
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -179,9 +177,13 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 		Host:   "https://api.twitter.com",
 	}
 
+	limit := 10
+	if arguments.Limit > 10 {
+		limit = arguments.Limit
+	}
+
 	search, err := client.TweetRecentSearch(ctx, arguments.Query, twitter.TweetRecentSearchOpts{
-		MaxResults:  arguments.Limit,
-		NextToken:   arguments.PaginationToken,
+		MaxResults:  limit,
 		Expansions:  []twitter.Expansion{twitter.ExpansionAuthorID},
 		TweetFields: []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
 	})

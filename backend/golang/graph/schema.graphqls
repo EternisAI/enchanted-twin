@@ -21,8 +21,8 @@ directive @goTag(
 type UserProfile {
   name: String
   bio: String
-  indexingStatus: IndexingStatus
-  connectedDataSources: [DataSource!]!
+  indexingStatus: IndexingStatus @goField(forceResolver: true)
+  connectedDataSources: [DataSource!]! @goField(forceResolver: true)
 }
 
 input UpdateProfileInput {
@@ -155,9 +155,9 @@ type KeyValue {
 }
 
 enum MCPServerType {
-  TWITTER,
-  GOOGLE,
-  SLACK,
+  TWITTER
+  GOOGLE
+  SLACK
   OTHER
 }
 
@@ -165,7 +165,7 @@ input ConnectMCPServerInput {
   name: String!
   command: String!
   args: [String!]
-  envs: [KeyValueInput!],
+  envs: [KeyValueInput!]
   type: MCPServerType!
 }
 
@@ -181,12 +181,12 @@ type MCPServer {
 }
 
 type MCPServerDefinition {
-	id: String!
+  id: String!
   name: String!
   command: String!
   args: [String!]
-  envs: [KeyValue!],
-  type: MCPServerType!,
+  envs: [KeyValue!]
+  type: MCPServerType!
   connected: Boolean!
   enabled: Boolean!
 }
@@ -195,4 +195,3 @@ type Tool {
   name: String!
   description: String!
 }
-

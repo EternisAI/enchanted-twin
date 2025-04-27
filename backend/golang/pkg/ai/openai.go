@@ -2,7 +2,6 @@ package ai
 
 import (
 	"context"
-	"sync"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -16,31 +15,6 @@ type Config struct {
 
 type Service struct {
 	client *openai.Client
-}
-
-// Global singleton instance
-var (
-	instance *Service
-	once     sync.Once
-)
-
-// GetInstance returns the singleton instance of the AI service
-func GetInstance() *Service {
-	return instance
-}
-
-// InitSingleton initializes the singleton instance
-func InitSingleton(apiKey string, baseUrl string) *Service {
-	once.Do(func() {
-		instance = NewOpenAIService(apiKey, baseUrl)
-	})
-	return instance
-}
-
-// SetInstance explicitly sets the singleton instance
-// This is useful for testing when we want to override the instance
-func SetInstance(service *Service) {
-	instance = service
 }
 
 func NewOpenAIService(apiKey string, baseUrl string) *Service {
