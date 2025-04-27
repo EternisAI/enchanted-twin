@@ -26,7 +26,7 @@ export default function MCPPanel() {
         </div>
         <h3 className="text-lg font-medium">MCP Server Configuration</h3>
       </div>
-      <div className="grid grid-cols-2 gap-10">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {mcpServers.map((server) => (
           <MCPServerItem key={server.id} server={server} onConnect={refetch} />
         ))}
