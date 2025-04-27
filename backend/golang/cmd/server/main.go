@@ -228,6 +228,7 @@ func main() {
 		store:           store,
 		aiService:       aiService,
 		mcpService:      mcpService,
+		telegramService: telegramService,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -296,6 +297,7 @@ type graphqlServerInput struct {
 	aiService              *ai.Service
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
+	telegramService        *telegram.TelegramService
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -316,6 +318,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		TelegramService:        input.telegramService,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
