@@ -248,26 +248,6 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 		return nil, err
 	}
 
-	workflowID := "index"
-	workflowRunID := "" // Empty string means latest run
-	var stateQuery model.IndexingState
-	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
-	if err != nil {
-		r.Logger.Error("Error querying workflow", "error", err)
-		return profile, nil
-	}
-
-	if err := encodedValue.Get(&stateQuery); err != nil {
-		r.Logger.Error("Error querying workflow", "error", err)
-		return profile, nil
-	}
-
-	profile.IndexingStatus = &model.IndexingStatus{
-		Status:                 stateQuery,
-		ProcessingDataProgress: 0,
-		IndexingDataProgress:   0,
-	}
-
 	return profile, nil
 }
 
@@ -535,6 +515,32 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	}()
 
 	return messages, nil
+// IndexingStatus is the resolver for the indexingStatus field.
+func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
+	workflowID := "index"
+	workflowRunID := "" // Empty string means latest run
+	var stateQuery model.IndexingState
+	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
+	if err != nil {
+		r.Logger.Error("Error querying workflow", "error", err)
+		return nil, nil
+	}
+
+	if err := encodedValue.Get(&stateQuery); err != nil {
+		r.Logger.Error("Error querying workflow", "error", err)
+		return nil, nil
+	}
+
+	return &model.IndexingStatus{
+		Status:                 stateQuery,
+		ProcessingDataProgress: 0,
+		IndexingDataProgress:   0,
+	}, nil
+}
+
+// ConnectedDataSources is the resolver for the connectedDataSources field.
+func (r *userProfileResolver) ConnectedDataSources(ctx context.Context, obj *model.UserProfile) ([]*model.DataSource, error) {
+	panic(fmt.Errorf("not implemented: ConnectedDataSources - connectedDataSources"))
 }
 
 // Chat returns ChatResolver implementation.
@@ -549,7 +555,11 @@ func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 // Subscription returns SubscriptionResolver implementation.
 func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
 
+// UserProfile returns UserProfileResolver implementation.
+func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
+
 type chatResolver struct{ *Resolver }
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
 type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

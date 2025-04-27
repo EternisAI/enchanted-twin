@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
@@ -16,11 +15,6 @@ import (
 const (
 	SEARCH_FILES_TOOL_NAME = "search_drive_files"
 	READ_FILE_TOOL_NAME    = "read_drive_file"
-)
-
-const (
-	SEARCH_FILES_TOOL_DESCRIPTION = "Search for files in Google Drive based on a query string. Returns a list of files matching the query."
-	READ_FILE_TOOL_DESCRIPTION    = "Read the content of a specific file in Google Drive using its file ID. Handles Google Docs, Sheets, and Slides by exporting them."
 )
 
 type SearchFilesArguments struct {
@@ -114,7 +108,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 		if err != nil {
 			return nil, fmt.Errorf("unable to export Google Doc '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read exported Google Doc content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
@@ -127,7 +121,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 		if err != nil {
 			return nil, fmt.Errorf("unable to export Google Sheet '%s' (ID: %s) as CSV: %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read exported Google Sheet content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
@@ -140,7 +134,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 		if err != nil {
 			return nil, fmt.Errorf("unable to export Google Slides '%s' (ID: %s) as text: %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read exported Google Slides content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
@@ -177,7 +171,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 			}
 			return nil, fmt.Errorf("unable to download file content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -234,32 +228,4 @@ func getDriveService(ctx context.Context, accessToken string) (*drive.Service, e
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
 	}
 	return driveService, nil
-}
-
-func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
-	var tools []mcp_golang.ToolRetType
-
-	searchFilesSchema, err := helpers.ConverToInputSchema(SearchFilesArguments{})
-	if err != nil {
-		return nil, fmt.Errorf("error generating schema for search_drive_files: %w", err)
-	}
-	desc := SEARCH_FILES_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        SEARCH_FILES_TOOL_NAME,
-		Description: &desc,
-		InputSchema: searchFilesSchema,
-	})
-
-	readFileSchema, err := helpers.ConverToInputSchema(ReadFileArguments{})
-	if err != nil {
-		return nil, fmt.Errorf("error generating schema for read_drive_file: %w", err)
-	}
-	desc = READ_FILE_TOOL_DESCRIPTION
-	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        READ_FILE_TOOL_NAME,
-		Description: &desc,
-		InputSchema: readFileSchema,
-	})
-
-	return tools, nil
 }

@@ -66,9 +66,12 @@ func main() {
 		MaxConcurrentActivityExecutionSize: 1,
 	})
 
+	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+
 	// Register workflows
+	agentActivities := plannedv2.NewAgentActivities(aiService)
 	w.RegisterWorkflow(plannedv2.PlannedAgentWorkflow)
-	plannedv2.RegisterActivities(w)
+	agentActivities.RegisterPlannedAgentWorkflow(w, logger)
 	logger.Info("Registered PlannedV2 Workflows and Activities")
 
 	w.RegisterWorkflow(root.RootWorkflow)
@@ -89,10 +92,6 @@ func main() {
 	// 	os.Exit(1)
 	// }
 	// logger.Info("Root workflow is running", "id", rootRun.GetID(), "run_id", rootRun.GetRunID())
-
-	// Initialize OpenAI API instance
-	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	ai.SetInstance(aiService)
 
 	// Handle command
 	switch *commandFlag {

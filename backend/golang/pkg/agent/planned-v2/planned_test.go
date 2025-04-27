@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
@@ -14,6 +15,11 @@ import (
 type PlannedAgentTestSuite struct {
 	suite.Suite
 	testsuite.WorkflowTestSuite
+	activities *AgentActivities
+}
+
+func (s *PlannedAgentTestSuite) SetupTest() {
+	s.activities = NewAgentActivities(&ai.Service{})
 }
 
 // TestPlannedAgentWorkflow is the entry point for running the test suite.
@@ -34,7 +40,7 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 	mockCounter := 0
 
 	// Mock LLM completion activity with a callback function
-	env.OnActivity(LLMCompletionActivity,
+	env.OnActivity(s.activities.LLMCompletionActivity,
 		mustMatchAny, mustMatchAny, mustMatchAny, mustMatchAny).
 		Return(func(ctx interface{}, messages interface{}, tools interface{}, model string) (openai.ChatCompletionMessage, error) {
 			mockCounter++
@@ -63,7 +69,7 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 		})
 
 	// Mock execute tool activity
-	env.OnActivity(ExecuteToolActivity, "echo", mustMatchAny).Return(
+	env.OnActivity(s.activities.ExecuteToolActivity, "echo", mustMatchAny).Return(
 		&types.ToolResult{
 			Tool:    "echo",
 			Content: "Echo: Starting execution of the plan",
@@ -112,7 +118,7 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 
 	// Mock LLM completion activities to return sleep tool calls
 	mockCalls := 0
-	env.OnActivity(LLMCompletionActivity,
+	env.OnActivity(s.activities.LLMCompletionActivity,
 		mustMatchAny, mustMatchAny, mustMatchAny, mustMatchAny).
 		Return(func(ctx interface{}, messages interface{}, tools interface{}, model string) (openai.ChatCompletionMessage, error) {
 			mockCalls++
@@ -141,7 +147,7 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 		})
 
 	// Mock for sleep tool execution
-	env.OnActivity(ExecuteToolActivity, "sleep", mustMatchAny).Return(
+	env.OnActivity(s.activities.ExecuteToolActivity, "sleep", mustMatchAny).Return(
 		&types.ToolResult{
 			Tool:    "sleep",
 			Content: "Slept for 2 seconds. Reason: Testing sleep functionality",

@@ -13,27 +13,29 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-// DefaultToolTimeout is the default timeout for tool execution.
 const DefaultToolTimeout = 1 * time.Minute
 
-// RegisterActivities registers all activities with the Temporal worker.
-func RegisterActivities(w worker.Worker) {
-	// Register LLM activities
-	w.RegisterActivity(LLMCompletionActivity)
-
-	// Register tool activities
-	w.RegisterActivity(ExecuteToolActivity)
+type AgentActivities struct {
+	aiService *ai.Service
 }
 
-// LLMCompletionActivity executes a completion request against the LLM API.
-func LLMCompletionActivity(
+func NewAgentActivities(aiService *ai.Service) *AgentActivities {
+	return &AgentActivities{
+		aiService: aiService,
+	}
+}
+
+func (a *AgentActivities) RegisterActivities(w worker.Worker) {
+	w.RegisterActivity(a.LLMCompletionActivity)
+	w.RegisterActivity(a.ExecuteToolActivity)
+}
+
+func (a *AgentActivities) LLMCompletionActivity(
 	ctx context.Context,
 	model string,
 	messages []Message,
 	tools []openai.ChatCompletionToolParam,
 ) (openai.ChatCompletionMessage, error) {
-	// We don't need the logger for now
-	// logger := activity.GetLogger(ctx)
 
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
@@ -41,18 +43,10 @@ func LLMCompletionActivity(
 		Tools:    tools,
 	}
 
-	// Get AI service singleton
-	aiService := ai.GetInstance()
-	if aiService == nil {
-		return openai.ChatCompletionMessage{}, fmt.Errorf("AI service singleton not initialized")
-	}
-
-	// Execute completions
-	return aiService.ParamsCompletions(ctx, params)
+	return a.aiService.ParamsCompletions(ctx, params)
 }
 
-// ExecuteToolActivity is a generic activity for executing tools.
-func ExecuteToolActivity(
+func (a *AgentActivities) ExecuteToolActivity(
 	ctx context.Context,
 	toolName string,
 	args map[string]interface{},

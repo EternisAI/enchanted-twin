@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	stderrs "errors"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,7 +20,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/graphmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -46,50 +45,13 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-// bootstrapPostgres initializes and starts a PostgreSQL service
-func bootstrapPostgres(
-	ctx context.Context,
-	logger *log.Logger,
-) (*bootstrap.PostgresService, error) {
-	// Get default options
-	options := bootstrap.DefaultPostgresOptions()
-
-	// Create and start PostgreSQL service
-	postgresService, err := bootstrap.NewPostgresService(logger, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
-	}
-
-	logger.Info("Starting PostgreSQL service...")
-	err = postgresService.Start(ctx, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
-	}
-
-	return postgresService, nil
-}
-
 func main() {
-	// Define command line flags
-	recreateMemDbFlag := flag.Bool("recreate-mem-db", false, "Recreate memory database on startup")
-	flag.Parse()
-
-	// Log flag values
-	flagValues := make(map[string]interface{})
-	flag.Visit(func(f *flag.Flag) {
-		flagValues[f.Name] = f.Value
-	})
-
 	logger := log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           log.DebugLevel,
 		TimeFormat:      time.Kitchen,
 	})
-
-	if len(flagValues) > 0 {
-		logger.Info("Command line flags", "flags", flagValues)
-	}
 
 	envs, _ := config.LoadConfig(true)
 	logger.Debug("Config loaded", "envs", envs)
@@ -155,7 +117,8 @@ func main() {
 	logger.Info("SQLite database initialized")
 
 	// Initialize the AI service singleton
-	aiService := ai.InitSingleton(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
@@ -174,12 +137,15 @@ func main() {
 		"connection",
 		postgresService.GetConnectionString(dbName),
 	)
-	memory, err := graphmemory.NewGraphMemory(
-		logger,
-		postgresService.GetConnectionString(dbName),
-		aiService,
-		*recreateMemDbFlag,
-		envs.CompletionsModel,
+	recreateMemDb := false
+	mem, err := embeddingsmemory.NewEmbeddingsMemory(
+		&embeddingsmemory.Config{
+			Logger:              logger,
+			PgString:            postgresService.GetConnectionString(dbName),
+			AI:                  aiEmbeddingsService,
+			Recreate:            recreateMemDb,
+			EmbeddingsModelName: envs.EmbeddingsModel,
+		},
 	)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create memory"))
@@ -196,13 +162,16 @@ func main() {
 
 	// Initialize and start the temporal worker
 	temporalWorker, err := bootstrapTemporalWorker(
-		logger,
-		temporalClient,
-		envs,
-		store,
-		nc,
-		ollamaClient,
-		memory,
+		&bootstrapTemporalWorkerInput{
+			logger:               logger,
+			temporalClient:       temporalClient,
+			envs:                 envs,
+			store:                store,
+			nc:                   nc,
+			ollamaClient:         ollamaClient,
+			memory:               mem,
+			aiCompletionsService: aiCompletionsService,
+		},
 	)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal worker"))
@@ -214,7 +183,6 @@ func main() {
 		Token:            envs.TelegramToken,
 		Client:           &http.Client{},
 		Store:            store,
-		AiService:        aiService,
 		CompletionsModel: envs.CompletionsModel,
 		Memory:           mem,
 		AuthStorage:      store,
@@ -262,7 +230,7 @@ func main() {
 	// Create TwinChat service with minimal dependencies
 	twinChatService := twinchat.NewService(
 		logger,
-		aiService,
+		aiCompletionsService,
 		chatStorage,
 		nc,
 		envs.CompletionsModel,
@@ -275,7 +243,7 @@ func main() {
 	standardTools := agent.RegisterStandardTools(
 		toolRegistry,
 		logger,
-		memory,
+		mem,
 		envs.TelegramToken,
 		store,
 		temporalClient,
@@ -311,7 +279,7 @@ func main() {
 		twinChatService: *twinChatService,
 		natsClient:      nc,
 		store:           store,
-		aiService:       aiService,
+		aiService:       aiCompletionsService,
 		mcpService:      mcpService,
 		telegramService: telegramService,
 	})
@@ -334,6 +302,28 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
+func bootstrapPostgres(
+	ctx context.Context,
+	logger *log.Logger,
+) (*bootstrap.PostgresService, error) {
+	// Get default options
+	options := bootstrap.DefaultPostgresOptions()
+
+	// Create and start PostgreSQL service
+	postgresService, err := bootstrap.NewPostgresService(logger, options)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
+	}
+
+	logger.Info("Starting PostgreSQL service...")
+	err = postgresService.Start(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
+	}
+
+	return postgresService, nil
+}
+
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
@@ -353,46 +343,47 @@ func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Cl
 	return temporalClient, nil
 }
 
-// bootstrapTemporalWorker creates and starts a Temporal worker with registered workflows
+type bootstrapTemporalWorkerInput struct {
+	logger               *log.Logger
+	temporalClient       client.Client
+	envs                 *config.Config
+	store                *db.Store
+	nc                   *nats.Conn
+	ollamaClient         *ollamaapi.Client
+	memory               memory.Storage
+	aiCompletionsService *ai.Service
+}
+
 func bootstrapTemporalWorker(
-	logger *log.Logger,
-	temporalClient client.Client,
-	envs *config.Config,
-	store *db.Store,
-	nc *nats.Conn,
-	ollamaClient *ollamaapi.Client,
-	memory memory.Storage,
+	input *bootstrapTemporalWorkerInput,
 ) (worker.Worker, error) {
-	// Create worker
-	w := worker.New(temporalClient, "default", worker.Options{
+	w := worker.New(input.temporalClient, "default", worker.Options{
 		MaxConcurrentActivityExecutionSize: 1,
 	})
 
 	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
-		Logger:       logger,
-		Config:       envs,
-		Store:        store,
-		Nc:           nc,
-		OllamaClient: ollamaClient,
-		Memory:       memory,
+		Logger:       input.logger,
+		Config:       input.envs,
+		Store:        input.store,
+		Nc:           input.nc,
+		OllamaClient: input.ollamaClient,
+		Memory:       input.memory,
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
-	authActivities := auth.NewOAuthActivities(store)
+	// Register auth activities
+	authActivities := auth.NewOAuthActivities(input.store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
-	// Register the root workflow
-	// w.RegisterWorkflow(root.RootWorkflow)
-	// logger.Info("Registered root workflow")
-
 	// Register the planned agent v2 workflow
-	plannedv2.RegisterPlannedAgentWorkflow(w, logger)
-	logger.Info("Registered planned agent workflow")
+	agentActivities := plannedv2.NewAgentActivities(input.aiCompletionsService)
+	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
+	input.logger.Info("Registered planned agent workflow")
 
 	// Start the worker
 	err := w.Start()
 	if err != nil {
-		logger.Error("Error starting worker", slog.Any("error", err))
+		input.logger.Error("Error starting worker", slog.Any("error", err))
 		return nil, err
 	}
 

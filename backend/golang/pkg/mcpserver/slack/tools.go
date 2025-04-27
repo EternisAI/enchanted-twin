@@ -161,10 +161,10 @@ func processSearchMessages(ctx context.Context, accessToken string, arguments Se
 
 	// Determine the next page cursor (which is just the next page number as a string)
 	var nextCursor *string
-	if results.Paging.Page < results.Paging.Pages {
-		nextPageStr := fmt.Sprintf("%d", results.Paging.Page+1)
-		nextCursor = &nextPageStr
-	}
+	// if results.Paging.Page < results.Paging.Pages {
+	// 	nextPageStr := fmt.Sprintf("%d", results.Paging.Page+1)
+	// 	nextCursor = &nextPageStr
+	// }
 
 	// Append the next cursor information as a text content if it exists
 	if nextCursor != nil && *nextCursor != "" {
