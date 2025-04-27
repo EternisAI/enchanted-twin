@@ -11,11 +11,16 @@ RUN go mod download
 COPY . .
 
 # Build the application, specifying the correct package path
-RUN GOOS=linux go build -o /app/server ./cmd/telegram_chat_server
+# Disable CGO for static linking compatible with Alpine and set target architecture
+RUN GOOS=linux GOARCH=amd64 go build -o /app/server ./cmd/telegram_chat_server
 
 # --- Final Stage ---
 FROM alpine:latest
 WORKDIR /app
+
+# Install C libraries needed by the CGo-enabled binary (like go-sqlite3)
+RUN apk add --no-cache libc6-compat sqlite-libs
+
 # Copy only the built binary
 COPY --from=builder /app/server .
 
