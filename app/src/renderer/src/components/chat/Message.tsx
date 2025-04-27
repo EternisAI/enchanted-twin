@@ -1,10 +1,10 @@
 import { Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
-import { Markdown } from './Markdown'
 import { cn } from '@renderer/lib/utils'
 import { CheckCircle, LoaderIcon } from 'lucide-react'
 import { TOOL_NAMES } from './config'
 import { Badge } from '../ui/badge'
+import Markdown from './Markdown'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
