@@ -10,16 +10,18 @@ RUN go mod download
 # Copy the entire project context
 COPY . .
 
-# Build the application, specifying the correct package path
-# Disable CGO for static linking compatible with Alpine and set target architecture
-RUN GOOS=linux GOARCH=amd64 go build -o /app/server ./cmd/telegram_chat_server
+# Build the application with CGO enabled for SQLite support
+RUN CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -o /app/server ./cmd/telegram_chat_server
 
 # --- Final Stage ---
-FROM alpine:latest
+FROM debian:bookworm-slim
 WORKDIR /app
 
-# Install C libraries needed by the CGo-enabled binary (like go-sqlite3)
-RUN apk add --no-cache libc6-compat sqlite-libs
+# Install SQLite and other dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy only the built binary
 COPY --from=builder /app/server .
@@ -27,8 +29,12 @@ COPY --from=builder /app/server .
 # Ensure the binary is executable
 RUN chmod +x /app/server
 
-RUN adduser -D -u 1000 appuser
+# Create data directory with proper permissions
+RUN mkdir -p /app/data
+
+# Create a non-root user
+RUN useradd -r -u 1000 -m appuser && chown -R appuser:appuser /app/data
+RUN chown appuser:appuser /app
 USER appuser
 
 CMD ["/app/server"]
-
