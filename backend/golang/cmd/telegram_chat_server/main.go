@@ -75,7 +75,7 @@ func main() {
 		}
 	}()
 
-	graphqlPort := "3001"
+	graphqlPort := envs.GraphqlPort
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
 		port:            graphqlPort,
