@@ -422,15 +422,15 @@ func SaveRecords(records []types.Record, outputPath string) error {
 	return nil
 }
 
-func Sync(sourceName string, accessToken string) ([]types.Record, error) {
+func Sync(ctx context.Context, sourceName string, accessToken string) ([]types.Record, error) {
 	var records []types.Record
 	var err error
 
 	switch sourceName {
 	case "gmail":
-		records, err = gmail.New().Sync(context.Background(), accessToken)
+		records, err = gmail.New().Sync(ctx, accessToken)
 	case "x":
-		records, err = x.New("").Sync(context.Background(), accessToken)
+		records, err = x.New("").Sync(ctx, accessToken)
 	default:
 		return nil, fmt.Errorf("unsupported source: %s", sourceName)
 	}
