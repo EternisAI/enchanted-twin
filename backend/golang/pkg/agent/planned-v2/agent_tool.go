@@ -59,10 +59,6 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 							"type": "string",
 						},
 					},
-					"max_steps": map[string]interface{}{
-						"type":        "integer",
-						"description": "Maximum number of steps to execute (default: 15)",
-					},
 					"system_prompt": map[string]interface{}{
 						"type":        "string",
 						"description": "Optional system prompt override",
@@ -94,11 +90,6 @@ func (t *PlannedAgentTool) Execute(
 		}
 	}
 
-	maxSteps := t.maxSteps
-	if maxStepsArg, ok := args["max_steps"].(float64); ok {
-		maxSteps = int(maxStepsArg)
-	}
-
 	systemPrompt := ""
 	if promptArg, ok := args["system_prompt"].(string); ok {
 		systemPrompt = promptArg
@@ -109,7 +100,6 @@ func (t *PlannedAgentTool) Execute(
 		Plan:         plan,
 		ToolNames:    toolNames,
 		Model:        t.model,
-		MaxSteps:     maxSteps,
 		SystemPrompt: systemPrompt,
 	}
 

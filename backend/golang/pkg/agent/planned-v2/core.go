@@ -51,9 +51,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	}
 
 	// Set default max steps if not provided
-	if planInput.MaxSteps <= 0 {
-		planInput.MaxSteps = DefaultMaxSteps
-	}
+	planInput.MaxSteps = DefaultMaxSteps
 
 	// Create initial state
 	state := PlanState{
