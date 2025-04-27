@@ -13,6 +13,6 @@ spec:
   - name: ${tenant}-telegram-chat
     route:
     - destination:
-        host: api
+        host: telegram-chat
         port:
           number: 80
