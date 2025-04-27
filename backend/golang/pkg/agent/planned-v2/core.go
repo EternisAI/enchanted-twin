@@ -13,7 +13,7 @@ import (
 )
 
 // DefaultMaxSteps is the default number of iterations for ReAct loop.
-const DefaultMaxSteps = 15
+const DefaultMaxSteps = 100
 
 // Constants for workflow operations.
 const (
