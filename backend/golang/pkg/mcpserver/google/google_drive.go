@@ -19,7 +19,6 @@ const READ_FILE_TOOL_NAME = "read_drive_file"
 const SEARCH_FILES_TOOL_DESCRIPTION = "Search for files in Google Drive based on a query string. Returns a list of files matching the query."
 const READ_FILE_TOOL_DESCRIPTION = "Read the content of a specific file in Google Drive using its file ID. Handles Google Docs, Sheets, and Slides by exporting them."
 
-
 type SearchFilesArguments struct {
 	Query     string `json:"query" jsonschema:"required,description=The query string to search for file titles"`
 	PageToken string `json:"page_token,omitempty" jsonschema:"description=Optional page token for pagination."`
@@ -31,7 +30,7 @@ type ReadFileArguments struct {
 }
 
 func processSearchFiles(ctx context.Context, accessToken string, args SearchFilesArguments) ([]*mcp_golang.Content, error) {
-	
+
 	driveService, err := getDriveService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
@@ -40,7 +39,7 @@ func processSearchFiles(ctx context.Context, accessToken string, args SearchFile
 	q := args.Query
 	if q == "" {
 		q = "trashed=false"
-	}else{
+	} else {
 		q = fmt.Sprintf("name contains '%s'", q)
 	}
 
@@ -80,7 +79,7 @@ func processSearchFiles(ctx context.Context, accessToken string, args SearchFile
 }
 
 func processReadFile(ctx context.Context, accessToken string, args ReadFileArguments) ([]*mcp_golang.Content, error) {
-	
+
 	driveService, err := getDriveService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
@@ -113,7 +112,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 		if err != nil {
 			return nil, fmt.Errorf("unable to export Google Doc '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read exported Google Doc content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
@@ -126,7 +125,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 		if err != nil {
 			return nil, fmt.Errorf("unable to export Google Sheet '%s' (ID: %s) as CSV: %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read exported Google Sheet content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
@@ -139,7 +138,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 		if err != nil {
 			return nil, fmt.Errorf("unable to export Google Slides '%s' (ID: %s) as text: %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return nil, fmt.Errorf("unable to read exported Google Slides content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
@@ -176,7 +175,7 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 			}
 			return nil, fmt.Errorf("unable to download file content for '%s' (ID: %s): %w", fileMeta.OriginalFilename, args.FileID, err)
 		}
-		defer resp.Body.Close()
+		defer resp.Body.Close() //nolint:errcheck
 
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if err != nil {
@@ -210,7 +209,6 @@ func processReadFile(ctx context.Context, accessToken string, args ReadFileArgum
 	if len(contentText) > maxReturnLength {
 		contentText = contentText[:maxReturnLength] + "... (truncated)"
 	}
-
 
 	return []*mcp_golang.Content{
 		{

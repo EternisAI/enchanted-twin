@@ -40,7 +40,7 @@ func countEmails(path string) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
+	defer f.Close() //nolint:errcheck
 
 	const maxCap = 1024 * 1024
 	sc := bufio.NewScanner(f)
@@ -95,7 +95,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 	failPath := "output/failed_emails.mbox"
 	failF, _ := os.Create(failPath)
 	if failF != nil {
-		defer failF.Close()
+		defer failF.Close() //nolint:errcheck
 	}
 
 	// workers
@@ -143,7 +143,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			close(jobs)
 			return
 		}
-		defer f.Close()
+		defer f.Close() //nolint:errcheck
 
 		var buf bytes.Buffer
 		r := bufio.NewReader(f)
@@ -254,7 +254,7 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 					html = t
 				}
 			}
-			p.Close()
+			p.Close() //nolint:errcheck
 		}
 		if plain != "" {
 			final = plain
@@ -304,7 +304,9 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+
+	defer resp.Body.Close() //nolint:errcheck
+
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("gmail list: %d %s", resp.StatusCode, b)
@@ -338,7 +340,9 @@ func (g *Gmail) fetchMessage(ctx context.Context, c *http.Client, token, id stri
 	if err != nil {
 		return types.Record{}, err
 	}
-	defer resp.Body.Close()
+
+	defer resp.Body.Close() //nolint:errcheck
+
 	if resp.StatusCode != http.StatusOK {
 		return types.Record{}, fmt.Errorf("fetch %s: %d", id, resp.StatusCode)
 	}
@@ -477,7 +481,7 @@ func ToDocuments(recs []types.Record) ([]memory.TextDocument, error) {
 // cleanEmailText normalises line-breaks, zaps zero-width & NBSP chars,
 // collapses excess whitespace, and chops common footer / unsubscribe sections.
 func cleanEmailText(s string) string {
-	// 1) normalise breaks + common “invisible” chars
+	// 1) normalise breaks + common "invisible" chars
 	repl := strings.NewReplacer(
 		"\r\n", "\n", "\r", "\n",
 		"\u00a0", " ", // NBSP

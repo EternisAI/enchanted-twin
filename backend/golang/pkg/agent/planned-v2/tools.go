@@ -11,7 +11,7 @@ import (
 )
 
 // generateNextAction uses the LLM to determine the next actions based on the plan and history.
-func generateNextAction(
+func (a *AgentActivities) generateNextAction(
 	ctx workflow.Context,
 	state *PlanState,
 	tools []openai.ChatCompletionToolParam,
@@ -22,7 +22,7 @@ func generateNextAction(
 	// Execute LLM completion to get next action
 	var completion openai.ChatCompletionMessage
 
-	err := workflow.ExecuteActivity(ctx, LLMCompletionActivity, model, state.Messages, tools).
+	err := workflow.ExecuteActivity(ctx, a.LLMCompletionActivity, model, state.Messages, tools).
 		Get(ctx, &completion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate next actions: %w", err)
@@ -92,7 +92,7 @@ func generateNextAction(
 }
 
 // executeAction executes a tool call and returns the result.
-func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*types.ToolResult, error) {
+func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
@@ -160,7 +160,7 @@ func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*
 
 	// Execute the tool activity
 	var result types.ToolResult
-	err := workflow.ExecuteActivity(ctx, ExecuteToolActivity, toolName, params).Get(ctx, &result)
+	err := workflow.ExecuteActivity(ctx, a.ExecuteToolActivity, toolName, params).Get(ctx, &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
 	}

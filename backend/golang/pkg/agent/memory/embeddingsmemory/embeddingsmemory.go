@@ -15,8 +15,16 @@ type EmbeddingsMemory struct {
 	embeddingsModelName string
 }
 
-func NewEmbeddingsMemory(logger *log.Logger, pgString string, ai *ai.Service, recreate bool, completionsModelName string) (*EmbeddingsMemory, error) {
-	db, err := sqlx.Open("postgres", pgString)
+type Config struct {
+	AI                  *ai.Service
+	Logger              *log.Logger
+	PgString            string
+	Recreate            bool
+	EmbeddingsModelName string
+}
+
+func NewEmbeddingsMemory(config *Config) (*EmbeddingsMemory, error) {
+	db, err := sqlx.Open("postgres", config.PgString)
 	if err != nil {
 		return nil, err
 	}
@@ -25,9 +33,9 @@ func NewEmbeddingsMemory(logger *log.Logger, pgString string, ai *ai.Service, re
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	mem := &EmbeddingsMemory{db: db, ai: ai, logger: logger, embeddingsModelName: completionsModelName}
+	mem := &EmbeddingsMemory{db: db, ai: config.AI, logger: config.Logger, embeddingsModelName: config.EmbeddingsModelName}
 
-	if err := mem.ensureDbSchema(recreate); err != nil {
+	if err := mem.ensureDbSchema(config.Recreate); err != nil {
 		if closeErr := db.Close(); closeErr != nil {
 			return nil, fmt.Errorf("failed to create database schema: %w (close error: %v)", err, closeErr)
 		}

@@ -41,9 +41,9 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name: "execute_plan",
+			Name: "schedule_task",
 			Description: param.NewOpt(
-				"Execute a multi-step plan using tools and reasoning capabilities",
+				"Schedule a task to be executed periodically by the agent with planning and reasoning",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
@@ -58,10 +58,6 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 						"items": map[string]interface{}{
 							"type": "string",
 						},
-					},
-					"max_steps": map[string]interface{}{
-						"type":        "integer",
-						"description": "Maximum number of steps to execute (default: 15)",
 					},
 					"system_prompt": map[string]interface{}{
 						"type":        "string",
@@ -94,11 +90,6 @@ func (t *PlannedAgentTool) Execute(
 		}
 	}
 
-	maxSteps := t.maxSteps
-	if maxStepsArg, ok := args["max_steps"].(float64); ok {
-		maxSteps = int(maxStepsArg)
-	}
-
 	systemPrompt := ""
 	if promptArg, ok := args["system_prompt"].(string); ok {
 		systemPrompt = promptArg
@@ -109,7 +100,6 @@ func (t *PlannedAgentTool) Execute(
 		Plan:         plan,
 		ToolNames:    toolNames,
 		Model:        t.model,
-		MaxSteps:     maxSteps,
 		SystemPrompt: systemPrompt,
 	}
 
