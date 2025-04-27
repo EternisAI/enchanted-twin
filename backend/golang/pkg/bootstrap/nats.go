@@ -26,7 +26,6 @@ func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
 	}
 	storeDir := filepath.Join(cacheDir, "enchanted-twin", "nats")
 
-	// Ensure the directory exists
 	if err := os.MkdirAll(storeDir, 0755); err != nil {
 		return nil, errors.New("unable to create NATS store directory")
 	}
@@ -36,7 +35,7 @@ func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
 		Port:      4222,
 		Host:      "127.0.0.1",
 		JetStream: true,
-		StoreDir:  storeDir, // Use absolute path
+		StoreDir:  storeDir,
 	}
 
 	s, err := server.NewServer(opts)
