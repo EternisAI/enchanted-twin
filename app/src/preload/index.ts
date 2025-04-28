@@ -23,7 +23,7 @@ const api = {
   },
   openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
   openAppDataFolder: () => ipcRenderer.invoke('open-appdata-folder'),
-  deleteDBData: () => ipcRenderer.invoke('delete-db-data'),
+  deleteAppData: () => ipcRenderer.invoke('delete-app-data'),
   isPackaged: () => ipcRenderer.invoke('isPackaged'),
   restartApp: () => ipcRenderer.invoke('restart-app')
 }
