@@ -124,11 +124,11 @@ func (s *TelegramService) Start(ctx context.Context) error {
 			}
 
 			if !result.OK {
-				s.logger.Error("Telegram API returned error",
-					"error_code", result.ErrorCode,
-					"description", result.Description,
-					"body", string(body),
-				)
+				// s.logger.Error("Telegram API returned error",
+				// 	"error_code", result.ErrorCode,
+				// 	"description", result.Description,
+				// 	"body", string(body),
+				// )
 				time.Sleep(time.Second * 5)
 				continue
 			}
