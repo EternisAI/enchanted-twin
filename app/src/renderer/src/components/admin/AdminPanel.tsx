@@ -79,39 +79,36 @@ export default function AdminPanel() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h3 className="text-xl font-medium mb-4">Admin Functions</h3>
-        <div className="grid grid-cols-1 gap-4">
-          <Button
-            variant="outline"
-            className="flex items-center justify-start h-14"
-            onClick={openLogsFolder}
-            disabled={isLoading.logs}
-          >
-            <FolderOpen className="mr-2" />
-            {isLoading.logs ? 'Opening...' : 'Open Logs Folder'}
-          </Button>
+      <div className="grid grid-cols-1 gap-4">
+        <Button
+          variant="outline"
+          className="flex items-center justify-start h-14"
+          onClick={openLogsFolder}
+          disabled={isLoading.logs}
+        >
+          <FolderOpen className="mr-2" />
+          {isLoading.logs ? 'Opening...' : 'Open Logs Folder'}
+        </Button>
 
-          <Button
-            variant="outline"
-            className="flex items-center justify-start h-14"
-            onClick={openAppFolder}
-            disabled={isLoading.app}
-          >
-            <FolderOpen className="mr-2" />
-            {isLoading.app ? 'Opening...' : 'Open Application Folder'}
-          </Button>
+        <Button
+          variant="outline"
+          className="flex items-center justify-start h-14"
+          onClick={openAppFolder}
+          disabled={isLoading.app}
+        >
+          <FolderOpen className="mr-2" />
+          {isLoading.app ? 'Opening...' : 'Open Application Folder'}
+        </Button>
 
-          <Button
-            variant="destructive"
-            className="flex items-center justify-start h-14"
-            onClick={deleteAppData}
-            disabled={isLoading.data}
-          >
-            <Trash2 className="mr-2" />
-            {isLoading.data ? 'Deleting...' : 'Delete App Data'}
-          </Button>
-        </div>
+        <Button
+          variant="destructive"
+          className="flex items-center justify-start h-14"
+          onClick={deleteAppData}
+          disabled={isLoading.data}
+        >
+          <Trash2 className="mr-2" />
+          {isLoading.data ? 'Deleting...' : 'Delete App Data'}
+        </Button>
       </div>
     </div>
   )
