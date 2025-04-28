@@ -21,13 +21,14 @@ type Config struct {
 	OllamaBaseURL      string
 	TelegramToken      string
 	TelegramChatServer string
+	AppDataPath        string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
 	logger := log.Default()
 	value := os.Getenv(key)
 	if printEnv {
-		logger.Debug("Env", "key", key, "value", value)
+		logger.Info("Env", "key", key, "value", value)
 	}
 	if value == "" {
 		return defaultValue
@@ -45,6 +46,7 @@ func getEnvOrPanic(key string, printEnv bool) string { //nolint
 
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
+
 	conf := &Config{
 		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", "", printEnv),
 		GraphqlPort:        getEnv("GRAPHQL_PORT", "3000", printEnv),
@@ -58,6 +60,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnv("TELEGRAM_CHAT_SERVER", "", printEnv),
+		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
 	}
 	return conf, nil
 }

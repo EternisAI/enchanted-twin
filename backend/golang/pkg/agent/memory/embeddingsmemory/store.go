@@ -132,8 +132,9 @@ func (m *EmbeddingsMemory) storeDocuments(
 			return err
 		}
 
-		vals := make([]string, len(embeddings[i]))
-		for j, v := range embeddings[i] {
+		vec := padVector(embeddings[i], EmbeddingLength)
+		vals := make([]string, len(vec))
+		for j, v := range vec {
 			vals[j] = fmt.Sprintf("%f", v)
 		}
 		vecLiteral := "[" + strings.Join(vals, ",") + "]"

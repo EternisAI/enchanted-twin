@@ -23,6 +23,10 @@ type Config struct {
 	EmbeddingsModelName string
 }
 
+const (
+	EmbeddingLength = 1536
+)
+
 func NewEmbeddingsMemory(config *Config) (*EmbeddingsMemory, error) {
 	db, err := sqlx.Open("postgres", config.PgString)
 	if err != nil {
@@ -61,4 +65,12 @@ func (m *EmbeddingsMemory) ensureDbSchema(recreate bool) error {
 	}
 
 	return nil
+}
+
+// OpenAI embeddings are 1536 dim, we want to pad Ollama embeddings to 1536 dim
+func padVector(vec []float64, length int) []float64 {
+	if len(vec) >= length {
+		return vec[:length]
+	}
+	return append(vec, make([]float64, length-len(vec))...)
 }
