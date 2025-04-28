@@ -254,7 +254,6 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 }
 
 func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (bool, error) {
-	fmt.Println("Processing source", sourceType, inputPath, outputPath, name, xApiKey)
 	var records []types.Record
 	var err error
 
@@ -324,7 +323,6 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 }
 
 func SaveRecords(records []types.Record, outputPath string) error {
-	fmt.Println("Saving records", outputPath)
 	// Create the output directory if it doesn't exist
 	outputDir := filepath.Dir(outputPath)
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
