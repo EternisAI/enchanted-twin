@@ -69,12 +69,12 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         disabled={isActive}
         to="/chat/$chatId"
         params={{ chatId: chat.id }}
-        className={cn('block px-3 py-2 text-sm font-medium flex-1', {
+        className={cn('block px-3 py-2 text-sm font-medium flex-1 truncate', {
           'text-primary': isActive,
           'text-muted-foreground': !isActive
         })}
       >
-        {chat.name.slice(0, 25) || 'Untitled Chat'}
+        {chat.name || 'Untitled Chat'}
       </Link>
       <AlertDialog>
         <AlertDialogTrigger asChild>

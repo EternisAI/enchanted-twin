@@ -105,7 +105,7 @@ export default function ChatView({ chat }: { chat: Chat }) {
         </div>
       </div>
       <div className="flex flex-col px-6 py-4 w-full items-center justify-center">
-        <div className="max-w-4xl mx-auto w-full flex justify-center items-center">
+        <div className="max-w-4xl mx-auto w-full flex justify-center items-center relative">
           <ChatSuggestions
             chatId={chat.id}
             visible={showSuggestions}
