@@ -381,6 +381,8 @@ app.whenReady().then(() => {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
+      //@TODO: we should await this process to be fully started or have a initialize screen to show in the meantime while it's starting
+
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
           ...process.env,
@@ -542,22 +544,42 @@ app.whenReady().then(() => {
     }
   })
 
-  ipcMain.handle('delete-db-data', async () => {
+  ipcMain.handle('delete-app-data', async () => {
     try {
       const userDataPath = app.getPath('userData')
       const dbPath = join(userDataPath, 'db')
-      log.info(`Deleting database folder: ${dbPath}`)
+      log.info(`Checking for database folder: ${dbPath}`)
 
+      let dbDeleted = false
       if (fs.existsSync(dbPath)) {
+        log.info(`Deleting database folder: ${dbPath}`)
         fs.rmSync(dbPath, { recursive: true, force: true })
         log.info(`Successfully deleted database folder: ${dbPath}`)
-        return true
+        dbDeleted = true
       } else {
         log.info(`Database folder does not exist: ${dbPath}`)
-        return false
       }
+
+      const logsPath = app.getPath('logs')
+      const mainLogPath = join(logsPath, 'main.log')
+      log.info(`Checking for main.log: ${mainLogPath}`)
+
+      let logDeleted = false
+      if (fs.existsSync(mainLogPath)) {
+        try {
+          fs.unlinkSync(mainLogPath)
+          log.info(`Successfully deleted main.log`)
+          logDeleted = true
+        } catch (err) {
+          log.error(`Failed to delete main.log: ${err}`)
+        }
+      } else {
+        log.info(`main.log does not exist: ${mainLogPath}`)
+      }
+
+      return dbDeleted || logDeleted
     } catch (error) {
-      log.error(`Failed to delete database folder: ${error}`, error)
+      log.error(`Failed to delete application data: ${error}`, error)
       throw error
     }
   })

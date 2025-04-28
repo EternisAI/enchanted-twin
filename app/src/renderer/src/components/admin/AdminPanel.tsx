@@ -48,7 +48,7 @@ export default function AdminPanel() {
     if (confirm('Are you sure you want to delete all application data? The app will restart.')) {
       try {
         setIsLoading((prev) => ({ ...prev, data: true }))
-        const result = await window.api.deleteDBData()
+        const result = await window.api.deleteAppData()
 
         if (result) {
           toast.success('Application data deleted')
