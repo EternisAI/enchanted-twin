@@ -123,14 +123,14 @@ func main() {
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
-	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", slog.Any("error", err))
+	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
+		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
 		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
 	}
 
 	dbName := "enchanted_twin"
 	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", slog.Any("error", err))
+		logger.Error("Failed to ensure database exists", "error", err)
 		panic(errors.Wrap(err, "Unable to ensure database exists"))
 	}
 	logger.Info(
