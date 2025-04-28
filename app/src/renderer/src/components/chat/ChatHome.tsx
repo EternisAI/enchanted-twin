@@ -25,13 +25,18 @@ export default function ChatHome() {
       const newChatId = createData?.createChat?.id
 
       if (newChatId) {
-        await sendMessage({ variables: { chatId: newChatId, text } })
-        navigate({ to: `/chat/${newChatId}` })
+        navigate({
+          to: `/chat/${newChatId}`,
+          search: { initialMessage: text }
+        })
+
         // Refetch all chats
         await client.cache.evict({ fieldName: 'getChats' })
         await router.invalidate({
           filter: (match) => match.routeId === '/chat'
         })
+
+        await sendMessage({ variables: { chatId: newChatId, text } })
       }
     } catch (error) {
       console.error('Failed to start chat:', error)
@@ -43,7 +48,7 @@ export default function ChatHome() {
   const twinName = profile?.profile?.name || 'Your Twin'
 
   return (
-    <div className="flex flex-col items-center h-full">
+    <div className="flex flex-col items-center h-full w-full">
       <style>
         {`
           :root {
@@ -51,13 +56,15 @@ export default function ChatHome() {
           }
         `}
       </style>
-      <div className="flex flex-col flex-1 justify-between">
+      <div className="flex flex-col flex-1 w-full max-w-4xl justify-between">
         <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-12">
           <div className="py-8">
             <h1 className="text-3xl font-bold text-center">{twinName}</h1>
           </div>
 
-          <ContextCard />
+          <div className="w-xl">
+            <ContextCard />
+          </div>
 
           <div className="flex gap-10 p-4 border border-border rounded-lg">
             <div className="flex flex-col gap-2">
@@ -74,7 +81,7 @@ export default function ChatHome() {
             </div>
           </div>
         </div>
-        <div className="px-6 py-6 border-t border-border h-[130px]">
+        <div className="px-6 h-[130px] w-full flex flex-col justify-end">
           <MessageInput isWaitingTwinResponse={false} onSend={handleStartChat} />
         </div>
       </div>

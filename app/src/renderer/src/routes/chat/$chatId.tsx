@@ -2,41 +2,27 @@
 import ChatView from '@renderer/components/chat/ChatView'
 import { client } from '@renderer/graphql/lib'
 import { createFileRoute } from '@tanstack/react-router'
-import { gql } from '@apollo/client'
+import { GetChatDocument } from '@renderer/graphql/generated/graphql'
 
-const GetChatWithMessageIdDocument = gql`
-  query GetChat($id: ID!) {
-    getChat(id: $id) {
-      id
-      name
-      createdAt
-      messages {
-        id
-        text
-        imageUrls
-        role
-        createdAt
-        toolResults
-        toolCalls {
-          id
-          name
-          isCompleted
-          messageId
-        }
-      }
-    }
-  }
-`
+interface ChatSearchParams {
+  initialMessage?: string
+}
 
 export const Route = createFileRoute('/chat/$chatId')({
   component: ChatRouteComponent,
+  validateSearch: (search: Record<string, unknown>): ChatSearchParams => {
+    return {
+      initialMessage: typeof search.initialMessage === 'string' ? search.initialMessage : undefined
+    }
+  },
   loader: async ({ params }) => {
     try {
       const { data } = await client.query({
-        query: GetChatWithMessageIdDocument,
+        query: GetChatDocument,
         variables: { id: params.chatId },
         fetchPolicy: 'network-only'
       })
+
       return {
         data: data.getChat,
         loading: false,
@@ -71,10 +57,11 @@ export const Route = createFileRoute('/chat/$chatId')({
 
 function ChatRouteComponent() {
   const { data, error } = Route.useLoaderData()
+  const { initialMessage } = Route.useSearch()
 
   //   if (loading) return <div className="p-4">Loading chat...</div>
   if (!data) return <div className="p-4">Invalid chat ID.</div>
   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
 
-  return <ChatView key={data.id} chat={data} />
+  return <ChatView key={data.id} chat={data} initialMessage={initialMessage} />
 }
