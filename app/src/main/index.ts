@@ -384,11 +384,14 @@ app.whenReady().then(() => {
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
           ...process.env,
+          APP_DATA_PATH: userDataPath,
           DB_PATH: dbPath,
           OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
           COMPLETIONS_MODEL: process.env.COMPLETIONS_MODEL,
           EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
-          EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL
+          EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL,
+          TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
+          OLLAMA_BASE_URL: process.env.OLLAMA_BASE_URL
         }
       })
 

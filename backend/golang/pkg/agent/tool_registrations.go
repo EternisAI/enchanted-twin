@@ -60,6 +60,8 @@ func RegisterStandardTools(
 		} else {
 			logger.Warn("Failed to register telegram tool", "error", err)
 		}
+	} else {
+		logger.Info("Could not register telegram tool, token or store is not available")
 	}
 
 	// Register Twitter tool if store is available
