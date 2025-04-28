@@ -13,6 +13,7 @@
 import { Route as rootRoute } from './routes/__root'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
+import { Route as AdminImport } from './routes/admin'
 import { Route as ChatRouteImport } from './routes/chat/route'
 import { Route as IndexImport } from './routes/index'
 import { Route as ChatIndexImport } from './routes/chat/index'
@@ -29,6 +30,12 @@ const SettingsRoute = SettingsImport.update({
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const AdminRoute = AdminImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -72,6 +79,13 @@ declare module '@tanstack/react-router' {
       path: '/chat'
       fullPath: '/chat'
       preLoaderRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRoute
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminImport
       parentRoute: typeof rootRoute
     }
     '/onboarding': {
@@ -124,6 +138,7 @@ const ChatRouteRouteWithChildren = ChatRouteRoute._addFileChildren(
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat': typeof ChatRouteRouteWithChildren
+  '/admin': typeof AdminRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
@@ -132,6 +147,7 @@ export interface FileRoutesByFullPath {
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
@@ -142,6 +158,7 @@ export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
   '/chat': typeof ChatRouteRouteWithChildren
+  '/admin': typeof AdminRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/chat/$chatId': typeof ChatChatIdRoute
@@ -153,16 +170,18 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/chat'
+    | '/admin'
     | '/onboarding'
     | '/settings'
     | '/chat/$chatId'
     | '/chat/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/onboarding' | '/settings' | '/chat/$chatId' | '/chat'
+  to: '/' | '/admin' | '/onboarding' | '/settings' | '/chat/$chatId' | '/chat'
   id:
     | '__root__'
     | '/'
     | '/chat'
+    | '/admin'
     | '/onboarding'
     | '/settings'
     | '/chat/$chatId'
@@ -173,6 +192,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatRouteRoute: typeof ChatRouteRouteWithChildren
+  AdminRoute: typeof AdminRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
 }
@@ -180,6 +200,7 @@ export interface RootRouteChildren {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRouteRoute: ChatRouteRouteWithChildren,
+  AdminRoute: AdminRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
 }
@@ -196,6 +217,7 @@ export const routeTree = rootRoute
       "children": [
         "/",
         "/chat",
+        "/admin",
         "/onboarding",
         "/settings"
       ]
@@ -209,6 +231,9 @@ export const routeTree = rootRoute
         "/chat/$chatId",
         "/chat/"
       ]
+    },
+    "/admin": {
+      "filePath": "admin.tsx"
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"

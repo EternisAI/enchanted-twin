@@ -1,7 +1,7 @@
 import { cn } from '@renderer/lib/utils'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Home, MessageCircle, Settings } from 'lucide-react'
+import { Home, MessageCircle, Settings, Shield } from 'lucide-react'
 
 const LINKS = [
   {
@@ -18,6 +18,11 @@ const LINKS = [
     label: 'Settings',
     href: '/settings',
     icon: Settings
+  },
+  {
+    label: 'Admin',
+    href: '/admin',
+    icon: Shield
   }
 ]
 
