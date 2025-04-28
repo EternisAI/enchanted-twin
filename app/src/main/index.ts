@@ -511,6 +511,87 @@ app.whenReady().then(() => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+
+  ipcMain.handle('open-folder', async (_event, folderName: string) => {
+    try {
+      let folderPath: string
+
+      // Determine the correct path based on the requested folder
+      if (folderName === 'logs') {
+        // Use Electron's standard logs path
+        folderPath = app.getPath('logs')
+        log.info(`Opening logs folder: ${folderPath}`)
+      } else if (folderName === 'appData') {
+        // Use Electron's standard userData path
+        folderPath = app.getPath('userData')
+        log.info(`Opening app data folder: ${folderPath}`)
+      } else {
+        // If a direct path is provided, use that
+        folderPath = folderName
+        log.info(`Opening custom folder: ${folderPath}`)
+      }
+
+      await shell.openPath(folderPath)
+      return true
+    } catch (error) {
+      log.error(`Failed to open folder: ${error}`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('restart-app', async () => {
+    log.info('Restarting app')
+    app.relaunch()
+    app.exit(0)
+  })
+
+  ipcMain.handle('open-logs-folder', async () => {
+    try {
+      const logsPath = app.getPath('logs')
+      log.info(`Opening logs folder: ${logsPath}`)
+      await shell.openPath(logsPath)
+      return true
+    } catch (error) {
+      log.error(`Failed to open logs folder: ${error}`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('open-appdata-folder', async () => {
+    try {
+      const appDataPath = app.getPath('userData')
+      log.info(`Opening app data folder: ${appDataPath}`)
+      await shell.openPath(appDataPath)
+      return true
+    } catch (error) {
+      log.error(`Failed to open app data folder: ${error}`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('delete-db-data', async () => {
+    try {
+      const userDataPath = app.getPath('userData')
+      const dbPath = join(userDataPath, 'db')
+      log.info(`Deleting database folder: ${dbPath}`)
+
+      if (fs.existsSync(dbPath)) {
+        fs.rmSync(dbPath, { recursive: true, force: true })
+        log.info(`Successfully deleted database folder: ${dbPath}`)
+        return true
+      } else {
+        log.info(`Database folder does not exist: ${dbPath}`)
+        return false
+      }
+    } catch (error) {
+      log.error(`Failed to delete database folder: ${error}`, error)
+      throw error
+    }
+  })
+
+  ipcMain.handle('isPackaged', () => {
+    return app.isPackaged
+  })
 })
 
 app.on('window-all-closed', () => {
