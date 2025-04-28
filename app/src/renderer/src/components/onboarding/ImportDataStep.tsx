@@ -25,24 +25,11 @@ import {
   DialogTitle,
   DialogDescription
 } from '../ui/dialog'
+import { GetDataSourcesDocument } from '@renderer/graphql/generated/graphql'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
     addDataSource(name: $name, path: $path)
-  }
-`
-
-const GET_DATA_SOURCES = gql`
-  query GetDataSources {
-    getDataSources {
-      id
-      name
-      path
-      updatedAt
-      isProcessed
-      isIndexed
-      hasError
-    }
   }
 `
 
@@ -161,8 +148,12 @@ const EXPORT_INSTRUCTIONS: Record<
   }
 }
 
+const truncatePath = (path: string) => {
+  return path.length > 40 ? '...' + path.slice(-37) : path
+}
+
 export function ImportDataStep() {
-  const { data, refetch } = useQuery(GET_DATA_SOURCES)
+  const { data, refetch } = useQuery(GetDataSourcesDocument)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
   const [pendingDataSources, setPendingDataSources] = useState<
     Record<string, { name: string; path: string }>
@@ -278,7 +269,7 @@ export function ImportDataStep() {
             })}
 
             {/* Indexed Sources */}
-            {data?.getDataSources?.map(({ id, name }) => {
+            {data?.getDataSources?.map(({ id, name, isIndexed }) => {
               const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === name)
               if (!sourceDetails) return null
 
@@ -295,8 +286,12 @@ export function ImportDataStep() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <CheckCircle2 className="h-3 w-3 text-green-500" />
-                    <span>Indexed</span>
+                    {isIndexed ? (
+                      <CheckCircle2 className="h-3 w-3 text-green-500" />
+                    ) : (
+                      <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
+                    )}
+                    <span>{isIndexed ? 'Indexed' : 'Processing...'}</span>
                   </div>
                 </div>
               )
@@ -321,7 +316,7 @@ export function ImportDataStep() {
 
       {/* Data Source Selection Modal */}
       <Dialog open={!!selectedSource} onOpenChange={() => setSelectedSource(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Add {selectedSource?.name} Data</DialogTitle>
             <DialogDescription className="text-sm text-muted-foreground flex items-center gap-2">
@@ -373,9 +368,10 @@ export function ImportDataStep() {
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                   <div className="flex-1 h-9 px-3 py-1 rounded-md border bg-background text-sm">
-                    {pendingDataSources[selectedSource?.name || '']?.path ||
-                      SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)
-                        ?.fileRequirement}
+                    {pendingDataSources[selectedSource?.name || '']?.path
+                      ? truncatePath(pendingDataSources[selectedSource?.name || '']?.path)
+                      : SUPPORTED_DATA_SOURCES.find((s) => s.name === selectedSource?.name)
+                          ?.fileRequirement}
                   </div>
                   <Button
                     onClick={async () => {
