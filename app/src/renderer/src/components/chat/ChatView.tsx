@@ -7,11 +7,33 @@ import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 
-export default function ChatView({ chat }: { chat: Chat }) {
+interface ChatViewProps {
+  chat: Chat
+  initialMessage?: string
+}
+
+export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
-  const [messages, setMessages] = useState<Message[]>(chat.messages)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(true)
+  const [messages, setMessages] = useState<Message[]>(() => {
+    // Handle first message optimistically
+    if (initialMessage && chat.messages.length === 0) {
+      setIsWaitingTwinResponse(true)
+      return [
+        {
+          id: `temp-${Date.now()}`,
+          text: initialMessage,
+          imageUrls: [],
+          role: Role.User,
+          toolCalls: [],
+          toolResults: [],
+          createdAt: new Date().toISOString()
+        }
+      ]
+    }
+    return chat.messages
+  })
 
   const upsertMessage = (msg: Message) => {
     setMessages((prev) => {
