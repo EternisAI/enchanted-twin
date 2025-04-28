@@ -48,6 +48,18 @@ query GetChat($id: ID!) {
   }
 }
 
+query GetDataSources {
+  getDataSources {
+    id
+    name
+    path
+    updatedAt
+    isProcessed
+    isIndexed
+    hasError
+  }
+}
+
 query GetOAuthStatus {
   getOAuthStatus {
     provider
