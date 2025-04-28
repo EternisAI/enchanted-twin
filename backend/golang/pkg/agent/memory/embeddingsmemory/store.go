@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +14,12 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
+
+type embeddingResult struct {
+	documents  []memory.TextDocument
+	embeddings [][]float64
+	err        error
+}
 
 func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
 	batchSize := 30
@@ -24,20 +32,52 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 	}
 
 	batches := helpers.Batch(filteredDocuments, batchSize)
-	for i, batch := range batches {
-		m.logger.Info("Storing documents batch", "batchSize", batchSize, "progress", fmt.Sprintf("%d/%d", i+1, len(batches)))
-		textInputs := make([]string, len(batch))
-		for i := range batch {
-			textInputs[i] = batch[i].Content
-		}
-		embeddings, err := m.ai.Embeddings(ctx, textInputs, m.embeddingsModelName)
-		if err != nil {
-			return err
-		}
-		if err := m.storeDocuments(ctx, batch, embeddings); err != nil {
-			return err
-		}
+	resultChan := make(chan embeddingResult, len(batches))
+	var wg sync.WaitGroup
+	var processedBatches atomic.Int32
+	sem := make(chan struct{}, 3)
+
+	for _, batch := range batches {
+		wg.Add(1)
+		go func(batchDocs []memory.TextDocument) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			textInputs := make([]string, len(batchDocs))
+			for i := range batchDocs {
+				textInputs[i] = batchDocs[i].Content
+			}
+
+			embeddings, err := m.ai.Embeddings(ctx, textInputs, m.embeddingsModelName)
+			resultChan <- embeddingResult{
+				documents:  batchDocs,
+				embeddings: embeddings,
+				err:        err,
+			}
+		}(batch)
 	}
+
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
+
+	for result := range resultChan {
+		if result.err != nil {
+			return result.err
+		}
+		if err := m.storeDocuments(ctx, result.documents, result.embeddings); err != nil {
+			return err
+		}
+
+		// Increment and log progress after each batch is processed
+		processed := processedBatches.Add(1)
+		m.logger.Info("Storing documents batch",
+			"batchSize", batchSize,
+			"progress", fmt.Sprintf("%d/%d", processed, len(batches)))
+	}
+
 	return nil
 }
 
