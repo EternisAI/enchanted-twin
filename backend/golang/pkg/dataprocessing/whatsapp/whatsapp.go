@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -178,4 +179,20 @@ func (s *Source) ProcessFile(filepath string) ([]types.Record, error) {
 
 func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
 	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
+}
+
+func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+	documents := make([]memory.TextDocument, 0, len(records))
+	for _, record := range records {
+		documents = append(documents, memory.TextDocument{
+			Content:   record.Data["TEXT"].(string), // Use simplified key
+			Timestamp: &record.Timestamp,
+			Tags:      []string{"whatsapp"},
+			Metadata: map[string]string{
+				"from": record.Data["FROMNAME"].(string), // Use simplified key
+				"to":   record.Data["TONAME"].(string),   // Use simplified key
+			},
+		})
+	}
+	return documents, nil
 }
