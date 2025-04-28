@@ -742,15 +742,10 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 				} else if response.Type == "connection_ack" {
-					// s.Logger.Info("Received connection acknowledgment")
 					connectionAcknowledged = true
 				} else if response.Type == "ka" {
-					// s.Logger.Debug("Received keep-alive")
 				} else if response.Type == "error" {
-					// s.Logger.Error("Received error from server", "errors", response.Payload.Errors)
-
 					if !connectionAcknowledged {
-						// s.Logger.Error("No connection acknowledgment received before error, stopping subscription goroutine")
 						exitErr = fmt.Errorf("received error before connection ack: %v", response.Payload.Errors)
 						conn.Close()
 						return
