@@ -25,15 +25,13 @@ export default function ChatSuggestions({
 
   const suggestions = data?.getChatSuggestions
 
-  console.log('suggestions data', data, suggestions)
-
   if (!visible) {
     return (
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.25 }}
-        className="w-full flex justify-end pb-2"
+        className="absolute right-0 bottom-2"
       >
         <TooltipProvider>
           <Tooltip>
