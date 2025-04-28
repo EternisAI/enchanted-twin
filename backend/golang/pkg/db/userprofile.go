@@ -24,9 +24,13 @@ func (s *Store) GetUserProfile(ctx context.Context) (*model.UserProfile, error) 
 
 // UpdateUserProfile updates the user profile
 func (s *Store) UpdateUserProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
-	result, err := s.db.ExecContext(ctx, `
-		UPDATE user_profiles SET name = ?, bio = ? WHERE id = 'default'
-	`, input.Name, input.Bio)
+	result, err := s.db.NamedExecContext(ctx, `
+		UPDATE user_profiles
+		SET
+		    name = COALESCE(:name, name),
+		    bio  = COALESCE(:bio,  bio)
+		WHERE id = 'default'
+	`, input)
 	if err != nil {
 		return false, err
 	}
