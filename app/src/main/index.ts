@@ -381,7 +381,7 @@ app.whenReady().then(() => {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
-      // we should await this process to be fully started or have a initialize screen to show in the meantime while it's starting
+      //@TODO: we should await this process to be fully started or have a initialize screen to show in the meantime while it's starting
 
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
@@ -560,7 +560,6 @@ app.whenReady().then(() => {
         log.info(`Database folder does not exist: ${dbPath}`)
       }
 
-      // Delete just the main.log file
       const logsPath = app.getPath('logs')
       const mainLogPath = join(logsPath, 'main.log')
       log.info(`Checking for main.log: ${mainLogPath}`)
@@ -578,7 +577,6 @@ app.whenReady().then(() => {
         log.info(`main.log does not exist: ${mainLogPath}`)
       }
 
-      // Return true if either the database or log file was deleted
       return dbDeleted || logDeleted
     } catch (error) {
       log.error(`Failed to delete application data: ${error}`, error)
