@@ -103,12 +103,14 @@ type Mutation {
   addDataSource(name: String!, path: String!): Boolean!
   deleteDataSource(id: ID!): Boolean!
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
+  sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
 }
 
 type Subscription {
   messageAdded(chatId: ID!): Message!
   toolCallUpdated(chatId: ID!): ToolCall!
   indexingStatus: IndexingStatus!
+  telegramMessageAdded(chatUUID: ID!): Message!
 }
 
 type DataSource {

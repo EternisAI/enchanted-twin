@@ -223,22 +223,18 @@ func main() {
 		toolRegistry.List(),
 	)
 
-	// Initialize and start Telegram service if token is provided
-	if envs.TelegramToken != "" {
-		telegramService := telegram.NewTelegramService(logger, envs.TelegramToken, store)
-		go func() {
-			chatID, err := telegramService.GetChatID(context.Background())
-			if err != nil {
-				logger.Error("Telegram service error", slog.Any("error", err))
-			}
-			chatURL := telegram.GetChatURL(telegram.TelegramBotName, chatID)
-			logger.Info("Telegram chat URL", "chatURL", chatURL)
-
-			if err := telegramService.Start(context.Background()); err != nil {
-				logger.Error("Telegram service error", slog.Any("error", err))
-			}
-		}()
+	telegramServiceInput := telegram.TelegramServiceInput{
+		Logger:           logger,
+		Token:            envs.TelegramToken,
+		Client:           &http.Client{},
+		Store:            store,
+		CompletionsModel: envs.CompletionsModel,
+		Memory:           mem,
+		AuthStorage:      store,
+		NatsClient:       nc,
+		ChatServerUrl:    envs.TelegramChatServer,
 	}
+	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
