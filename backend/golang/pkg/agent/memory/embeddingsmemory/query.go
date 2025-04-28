@@ -27,7 +27,6 @@ type entryRow struct {
 }
 
 func (m *EmbeddingsMemory) Query(ctx context.Context, query string) (memory.QueryResult, error) {
-	// 1) embed
 	vec, err := m.ai.Embedding(ctx, query, m.embeddingsModelName)
 	if err != nil {
 		return memory.QueryResult{}, err
@@ -35,6 +34,7 @@ func (m *EmbeddingsMemory) Query(ctx context.Context, query string) (memory.Quer
 	if len(vec) == 0 {
 		return memory.QueryResult{}, fmt.Errorf("empty embedding")
 	}
+	vec = padVector(vec, EmbeddingLength)
 	vecLiteral := toVectorLiteral(vec)
 
 	// 2) ANN search
