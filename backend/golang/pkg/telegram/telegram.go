@@ -4,9 +4,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"math"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -23,6 +26,8 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 )
+
+var ErrSubscriptionNilTextMessage = errors.New("subscription stopped due to nil text message")
 
 type Update struct {
 	UpdateID int `json:"update_id"`
@@ -196,7 +201,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 					s.Logger.Info("Chat ID", "chat_id", update.Message.Chat)
 
-					// Publish message to NATS
 					if s.NatsClient != nil {
 						subject := fmt.Sprintf("telegram.chat.%d", update.Message.Chat.ID)
 						messageBytes, err := json.Marshal(update.Message)
@@ -282,10 +286,8 @@ func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.C
 }
 
 func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, error) {
-	// Get the last update ID from storage
 	lastUpdateID, err := s.Store.GetValue(ctx, types.TelegramLastUpdateIDKey)
 	if err != nil {
-		// If no last update ID exists, start from 0
 		lastUpdateID = "0"
 	}
 
@@ -325,17 +327,14 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 		return nil, fmt.Errorf("telegram API returned error: %s", string(body))
 	}
 
-	// Convert Updates to Messages and update the last update ID
 	messages := make([]Message, 0, len(result.Result))
 	for _, update := range result.Result {
 		messages = append(messages, update.Message)
-		// Update the last update ID
 		if update.UpdateID > lastUpdateIDInt {
 			lastUpdateIDInt = update.UpdateID
 		}
 	}
 
-	// Store the new last update ID
 	err = s.Store.SetValue(ctx, types.TelegramLastUpdateIDKey, strconv.Itoa(lastUpdateIDInt))
 	if err != nil {
 		s.Logger.Error("Failed to store last update ID", "error", err)
@@ -348,12 +347,10 @@ func (s *TelegramService) TransformToOpenAIMessages(messages []Message) []openai
 	openAIMessages := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
 
 	for _, msg := range messages {
-		// Skip empty messages
 		if msg.Text == "" {
 			continue
 		}
 
-		// Determine the role based on the message sender
 		if msg.From.Username == "enchanted_twin_bot" {
 			openAIMessages = append(openAIMessages, openai.AssistantMessage(msg.Text))
 		} else {
@@ -415,8 +412,6 @@ func (s *TelegramService) SendMessage(ctx context.Context, chatID string, messag
 	return nil
 }
 
-// transformWebSocketDataToMessage converts the data received from the WebSocket
-// subscription into a standard Message struct.
 func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, data struct {
 	ID        string
 	Text      *string
@@ -538,8 +533,16 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 	conn.SetReadDeadline(time.Time{})
 	conn.SetWriteDeadline(time.Time{})
 
-	// Handle incoming messages with reconnection logic
+	readerExitChan := make(chan error, 1)
+
 	go func() {
+		var exitErr error
+		defer func() {
+			s.Logger.Debug("Reader goroutine exiting", slog.Any("reason", exitErr))
+			readerExitChan <- exitErr
+			close(readerExitChan)
+		}()
+
 		reconnectDelay := time.Second
 		maxReconnectDelay := time.Minute
 		reconnectAttempts := 0
@@ -551,20 +554,24 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		for {
 			select {
 			case <-ctx.Done():
-				s.Logger.Info("Context cancelled, stopping WebSocket subscription")
+				s.Logger.Info("Context cancelled, stopping WebSocket subscription goroutine")
+				exitErr = ctx.Err()
 				return
 			default:
+
+				conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+
 				var response struct {
 					Type    string `json:"type"`
 					ID      string `json:"id"`
 					Payload struct {
 						Data struct {
-							TelegramMessageAdded struct { // Renamed nested struct for clarity
+							TelegramMessageAdded struct {
 								ID        string
 								Text      *string
 								Role      string
 								CreatedAt string
-							} `json:"telegramMessageAdded"` // Match GraphQL response field
+							} `json:"telegramMessageAdded"`
 						} `json:"data"`
 						Errors []struct {
 							Message string `json:"message"`
@@ -573,119 +580,125 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if err := conn.ReadJSON(&response); err != nil {
+
+					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+						s.Logger.Debug("Read deadline exceeded, checking context and continuing loop")
+						conn.SetReadDeadline(time.Time{})
+						continue
+					}
+
 					s.Logger.Error("!!! conn.ReadJSON returned error !!!", "error", err)
+
+					conn.Close()
 
 					if time.Since(lastSuccessfulConnection) > time.Minute {
 						reconnectAttempts = 0
 					}
 
 					if reconnectAttempts >= maxReconnectAttempts {
-						s.Logger.Error("Max reconnection attempts reached, stopping subscription")
+						s.Logger.Error("Max reconnection attempts reached, stopping subscription goroutine")
+						exitErr = fmt.Errorf("max reconnection attempts reached after error: %w", err)
 						return
 					}
 
+				reconnectLoop:
 					for {
 						select {
 						case <-ctx.Done():
 							s.Logger.Info("Context cancelled during reconnection attempt")
+							exitErr = ctx.Err()
 							return
 						default:
-							// Exponential backoff
-							time.Sleep(reconnectDelay)
-							reconnectDelay = time.Duration(math.Min(float64(reconnectDelay*2), float64(maxReconnectDelay)))
 
-							s.Logger.Info("Attempting to reconnect", "attempt", reconnectAttempts+1, "delay", reconnectDelay)
-							// Try to reconnect
-							newConn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
-							if err != nil {
-								s.Logger.Error("Failed to reconnect", "error", err, "attempt", reconnectAttempts+1)
+							actualDelay := time.Duration(math.Min(float64(reconnectDelay), float64(maxReconnectDelay)))
+							s.Logger.Info("Waiting before reconnect attempt", "delay", actualDelay)
+							time.Sleep(actualDelay)
+							reconnectDelay *= 2
+
+							s.Logger.Info("Attempting to reconnect", "attempt", reconnectAttempts+1)
+							newConn, _, dialErr := websocket.DefaultDialer.Dial(wsURL, nil)
+							if dialErr != nil {
+								s.Logger.Error("Failed to reconnect", "error", dialErr, "attempt", reconnectAttempts+1)
 								reconnectAttempts++
+								if reconnectAttempts >= maxReconnectAttempts {
+									s.Logger.Error("Max reconnection attempts reached after failed dial", "error", dialErr)
+									exitErr = fmt.Errorf("max reconnection attempts reached after dial error: %w", dialErr)
+									return
+								}
 								continue
 							}
 
-							// Reset reconnect delay and attempts on successful connection
 							reconnectDelay = time.Second
 							reconnectAttempts = 0
 							lastSuccessfulConnection = time.Now()
 							connectionAcknowledged = false
 
-							// Send connection initialization message
 							s.Logger.Info("Sending connection initialization message on reconnect")
 							if err := newConn.WriteJSON(initMsg); err != nil {
 								s.Logger.Error("Failed to send connection initialization on reconnect", "error", err)
 								newConn.Close()
-								reconnectAttempts++
-								continue
+								continue reconnectLoop
 							}
 
-							// Wait for connection acknowledgment
-							newConn.SetReadDeadline(time.Now().Add(5 * time.Second))
+							newConn.SetReadDeadline(time.Now().Add(10 * time.Second))
 							if err := newConn.ReadJSON(&ackResponse); err != nil {
 								s.Logger.Error("Failed to read connection acknowledgment on reconnect", "error", err)
 								newConn.Close()
-								reconnectAttempts++
-								continue
+								continue reconnectLoop
 							}
+							newConn.SetReadDeadline(time.Time{})
 
 							if ackResponse.Type != "connection_ack" {
 								s.Logger.Error("Unexpected response type on reconnect", "type", ackResponse.Type)
 								newConn.Close()
-								reconnectAttempts++
-								continue
+								continue reconnectLoop
 							}
+							connectionAcknowledged = true
 
-							// Send subscription request again
 							s.Logger.Info("Sending subscription request on reconnect", "chatUUID", chatUUID)
 							if err := newConn.WriteJSON(subscription); err != nil {
 								s.Logger.Error("Failed to resend subscription", "error", err)
 								newConn.Close()
-								reconnectAttempts++
-								continue
+								continue reconnectLoop
 							}
 
-							// Reset deadlines for the main message loop
-							newConn.SetReadDeadline(time.Time{})
 							newConn.SetWriteDeadline(time.Time{})
 
-							// Update connection
 							conn = newConn
-							connectionAcknowledged = true
-							s.Logger.Info("Successfully reconnected to WebSocket", "attempt", reconnectAttempts)
-							break
+							s.Logger.Info("Successfully reconnected to WebSocket")
+							break reconnectLoop
 						}
 					}
 
+					continue
 				}
+				conn.SetReadDeadline(time.Time{})
 
 				if response.Type == "data" {
-					// Check if the text is nil before attempting transformation
+
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
-						s.Logger.Warn("Received WebSocket data message with nil text, skipping.", "message_id", response.Payload.Data.TelegramMessageAdded.ID)
-						continue
+						s.Logger.Warn("Received WebSocket data message with nil text, stopping subscription.", "message_id", response.Payload.Data.TelegramMessageAdded.ID)
+						exitErr = ErrSubscriptionNilTextMessage
+						return
 					}
 
-					// Use the new transformation function
 					newMessage, err := s.transformWebSocketDataToMessage(ctx, response.Payload.Data.TelegramMessageAdded, chatUUID)
 					if err != nil {
 						s.Logger.Error("Failed to transform WebSocket data to message", "error", err)
-						continue // Skip processing this message
+						continue
 					}
 
 					s.Logger.Info("Received and transformed message", "message", newMessage.Text)
 
-					// Append the properly typed message to LastMessages
-					s.LastMessages = append(s.LastMessages, *newMessage) // Dereference pointer
+					s.LastMessages = append(s.LastMessages, *newMessage)
 
-					// Execute the message
 					agentResponse, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), newMessage.Text)
 					if err != nil {
 						s.Logger.Error("Failed to execute message", "error", err)
-						// Should we remove the last message if execution fails? Depends on desired behavior.
 						continue
 					}
 					s.Logger.Info("Agent response", "content", agentResponse.Content, "tool_calls", len(agentResponse.ToolCalls), "tool_results", len(agentResponse.ToolResults))
 
-					// Send the agent's response back via GraphQL mutation
 					if agentResponse.Content != "" {
 						mutationPayload := map[string]interface{}{
 							"query": `
@@ -702,7 +715,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						mutationBody, err := json.Marshal(mutationPayload)
 						if err != nil {
 							s.Logger.Error("Failed to marshal GraphQL mutation payload", "error", err)
-							continue // Or handle error differently
+							continue
 						}
 
 						gqlURL := s.ChatServerUrl
@@ -726,7 +739,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							continue
 						}
 
-						// Optionally decode and check the GraphQL response body for errors
 						var gqlResponse struct {
 							Data   interface{} `json:"data"`
 							Errors []struct {
@@ -735,23 +747,20 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						}
 						if err := json.NewDecoder(resp.Body).Decode(&gqlResponse); err != nil {
 							s.Logger.Error("Failed to decode GraphQL mutation response", "error", err)
-							// Continue even if decoding fails? Or handle more strictly?
 						} else if len(gqlResponse.Errors) > 0 {
 							s.Logger.Error("GraphQL mutation returned errors", "errors", gqlResponse.Errors)
-							// Handle GraphQL-level errors
 						} else {
 							s.Logger.Info("Successfully sent agent response via GraphQL mutation")
-							// Add the agent's response to the history
+
 							agentMessage := Message{
-								MessageID: 0,                                    // Placeholder ID for agent response
-								From:      User{Username: "enchanted_twin_bot"}, // TODO: Use a more definitive bot identifier if possible
-								Chat:      newMessage.Chat,                      // Use the same chat context
+								MessageID: 0,
+								From:      User{Username: "enchanted_twin_bot"},
+								Chat:      newMessage.Chat,
 								Date:      int(time.Now().Unix()),
 								Text:      agentResponse.Content,
 							}
 							s.LastMessages = append(s.LastMessages, agentMessage)
 
-							// Optional: Limit history size (e.g., keep last 10 messages)
 							if len(s.LastMessages) > 10 {
 								s.LastMessages = s.LastMessages[len(s.LastMessages)-10:]
 							}
@@ -759,27 +768,39 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 				} else if response.Type == "connection_ack" {
-					s.Logger.Info("Received connection acknowledgment")
+					// s.Logger.Info("Received connection acknowledgment")
 					connectionAcknowledged = true
 				} else if response.Type == "ka" {
-					// Keep-alive message, no need to log
+					// s.Logger.Debug("Received keep-alive")
 				} else if response.Type == "error" {
-					s.Logger.Error("Received error from server", "errors", response.Payload.Errors)
-					// If we get an error and haven't received a connection_ack, try to reconnect
+					// s.Logger.Error("Received error from server", "errors", response.Payload.Errors)
+
 					if !connectionAcknowledged {
-						s.Logger.Warn("No connection acknowledgment received before error, attempting to reconnect")
-						conn.Close() // Close the connection to trigger reconnection logic below
-						// No explicit 'continue' here, let the ReadJSON error handle reconnection attempt
+						// s.Logger.Error("No connection acknowledgment received before error, stopping subscription goroutine")
+						exitErr = fmt.Errorf("received error before connection ack: %v", response.Payload.Errors)
+						conn.Close()
+						return
 					}
 				} else {
-					s.Logger.Info("Received message of type", "type", response.Type, "response", response)
+					s.Logger.Info("Received message of unhandled type", "type", response.Type, "response", response)
 				}
 			}
 		}
 	}()
 
-	s.Logger.Info("Reader goroutine started. Subscribe function will block until context is done.")
-	<-ctx.Done() // Block here until the context is cancelled
-	s.Logger.Info("Subscribe context finished. Function will return, closing connection via defer.")
-	return ctx.Err() // Return context error (e.g., context.Canceled) or nil
+	s.Logger.Info("Reader goroutine started. Subscribe function will block until context is done or reader exits.")
+
+	select {
+	case <-ctx.Done():
+		s.Logger.Info("Subscribe context finished (external cancellation). Waiting for reader exit.")
+
+		err := <-readerExitChan
+		s.Logger.Info("Reader goroutine finished after context cancellation.", slog.Any("reader_exit_reason", err))
+
+		return ctx.Err()
+	case err := <-readerExitChan:
+		s.Logger.Info("Reader goroutine exited.", slog.Any("reason", err))
+
+		return err
+	}
 }
