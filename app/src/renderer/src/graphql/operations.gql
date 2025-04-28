@@ -153,6 +153,7 @@ subscription IndexingStatus {
     status
     processingDataProgress
     indexingDataProgress
+    error
     dataSources {
       id
       name
