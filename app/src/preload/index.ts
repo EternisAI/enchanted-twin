@@ -5,7 +5,7 @@ const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
   copyDroppedFiles: (paths: string[]) => ipcRenderer.invoke('copy-dropped-files', paths),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
-  selectFiles: (options?: { filters?: { name: string; extensions: string[] }[] }) => 
+  selectFiles: (options?: { filters?: { name: string; extensions: string[] }[] }) =>
     ipcRenderer.invoke('select-files', options),
   getNativeTheme: () => ipcRenderer.invoke('get-native-theme'),
   setNativeTheme: (theme: 'system' | 'light' | 'dark') =>
@@ -20,7 +20,12 @@ const api = {
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => {
     console.log('onOAuthCallback called with callback!')
     ipcRenderer.on('oauth-callback', (_, data) => callback(data))
-  }
+  },
+  openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
+  openAppDataFolder: () => ipcRenderer.invoke('open-appdata-folder'),
+  deleteDBData: () => ipcRenderer.invoke('delete-db-data'),
+  isPackaged: () => ipcRenderer.invoke('isPackaged'),
+  restartApp: () => ipcRenderer.invoke('restart-app')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

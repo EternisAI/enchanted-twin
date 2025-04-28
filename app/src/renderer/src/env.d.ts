@@ -22,12 +22,19 @@ interface IApi {
   ping: () => void
   copyDroppedFiles: (filePaths: string[]) => Promise<void>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
-  selectFiles: (options?: { filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePaths: string[] }>
+  selectFiles: (options?: {
+    filters?: { name: string; extensions: string[] }[]
+  }) => Promise<{ canceled: boolean; filePaths: string[] }>
   getNativeTheme: () => Promise<'light' | 'dark'>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
   openOAuthUrl: (url: string, redirectUri?: string) => Promise<void>
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => void
+  openLogsFolder: () => Promise<boolean>
+  openAppDataFolder: () => Promise<boolean>
+  deleteDBData: () => Promise<boolean>
+  isPackaged: () => Promise<boolean>
+  restartApp: () => Promise<void>
 }
 
 declare global {
