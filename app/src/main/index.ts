@@ -512,29 +512,6 @@ app.whenReady().then(() => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
 
-  ipcMain.handle('open-folder', async (_event, folderName: string) => {
-    try {
-      let folderPath: string
-
-      if (folderName === 'logs') {
-        folderPath = app.getPath('logs')
-        log.info(`Opening logs folder: ${folderPath}`)
-      } else if (folderName === 'appData') {
-        folderPath = app.getPath('userData')
-        log.info(`Opening app data folder: ${folderPath}`)
-      } else {
-        folderPath = folderName
-        log.info(`Opening custom folder: ${folderPath}`)
-      }
-
-      await shell.openPath(folderPath)
-      return true
-    } catch (error) {
-      log.error(`Failed to open folder: ${error}`, error)
-      throw error
-    }
-  })
-
   ipcMain.handle('restart-app', async () => {
     log.info('Restarting app')
     app.relaunch()
