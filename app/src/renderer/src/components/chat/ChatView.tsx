@@ -15,6 +15,7 @@ interface ChatViewProps {
 
 export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(true)
   const [messages, setMessages] = useState<Message[]>(() => {
@@ -112,8 +113,6 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     setIsWaitingTwinResponse(false)
     setShowSuggestions(true)
   })
-
-  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: mounted ? 'smooth' : 'instant' })
