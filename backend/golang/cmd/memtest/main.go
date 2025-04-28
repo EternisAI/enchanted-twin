@@ -55,7 +55,7 @@ func main() {
 	postgresService, err := bootstrapPostgres(postgresCtx, logger)
 	if err != nil {
 		logger.Error("Failed to start PostgreSQL", "error", err)
-		os.Exit(1)
+		panic(fmt.Sprintf("Failed to start PostgreSQL: %v", err))
 	}
 
 	// Set up cleanup on shutdown
