@@ -516,17 +516,13 @@ app.whenReady().then(() => {
     try {
       let folderPath: string
 
-      // Determine the correct path based on the requested folder
       if (folderName === 'logs') {
-        // Use Electron's standard logs path
         folderPath = app.getPath('logs')
         log.info(`Opening logs folder: ${folderPath}`)
       } else if (folderName === 'appData') {
-        // Use Electron's standard userData path
         folderPath = app.getPath('userData')
         log.info(`Opening app data folder: ${folderPath}`)
       } else {
-        // If a direct path is provided, use that
         folderPath = folderName
         log.info(`Opening custom folder: ${folderPath}`)
       }
