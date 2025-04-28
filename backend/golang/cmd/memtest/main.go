@@ -72,14 +72,14 @@ func main() {
 
 	// Wait for PostgreSQL to be ready
 	if err := postgresService.WaitForReady(postgresCtx, 60*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", slog.Any("error", err))
+		logger.Error("Failed to start PostgreSQL", "error", err)
 		os.Exit(1)
 	}
 
 	// Ensure database exists
 	dbName := "enchanted_twin"
 	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", slog.Any("error", err))
+		logger.Error("Failed to ensure database exists", "error", err)
 		os.Exit(1)
 	}
 
