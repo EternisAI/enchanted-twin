@@ -32,7 +32,7 @@ interface IApi {
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => void
   openLogsFolder: () => Promise<boolean>
   openAppDataFolder: () => Promise<boolean>
-  deleteDBData: () => Promise<boolean>
+  deleteAppData: () => Promise<boolean>
   isPackaged: () => Promise<boolean>
   restartApp: () => Promise<void>
 }
