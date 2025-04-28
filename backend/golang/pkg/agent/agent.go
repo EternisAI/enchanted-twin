@@ -107,13 +107,13 @@ func (a *Agent) Execute(
 			var args map[string]any
 			err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
 			if err != nil {
-				fmt.Println("Error unmarshalling tool call arguments", err)
+				a.logger.Error("Error unmarshalling tool call arguments", "error", err)
 				return AgentResponse{}, err
 			}
 
 			toolResult, err := tool.Execute(ctx, args)
 			if err != nil {
-				fmt.Println("Error executing tool", err)
+				a.logger.Error("Error executing tool", "error", err)
 				return AgentResponse{}, err
 			}
 
