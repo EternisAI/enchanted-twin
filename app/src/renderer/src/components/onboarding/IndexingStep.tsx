@@ -110,9 +110,7 @@ export function IndexingStep() {
 
         {data?.indexingStatus?.status === 'FAILED' && (
           <div className="flex flex-col gap-4">
-            <div className="text-destructive text-sm">
-              Failed to index your data. Please try again.
-            </div>
+            <div className="text-destructive text-sm">Error: {data?.indexingStatus?.error}</div>
           </div>
         )}
         <div className="flex flex-row justify-between">
