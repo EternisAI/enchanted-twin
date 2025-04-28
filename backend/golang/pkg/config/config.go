@@ -17,7 +17,7 @@ type Config struct {
 	EmbeddingsModel  string
 	EmbeddingsAPIKey string
 	DBPath           string
-	OutputPath       string
+	AppDataPath      string
 	OllamaBaseURL    string
 	TelegramToken    string
 }
@@ -26,7 +26,7 @@ func getEnv(key, defaultValue string, printEnv bool) string {
 	logger := log.Default()
 	value := os.Getenv(key)
 	if printEnv {
-		logger.Debug("Env", "key", key, "value", value)
+		logger.Info("Env", "key", key, "value", value)
 	}
 	if value == "" {
 		return defaultValue
@@ -44,6 +44,7 @@ func getEnvOrPanic(key string, printEnv bool) string { //nolint
 
 func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
+
 	conf := &Config{
 		OpenAIAPIKey:     getEnv("OPENAI_API_KEY", "", printEnv),
 		GraphqlPort:      getEnv("GRAPHQL_PORT", "3000", printEnv),
@@ -53,7 +54,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsModel:  getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
 		EmbeddingsAPIKey: getEnv("EMBEDDINGS_API_KEY", "", printEnv),
 		DBPath:           getEnv("DB_PATH", "./store.db", printEnv),
-		OutputPath:       getEnv("OUTPUT_PATH", "./output", printEnv),
+		AppDataPath:      getEnv("APP_DATA_PATH", "./output", printEnv),
 		OllamaBaseURL:    getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:    getEnv("TELEGRAM_TOKEN", "", printEnv),
 	}
