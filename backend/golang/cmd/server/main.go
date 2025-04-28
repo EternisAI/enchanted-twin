@@ -208,18 +208,18 @@ func main() {
 					err := telegramService.Subscribe(appCtx, chatUUID)
 
 					if err == nil {
-						logger.Info("Telegram subscription ended with nil error, will retry...", "chatUUID", chatUUID)
+						//	logger.Info("Telegram subscription ended with nil error, will retry...", "chatUUID", chatUUID)
 					} else if stderrs.Is(err, telegram.ErrSubscriptionNilTextMessage) {
-						logger.Warn("Telegram subscription stopped (nil message received), will retry...", "chatUUID", chatUUID)
+						//	logger.Warn("Telegram subscription stopped (nil message received), will retry...", "chatUUID", chatUUID)
 					} else if stderrs.Is(err, context.Canceled) || stderrs.Is(err, context.DeadlineExceeded) {
 						if appCtx.Err() != nil {
-							logger.Info("Stopping Telegram subscription poller due to application shutdown", "chatUUID", chatUUID)
+							//		logger.Info("Stopping Telegram subscription poller due to application shutdown", "chatUUID", chatUUID)
 							return
 						} else {
-							logger.Error("Telegram subscription context cancelled unexpectedly, will retry...", "chatUUID", chatUUID, slog.Any("error", err))
+							//	logger.Error("Telegram subscription context cancelled unexpectedly, will retry...", "chatUUID", chatUUID, slog.Any("error", err))
 						}
 					} else {
-						logger.Error("Telegram subscription failed, will retry...", "chatUUID", chatUUID, slog.Any("error", err))
+						//	logger.Error("Telegram subscription failed, will retry...", "chatUUID", chatUUID, slog.Any("error", err))
 					}
 
 				case <-appCtx.Done():

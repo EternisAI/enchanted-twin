@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"math"
 	"net"
 	"net/http"
@@ -466,18 +465,13 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return fmt.Errorf("logger is nil")
 	}
 
-	s.Logger.Info("Starting WebSocket subscription", "chatUUID", chatUUID)
-
 	wsURL := strings.Replace(s.ChatServerUrl, "http", "ws", 1)
-	s.Logger.Info("Attempting to connect to WebSocket", "url", wsURL)
 
 	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket (%s): %w", wsURL, err)
 	}
 	defer conn.Close()
-
-	s.Logger.Info("WebSocket connection established")
 
 	initMsg := map[string]interface{}{
 		"type": "connection_init",
@@ -486,7 +480,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		},
 	}
 
-	s.Logger.Info("Sending connection initialization message")
 	if err := conn.WriteJSON(initMsg); err != nil {
 		return fmt.Errorf("failed to send connection initialization: %w", err)
 	}
@@ -524,11 +517,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		},
 	}
 
-	s.Logger.Info("Sending subscription request", "chatUUID", chatUUID, "subscription", subscription)
 	if err := conn.WriteJSON(subscription); err != nil {
 		return fmt.Errorf("failed to send subscription request: %w", err)
 	}
-	s.Logger.Info("Subscription request sent successfully")
 
 	conn.SetReadDeadline(time.Time{})
 	conn.SetWriteDeadline(time.Time{})
@@ -538,7 +529,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 	go func() {
 		var exitErr error
 		defer func() {
-			s.Logger.Debug("Reader goroutine exiting", slog.Any("reason", exitErr))
 			readerExitChan <- exitErr
 			close(readerExitChan)
 		}()
@@ -554,7 +544,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		for {
 			select {
 			case <-ctx.Done():
-				s.Logger.Info("Context cancelled, stopping WebSocket subscription goroutine")
 				exitErr = ctx.Err()
 				return
 			default:
@@ -582,12 +571,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				if err := conn.ReadJSON(&response); err != nil {
 
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-						s.Logger.Debug("Read deadline exceeded, checking context and continuing loop")
 						conn.SetReadDeadline(time.Time{})
 						continue
 					}
-
-					s.Logger.Error("!!! conn.ReadJSON returned error !!!", "error", err)
 
 					conn.Close()
 
@@ -596,7 +582,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 					if reconnectAttempts >= maxReconnectAttempts {
-						s.Logger.Error("Max reconnection attempts reached, stopping subscription goroutine")
 						exitErr = fmt.Errorf("max reconnection attempts reached after error: %w", err)
 						return
 					}
@@ -605,17 +590,14 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					for {
 						select {
 						case <-ctx.Done():
-							s.Logger.Info("Context cancelled during reconnection attempt")
 							exitErr = ctx.Err()
 							return
 						default:
 
 							actualDelay := time.Duration(math.Min(float64(reconnectDelay), float64(maxReconnectDelay)))
-							s.Logger.Info("Waiting before reconnect attempt", "delay", actualDelay)
 							time.Sleep(actualDelay)
 							reconnectDelay *= 2
 
-							s.Logger.Info("Attempting to reconnect", "attempt", reconnectAttempts+1)
 							newConn, _, dialErr := websocket.DefaultDialer.Dial(wsURL, nil)
 							if dialErr != nil {
 								s.Logger.Error("Failed to reconnect", "error", dialErr, "attempt", reconnectAttempts+1)
@@ -633,7 +615,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							lastSuccessfulConnection = time.Now()
 							connectionAcknowledged = false
 
-							s.Logger.Info("Sending connection initialization message on reconnect")
 							if err := newConn.WriteJSON(initMsg); err != nil {
 								s.Logger.Error("Failed to send connection initialization on reconnect", "error", err)
 								newConn.Close()
@@ -655,7 +636,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							}
 							connectionAcknowledged = true
 
-							s.Logger.Info("Sending subscription request on reconnect", "chatUUID", chatUUID)
 							if err := newConn.WriteJSON(subscription); err != nil {
 								s.Logger.Error("Failed to resend subscription", "error", err)
 								newConn.Close()
@@ -665,7 +645,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							newConn.SetWriteDeadline(time.Time{})
 
 							conn = newConn
-							s.Logger.Info("Successfully reconnected to WebSocket")
 							break reconnectLoop
 						}
 					}
@@ -677,27 +656,22 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				if response.Type == "data" {
 
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
-						s.Logger.Warn("Received WebSocket data message with nil text, stopping subscription.", "message_id", response.Payload.Data.TelegramMessageAdded.ID)
 						exitErr = ErrSubscriptionNilTextMessage
 						return
 					}
 
+					s.Logger.Info("Received message", "message", response.Payload.Data.TelegramMessageAdded.Text)
 					newMessage, err := s.transformWebSocketDataToMessage(ctx, response.Payload.Data.TelegramMessageAdded, chatUUID)
 					if err != nil {
-						s.Logger.Error("Failed to transform WebSocket data to message", "error", err)
 						continue
 					}
-
-					s.Logger.Info("Received and transformed message", "message", newMessage.Text)
 
 					s.LastMessages = append(s.LastMessages, *newMessage)
 
 					agentResponse, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), newMessage.Text)
 					if err != nil {
-						s.Logger.Error("Failed to execute message", "error", err)
 						continue
 					}
-					s.Logger.Info("Agent response", "content", agentResponse.Content, "tool_calls", len(agentResponse.ToolCalls), "tool_results", len(agentResponse.ToolResults))
 
 					if agentResponse.Content != "" {
 						mutationPayload := map[string]interface{}{
@@ -788,18 +762,11 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		}
 	}()
 
-	s.Logger.Info("Reader goroutine started. Subscribe function will block until context is done or reader exits.")
-
 	select {
 	case <-ctx.Done():
-		s.Logger.Info("Subscribe context finished (external cancellation). Waiting for reader exit.")
-
-		err := <-readerExitChan
-		s.Logger.Info("Reader goroutine finished after context cancellation.", slog.Any("reader_exit_reason", err))
 
 		return ctx.Err()
 	case err := <-readerExitChan:
-		s.Logger.Info("Reader goroutine exited.", slog.Any("reason", err))
 
 		return err
 	}
