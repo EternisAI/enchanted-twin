@@ -194,29 +194,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 					}
 
-					// fmt.Println("latestMessages", s.LastMessages)
-
-					// response, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), update.Message.Text)
-					// if err != nil {
-					// 	s.Logger.Error("Failed to execute message", "error", err)
-					// 	continue
-					// }
-					// s.LastMessages = append(s.LastMessages, Message{
-					// 	MessageID: update.Message.MessageID,
-					// 	From:      update.Message.From,
-					// 	Chat:      update.Message.Chat,
-					// 	Date:      update.Message.Date,
-					// 	Text:      response.Content,
-					// })
-					// err = s.SendMessage(ctx, fmt.Sprintf("%d", update.Message.Chat.ID), response.Content)
-					// if err != nil {
-					// 	s.Logger.Error("Failed to send message", "error", err)
-					// 	continue
-					// }
-					// if len(s.LastMessages) > 10 {
-					// 	s.LastMessages = s.LastMessages[len(s.LastMessages)-10:]
-					// }
-
 					s.Logger.Info("Chat ID", "chat_id", update.Message.Chat)
 
 					// Publish message to NATS
