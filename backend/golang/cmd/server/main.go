@@ -229,6 +229,7 @@ func main() {
 		Token:            envs.TelegramToken,
 		Client:           &http.Client{},
 		Store:            store,
+		AiService:        aiCompletionsService,
 		CompletionsModel: envs.CompletionsModel,
 		Memory:           mem,
 		AuthStorage:      store,
