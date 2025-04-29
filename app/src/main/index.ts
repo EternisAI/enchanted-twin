@@ -277,31 +277,31 @@ function setupAutoUpdater() {
     log.info('Update downloaded:', info)
 
     // Show dialog to let user decide when to restart and install
-    // dialog
-    //   .showMessageBox({
-    //     type: 'info',
-    //     title: 'Update Ready',
-    //     message: 'A new version has been downloaded.',
-    //     detail: 'Would you like to restart the application now to install the update?',
-    //     buttons: ['Restart Now', 'Later'],
-    //     defaultId: 0,
-    //     cancelId: 1
-    //   })
-    //   .then(({ response }) => {
-    //     if (response === 0) {
-    //       // User clicked "Restart Now"
-    //       log.info('User opted to restart for update')
-    //       autoUpdater.quitAndInstall(true, true)
-    //     } else {
-    //       // User clicked "Later"
-    //       log.info('User postponed update installation')
-    //     }
-    //   })
+    dialog
+      .showMessageBox({
+        type: 'info',
+        title: 'Update Ready',
+        message: 'A new version has been downloaded.',
+        detail: 'Would you like to restart the application now to install the update?',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          // User clicked "Restart Now"
+          log.info('User opted to restart for update')
+          autoUpdater.quitAndInstall(true, true)
+        } else {
+          // User clicked "Later"
+          log.info('User postponed update installation')
+        }
+      })
   })
 
   // Check for updates
   log.info('Checking for application updates...')
-  // autoUpdater.checkForUpdatesAndNotify()
+  autoUpdater.checkForUpdatesAndNotify()
 }
 
 function createWindow(): BrowserWindow {
