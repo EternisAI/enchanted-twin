@@ -135,7 +135,6 @@ func (m *EmbeddingsMemory) storeDocuments(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Plain INSERTs – one for text, one for embedding
 	textStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO text_entries (id, text, meta, created_at)
 		 VALUES ($1, $2, $3, $4)`)
