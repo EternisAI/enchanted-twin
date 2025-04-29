@@ -33,7 +33,7 @@ type SearchFilesQuery struct {
 type SearchFilesArguments struct {
 	Query     SearchFilesQuery `json:"query,omitempty" jsonschema:"required,description=The query string to search for file titles"`
 	PageToken string `json:"page_token,omitempty" jsonschema:"description=Optional page token for pagination."`
-	Limit     int    `json:"limit,omitempty" jsonschema:"description=Maximum number of files to return, default is 10."`
+	Limit     int    `json:"limit,omitempty" jsonschema:"description=Maximum number of files to return, default is 10, minimum 10, maximum 50."`
 }
 
 type ReadFileArguments struct {

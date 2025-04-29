@@ -35,7 +35,7 @@ type EmailQuery struct {
 type SearchEmailsArguments struct {
 	Query     EmailQuery `json:"query" jsonschema:",description=The query to list emails, default is 'in:inbox'"`
 	PageToken string `json:"page_token" jsonschema:",description=The page token to list, default is empty"`
-	Limit     int    `json:"limit" jsonschema:"required,description=The number of emails to list"`
+	Limit     int    `json:"limit" jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {

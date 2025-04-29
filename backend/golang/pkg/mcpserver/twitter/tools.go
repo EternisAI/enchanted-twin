@@ -76,7 +76,7 @@ func GetUser(accessToken string) (*User, error) {
 
 type ListFeedTweetsArguments struct {
 	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
-	Limit           int    `json:"limit" jsonschema:"required,description=The number of tweets to list"`
+	Limit           int    `json:"limit" jsonschema:"required,description=The number of tweets to list, minimum 10, maximum 50"`
 }
 
 type PostTweetArguments struct {
@@ -85,12 +85,12 @@ type PostTweetArguments struct {
 
 type SearchTweetsArguments struct {
 	Query string `json:"query" jsonschema:"required,description=The query to search for"`
-	Limit int    `json:"limit" jsonschema:"required,description=The number of tweets to search for"`
+	Limit int    `json:"limit" jsonschema:"required,description=The number of tweets to search for, minimum 10, maximum 50"`
 }
 
 type ListBookmarksArguments struct {
 	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
-	Limit           int    `json:"limit" jsonschema:"required,description=The number of bookmarks to list"`
+	Limit           int    `json:"limit" jsonschema:"required,description=The number of bookmarks to list, minimum 10, maximum 50"`
 }
 
 type authorize struct {

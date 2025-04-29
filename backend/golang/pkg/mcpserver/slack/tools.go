@@ -19,7 +19,7 @@ const SEARCH_MESSAGES_TOOL_DESCRIPTION = "Search for messages in channels"
 
 type ListChannelsArguments struct {
 	Cursor string `json:"cursor" jsonschema:"description=The cursor for pagination, empty if first page"`
-	Limit  int    `json:"limit" jsonschema:"required,description=The number of channels to list"`
+	Limit  int    `json:"limit" jsonschema:"required,description=The number of channels to list, minimum 10, maximum 50"`
 }
 
 type PostMessageArguments struct {
