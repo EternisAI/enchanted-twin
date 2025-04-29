@@ -9,5 +9,6 @@ alwaysApply: false
 
 # User interface
 
-- We are building an Electron app with a custom title bar. We use a spacing component with the class `.titlebar` to support window dragging.
-- When styling components with tailwind, include dark mode styles.
+- You are building an Electron app with a custom title bar. We use a spacing component with the class `.titlebar` to support window dragging.
+- When styling components with tailwind, you will default to shadcn semantic CSS variables.
+- When styling components, if a tailwind color is required, you will include both light and dark mode class names.
