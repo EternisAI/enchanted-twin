@@ -111,5 +111,6 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "gatekeeperAssess": false
     }
-  }
+  },
+  "afterSign": "./build/notarize.js"
 }
