@@ -26,6 +26,29 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
 
+function createErrorWindow(errorMessage: string) {
+  const errorWindow = new BrowserWindow({
+    width: 500,
+    height: 300,
+    resizable: false,
+    minimizable: false,
+    maximizable: false,
+    title: 'Application Error',
+    webPreferences: {
+      nodeIntegration: true
+    }
+  })
+
+  errorWindow.loadURL(`data:text/html,
+    <html>
+      <body>
+        <h2>Application Error</h2>
+        <pre>${errorMessage}</pre>
+        <button onclick="window.close()">Close</button>
+      </body>
+    </html>`)
+}
+
 function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
   return new Promise((resolve, reject) => {
     if (oauthServer) {
@@ -399,7 +422,10 @@ app.whenReady().then(() => {
 
       if (goServerProcess) {
         goServerProcess.on('error', (err) => {
-          log.error('Failed to start Go server:', err)
+          log.error('Failed to start Go server, on error:', err)
+          createErrorWindow(
+            `Failed to start Go server: ${err instanceof Error ? err.message : 'Unknown error'}`
+          )
         })
 
         goServerProcess.on('close', (code) => {
@@ -418,8 +444,11 @@ app.whenReady().then(() => {
       } else {
         log.error('Failed to spawn Go server process.')
       }
-    } catch (error) {
+    } catch (error: unknown) {
       log.error('Error spawning Go server:', error)
+      createErrorWindow(
+        `Failed to start Go server: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
     }
   } else {
     log.info('Running in development mode - packaged Go server not started')
