@@ -76,12 +76,12 @@ func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any)
 	var content []*mcp_golang.Content
 
 	switch name {
-	case LIST_EMAILS_TOOL_NAME:
-		var argumentsTyped ListEmailsArguments
+	case SEARCH_EMAILS_TOOL_NAME:
+		var argumentsTyped SearchEmailsArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processListEmails(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processSearchEmails(ctx, oauthTokens.AccessToken, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
