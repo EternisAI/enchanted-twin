@@ -24,7 +24,6 @@ func (workflows *DataProcessingWorkflows) RegisterWorkflowsAndActivities(worker 
 	(*worker).RegisterActivity(workflows.FetchDataSourcesActivity)
 	(*worker).RegisterActivity(workflows.ProcessDataActivity)
 	(*worker).RegisterActivity(workflows.IndexDataActivity)
-	(*worker).RegisterActivity(workflows.CompleteActivity)
 	(*worker).RegisterActivity(workflows.PublishIndexingStatus)
 	(*worker).RegisterActivity(workflows.DownloadOllamaModel)
 

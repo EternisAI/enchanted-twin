@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
@@ -19,15 +20,75 @@ const READ_FILE_TOOL_NAME = "read_drive_file"
 const SEARCH_FILES_TOOL_DESCRIPTION = "Search for files in Google Drive based on a query string. Returns a list of files matching the query."
 const READ_FILE_TOOL_DESCRIPTION = "Read the content of a specific file in Google Drive using its file ID. Handles Google Docs, Sheets, and Slides by exporting them."
 
+
+
+type SearchFilesQuery struct {
+	FileName      string    `json:"file_name,omitempty" jsonschema:",description=The text to search for in the name of the files, default is empty"`
+	FullText      string    `json:"full_text,omitempty" jsonschema:",description=The text to search for in the content of the files, default is empty"`
+	CreatedTime   TimeRange `json:"created_time,omitempty" jsonschema:",description=The time range to list files, default is empty"`
+	ModifiedTime  TimeRange `json:"modified_time,omitempty" jsonschema:",description=The time range to list files, default is empty"`
+}
+
+
 type SearchFilesArguments struct {
-	Query     string `json:"query" jsonschema:"required,description=The query string to search for file titles"`
+	Query     SearchFilesQuery `json:"query,omitempty" jsonschema:"required,description=The query string to search for file titles"`
 	PageToken string `json:"page_token,omitempty" jsonschema:"description=Optional page token for pagination."`
-	Limit     int    `json:"limit,omitempty" jsonschema:"description=Maximum number of files to return, default is 10."`
+	Limit     int    `json:"limit,omitempty" jsonschema:"description=Maximum number of files to return, default is 10, minimum 10, maximum 50."`
 }
 
 type ReadFileArguments struct {
 	FileID string `json:"file_id" jsonschema:"required,description=The ID of the file to read."`
 }
+
+func (q *SearchFilesQuery) ToQuery() string {
+	query := ""
+
+	if q.FileName != "" {
+		query += fmt.Sprintf("name contains '%s'", q.FileName)
+	}
+
+	if q.FullText != "" {
+		if query != "" {
+			query += " and "
+		}
+		query += fmt.Sprintf("fullText contains '%s'", q.FullText)
+	}
+
+	if q.ModifiedTime.From != 0 {
+		if query != "" {
+			query += " and "
+		}
+		timeFrom := time.Unix(int64(q.ModifiedTime.From), 0).UTC().Format(time.RFC3339)
+		query += fmt.Sprintf("modifiedTime > '%s'", timeFrom[:len(timeFrom)-1])
+	}
+
+	if q.ModifiedTime.To != 0 {
+		if query != "" {
+			query += " and "
+		}
+		timeTo := time.Unix(int64(q.ModifiedTime.To), 0).UTC().Format(time.RFC3339)
+		query += fmt.Sprintf("modifiedTime < '%s'", timeTo[:len(timeTo)-1])
+	}
+	
+	if q.CreatedTime.From != 0 {
+		if query != "" {
+			query += " and "
+		}
+		timeFrom := time.Unix(int64(q.CreatedTime.From), 0).UTC().Format(time.RFC3339)
+		query += fmt.Sprintf("createdTime > '%s'", timeFrom[:len(timeFrom)-1])
+	}
+
+	if q.CreatedTime.To != 0 {
+		if query != "" {
+			query += " and "
+		}
+		timeTo := time.Unix(int64(q.CreatedTime.To), 0).UTC().Format(time.RFC3339)
+		query += fmt.Sprintf("createdTime < '%s'", timeTo[:len(timeTo)-1])
+	}
+
+	return query
+}
+
 
 func processSearchFiles(ctx context.Context, accessToken string, args SearchFilesArguments) ([]*mcp_golang.Content, error) {
 
@@ -36,11 +97,10 @@ func processSearchFiles(ctx context.Context, accessToken string, args SearchFile
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
 	}
 
-	q := args.Query
-	if q == "" {
+	q := args.Query.ToQuery()
+
+	if q == ""{
 		q = "trashed=false"
-	} else {
-		q = fmt.Sprintf("name contains '%s'", q)
 	}
 
 	limit := args.Limit
