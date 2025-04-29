@@ -44,11 +44,11 @@ type Author struct {
 }
 
 type Content struct {
-	ContentType        string      `json:"content_type"`
-	Parts              []string    `json:"parts,omitempty"`
-	Language           string      `json:"language,omitempty"`
-	ResponseFormatName interface{} `json:"response_format_name,omitempty"`
-	Text               string      `json:"text,omitempty"`
+	ContentType        string        `json:"content_type"`
+	Parts              []interface{} `json:"parts,omitempty"`
+	Language           string        `json:"language,omitempty"`
+	ResponseFormatName interface{}   `json:"response_format_name,omitempty"`
+	Text               string        `json:"text,omitempty"`
 }
 
 type Metadata map[string]interface{}
@@ -68,6 +68,8 @@ func (s *ChatGPTDataSource) Name() string {
 }
 
 func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username string) ([]types.Record, error) {
+	fmt.Println("ProcessFileConversations")
+	fmt.Println("--------------------------------")
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -79,6 +81,9 @@ func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username s
 	}
 
 	var records []types.Record
+
+	fmt.Println(conversations)
+
 	for _, conversation := range conversations {
 		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
 		if err != nil {
@@ -86,6 +91,9 @@ func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username s
 		}
 
 		for _, message := range conversation.Mapping {
+
+			fmt.Println(message)
+
 			if message.Message == nil {
 				continue
 			}
@@ -97,13 +105,19 @@ func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username s
 			if content.ContentType != "text" {
 				continue
 			}
-			content.Text = strings.Join(content.Parts, "")
+			var textContentBuilder strings.Builder
+			for _, part := range content.Parts {
+				if strPart, ok := part.(string); ok {
+					textContentBuilder.WriteString(strPart)
+				}
+			}
+			extractedText := textContentBuilder.String()
 
 			role := message.Message.Author.Role
 
 			conversationData := map[string]any{
 				"title": conversation.Title,
-				"text":  content.Text,
+				"text":  extractedText,
 				"role":  role,
 			}
 			record := types.Record{
