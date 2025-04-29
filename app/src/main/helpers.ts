@@ -5,8 +5,8 @@ import waitOn from 'wait-on'
 
 export async function waitForBackend(port: number) {
   log.info(`Waiting for backend on tcp:127.0.0.1:${port} …`)
-  await waitOn({ resources: [`tcp:127.0.0.1:${port}`], timeout: 30_000, delay: 100 })
-  log.info('Backend reports ready.')
+  await waitOn({ resources: [`tcp:127.0.0.1:${port}`], timeout: 15000, delay: 100 })
+  log.info('Backend is ready.')
 }
 
 export function createErrorWindow(errorMessage: string) {

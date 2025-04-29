@@ -2,6 +2,7 @@ import { Button } from '@renderer/components/ui/button'
 import { FolderOpen, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { SetupBanner } from '../SetupBanner'
 
 export default function AdminPanel() {
   const [isLoading, setIsLoading] = useState({
@@ -109,6 +110,7 @@ export default function AdminPanel() {
           <Trash2 className="mr-2" />
           {isLoading.data ? 'Deleting...' : 'Delete App Data'}
         </Button>
+        <SetupBanner />
       </div>
     </div>
   )
