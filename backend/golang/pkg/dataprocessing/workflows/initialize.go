@@ -156,46 +156,16 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 
 	var indexDataResponse IndexDataActivityResponse
 
-	dataSourcesDB, err := w.Store.GetUnindexedDataSources(context.Background())
+	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{DataSourcesInput: dataSources, IndexingState: indexingState}).Get(ctx, &indexDataResponse)
 	if err != nil {
-		return InitializeWorkflowResponse{}, fmt.Errorf("failed to get unindexed data sources: %w", err)
+		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
+		errMsg := err.Error()
+		indexingState = model.IndexingStateFailed
+		w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
+		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to index data")
 	}
 
-	for i, dataSourceDB := range dataSourcesDB {
-		err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{DataSourceInput: dataSourceDB, IndexingState: indexingState}).Get(ctx, &indexDataResponse)
-		if err != nil {
-			workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
-			errMsg := err.Error()
-			indexingState = model.IndexingStateFailed
-			w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
-			return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to index data")
-		}
-
-		dataSources[i].IsIndexed = indexDataResponse.DataSourceResponse.IsIndexed
-		dataSources[i].UpdatedAt = time.Now().Format(time.RFC3339)
-		dataSources[i].HasError = indexDataResponse.DataSourceResponse.HasError
-
-		status := &model.IndexingStatus{
-			Status:                 indexingState,
-			ProcessingDataProgress: 100,
-			IndexingDataProgress:   int32(i+1) * 100 / int32(len(dataSourcesDB)),
-			DataSources:            dataSources,
-			Error:                  nil,
-		}
-		statusJson, _ := json.Marshal(status)
-		subject := "indexing_data"
-
-		input := PublishIndexingStatusInput{
-			Subject: subject,
-			Data:    statusJson,
-		}
-		err = w.PublishIndexingStatus(context.Background(), input)
-		if err != nil {
-			w.Logger.Error("Failed to publish indexing status", "error", err)
-		}
-	}
-
-	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, dataSources, 100, 100, nil)
+	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, indexDataResponse.DataSourcesResponse, 100, 100, nil)
 	return InitializeWorkflowResponse{}, nil
 }
 
@@ -263,33 +233,63 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(ctx context.Context, input
 }
 
 type IndexDataActivityInput struct {
-	DataSourceInput *db.DataSource      `json:"dataSources"`
-	IndexingState   model.IndexingState `json:"indexingState"`
+	DataSourcesInput []*model.DataSource `json:"dataSources"`
+	IndexingState    model.IndexingState `json:"indexingState"`
 }
 
 type IndexDataActivityResponse struct {
-	DataSourceResponse *model.DataSource `json:"dataSources"`
+	DataSourcesResponse []*model.DataSource `json:"dataSources"`
+}
+
+func publishIndexingStatus2(w *DataProcessingWorkflows, dataSources []*model.DataSource, state model.IndexingState, processingProgress, indexingProgress int32, error *string) {
+	status := &model.IndexingStatus{
+		Status:                 state,
+		ProcessingDataProgress: processingProgress,
+		IndexingDataProgress:   indexingProgress,
+		DataSources:            dataSources,
+		Error:                  error,
+	}
+	statusJson, _ := json.Marshal(status)
+	subject := "indexing_data"
+
+	if w.Nc == nil {
+		w.Logger.Error("NATS connection is nil")
+		return
+	}
+
+	if !w.Nc.IsConnected() {
+		w.Logger.Error("NATS connection is not connected")
+		return
+	}
+
+	w.Logger.Info("Publishing indexing status",
+		"subject", subject,
+		"data", string(statusJson),
+		"connected", w.Nc.IsConnected(),
+		"status", w.Nc.Status().String())
+
+	err := w.Nc.Publish(subject, statusJson)
+	if err != nil {
+		w.Logger.Error("Failed to publish indexing status",
+			"error", err,
+			"subject", subject,
+			"connected", w.Nc.IsConnected(),
+			"status", w.Nc.Status().String())
+	}
 }
 
 func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
-	dataSourceResponse := &model.DataSource{}
-
-	w.Logger.Info("Indexing data source", "dataSource", input.DataSourceInput.Name)
-
-	dataSourceDB := input.DataSourceInput
-	if dataSourceDB.ProcessedPath == nil {
-		w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
-		return IndexDataActivityResponse{}, errors.New("processed path is nil")
-	}
-
-	records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
+	dataSourcesDB, err := w.Store.GetUnindexedDataSources(ctx)
 	if err != nil {
-		return IndexDataActivityResponse{}, err
+		return IndexDataActivityResponse{}, fmt.Errorf("failed to get unindexed data sources: %w", err)
 	}
 
-	progressChan := make(chan memory.ProgressUpdate, 10) // Buffer size helps prevent blocking
+	dataSourcesResponse := make([]*model.DataSource, len(input.DataSourcesInput))
 
-	listenerDone := make(chan struct{}) // Channel to signal when listener is finished
+	copy(dataSourcesResponse, input.DataSourcesInput)
+
+	progressChan := make(chan memory.ProgressUpdate, 10)
+	listenerDone := make(chan struct{})
 
 	go func() {
 		defer close(listenerDone)
@@ -298,97 +298,111 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 			if update.Total > 0 {
 				percentage = float64(update.Processed) / float64(update.Total) * 100
 			}
-			fmt.Printf("Processing documents: %d/%d (%.2f%%)\n", update.Processed, update.Total, percentage)
+
+			publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, int32(percentage), int32(percentage), nil)
 		}
-		fmt.Println("Progress channel closed.")
 	}()
 
-	switch strings.ToLower(dataSourceDB.Name) {
-	case "slack":
-		slackSource := slack.New(*dataSourceDB.ProcessedPath)
+	for i, dataSourceDB := range dataSourcesDB {
+		if dataSourceDB.ProcessedPath == nil {
+			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
+			continue
+		}
 
-		documents, err := slackSource.ToDocuments(records)
+		records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
 		if err != nil {
 			return IndexDataActivityResponse{}, err
 		}
-		w.Logger.Info("Documents", "slack", len(documents))
-		err = w.Memory.Store(ctx, documents, progressChan)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Indexed documents", "documents", len(documents))
-		dataSourceResponse.IsIndexed = true
 
-	case "telegram":
-		documents, err := telegram.ToDocuments(records)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
+		switch strings.ToLower(dataSourceDB.Name) {
+		case "slack":
+			slackSource := slack.New(*dataSourceDB.ProcessedPath)
+
+			documents, err := slackSource.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "slack", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+
+		case "telegram":
+			documents, err := telegram.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "telegram", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+		case "x":
+			documents, err := x.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "x", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+		case "gmail":
+			documents, err := gmail.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "gmail", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+		case "whatsapp":
+			documents, err := whatsapp.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "whatsapp", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+		case "chatgpt":
+			documents, err := chatgpt.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "chatgpt", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
 		}
-		w.Logger.Info("Documents", "telegram", len(documents))
-		err = w.Memory.Store(ctx, documents, progressChan)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Indexed documents", "documents", len(documents))
-		dataSourceResponse.IsIndexed = true
-	case "x":
-		documents, err := x.ToDocuments(records)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Documents", "x", len(documents))
-		err = w.Memory.Store(ctx, documents, progressChan)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Indexed documents", "documents", len(documents))
-		dataSourceResponse.IsIndexed = true
-	case "gmail":
-		documents, err := gmail.ToDocuments(records)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Documents", "gmail", len(documents))
-		err = w.Memory.Store(ctx, documents, progressChan)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Indexed documents", "documents", len(documents))
-		dataSourceResponse.IsIndexed = true
-	case "whatsapp":
-		documents, err := whatsapp.ToDocuments(records)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Documents", "whatsapp", len(documents))
-		err = w.Memory.Store(ctx, documents, progressChan)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Indexed documents", "documents", len(documents))
-		dataSourceResponse.IsIndexed = true
-	case "chatgpt":
-		documents, err := chatgpt.ToDocuments(records)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Documents", "chatgpt", len(documents))
-		err = w.Memory.Store(ctx, documents, progressChan)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
-		w.Logger.Info("Indexed documents", "documents", len(documents))
-		dataSourceResponse.IsIndexed = true
+
 	}
-
 	<-listenerDone
 
-	_, err = w.Store.UpdateDataSourceState(ctx, dataSourceDB.ID, dataSourceResponse.IsIndexed, dataSourceResponse.HasError)
-	if err != nil {
-		return IndexDataActivityResponse{}, err
+	for _, dataSource := range dataSourcesResponse {
+		_, err = w.Store.UpdateDataSourceState(ctx, dataSource.ID, dataSource.IsIndexed, dataSource.HasError)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
 	}
 
-	return IndexDataActivityResponse{DataSourceResponse: dataSourceResponse}, nil
+	return IndexDataActivityResponse{DataSourcesResponse: dataSourcesResponse}, nil
 }
 
 type PublishIndexingStatusInput struct {
