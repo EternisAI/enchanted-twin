@@ -68,8 +68,6 @@ func (s *ChatGPTDataSource) Name() string {
 }
 
 func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username string) ([]types.Record, error) {
-	fmt.Println("ProcessFileConversations")
-	fmt.Println("--------------------------------")
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -91,8 +89,6 @@ func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username s
 		}
 
 		for _, message := range conversation.Mapping {
-
-			fmt.Println(message)
 
 			if message.Message == nil {
 				continue
