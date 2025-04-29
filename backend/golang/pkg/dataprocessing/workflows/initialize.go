@@ -166,6 +166,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 	}
 
 	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, indexDataResponse.DataSourcesResponse, 100, 100, nil)
+
 	return InitializeWorkflowResponse{}, nil
 }
 
@@ -233,12 +234,12 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(ctx context.Context, input
 }
 
 type IndexDataActivityInput struct {
-	DataSourcesInput []*model.DataSource `json:"dataSources"`
-	IndexingState    model.IndexingState `json:"indexingState"`
+	DataSourceInput *db.DataSource      `json:"dataSources"`
+	IndexingState   model.IndexingState `json:"indexingState"`
 }
 
 type IndexDataActivityResponse struct {
-	DataSourcesResponse []*model.DataSource `json:"dataSources"`
+	DataSourceResponse *model.DataSource `json:"dataSources"`
 }
 
 func publishIndexingStatus2(w *DataProcessingWorkflows, dataSources []*model.DataSource, state model.IndexingState, processingProgress, indexingProgress int32, error *string) {
@@ -279,14 +280,24 @@ func publishIndexingStatus2(w *DataProcessingWorkflows, dataSources []*model.Dat
 }
 
 func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
-	dataSourcesDB, err := w.Store.GetUnindexedDataSources(ctx)
-	if err != nil {
-		return IndexDataActivityResponse{}, fmt.Errorf("failed to get unindexed data sources: %w", err)
+	dataSourceResponse := &model.DataSource{}
+
+	w.Logger.Info("Indexing data source", "dataSource", input.DataSourceInput.Name)
+
+	dataSourceDB := input.DataSourceInput
+	if dataSourceDB.ProcessedPath == nil {
+		w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
+		return IndexDataActivityResponse{}, errors.New("processed path is nil")
 	}
 
-	dataSourcesResponse := make([]*model.DataSource, len(input.DataSourcesInput))
+	records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
+	if err != nil {
+		return IndexDataActivityResponse{}, err
+	}
 
-	copy(dataSourcesResponse, input.DataSourcesInput)
+	switch strings.ToLower(dataSourceDB.Name) {
+	case "slack":
+		slackSource := slack.New(*dataSourceDB.ProcessedPath)
 
 	progressChan := make(chan memory.ProgressUpdate, 10)
 	listenerDone := make(chan struct{})
@@ -308,11 +319,13 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
 			continue
 		}
-
-		records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
+		w.Logger.Info("Documents", "slack", len(documents))
+		err = w.Memory.Store(ctx, documents)
 		if err != nil {
 			return IndexDataActivityResponse{}, err
 		}
+		w.Logger.Info("Indexed documents", "documents", len(documents))
+		dataSourceResponse.IsIndexed = true
 
 		switch strings.ToLower(dataSourceDB.Name) {
 		case "slack":
