@@ -23,7 +23,7 @@ type ListEventsArguments struct {
 	CalendarID string `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'. Use 'primary' for the primary calendar of the authenticated user."`
 	TimeMin    string `json:"time_min,omitempty" jsonschema:"description=Start time (RFC3339 format) for the query. Example: '2024-01-01T00:00:00Z'"`
 	TimeMax    string `json:"time_max,omitempty" jsonschema:"description=End time (RFC3339 format) for the query. Example: '2024-01-02T00:00:00Z'"`
-	MaxResults int    `json:"max_results,omitempty" jsonschema:"description=Maximum number of events returned on one result page. Default is 10."`
+	MaxResults int    `json:"max_results,omitempty" jsonschema:"description=Maximum number of events returned on one result page. Default is 10, minimum 10, maximum 50."`
 	PageToken  string `json:"page_token,omitempty" jsonschema:"description=Token specifying which result page to return."`
 	Query      string `json:"q,omitempty" jsonschema:"description=Free text search query terms to find events that match these terms in any field, except for extended properties."`
 }
