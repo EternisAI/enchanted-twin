@@ -381,7 +381,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 		dataSourceResponse.IsIndexed = true
 	}
 
-	close(progressChan)
 	<-listenerDone
 
 	_, err = w.Store.UpdateDataSourceState(ctx, dataSourceDB.ID, dataSourceResponse.IsIndexed, dataSourceResponse.HasError)

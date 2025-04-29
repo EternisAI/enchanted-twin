@@ -144,7 +144,5 @@ func (w *DataProcessingWorkflows) GmailIndexActivity(ctx context.Context, input 
 		return GmailIndexActivityResponse{}, err
 	}
 
-	close(progressChan)
-
 	return GmailIndexActivityResponse{}, nil
 }

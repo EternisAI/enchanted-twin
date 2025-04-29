@@ -150,6 +150,6 @@ func (w *DataProcessingWorkflows) XIndexActivity(ctx context.Context, input XInd
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}
-	close(progressChan)
+
 	return XIndexActivityResponse{}, nil
 }
