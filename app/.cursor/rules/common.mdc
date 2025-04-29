@@ -1,6 +1,6 @@
 ---
 description: 
-globs: 
+globs: app/**/*.tsx
 alwaysApply: false
 ---
 - You are working in a monorepo with the frontend located in `app` and backend located in `backend/golang`
