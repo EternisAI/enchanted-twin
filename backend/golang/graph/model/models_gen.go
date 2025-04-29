@@ -8,6 +8,15 @@ import (
 	"strconv"
 )
 
+type AppNotification struct {
+	ID        string  `json:"id"`
+	Title     string  `json:"title"`
+	Message   string  `json:"message"`
+	CreatedAt string  `json:"createdAt"`
+	Image     *string `json:"image,omitempty"`
+	Link      *string `json:"link,omitempty"`
+}
+
 type Chat struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`

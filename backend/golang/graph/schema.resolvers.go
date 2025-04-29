@@ -437,6 +437,41 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 	return statusChan, nil
 }
 
+// NotificationAdded is the resolver for the notificationAdded field.
+func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
+	notificationChan := make(chan *model.AppNotification, 10)
+
+	go func() {
+		defer close(notificationChan)
+
+		// Create 3 notifications with 5 second delay between each
+		for i := 1; i <= 3; i++ {
+			select {
+			case <-ctx.Done():
+				r.Logger.Info("Context cancelled while sending notifications")
+				return
+			case <-time.After(5 * time.Second):
+				notification := &model.AppNotification{
+					ID:        fmt.Sprintf("notification-%d", i),
+					Title:     fmt.Sprintf("Notification %d", i),
+					Message:   fmt.Sprintf("This is notification number %d", i),
+					CreatedAt: time.Now().Format(time.RFC3339),
+				}
+
+				select {
+				case notificationChan <- notification:
+					r.Logger.Info("Sent notification", "id", notification.ID)
+				case <-ctx.Done():
+					r.Logger.Info("Context cancelled while sending notification", "id", notification.ID)
+					return
+				}
+			}
+		}
+	}()
+
+	return notificationChan, nil
+}
+
 // IndexingStatus is the resolver for the indexingStatus field.
 func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
 	workflowID := "index"
