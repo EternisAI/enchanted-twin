@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -144,10 +145,11 @@ func (w *DataProcessingWorkflows) XIndexActivity(ctx context.Context, input XInd
 		return XIndexActivityResponse{}, err
 	}
 	w.Logger.Info("X", "tweets", len(documents))
-	err = w.Memory.Store(ctx, documents)
+	progressChan := make(chan memory.ProgressUpdate, 10)
+	err = w.Memory.Store(ctx, documents, progressChan)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}
-
+	close(progressChan)
 	return XIndexActivityResponse{}, nil
 }

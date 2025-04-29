@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
@@ -136,11 +137,14 @@ func (w *DataProcessingWorkflows) GmailIndexActivity(ctx context.Context, input 
 	if err != nil {
 		return GmailIndexActivityResponse{}, err
 	}
-	w.Logger.Info("Gmail", "emails", len(documents))
-	err = w.Memory.Store(ctx, documents)
+
+	progressChan := make(chan memory.ProgressUpdate, 10)
+	err = w.Memory.Store(ctx, documents, progressChan)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err
 	}
+
+	close(progressChan)
 
 	return GmailIndexActivityResponse{}, nil
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
@@ -262,107 +263,133 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(ctx context.Context, input
 }
 
 type IndexDataActivityInput struct {
-	DataSourcesInput []*model.DataSource `json:"dataSources"`
-	IndexingState    model.IndexingState `json:"indexingState"`
+	DataSourceInput *db.DataSource      `json:"dataSources"`
+	IndexingState   model.IndexingState `json:"indexingState"`
 }
 
 type IndexDataActivityResponse struct {
-	DataSourcesResponse []*model.DataSource `json:"dataSources"`
+	DataSourceResponse *model.DataSource `json:"dataSources"`
 }
 
 func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
-	dataSourcesDB, err := w.Store.GetUnindexedDataSources(ctx)
-	if err != nil {
-		return IndexDataActivityResponse{}, fmt.Errorf("failed to get unindexed data sources: %w", err)
+	dataSourceResponse := &model.DataSource{}
+
+	w.Logger.Info("Indexing data source", "dataSource", input.DataSourceInput.Name)
+
+	dataSourceDB := input.DataSourceInput
+	if dataSourceDB.ProcessedPath == nil {
+		w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
+		return IndexDataActivityResponse{}, errors.New("processed path is nil")
 	}
 
-	dataSourcesResponse := make([]*model.DataSource, len(input.DataSourcesInput))
+	records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
+	if err != nil {
+		return IndexDataActivityResponse{}, err
+	}
 
-	copy(dataSourcesResponse, input.DataSourcesInput)
+	progressChan := make(chan memory.ProgressUpdate, 10) // Buffer size helps prevent blocking
 
-	for i, dataSourceDB := range dataSourcesDB {
+	listenerDone := make(chan struct{}) // Channel to signal when listener is finished
 
-		if dataSourceDB.ProcessedPath == nil {
-			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
-			return IndexDataActivityResponse{}, errors.New("processed path is nil")
+	go func() {
+		defer close(listenerDone)
+		for update := range progressChan {
+			percentage := 0.0
+			if update.Total > 0 {
+				percentage = float64(update.Processed) / float64(update.Total) * 100
+			}
+			fmt.Printf("Processing documents: %d/%d (%.2f%%)\n", update.Processed, update.Total, percentage)
 		}
+		fmt.Println("Progress channel closed.")
+	}()
 
-		records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
+	switch strings.ToLower(dataSourceDB.Name) {
+	case "slack":
+		slackSource := slack.New(*dataSourceDB.ProcessedPath)
+
+		documents, err := slackSource.ToDocuments(records)
 		if err != nil {
 			return IndexDataActivityResponse{}, err
 		}
-
-		switch strings.ToLower(dataSourceDB.Name) {
-		case "slack":
-			slackSource := slack.New(*dataSourceDB.ProcessedPath)
-
-			documents, err := slackSource.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "slack", len(documents))
-			err = w.Memory.Store(ctx, documents)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-
-		case "telegram":
-			documents, err := telegram.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "telegram", len(documents))
-			err = w.Memory.Store(ctx, documents)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		case "x":
-			documents, err := x.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "x", len(documents))
-			err = w.Memory.Store(ctx, documents)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		case "gmail":
-			documents, err := gmail.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "gmail", len(documents))
-			err = w.Memory.Store(ctx, documents)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		case "whatsapp":
-			documents, err := whatsapp.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "whatsapp", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		case "chatgpt":
-			documents, err := chatgpt.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "chatgpt", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
+		w.Logger.Info("Documents", "slack", len(documents))
+		err = w.Memory.Store(ctx, documents, progressChan)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
 		}
+		w.Logger.Info("Indexed documents", "documents", len(documents))
+		dataSourceResponse.IsIndexed = true
 
+	case "telegram":
+		documents, err := telegram.ToDocuments(records)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Documents", "telegram", len(documents))
+		err = w.Memory.Store(ctx, documents, progressChan)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Indexed documents", "documents", len(documents))
+		dataSourceResponse.IsIndexed = true
+	case "x":
+		documents, err := x.ToDocuments(records)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Documents", "x", len(documents))
+		err = w.Memory.Store(ctx, documents, progressChan)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Indexed documents", "documents", len(documents))
+		dataSourceResponse.IsIndexed = true
+	case "gmail":
+		documents, err := gmail.ToDocuments(records)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Documents", "gmail", len(documents))
+		err = w.Memory.Store(ctx, documents, progressChan)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Indexed documents", "documents", len(documents))
+		dataSourceResponse.IsIndexed = true
+	case "whatsapp":
+		documents, err := whatsapp.ToDocuments(records)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Documents", "whatsapp", len(documents))
+		err = w.Memory.Store(ctx, documents, progressChan)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Indexed documents", "documents", len(documents))
+		dataSourceResponse.IsIndexed = true
+	case "chatgpt":
+		documents, err := chatgpt.ToDocuments(records)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Documents", "chatgpt", len(documents))
+		err = w.Memory.Store(ctx, documents, progressChan)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+		w.Logger.Info("Indexed documents", "documents", len(documents))
+		dataSourceResponse.IsIndexed = true
 	}
 
-	return IndexDataActivityResponse{DataSourcesResponse: dataSourcesResponse}, nil
+	close(progressChan)
+	<-listenerDone
+
+	_, err = w.Store.UpdateDataSourceState(ctx, dataSourceDB.ID, dataSourceResponse.IsIndexed, dataSourceResponse.HasError)
+	if err != nil {
+		return IndexDataActivityResponse{}, err
+	}
+
+	return IndexDataActivityResponse{DataSourceResponse: dataSourceResponse}, nil
 }
 
 type PublishIndexingStatusInput struct {
