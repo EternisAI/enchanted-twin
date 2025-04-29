@@ -18,7 +18,12 @@ type QueryResult struct {
 	Documents []TextDocument
 }
 
+type ProgressUpdate struct {
+	Processed int
+	Total     int
+}
+
 type Storage interface {
-	Store(ctx context.Context, documents []TextDocument) error
+	Store(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error
 	Query(ctx context.Context, query string) (QueryResult, error)
 }
