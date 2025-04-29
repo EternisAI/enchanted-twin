@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
+import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 
 const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -25,7 +26,10 @@ const api = {
   openAppDataFolder: () => ipcRenderer.invoke('open-appdata-folder'),
   deleteAppData: () => ipcRenderer.invoke('delete-app-data'),
   isPackaged: () => ipcRenderer.invoke('isPackaged'),
-  restartApp: () => ipcRenderer.invoke('restart-app')
+  restartApp: () => ipcRenderer.invoke('restart-app'),
+  notify: (notification: AppNotification) => ipcRenderer.invoke('notify', notification),
+  openUrl: (url: string) => ipcRenderer.send('open-url', url),
+  onDeepLink: (cb: (url: string) => void) => ipcRenderer.on('open-deeplink', (_evt, url) => cb(url))
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
