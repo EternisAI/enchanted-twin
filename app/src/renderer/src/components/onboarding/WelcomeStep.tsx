@@ -30,6 +30,10 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     const newName = nameInputRef.current?.value
+    if (newName === data?.profile?.name) {
+      onContinue()
+      return
+    }
     if (!newName?.trim()) {
       setError('Please enter your name')
       toast.error('Please enter your name')

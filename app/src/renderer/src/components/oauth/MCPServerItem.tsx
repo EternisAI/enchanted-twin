@@ -12,6 +12,7 @@ import { Switch } from '../ui/switch'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { toast } from 'sonner'
+import { Card } from '../ui/card'
 
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
@@ -174,8 +175,8 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
   }, [completeOAuthFlow, server.name, server.type, onConnect, authStateId])
 
   return (
-    <div className="border rounded-lg p-6 mb-5 bg-card w-[350px]">
-      <div className="font-semibold text-lg mb-4 border-b pb-2 flex items-center justify-between">
+    <Card className="p-4 w-[350px] max-w-full">
+      <div className="font-semibold text-lg flex items-center justify-between">
         <span>{server.name}</span>
         {server.connected && (
           <span className="text-xs bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full font-medium">
@@ -184,7 +185,7 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
         )}
       </div>
 
-      <div className="flex flex-col gap-4 pt-4">
+      <div className="flex flex-col gap-2">
         {/* <div className="flex items-center justify-between">
           <div className="space-y-1">
             <label htmlFor={`import-${server.id}`} className="font-medium">
@@ -217,14 +218,14 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
           </div>
         )}
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <label htmlFor={`sync-${server.id}`} className="font-medium">
             Sync data automatically
           </label>
           <Switch id={`sync-${server.id}`} checked disabled />
         </div>
 
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <label htmlFor={`enable-${server.id}`} className="font-medium">
             Enable LLM tools
           </label>
@@ -243,6 +244,6 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
           />
         )}
       </div>
-    </div>
+    </Card>
   )
 }

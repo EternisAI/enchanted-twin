@@ -73,3 +73,7 @@ IS_PROD_BUILD='true' \
 OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
 make build-all
 ```
+
+### Troubleshooting
+
+- If you see a Postgres error, try deleting application data in the app. If you can't start the UI, delete the enchanted user data folder in your system's `Application Support` or `%APPDATA%` directory.

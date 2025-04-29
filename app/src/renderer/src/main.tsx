@@ -37,7 +37,7 @@ export default createRoot(document.getElementById('root')!).render(
     <ThemeProvider defaultTheme={savedTheme}>
       <ApolloClientProvider>
         <RouterProvider router={router} />
-        <Toaster position="top-right" richColors />
+        <Toaster position="bottom-right" />
       </ApolloClientProvider>
     </ThemeProvider>
   </StrictMode>
