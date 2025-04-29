@@ -14,7 +14,8 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
@@ -520,7 +521,7 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 		// Convert Telegram message to GraphQL message model
 		text := telegramMessage.Text
 		message := &model.Message{
-			ID:          strconv.Itoa(telegramMessage.ID),
+			ID:          strconv.Itoa(telegramMessage.MessageID),
 			Text:        &text,
 			CreatedAt:   time.Unix(int64(telegramMessage.Date), 0).Format(time.RFC3339),
 			Role:        model.RoleUser,
