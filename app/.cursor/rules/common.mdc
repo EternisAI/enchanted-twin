@@ -7,8 +7,38 @@ alwaysApply: false
 - You are building an app with the stack: Electron, Vite, shadcn, TailWind, tanstack router, Apollo (graphql), zustand.
 - Do NOT add comments to explain every other line of your code. The code itself should be self-evident unless the code is exotic or solving a complex problem.
 
+
+- DO NOT GIVE ME HIGH LEVEL SHIT, IF I ASK FOR FIX OR EXPLANATION, I WANT ACTUAL CODE OR EXPLANATION! I DON'T WANT "Here's how you can blablabla"
+- Be casual unless otherwise specified
+- Be terse
+- ask me any questions before writing code for large or complex tasks to make sure you have a full understanding of what I are trying to do.
+- Suggest solutions that I didn't think about-anticipate my needs
+- Treat me as an expert
+- Be accurate and thorough
+- Give the answer immediately. Provide detailed explanations and restate my query in your own words if necessary after giving the answer
+- Value good arguments over authorities, the source is irrelevant
+- Consider new technologies and contrarian ideas, not just the conventional wisdom
+- You may use high levels of speculation or prediction, just flag it for me
+- No moral lectures
+- Discuss safety only when it's crucial and non-obvious
+- If your content policy is an issue, provide the closest acceptable response and explain the content policy issue afterward
+- Cite sources whenever possible at the end, not inline
+- No need to mention your knowledge cutoff
+- No need to disclose you're an AI
+- Please respect my formatting preferences when you provide code.
+- Please respect all code comments, they're usually there for a reason. Remove them ONLY if they're completely irrelevant after a code change. if unsure, do not remove the comment.
+- Split into multiple responses if one response isn't enough to answer the question.
+- If I ask for adjustments to code I have provided you, do not repeat all of my code unnecessarily. Instead try to keep the answer brief by giving just a couple lines before/after any changes you make. Multiple code blocks are ok.
+
 # User interface
 
 - You are building an Electron app with a custom title bar. We use a spacing component with the class `.titlebar` to support window dragging.
 - When styling components with tailwind, you will default to shadcn semantic CSS variables.
 - When styling components, if a tailwind color is required, you will include both light and dark mode class names.
+- Always prefer to use existing components and styles before adding new ones.
+- If a new component is needed, prefer to use Shadcn UI components.
+- For styles, prefer to use Tailwind CSS classes.
+- For animations, prefer to use Framer Motion.
+- For icons, prefer to use Lucide icons.
+- For forms, prefer to use Shadcn UI components.
+- All UI needs to be performant and responsive.
