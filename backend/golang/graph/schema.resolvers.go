@@ -316,6 +316,21 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 	return toolsDefinitions, nil
 }
 
+// SendTelegramMessage is the resolver for the sendTelegramMessage field.
+func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
+	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil || chatID == "" {
+		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
+	}
+
+	err = r.TelegramService.SendMessage(ctx, chatID, text)
+	if err != nil {
+		return false, fmt.Errorf("failed to send telegram message: %w", err)
+	}
+
+	return true, nil
+}
+
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)
@@ -489,9 +504,6 @@ type (
 	subscriptionResolver struct{ *Resolver }
 	userProfileResolver  struct{ *Resolver }
 )
-
-func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
-}
 
 func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error) {
 	if r.Nc == nil {
