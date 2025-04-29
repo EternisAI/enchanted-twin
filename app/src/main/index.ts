@@ -375,8 +375,6 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(() => {
-  mainWindow = createWindow()
-
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
     ? join(__dirname, '..', '..', 'resources', executable) // Path in development
@@ -461,6 +459,8 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  mainWindow = createWindow()
 
   ipcMain.on('ping', () => console.log('pong'))
 
