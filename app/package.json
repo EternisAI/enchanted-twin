@@ -96,6 +96,7 @@
       "provider": "github",
       "owner": "EternisAI",
       "repo": "enchanted-twin",
+      "private": true,
       "releaseType": "release"
     },
     "mac": {

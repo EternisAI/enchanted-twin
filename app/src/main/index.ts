@@ -264,6 +264,11 @@ function setupAutoUpdater() {
 
   autoUpdater.on('error', (err) => {
     log.error('Error in auto-updater:', err)
+    
+    // Check if this is a 404 error for the repository
+    if (err.toString().includes('404') && err.toString().includes('github.com')) {
+      log.warn('Repository not found or not accessible. Check repository access or configuration.')
+    }
   })
 
   autoUpdater.on('download-progress', (progressObj) => {
@@ -299,9 +304,17 @@ function setupAutoUpdater() {
       })
   })
 
-  // Check for updates
+  // Check for updates with a timeout to give app time to initialize
   log.info('Checking for application updates...')
-  autoUpdater.checkForUpdatesAndNotify()
+  try {
+    setTimeout(() => {
+      autoUpdater.checkForUpdatesAndNotify().catch(error => {
+        log.error('Failed to check for updates:', error)
+      })
+    }, 10000) // Check after 10 seconds
+  } catch (error) {
+    log.error('Error setting up auto-updater:', error)
+  }
 }
 
 function createWindow(): BrowserWindow {
