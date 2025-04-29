@@ -401,6 +401,11 @@ app.whenReady().then(() => {
 
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {
+    if (!existsSync(goBinaryPath)) {
+      log.error(`Go binary not found at: ${goBinaryPath}`)
+      createErrorWindow(`Go binary not found at: ${goBinaryPath}`)
+      return
+    }
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
@@ -439,8 +444,6 @@ app.whenReady().then(() => {
         goServerProcess.stderr?.on('data', (data) => {
           log.error(`Go Server stderr: ${data.toString().trim()}`)
         })
-
-        log.info('Go server process spawned.')
       } else {
         log.error('Failed to spawn Go server process.')
       }
