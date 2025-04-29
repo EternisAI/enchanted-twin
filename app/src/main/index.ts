@@ -10,9 +10,11 @@ import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import http from 'http'
 import { URL } from 'url'
+import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
+const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 3000
 
 let mainWindow: BrowserWindow | null = null
 // Check if running in production using environment variable
@@ -25,29 +27,6 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
-
-function createErrorWindow(errorMessage: string) {
-  const errorWindow = new BrowserWindow({
-    width: 500,
-    height: 300,
-    resizable: false,
-    minimizable: false,
-    maximizable: false,
-    title: 'Application Error',
-    webPreferences: {
-      nodeIntegration: true
-    }
-  })
-
-  errorWindow.loadURL(`data:text/html,
-    <html>
-      <body>
-        <h2>Application Error</h2>
-        <pre>${errorMessage}</pre>
-        <button onclick="window.close()">Close</button>
-      </body>
-    </html>`)
-}
 
 function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
   return new Promise((resolve, reject) => {
@@ -374,7 +353,8 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  const splash = createSplashWindow()
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
     ? join(__dirname, '..', '..', 'resources', executable) // Path in development
@@ -444,10 +424,14 @@ app.whenReady().then(() => {
         goServerProcess.stderr?.on('data', (data) => {
           log.error(`Go Server stderr: ${data.toString().trim()}`)
         })
+
+        log.info('Go server process spawned. Waiting until it listens …')
+        await waitForBackend(DEFAULT_BACKEND_PORT)
       } else {
         log.error('Failed to spawn Go server process.')
       }
     } catch (error: unknown) {
+      splash.destroy()
       log.error('Error spawning Go server:', error)
       createErrorWindow(
         `Failed to start Go server: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -458,12 +442,14 @@ app.whenReady().then(() => {
   }
 
   electronApp.setAppUserModelId('com.electron')
+  mainWindow = createWindow()
+  mainWindow.once('ready-to-show', () => {
+    splash.destroy()
+  })
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
-
-  mainWindow = createWindow()
 
   ipcMain.on('ping', () => console.log('pong'))
 
