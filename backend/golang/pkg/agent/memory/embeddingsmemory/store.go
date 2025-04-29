@@ -21,7 +21,14 @@ type embeddingResult struct {
 	err        error
 }
 
-func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
+// Store processes documents, generates embeddings, and stores them.
+// It optionally sends progress updates via the progressChan.
+func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
+	if progressChan != nil {
+		// Ensure the channel is closed when the function returns
+		defer close(progressChan)
+	}
+
 	batchSize := 30
 	// filter out empty documents
 	filteredDocuments := []memory.TextDocument{}
@@ -31,17 +38,33 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 		}
 	}
 
+	// Return early if there are no documents to process
+	if len(filteredDocuments) == 0 {
+		// Send a zero progress update if channel exists
+		if progressChan != nil {
+			select {
+			case progressChan <- memory.ProgressUpdate{Processed: 0, Total: 0}:
+			default:
+			}
+		}
+		return nil
+	}
+
 	batches := helpers.Batch(filteredDocuments, batchSize)
-	resultChan := make(chan embeddingResult, len(batches))
+	totalBatches := len(batches) // Store total batches count
+	resultChan := make(chan embeddingResult, totalBatches)
 	var wg sync.WaitGroup
 	var processedBatches atomic.Int32
-	sem := make(chan struct{}, 3)
+	// Limit concurrent embedding calls
+	sem := make(chan struct{}, 3) // Consider making concurrency configurable
 
 	for _, batch := range batches {
 		wg.Add(1)
 		go func(batchDocs []memory.TextDocument) {
 			defer wg.Done()
+			// Acquire semaphore
 			sem <- struct{}{}
+			// Release semaphore
 			defer func() { <-sem }()
 
 			textInputs := make([]string, len(batchDocs))
@@ -49,7 +72,9 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 				textInputs[i] = batchDocs[i].Content
 			}
 
+			// Generate embeddings
 			embeddings, err := m.ai.Embeddings(ctx, textInputs, m.embeddingsModelName)
+			// Send result (including potential error) to channel
 			resultChan <- embeddingResult{
 				documents:  batchDocs,
 				embeddings: embeddings,
@@ -58,26 +83,54 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 		}(batch)
 	}
 
+	// Goroutine to close resultChan once all embedding workers are done
 	go func() {
 		wg.Wait()
 		close(resultChan)
 	}()
 
+	// Process results as they come in
 	for result := range resultChan {
+		// Handle embedding errors
 		if result.err != nil {
-			return result.err
-		}
-		if err := m.storeDocuments(ctx, result.documents, result.embeddings); err != nil {
-			return err
+			// Don't send progress update on error, just return
+			return fmt.Errorf("embedding failed: %w", result.err)
 		}
 
-		// Increment and log progress after each batch is processed
+		// Store the documents and embeddings for the current batch
+		if err := m.storeDocuments(ctx, result.documents, result.embeddings); err != nil {
+			// Don't send progress update on error, just return
+			return fmt.Errorf("storing documents failed: %w", err)
+		}
+
+		// Increment processed count *after* successful storage
 		processed := processedBatches.Add(1)
-		m.logger.Info("Storing documents batch",
-			"batchSize", batchSize,
-			"progress", fmt.Sprintf("%d/%d", processed, len(batches)))
+
+		// Log progress internally
+		m.logger.Info("Stored document batch",
+			"batchSize", len(result.documents), // Log actual batch size
+			"progress", fmt.Sprintf("%d/%d", processed, totalBatches))
+
+		// Send progress update to the external channel if provided
+		if progressChan != nil {
+			update := memory.ProgressUpdate{Processed: int(processed), Total: totalBatches}
+			// Use non-blocking send to avoid deadlocks if the receiver stops listening
+			select {
+			case progressChan <- update:
+			// Update sent successfully
+			case <-ctx.Done():
+				// If the context is cancelled, stop trying to send progress
+				m.logger.Warn("Context cancelled during progress update send")
+				return ctx.Err()
+			default:
+				// Channel buffer is full or channel is closed/nil receiver
+				// Log this occurrence as it might indicate an issue with the receiver
+				m.logger.Warn("Progress channel full or receiver not ready, skipping update", "processed", processed, "total", totalBatches)
+			}
+		}
 	}
 
+	// All batches processed successfully
 	return nil
 }
 
