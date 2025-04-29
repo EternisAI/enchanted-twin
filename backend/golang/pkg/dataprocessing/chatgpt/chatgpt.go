@@ -166,7 +166,7 @@ func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, e
 	return allRecords, nil
 }
 
-func (s *ChatGPTDataSource) ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	textDocuments := make([]memory.TextDocument, 0, len(records))
 
 	for _, record := range records {

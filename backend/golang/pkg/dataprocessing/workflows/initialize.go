@@ -9,6 +9,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
@@ -333,7 +334,14 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "whatsapp", len(documents))
-
+			dataSourcesResponse[i].IsIndexed = true
+		case "chatgpt":
+			documents, err := chatgpt.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "chatgpt", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
 		}
 
 		// update indexing status
@@ -368,7 +376,10 @@ type CompleteActivityInput struct {
 type CompleteActivityResponse struct{}
 
 func (w *DataProcessingWorkflows) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
+	w.Logger.Info("--------------------------------")
+
 	for _, dataSource := range input.DataSources {
+
 		_, err := w.Store.UpdateDataSourceState(ctx, dataSource.ID, dataSource.IsIndexed, dataSource.HasError)
 		if err != nil {
 			return CompleteActivityResponse{}, err
