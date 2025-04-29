@@ -10,3 +10,4 @@ alwaysApply: false
 # User interface
 
 - We are building an Electron app with a custom title bar. We use a spacing component with the class `.titlebar` to support window dragging.
+- When styling components with tailwind, include dark mode styles.
