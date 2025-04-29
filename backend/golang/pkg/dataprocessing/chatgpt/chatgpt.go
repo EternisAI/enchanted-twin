@@ -21,7 +21,6 @@ type ChatGPTConversation struct {
 	Mapping    map[string]ChatGPTMessageNode `json:"mapping"`
 }
 
-// MessageNode represents a node in the conversation tree.
 type ChatGPTMessageNode struct {
 	ID       string          `json:"id"`
 	Message  *ChatGPTMessage `json:"message"` // Pointer because it can be null
@@ -29,7 +28,6 @@ type ChatGPTMessageNode struct {
 	Children []string        `json:"children"`
 }
 
-// Message represents the actual message content and metadata.
 type ChatGPTMessage struct {
 	ID         string   `json:"id"`
 	Author     Author   `json:"author"`
@@ -39,24 +37,20 @@ type ChatGPTMessage struct {
 	Recipient  string   `json:"recipient"`
 }
 
-// Author represents the sender of the message.
 type Author struct {
 	Role     string                 `json:"role"`
-	Name     interface{}            `json:"name"` // Use interface{} as type is unknown (null)
+	Name     interface{}            `json:"name"`
 	Metadata map[string]interface{} `json:"metadata"`
 }
 
-// Content represents the message content.
 type Content struct {
 	ContentType        string      `json:"content_type"`
-	Parts              []string    `json:"parts,omitempty"`                // Optional for non-text content
-	Language           string      `json:"language,omitempty"`             // Optional for text content
-	ResponseFormatName interface{} `json:"response_format_name,omitempty"` // Optional, type unknown (null)
-	Text               string      `json:"text,omitempty"`                 // Optional for non-code content
+	Parts              []string    `json:"parts,omitempty"`
+	Language           string      `json:"language,omitempty"`
+	ResponseFormatName interface{} `json:"response_format_name,omitempty"`
+	Text               string      `json:"text,omitempty"`
 }
 
-// Metadata contains various metadata associated with the message.
-// Using map[string]interface{} for flexibility as fields vary significantly.
 type Metadata map[string]interface{}
 
 type ChatGPTDataSource struct {
@@ -92,12 +86,10 @@ func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username s
 		}
 
 		for _, message := range conversation.Mapping {
-			// Skip nodes without a message
 			if message.Message == nil {
 				continue
 			}
 
-			// Now safe to access message.Message fields
 			if message.Message.Author.Role == "tool" {
 				continue
 			}
@@ -136,12 +128,10 @@ func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, e
 			return err
 		}
 
-		// Skip directories
 		if info.IsDir() {
 			return nil
 		}
 
-		// Only process .json files
 		if filepath.Ext(path) != ".json" {
 			return nil
 		}
@@ -198,7 +188,6 @@ func (s *ChatGPTDataSource) ToDocuments(records []types.Record) ([]memory.TextDo
 }
 
 func parseTimestamp(ts string) (time.Time, error) {
-	// Slack timestamps are in the format "1735051993.888329"
 	parts := strings.Split(ts, ".")
 	if len(parts) != 2 {
 		return time.Time{}, fmt.Errorf("invalid timestamp format: %s", ts)
@@ -213,5 +202,5 @@ func parseTimestamp(ts string) (time.Time, error) {
 }
 
 func (s *ChatGPTDataSource) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Slack")
+	return nil, fmt.Errorf("sync operation not supported for Chatgpt")
 }
