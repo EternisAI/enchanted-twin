@@ -236,6 +236,43 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		// Create a context that respects application shutdown
+		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer appCancel()
+
+		for {
+			select {
+			case <-ticker.C:
+				chatUUID, err := telegramService.GetChatUUID(context.Background())
+				fmt.Println("chatUUID", chatUUID)
+				if err != nil {
+					logger.Error("Error getting chat UUID", slog.Any("error", err))
+					continue
+				}
+				fmt.Println("Subscribing to Telegram", chatUUID)
+				err = telegramService.Subscribe(appCtx, chatUUID)
+
+				if err == nil {
+				} else if stderrs.Is(err, telegram.ErrSubscriptionNilTextMessage) {
+				} else if stderrs.Is(err, context.Canceled) || stderrs.Is(err, context.DeadlineExceeded) {
+					if appCtx.Err() != nil {
+						return
+					} else {
+					}
+				} else {
+				}
+
+			case <-appCtx.Done():
+				logger.Info("Stopping Telegram subscription poller due to application shutdown signal")
+				return
+			}
+		}
+	}()
+
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
 		temporalClient:  temporalClient,
