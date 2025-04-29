@@ -188,20 +188,19 @@ func (s *TelegramService) Start(ctx context.Context) error {
 				if update.Message.Text != "" {
 					var uuid string
 
+					s.Logger.Info("Chat ID", "chat_id", update.Message.Chat)
+
+					chatID := update.Message.Chat.ID
 					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
-						chatID := fmt.Sprintf("%d", update.Message.Chat.ID)
 						_, err := s.CreateChat(ctx, chatID, uuid)
 						if err != nil {
 							s.Logger.Error("Failed to create chat", "error", err)
 							continue
 						}
-
 					}
 
-					s.Logger.Info("Chat ID", "chat_id", update.Message.Chat)
-
 					if s.NatsClient != nil {
-						subject := fmt.Sprintf("telegram.chat.%d", update.Message.Chat.ID)
+						subject := fmt.Sprintf("telegram.chat.%s", chatID)
 						messageBytes, err := json.Marshal(update.Message)
 						if err != nil {
 							s.Logger.Error("Failed to marshal message", "error", err)
@@ -306,7 +305,12 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			s.Logger.Warn("Failed to close response body", "error", err)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -389,7 +393,12 @@ func (s *TelegramService) SendMessage(ctx context.Context, chatID string, messag
 	if err != nil {
 		return fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		err := resp.Body.Close()
+		if err != nil {
+			s.Logger.Warn("Failed to close response body", "error", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("telegram API non-OK status: %d", resp.StatusCode)
@@ -471,7 +480,12 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 	if err != nil {
 		return fmt.Errorf("failed to connect to WebSocket (%s): %w", wsURL, err)
 	}
-	defer conn.Close()
+	defer func() {
+		err := conn.Close()
+		if err != nil {
+			s.Logger.Warn("Failed to close WebSocket connection", "error", err)
+		}
+	}()
 
 	initMsg := map[string]interface{}{
 		"type": "connection_init",
@@ -484,7 +498,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return fmt.Errorf("failed to send connection initialization: %w", err)
 	}
 
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	if err := conn.SetReadDeadline(time.Now().Add(5 * time.Second)); err != nil {
+		s.Logger.Warn("Failed to set read deadline", "error", err)
+	}
 	var ackResponse struct {
 		Type string `json:"type"`
 	}
@@ -521,8 +537,12 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return fmt.Errorf("failed to send subscription request: %w", err)
 	}
 
-	conn.SetReadDeadline(time.Time{})
-	conn.SetWriteDeadline(time.Time{})
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		s.Logger.Warn("Failed to reset read deadline", "error", err)
+	}
+	if err := conn.SetWriteDeadline(time.Time{}); err != nil {
+		s.Logger.Warn("Failed to reset write deadline", "error", err)
+	}
 
 	readerExitChan := make(chan error, 1)
 
@@ -548,7 +568,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				return
 			default:
 
-				conn.SetReadDeadline(time.Now().Add(30 * time.Second))
+				if err := conn.SetReadDeadline(time.Now().Add(30 * time.Second)); err != nil {
+					s.Logger.Warn("Failed to set read deadline in loop", "error", err)
+				}
 
 				var response struct {
 					Type    string `json:"type"`
@@ -571,11 +593,15 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				if err := conn.ReadJSON(&response); err != nil {
 
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-						conn.SetReadDeadline(time.Time{})
+						if err := conn.SetReadDeadline(time.Time{}); err != nil {
+							s.Logger.Warn("Failed to reset read deadline after timeout", "error", err)
+						}
 						continue
 					}
 
-					conn.Close()
+					if err := conn.Close(); err != nil {
+						s.Logger.Warn("Failed to close connection after read error", "error", err)
+					}
 
 					if time.Since(lastSuccessfulConnection) > time.Minute {
 						reconnectAttempts = 0
@@ -617,32 +643,46 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 							if err := newConn.WriteJSON(initMsg); err != nil {
 								s.Logger.Error("Failed to send connection initialization on reconnect", "error", err)
-								newConn.Close()
+								if closeErr := newConn.Close(); closeErr != nil {
+									s.Logger.Warn("Failed to close new connection after init write error", "error", closeErr)
+								}
 								continue reconnectLoop
 							}
 
-							newConn.SetReadDeadline(time.Now().Add(10 * time.Second))
+							if err := newConn.SetReadDeadline(time.Now().Add(10 * time.Second)); err != nil {
+								s.Logger.Warn("Failed to set read deadline on reconnect ack", "error", err)
+							}
 							if err := newConn.ReadJSON(&ackResponse); err != nil {
 								s.Logger.Error("Failed to read connection acknowledgment on reconnect", "error", err)
-								newConn.Close()
+								if closeErr := newConn.Close(); closeErr != nil {
+									s.Logger.Warn("Failed to close new connection after ack read error", "error", closeErr)
+								}
 								continue reconnectLoop
 							}
-							newConn.SetReadDeadline(time.Time{})
+							if err := newConn.SetReadDeadline(time.Time{}); err != nil {
+								s.Logger.Warn("Failed to reset read deadline after reconnect ack", "error", err)
+							}
 
 							if ackResponse.Type != "connection_ack" {
 								s.Logger.Error("Unexpected response type on reconnect", "type", ackResponse.Type)
-								newConn.Close()
+								if closeErr := newConn.Close(); closeErr != nil {
+									s.Logger.Warn("Failed to close new connection after unexpected ack type", "error", closeErr)
+								}
 								continue reconnectLoop
 							}
 							connectionAcknowledged = true
 
 							if err := newConn.WriteJSON(subscription); err != nil {
 								s.Logger.Error("Failed to resend subscription", "error", err)
-								newConn.Close()
+								if closeErr := newConn.Close(); closeErr != nil {
+									s.Logger.Warn("Failed to close new connection after subscription write error", "error", closeErr)
+								}
 								continue reconnectLoop
 							}
 
-							newConn.SetWriteDeadline(time.Time{})
+							if err := newConn.SetWriteDeadline(time.Time{}); err != nil {
+								s.Logger.Warn("Failed to reset write deadline on reconnect", "error", err)
+							}
 
 							conn = newConn
 							break reconnectLoop
@@ -651,7 +691,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 					continue
 				}
-				conn.SetReadDeadline(time.Time{})
+				if err := conn.SetReadDeadline(time.Time{}); err != nil {
+					s.Logger.Warn("Failed to reset read deadline after successful read", "error", err)
+				}
 
 				if response.Type == "data" {
 
@@ -705,7 +747,11 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							s.Logger.Error("Failed to send GraphQL mutation request", "error", err)
 							continue
 						}
-						defer resp.Body.Close()
+						defer func() {
+							if err := resp.Body.Close(); err != nil {
+								s.Logger.Warn("Failed to close GraphQL response body", "error", err)
+							}
+						}()
 
 						if resp.StatusCode != http.StatusOK {
 							bodyBytes, _ := io.ReadAll(resp.Body)
@@ -747,7 +793,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				} else if response.Type == "error" {
 					if !connectionAcknowledged {
 						exitErr = fmt.Errorf("received error before connection ack: %v", response.Payload.Errors)
-						conn.Close()
+						if err := conn.Close(); err != nil {
+							s.Logger.Warn("Failed to close connection after error before ack", "error", err)
+						}
 						return
 					}
 				} else {

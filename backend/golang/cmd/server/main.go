@@ -263,9 +263,7 @@ func main() {
 				} else if stderrs.Is(err, context.Canceled) || stderrs.Is(err, context.DeadlineExceeded) {
 					if appCtx.Err() != nil {
 						return
-					} else {
 					}
-				} else {
 				}
 
 			case <-appCtx.Done():
