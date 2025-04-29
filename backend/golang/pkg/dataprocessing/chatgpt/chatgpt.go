@@ -181,25 +181,16 @@ func (s *ChatGPTDataSource) ToDocuments(records []types.Record) ([]memory.TextDo
 		}
 
 		message := getString("text")
-		authorUsername := getString("username")
-		channelName := getString("channelName")
-
-		// Skip records with missing required fields
-		if message == "" || authorUsername == "" || channelName == "" {
-			continue
-		}
-
-		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
+		role := getString("role")
 
 		textDocuments = append(textDocuments, memory.TextDocument{
 			Content:   message,
 			Timestamp: &record.Timestamp,
-			Tags:      []string{"social", "slack", "chat"},
+			Tags:      []string{"chat", "chatgpt"},
 			Metadata: map[string]string{
-				"type":           "message",
-				"channelName":    channelName,
-				"authorUsername": authorUsername,
-				"source":         "slack",
+				"type":   "message",
+				"role":   role,
+				"source": "chatgpt",
 			},
 		})
 	}
