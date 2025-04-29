@@ -440,7 +440,6 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(ctx context.Context, inp
 	return nil
 }
 
-// This would be for a GraphQL subscription (optional)
 type DownloadModelProgress struct {
 	PercentageProgress float64
 }
