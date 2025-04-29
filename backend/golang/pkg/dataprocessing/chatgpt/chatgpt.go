@@ -1,0 +1,216 @@
+package chatgpt
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+)
+
+type ChatGPTConversation struct {
+	Title      string                        `json:"title"`
+	CreateTime float64                       `json:"create_time"`
+	UpdateTime float64                       `json:"update_time"`
+	Mapping    map[string]ChatGPTMessageNode `json:"mapping"`
+}
+
+type ChatGPTMessageNode struct {
+	ID       string          `json:"id"`
+	Message  *ChatGPTMessage `json:"message"` // Pointer because it can be null
+	Parent   *string         `json:"parent"`  // Pointer because root node has null parent
+	Children []string        `json:"children"`
+}
+
+type ChatGPTMessage struct {
+	ID         string   `json:"id"`
+	Author     Author   `json:"author"`
+	CreateTime *float64 `json:"create_time"`
+	Content    Content  `json:"content"`
+	Metadata   Metadata `json:"metadata"`
+	Recipient  string   `json:"recipient"`
+}
+
+type Author struct {
+	Role     string                 `json:"role"`
+	Name     interface{}            `json:"name"`
+	Metadata map[string]interface{} `json:"metadata"`
+}
+
+type Content struct {
+	ContentType        string        `json:"content_type"`
+	Parts              []interface{} `json:"parts,omitempty"`
+	Language           string        `json:"language,omitempty"`
+	ResponseFormatName interface{}   `json:"response_format_name,omitempty"`
+	Text               string        `json:"text,omitempty"`
+}
+
+type Metadata map[string]interface{}
+
+type ChatGPTDataSource struct {
+	inputPath string
+}
+
+func New(inputPath string) *ChatGPTDataSource {
+	return &ChatGPTDataSource{
+		inputPath: inputPath,
+	}
+}
+
+func (s *ChatGPTDataSource) Name() string {
+	return "chatgpt"
+}
+
+func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username string) ([]types.Record, error) {
+	jsonData, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var conversations []ChatGPTConversation
+	if err := json.Unmarshal(jsonData, &conversations); err != nil {
+		return nil, err
+	}
+
+	var records []types.Record
+
+	fmt.Println(conversations)
+
+	for _, conversation := range conversations {
+		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
+		if err != nil {
+			continue
+		}
+
+		for _, message := range conversation.Mapping {
+
+			if message.Message == nil {
+				continue
+			}
+
+			if message.Message.Author.Role == "tool" {
+				continue
+			}
+			content := message.Message.Content
+			if content.ContentType != "text" {
+				continue
+			}
+			var textContentBuilder strings.Builder
+			for _, part := range content.Parts {
+				if strPart, ok := part.(string); ok {
+					textContentBuilder.WriteString(strPart)
+				}
+			}
+			extractedText := textContentBuilder.String()
+
+			role := message.Message.Author.Role
+
+			conversationData := map[string]any{
+				"title": conversation.Title,
+				"text":  extractedText,
+				"role":  role,
+			}
+			record := types.Record{
+				Data:      conversationData,
+				Timestamp: timestamp,
+				Source:    s.Name(),
+			}
+			records = append(records, record)
+
+		}
+
+	}
+
+	return records, nil
+}
+
+func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, error) {
+	var allRecords []types.Record
+
+	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(path) != ".json" {
+			return nil
+		}
+
+		if filepath.Base(path) == "conversations.json" {
+			records, err := s.ProcessFileConversations(path, userName)
+			if err != nil {
+				fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
+				return nil
+			}
+
+			allRecords = append(allRecords, records...)
+			return nil
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return allRecords, nil
+}
+
+func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+	textDocuments := make([]memory.TextDocument, 0, len(records))
+
+	for _, record := range records {
+
+		getString := func(key string) string {
+			if val, ok := record.Data[key]; ok {
+				if strVal, ok := val.(string); ok {
+					return strVal
+				}
+			}
+			return ""
+		}
+
+		message := getString("text")
+		role := getString("role")
+
+		textDocuments = append(textDocuments, memory.TextDocument{
+			Content:   message,
+			Timestamp: &record.Timestamp,
+			Tags:      []string{"chat", "chatgpt"},
+			Metadata: map[string]string{
+				"type":   "message",
+				"role":   role,
+				"source": "chatgpt",
+			},
+		})
+	}
+	return textDocuments, nil
+}
+
+func parseTimestamp(ts string) (time.Time, error) {
+	parts := strings.Split(ts, ".")
+	if len(parts) != 2 {
+		return time.Time{}, fmt.Errorf("invalid timestamp format: %s", ts)
+	}
+
+	seconds, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return time.Unix(seconds, 0), nil
+}
+
+func (s *ChatGPTDataSource) Sync(ctx context.Context) ([]types.Record, error) {
+	return nil, fmt.Errorf("sync operation not supported for Chatgpt")
+}

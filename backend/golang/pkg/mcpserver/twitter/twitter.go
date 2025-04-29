@@ -57,6 +57,18 @@ func (c *TwitterClient) ListTools(ctx context.Context, cursor *string) (*mcp_gol
 		InputSchema: inputSchema,
 	})
 
+	inputSchema, err = helpers.ConverToInputSchema(ListBookmarksArguments{})
+	if err != nil {
+		return nil, err
+	}
+
+	description = LIST_BOOKMARKS_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        LIST_BOOKMARKS_TOOL_NAME,
+		Description: &description,
+		InputSchema: inputSchema,
+	})
+	
 	return &mcp_golang.ToolsResponse{
 		Tools: tools,
 	}, nil
@@ -92,38 +104,48 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 	var content []*mcp_golang.Content
 
 	switch name {
-	case LIST_FEED_TOOL_NAME:
-		var argumentsTyped ListFeedTweetsArguments
-		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-			return nil, err
-		}
-		result, err := processListFeedTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
-		if err != nil {
-			return nil, err
-		}
-		content = result
-	case POST_TWEET_TOOL_NAME:
-		var argumentsTyped PostTweetArguments
-		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-			return nil, err
-		}
-		result, err := processPostTweet(oauthTokens.AccessToken, argumentsTyped)
-		if err != nil {
-			return nil, err
-		}
-		content = result
-	case SEARCH_TWEETS_TOOL_NAME:
-		var argumentsTyped SearchTweetsArguments
-		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
-			return nil, err
-		}
-		result, err := processSearchTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
-		if err != nil {
-			return nil, err
-		}
-		content = result
-	default:
-		return nil, fmt.Errorf("tool not found")
+		case LIST_FEED_TOOL_NAME:
+			var argumentsTyped ListFeedTweetsArguments
+			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+				return nil, err
+			}
+			result, err := processListFeedTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
+			if err != nil {
+				return nil, err
+			}
+			content = result
+		case POST_TWEET_TOOL_NAME:
+			var argumentsTyped PostTweetArguments
+			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+				return nil, err
+			}
+			result, err := processPostTweet(oauthTokens.AccessToken, argumentsTyped)
+			if err != nil {
+				return nil, err
+			}
+			content = result
+		case SEARCH_TWEETS_TOOL_NAME:
+			var argumentsTyped SearchTweetsArguments
+			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+				return nil, err
+			}
+			result, err := processSearchTweets(ctx, oauthTokens.AccessToken, argumentsTyped)
+			if err != nil {
+				return nil, err
+			}
+			content = result
+		case LIST_BOOKMARKS_TOOL_NAME:
+			var argumentsTyped ListBookmarksArguments
+			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+				return nil, err
+			}
+			result, err := processListBookmarks(ctx, oauthTokens.AccessToken, argumentsTyped)
+			if err != nil {
+				return nil, err
+			}
+			content = result
+		default:
+			return nil, fmt.Errorf("tool not found")
 	}
 
 	return &mcp_golang.ToolResponse{
