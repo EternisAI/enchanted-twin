@@ -1,0 +1,154 @@
+# Defines the configuration version.
+# The only possible value is "2".
+version: 2
+
+# Configures linters
+linters-settings:
+  errcheck:
+    # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
+    check-type-assertions: true
+  govet:
+    # Enable all analyzers
+    enable-all: true
+    # Disable specific analyzers
+    disable:
+      - fieldalignment # too aggressive for now
+  gofmt:
+    # Simplify code: gofmt with `-s` option
+    simplify: true
+  goconst:
+    # Minimal length of string constant
+    min-len: 3
+    # Minimal occurrences count to trigger
+    min-occurrences: 3
+  gocritic:
+    # Enable specific checkers
+    enabled-checks:
+      - appendAssign
+      - appendCombine
+      - assignOp
+      - captLocal
+      - caseOrder
+      - defaultCaseOrder
+      - dupBranchBody
+      - dupSubExpr
+      - elseif
+      - emptyFallthrough
+      - exitAfterDefer
+      - ifElseChain
+      - nilValReturn
+      - sloppyLen
+      - switchTrue
+      - typeSwitchVar
+      - underef
+      - unlambda
+      - unslice
+  revive:
+    # Maximum number of tokens per line
+    max-line-len: 120
+  unused:
+    # Select the Go version to target
+    go: "1.21"
+  unparam:
+    # Report unused function parameters
+    check-exported: false
+  misspell:
+    # Correct spellings using locale preferences for US
+    locale: US
+  gci:
+    # Section configuration to compare against
+    sections:
+      - standard # Standard section: captures all standard packages
+      - default # Default section: contains all imports that could not be matched to another section
+      - prefix(github.com/EternisAI) # Custom section: groups imports with the specified prefix
+  exhaustive:
+    # Check switch statements in generated files
+    check-generated: false
+    # Presence of "default" case in switch statements satisfies exhaustiveness
+    default-signifies-exhaustive: true
+
+# Enables specific linters
+
+formatters:
+  # Enable specific formatter.
+  # Default: [] (uses standard Go formatting)
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    - golines
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/EternisAI/enchanted-twin
+
+linters:
+  # Disable all linters by default and then enable specific ones
+  disable-all: true
+  enable:
+    # Auto-fix capable linters
+    - misspell # Finds commonly misspelled English words [auto-fix]
+    - whitespace # Detects trailing whitespace [auto-fix]
+    # - gocritic       # Provides diagnostics that check for bugs, performance and style issues [auto-fix] - TODO: re-enable after fixing exitAfterDefer and ifElseChain
+    - godot # Checks if comments end in a period [auto-fix]
+    # - revive         # Style and code quality checks [auto-fix] - TODO: re-enable after adding docs
+    - nolintlint # Reports ill-formed or insufficient nolint directives [auto-fix]
+    - unconvert # Remove unnecessary type conversions [auto-fix]
+
+    # Standard linters
+    - errcheck # Checks for unchecked errors
+    - govet # Reports suspicious constructs
+    - ineffassign # Detects ineffectual assignments
+    - staticcheck # Applies static analysis checks
+    - unused # Checks for unused constants, variables, functions, and types
+    # - gosec          # Inspects source code for security problems - TODO: re-enable after fixing security issues
+    # - goconst        # Finds repeated strings that could be constants - TODO: re-enable after refactoring
+    - nakedret # Finds naked returns
+    # - unparam        # Reports unused function parameters - TODO: re-enable after refactoring
+    # - exhaustive     # Checks exhaustiveness of switch statements - TODO: re-enable after fixing switch statements
+    - durationcheck # Checks for two durations multiplied together
+
+# Configuration of the issues output
+issues:
+  # Show list of issues for the given categories
+  categories-by-output: error
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - dupl
+        - gosec
+        - gocognit
+    # Exclude known linters from empty packages (they triggers on doc comments)
+    - path: internal/
+      text: "should have a package comment"
+      linters:
+        - stylecheck
+        - revive
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text
+  max-same-issues: 0
+
+# Output configuration
+output:
+  # Sort results by: filepath, line and column
+  sort-results: true
+
+# Define the settings for run
+run:
+  # Timeout for analysis, e.g. 30s, 5m
+  timeout: 5m
+  # Exit code when at least one issue was found
+  issues-exit-code: 1
+  # Include test files in the analysis
+  tests: true
+  # Skip directories
+  skip-dirs:
+    - vendor
+  # Skip files with build tags that don't match the value
+  skip-files:
+    - ".*\\.pb\\.go"
