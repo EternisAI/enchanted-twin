@@ -25,7 +25,6 @@ export default function NotificationStatusCard() {
   }, [])
 
   const openOsSettings = () => {
-    console.log('openOsSettings')
     window.api.openSettings()
   }
 

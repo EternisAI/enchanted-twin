@@ -356,7 +356,6 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(async () => {
   const splash = createSplashWindow()
-  // primeMacPermission()
 
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
