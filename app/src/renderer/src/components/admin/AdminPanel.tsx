@@ -79,7 +79,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 container max-w-4xl">
       <div className="grid grid-cols-1 gap-4">
         <Button
           variant="outline"
