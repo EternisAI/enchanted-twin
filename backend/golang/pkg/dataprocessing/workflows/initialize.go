@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -285,25 +286,10 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 
 	copy(dataSourcesResponse, input.DataSourcesInput)
 
-	progressChan := make(chan memory.ProgressUpdate, 10)
-	listenerDone := make(chan struct{})
-
-	currentIndex := 0
-	go func() {
-		defer close(listenerDone)
-		for update := range progressChan {
-			percentage := 0.0
-			if update.Total > 0 {
-				percentage = float64(update.Processed) / float64(update.Total) * 100
-			}
-
-			dataSourcesResponse[currentIndex].IndexProgress = int32(percentage)
-			publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, nil)
-		}
-	}()
-
+	var wg sync.WaitGroup
+	resultChan := make(chan struct{})
 	for i, dataSourceDB := range dataSourcesDB {
-		currentIndex = i
+
 		if dataSourceDB.ProcessedPath == nil {
 			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
 			continue
@@ -313,6 +299,23 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 		if err != nil {
 			return IndexDataActivityResponse{}, err
 		}
+
+		progressChan := make(chan memory.ProgressUpdate, 10)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for update := range progressChan {
+				percentage := 0.0
+				if update.Total > 0 {
+					percentage = float64(update.Processed) / float64(update.Total) * 100
+				}
+
+				dataSourcesResponse[i].IndexProgress = int32(percentage)
+				publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, nil)
+			}
+		}()
 
 		switch strings.ToLower(dataSourceDB.Name) {
 		case "slack":
@@ -393,7 +396,10 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 		}
 
 	}
-	<-listenerDone
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
 
 	for _, dataSource := range dataSourcesResponse {
 		_, err = w.Store.UpdateDataSourceState(ctx, dataSource.ID, dataSource.IsIndexed, dataSource.HasError)
