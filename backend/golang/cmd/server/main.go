@@ -200,6 +200,7 @@ func main() {
 		store,
 		temporalClient,
 		envs.CompletionsModel,
+		envs.TelegramChatServer,
 	)
 
 	// Register tools from the TwinChat service

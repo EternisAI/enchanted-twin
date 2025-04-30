@@ -1,15 +1,13 @@
 package tools
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"net/http"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+
 	types "github.com/EternisAI/enchanted-twin/types"
 
 	"github.com/charmbracelet/log"
@@ -19,16 +17,17 @@ import (
 )
 
 type TelegramTool struct {
-	Logger *log.Logger
-	Token  string
-	Store  *db.Store
+	Logger        *log.Logger
+	Token         string
+	Store         *db.Store
+	ChatServerUrl string
 }
 
-func NewTelegramTool(logger *log.Logger, token string, store *db.Store) *TelegramTool {
+func NewTelegramTool(logger *log.Logger, token string, store *db.Store, chatServerUrl string) *TelegramTool {
 	if token == "" {
 		logger.Error("TELEGRAM_TOKEN environment variable not set")
 	}
-	return &TelegramTool{Logger: logger, Token: token, Store: store}
+	return &TelegramTool{Logger: logger, Token: token, Store: store, ChatServerUrl: chatServerUrl}
 }
 
 func generateQRCodePNGDataURL(data string) (string, error) {
@@ -55,18 +54,13 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 		t.Logger.Error("error getting chat UUID", "error", err)
 		return ToolResult{}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
-	key := fmt.Sprintf("telegram_chat_id_%s", chatUUID)
-	chatID, err := t.Store.GetValue(ctx, key)
-	if err != nil || chatID == "" {
-		chatUUID, err := t.Store.GetValue(ctx, types.TelegramChatUUIDKey)
-		if err != nil {
-			return ToolResult{}, fmt.Errorf("error getting value from store: %w", err)
-		}
+
+	if err != nil || chatUUID == "" {
 
 		chatURL := helpers.GetChatURL(types.TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
 		if qErr != nil {
-			t.Logger.Error("failed to generate QR code", "error", qErr)
+			t.Logger.Error("failed to generate QR code,", "error", qErr)
 		}
 
 		return ToolResult{
@@ -78,52 +72,13 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 		}, nil
 	}
 
-	// Construct Telegram API request
-	url := fmt.Sprintf("%s/bot%s/sendMessage", types.TelegramAPIBase, t.Token)
-	body := map[string]any{
-		"chat_id":    chatID,
-		"text":       message,
-		"parse_mode": "HTML",
-	}
-	jsonBody, err := json.Marshal(body)
+	_, err = helpers.PostMessage(ctx, chatUUID, message, t.ChatServerUrl)
 	if err != nil {
-		return ToolResult{}, fmt.Errorf("marshal body: %w", err)
+		t.Logger.Error("failed to send message", "error", err)
+		return ToolResult{}, fmt.Errorf("failed to send message: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewBuffer(jsonBody))
-	if err != nil {
-		return ToolResult{}, fmt.Errorf("create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	t.Logger.Info("Sending message to Telegram", "url", url, "body", body)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return ToolResult{}, fmt.Errorf("send request: %w", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			t.Logger.Error("Failed to close response body", "error", err)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		return ToolResult{}, fmt.Errorf("telegram API non-OK status: %d", resp.StatusCode)
-	}
-
-	var result struct {
-		OK          bool   `json:"ok"`
-		Description string `json:"description"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return ToolResult{}, fmt.Errorf("decode response: %w", err)
-	}
-	if !result.OK {
-		return ToolResult{}, fmt.Errorf("telegram API error: %s", result.Description)
-	}
-
-	return ToolResult{Content: fmt.Sprintf("Message sent successfully to chat %s", chatID)}, nil
+	return ToolResult{Content: fmt.Sprintf("Message sent successfully to chat %s", chatUUID)}, nil
 }
 
 func (t *TelegramTool) Definition() openai.ChatCompletionToolParam {
