@@ -8,7 +8,10 @@ export default function MCPServersStep() {
   const { nextStep, previousStep } = useOnboardingStore()
 
   return (
-    <OnboardingLayout title="MCP Servers" subtitle="Connect with your favorite platforms">
+    <OnboardingLayout
+      title="Connections"
+      subtitle="Connect your accounts to continually update your data"
+    >
       <div className="flex flex-col w-full gap-8">
         <div className="bg-card p-6 rounded-lg border">
           {/* <p className="text-muted-foreground mb-6">
@@ -17,7 +20,7 @@ export default function MCPServersStep() {
             platforms.
           </p> */}
 
-          <MCPPanel />
+          <MCPPanel hideTitle />
         </div>
 
         <div className="flex justify-between">

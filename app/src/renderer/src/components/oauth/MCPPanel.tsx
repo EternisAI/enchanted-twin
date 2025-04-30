@@ -1,9 +1,9 @@
 import { useQuery } from '@apollo/client'
 import { GetMcpServersDocument } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
-import { Server } from 'lucide-react'
+import { Plug } from 'lucide-react'
 
-export default function MCPPanel() {
+export default function MCPPanel({ hideTitle }: { hideTitle?: boolean }) {
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
 
   const mcpServers = data?.getMCPServers || []
@@ -20,12 +20,14 @@ export default function MCPPanel() {
 
   return (
     <div className="flex flex-col items-center max-w-3xl gap-8 mx-auto">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="bg-primary/10 p-2 rounded-full">
-          <Server className="h-5 w-5 text-primary" />
+      {!hideTitle && (
+        <div className="flex items-center gap-3 mb-4">
+          <div className="bg-primary/10 p-2 rounded-full">
+            <Plug className="h-5 w-5 text-primary" />
+          </div>
+          <h3 className="text-lg font-medium">Connections</h3>
         </div>
-        <h3 className="text-lg font-medium">MCP Server Configuration</h3>
-      </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {mcpServers.map((server) => (
           <MCPServerItem key={server.id} server={server} onConnect={refetch} />
