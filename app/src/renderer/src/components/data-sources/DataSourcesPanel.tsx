@@ -1,5 +1,9 @@
 import { useQuery, useMutation, useSubscription } from '@apollo/client'
-import { GetDataSourcesDocument, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
+import {
+  GetDataSourcesDocument,
+  IndexingState,
+  IndexingStatusDocument
+} from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { CheckCircle2, Loader2, X, Play, RefreshCw, Import } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
@@ -109,7 +113,6 @@ const PendingDataSourceCard = ({
         {sourceDetails.icon}
         <div>
           <h3 className="font-medium">{source.name}</h3>
-          <p className="text-xs text-muted-foreground">{sourceDetails.description}</p>
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -132,10 +135,11 @@ const IndexedDataSourceCard = ({ source }: { source: IndexedDataSource }) => {
   return (
     <div className="p-4 rounded-lg bg-muted/50 border h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        {sourceDetails.icon}
+        <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
         <div>
           <h3 className="font-medium">{source.name}</h3>
-          {source.indexProgress !== undefined && (
+          {source.hasError && <p className="text-xs text-red-500">Error</p>}
+          {!source.isIndexed && (
             <div className="w-full bg-secondary rounded-full h-1 mt-2">
               <div
                 className="bg-primary h-1 rounded-full transition-all duration-300"
@@ -148,11 +152,7 @@ const IndexedDataSourceCard = ({ source }: { source: IndexedDataSource }) => {
         </div>
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        {source.isIndexed ? (
-          <CheckCircle2 className="h-3 w-3 text-green-500" />
-        ) : (
-          <Loader2 className="h-3 w-3 text-amber-500 animate-spin" />
-        )}
+        {source.isIndexed && <CheckCircle2 className="h-3 w-3 text-green-500" />}
         <span>{source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}</span>
       </div>
     </div>
@@ -177,7 +177,8 @@ export function DataSourcesPanel({
 
   // Derived states from subscription data
   const isIndexing =
-    indexingData?.indexingStatus?.dataSources?.some((source) => !source.isIndexed) ?? false
+    indexingData?.indexingStatus?.status !== IndexingState.NotStarted &&
+    indexingData?.indexingStatus?.status !== IndexingState.Completed
   const isProcessing =
     indexingData?.indexingStatus?.dataSources?.some((source) => !source.isProcessed) ?? false
   const hasError = indexingData?.indexingStatus?.error ?? false
@@ -400,24 +401,23 @@ export function DataSourcesPanel({
 
       {renderIndexingProgress()}
 
-      {!isIndexing && (
-        <Button
-          onClick={handleStartIndexing}
-          disabled={isProcessing || !hasPendingDataSources}
-          className="w-full"
-        >
-          {isProcessing ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              Start Indexing <Play className="ml-2 h-4 w-4" />
-            </>
-          )}
-        </Button>
-      )}
+      <Button
+        size="lg"
+        onClick={handleStartIndexing}
+        disabled={(!isIndexing && (hasPendingDataSources || !allSourcesIndexed)) || isProcessing}
+        className="w-full"
+      >
+        {isProcessing ? (
+          <>
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            Processing...
+          </>
+        ) : (
+          <>
+            Begin import <Play className="ml-2 h-4 w-4" />
+          </>
+        )}
+      </Button>
 
       {hasError && (
         <div className="flex gap-2">
