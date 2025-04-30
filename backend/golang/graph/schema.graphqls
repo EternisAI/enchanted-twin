@@ -103,6 +103,7 @@ type Mutation {
   addDataSource(name: String!, path: String!): Boolean!
   deleteDataSource(id: ID!): Boolean!
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
+  sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
 }
 
 type Subscription {
@@ -110,6 +111,7 @@ type Subscription {
   toolCallUpdated(chatId: ID!): ToolCall!
   indexingStatus: IndexingStatus!
   notificationAdded: AppNotification!
+  telegramMessageAdded(chatUUID: ID!): Message!
 }
 
 type DataSource {
@@ -119,6 +121,7 @@ type DataSource {
   updatedAt: DateTime!
   isProcessed: Boolean!
   isIndexed: Boolean!
+  indexProgress: Int!
   hasError: Boolean!
 }
 
@@ -127,15 +130,12 @@ enum IndexingState {
   DOWNLOADING_MODEL
   PROCESSING_DATA #[1 part, 2 ?]
   INDEXING_DATA
-  CLEAN_UP # delete `input_files`
   COMPLETED
   FAILED
 }
 
 type IndexingStatus {
   status: IndexingState!
-  processingDataProgress: Int!
-  indexingDataProgress: Int!
   dataSources: [DataSource!]!
   error: String
 }

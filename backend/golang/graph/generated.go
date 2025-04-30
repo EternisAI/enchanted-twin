@@ -73,21 +73,20 @@ type ComplexityRoot struct {
 	}
 
 	DataSource struct {
-		HasError    func(childComplexity int) int
-		ID          func(childComplexity int) int
-		IsIndexed   func(childComplexity int) int
-		IsProcessed func(childComplexity int) int
-		Name        func(childComplexity int) int
-		Path        func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
+		HasError      func(childComplexity int) int
+		ID            func(childComplexity int) int
+		IndexProgress func(childComplexity int) int
+		IsIndexed     func(childComplexity int) int
+		IsProcessed   func(childComplexity int) int
+		Name          func(childComplexity int) int
+		Path          func(childComplexity int) int
+		UpdatedAt     func(childComplexity int) int
 	}
 
 	IndexingStatus struct {
-		DataSources            func(childComplexity int) int
-		Error                  func(childComplexity int) int
-		IndexingDataProgress   func(childComplexity int) int
-		ProcessingDataProgress func(childComplexity int) int
-		Status                 func(childComplexity int) int
+		DataSources func(childComplexity int) int
+		Error       func(childComplexity int) int
+		Status      func(childComplexity int) int
 	}
 
 	KeyValue struct {
@@ -350,6 +349,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.DataSource.ID(childComplexity), true
 
+	case "DataSource.indexProgress":
+		if e.complexity.DataSource.IndexProgress == nil {
+			break
+		}
+
+		return e.complexity.DataSource.IndexProgress(childComplexity), true
+
 	case "DataSource.isIndexed":
 		if e.complexity.DataSource.IsIndexed == nil {
 			break
@@ -398,20 +404,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.IndexingStatus.Error(childComplexity), true
-
-	case "IndexingStatus.indexingDataProgress":
-		if e.complexity.IndexingStatus.IndexingDataProgress == nil {
-			break
-		}
-
-		return e.complexity.IndexingStatus.IndexingDataProgress(childComplexity), true
-
-	case "IndexingStatus.processingDataProgress":
-		if e.complexity.IndexingStatus.ProcessingDataProgress == nil {
-			break
-		}
-
-		return e.complexity.IndexingStatus.ProcessingDataProgress(childComplexity), true
 
 	case "IndexingStatus.status":
 		if e.complexity.IndexingStatus.Status == nil {
@@ -2433,6 +2425,50 @@ func (ec *executionContext) fieldContext_DataSource_isIndexed(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _DataSource_indexProgress(ctx context.Context, field graphql.CollectedField, obj *model.DataSource) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_DataSource_indexProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IndexProgress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int32)
+	fc.Result = res
+	return ec.marshalNInt2int32(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_DataSource_indexProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "DataSource",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _DataSource_hasError(ctx context.Context, field graphql.CollectedField, obj *model.DataSource) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_DataSource_hasError(ctx, field)
 	if err != nil {
@@ -2521,94 +2557,6 @@ func (ec *executionContext) fieldContext_IndexingStatus_status(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _IndexingStatus_processingDataProgress(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.ProcessingDataProgress, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int32)
-	fc.Result = res
-	return ec.marshalNInt2int32(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_IndexingStatus_processingDataProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "IndexingStatus",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
-func (ec *executionContext) _IndexingStatus_indexingDataProgress(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
-	if err != nil {
-		return graphql.Null
-	}
-	ctx = graphql.WithFieldContext(ctx, fc)
-	defer func() {
-		if r := recover(); r != nil {
-			ec.Error(ctx, ec.Recover(ctx, r))
-			ret = graphql.Null
-		}
-	}()
-	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
-		ctx = rctx // use context from middleware stack in children
-		return obj.IndexingDataProgress, nil
-	})
-	if err != nil {
-		ec.Error(ctx, err)
-		return graphql.Null
-	}
-	if resTmp == nil {
-		if !graphql.HasFieldError(ctx, fc) {
-			ec.Errorf(ctx, "must not be null")
-		}
-		return graphql.Null
-	}
-	res := resTmp.(int32)
-	fc.Result = res
-	return ec.marshalNInt2int32(ctx, field.Selections, res)
-}
-
-func (ec *executionContext) fieldContext_IndexingStatus_indexingDataProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
-	fc = &graphql.FieldContext{
-		Object:     "IndexingStatus",
-		Field:      field,
-		IsMethod:   false,
-		IsResolver: false,
-		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
-		},
-	}
-	return fc, nil
-}
-
 func (ec *executionContext) _IndexingStatus_dataSources(ctx context.Context, field graphql.CollectedField, obj *model.IndexingStatus) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_IndexingStatus_dataSources(ctx, field)
 	if err != nil {
@@ -2660,6 +2608,8 @@ func (ec *executionContext) fieldContext_IndexingStatus_dataSources(_ context.Co
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "indexProgress":
+				return ec.fieldContext_DataSource_indexProgress(ctx, field)
 			case "hasError":
 				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
@@ -4907,6 +4857,8 @@ func (ec *executionContext) fieldContext_Query_getDataSources(_ context.Context,
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "indexProgress":
+				return ec.fieldContext_DataSource_indexProgress(ctx, field)
 			case "hasError":
 				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
@@ -5493,10 +5445,6 @@ func (ec *executionContext) fieldContext_Subscription_indexingStatus(_ context.C
 			switch field.Name {
 			case "status":
 				return ec.fieldContext_IndexingStatus_status(ctx, field)
-			case "processingDataProgress":
-				return ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
-			case "indexingDataProgress":
-				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
 			case "dataSources":
 				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
 			case "error":
@@ -6096,10 +6044,6 @@ func (ec *executionContext) fieldContext_UserProfile_indexingStatus(_ context.Co
 			switch field.Name {
 			case "status":
 				return ec.fieldContext_IndexingStatus_status(ctx, field)
-			case "processingDataProgress":
-				return ec.fieldContext_IndexingStatus_processingDataProgress(ctx, field)
-			case "indexingDataProgress":
-				return ec.fieldContext_IndexingStatus_indexingDataProgress(ctx, field)
 			case "dataSources":
 				return ec.fieldContext_IndexingStatus_dataSources(ctx, field)
 			case "error":
@@ -6162,6 +6106,8 @@ func (ec *executionContext) fieldContext_UserProfile_connectedDataSources(_ cont
 				return ec.fieldContext_DataSource_isProcessed(ctx, field)
 			case "isIndexed":
 				return ec.fieldContext_DataSource_isIndexed(ctx, field)
+			case "indexProgress":
+				return ec.fieldContext_DataSource_indexProgress(ctx, field)
 			case "hasError":
 				return ec.fieldContext_DataSource_hasError(ctx, field)
 			}
@@ -8481,6 +8427,11 @@ func (ec *executionContext) _DataSource(ctx context.Context, sel ast.SelectionSe
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "indexProgress":
+			out.Values[i] = ec._DataSource_indexProgress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "hasError":
 			out.Values[i] = ec._DataSource_hasError(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -8522,16 +8473,6 @@ func (ec *executionContext) _IndexingStatus(ctx context.Context, sel ast.Selecti
 			out.Values[i] = graphql.MarshalString("IndexingStatus")
 		case "status":
 			out.Values[i] = ec._IndexingStatus_status(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "processingDataProgress":
-			out.Values[i] = ec._IndexingStatus_processingDataProgress(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				out.Invalids++
-			}
-		case "indexingDataProgress":
-			out.Values[i] = ec._IndexingStatus_indexingDataProgress(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
