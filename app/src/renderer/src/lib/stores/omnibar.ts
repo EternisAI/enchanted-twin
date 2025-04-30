@@ -16,4 +16,4 @@ export const useOmnibarStore = create<OmnibarStore>((set) => ({
   openOmnibar: () => set({ isOpen: true }),
   closeOmnibar: () => set({ isOpen: false, query: '' }),
   toggleOmnibar: () => set((state) => ({ isOpen: !state.isOpen }))
-})) 
+}))

@@ -59,4 +59,4 @@ export function useTimeRemaining(progress: number | undefined) {
   }, [progress])
 
   return state
-} 
+}

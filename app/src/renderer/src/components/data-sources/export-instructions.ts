@@ -43,7 +43,8 @@ export const EXPORT_INSTRUCTIONS: Record<string, ExportInstructions> = {
     ],
     link: 'https://x.com/settings/download_your_data'
   },
-  ChatGPT: { // TODO: add instructions for mobile and desktop
+  ChatGPT: {
+    // TODO: add instructions for mobile and desktop
     timeEstimate: '5-10 minutes',
     steps: [
       'Open ChatGPT',
