@@ -814,3 +814,62 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return err
 	}
 }
+
+func (s *TelegramService) PostMessage(ctx context.Context, chatUUID string, message string) (interface{}, error) {
+	mutationPayload := map[string]interface{}{
+		"query": `
+			mutation SendTelegramMessage($chatUUID: ID!, $text: String!) {
+				sendTelegramMessage(chatUUID: $chatUUID, text: $text)
+			}
+		`,
+		"variables": map[string]interface{}{
+			"chatUUID": chatUUID,
+			"text":     message,
+		},
+		"operationName": "SendTelegramMessage",
+	}
+	mutationBody, err := json.Marshal(mutationPayload)
+	if err != nil {
+		s.Logger.Error("Failed to marshal GraphQL mutation payload", "error", err)
+		return nil, fmt.Errorf("failed to marshal GraphQL mutation payload: %v", err)
+	}
+
+	gqlURL := s.ChatServerUrl
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gqlURL, bytes.NewBuffer(mutationBody))
+	if err != nil {
+		s.Logger.Error("Failed to create GraphQL request", "error", err)
+		return nil, fmt.Errorf("failed to create GraphQL request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.Client.Do(req)
+	if err != nil {
+		s.Logger.Error("Failed to send GraphQL mutation request", "error", err)
+		return nil, fmt.Errorf("failed to send GraphQL mutation request: %v", err)
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			s.Logger.Warn("Failed to close GraphQL response body", "error", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		s.Logger.Error("GraphQL mutation request failed", "status_code", resp.StatusCode, "response_body", string(bodyBytes))
+		return nil, fmt.Errorf("GraphQL mutation request failed: %v", resp.StatusCode)
+	}
+
+	var gqlResponse struct {
+		Data   interface{} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&gqlResponse)
+	if err != nil {
+		s.Logger.Error("Failed to decode GraphQL mutation response", "error", err)
+		return nil, fmt.Errorf("failed to decode GraphQL mutation response: %v", err)
+	}
+	return gqlResponse, nil
+}
