@@ -1,18 +1,18 @@
 import { cn } from '@renderer/lib/utils'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
-import { MessageCircle, Plug, Settings, Shield } from 'lucide-react'
+import { Home, MessageCircle, Settings, Shield } from 'lucide-react'
 
 const LINKS = [
+  {
+    label: 'Home',
+    href: '/',
+    icon: Home
+  },
   {
     label: 'Chats',
     href: '/chat',
     icon: MessageCircle
-  },
-  {
-    label: 'Data',
-    href: '/',
-    icon: Plug
   },
   {
     label: 'Settings',

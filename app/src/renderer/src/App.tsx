@@ -8,11 +8,7 @@ function App(): React.JSX.Element {
       <ScrollArea className="h-full">
         <div className="flex flex-col gap-8 p-4 max-w-4xl self-center justify-center">
           <div>
-            <h1 className="text-4xl">Data</h1>
-            <p className="text-muted-foreground">
-              Your home for all your data. Import your data, connect your accounts, and start
-              exploring.
-            </p>
+            <h1 className="text-4xl">Home</h1>
           </div>
           <MCPPanel />
           <DataSourcesPanel showStatus={true} />
