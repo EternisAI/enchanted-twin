@@ -165,7 +165,7 @@ const IndexedDataSourceCard = ({
   if (!sourceDetails || !source.isIndexed) return null
 
   return (
-    <div className="p-4 rounded-lg bg-muted/50 border h-full flex items-center justify-between gap-3">
+    <div className="p-4 rounded-lg bg-transparent border h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
         <div className="flex flex-col gap-0 justify-start">
@@ -402,7 +402,7 @@ export function DataSourcesPanel({
   }, [startIndexingProcess])
 
   useEffect(() => {
-    if (allSourcesIndexed && isIndexing) {
+    if (allSourcesIndexed) {
       onIndexingComplete?.()
     }
   }, [allSourcesIndexed, isIndexing, onIndexingComplete])
