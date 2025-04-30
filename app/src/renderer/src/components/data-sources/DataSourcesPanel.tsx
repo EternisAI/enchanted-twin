@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useSubscription } from '@apollo/client'
 import { GetDataSourcesDocument, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
-import { CheckCircle2, Loader2, X, Play, RefreshCw } from 'lucide-react'
+import { CheckCircle2, Loader2, X, Play, RefreshCw, Import } from 'lucide-react'
 import { useState, useCallback, useEffect } from 'react'
 import WhatsAppIcon from '@renderer/assets/icons/whatsapp'
 import TelegramIcon from '@renderer/assets/icons/telegram'
@@ -28,12 +28,21 @@ const START_INDEXING = gql`
 
 const SUPPORTED_DATA_SOURCES: DataSource[] = [
   {
+    name: 'X',
+    label: 'Twitter',
+    description: 'Import your X tweets and messages',
+    selectType: 'files',
+    fileRequirement: 'Select X ZIP',
+    icon: <XformerlyTwitterIcon className="h-6 w-6" />,
+    fileFilters: [{ name: 'X Archive', extensions: ['zip'] }]
+  },
+  {
     name: 'WhatsApp',
     label: 'WhatsApp',
     description: 'Import your WhatsApp chat history',
     selectType: 'files',
     fileRequirement: 'Select WhatsApp SQLITE file',
-    icon: <WhatsAppIcon className="h-5 w-5" />,
+    icon: <WhatsAppIcon className="h-6 w-6" />,
     fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }]
   },
   {
@@ -42,7 +51,7 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your Telegram messages and media',
     selectType: 'files',
     fileRequirement: 'Select Telegram JSON export file',
-    icon: <TelegramIcon className="h-5 w-5" />,
+    icon: <TelegramIcon className="h-6 w-6" />,
     fileFilters: [{ name: 'Telegram Export', extensions: ['json'] }]
   },
   {
@@ -62,28 +71,14 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     fileRequirement: 'Select Google Takeout ZIP file',
     icon: <GmailIcon className="h-5 w-5" />,
     fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
-  },
-  {
-    name: 'X',
-    label: 'X',
-    description: 'Import your X tweets and messages',
-    selectType: 'files',
-    fileRequirement: 'Select X ZIP',
-    icon: <XformerlyTwitterIcon className="h-5 w-5" />,
-    fileFilters: [{ name: 'X Archive', extensions: ['zip'] }]
   }
 ]
 
 const DataSourceCard = ({ source, onClick }: { source: DataSource; onClick: () => void }) => (
-  <Button
-    variant="outline"
-    size="lg"
-    className="h-auto py-4 px-4 flex flex-col items-center gap-2 hover:bg-accent/50 bg-card"
-    onClick={onClick}
-  >
-    <div className="flex items-center gap-2">
+  <Button variant="outline" size="lg" className="h-auto py-4 rounded-xl" onClick={onClick}>
+    <div className="flex flex-col items-center gap-2 text-base">
       {source.icon}
-      <span className="font-medium">{source.label}</span>
+      <span className="font-semibold">{source.label}</span>
     </div>
   </Button>
 )
@@ -339,16 +334,17 @@ export function DataSourcesPanel({
   }
 
   return (
-    <Card className="flex flex-col gap-4 p-6 max-w-3xl">
+    <Card className="flex flex-col gap-6 p-6 max-w-3xl">
       {header && (
-        <div className="flex flex-col gap-2">
-          <h2 className="text-2xl font-medium">Import your data</h2>
-          <p className="text-muted-foreground">
-            Import data from your data sources. Your data is private and never shared.
+        <div className="flex flex-col gap-2 items-center">
+          <Import className="w-6 h-6 text-primary" />
+          <h2 className="text-2xl font-medium">Import your history</h2>
+          <p className="text-muted-foreground text-balance max-w-md text-center">
+            Your imported data will be used to power your Twin&apos;s understanding of you.
           </p>
         </div>
       )}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <DataSourceCard
             key={source.name}
@@ -359,10 +355,15 @@ export function DataSourcesPanel({
       </div>
 
       {(Object.keys(pendingDataSources).length > 0 || (showStatus && data?.getDataSources)) && (
-        <div className="space-y-4">
-          <h3 className="text-sm font-medium text-muted-foreground">
-            {showStatus ? 'Data Sources' : 'Selected Data Sources'}
-          </h3>
+        <div className="flex flex-col gap-4">
+          <div className="flex gap-8 items-center">
+            <div className="h-0.5 w-full bg-secondary rounded-full" />
+            <h3 className="shrink-0 text-sm font-medium text-muted-foreground text-center">
+              {showStatus ? 'Imported Data Sources' : 'Selected Data Sources'}
+            </h3>
+            <div className="h-0.5 w-full bg-secondary rounded-full" />
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {Object.values(pendingDataSources).map((source) => (
               <PendingDataSourceCard

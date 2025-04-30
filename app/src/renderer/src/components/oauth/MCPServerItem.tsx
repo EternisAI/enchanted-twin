@@ -8,7 +8,6 @@ import {
   McpServerType
 } from '@renderer/graphql/generated/graphql'
 import { useEffect, useState } from 'react'
-import { Switch } from '../ui/switch'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { toast } from 'sonner'
@@ -98,7 +97,6 @@ interface MCPServerItemProps {
 
 export default function MCPServerItem({ server, onConnect }: MCPServerItemProps) {
   const [showEnvInputs, setShowEnvInputs] = useState(false)
-  const [showFileInput] = useState(false)
   const [authStateId, setAuthStateId] = useState<string | null>(null)
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
@@ -152,14 +150,6 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
     setShowEnvInputs(false)
   }
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      console.log('Selected file:', file.name)
-      // Here you would implement file upload logic
-    }
-  }
-
   useEffect(() => {
     if (server.type === 'OTHER') return
 
@@ -191,56 +181,28 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
           {PROVIDER_ICON_MAP[server.type]}
           {server.name}
         </div>
-        {server.connected && (
+        {server.connected ? (
           <span className="text-xs bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full font-medium">
             Connected
           </span>
+        ) : (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleEnableToolsToggle(!showEnvInputs)}
+          >
+            Connect
+          </Button>
         )}
       </div>
 
-      <div className="flex flex-col gap-2">
-        {showFileInput && (
-          <div className="border border-dashed rounded-md p-3 bg-muted/20">
-            <div className="flex flex-col gap-2">
-              <label htmlFor={`file-${server.id}`} className="text-sm text-muted-foreground">
-                Select file
-              </label>
-              <Input
-                id={`file-${server.id}`}
-                type="file"
-                onChange={handleFileSelect}
-                className="text-sm"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex items-center justify-between gap-4">
-          <label htmlFor={`sync-${server.id}`} className="font-medium">
-            Sync data automatically
-          </label>
-          <Switch id={`sync-${server.id}`} checked disabled />
-        </div>
-
-        <div className="flex items-center justify-between gap-4">
-          <label htmlFor={`enable-${server.id}`} className="font-medium">
-            Enable LLM tools
-          </label>
-          <Switch
-            id={`enable-${server.id}`}
-            checked={server.enabled || showEnvInputs}
-            onCheckedChange={handleEnableToolsToggle}
-          />
-        </div>
-
-        {showEnvInputs && server.type === 'OTHER' && (
-          <EnvVarsEditor
-            envs={server.envs?.filter(Boolean) || []}
-            onSave={handleSaveEnvValues}
-            onCancel={() => setShowEnvInputs(false)}
-          />
-        )}
-      </div>
+      {showEnvInputs && server.type === 'OTHER' && (
+        <EnvVarsEditor
+          envs={server.envs?.filter(Boolean) || []}
+          onSave={handleSaveEnvValues}
+          onCancel={() => setShowEnvInputs(false)}
+        />
+      )}
     </Card>
   )
 }
