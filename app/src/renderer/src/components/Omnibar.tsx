@@ -7,10 +7,9 @@ import { CreateChatDocument, GetChatsDocument } from '@renderer/graphql/generate
 import { useNavigate } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
 import { useRouter } from '@tanstack/react-router'
+import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
 export const Omnibar = () => {
-  const [isOpen, setIsOpen] = useState(false)
-  const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const navigate = useNavigate()
   const router = useRouter()
@@ -18,6 +17,8 @@ export const Omnibar = () => {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
+
+  const { isOpen, query, setQuery, closeOmnibar } = useOmnibarStore()
 
   const chats = chatsData?.getChats || []
   const filteredChats = chats.filter((chat) =>
@@ -49,10 +50,9 @@ export const Omnibar = () => {
     } catch (error) {
       console.error('Failed to create chat:', error)
     } finally {
-      setIsOpen(false)
-      setQuery('')
+      closeOmnibar()
     }
-  }, [query, navigate, router, createChat])
+  }, [query, navigate, router, createChat, closeOmnibar])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -60,8 +60,7 @@ export const Omnibar = () => {
       if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
         // Navigate to selected chat
         navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
-        setIsOpen(false)
-        setQuery('')
+        closeOmnibar()
       } else {
         // Create new chat
         handleCreateChat()
@@ -74,11 +73,11 @@ export const Omnibar = () => {
       // Check for CMD+K (Mac) or CTRL+K (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
-        setIsOpen(true)
+        useOmnibarStore.getState().toggleOmnibar()
       }
       // Close on Escape
       if (e.key === 'Escape') {
-        setIsOpen(false)
+        closeOmnibar()
       }
       // Handle arrow keys for selection
       if (isOpen) {
@@ -95,8 +94,7 @@ export const Omnibar = () => {
           if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
             // Navigate to selected chat
             navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
-            setIsOpen(false)
-            setQuery('')
+            closeOmnibar()
           } else if (query.trim()) {
             // Create new chat
             handleCreateChat()
@@ -107,7 +105,7 @@ export const Omnibar = () => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, query, selectedIndex, filteredChats, navigate, handleCreateChat])
+  }, [isOpen, query, selectedIndex, filteredChats, navigate, handleCreateChat, closeOmnibar])
 
   return (
     <AnimatePresence>
@@ -117,7 +115,7 @@ export const Omnibar = () => {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-sm"
-          onClick={() => setIsOpen(false)}
+          onClick={closeOmnibar}
         >
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
@@ -168,8 +166,7 @@ export const Omnibar = () => {
                         key={chat.id}
                         onClick={() => {
                           navigate({ to: `/chat/${chat.id}` })
-                          setIsOpen(false)
-                          setQuery('')
+                          closeOmnibar()
                         }}
                         className={cn(
                           'flex w-full items-center justify-between px-4 py-2 text-left text-sm',
