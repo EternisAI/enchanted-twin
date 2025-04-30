@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/types"
 )
 
 func GetChatURL(botName string, chatUUID string) string {
@@ -65,4 +68,20 @@ func PostMessage(ctx context.Context, chatUUID string, message string, chatServe
 		return nil, fmt.Errorf("failed to decode GraphQL mutation response: %v", err)
 	}
 	return gqlResponse, nil
+}
+
+func GetTelegramEnabled(ctx context.Context, store *db.Store) (string, error) {
+	telegramEnabled, err := store.GetValue(ctx, types.TelegramEnabled)
+	if err != nil {
+		return "", fmt.Errorf("error getting telegram enabled: %w", err)
+	}
+	return telegramEnabled, nil
+}
+
+func SetTelegramEnabled(ctx context.Context, store *db.Store, enabled bool) error {
+	err := store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", enabled))
+	if err != nil {
+		return fmt.Errorf("error setting telegram enabled: %w", err)
+	}
+	return nil
 }

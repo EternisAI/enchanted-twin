@@ -1,6 +1,8 @@
 package types
 
 const (
+	// TelegramEnabled is the flag to enable telegram
+	TelegramEnabled = "telegram_enabled"
 	// TelegramChatUUIDKey allows to identifies the chat with a specific user, after the first message
 	TelegramChatUUIDKey = "telegram_chat_uuid"
 	// TelegramLastUpdateIDKey is used to track the last update ID for Telegram messages

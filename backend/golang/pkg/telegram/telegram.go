@@ -467,10 +467,6 @@ func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, d
 }
 
 func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error {
-	if s == nil {
-		return fmt.Errorf("telegram service is nil")
-	}
-
 	if s.Logger == nil {
 		return fmt.Errorf("logger is nil")
 	}
@@ -701,6 +697,14 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
 						exitErr = ErrSubscriptionNilTextMessage
 						return
+					}
+
+					telegramEnabled, err := helpers.GetTelegramEnabled(ctx, s.Store)
+					if err != nil {
+						s.Logger.Info("Error getting telegram enabled", "error", err)
+					}
+					if telegramEnabled != "true" {
+						helpers.SetTelegramEnabled(ctx, s.Store, true)
 					}
 
 					s.Logger.Info("Received message", "message", response.Payload.Data.TelegramMessageAdded.Text)

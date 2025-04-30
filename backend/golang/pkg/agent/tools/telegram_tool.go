@@ -50,12 +50,18 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 	}
 
 	chatUUID, err := t.Store.GetValue(ctx, types.TelegramChatUUIDKey)
-	if err != nil {
+	if err != nil || chatUUID == "" {
 		t.Logger.Error("error getting chat UUID", "error", err)
 		return ToolResult{}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
 
-	if err != nil || chatUUID == "" {
+	fmt.Println("chatUUID", chatUUID)
+	telegramEnabled, err2 := helpers.GetTelegramEnabled(ctx, t.Store)
+
+	fmt.Println("telegramEnabled", telegramEnabled)
+	if err2 != nil || telegramEnabled != "true" {
+
+		t.Logger.Error("telegram is not enabled", "error", err2)
 
 		chatURL := helpers.GetChatURL(types.TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
