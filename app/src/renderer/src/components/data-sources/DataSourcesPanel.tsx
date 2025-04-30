@@ -21,7 +21,6 @@ import OpenAI from '@renderer/assets/icons/openai'
 import { format } from 'date-fns'
 import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Tooltip, TooltipProvider } from '@radix-ui/react-tooltip'
-import { useTimeRemaining } from '@renderer/hooks/useTimeRemaining'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -220,8 +219,6 @@ const DataSourceProgressItem = ({
     hasError: boolean
   }
 }) => {
-  const { timeRemaining } = useTimeRemaining(source.indexProgress)
-
   // Calculate progress:
   // - 10% for processing
   // - 90% for indexing
@@ -239,9 +236,6 @@ const DataSourceProgressItem = ({
         <span className="font-medium">{source.name}</span>
         <span className="text-sm text-muted-foreground">
           {source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}
-          {source.isProcessed && !source.isIndexed && timeRemaining && (
-            <span> • {timeRemaining}</span>
-          )}
         </span>
       </div>
       <div className="w-full bg-secondary rounded-full h-2">
@@ -277,12 +271,12 @@ export function DataSourcesPanel({
   const isIndexing =
     indexingData?.indexingStatus?.status === IndexingState.IndexingData ||
     indexingData?.indexingStatus?.status === IndexingState.DownloadingModel ||
-    indexingData?.indexingStatus?.status === IndexingState.ProcessingData
+    indexingData?.indexingStatus?.status === IndexingState.ProcessingData ||
+    indexingData?.indexingStatus?.status === IndexingState.NotStarted
 
   const isProcessing =
     indexingData?.indexingStatus?.dataSources?.some((source) => !source.isProcessed) ?? false
 
-  console.log('processing', isProcessing)
   const hasError = indexingData?.indexingStatus?.error ?? false
   const hasPendingDataSources = Object.keys(pendingDataSources).length > 0
   const allSourcesIndexed =
@@ -402,13 +396,18 @@ export function DataSourcesPanel({
   }, [startIndexingProcess])
 
   useEffect(() => {
-    if (allSourcesIndexed) {
+    // Only trigger completion when:
+    // 1. We're not in an indexing state
+    // 2. All sources are indexed
+    // 3. We have at least one data source
+    const hasDataSources = (indexingData?.indexingStatus?.dataSources?.length ?? 0) > 0
+    if (!isIndexing && allSourcesIndexed && hasDataSources) {
       onIndexingComplete?.()
     }
-  }, [allSourcesIndexed, isIndexing, onIndexingComplete])
+  }, [allSourcesIndexed, isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
 
   const renderIndexingProgress = () => {
-    if (!isIndexing) return null
+    if (!indexingData?.indexingStatus?.dataSources?.length) return null
 
     return (
       <div className="flex flex-col gap-4">

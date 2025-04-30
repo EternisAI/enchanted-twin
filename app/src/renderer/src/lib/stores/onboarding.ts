@@ -4,9 +4,9 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 export enum OnboardingStep {
   Welcome = 0,
   MCPServers = 1,
-  DataSources = 2,
+  DataSources = 2
   // Indexing = 3,
-  Finished = 3
+  // Finished = 3
 }
 
 interface OnboardingState {
