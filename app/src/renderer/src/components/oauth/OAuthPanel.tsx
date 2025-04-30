@@ -63,7 +63,7 @@ export default function OAuthPanel() {
   console.log('data oauth', data)
 
   useEffect(() => {
-    window.api.onOAuthCallback(async ({ code, state }) => {
+    const callback = async ({ code, state }) => {
       try {
         const { data } = await completeOAuthFlow({ variables: { state, authCode: code } })
 
@@ -75,7 +75,14 @@ export default function OAuthPanel() {
       } catch (err) {
         console.error('OAuth completion failed:', err)
       }
-    })
+    }
+
+    window.api.onOAuthCallback(callback)
+
+    // Cleanup function
+    return () => {
+      window.api.removeOAuthCallback()
+    }
   }, [completeOAuthFlow, refetch])
 
   const loginWithProvider = async (provider: string, scope: string) => {

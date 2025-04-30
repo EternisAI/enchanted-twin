@@ -131,6 +131,7 @@ export type Mutation = {
   deleteDataSource: Scalars['Boolean']['output'];
   refreshExpiredOAuthTokens: Array<OAuthStatus>;
   sendMessage: Message;
+  sendTelegramMessage: Scalars['Boolean']['output'];
   startIndexing: Scalars['Boolean']['output'];
   startOAuthFlow: OAuthFlow;
   updateProfile: Scalars['Boolean']['output'];
@@ -171,6 +172,12 @@ export type MutationDeleteDataSourceArgs = {
 
 export type MutationSendMessageArgs = {
   chatId: Scalars['ID']['input'];
+  text: Scalars['String']['input'];
+};
+
+
+export type MutationSendTelegramMessageArgs = {
+  chatUUID: Scalars['ID']['input'];
   text: Scalars['String']['input'];
 };
 
@@ -235,12 +242,18 @@ export type Subscription = {
   __typename?: 'Subscription';
   indexingStatus: IndexingStatus;
   messageAdded: Message;
+  telegramMessageAdded: Message;
   toolCallUpdated: ToolCall;
 };
 
 
 export type SubscriptionMessageAddedArgs = {
   chatId: Scalars['ID']['input'];
+};
+
+
+export type SubscriptionTelegramMessageAddedArgs = {
+  chatUUID: Scalars['ID']['input'];
 };
 
 

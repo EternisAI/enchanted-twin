@@ -1,8 +1,7 @@
 import { gql, useQuery, useMutation } from '@apollo/client'
-import { PlusIcon } from 'lucide-react'
+import { PencilIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/card'
 import {
   Sheet,
   SheetTrigger,
@@ -13,6 +12,7 @@ import {
 } from '../ui/sheet'
 import { Textarea } from '../ui/textarea'
 import { toast } from 'sonner'
+import { ScrollArea } from '../ui/scroll-area'
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -61,35 +61,42 @@ export function ContextCard() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Context</span>
-              <PlusIcon className="size-4" />
-            </CardTitle>
-          </CardHeader>
-          {!loading && <CardContent>{userData?.profile?.bio || ''}</CardContent>}
-        </Card>
-      </SheetTrigger>
-      <SheetContent>
+      <div className="relative p-4 border border-border rounded-lg flex items-center justify-between">
+        {!loading && (
+          <div className="line-clamp-6 text-sm">{userData?.profile?.bio || 'Add context'}</div>
+        )}
+        <SheetTrigger asChild>
+          <Button variant="ghost" size="icon" className="">
+            <PencilIcon className="text-muted-foreground size-4" />
+          </Button>
+        </SheetTrigger>
+      </div>
+      <SheetContent className="flex flex-col h-full">
         <SheetHeader>
           <SheetTitle>Add Context</SheetTitle>
-          <SheetDescription>
-            Share information about yourself, your preferences, or any other context that might help
-            your twin understand you better.
-          </SheetDescription>
         </SheetHeader>
-        <form className="px-4 flex flex-col gap-4" onSubmit={handleSubmit}>
-          <Textarea
-            placeholder="Enter any information that might help your twin understand you better..."
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="min-h-[200px] px-4"
-          />
-          <Button disabled={updateLoading}>Save Context</Button>
-        </form>
+        <div className="flex-1 overflow-hidden">
+          <ScrollArea className="h-full">
+            <SheetDescription className="px-4">
+              Share information about yourself, your preferences, or any other context that might
+              help your twin understand you better.
+            </SheetDescription>
+            <form className="flex flex-col gap-4 p-4" onSubmit={handleSubmit}>
+              <Textarea
+                placeholder="Enter any information that might help your twin understand you better..."
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="min-h-[200px]"
+              />
+            </form>
+          </ScrollArea>
+        </div>
+        <div className="p-4 border-t">
+          <Button disabled={updateLoading} className="w-full" onClick={handleSubmit}>
+            Save Context
+          </Button>
+        </div>
       </SheetContent>
     </Sheet>
   )
