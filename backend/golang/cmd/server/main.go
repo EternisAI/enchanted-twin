@@ -104,7 +104,7 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	store, err := db.NewStore(context.Background(), envs.DBPath)
+	store, err := db.NewStore(context.Background(), logger, envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
 		panic(errors.Wrap(err, "Unable to create or initialize database"))
@@ -255,7 +255,7 @@ func main() {
 					logger.Error("Error getting chat UUID", slog.Any("error", err))
 					continue
 				}
-				fmt.Println("Subscribing to Telegram", chatUUID)
+				logger.Info("Subscribing to Telegram", "chatUUID", chatUUID)
 				err = telegramService.Subscribe(appCtx, chatUUID)
 
 				if err == nil {

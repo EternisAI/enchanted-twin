@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/mattn/go-sqlite3"
@@ -19,11 +20,12 @@ import (
 // 2. Convenience methods for querying data.
 // 3. Convenience method for inserting and updating data.
 type Store struct {
-	db *sqlx.DB
+	db     *sqlx.DB
+	Logger *log.Logger
 }
 
 // NewStore creates a new SQLite-backed store
-func NewStore(ctx context.Context, dbPath string) (*Store, error) {
+func NewStore(ctx context.Context, logger *log.Logger, dbPath string) (*Store, error) {
 	// Create the parent directory if it doesn't exist
 	dir := filepath.Dir(dbPath)
 	if dir != "." {
@@ -144,7 +146,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
-	store := &Store{db: db}
+	store := &Store{db: db, Logger: logger}
 
 	if err = store.InitOAuth(ctx); err != nil {
 		return nil, err
@@ -167,7 +169,7 @@ func (s *Store) DB() *sqlx.DB {
 func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 	var value sql.NullString
 
-	fmt.Println("GetValue", key)
+	s.Logger.Info("GetValue", "key", key)
 	err := s.db.GetContext(ctx, &value, "SELECT value FROM config WHERE key = ?", key)
 	if err != nil {
 		return "", err
