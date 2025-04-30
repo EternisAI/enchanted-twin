@@ -36,7 +36,6 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
 	result, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
-
 	if err != nil {
 		return "", err
 	}
@@ -454,9 +453,7 @@ func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.Use
 	}
 
 	return &model.IndexingStatus{
-		Status:                 stateQuery,
-		ProcessingDataProgress: 0,
-		IndexingDataProgress:   0,
+		Status: stateQuery,
 	}, nil
 }
 
@@ -480,8 +477,10 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
-type userProfileResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+	userProfileResolver  struct{ *Resolver }
+)
