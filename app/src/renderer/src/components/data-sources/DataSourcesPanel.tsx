@@ -21,6 +21,7 @@ import OpenAI from '@renderer/assets/icons/openai'
 import { format } from 'date-fns'
 import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Tooltip, TooltipProvider } from '@radix-ui/react-tooltip'
+import { useTimeRemaining } from '@renderer/hooks/useTimeRemaining'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -206,6 +207,54 @@ const IndexedDataSourceCard = ({
   )
 }
 
+const DataSourceProgressItem = ({
+  source
+}: {
+  source: {
+    id: string
+    name: string
+    isProcessed: boolean
+    isIndexed: boolean
+    indexProgress?: number
+    hasError: boolean
+  }
+}) => {
+  const { timeRemaining } = useTimeRemaining(source.indexProgress)
+
+  // Calculate progress:
+  // - 10% for processing
+  // - 90% for indexing
+  const processingProgress = source.isProcessed ? 10 : 0
+  const indexingProgress = source.isIndexed
+    ? 90
+    : source.indexProgress
+      ? source.indexProgress * 0.9
+      : 0
+  const totalProgress = processingProgress + indexingProgress
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="font-medium">{source.name}</span>
+        <span className="text-sm text-muted-foreground">
+          {source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}
+          {source.isProcessed && !source.isIndexed && timeRemaining && (
+            <span className="ml-2">• {timeRemaining}</span>
+          )}
+        </span>
+      </div>
+      <div className="w-full bg-secondary rounded-full h-2">
+        <div
+          className="bg-primary h-2 rounded-full transition-all duration-300"
+          style={{
+            width: `${totalProgress}%`
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
 export function DataSourcesPanel({
   onDataSourceSelected,
   onDataSourceRemoved,
@@ -362,37 +411,9 @@ export function DataSourcesPanel({
 
     return (
       <div className="flex flex-col gap-4">
-        {indexingData?.indexingStatus?.dataSources?.map((source) => {
-          // Calculate progress:
-          // - 10% for processing
-          // - 90% for indexing
-          const processingProgress = source.isProcessed ? 10 : 0
-          const indexingProgress = source.isIndexed
-            ? 90
-            : source.indexProgress
-              ? source.indexProgress * 0.9
-              : 0
-          const totalProgress = processingProgress + indexingProgress
-
-          return (
-            <div key={source.id} className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium">{source.name}</span>
-                <span className="text-sm text-muted-foreground">
-                  {source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}
-                </span>
-              </div>
-              <div className="w-full bg-secondary rounded-full h-2">
-                <div
-                  className="bg-primary h-2 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${totalProgress}%`
-                  }}
-                />
-              </div>
-            </div>
-          )
-        })}
+        {indexingData?.indexingStatus?.dataSources?.map((source) => (
+          <DataSourceProgressItem key={source.id} source={source} />
+        ))}
       </div>
     )
   }
