@@ -2,11 +2,11 @@ import { memo, useEffect, useRef } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import { useOnboardingStore, OnboardingStep } from '@renderer/lib/stores/onboarding'
 import { WelcomeStep } from './WelcomeStep'
-import { ImportDataStep } from './ImportDataStep'
-import { IndexingStep } from './IndexingStep'
 import MCPServersStep from './MCPServersStep'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Brain } from '../graphics/brain'
+import { ImportAndIndexStep } from './ImportAndIndexStep'
+import { FinishedStep } from './FinishedStep'
 
 const OnboardingBackground = memo(function OnboardingBackground() {
   return (
@@ -39,11 +39,13 @@ export function OnboardingContainer() {
       case OnboardingStep.Welcome:
         return <WelcomeStep onContinue={nextStep} />
       case OnboardingStep.DataSources:
-        return <ImportDataStep />
+        return <ImportAndIndexStep />
       case OnboardingStep.MCPServers:
         return <MCPServersStep />
-      case OnboardingStep.Indexing:
-        return <IndexingStep />
+      // case OnboardingStep.Indexing:
+      //   return <IndexingStep />
+      case OnboardingStep.Finished:
+        return <FinishedStep />
       default:
         return <WelcomeStep onContinue={nextStep} />
     }

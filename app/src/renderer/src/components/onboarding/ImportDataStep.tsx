@@ -22,7 +22,7 @@ export function ImportDataStep() {
     Record<string, { name: string; path: string }>
   >({})
   const [isProcessing, setIsProcessing] = useState(false)
-  const { nextStep, previousStep } = useOnboardingStore()
+  const { nextStep, previousStep, completeOnboarding } = useOnboardingStore()
 
   const handleNext = async () => {
     if (Object.keys(pendingDataSources).length === 0) {
@@ -69,7 +69,7 @@ export function ImportDataStep() {
     <OnboardingLayout
       title="Import Your Data"
       subtitle="Select the data sources you'd like to import. You can always add more later."
-      onClose={nextStep}
+      onClose={completeOnboarding}
     >
       <DataSourcesPanel
         onDataSourceSelected={handleDataSourceSelected}

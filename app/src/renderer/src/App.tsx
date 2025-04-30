@@ -1,4 +1,4 @@
-import { DataSourcesPanel } from './components/DataSourcesPanel'
+import { DataSourcesPanel } from './components/data-sources/DataSourcesPanel'
 import MCPPanel from './components/oauth/MCPPanel'
 
 function App(): React.JSX.Element {

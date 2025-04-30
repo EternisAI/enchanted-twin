@@ -5,8 +5,8 @@ export enum OnboardingStep {
   Welcome = 0,
   MCPServers = 1,
   DataSources = 2,
-  Indexing = 3,
-  Finished = 4
+  // Indexing = 3,
+  Finished = 3
 }
 
 interface OnboardingState {
