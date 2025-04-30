@@ -61,6 +61,7 @@ jobs:
           NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
           OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_CHAT_SERVER: "http://54.82.31.213:8080/query"
         run: make build-mac-silicon
 
       - name: Upload release artifacts

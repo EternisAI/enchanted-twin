@@ -58,7 +58,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
 		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
-		TelegramChatServer: getEnv("TELEGRAM_CHAT_SERVER", "", printEnv),
+		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 	}
 	return conf, nil
 }
