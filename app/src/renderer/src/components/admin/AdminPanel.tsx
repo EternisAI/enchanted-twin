@@ -2,7 +2,7 @@ import { Button } from '@renderer/components/ui/button'
 import { FolderOpen, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { SetupBanner } from '../SetupBanner'
+import { ContinueSetupButton } from '../ContinueSetupButton'
 
 export default function AdminPanel() {
   const [isLoading, setIsLoading] = useState({
@@ -79,7 +79,7 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 container max-w-4xl">
       <div className="grid grid-cols-1 gap-4">
         <Button
           variant="outline"
@@ -110,7 +110,7 @@ export default function AdminPanel() {
           <Trash2 className="mr-2" />
           {isLoading.data ? 'Deleting...' : 'Delete App Data'}
         </Button>
-        <SetupBanner />
+        <ContinueSetupButton />
       </div>
     </div>
   )

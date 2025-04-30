@@ -14,9 +14,8 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
-	"github.com/EternisAI/enchanted-twin/pkg/telegram"
-
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
@@ -223,6 +222,21 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 	return true, nil
 }
 
+// SendTelegramMessage is the resolver for the sendTelegramMessage field.
+func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
+	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil || chatID == "" {
+		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
+	}
+
+	err = r.TelegramService.SendMessage(ctx, chatID, text)
+	if err != nil {
+		return false, fmt.Errorf("failed to send telegram message: %w", err)
+	}
+
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -314,21 +328,6 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 		}
 	}
 	return toolsDefinitions, nil
-}
-
-// SendTelegramMessage is the resolver for the sendTelegramMessage field.
-func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
-	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
-	if err != nil || chatID == "" {
-		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
-	}
-
-	err = r.TelegramService.SendMessage(ctx, chatID, text)
-	if err != nil {
-		return false, fmt.Errorf("failed to send telegram message: %w", err)
-	}
-
-	return true, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.
@@ -454,55 +453,7 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 	return statusChan, nil
 }
 
-// IndexingStatus is the resolver for the indexingStatus field.
-func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
-	workflowID := "index"
-	workflowRunID := "" // Empty string means latest run
-	var stateQuery model.IndexingState
-	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
-	if err != nil {
-		r.Logger.Error("Error querying workflow", "error", err)
-		return nil, nil
-	}
-
-	if err := encodedValue.Get(&stateQuery); err != nil {
-		r.Logger.Error("Error querying workflow", "error", err)
-		return nil, nil
-	}
-
-	return &model.IndexingStatus{
-		Status: stateQuery,
-	}, nil
-}
-
-// ConnectedDataSources is the resolver for the connectedDataSources field.
-func (r *userProfileResolver) ConnectedDataSources(ctx context.Context, obj *model.UserProfile) ([]*model.DataSource, error) {
-	panic(fmt.Errorf("not implemented: ConnectedDataSources - connectedDataSources"))
-}
-
-// Chat returns ChatResolver implementation.
-func (r *Resolver) Chat() ChatResolver { return &chatResolver{r} }
-
-// Mutation returns MutationResolver implementation.
-func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
-
-// Query returns QueryResolver implementation.
-func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
-
-// Subscription returns SubscriptionResolver implementation.
-func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
-
-// UserProfile returns UserProfileResolver implementation.
-func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
-
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
-
+// TelegramMessageAdded is the resolver for the telegramMessageAdded field.
 func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error) {
 	if r.Nc == nil {
 		return nil, errors.New("NATS connection is not initialized")
@@ -565,3 +516,50 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 
 	return messages, nil
 }
+
+// IndexingStatus is the resolver for the indexingStatus field.
+func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
+	workflowID := "index"
+	workflowRunID := "" // Empty string means latest run
+	var stateQuery model.IndexingState
+	encodedValue, err := r.TemporalClient.QueryWorkflow(ctx, workflowID, workflowRunID, "getIndexingState")
+	if err != nil {
+		r.Logger.Error("Error querying workflow", "error", err)
+		return nil, nil
+	}
+
+	if err := encodedValue.Get(&stateQuery); err != nil {
+		r.Logger.Error("Error querying workflow", "error", err)
+		return nil, nil
+	}
+
+	return &model.IndexingStatus{
+		Status: stateQuery,
+	}, nil
+}
+
+// ConnectedDataSources is the resolver for the connectedDataSources field.
+func (r *userProfileResolver) ConnectedDataSources(ctx context.Context, obj *model.UserProfile) ([]*model.DataSource, error) {
+	panic(fmt.Errorf("not implemented: ConnectedDataSources - connectedDataSources"))
+}
+
+// Chat returns ChatResolver implementation.
+func (r *Resolver) Chat() ChatResolver { return &chatResolver{r} }
+
+// Mutation returns MutationResolver implementation.
+func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
+
+// Query returns QueryResolver implementation.
+func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
+
+// Subscription returns SubscriptionResolver implementation.
+func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionResolver{r} }
+
+// UserProfile returns UserProfileResolver implementation.
+func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
+
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }
