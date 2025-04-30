@@ -3,6 +3,7 @@ import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { ContinueSetupButton } from '@renderer/components/ContinueSetupButton'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
+import { AnimatePresence } from 'framer-motion'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -24,8 +25,10 @@ function RootComponent() {
       )}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex overflow-hidden">
-          {isCompleted && <AppNav />}
-          <Outlet />
+          <AnimatePresence>
+            {isCompleted && <AppNav />}
+            <Outlet />
+          </AnimatePresence>
         </div>
       </div>
     </div>
