@@ -1,6 +1,5 @@
 import { cn } from '@renderer/lib/utils'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { motion } from 'framer-motion'
 import { Home, MessageCircle, Settings, Shield } from 'lucide-react'
 
 const LINKS = [
@@ -30,15 +29,7 @@ export function AppNav() {
   const { location } = useRouterState()
 
   return (
-    <motion.aside
-      layout
-      key="app-nav"
-      initial={{ opacity: 0, x: -100 }}
-      animate={{ opacity: 1, x: 0 }}
-      exit={{ opacity: 0, x: -100 }}
-      transition={{ duration: 0.3 }}
-      className="p-1 flex flex-col gap-6 w-18"
-    >
+    <aside className="p-1 flex flex-col gap-6 w-18 shrink-0">
       <nav className="flex flex-col gap-2">
         {LINKS.map(({ label, href, icon: Icon }) => {
           const isActive =
@@ -66,6 +57,6 @@ export function AppNav() {
           )
         })}
       </nav>
-    </motion.aside>
+    </aside>
   )
 }
