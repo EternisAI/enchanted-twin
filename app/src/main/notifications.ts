@@ -10,7 +10,7 @@ export function notificationsSupported(): boolean {
 
 function checkNotificationStatus(): Promise<boolean> {
   if (process.platform === 'darwin') {
-    //@TODO: Handle macOS notifications checking properly
+    //@TODO: Handle macOS notifications checking
     return Promise.resolve(true)
   }
 
@@ -43,7 +43,6 @@ export async function showOsNotification(
 
   if (!notificationEnabled) return false
 
-  console.log('showOsNotification', notification, notificationsSupported())
   const toast = new Notification({
     title: notification.title,
     body: notification.message,
@@ -80,6 +79,7 @@ export async function openSystemNotificationSettings(): Promise<boolean> {
         await shell.openExternal('ms-settings:notifications')
         return true
 
+      // Linux - Try to open GNOME or KDE notifications settings
       default: {
         if (existsSync('/usr/bin/gnome-control-center')) {
           exec('gnome-control-center notifications')
