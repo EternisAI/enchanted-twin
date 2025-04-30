@@ -13,6 +13,9 @@ import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { toast } from 'sonner'
 import { Card } from '../ui/card'
+import Google from '@renderer/assets/icons/google'
+import Slack from '@renderer/assets/icons/slack'
+import XformerlyTwitter from '@renderer/assets/icons/x'
 
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
@@ -79,6 +82,13 @@ function EnvVarsEditor({ envs, onSave, onCancel }: EnvVarsEditorProps) {
       </div>
     </div>
   )
+}
+
+const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
+  GOOGLE: <Google />,
+  SLACK: <Slack />,
+  TWITTER: <XformerlyTwitter />,
+  OTHER: <></>
 }
 
 interface MCPServerItemProps {
@@ -177,7 +187,10 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
   return (
     <Card className="p-4 w-[350px] max-w-full">
       <div className="font-semibold text-lg flex items-center justify-between">
-        <span>{server.name}</span>
+        <div className="flex items-center gap-2">
+          {PROVIDER_ICON_MAP[server.type]}
+          {server.name}
+        </div>
         {server.connected && (
           <span className="text-xs bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full font-medium">
             Connected

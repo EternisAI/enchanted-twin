@@ -1,18 +1,7 @@
 import { OnboardingLayout } from './OnboardingLayout'
 import { useMutation, useQuery } from '@apollo/client'
 import { gql } from '@apollo/client'
-import {
-  CheckCircle2,
-  Loader2,
-  X,
-  MessageSquare,
-  Mail,
-  Twitter,
-  Clock,
-  File,
-  ExternalLink,
-  ArrowRight
-} from 'lucide-react'
+import { CheckCircle2, Loader2, X, Clock, File, ExternalLink, ArrowRight } from 'lucide-react'
 import { Button } from '../ui/button'
 import { useState } from 'react'
 import { toast } from 'sonner'
@@ -26,6 +15,11 @@ import {
   DialogDescription
 } from '../ui/dialog'
 import { GetDataSourcesDocument } from '@renderer/graphql/generated/graphql'
+import WhatsApp from '@renderer/assets/icons/whatsapp'
+import Telegram from '@renderer/assets/icons/telegram'
+import Slack from '@renderer/assets/icons/slack'
+import Gmail from '@renderer/assets/icons/gmail'
+import XformerlyTwitter from '@renderer/assets/icons/x'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -48,7 +42,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your WhatsApp chat history',
     selectType: 'files',
     fileRequirement: 'Select WhatsApp SQLITE file',
-    icon: <MessageSquare className="h-5 w-5 text-green-500" />,
+    icon: <WhatsApp className="h-5 w-5" />,
     fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }]
   },
   {
@@ -57,7 +51,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your Telegram messages and media',
     selectType: 'files',
     fileRequirement: 'Select Telegram JSON export file',
-    icon: <MessageSquare className="h-5 w-5 text-blue-500" />,
+    icon: <Telegram className="h-5 w-5" />,
     fileFilters: [{ name: 'Telegram Export', extensions: ['json'] }]
   },
   {
@@ -66,7 +60,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your Slack workspace data',
     selectType: 'files',
     fileRequirement: 'Select Slack ZIP file',
-    icon: <MessageSquare className="h-5 w-5 text-purple-500" />,
+    icon: <Slack className="h-5 w-5" />,
     fileFilters: [{ name: 'Slack Export', extensions: ['zip'] }]
   },
   {
@@ -75,7 +69,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your Gmail emails and attachments',
     selectType: 'files',
     fileRequirement: 'Select Google Takeout ZIP file',
-    icon: <Mail className="h-5 w-5 text-red-500" />,
+    icon: <Gmail className="h-5 w-5" />,
     fileFilters: [{ name: 'Google Takeout', extensions: ['zip'] }]
   },
   {
@@ -84,7 +78,7 @@ const SUPPORTED_DATA_SOURCES: {
     description: 'Import your X tweets and messages',
     selectType: 'files',
     fileRequirement: 'Select X ZIP',
-    icon: <Twitter className="h-5 w-5 text-black dark:text-white" />,
+    icon: <XformerlyTwitter className="h-5 w-5" />,
     fileFilters: [{ name: 'X Archive', extensions: ['zip'] }]
   }
   // {
@@ -163,7 +157,7 @@ export function ImportDataStep() {
     name: string
     selectType: 'directory' | 'files'
   } | null>(null)
-  const { nextStep } = useOnboardingStore()
+  const { nextStep, previousStep } = useOnboardingStore()
 
   const handleNext = async () => {
     if (Object.keys(pendingDataSources).length === 0) {
@@ -298,7 +292,10 @@ export function ImportDataStep() {
             })}
           </div>
         </div>
-        <div className="flex justify-end pt-8">
+        <div className="flex justify-between pt-8">
+          <Button variant="outline" onClick={previousStep}>
+            Back
+          </Button>
           <Button onClick={handleNext} disabled={isProcessing}>
             {isProcessing ? (
               <>
