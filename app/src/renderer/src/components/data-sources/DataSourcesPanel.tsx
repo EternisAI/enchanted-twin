@@ -6,7 +6,7 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { CheckCircle2, Loader2, X, Play, RefreshCw, Import } from 'lucide-react'
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, ReactNode } from 'react'
 import WhatsAppIcon from '@renderer/assets/icons/whatsapp'
 import TelegramIcon from '@renderer/assets/icons/telegram'
 import SlackIcon from '@renderer/assets/icons/slack'
@@ -48,7 +48,7 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your X tweets and messages',
     selectType: 'files',
     fileRequirement: 'Select X ZIP',
-    icon: <XformerlyTwitterIcon className="h-6 w-6" />,
+    icon: <XformerlyTwitterIcon className="h-4 w-4" />,
     fileFilters: [{ name: 'X Archive', extensions: ['zip'] }]
   },
   {
@@ -57,7 +57,7 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your ChatGPT history',
     selectType: 'files',
     fileRequirement: 'Select ChatGPT export file',
-    icon: <OpenAI className="h-6 w-6" />,
+    icon: <OpenAI className="h-4 w-4" />,
     fileFilters: [{ name: 'ChatGPT', extensions: ['zip'] }]
   },
   {
@@ -66,7 +66,7 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your WhatsApp chat history',
     selectType: 'files',
     fileRequirement: 'Select WhatsApp SQLITE file',
-    icon: <WhatsAppIcon className="h-6 w-6" />,
+    icon: <WhatsAppIcon className="h-4 w-4" />,
     fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }]
   },
   {
@@ -75,7 +75,7 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     description: 'Import your Telegram messages and media',
     selectType: 'files',
     fileRequirement: 'Select Telegram JSON export file',
-    icon: <TelegramIcon className="h-6 w-6" />,
+    icon: <TelegramIcon className="h-4 w-4" />,
     fileFilters: [{ name: 'Telegram Export', extensions: ['json'] }]
   },
   {
@@ -99,11 +99,13 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
 ]
 
 const DataSourceCard = ({
-  source,
+  icon,
+  label,
   onClick,
   disabled
 }: {
-  source: DataSource
+  icon: ReactNode
+  label: string
   onClick: () => void
   disabled: boolean
 }) => (
@@ -115,8 +117,8 @@ const DataSourceCard = ({
     disabled={disabled}
   >
     <div className="flex flex-col items-center gap-3 text-base">
-      {source.icon}
-      <span className="font-semibold text-sm">{source.label}</span>
+      {icon}
+      <span className="font-semibold text-sm">{label}</span>
     </div>
   </Button>
 )
@@ -166,7 +168,7 @@ const IndexedDataSourceCard = ({
     <div className="p-4 rounded-lg bg-muted/50 border h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
-        <div>
+        <div className="flex flex-col gap-0 justify-start">
           <h3 className="font-medium">{source.name}</h3>
           {source.hasError && <p className="text-xs text-red-500">Error</p>}
           {!source.isIndexed ? (
@@ -195,7 +197,6 @@ const IndexedDataSourceCard = ({
         </div>
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        {source.isIndexed && <CheckCircle2 className="h-3 w-3 text-green-500" />}
         <span>{source.isIndexed ? '' : source.isProcessed ? 'Processing' : 'Pending'}</span>
       </div>
       {/* {!source.isProcessed && !source.isIndexed && (
@@ -433,7 +434,8 @@ export function DataSourcesPanel({
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <DataSourceCard
             key={source.name}
-            source={source}
+            icon={source.icon}
+            label={source.label}
             disabled={isIndexing}
             onClick={() => handleSourceSelected(source)}
           />
