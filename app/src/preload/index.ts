@@ -25,7 +25,18 @@ const api = {
   openAppDataFolder: () => ipcRenderer.invoke('open-appdata-folder'),
   deleteAppData: () => ipcRenderer.invoke('delete-app-data'),
   isPackaged: () => ipcRenderer.invoke('isPackaged'),
-  restartApp: () => ipcRenderer.invoke('restart-app')
+  restartApp: () => ipcRenderer.invoke('restart-app'),
+  checkForUpdates: (silent: boolean = false) => ipcRenderer.invoke('check-for-updates', silent),
+  onUpdateStatus: (callback: (status: string) => void) => {
+    const listener = (_: any, status: string) => callback(status)
+    ipcRenderer.on('update-status', listener)
+    return () => ipcRenderer.removeListener('update-status', listener)
+  },
+  onUpdateProgress: (callback: (progress: any) => void) => {
+    const listener = (_: any, progress: any) => callback(progress)
+    ipcRenderer.on('update-progress', listener)
+    return () => ipcRenderer.removeListener('update-progress', listener)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

@@ -1,7 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
-import { Monitor, Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun, RefreshCw } from 'lucide-react'
+import { toast } from 'sonner'
+import { useState } from 'react'
 
 export const Route = createFileRoute('/settings')({
   component: Settings
@@ -9,6 +11,21 @@ export const Route = createFileRoute('/settings')({
 
 function Settings() {
   const { theme, setTheme } = useTheme()
+  const [isCheckingUpdate, setIsCheckingUpdate] = useState(false)
+
+  const checkForUpdates = async () => {
+    setIsCheckingUpdate(true)
+    try {
+      await window.api.checkForUpdates(false)
+      toast.info('Checking for updates...')
+    } catch (error) {
+      toast.error('Failed to check for updates')
+      console.error(error)
+    } finally {
+      // Reset after a short delay to allow the animation to complete
+      setTimeout(() => setIsCheckingUpdate(false), 1000)
+    }
+  }
 
   return (
     <div
@@ -56,6 +73,21 @@ function Settings() {
               System
             </Button>
           </div>
+        </div>
+
+        <div>
+          <h3 className="text-xl font-medium mb-2">Updates</h3>
+          <p className="text-sm text-muted-foreground mb-4">
+            Check for application updates.
+          </p>
+          <Button 
+            variant="outline" 
+            onClick={checkForUpdates}
+            disabled={isCheckingUpdate}
+          >
+            <RefreshCw className={`mr-2 ${isCheckingUpdate ? 'animate-spin' : ''}`} />
+            Check for Updates
+          </Button>
         </div>
       </div>
     </div>

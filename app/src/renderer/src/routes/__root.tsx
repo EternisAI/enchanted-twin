@@ -3,6 +3,7 @@ import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { SetupBanner } from '@renderer/components/SetupBanner'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
+import UpdateNotification from '@renderer/components/UpdateNotification'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -26,6 +27,7 @@ function RootComponent() {
           </div>
         </div>
       </div>
+      <UpdateNotification />
     </div>
   )
 }

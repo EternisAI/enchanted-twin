@@ -18,6 +18,8 @@ jobs:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       CSC_LINK: ${{ secrets.CSC_LINK }}
       CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
       - name: Checkout code
@@ -49,6 +51,19 @@ jobs:
         env:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
 
+      - name: Set app version
+        if: github.event_name == 'workflow_dispatch'
+        working-directory: app
+        run: |
+          # Extract version number without 'v' prefix (e.g., 1.2.3 from v1.2.3)
+          VERSION="${{ github.event.inputs.version }}"
+          VERSION_NUMBER="${VERSION#v}"
+          
+          # Update version in package.json
+          jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
+          mv package.json.tmp package.json
+          echo "Updated package.json version to $VERSION_NUMBER"
+
       - name: Build & notarize macOS app
         env:
           OPENAI_BASE_URL: "https://enchanted.ngrok.pro/v1"
@@ -62,15 +77,28 @@ jobs:
           OLLAMA_BASE_URL: "https://enchanted.ngrok.pro"
           TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
           TELEGRAM_CHAT_SERVER: "http://54.82.31.213:8080/query"
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: make build-mac-silicon
 
-      - name: Upload release artifacts
+      - name: Upload release artifacts to GitHub
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || inputs.version }}
           files: app/dist/*.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Upload latest.yml to S3
+        uses: jakejarvis/s3-sync-action@master
+        with:
+          args: --acl public-read
+        env:
+          SOURCE_DIR: 'app/dist/mac-arm64'
+          AWS_S3_BUCKET: 'enchanted-app'
+          AWS_REGION: 'us-east-1'
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Verify notarization
         run: |
