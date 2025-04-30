@@ -4,17 +4,14 @@ import { ScrollArea } from './components/ui/scroll-area'
 
 function App(): React.JSX.Element {
   return (
-    <div className="flex flex-col gap-8 flex-1 text-foreground w-full h-full ">
-      <ScrollArea className="h-full">
-        <div className="flex flex-col gap-8 p-4 max-w-4xl self-center justify-center">
-          <div>
-            <h1 className="text-4xl">Home</h1>
-          </div>
+    <ScrollArea className="h-full w-full">
+      <div className="flex flex-col gap-8 flex-1 text-foreground w-full h-full justify-center">
+        <div className="flex flex-col gap-8 p-4 max-w-4xl self-center justify-center mx-auto">
           <MCPPanel />
           <DataSourcesPanel showStatus={true} />
         </div>
-      </ScrollArea>
-    </div>
+      </div>
+    </ScrollArea>
   )
 }
 

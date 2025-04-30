@@ -12,7 +12,7 @@ import {
   AlertDialogCancel
 } from '../ui/alert-dialog'
 import { Button } from '../ui/button'
-import { Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
 
@@ -24,15 +24,20 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
   return (
     <aside className="flex flex-col w-64 bg-muted/50 p-4 rounded-lg h-full gap-4">
       <h2 className="text-4xl mb-4 text-foreground">Chats</h2>
+      <Link to="/chat" disabled={isHome} className="mt-4">
+        <Button variant="outline" className="w-full justify-between">
+          <span>
+            <Plus className="w-4 h-4 mr-2" />
+            New Chat
+          </span>
+        </Button>
+      </Link>
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
         {chats.map((chat: Chat) => {
           const isActive = location.pathname === `/chat/${chat.id}`
           return <SidebarItem key={chat.id} chat={chat} isActive={isActive} />
         })}
       </div>
-      <Link to="/chat" disabled={isHome} className="mt-4">
-        <Button className="w-full">New Chat</Button>
-      </Link>
     </aside>
   )
 }

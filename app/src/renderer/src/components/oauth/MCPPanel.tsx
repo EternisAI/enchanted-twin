@@ -20,17 +20,17 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
     )
 
   return (
-    <Card className="flex flex-col max-w-3xl gap-4 mx-auto p-6">
+    <Card className="flex flex-col max-w-4xl gap-4 mx-auto p-6">
       {header && (
         <div className="flex flex-col gap-2 items-center">
           <Plug className="w-6 h-6 text-primary" />
-          <h2 className="text-2xl font-medium">Connect your future</h2>
+          <h2 className="text-2xl font-semibold">Connect your future</h2>
           <p className="text-muted-foreground">
             Continually update future data from your connections
           </p>
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {mcpServers.map((server) => (
           <MCPServerItem key={server.id} server={server} onConnect={refetch} />
         ))}

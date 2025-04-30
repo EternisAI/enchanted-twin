@@ -4,6 +4,7 @@ import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { ContinueSetupButton } from '@renderer/components/ContinueSetupButton'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { AnimatePresence } from 'framer-motion'
+import { Omnibar } from '@renderer/components/Omnibar'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -18,6 +19,7 @@ function RootComponent() {
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
         {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
       </div>
+      <Omnibar />
       {isCompleted && (
         <div className="fixed top-2 right-2 z-50 h-8 no-drag">
           <ContinueSetupButton />
