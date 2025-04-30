@@ -6,6 +6,7 @@ import { gql } from '@apollo/client'
 import { toast } from 'sonner'
 import { Button } from '@renderer/components/ui/button'
 import { Loader2 } from 'lucide-react'
+import { cn } from '@renderer/lib/utils'
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -61,40 +62,30 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
     <OnboardingLayout
       title="Enchanted"
       subtitle="Let's get started by personalizing your experience"
-      className="max-w-sm w-full self-center"
+      className="max-w-sm w-full self-center text-center"
     >
-      <div className="space-y-4">
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div className="space-y-2">
-            <label
-              htmlFor="name"
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              What&apos;s your name?
-            </label>
-            <Input
-              ref={nameInputRef}
-              type="text"
-              id="name"
-              placeholder="Enter your name"
-              defaultValue={data?.profile?.name}
-              className={error ? 'border-destructive' : ''}
-              onChange={() => setError(null)}
-            />
-            {error && <p className="text-sm text-destructive">{error}</p>}
-          </div>
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Updating...
-              </>
-            ) : (
-              'Continue'
-            )}
-          </Button>
-        </form>
-      </div>
+      <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
+        <Input
+          ref={nameInputRef}
+          type="text"
+          id="name"
+          placeholder="Enter your name"
+          defaultValue={data?.profile?.name}
+          className={cn('py-4 !h-fit w-full !text-2xl text-center', error && 'border-destructive')}
+          onChange={() => setError(null)}
+        />
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button size="lg" type="submit" className="w-full" disabled={loading}>
+          {loading ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Updating...
+            </>
+          ) : (
+            'Continue'
+          )}
+        </Button>
+      </form>
     </OnboardingLayout>
   )
 }
