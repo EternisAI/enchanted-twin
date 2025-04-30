@@ -19,6 +19,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	types "github.com/EternisAI/enchanted-twin/types"
 	"github.com/charmbracelet/log"
 	"github.com/gorilla/websocket"
@@ -270,7 +271,7 @@ func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.C
 		&tools.SearchTool{},
 		&tools.ImageTool{},
 		tools.NewMemorySearchTool(s.Logger, s.Memory),
-		tools.NewTelegramTool(s.Logger, s.Token, s.Store),
+		tools.NewTelegramTool(s.Logger, s.Token, s.Store, s.ChatServerUrl),
 		twitterReverseChronTimelineTool,
 	}
 
@@ -716,59 +717,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 					if agentResponse.Content != "" {
-						mutationPayload := map[string]interface{}{
-							"query": `
-								mutation SendTelegramMessage($chatUUID: ID!, $text: String!) {
-									sendTelegramMessage(chatUUID: $chatUUID, text: $text)
-								}
-							`,
-							"variables": map[string]interface{}{
-								"chatUUID": chatUUID,
-								"text":     agentResponse.Content,
-							},
-							"operationName": "SendTelegramMessage",
-						}
-						mutationBody, err := json.Marshal(mutationPayload)
+						_, err := helpers.PostMessage(ctx, chatUUID, agentResponse.Content, s.ChatServerUrl)
 						if err != nil {
-							s.Logger.Error("Failed to marshal GraphQL mutation payload", "error", err)
-							continue
-						}
-
-						gqlURL := s.ChatServerUrl
-						req, err := http.NewRequestWithContext(ctx, http.MethodPost, gqlURL, bytes.NewBuffer(mutationBody))
-						if err != nil {
-							s.Logger.Error("Failed to create GraphQL request", "error", err)
-							continue
-						}
-						req.Header.Set("Content-Type", "application/json")
-
-						resp, err := s.Client.Do(req)
-						if err != nil {
-							s.Logger.Error("Failed to send GraphQL mutation request", "error", err)
-							continue
-						}
-						defer func() {
-							if err := resp.Body.Close(); err != nil {
-								s.Logger.Warn("Failed to close GraphQL response body", "error", err)
-							}
-						}()
-
-						if resp.StatusCode != http.StatusOK {
-							bodyBytes, _ := io.ReadAll(resp.Body)
-							s.Logger.Error("GraphQL mutation request failed", "status_code", resp.StatusCode, "response_body", string(bodyBytes))
-							continue
-						}
-
-						var gqlResponse struct {
-							Data   interface{} `json:"data"`
-							Errors []struct {
-								Message string `json:"message"`
-							} `json:"errors"`
-						}
-						if err := json.NewDecoder(resp.Body).Decode(&gqlResponse); err != nil {
-							s.Logger.Error("Failed to decode GraphQL mutation response", "error", err)
-						} else if len(gqlResponse.Errors) > 0 {
-							s.Logger.Error("GraphQL mutation returned errors", "errors", gqlResponse.Errors)
+							s.Logger.Error("Error with GraphQL mutation response", "error", err)
 						} else {
 							s.Logger.Info("Successfully sent agent response via GraphQL mutation")
 
