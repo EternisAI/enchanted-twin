@@ -1,9 +1,9 @@
 import { useQuery } from '@apollo/client'
 import { GetMcpServersDocument } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
-import { Plug } from 'lucide-react'
+import { Card } from '../ui/card'
 
-export default function MCPPanel({ hideTitle }: { hideTitle?: boolean }) {
+export default function MCPPanel({ header = true }: { header?: boolean }) {
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
 
   const mcpServers = data?.getMCPServers || []
@@ -19,13 +19,13 @@ export default function MCPPanel({ hideTitle }: { hideTitle?: boolean }) {
     )
 
   return (
-    <div className="flex flex-col items-center max-w-3xl gap-8 mx-auto">
-      {!hideTitle && (
-        <div className="flex items-center gap-3 mb-4">
-          <div className="bg-primary/10 p-2 rounded-full">
-            <Plug className="h-5 w-5 text-primary" />
-          </div>
-          <h3 className="text-lg font-medium">Connections</h3>
+    <Card className="flex flex-col max-w-3xl gap-4 mx-auto p-6">
+      {header && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-medium">Live connections</h2>
+          <p className="text-muted-foreground">
+            Connect your accounts to continually update your data
+          </p>
         </div>
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
@@ -38,6 +38,6 @@ export default function MCPPanel({ hideTitle }: { hideTitle?: boolean }) {
           </div>
         )}
       </div>
-    </div>
+    </Card>
   )
 }

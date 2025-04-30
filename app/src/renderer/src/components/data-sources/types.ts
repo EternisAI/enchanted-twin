@@ -1,5 +1,8 @@
 import { ReactNode } from 'react'
-import { IndexingStatus, DataSource as GraphQLDataSource } from '@renderer/graphql/generated/graphql'
+import {
+  IndexingStatus,
+  DataSource as GraphQLDataSource
+} from '@renderer/graphql/generated/graphql'
 
 export interface DataSource {
   name: string
@@ -16,6 +19,7 @@ export interface DataSourcesPanelProps {
   onDataSourceRemoved?: (name: string) => void
   showStatus?: boolean
   indexingStatus?: IndexingStatus
+  header?: boolean
 }
 
 export interface PendingDataSource {

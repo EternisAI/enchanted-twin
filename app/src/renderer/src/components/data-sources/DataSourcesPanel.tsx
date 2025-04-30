@@ -12,6 +12,7 @@ import { DataSource, DataSourcesPanelProps, PendingDataSource, IndexedDataSource
 import { toast } from 'sonner'
 import { gql } from '@apollo/client'
 import { DataSourceDialog } from './DataSourceDialog'
+import { Card } from '../ui/card'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -157,7 +158,8 @@ export function DataSourcesPanel({
   onDataSourceSelected,
   onDataSourceRemoved,
   showStatus = false,
-  onIndexingComplete
+  onIndexingComplete,
+  header = true
 }: Omit<DataSourcesPanelProps, 'indexingStatus'> & { onIndexingComplete?: () => void }) {
   const { data } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
@@ -175,9 +177,8 @@ export function DataSourcesPanel({
     indexingData?.indexingStatus?.dataSources?.some((source) => !source.isProcessed) ?? false
   const hasError = indexingData?.indexingStatus?.error ?? false
   const hasPendingDataSources = Object.keys(pendingDataSources).length > 0
-  const allSourcesIndexed = indexingData?.indexingStatus?.dataSources?.every(
-    (source) => source.isIndexed
-  )
+  const allSourcesIndexed =
+    indexingData?.indexingStatus?.dataSources?.every((source) => source.isIndexed) ?? false
 
   const handleRemoveDataSource = useCallback(
     (name: string) => {
@@ -338,7 +339,15 @@ export function DataSourcesPanel({
   }
 
   return (
-    <div className="space-y-6">
+    <Card className="flex flex-col gap-4 p-6 max-w-3xl">
+      {header && (
+        <div className="flex flex-col gap-2">
+          <h2 className="text-2xl font-medium">Import your data</h2>
+          <p className="text-muted-foreground">
+            Import data from your data sources. Your data is private and never shared.
+          </p>
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <DataSourceCard
@@ -349,8 +358,7 @@ export function DataSourcesPanel({
         ))}
       </div>
 
-      {(Object.keys(pendingDataSources).length > 0 ||
-        (showStatus && data?.getDataSources && data.getDataSources.length > 0)) && (
+      {(Object.keys(pendingDataSources).length > 0 || (showStatus && data?.getDataSources)) && (
         <div className="space-y-4">
           <h3 className="text-sm font-medium text-muted-foreground">
             {showStatus ? 'Data Sources' : 'Selected Data Sources'}
@@ -365,7 +373,15 @@ export function DataSourcesPanel({
             ))}
             {showStatus &&
               data?.getDataSources?.map((source) => (
-                <IndexedDataSourceCard key={source.id} source={source} />
+                <IndexedDataSourceCard
+                  key={source.id}
+                  source={{
+                    ...source,
+                    indexProgress: indexingData?.indexingStatus?.dataSources?.find(
+                      (s) => s.id === source.id
+                    )?.indexProgress
+                  }}
+                />
               ))}
           </div>
         </div>
@@ -408,6 +424,6 @@ export function DataSourcesPanel({
         onFileSelect={handleFileSelect}
         onAddSource={handleAddSource}
       />
-    </div>
+    </Card>
   )
 }

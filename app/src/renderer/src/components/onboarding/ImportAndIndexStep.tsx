@@ -17,7 +17,11 @@ export function ImportAndIndexStep() {
       onClose={completeOnboarding}
     >
       <div className="flex flex-col gap-6">
-        <DataSourcesPanel showStatus={true} onIndexingComplete={handleIndexingComplete} />
+        <DataSourcesPanel
+          header={false}
+          showStatus={true}
+          onIndexingComplete={handleIndexingComplete}
+        />
 
         <div className="flex justify-between pt-8">
           <Button variant="outline" onClick={previousStep}>

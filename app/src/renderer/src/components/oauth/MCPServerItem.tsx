@@ -199,22 +199,6 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
       </div>
 
       <div className="flex flex-col gap-2">
-        {/* <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <label htmlFor={`import-${server.id}`} className="font-medium">
-              Import historical data
-            </label>
-            <div className="text-xs text-muted-foreground">
-              <button className="text-primary underline">How?</button>
-            </div>
-          </div>
-          <Switch
-            id={`import-${server.id}`}
-            checked={showFileInput}
-            onCheckedChange={setShowFileInput}
-          />
-        </div> */}
-
         {showFileInput && (
           <div className="border border-dashed rounded-md p-3 bg-muted/20">
             <div className="flex flex-col gap-2">
