@@ -66,10 +66,13 @@ export const DataSourceDialog = ({
             </div>
           </div>
 
-          <div className="flex flex-col gap-2 bg-card p-4 rounded-lg dark text-white">
+          <div className="flex flex-col gap-2 bg-card p-4 rounded-lg dark text-white dark:bg-muted dark:text-muted-foreground">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <div className="flex-1 h-9 px-3 py-1 rounded-md border bg-background text-sm">
+                <div
+                  className="flex-1 h-9 px-3 py-1 flex flex-col justify-center rounded-md border bg-background text-sm"
+                  onClick={onFileSelect}
+                >
                   {pendingDataSources[selectedSource.name]?.path
                     ? truncatePath(pendingDataSources[selectedSource.name]?.path)
                     : selectedSource.fileRequirement}
