@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Search, ChevronRight } from 'lucide-react'
+import { ChevronRight, Send } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useMutation, useQuery } from '@apollo/client'
 import { CreateChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
@@ -11,6 +11,9 @@ import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
 export const Omnibar = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
+  //   const [isThinking, setIsThinking] = useState(false)
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
   const navigate = useNavigate()
   const router = useRouter()
   const [createChat] = useMutation(CreateChatDocument)
@@ -22,29 +25,50 @@ export const Omnibar = () => {
 
   const chats = chatsData?.getChats || []
   const filteredChats = chats.filter((chat) =>
-    chat.name.toLowerCase().includes(query.toLowerCase())
+    chat.name.toLowerCase().includes(debouncedQuery.toLowerCase())
   )
 
+  useEffect(() => {
+    // Clear any existing timeout
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current)
+    }
+
+    // Set a new timeout
+    debounceTimeout.current = setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 150) // 150ms delay
+
+    // Cleanup
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current)
+      }
+    }
+  }, [query])
+
+  //   useEffect(() => {
+  //     setIsThinking(debouncedQuery.length > 0 && filteredChats.length > 0)
+  //   }, [debouncedQuery, filteredChats.length])
+
   const handleCreateChat = useCallback(async () => {
-    if (!query.trim()) return
+    if (!debouncedQuery.trim()) return
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: query }
+        variables: { name: debouncedQuery }
       })
       const newChatId = createData?.createChat?.id
 
       if (newChatId) {
-        // Invalidate chats cache
         await client.cache.evict({ fieldName: 'getChats' })
         await router.invalidate({
           filter: (match) => match.routeId === '/chat'
         })
 
-        // Navigate to the new chat with initial message
         navigate({
           to: `/chat/${newChatId}`,
-          search: { initialMessage: query }
+          search: { initialMessage: debouncedQuery }
         })
       }
     } catch (error) {
@@ -52,17 +76,15 @@ export const Omnibar = () => {
     } finally {
       closeOmnibar()
     }
-  }, [query, navigate, router, createChat, closeOmnibar])
+  }, [debouncedQuery, navigate, router, createChat, closeOmnibar])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (query.trim()) {
+    if (debouncedQuery.trim()) {
       if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
-        // Navigate to selected chat
         navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
         closeOmnibar()
       } else {
-        // Create new chat
         handleCreateChat()
       }
     }
@@ -70,16 +92,13 @@ export const Omnibar = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check for CMD+K (Mac) or CTRL+K (Windows/Linux)
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
         useOmnibarStore.getState().toggleOmnibar()
       }
-      // Close on Escape
       if (e.key === 'Escape') {
         closeOmnibar()
       }
-      // Handle arrow keys for selection
       if (isOpen) {
         if (e.key === 'ArrowDown') {
           e.preventDefault()
@@ -89,23 +108,12 @@ export const Omnibar = () => {
           e.preventDefault()
           setSelectedIndex((prev) => Math.max(prev - 1, 0))
         }
-        if (e.key === 'Enter') {
-          e.preventDefault()
-          if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
-            // Navigate to selected chat
-            navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
-            closeOmnibar()
-          } else if (query.trim()) {
-            // Create new chat
-            handleCreateChat()
-          }
-        }
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, query, selectedIndex, filteredChats, navigate, handleCreateChat, closeOmnibar])
+  }, [isOpen, selectedIndex, filteredChats, navigate, closeOmnibar])
 
   return (
     <AnimatePresence>
@@ -122,21 +130,18 @@ export const Omnibar = () => {
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.95, opacity: 0 }}
             transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-            className="w-full max-w-2xl px-4"
+            className="w-full max-w-xl px-4"
             onClick={(e) => e.stopPropagation()}
           >
             <form onSubmit={handleSubmit}>
-              <div className="relative">
-                <motion.div
-                  initial={{ y: 20, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 0.1 }}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg border border-border bg-background/90 p-4 shadow-xl',
-                    'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
-                  )}
-                >
-                  <Search className="h-5 w-5 text-muted-foreground" />
+              <motion.div
+                className={cn(
+                  'flex flex-col gap-3 rounded-lg border border-border bg-background/90 p-4 shadow-xl',
+                  'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  {/* <TwinAvatar size={40} state={isThinking ? 'thinking' : 'idle'} /> */}
                   <input
                     type="text"
                     value={query}
@@ -144,56 +149,69 @@ export const Omnibar = () => {
                       setQuery(e.target.value)
                       setSelectedIndex(0)
                     }}
-                    placeholder="Start a new chat or search existing chats..."
-                    className="w-full bg-transparent text-foreground placeholder-muted-foreground outline-none"
+                    placeholder="What would you like to discuss?"
+                    className="flex-1 bg-transparent text-foreground placeholder-muted-foreground outline-none"
                     autoFocus
                   />
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                    <kbd className="rounded bg-muted px-2 py-1">Esc</kbd>
-                    <span>to close</span>
-                  </div>
-                </motion.div>
+                  {debouncedQuery.trim() && filteredChats.length === 0 && (
+                    <button
+                      type="button"
+                      onClick={handleCreateChat}
+                      className="rounded-full p-1 text-primary hover:bg-muted"
+                    >
+                      <Send className="h-5 w-5" />
+                    </button>
+                  )}
+                </div>
 
-                {/* Search Results */}
-                {query && (
-                  <motion.div
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="absolute mt-2 w-full rounded-lg border border-border bg-background/90 shadow-xl overflow-hidden"
-                  >
-                    {filteredChats.map((chat, index) => (
-                      <button
-                        key={chat.id}
-                        onClick={() => {
-                          navigate({ to: `/chat/${chat.id}` })
-                          closeOmnibar()
-                        }}
-                        className={cn(
-                          'flex w-full items-center justify-between px-4 py-2 text-left text-sm',
-                          'hover:bg-muted',
-                          selectedIndex === index && 'bg-muted'
+                <AnimatePresence mode="wait">
+                  {debouncedQuery && filteredChats.length > 0 && (
+                    <motion.div
+                      key="results"
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className="rounded-lg border border-border bg-background/90 overflow-hidden"
+                    >
+                      <div className="py-1">
+                        {filteredChats.map((chat, index) => (
+                          <button
+                            key={chat.id}
+                            type="button"
+                            onClick={() => {
+                              navigate({ to: `/chat/${chat.id}` })
+                              closeOmnibar()
+                            }}
+                            className={cn(
+                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
+                              'hover:bg-muted/80',
+                              selectedIndex === index && 'bg-primary/10 text-primary'
+                            )}
+                          >
+                            <span className="truncate">{chat.name}</span>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        ))}
+                        {debouncedQuery.trim() && (
+                          <button
+                            type="button"
+                            onClick={handleCreateChat}
+                            className={cn(
+                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
+                              'hover:bg-muted/80',
+                              selectedIndex === filteredChats.length && 'bg-primary/10 text-primary'
+                            )}
+                          >
+                            <span>New chat: &quot;{debouncedQuery}&quot;</span>
+                            <Send className="h-4 w-4 text-muted-foreground" />
+                          </button>
                         )}
-                      >
-                        <span className="truncate">{chat.name}</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    ))}
-                    {query.trim() && (
-                      <button
-                        onClick={handleCreateChat}
-                        className={cn(
-                          'flex w-full items-center justify-between px-4 py-2 text-left text-sm',
-                          'hover:bg-muted',
-                          selectedIndex === filteredChats.length && 'bg-muted'
-                        )}
-                      >
-                        <span>Create new chat: &quot;{query}&quot;</span>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                      </button>
-                    )}
-                  </motion.div>
-                )}
-              </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             </form>
           </motion.div>
         </motion.div>
