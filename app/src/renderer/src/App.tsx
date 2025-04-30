@@ -1,3 +1,4 @@
+import { DataSourcesPanel } from './components/DataSourcesPanel'
 import MCPPanel from './components/oauth/MCPPanel'
 
 function App(): React.JSX.Element {
@@ -15,6 +16,7 @@ function App(): React.JSX.Element {
           <h1 className="text-4xl">My Twin</h1>
         </div>
         <MCPPanel />
+        <DataSourcesPanel />
       </div>
     </div>
   )
