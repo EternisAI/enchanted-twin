@@ -73,7 +73,7 @@ export function OnboardingContainer() {
 
   return (
     <>
-      <div className="relative h-full w-full overflow-hidden">
+      <div className="relative h-full w-full overflow-auto">
         <AnimatePresence custom={direction} initial={false}>
           <motion.div
             key={currentStep}

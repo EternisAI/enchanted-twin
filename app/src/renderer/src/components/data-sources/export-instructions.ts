@@ -42,5 +42,17 @@ export const EXPORT_INSTRUCTIONS: Record<string, ExportInstructions> = {
       'Wait for the email with your data archive'
     ],
     link: 'https://x.com/settings/download_your_data'
+  },
+  ChatGPT: { // TODO: add instructions for mobile and desktop
+    timeEstimate: '1-5 minutes',
+    steps: [
+      'Open ChatGPT',
+      'Click "Settings" in the top right',
+      'Click "Data Controls" in the left sidebar',
+      'Click "Export Data" and follow the prompts',
+      'Wait 5-10 minutes for the export to complete',
+      'Check your email for the export file'
+    ],
+    link: 'https://chatgpt.com/#settings/DataControls'
   }
 }

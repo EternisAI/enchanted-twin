@@ -13,6 +13,7 @@ import { toast } from 'sonner'
 import { gql } from '@apollo/client'
 import { DataSourceDialog } from './DataSourceDialog'
 import { Card } from '../ui/card'
+import OpenAI from '@renderer/assets/icons/openai'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -35,6 +36,15 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     fileRequirement: 'Select X ZIP',
     icon: <XformerlyTwitterIcon className="h-6 w-6" />,
     fileFilters: [{ name: 'X Archive', extensions: ['zip'] }]
+  },
+  {
+    name: 'ChatGPT',
+    label: 'ChatGPT',
+    description: 'Import your ChatGPT history',
+    selectType: 'files',
+    fileRequirement: 'Select ChatGPT export file',
+    icon: <OpenAI className="h-6 w-6" />,
+    fileFilters: [{ name: 'ChatGPT', extensions: ['zip'] }]
   },
   {
     name: 'WhatsApp',
@@ -76,9 +86,9 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
 
 const DataSourceCard = ({ source, onClick }: { source: DataSource; onClick: () => void }) => (
   <Button variant="outline" size="lg" className="h-auto py-4 rounded-xl" onClick={onClick}>
-    <div className="flex flex-col items-center gap-2 text-base">
+    <div className="flex flex-col items-center gap-3 text-base">
       {source.icon}
-      <span className="font-semibold">{source.label}</span>
+      <span className="font-semibold text-sm">{source.label}</span>
     </div>
   </Button>
 )
@@ -344,7 +354,7 @@ export function DataSourcesPanel({
           </p>
         </div>
       )}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-6">
         {SUPPORTED_DATA_SOURCES.map((source) => (
           <DataSourceCard
             key={source.name}
