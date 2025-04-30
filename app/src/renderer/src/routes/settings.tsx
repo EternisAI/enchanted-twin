@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
 import { Monitor, Moon, Sun } from 'lucide-react'
+import NotificationStatusCard from '@renderer/components/settings/notifications/NotificationStatusCard'
 
 export const Route = createFileRoute('/settings')({
   component: Settings
@@ -24,8 +25,8 @@ function Settings() {
       </style>
       <h2 className="text-4xl mb-6">Settings</h2>
 
-      <div className="space-y-6">
-        <div>
+      <div className="flex flex-col gap-10">
+        <div className="flex flex-col gap-2">
           <h3 className="text-xl font-medium mb-2">Appearance</h3>
           <p className="text-sm text-muted-foreground mb-4">
             Customize how the app looks on your device.
@@ -57,6 +58,7 @@ function Settings() {
             </Button>
           </div>
         </div>
+        <NotificationStatusCard />
       </div>
     </div>
   )

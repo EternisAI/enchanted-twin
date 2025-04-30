@@ -3,7 +3,7 @@ import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { SetupBanner } from '@renderer/components/SetupBanner'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
-import NotificationGate from '@renderer/components/notifications/NotificationGate'
+import { useOsNotifications } from '@renderer/hooks/useNotifications'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -11,6 +11,7 @@ function DevBadge() {
 
 function RootComponent() {
   const { isCompleted } = useOnboardingStore()
+  useOsNotifications()
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground pt-6">
@@ -20,7 +21,6 @@ function RootComponent() {
       </div>
       {isCompleted && <SetupBanner />}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <NotificationGate />
         <div className="flex-1 flex overflow-hidden">
           {isCompleted && <AppNav />}
 
