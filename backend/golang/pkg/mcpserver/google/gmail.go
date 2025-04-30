@@ -3,7 +3,9 @@ package google
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
@@ -13,15 +15,27 @@ import (
 	"google.golang.org/api/option"
 )
 
-const LIST_EMAILS_TOOL_NAME = "list_emails"
+const SEARCH_EMAILS_TOOL_NAME = "search_emails"
 const SEND_EMAIL_TOOL_NAME = "send_email"
 
-const LIST_EMAILS_TOOL_DESCRIPTION = "List the emails from the user's inbox"
+const SEARCH_EMAILS_TOOL_DESCRIPTION = "Search the emails from the user's inbox"
 const SEND_EMAIL_TOOL_DESCRIPTION = "Send an email to recipient email address"
 
-type ListEmailsArguments struct {
-	PageToken string `json:"page_token" jsonschema:"required,description=The page token to list, default is empty"`
-	Limit     int    `json:"limit" jsonschema:"required,description=The number of emails to list"`
+
+type EmailQuery struct {
+	In string `json:"in" jsonschema:",description=The inbox to list emails from, default is 'inbox'"`
+	TimeRange TimeRange `json:"time_range" jsonschema:",description=The time range to list emails, default is empty"`
+	From string `json:"from" jsonschema:",description=The sender of the emails to list, default is empty"`
+	To   string `json:"to" jsonschema:",description=The recipient of the emails to list, default is empty"`
+	Subject string `json:"subject" jsonschema:",description=The text to search for in the subject of the emails, default is empty"`
+	Body string `json:"body" jsonschema:",description=The text to search for in the body of the emails, default is empty"`
+	Label string `json:"label" jsonschema:",description=The label of the emails to list, default is empty"`
+}
+
+type SearchEmailsArguments struct {
+	Query     EmailQuery `json:"query" jsonschema:",description=The query to list emails, default is 'in:inbox'"`
+	PageToken string `json:"page_token" jsonschema:",description=The page token to list, default is empty"`
+	Limit     int    `json:"limit" jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
@@ -30,7 +44,44 @@ type SendEmailArguments struct {
 	Body    string `json:"body" jsonschema:"required,description=The body of the email"`
 }
 
-func processListEmails(ctx context.Context, accessToken string, arguments ListEmailsArguments) ([]*mcp_golang.Content, error) {
+func (q *EmailQuery) ToQuery() string {
+	query := "in:inbox"
+	if q.In != "" {
+		query = "in:" + q.In
+	}
+	if q.TimeRange.From != 0 {
+		query += fmt.Sprintf(" after:%d", q.TimeRange.From)
+	}
+	if q.TimeRange.To != 0 {
+		currentTime := time.Now().Unix()
+
+		if q.TimeRange.To > uint64(currentTime) {
+			q.TimeRange.To = uint64(currentTime)
+		}
+
+		query += fmt.Sprintf(" before:%d", q.TimeRange.To)
+	}
+
+	if q.From != "" {
+		query += fmt.Sprintf(" from:%s", q.From)
+	}
+	if q.To != "" {
+		query += fmt.Sprintf(" to:%s", q.To)
+	}
+	if q.Subject != "" {
+		query += fmt.Sprintf(" subject:%s", q.Subject)
+	}
+	if q.Body != "" {
+		query += fmt.Sprintf(" \"%s\"", q.Body)
+	}
+	if q.Label != "" {
+		query += fmt.Sprintf(" label:%s", q.Label)
+	}
+	return query
+}
+
+
+func processSearchEmails(ctx context.Context, accessToken string, arguments SearchEmailsArguments) ([]*mcp_golang.Content, error) {
 
 	// Configure OAuth2 token
 	token := &oauth2.Token{
@@ -47,7 +98,20 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 		fmt.Println("Error initializing Gmail service:", err)
 		return nil, err
 	}
-	request := gmailService.Users.Messages.List("me").MaxResults(int64(arguments.Limit))
+
+	maxResults := 10
+	if arguments.Limit > maxResults {
+		maxResults = arguments.Limit
+	}
+
+	if maxResults <= 0 {
+		// default limit
+		maxResults = 10 
+	}
+
+	query := arguments.Query.ToQuery()
+
+	request := gmailService.Users.Messages.List("me").Q(query).MaxResults(int64(maxResults))
 	if arguments.PageToken != "" {
 		request = request.PageToken(arguments.PageToken)
 	}
@@ -67,13 +131,6 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 			continue
 		}
 
-		// // Convert message to JSON
-		// msgJSON, err := json.Marshal(msg)
-		// if err != nil {
-		// 	fmt.Println("Error marshaling message to JSON:", err)
-		// 	continue
-		// }
-
 		var subject, from, date string
 		for _, header := range msg.Payload.Headers {
 			switch header.Name {
@@ -85,9 +142,15 @@ func processListEmails(ctx context.Context, accessToken string, arguments ListEm
 				date = header.Value
 			}
 		}
+
+		body, err := getBody(msg.Payload)
+		if err != nil {
+			fmt.Println("Error getting body:", err)
+			continue
+		}
 		
-		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s", 
-			from, subject, date, msg.Id)
+		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s\nBody: %s", 
+			from, subject, date, msg.Id, body)
 		
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
@@ -162,19 +225,36 @@ func createMessage(from, to, subject, bodyContent string) *gmail.Message {
 	}
 }
 
+func getBody(p *gmail.MessagePart) (string, error) {
+    if p == nil { return "", errors.New("empty payload") }
+
+    if p.Body != nil && len(p.Body.Data) > 0 &&
+       (p.MimeType == "text/plain" || p.MimeType == "text/html") {
+        data, err := base64.URLEncoding.DecodeString(p.Body.Data) // URL-safe base64
+        if err != nil { return "", err }
+        return string(data), nil
+    }
+    for _, part := range p.Parts {                    // recurse into multipart/*
+        if body, _ := getBody(part); body != "" {
+            return body, nil
+        }
+    }
+    return "", errors.New("no body found")
+}
+
 
 func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType
 
-	listEmailsSchema, err := helpers.ConverToInputSchema(ListEmailsArguments{})
+	searchEmailsSchema, err := helpers.ConverToInputSchema(SearchEmailsArguments{})
 	if err != nil {
-		return nil, fmt.Errorf("error generating schema for list_emails: %w", err)
+		return nil, fmt.Errorf("error generating schema for search_emails: %w", err)
 	}
-	desc := LIST_EMAILS_TOOL_DESCRIPTION
+	desc := SEARCH_EMAILS_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.ToolRetType{
-		Name:        LIST_EMAILS_TOOL_NAME,
+		Name:        SEARCH_EMAILS_TOOL_NAME,
 		Description: &desc,
-		InputSchema: listEmailsSchema,
+		InputSchema: searchEmailsSchema,
 	})
 
 	sendEmailSchema, err := helpers.ConverToInputSchema(SendEmailArguments{})

@@ -471,9 +471,7 @@ func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.Use
 	}
 
 	return &model.IndexingStatus{
-		Status:                 stateQuery,
-		ProcessingDataProgress: 0,
-		IndexingDataProgress:   0,
+		Status: stateQuery,
 	}, nil
 }
 

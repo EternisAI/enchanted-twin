@@ -2,6 +2,7 @@ import { AppNav } from '@renderer/components/AppNav'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { SetupBanner } from '@renderer/components/SetupBanner'
+import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -12,6 +13,7 @@ function RootComponent() {
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground pt-6">
+      <AdminKeyboardShortcuts />
       <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-6 z-20 flex items-center justify-center backdrop-blur-sm">
         {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
       </div>

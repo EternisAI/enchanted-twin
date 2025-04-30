@@ -5,10 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
@@ -55,7 +58,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 	dataSources := []*model.DataSource{}
 	w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, nil)
 
-	var completeResponse CompleteActivityResponse
 	err := workflow.SetQueryHandler(ctx, "getInitializeState", func() (InitializeStateQuery, error) {
 		return InitializeStateQuery{State: indexingState}, nil
 	})
@@ -154,6 +156,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 	w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, nil)
 
 	var indexDataResponse IndexDataActivityResponse
+
 	err = workflow.ExecuteActivity(ctx, w.IndexDataActivity, IndexDataActivityInput{DataSourcesInput: dataSources, IndexingState: indexingState}).Get(ctx, &indexDataResponse)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to index data", "error", err)
@@ -163,32 +166,16 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to index data")
 	}
 
-	err = workflow.ExecuteActivity(ctx, w.CompleteActivity, CompleteActivityInput{
-		DataSources: indexDataResponse.DataSourcesResponse,
-	}).Get(ctx, &completeResponse)
-	if err != nil {
-		workflow.GetLogger(ctx).Error("Failed to complete indexing", "error", err)
-		errMsg := err.Error()
-		w.publishIndexingStatus(ctx, model.IndexingStateFailed, dataSources, 100, 0, &errMsg)
-		return InitializeWorkflowResponse{}, fmt.Errorf("failed to complete indexing: %w", err)
-	}
+	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, indexDataResponse.DataSourcesResponse, 100, 100, nil)
 
-	indexingState = model.IndexingStateCompleted
-	workflow.GetLogger(ctx).Info("Indexing completed successfully")
-	for _, dataSource := range dataSources {
-		dataSource.IsIndexed = true
-	}
-	w.publishIndexingStatus(ctx, model.IndexingStateCompleted, dataSources, 100, 100, nil)
 	return InitializeWorkflowResponse{}, nil
 }
 
 func (w *DataProcessingWorkflows) publishIndexingStatus(ctx workflow.Context, state model.IndexingState, dataSources []*model.DataSource, processingProgress, indexingProgress int32, error *string) {
 	status := &model.IndexingStatus{
-		Status:                 state,
-		ProcessingDataProgress: processingProgress,
-		IndexingDataProgress:   indexingProgress,
-		DataSources:            dataSources,
-		Error:                  error,
+		Status:      state,
+		DataSources: dataSources,
+		Error:       error,
 	}
 	statusJson, _ := json.Marshal(status)
 	subject := "indexing_data"
@@ -254,6 +241,41 @@ type IndexDataActivityResponse struct {
 	DataSourcesResponse []*model.DataSource `json:"dataSources"`
 }
 
+func publishIndexingStatus2(w *DataProcessingWorkflows, dataSources []*model.DataSource, state model.IndexingState, error *string) {
+	status := &model.IndexingStatus{
+		Status:      state,
+		DataSources: dataSources,
+		Error:       error,
+	}
+	statusJson, _ := json.Marshal(status)
+	subject := "indexing_data"
+
+	if w.Nc == nil {
+		w.Logger.Error("NATS connection is nil")
+		return
+	}
+
+	if !w.Nc.IsConnected() {
+		w.Logger.Error("NATS connection is not connected")
+		return
+	}
+
+	w.Logger.Info("Publishing indexing status",
+		"subject", subject,
+		"data", string(statusJson),
+		"connected", w.Nc.IsConnected(),
+		"status", w.Nc.Status().String())
+
+	err := w.Nc.Publish(subject, statusJson)
+	if err != nil {
+		w.Logger.Error("Failed to publish indexing status",
+			"error", err,
+			"subject", subject,
+			"connected", w.Nc.IsConnected(),
+			"status", w.Nc.Status().String())
+	}
+}
+
 func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input IndexDataActivityInput) (IndexDataActivityResponse, error) {
 	dataSourcesDB, err := w.Store.GetUnindexedDataSources(ctx)
 	if err != nil {
@@ -264,8 +286,10 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 
 	copy(dataSourcesResponse, input.DataSourcesInput)
 
+	var wg sync.WaitGroup
+	resultChan := make(chan struct{})
 	for i, dataSourceDB := range dataSourcesDB {
-		w.Logger.Info("Indexing data source", "dataSource", dataSourceDB.Name)
+
 		if dataSourceDB.ProcessedPath == nil {
 			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
 			continue
@@ -276,6 +300,23 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 			return IndexDataActivityResponse{}, err
 		}
 
+		progressChan := make(chan memory.ProgressUpdate, 10)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for update := range progressChan {
+				percentage := 0.0
+				if update.Total > 0 {
+					percentage = float64(update.Processed) / float64(update.Total) * 100
+				}
+
+				dataSourcesResponse[i].IndexProgress = int32(percentage)
+				publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, nil)
+			}
+		}()
+
 		switch strings.ToLower(dataSourceDB.Name) {
 		case "slack":
 			slackSource := slack.New(*dataSourceDB.ProcessedPath)
@@ -285,19 +326,20 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "slack", len(documents))
-			err = w.Memory.Store(ctx, documents)
+			err = w.Memory.Store(ctx, documents, progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
+
 		case "telegram":
 			documents, err := telegram.ToDocuments(records)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "telegram", len(documents))
-			err = w.Memory.Store(ctx, documents)
+			err = w.Memory.Store(ctx, documents, progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -309,7 +351,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "x", len(documents))
-			err = w.Memory.Store(ctx, documents)
+			err = w.Memory.Store(ctx, documents, progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -321,7 +363,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "gmail", len(documents))
-			err = w.Memory.Store(ctx, documents)
+			err = w.Memory.Store(ctx, documents, progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -333,49 +375,40 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "whatsapp", len(documents))
-
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+		case "chatgpt":
+			documents, err := chatgpt.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "chatgpt", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
 		}
 
-		// update indexing status
-		status := &model.IndexingStatus{
-			Status:                 input.IndexingState,
-			ProcessingDataProgress: 100,
-			IndexingDataProgress:   int32(i+1) * 100 / int32(len(dataSourcesDB)),
-			DataSources:            dataSourcesResponse,
-			Error:                  nil,
-		}
-		statusJson, _ := json.Marshal(status)
-		subject := "indexing_data"
+	}
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
 
-		input := PublishIndexingStatusInput{
-			Subject: subject,
-			Data:    statusJson,
-		}
-		err = w.PublishIndexingStatus(ctx, input)
+	for _, dataSource := range dataSourcesResponse {
+		_, err = w.Store.UpdateDataSourceState(ctx, dataSource.ID, dataSource.IsIndexed, dataSource.HasError)
 		if err != nil {
-			w.Logger.Error("Failed to publish indexing status", "error", err)
+			return IndexDataActivityResponse{}, err
 		}
-
 	}
 
 	return IndexDataActivityResponse{DataSourcesResponse: dataSourcesResponse}, nil
-}
-
-type CompleteActivityInput struct {
-	DataSources []*model.DataSource `json:"dataSources"`
-}
-
-type CompleteActivityResponse struct{}
-
-func (w *DataProcessingWorkflows) CompleteActivity(ctx context.Context, input CompleteActivityInput) (CompleteActivityResponse, error) {
-	for _, dataSource := range input.DataSources {
-		_, err := w.Store.UpdateDataSourceState(ctx, dataSource.ID, dataSource.IsIndexed, dataSource.HasError)
-		if err != nil {
-			return CompleteActivityResponse{}, err
-		}
-
-	}
-	return CompleteActivityResponse{}, nil
 }
 
 type PublishIndexingStatusInput struct {
@@ -412,7 +445,6 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(ctx context.Context, inp
 	return nil
 }
 
-// This would be for a GraphQL subscription (optional)
 type DownloadModelProgress struct {
 	PercentageProgress float64
 }
