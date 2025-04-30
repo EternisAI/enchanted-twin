@@ -95,7 +95,7 @@
     ],
     "publish": {
       "provider": "s3",
-      "bucket": "enchanted-app-updates",
+      "bucket": "enchanted-app",
       "region": "us-east-1"
     },
     "mac": {
