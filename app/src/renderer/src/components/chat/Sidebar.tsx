@@ -26,10 +26,11 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
       <h2 className="text-4xl mb-4 text-foreground">Chats</h2>
       <Link to="/chat" disabled={isHome} className="mt-4">
         <Button variant="outline" className="w-full justify-between">
-          <span>
-            <Plus className="w-4 h-4 mr-2" />
-            New Chat
-          </span>
+          <Plus className="w-4 h-4 mr-2" />
+          <span>New Chat</span>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <kbd className="rounded bg-muted px-2 py-1">⌘ K</kbd>
+          </div>
         </Button>
       </Link>
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">

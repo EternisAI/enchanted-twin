@@ -150,7 +150,7 @@ export const Omnibar = () => {
                     className="w-full bg-transparent text-foreground placeholder-muted-foreground outline-none"
                     autoFocus
                   />
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                     <kbd className="rounded bg-muted px-2 py-1">Esc</kbd>
                     <span>to close</span>
                   </div>
@@ -159,9 +159,9 @@ export const Omnibar = () => {
                 {/* Search Results */}
                 {query && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10 }}
+                    initial={{ opacity: 0, y: -10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="absolute mt-2 w-full rounded-lg border border-border bg-background/90 shadow-xl"
+                    className="absolute mt-2 w-full rounded-lg border border-border bg-background/90 shadow-xl overflow-hidden"
                   >
                     {filteredChats.map((chat, index) => (
                       <button
