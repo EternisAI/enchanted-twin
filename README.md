@@ -22,6 +22,8 @@ You must have Ollama installed \*_and running_ on your system and running.
 4. Install packages `pnpm install`
 5. Run the app `cd app && pnpm dev`
 
+> Frontend uses `schema.graphqls` as the source of truth to code generate queries/mutations/subscriptions using `pnpm codegen`.
+
 ### Backend
 
 > ⚠️ Make sure ollama is running before running the backend
@@ -39,7 +41,7 @@ On the backend side GraphQL resolvers (`schema.resolvers.go`) are code-generated
 1. Generate resolvers using `make gqlgen` in `backend/golang` directory.
 1. This will generate additional code in `schema.resolvers.go`.
 
-Frontend uses `schema.graphqls` as the source of truth to code generate queries/mutations/subscriptions using `pnpm codegen`.
+> Frontend uses `schema.graphqls` as the source of truth to code generate queries/mutations/subscriptions using `pnpm codegen`.
 
 ## Release (build installer)
 
