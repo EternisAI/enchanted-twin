@@ -126,6 +126,7 @@ type ComplexityRoot struct {
 		DeleteDataSource          func(childComplexity int, id string) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		SendMessage               func(childComplexity int, chatID string, text string) int
+		SendTelegramMessage       func(childComplexity int, chatUUID string, text string) int
 		StartIndexing             func(childComplexity int) int
 		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
 		UpdateProfile             func(childComplexity int, input model.UpdateProfileInput) int
@@ -154,9 +155,10 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		IndexingStatus  func(childComplexity int) int
-		MessageAdded    func(childComplexity int, chatID string) int
-		ToolCallUpdated func(childComplexity int, chatID string) int
+		IndexingStatus       func(childComplexity int) int
+		MessageAdded         func(childComplexity int, chatID string) int
+		TelegramMessageAdded func(childComplexity int, chatUUID string) int
+		ToolCallUpdated      func(childComplexity int, chatID string) int
 	}
 
 	Tool struct {
@@ -200,6 +202,7 @@ type MutationResolver interface {
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
 	DeleteDataSource(ctx context.Context, id string) (bool, error)
 	ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (bool, error)
+	SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -215,6 +218,7 @@ type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
 	ToolCallUpdated(ctx context.Context, chatID string) (<-chan *model.ToolCall, error)
 	IndexingStatus(ctx context.Context) (<-chan *model.IndexingStatus, error)
+	TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error)
 }
 type UserProfileResolver interface {
 	IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error)
@@ -625,6 +629,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string)), true
 
+	case "Mutation.sendTelegramMessage":
+		if e.complexity.Mutation.SendTelegramMessage == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_sendTelegramMessage_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.SendTelegramMessage(childComplexity, args["chatUUID"].(string), args["text"].(string)), true
+
 	case "Mutation.startIndexing":
 		if e.complexity.Mutation.StartIndexing == nil {
 			break
@@ -780,6 +796,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Subscription.MessageAdded(childComplexity, args["chatId"].(string)), true
+
+	case "Subscription.telegramMessageAdded":
+		if e.complexity.Subscription.TelegramMessageAdded == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_telegramMessageAdded_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.TelegramMessageAdded(childComplexity, args["chatUUID"].(string)), true
 
 	case "Subscription.toolCallUpdated":
 		if e.complexity.Subscription.ToolCallUpdated == nil {
@@ -1243,6 +1271,47 @@ func (ec *executionContext) field_Mutation_sendMessage_argsText(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_sendTelegramMessage_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_sendTelegramMessage_argsChatUUID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatUUID"] = arg0
+	arg1, err := ec.field_Mutation_sendTelegramMessage_argsText(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["text"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_sendTelegramMessage_argsChatUUID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatUUID"))
+	if tmp, ok := rawArgs["chatUUID"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_sendTelegramMessage_argsText(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("text"))
+	if tmp, ok := rawArgs["text"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_startOAuthFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -1433,6 +1502,29 @@ func (ec *executionContext) field_Subscription_messageAdded_argsChatID(
 ) (string, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
 	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_telegramMessageAdded_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_telegramMessageAdded_argsChatUUID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatUUID"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_telegramMessageAdded_argsChatUUID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatUUID"))
+	if tmp, ok := rawArgs["chatUUID"]; ok {
 		return ec.unmarshalNID2string(ctx, tmp)
 	}
 
@@ -4084,6 +4176,61 @@ func (ec *executionContext) fieldContext_Mutation_connectMCPServer(ctx context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_sendTelegramMessage(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_sendTelegramMessage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().SendTelegramMessage(rctx, fc.Args["chatUUID"].(string), fc.Args["text"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_sendTelegramMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_sendTelegramMessage_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _OAuthFlow_authURL(ctx context.Context, field graphql.CollectedField, obj *model.OAuthFlow) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_OAuthFlow_authURL(ctx, field)
 	if err != nil {
@@ -5134,6 +5281,91 @@ func (ec *executionContext) fieldContext_Subscription_indexingStatus(_ context.C
 			}
 			return nil, fmt.Errorf("no field named %q was found under type IndexingStatus", field.Name)
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_telegramMessageAdded(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_telegramMessageAdded(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().TelegramMessageAdded(rctx, fc.Args["chatUUID"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.Message):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessage(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_telegramMessageAdded(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_Message_id(ctx, field)
+			case "text":
+				return ec.fieldContext_Message_text(ctx, field)
+			case "imageUrls":
+				return ec.fieldContext_Message_imageUrls(ctx, field)
+			case "role":
+				return ec.fieldContext_Message_role(ctx, field)
+			case "toolCalls":
+				return ec.fieldContext_Message_toolCalls(ctx, field)
+			case "toolResults":
+				return ec.fieldContext_Message_toolResults(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_Message_createdAt(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_telegramMessageAdded_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -8400,6 +8632,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "sendTelegramMessage":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_sendTelegramMessage(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -8761,6 +9000,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_toolCallUpdated(ctx, fields[0])
 	case "indexingStatus":
 		return ec._Subscription_indexingStatus(ctx, fields[0])
+	case "telegramMessageAdded":
+		return ec._Subscription_telegramMessageAdded(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}

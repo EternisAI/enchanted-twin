@@ -43,8 +43,6 @@ export default function ChatHome() {
     }
   }
 
-  console.log(profile)
-
   const twinName = profile?.profile?.name || 'Your Twin'
 
   return (
@@ -58,15 +56,14 @@ export default function ChatHome() {
       </style>
       <div className="flex flex-col flex-1 w-full max-w-4xl justify-between">
         <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-12">
-          <div className="py-8">
+          <div className="py-8 w-full flex flex-col items-center gap-4">
             <h1 className="text-3xl font-bold text-center">{twinName}</h1>
+            <div className="w-full max-w-lg mx-auto">
+              <ContextCard />
+            </div>
           </div>
 
-          <div className="w-xl">
-            <ContextCard />
-          </div>
-
-          <div className="flex gap-10 p-4 border border-border rounded-lg">
+          <div className="flex gap-10 p-4 border border-border rounded-lg max-w-lg mx-auto w-full">
             <div className="flex flex-col gap-2">
               <span>Today&apos;s Highlight</span>
               <span className="text-muted-foreground text-sm">10 Messages</span>
