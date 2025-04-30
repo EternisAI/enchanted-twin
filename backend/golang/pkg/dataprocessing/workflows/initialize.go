@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -172,11 +173,9 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(ctx workflow.Context, input
 
 func (w *DataProcessingWorkflows) publishIndexingStatus(ctx workflow.Context, state model.IndexingState, dataSources []*model.DataSource, processingProgress, indexingProgress int32, error *string) {
 	status := &model.IndexingStatus{
-		Status:                 state,
-		ProcessingDataProgress: processingProgress,
-		IndexingDataProgress:   indexingProgress,
-		DataSources:            dataSources,
-		Error:                  error,
+		Status:      state,
+		DataSources: dataSources,
+		Error:       error,
 	}
 	statusJson, _ := json.Marshal(status)
 	subject := "indexing_data"
@@ -242,13 +241,11 @@ type IndexDataActivityResponse struct {
 	DataSourcesResponse []*model.DataSource `json:"dataSources"`
 }
 
-func publishIndexingStatus2(w *DataProcessingWorkflows, dataSources []*model.DataSource, state model.IndexingState, processingProgress, indexingProgress int32, error *string) {
+func publishIndexingStatus2(w *DataProcessingWorkflows, dataSources []*model.DataSource, state model.IndexingState, error *string) {
 	status := &model.IndexingStatus{
-		Status:                 state,
-		ProcessingDataProgress: processingProgress,
-		IndexingDataProgress:   indexingProgress,
-		DataSources:            dataSources,
-		Error:                  error,
+		Status:      state,
+		DataSources: dataSources,
+		Error:       error,
 	}
 	statusJson, _ := json.Marshal(status)
 	subject := "indexing_data"
@@ -289,22 +286,10 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 
 	copy(dataSourcesResponse, input.DataSourcesInput)
 
-	progressChan := make(chan memory.ProgressUpdate, 10)
-	listenerDone := make(chan struct{})
-
-	go func() {
-		defer close(listenerDone)
-		for update := range progressChan {
-			percentage := 0.0
-			if update.Total > 0 {
-				percentage = float64(update.Processed) / float64(update.Total) * 100
-			}
-
-			publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, int32(percentage), int32(percentage), nil)
-		}
-	}()
-
+	var wg sync.WaitGroup
+	resultChan := make(chan struct{})
 	for i, dataSourceDB := range dataSourcesDB {
+
 		if dataSourceDB.ProcessedPath == nil {
 			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
 			continue
@@ -314,6 +299,23 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 		if err != nil {
 			return IndexDataActivityResponse{}, err
 		}
+
+		progressChan := make(chan memory.ProgressUpdate, 10)
+
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			for update := range progressChan {
+				percentage := 0.0
+				if update.Total > 0 {
+					percentage = float64(update.Processed) / float64(update.Total) * 100
+				}
+
+				dataSourcesResponse[i].IndexProgress = int32(percentage)
+				publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, nil)
+			}
+		}()
 
 		switch strings.ToLower(dataSourceDB.Name) {
 		case "slack":
@@ -394,7 +396,10 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 		}
 
 	}
-	<-listenerDone
+	go func() {
+		wg.Wait()
+		close(resultChan)
+	}()
 
 	for _, dataSource := range dataSourcesResponse {
 		_, err = w.Store.UpdateDataSourceState(ctx, dataSource.ID, dataSource.IsIndexed, dataSource.HasError)
