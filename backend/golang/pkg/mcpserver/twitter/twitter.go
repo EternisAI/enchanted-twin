@@ -119,7 +119,7 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 			if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 				return nil, err
 			}
-			result, err := processPostTweet(oauthTokens.AccessToken, argumentsTyped)
+			result, err := processPostTweet(ctx, oauthTokens.AccessToken, argumentsTyped)
 			if err != nil {
 				return nil, err
 			}

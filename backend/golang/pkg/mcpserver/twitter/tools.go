@@ -161,15 +161,28 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 	return contents, nil
 }
 
-func processPostTweet(_ string, _arguments PostTweetArguments) ([]*mcp_golang.Content, error) {
+func processPostTweet(ctx context.Context, accessToken string, _arguments PostTweetArguments) ([]*mcp_golang.Content, error) {
 
-	fmt.Println("Posting tweet", _arguments.Content)
+	client := &twitter.Client{
+		Authorizer: authorize{
+			Token: accessToken,
+		},
+		Client: http.DefaultClient,
+		Host:   "https://api.twitter.com",
+	}
+
+	_, err := client.CreateTweet(ctx, twitter.CreateTweetRequest{
+		Text: _arguments.Content,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return []*mcp_golang.Content{
 		{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: "Posted tweet",
+				Text: "Posted tweet successfully",
 			},
 		},
 	}, nil
