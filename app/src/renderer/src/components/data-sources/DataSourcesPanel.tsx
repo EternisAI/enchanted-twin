@@ -5,7 +5,16 @@ import {
   IndexingStatusDocument
 } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
-import { CheckCircle2, Loader2, X, Play, RefreshCw, Import } from 'lucide-react'
+import {
+  CheckCircle2,
+  Loader2,
+  X,
+  Play,
+  RefreshCw,
+  Import,
+  ChevronDown,
+  ChevronRight
+} from 'lucide-react'
 import { useState, useCallback, useEffect, ReactNode } from 'react'
 import WhatsAppIcon from '@renderer/assets/icons/whatsapp'
 import TelegramIcon from '@renderer/assets/icons/telegram'
@@ -250,6 +259,40 @@ const DataSourceProgressItem = ({
   )
 }
 
+const CollapsibleDataSourceGroup = ({
+  title,
+  icon,
+  sources,
+  isExpanded,
+  onToggle
+}: {
+  title: string
+  icon: ReactNode
+  sources: IndexedDataSource[]
+  isExpanded: boolean
+  onToggle: () => void
+}) => {
+  return (
+    <div className="flex flex-col gap-2">
+      <Button variant="ghost" className="w-full justify-start gap-2" onClick={onToggle}>
+        {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        {icon}
+        <span className="font-medium">{title}</span>
+        <span className="ml-auto text-sm text-muted-foreground">
+          {sources.length} {sources.length === 1 ? 'source' : 'sources'}
+        </span>
+      </Button>
+      {isExpanded && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6">
+          {sources.map((source) => (
+            <IndexedDataSourceCard key={source.id} source={source} />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function DataSourcesPanel({
   onDataSourceSelected,
   onDataSourceRemoved,
@@ -266,6 +309,7 @@ export function DataSourcesPanel({
   const [pendingDataSources, setPendingDataSources] = useState<Record<string, PendingDataSource>>(
     {}
   )
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
 
   // Derived states from subscription data
   const isIndexing =
@@ -418,6 +462,40 @@ export function DataSourcesPanel({
     )
   }
 
+  const toggleGroup = useCallback((groupName: string) => {
+    setExpandedGroups((prev) => ({
+      ...prev,
+      [groupName]: !prev[groupName]
+    }))
+  }, [])
+
+  const groupedDataSources = useCallback(() => {
+    if (!data?.getDataSources) return {}
+
+    return data.getDataSources.reduce(
+      (acc, source) => {
+        const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === source.name)
+        if (!sourceDetails) return acc
+
+        const groupName = source.name
+        if (!acc[groupName]) {
+          acc[groupName] = {
+            title: sourceDetails.label,
+            icon: sourceDetails.icon,
+            sources: []
+          }
+        }
+        acc[groupName].sources.push({
+          ...source,
+          indexProgress: indexingData?.indexingStatus?.dataSources?.find((s) => s.id === source.id)
+            ?.indexProgress
+        })
+        return acc
+      },
+      {} as Record<string, { title: string; icon: ReactNode; sources: IndexedDataSource[] }>
+    )
+  }, [data?.getDataSources, indexingData?.indexingStatus?.dataSources])
+
   return (
     <Card className="flex flex-col gap-6 p-6 max-w-4xl">
       {header && (
@@ -459,20 +537,22 @@ export function DataSourcesPanel({
                 onRemove={() => handleRemoveDataSource(source.name)}
               />
             ))}
-            {showStatus &&
-              data?.getDataSources?.map((source) => (
-                <IndexedDataSourceCard
-                  key={source.id}
-                  // onRemove={() => handleRemoveDataSource(source.name)}
-                  source={{
-                    ...source,
-                    indexProgress: indexingData?.indexingStatus?.dataSources?.find(
-                      (s) => s.id === source.id
-                    )?.indexProgress
-                  }}
+          </div>
+
+          {showStatus && data?.getDataSources && (
+            <div className="flex flex-col gap-4">
+              {Object.entries(groupedDataSources()).map(([groupName, group]) => (
+                <CollapsibleDataSourceGroup
+                  key={groupName}
+                  title={group.title}
+                  icon={group.icon}
+                  sources={group.sources}
+                  isExpanded={expandedGroups[groupName] ?? true}
+                  onToggle={() => toggleGroup(groupName)}
                 />
               ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
