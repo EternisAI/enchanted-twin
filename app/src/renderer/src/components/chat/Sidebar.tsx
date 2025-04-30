@@ -25,7 +25,7 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
     <aside className="flex flex-col w-64 bg-muted/50 p-4 rounded-lg h-full gap-4">
       <h2 className="text-4xl mb-4 text-foreground">Chats</h2>
       <Link to="/chat" disabled={isHome} className="mt-4">
-        <Button variant="outline" className="w-full justify-between">
+        <Button variant="outline" className="w-full justify-between px-2">
           <div className="flex items-center gap-2">
             <Plus className="w-3 h-3" />
             <span>New chat</span>
