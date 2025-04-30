@@ -239,7 +239,7 @@ const DataSourceProgressItem = ({
         <span className="text-sm text-muted-foreground">
           {source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}
           {source.isProcessed && !source.isIndexed && timeRemaining && (
-            <span className="ml-2">• {timeRemaining}</span>
+            <span> • {timeRemaining}</span>
           )}
         </span>
       </div>
