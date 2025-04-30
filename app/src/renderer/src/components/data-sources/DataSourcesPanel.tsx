@@ -19,6 +19,8 @@ import { DataSourceDialog } from './DataSourceDialog'
 import { Card } from '../ui/card'
 import OpenAI from '@renderer/assets/icons/openai'
 import { format } from 'date-fns'
+import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
+import { Tooltip, TooltipProvider } from '@radix-ui/react-tooltip'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -176,9 +178,18 @@ const IndexedDataSourceCard = ({
               />
             </div>
           ) : (
-            <p className="text-xs text-muted-foreground">
-              {format(source.updatedAt, 'MMM d, yyyy')}
-            </p>
+            <TooltipProvider>
+              <Tooltip delayDuration={0}>
+                <TooltipTrigger>
+                  <p className="text-xs text-muted-foreground">
+                    {format(source.updatedAt, 'MMM d, yyyy')}
+                  </p>
+                  <TooltipContent>
+                    <p>{format(source.updatedAt, 'h:mm a')}</p>
+                  </TooltipContent>
+                </TooltipTrigger>
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       </div>
