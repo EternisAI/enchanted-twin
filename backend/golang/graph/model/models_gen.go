@@ -38,21 +38,20 @@ type ConnectMCPServerInput struct {
 }
 
 type DataSource struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Path        string `json:"path"`
-	UpdatedAt   string `json:"updatedAt"`
-	IsProcessed bool   `json:"isProcessed"`
-	IsIndexed   bool   `json:"isIndexed"`
-	HasError    bool   `json:"hasError"`
+	ID            string `json:"id"`
+	Name          string `json:"name"`
+	Path          string `json:"path"`
+	UpdatedAt     string `json:"updatedAt"`
+	IsProcessed   bool   `json:"isProcessed"`
+	IsIndexed     bool   `json:"isIndexed"`
+	IndexProgress int32  `json:"indexProgress"`
+	HasError      bool   `json:"hasError"`
 }
 
 type IndexingStatus struct {
-	Status                 IndexingState `json:"status"`
-	ProcessingDataProgress int32         `json:"processingDataProgress"`
-	IndexingDataProgress   int32         `json:"indexingDataProgress"`
-	DataSources            []*DataSource `json:"dataSources"`
-	Error                  *string       `json:"error,omitempty"`
+	Status      IndexingState `json:"status"`
+	DataSources []*DataSource `json:"dataSources"`
+	Error       *string       `json:"error,omitempty"`
 }
 
 type KeyValue struct {
@@ -154,7 +153,6 @@ const (
 	IndexingStateDownloadingModel IndexingState = "DOWNLOADING_MODEL"
 	IndexingStateProcessingData   IndexingState = "PROCESSING_DATA"
 	IndexingStateIndexingData     IndexingState = "INDEXING_DATA"
-	IndexingStateCleanUp          IndexingState = "CLEAN_UP"
 	IndexingStateCompleted        IndexingState = "COMPLETED"
 	IndexingStateFailed           IndexingState = "FAILED"
 )
@@ -164,14 +162,13 @@ var AllIndexingState = []IndexingState{
 	IndexingStateDownloadingModel,
 	IndexingStateProcessingData,
 	IndexingStateIndexingData,
-	IndexingStateCleanUp,
 	IndexingStateCompleted,
 	IndexingStateFailed,
 }
 
 func (e IndexingState) IsValid() bool {
 	switch e {
-	case IndexingStateNotStarted, IndexingStateDownloadingModel, IndexingStateProcessingData, IndexingStateIndexingData, IndexingStateCleanUp, IndexingStateCompleted, IndexingStateFailed:
+	case IndexingStateNotStarted, IndexingStateDownloadingModel, IndexingStateProcessingData, IndexingStateIndexingData, IndexingStateCompleted, IndexingStateFailed:
 		return true
 	}
 	return false

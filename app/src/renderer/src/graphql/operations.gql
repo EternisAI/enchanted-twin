@@ -151,14 +151,13 @@ subscription ToolCallUpdated($chatId: ID!) {
 subscription IndexingStatus {
   indexingStatus {
     status
-    processingDataProgress
-    indexingDataProgress
     error
     dataSources {
       id
       name
       isProcessed
       isIndexed
+      indexProgress
       hasError
     }
   }

@@ -180,7 +180,7 @@ func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 }
 
 func (s *Store) SetValue(ctx context.Context, key string, value string) error {
-	_, err := s.db.ExecContext(ctx, "UPDATE config SET value = ? WHERE key = ?", value, key)
+	_, err := s.db.ExecContext(ctx, "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", key, value)
 	if err != nil {
 		return err
 	}

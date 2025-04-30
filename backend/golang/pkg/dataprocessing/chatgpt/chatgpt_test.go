@@ -6576,7 +6576,13 @@ func TestProcessFileConversations(t *testing.T) {
 
 	tempDir, err := os.MkdirTemp("", "chatgpt-test")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+
+	defer func() {
+		err := os.RemoveAll(tempDir)
+		if err != nil {
+			t.Errorf("Failed to remove temp directory: %v", err)
+		}
+	}()
 
 	tempFilePath := filepath.Join(tempDir, "conversations.json")
 	err = os.WriteFile(tempFilePath, []byte(sampleJSON), 0o644)

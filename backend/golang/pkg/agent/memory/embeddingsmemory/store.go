@@ -21,9 +21,15 @@ type embeddingResult struct {
 	err        error
 }
 
-func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
+// Store processes documents, generates embeddings, and stores them.
+// It optionally sends progress updates via the progressChan.
+func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
+	if progressChan != nil {
+		defer close(progressChan)
+	}
+
 	batchSize := 30
-	// filter out empty documents
+
 	filteredDocuments := []memory.TextDocument{}
 	for _, document := range documents {
 		if document.Content != "" {
@@ -31,17 +37,32 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 		}
 	}
 
+	if len(filteredDocuments) == 0 {
+
+		if progressChan != nil {
+			select {
+			case progressChan <- memory.ProgressUpdate{Processed: 0, Total: 0}:
+			default:
+			}
+		}
+		return nil
+	}
+
 	batches := helpers.Batch(filteredDocuments, batchSize)
-	resultChan := make(chan embeddingResult, len(batches))
+	totalBatches := len(batches)
+	resultChan := make(chan embeddingResult, totalBatches)
 	var wg sync.WaitGroup
 	var processedBatches atomic.Int32
+
 	sem := make(chan struct{}, 3)
 
 	for _, batch := range batches {
 		wg.Add(1)
 		go func(batchDocs []memory.TextDocument) {
 			defer wg.Done()
+
 			sem <- struct{}{}
+
 			defer func() { <-sem }()
 
 			textInputs := make([]string, len(batchDocs))
@@ -50,6 +71,7 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 			}
 
 			embeddings, err := m.ai.Embeddings(ctx, textInputs, m.embeddingsModelName)
+
 			resultChan <- embeddingResult{
 				documents:  batchDocs,
 				embeddings: embeddings,
@@ -64,18 +86,35 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 	}()
 
 	for result := range resultChan {
+
 		if result.err != nil {
-			return result.err
-		}
-		if err := m.storeDocuments(ctx, result.documents, result.embeddings); err != nil {
-			return err
+			return fmt.Errorf("embedding failed: %w", result.err)
 		}
 
-		// Increment and log progress after each batch is processed
+		if err := m.storeDocuments(ctx, result.documents, result.embeddings); err != nil {
+			return fmt.Errorf("storing documents failed: %w", err)
+		}
+
 		processed := processedBatches.Add(1)
-		m.logger.Info("Storing documents batch",
-			"batchSize", batchSize,
-			"progress", fmt.Sprintf("%d/%d", processed, len(batches)))
+
+		m.logger.Info("Stored document batch",
+			"batchSize", len(result.documents),
+			"progress", fmt.Sprintf("%d/%d", processed, totalBatches))
+
+		if progressChan != nil {
+			update := memory.ProgressUpdate{Processed: int(processed), Total: totalBatches}
+			select {
+			case progressChan <- update:
+
+			case <-ctx.Done():
+
+				m.logger.Warn("Context cancelled during progress update send")
+				return ctx.Err()
+			default:
+
+				m.logger.Warn("Progress channel full or receiver not ready, skipping update", "processed", processed, "total", totalBatches)
+			}
+		}
 	}
 
 	return nil
@@ -96,7 +135,6 @@ func (m *EmbeddingsMemory) storeDocuments(
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Plain INSERTs – one for text, one for embedding
 	textStmt, err := tx.PrepareContext(ctx,
 		`INSERT INTO text_entries (id, text, meta, created_at)
 		 VALUES ($1, $2, $3, $4)`)
