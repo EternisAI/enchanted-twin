@@ -448,7 +448,7 @@ export function DataSourcesPanel({
       <Button
         size="lg"
         onClick={handleStartIndexing}
-        disabled={(isIndexing && hasPendingDataSources) || isProcessing}
+        disabled={isIndexing || isProcessing || !hasPendingDataSources}
         className="w-full"
       >
         {isProcessing ? (
