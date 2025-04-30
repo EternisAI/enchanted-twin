@@ -82,6 +82,12 @@ linters:
       # Presence of "default" case in switch statements satisfies exhaustiveness
       default-signifies-exhaustive: true
 
+  exclusions:
+    rules:
+      - text: 'shadow: declaration of "err" shadows declaration'
+        linters:
+          - govet
+
 # Formatter configuration (used by `golangci-lint fmt`)
 formatters:
   # Enable specific formatters (run with `golangci-lint fmt`).
