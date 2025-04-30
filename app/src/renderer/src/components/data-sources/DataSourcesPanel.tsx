@@ -18,10 +18,17 @@ import { gql } from '@apollo/client'
 import { DataSourceDialog } from './DataSourceDialog'
 import { Card } from '../ui/card'
 import OpenAI from '@renderer/assets/icons/openai'
+import { format } from 'date-fns'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
     addDataSource(name: $name, path: $path)
+  }
+`
+
+const DELETE_DATA_SOURCE = gql`
+  mutation DeleteDataSource($name: String!) {
+    deleteDataSource(name: $name)
   }
 `
 
@@ -128,9 +135,15 @@ const PendingDataSourceCard = ({
   )
 }
 
-const IndexedDataSourceCard = ({ source }: { source: IndexedDataSource }) => {
+const IndexedDataSourceCard = ({
+  source
+  // onRemove
+}: {
+  source: IndexedDataSource
+  // onRemove: () => void
+}) => {
   const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === source.name)
-  if (!sourceDetails) return null
+  if (!sourceDetails || !source.isIndexed) return null
 
   return (
     <div className="p-4 rounded-lg bg-muted/50 border h-full flex items-center justify-between gap-3">
@@ -139,7 +152,7 @@ const IndexedDataSourceCard = ({ source }: { source: IndexedDataSource }) => {
         <div>
           <h3 className="font-medium">{source.name}</h3>
           {source.hasError && <p className="text-xs text-red-500">Error</p>}
-          {!source.isIndexed && (
+          {!source.isIndexed ? (
             <div className="w-full bg-secondary rounded-full h-1 mt-2">
               <div
                 className="bg-primary h-1 rounded-full transition-all duration-300"
@@ -148,13 +161,22 @@ const IndexedDataSourceCard = ({ source }: { source: IndexedDataSource }) => {
                 }}
               />
             </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {format(source.updatedAt, 'MMM d, yyyy')}
+            </p>
           )}
         </div>
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
         {source.isIndexed && <CheckCircle2 className="h-3 w-3 text-green-500" />}
-        <span>{source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}</span>
+        <span>{source.isIndexed ? '' : source.isProcessed ? 'Processing' : 'Pending'}</span>
       </div>
+      {/* {!source.isProcessed && !source.isIndexed && (
+        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRemove}>
+          <X className="h-4 w-4 text-muted-foreground" />
+        </Button>
+      )} */}
     </div>
   )
 }
@@ -169,6 +191,7 @@ export function DataSourcesPanel({
   const { data } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
+  const [removeDataSource] = useMutation(DELETE_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null)
   const [pendingDataSources, setPendingDataSources] = useState<Record<string, PendingDataSource>>(
@@ -177,17 +200,22 @@ export function DataSourcesPanel({
 
   // Derived states from subscription data
   const isIndexing =
-    indexingData?.indexingStatus?.status !== IndexingState.NotStarted &&
-    indexingData?.indexingStatus?.status !== IndexingState.Completed
+    indexingData?.indexingStatus?.status === IndexingState.IndexingData ||
+    indexingData?.indexingStatus?.status === IndexingState.DownloadingModel ||
+    indexingData?.indexingStatus?.status === IndexingState.ProcessingData
+
   const isProcessing =
     indexingData?.indexingStatus?.dataSources?.some((source) => !source.isProcessed) ?? false
+
+  console.log('processing', isProcessing)
   const hasError = indexingData?.indexingStatus?.error ?? false
   const hasPendingDataSources = Object.keys(pendingDataSources).length > 0
   const allSourcesIndexed =
     indexingData?.indexingStatus?.dataSources?.every((source) => source.isIndexed) ?? false
 
   const handleRemoveDataSource = useCallback(
-    (name: string) => {
+    async (name: string) => {
+      await removeDataSource({ variables: { name } })
       setPendingDataSources((prev) => {
         const newState = { ...prev }
         delete newState[name]
@@ -195,7 +223,7 @@ export function DataSourcesPanel({
       })
       onDataSourceRemoved?.(name)
     },
-    [onDataSourceRemoved]
+    [onDataSourceRemoved, removeDataSource]
   )
 
   const handleSourceSelected = useCallback(
@@ -387,6 +415,7 @@ export function DataSourcesPanel({
               data?.getDataSources?.map((source) => (
                 <IndexedDataSourceCard
                   key={source.id}
+                  // onRemove={() => handleRemoveDataSource(source.name)}
                   source={{
                     ...source,
                     indexProgress: indexingData?.indexingStatus?.dataSources?.find(
@@ -404,7 +433,7 @@ export function DataSourcesPanel({
       <Button
         size="lg"
         onClick={handleStartIndexing}
-        disabled={(!isIndexing && (hasPendingDataSources || !allSourcesIndexed)) || isProcessing}
+        disabled={(isIndexing && hasPendingDataSources) || isProcessing}
         className="w-full"
       >
         {isProcessing ? (
