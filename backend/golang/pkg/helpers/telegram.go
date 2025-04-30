@@ -47,8 +47,7 @@ func PostMessage(ctx context.Context, chatUUID string, message string, chatServe
 		return nil, fmt.Errorf("failed to send GraphQL mutation request: %v", err)
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-		}
+		_ = resp.Body.Close()
 	}()
 
 	if resp.StatusCode != http.StatusOK {
@@ -76,12 +75,4 @@ func GetTelegramEnabled(ctx context.Context, store *db.Store) (string, error) {
 		return "", fmt.Errorf("error getting telegram enabled: %w", err)
 	}
 	return telegramEnabled, nil
-}
-
-func SetTelegramEnabled(ctx context.Context, store *db.Store, enabled bool) error {
-	err := store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", enabled))
-	if err != nil {
-		return fmt.Errorf("error setting telegram enabled: %w", err)
-	}
-	return nil
 }
