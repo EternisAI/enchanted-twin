@@ -29,7 +29,10 @@ const api = {
   restartApp: () => ipcRenderer.invoke('restart-app'),
   notify: (notification: AppNotification) => ipcRenderer.invoke('notify', notification),
   openUrl: (url: string) => ipcRenderer.send('open-url', url),
-  onDeepLink: (cb: (url: string) => void) => ipcRenderer.on('open-deeplink', (_evt, url) => cb(url))
+  onDeepLink: (cb: (url: string) => void) =>
+    ipcRenderer.on('open-deeplink', (_evt, url) => cb(url)),
+  getNotificationStatus: () => ipcRenderer.invoke('notification-status'),
+  openSettings: () => ipcRenderer.invoke('open-notification-settings')
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
