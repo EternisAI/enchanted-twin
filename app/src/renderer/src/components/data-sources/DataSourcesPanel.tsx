@@ -95,8 +95,22 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
   }
 ]
 
-const DataSourceCard = ({ source, onClick }: { source: DataSource; onClick: () => void }) => (
-  <Button variant="outline" size="lg" className="h-auto py-4 rounded-xl" onClick={onClick}>
+const DataSourceCard = ({
+  source,
+  onClick,
+  disabled
+}: {
+  source: DataSource
+  onClick: () => void
+  disabled: boolean
+}) => (
+  <Button
+    variant="outline"
+    size="lg"
+    className="h-auto py-4 rounded-xl"
+    onClick={onClick}
+    disabled={disabled}
+  >
     <div className="flex flex-col items-center gap-3 text-base">
       {source.icon}
       <span className="font-semibold text-sm">{source.label}</span>
@@ -388,6 +402,7 @@ export function DataSourcesPanel({
           <DataSourceCard
             key={source.name}
             source={source}
+            disabled={isIndexing}
             onClick={() => handleSourceSelected(source)}
           />
         ))}
