@@ -85,11 +85,18 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     })
   }
 
-  const { sendMessage } = useSendMessage(chat.id, (msg) => {
-    upsertMessage(msg)
-    setIsWaitingTwinResponse(true)
-    setShowSuggestions(false)
-  })
+  const { sendMessage } = useSendMessage(
+    chat.id,
+    (msg) => {
+      upsertMessage(msg)
+      setIsWaitingTwinResponse(true)
+      setShowSuggestions(false)
+    },
+    (msg) => {
+      upsertMessage(msg)
+      setIsWaitingTwinResponse(false)
+    }
+  )
 
   useMessageSubscription(chat.id, (msg) => {
     if (msg.role === Role.User) {
@@ -101,7 +108,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   })
 
   useToolCallUpdate(chat.id, (toolCall) => {
-    updateToolCallInMessage(toolCall as ToolCall & { messageId: string })
+    updateToolCallInMessage(toolCall)
   })
 
   useEffect(() => {
