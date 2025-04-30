@@ -1,7 +1,7 @@
 import { AppNav } from '@renderer/components/AppNav'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { ContinueSetupButton } from '@renderer/components/SetupBanner'
+import { ContinueSetupButton } from '@renderer/components/ContinueSetupButton'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 
 function DevBadge() {
