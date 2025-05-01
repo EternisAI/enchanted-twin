@@ -24,6 +24,7 @@ func RegisterStandardTools(
 	store *db.Store,
 	temporalClient client.Client,
 	completionsModel string,
+	telegramChatServerUrl string,
 ) []tools.Tool {
 	registeredTools := []tools.Tool{}
 
@@ -54,7 +55,7 @@ func RegisterStandardTools(
 
 	// Register Telegram tool if token is available
 	if telegramToken != "" && store != nil {
-		telegramTool := tools.NewTelegramTool(logger, telegramToken, store)
+		telegramTool := tools.NewTelegramTool(logger, telegramToken, store, telegramChatServerUrl)
 		if err := registry.Register(telegramTool); err == nil {
 			registeredTools = append(registeredTools, telegramTool)
 		} else {

@@ -12,28 +12,38 @@ import {
   AlertDialogCancel
 } from '../ui/alert-dialog'
 import { Button } from '../ui/button'
-import { Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
+import { Omnibar } from '../Omnibar'
+import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
 export function Sidebar({ chats }: { chats: Chat[] }) {
   const { location } = useRouterState()
-
-  const isHome = location.pathname === '/chat' // TODO: refactor, this is a hack to check if we're on the home page
+  const { openOmnibar } = useOmnibarStore()
 
   return (
-    <aside className="flex flex-col w-64 bg-muted/50 p-4 rounded-lg h-full gap-4">
-      <h2 className="text-4xl mb-4 text-foreground">Chats</h2>
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-        {chats.map((chat: Chat) => {
-          const isActive = location.pathname === `/chat/${chat.id}`
-          return <SidebarItem key={chat.id} chat={chat} isActive={isActive} />
-        })}
-      </div>
-      <Link to="/chat" disabled={isHome} className="mt-4">
-        <Button className="w-full">New Chat</Button>
-      </Link>
-    </aside>
+    <>
+      <aside className="flex flex-col w-64 bg-muted/50 p-4 rounded-lg h-full gap-4">
+        <h2 className="text-4xl mb-4 text-foreground">Chats</h2>
+        <Button variant="outline" className="w-full justify-between px-2" onClick={openOmnibar}>
+          <div className="flex items-center gap-2">
+            <Plus className="w-3 h-3" />
+            <span>New chat</span>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <kbd className="rounded bg-muted px-2 py-1">⌘ K</kbd>
+          </div>
+        </Button>
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+          {chats.map((chat: Chat) => {
+            const isActive = location.pathname === `/chat/${chat.id}`
+            return <SidebarItem key={chat.id} chat={chat} isActive={isActive} />
+          })}
+        </div>
+      </aside>
+      <Omnibar />
+    </>
   )
 }
 

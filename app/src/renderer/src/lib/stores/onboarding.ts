@@ -3,10 +3,10 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 
 export enum OnboardingStep {
   Welcome = 0,
-  DataSources = 1,
-  MCPServers = 2,
-  Indexing = 3,
-  Finished = 4
+  MCPServers = 1,
+  DataSources = 2
+  // Indexing = 3,
+  // Finished = 3
 }
 
 interface OnboardingState {

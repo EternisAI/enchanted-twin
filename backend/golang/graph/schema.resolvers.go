@@ -9,11 +9,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
@@ -36,7 +38,6 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
 	result, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
-
 	if err != nil {
 		return "", err
 	}
@@ -218,6 +219,21 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 	if err != nil {
 		return false, err
 	}
+	return true, nil
+}
+
+// SendTelegramMessage is the resolver for the sendTelegramMessage field.
+func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
+	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil || chatID == "" {
+		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
+	}
+
+	err = r.TelegramService.SendMessage(ctx, chatID, text)
+	if err != nil {
+		return false, fmt.Errorf("failed to send telegram message: %w", err)
+	}
+
 	return true, nil
 }
 
@@ -437,6 +453,70 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 	return statusChan, nil
 }
 
+// TelegramMessageAdded is the resolver for the telegramMessageAdded field.
+func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error) {
+	if r.Nc == nil {
+		return nil, errors.New("NATS connection is not initialized")
+	}
+	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get telegram chat ID: %w", err)
+	}
+
+	messages := make(chan *model.Message, 100) // Add buffer to prevent blocking
+
+	subject := fmt.Sprintf("telegram.chat.%s", chatID)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		if msg == nil || msg.Data == nil {
+			r.Logger.Error("Received nil message or data")
+			return
+		}
+
+		var telegramMessage telegram.Message
+		if err := json.Unmarshal(msg.Data, &telegramMessage); err != nil {
+			r.Logger.Error("Failed to unmarshal Telegram message", "error", err)
+			return
+		}
+
+		// Convert Telegram message to GraphQL message model
+		text := telegramMessage.Text
+		message := &model.Message{
+			ID:          strconv.Itoa(telegramMessage.MessageID),
+			Text:        &text,
+			CreatedAt:   time.Unix(int64(telegramMessage.Date), 0).Format(time.RFC3339),
+			Role:        model.RoleUser,
+			ImageUrls:   []string{},
+			ToolCalls:   []*model.ToolCall{},
+			ToolResults: []string{},
+		}
+
+		select {
+		case messages <- message:
+			r.Logger.Info("Sent message to channel", "chat_id", chatID)
+		case <-ctx.Done():
+			r.Logger.Info("Context cancelled while sending message", "chat_id", chatID)
+			return
+		default:
+			r.Logger.Warn("Message channel is full, dropping message", "chat_id", chatID)
+		}
+	})
+	if err != nil {
+		close(messages)
+		return nil, fmt.Errorf("failed to subscribe to NATS subject: %w", err)
+	}
+
+	go func() {
+		<-ctx.Done()
+		if err := sub.Unsubscribe(); err != nil {
+			r.Logger.Error("Error unsubscribing from NATS", "error", err)
+		}
+		close(messages)
+	}()
+
+	return messages, nil
+}
+
 // IndexingStatus is the resolver for the indexingStatus field.
 func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
 	workflowID := "index"
@@ -454,9 +534,7 @@ func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.Use
 	}
 
 	return &model.IndexingStatus{
-		Status:                 stateQuery,
-		ProcessingDataProgress: 0,
-		IndexingDataProgress:   0,
+		Status: stateQuery,
 	}, nil
 }
 

@@ -92,7 +92,7 @@
   --font-sans: Sen, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
   --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
   --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
@@ -139,7 +139,7 @@
   --font-sans: Sen, sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Geist Mono, monospace;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
   --shadow-2xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
   --shadow-xs: 0px 1px 2px 0px hsl(0 0% 0% / 0.09);
   --shadow-sm: 0px 1px 2px 0px hsl(0 0% 0% / 0.18), 0px 1px 2px -1px hsl(0 0% 0% / 0.18);
@@ -216,6 +216,12 @@
     user-select: none;
     app-region: drag;
   }
+
+  /* Makes elements non-draggable in titlebar */
+  .no-drag {
+    app-region: no-drag;
+  }
+
   h1, h2 {
     /* font-family: var(--font-sans); */
     @apply font-semibold;
