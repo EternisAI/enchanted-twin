@@ -39,6 +39,8 @@ interface IApi {
   onDeepLink: (cb: (url: string) => void) => void
   getNotificationStatus: () => Promise<boolean>
   openSettings: () => void
+  queryMediaStatus: (type: MediaType) => string
+  requestMediaAccess: (type: MediaType) => string
 }
 
 declare global {
