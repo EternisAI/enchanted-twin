@@ -10,6 +10,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/charmbracelet/log"
@@ -27,6 +28,7 @@ type Service struct {
 	logger           *log.Logger
 	completionsModel string
 	toolRegistry     *tools.Registry
+	store            *db.Store
 }
 
 func NewService(
@@ -35,6 +37,7 @@ func NewService(
 	storage Storage,
 	nc *nats.Conn,
 	completionsModel string,
+	store *db.Store,
 ) *Service {
 	// Get the global tool registry
 	registry := tools.GetGlobal(logger)
@@ -46,6 +49,7 @@ func NewService(
 		nc:               nc,
 		completionsModel: completionsModel,
 		toolRegistry:     registry,
+		store:            store,
 	}
 }
 
@@ -104,11 +108,23 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
+	userProfile, err := s.store.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("User Profile", *userProfile.Name, *userProfile.Bio)
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
 		openai.SystemMessage(
 			"You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level.",
+		),
+		openai.UserMessage(
+			fmt.Sprintf(
+				"More information about the user:\nName: %s\nBio: %s",
+				*userProfile.Name, *userProfile.Bio,
+			),
 		),
 	)
 	for _, message := range messages {

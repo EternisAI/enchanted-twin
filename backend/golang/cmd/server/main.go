@@ -186,6 +186,7 @@ func main() {
 		chatStorage,
 		nc,
 		envs.CompletionsModel,
+		store,
 	)
 
 	// Initialize global tool registry
