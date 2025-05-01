@@ -33,13 +33,13 @@ func (a *AgentActivities) RegisterActivities(w worker.Worker) {
 func (a *AgentActivities) LLMCompletionActivity(
 	ctx context.Context,
 	model string,
-	messages []Message,
+	messages []ai.Message,
 	tools []openai.ChatCompletionToolParam,
 ) (openai.ChatCompletionMessage, error) {
 
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
-		Messages: ToOpenAIMessages(messages),
+		Messages: ai.ToOpenAIMessages(messages),
 		Tools:    tools,
 	}
 

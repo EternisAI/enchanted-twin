@@ -41,6 +41,21 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 	})
 }
 
+// CompletionsWithMessages executes a completion using our internal message format
+func (s *Service) CompletionsWithMessages(ctx context.Context, messages []Message, tools []openai.ChatCompletionToolParam, model string) (Message, error) {
+	// Convert our messages to OpenAI format
+	openaiMessages := ToOpenAIMessages(messages)
+
+	// Execute the completion
+	completion, err := s.Completions(ctx, openaiMessages, tools, model)
+	if err != nil {
+		return Message{}, err
+	}
+
+	// Convert result back to our format
+	return FromOpenAIMessage(completion), nil
+}
+
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,

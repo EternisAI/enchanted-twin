@@ -7,6 +7,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -17,7 +18,7 @@ const DefaultMaxSteps = 100
 
 // Constants for workflow operations.
 const (
-	DefaultExecutionTimeout = 30 * time.Second // Reduced for tests
+	DefaultExecutionTimeout = 30 * time.Second
 )
 
 // PlannedAgentWorkflow is the main workflow for executing an agent plan.
@@ -58,7 +59,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 		Plan:        planInput.Plan,
 		CurrentStep: 0,
 		Complete:    false,
-		Messages:    []Message{},
+		Messages:    []ai.Message{},
 		ToolCalls:   []ToolCall{},
 		ToolResults: []types.ToolResult{},
 		History:     []HistoryEntry{},
@@ -82,7 +83,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 			planInput.Plan,
 		)
 	}
-	state.Messages = append(state.Messages, SystemMessage(systemPrompt))
+	state.Messages = append(state.Messages, ai.NewSystemMessage(systemPrompt))
 
 	// Add initial thought to history
 	state.History = append(state.History, HistoryEntry{
@@ -126,7 +127,7 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 	// Prompt the agent to start executing the plan
 	state.Messages = append(
 		state.Messages,
-		UserMessage(fmt.Sprintf("Please start executing this plan: %s", state.Plan)),
+		ai.NewUserMessage(fmt.Sprintf("Please start executing this plan: %s", state.Plan)),
 	)
 
 	// Main ReAct loop
@@ -145,7 +146,7 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 			errorMsg := fmt.Sprintf("Error: %v. Please try a different approach.", err)
 			state.Messages = append(
 				state.Messages,
-				ToolMessage(errorMsg, "error_"+workflow.Now(ctx).Format(time.RFC3339)),
+				ai.NewToolMessage(errorMsg, "error_"+workflow.Now(ctx).Format(time.RFC3339)),
 			)
 			continue // continue instead of returning, to let the LLM try again
 		}
@@ -167,7 +168,7 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &params); err != nil {
 					logger.Error("Failed to parse final response arguments", "error", err)
 					errorMsg := fmt.Sprintf("Error parsing final response: %v", err)
-					state.Messages = append(state.Messages, ToolMessage(errorMsg, toolCall.ID))
+					state.Messages = append(state.Messages, ai.NewToolMessage(errorMsg, toolCall.ID))
 					continue
 				}
 
@@ -207,13 +208,13 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 				state.ToolResults = append(state.ToolResults, errorResult)
 
 				// Add tool message to message history with error
-				state.Messages = append(state.Messages, ToolMessage(errorMsg, toolCall.ID))
+				state.Messages = append(state.Messages, ai.NewToolMessage(errorMsg, toolCall.ID))
 			} else {
 				// Add the successful tool result to our collection
 				state.ToolResults = append(state.ToolResults, *result)
 
 				// Add tool message to message history with result
-				state.Messages = append(state.Messages, ToolMessage(result.Content, toolCall.ID))
+				state.Messages = append(state.Messages, ai.NewToolMessage(result.Content, toolCall.ID))
 
 				// Record the observation in history
 				state.History = append(state.History, HistoryEntry{
@@ -251,7 +252,7 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 		// Ask the LLM for a summary
 		state.Messages = append(
 			state.Messages,
-			UserMessage(
+			ai.NewUserMessage(
 				"You've reached the maximum number of steps. Please provide a summary of what you've accomplished so far and what remains to be done.",
 			),
 		)

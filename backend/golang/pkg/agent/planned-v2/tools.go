@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/workflow"
 )
@@ -29,9 +30,13 @@ func (a *AgentActivities) generateNextAction(
 	}
 
 	// Add the LLM's response to the message history
+	aiToolCalls := make([]ai.ToolCall, 0, len(completion.ToolCalls))
+	for _, tc := range completion.ToolCalls {
+		aiToolCalls = append(aiToolCalls, ai.FromOpenAIToolCall(tc))
+	}
 	state.Messages = append(
 		state.Messages,
-		AssistantMessage(completion.Content, completion.ToolCalls),
+		ai.NewAssistantMessage(completion.Content, aiToolCalls),
 	)
 
 	// Add as thought to history
@@ -47,11 +52,13 @@ func (a *AgentActivities) generateNextAction(
 
 		// Create a special "final_response" tool call
 		finalResponseCall := ToolCall{
-			ID:   "final_response_" + workflow.Now(ctx).Format(time.RFC3339),
-			Type: "function",
-			Function: ToolCallFunction{
-				Name:      "final_response",
-				Arguments: fmt.Sprintf(`{"output": %q}`, completion.Content),
+			ToolCall: ai.ToolCall{
+				ID:   "final_response_" + workflow.Now(ctx).Format(time.RFC3339),
+				Type: "function",
+				Function: ai.ToolCallFunction{
+					Name:      "final_response",
+					Arguments: fmt.Sprintf(`{"output": %q}`, completion.Content),
+				},
 			},
 		}
 
@@ -59,31 +66,11 @@ func (a *AgentActivities) generateNextAction(
 	}
 
 	// Convert OpenAI tool calls to our custom format
-	toolCalls := make([]ToolCall, 0, len(completion.ToolCalls))
+	toolCalls := ToolCallsFromOpenAI(completion.ToolCalls)
 
-	for _, toolCall := range completion.ToolCalls {
-		// Parse arguments
-		var args map[string]any
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			logger.Warn("Failed to parse tool arguments", "error", err)
-			continue
-		}
-
-		// Create the tool call
-		customToolCall := ToolCall{
-			ID:   toolCall.ID,
-			Type: string(toolCall.Type), // Convert from constant.Function to string
-			Function: ToolCallFunction{
-				Name:      toolCall.Function.Name,
-				Arguments: toolCall.Function.Arguments,
-			},
-		}
-
-		// Add to the tool calls
-		toolCalls = append(toolCalls, customToolCall)
-
-		// Also add to the history for tracking
-		state.ToolCalls = append(state.ToolCalls, customToolCall)
+	// Add to state's tool calls history
+	for _, toolCall := range toolCalls {
+		state.ToolCalls = append(state.ToolCalls, toolCall)
 	}
 
 	logger.Info("Generated next actions", "total_tool_calls", len(toolCalls))

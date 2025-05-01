@@ -4,67 +4,16 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
-)
-
-// MessageRole represents the role of a message.
-type MessageRole string
-
-const (
-	MessageRoleSystem    MessageRole = "system"
-	MessageRoleUser      MessageRole = "user"
-	MessageRoleAssistant MessageRole = "assistant"
-	MessageRoleTool      MessageRole = "tool"
 )
 
 // ToolCall represents a tool call in a serializable format.
+// It embeds the ai.ToolCall struct and adds the execution result.
 type ToolCall struct {
-	ID       string           `json:"id"`
-	Type     string           `json:"type"` // Usually "function"
-	Function ToolCallFunction `json:"function"`
+	ai.ToolCall
 	// Result of the tool execution (nil if not yet executed)
 	Result *types.ToolResult `json:"result,omitempty"`
-}
-
-// ToolCallFunction represents a function call in a serializable format.
-type ToolCallFunction struct {
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
-}
-
-// SystemMessageParams represents system message parameters.
-type SystemMessageParams struct {
-	Content string `json:"content"`
-	Name    string `json:"name,omitempty"`
-}
-
-// UserMessageParams represents user message parameters.
-type UserMessageParams struct {
-	Content string `json:"content"`
-	Name    string `json:"name,omitempty"`
-}
-
-// AssistantMessageParams represents assistant message parameters.
-type AssistantMessageParams struct {
-	Content   string     `json:"content,omitempty"`
-	Name      string     `json:"name,omitempty"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-}
-
-// ToolMessageParams represents tool message parameters.
-type ToolMessageParams struct {
-	Content    string `json:"content"`
-	ToolCallID string `json:"tool_call_id"`
-}
-
-// Message represents a chat message in a format that serializes well.
-type Message struct { // TODO: replace with ChatCompletionMessageParamUnion https://github.com/openai/openai-go/issues/247
-	Role      MessageRole             `json:"role"`
-	System    *SystemMessageParams    `json:"system,omitempty"`
-	User      *UserMessageParams      `json:"user,omitempty"`
-	Assistant *AssistantMessageParams `json:"assistant,omitempty"`
-	Tool      *ToolMessageParams      `json:"tool,omitempty"`
 }
 
 // PlanState represents the unified state for planned agent execution.
@@ -85,7 +34,7 @@ type PlanState struct {
 	Error string `json:"error,omitempty"`
 
 	// Message history in serializable format
-	Messages []Message `json:"messages"`
+	Messages []ai.Message `json:"messages"`
 
 	// Tool calls made in a serializable format
 	ToolCalls []ToolCall `json:"tool_calls"`
@@ -129,7 +78,6 @@ type ActionRequest struct {
 	Params map[string]interface{} `json:"params"`
 }
 
-
 // PlanInput represents the input for the planned agent workflow.
 type PlanInput struct {
 	// The plan text that the agent should follow
@@ -148,139 +96,13 @@ type PlanInput struct {
 	SystemPrompt string `json:"system_prompt,omitempty"`
 }
 
-
-// OpenAIToCustomToolCalls converts OpenAI tool calls to our custom format.
-func OpenAIToCustomToolCalls(openaiToolCalls []openai.ChatCompletionMessageToolCall) []ToolCall {
+// ToolCallsFromOpenAI converts OpenAI tool calls to our custom format.
+func ToolCallsFromOpenAI(openaiToolCalls []openai.ChatCompletionMessageToolCall) []ToolCall {
 	customToolCalls := make([]ToolCall, 0, len(openaiToolCalls))
 	for _, tc := range openaiToolCalls {
 		customToolCalls = append(customToolCalls, ToolCall{
-			ID:   tc.ID,
-			Type: string(tc.Type), // Convert from constant.Function to string
-			Function: ToolCallFunction{
-				Name:      tc.Function.Name,
-				Arguments: tc.Function.Arguments,
-			},
+			ToolCall: ai.FromOpenAIToolCall(tc),
 		})
 	}
 	return customToolCalls
-}
-
-// CustomToOpenAIToolCalls converts our custom tool calls to OpenAI format.
-func CustomToOpenAIToolCalls(
-	customToolCalls []ToolCall,
-) []openai.ChatCompletionMessageToolCallParam {
-	openaiToolCalls := make([]openai.ChatCompletionMessageToolCallParam, 0, len(customToolCalls))
-	for _, tc := range customToolCalls {
-		// Create a new tool call without explicitly setting the Type field
-		// This allows the OpenAI library to handle it internally
-		toolCall := openai.ChatCompletionMessageToolCallParam{
-			ID: tc.ID,
-			Function: openai.ChatCompletionMessageToolCallFunctionParam{
-				Name:      tc.Function.Name,
-				Arguments: tc.Function.Arguments,
-			},
-		}
-		openaiToolCalls = append(openaiToolCalls, toolCall)
-	}
-	return openaiToolCalls
-}
-
-// SystemMessage creates a system message.
-func SystemMessage(content string) Message {
-	return Message{
-		Role: MessageRoleSystem,
-		System: &SystemMessageParams{
-			Content: content,
-		},
-	}
-}
-
-// UserMessage creates a user message.
-func UserMessage(content string) Message {
-	return Message{
-		Role: MessageRoleUser,
-		User: &UserMessageParams{
-			Content: content,
-		},
-	}
-}
-
-// AssistantMessage creates an assistant message with optional tool calls.
-func AssistantMessage(content string, toolCalls []openai.ChatCompletionMessageToolCall) Message {
-	return Message{
-		Role: MessageRoleAssistant,
-		Assistant: &AssistantMessageParams{
-			Content:   content,
-			ToolCalls: OpenAIToCustomToolCalls(toolCalls),
-		},
-	}
-}
-
-// ToolMessage creates a tool message.
-func ToolMessage(content, toolCallID string) Message {
-	return Message{
-		Role: MessageRoleTool,
-		Tool: &ToolMessageParams{
-			Content:    content,
-			ToolCallID: toolCallID,
-		},
-	}
-}
-
-// ToOpenAIMessages converts our simplified message format to OpenAI's format.
-func ToOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUnion {
-	result := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
-
-	for _, msg := range messages {
-		// var oaiMsg openai.ChatCompletionMessageParamUnion  // can append to result on success
-
-		switch msg.Role {
-		case MessageRoleSystem:
-			if msg.System != nil {
-				// Create OpenAI system message from our custom type
-				sysMsg := openai.SystemMessage(msg.System.Content)
-				if msg.System.Name != "" {
-					sysMsg.OfSystem.Name = param.NewOpt(msg.System.Name)
-				}
-				result = append(result, sysMsg)
-			}
-		case MessageRoleUser:
-			if msg.User != nil {
-				// Create OpenAI user message from our custom type
-				userMsg := openai.UserMessage(msg.User.Content)
-				if msg.User.Name != "" {
-					userMsg.OfUser.Name = param.NewOpt(msg.User.Name)
-				}
-				result = append(result, userMsg)
-			}
-		case MessageRoleAssistant:
-			if msg.Assistant != nil {
-				// Create OpenAI assistant message from our custom type
-				assistantMsg := openai.AssistantMessage(msg.Assistant.Content)
-
-				// Add tool calls if present
-				if len(msg.Assistant.ToolCalls) > 0 {
-					// Convert our stored tool calls to OpenAI param format
-					tcsParams := CustomToOpenAIToolCalls(msg.Assistant.ToolCalls)
-
-					assistantMsg.OfAssistant.ToolCalls = tcsParams
-				}
-
-				// Add name if present
-				if msg.Assistant.Name != "" {
-					assistantMsg.OfAssistant.Name = param.NewOpt(msg.Assistant.Name)
-				}
-
-				result = append(result, assistantMsg)
-			}
-		case MessageRoleTool:
-			if msg.Tool != nil {
-				// Create OpenAI tool message from our custom type
-				toolMsg := openai.ToolMessage(msg.Tool.Content, msg.Tool.ToolCallID)
-				result = append(result, toolMsg)
-			}
-		}
-	}
-
-	return result
 }

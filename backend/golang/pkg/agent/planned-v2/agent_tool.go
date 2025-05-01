@@ -47,19 +47,19 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"plan": map[string]interface{}{
+				"properties": map[string]any{
+					"plan": map[string]any{
 						"type":        "string",
 						"description": "A detailed step-by-step plan to execute",
 					},
-					"tools": map[string]interface{}{
+					"tools": map[string]any{
 						"type":        "array",
 						"description": "Optional list of tool names to use (defaults to all available tools)",
-						"items": map[string]interface{}{
+						"items": map[string]any{
 							"type": "string",
 						},
 					},
-					"system_prompt": map[string]interface{}{
+					"system_prompt": map[string]any{
 						"type":        "string",
 						"description": "Optional system prompt override",
 					},
@@ -73,7 +73,7 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 // Execute starts the planned agent workflow and waits for completion.
 func (t *PlannedAgentTool) Execute(
 	ctx context.Context,
-	args map[string]interface{},
+	args map[string]any,
 ) (tools.ToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
@@ -82,7 +82,7 @@ func (t *PlannedAgentTool) Execute(
 
 	// Extract optional parameters
 	toolNames := []string{}
-	if toolsArg, ok := args["tools"].([]interface{}); ok {
+	if toolsArg, ok := args["tools"].([]any); ok {
 		for _, t := range toolsArg {
 			if toolName, ok := t.(string); ok {
 				toolNames = append(toolNames, toolName)
