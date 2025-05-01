@@ -167,7 +167,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			line, err := r.ReadString('\n')
 			if err == io.EOF {
 				if in {
-					jobs <- job{idx: idx + 1, raw: buf.String()}
+					jobs <- job{idx: idx, raw: buf.String()}
 				}
 				break
 			}
@@ -177,7 +177,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			}
 			if strings.HasPrefix(line, "From ") {
 				if in {
-					jobs <- job{idx: idx + 1, raw: buf.String()}
+					jobs <- job{idx: idx, raw: buf.String()}
 					buf.Reset()
 				}
 				in = true
