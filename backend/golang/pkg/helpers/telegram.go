@@ -51,7 +51,10 @@ func PostMessage(ctx context.Context, chatUUID string, message string, chatServe
 	}()
 
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %v", err)
+		}
 		return nil, fmt.Errorf("GraphQL mutation request failed: status %v, body: %v", resp.StatusCode, string(bodyBytes))
 	}
 
