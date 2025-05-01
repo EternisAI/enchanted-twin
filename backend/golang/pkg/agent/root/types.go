@@ -101,8 +101,8 @@ const (
 	// StatusFailed indicates the child workflow has failed.
 	StatusFailed = "FAILED"
 
-	// StatusCancelled indicates the child workflow was cancelled.
-	StatusCancelled = "CANCELLED"
+	// StatusCancelled indicates the child workflow was canceled.
+	StatusCancelled = "CANCELED"
 
 	// StatusTimeout indicates the child workflow timed out.
 	StatusTimeout = "TIMEOUT"

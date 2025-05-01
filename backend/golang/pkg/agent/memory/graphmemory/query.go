@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // graphmemory/query.go.

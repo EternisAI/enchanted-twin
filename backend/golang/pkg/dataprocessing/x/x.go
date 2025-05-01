@@ -184,7 +184,11 @@ func GetUserIDByUsername(username string, bearerToken string) (string, error) {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+		return "", fmt.Errorf(
+			"API request failed with status %d: %s",
+			resp.StatusCode,
+			string(body),
+		)
 	}
 
 	var userResponse TwitterUserResponse
@@ -227,7 +231,6 @@ type DirectMessageData struct {
 func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
-
 		content := ""
 		metadata := map[string]string{}
 		tags := []string{"social", "x"}
@@ -275,7 +278,6 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 				"source": "x",
 			}
 			tags = append(tags, "direct_message")
-
 		}
 
 		documents = append(documents, memory.TextDocument{
@@ -325,7 +327,11 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	userResp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	if userResp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed to fetch user data. Status: %d, Response: %s", userResp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf(
+			"failed to fetch user data. Status: %d, Response: %s",
+			userResp.StatusCode,
+			string(bodyBytes),
+		)
 	}
 	fmt.Println("userResp", userResp.Body)
 
@@ -368,7 +374,11 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 
 	if tweetsResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(tweetsResp.Body)
-		return nil, fmt.Errorf("failed to fetch tweets. Status: %d, Response: %s", tweetsResp.StatusCode, string(body))
+		return nil, fmt.Errorf(
+			"failed to fetch tweets. Status: %d, Response: %s",
+			tweetsResp.StatusCode,
+			string(body),
+		)
 	}
 
 	var tweetsResponse struct {
@@ -416,7 +426,10 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	likesReq, err := http.NewRequestWithContext(
 		ctx,
 		"GET",
-		fmt.Sprintf("https://api.twitter.com/2/users/%s/liked_tweets?tweet.fields=created_at,public_metrics&max_results=10", userResponse.Data.ID),
+		fmt.Sprintf(
+			"https://api.twitter.com/2/users/%s/liked_tweets?tweet.fields=created_at,public_metrics&max_results=10",
+			userResponse.Data.ID,
+		),
 		nil,
 	)
 	if err != nil {
@@ -437,7 +450,11 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 
 	if likesResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(likesResp.Body)
-		return nil, fmt.Errorf("failed to fetch likes. Status: %d, Response: %s", likesResp.StatusCode, string(body))
+		return nil, fmt.Errorf(
+			"failed to fetch likes. Status: %d, Response: %s",
+			likesResp.StatusCode,
+			string(body),
+		)
 	}
 
 	var likesResponse struct {

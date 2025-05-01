@@ -13,9 +13,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 /*───────────────────────────────────────────────────────────────────────────*

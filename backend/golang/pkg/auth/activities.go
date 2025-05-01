@@ -3,9 +3,10 @@ package auth
 import (
 	"context"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/worker"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func NewOAuthActivities(authStore *db.Store) *OAuthActivities {
@@ -23,7 +24,10 @@ func (a *OAuthActivities) RegisterWorkflowsAndActivities(worker *worker.Worker) 
 	(*worker).RegisterActivity(a.RefreshTokenActivity)
 }
 
-func (w *OAuthActivities) RefreshTokenActivity(ctx context.Context, provider string) (TokenRequest, error) {
+func (w *OAuthActivities) RefreshTokenActivity(
+	ctx context.Context,
+	provider string,
+) (TokenRequest, error) {
 	logger := log.Default()
 
 	return RefreshOAuthToken(ctx, logger, w.authStore, provider)

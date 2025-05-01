@@ -66,8 +66,7 @@ func (s *Source) Name() string {
 	return "telegram"
 }
 
-// parseTimestamp attempts to parse a timestamp string using multiple formats
-// and falls back to unix timestamp if available
+// and falls back to unix timestamp if available.
 func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 	formats := []string{
 		"2006-01-02T15:04:05",
@@ -193,7 +192,6 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	textDocuments := []memory.TextDocument{}
 	for _, record := range records {
 		if record.Data["type"] == "message" {
-
 			message, ok := record.Data["text"].(string)
 			if !ok || message == "" {
 				continue
@@ -218,7 +216,6 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 					"source": "telegram",
 				},
 			})
-
 		}
 		if record.Data["type"] == "contact" {
 			firstName, ok := record.Data["firstName"].(string)
