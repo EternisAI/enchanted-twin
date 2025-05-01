@@ -58,7 +58,7 @@ export function GlobalIndexingStatus() {
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 px-3 text-xs font-medium backdrop-blur-md hover:bg-transparent transition-all duration-300"
+            className="!bg-transparent h-8 px-3 text-xs font-medium backdrop-blur-md hover:bg-transparent transition-all duration-300"
             onClick={handleClick}
           >
             <div className="flex items-center gap-2">
