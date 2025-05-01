@@ -4,8 +4,8 @@ import MessageInput from './MessageInput'
 import ChatSuggestions from './ChatSuggestions'
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
-import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
+import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
 
 interface ChatViewProps {
   chat: Chat
@@ -98,13 +98,38 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     }
   )
 
-  useMessageSubscription(chat.id, (msg) => {
-    if (msg.role === Role.User) {
-      return
+  // useMessageSubscription(chat.id, (msg) => {
+  //   if (msg.role === Role.User) {
+  //     return
+  //   }
+  //   upsertMessage(msg)
+  //   setIsWaitingTwinResponse(false)
+  //   setShowSuggestions(true)
+  // })
+
+  useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete) => {
+    const existingMessage = messages.find((m) => m.id === messageId)
+    if (!existingMessage) {
+      upsertMessage({
+        id: messageId,
+        text: chunk,
+        role: Role.Assistant,
+        createdAt: new Date().toISOString(),
+        imageUrls: [],
+        toolCalls: [],
+        toolResults: []
+      })
+    } else {
+      const updatedMessage = {
+        ...existingMessage,
+        text: existingMessage.text + chunk
+      }
+      upsertMessage(updatedMessage)
     }
-    upsertMessage(msg)
-    setIsWaitingTwinResponse(false)
-    setShowSuggestions(true)
+
+    if (isComplete) {
+      setIsWaitingTwinResponse(false)
+    }
   })
 
   useToolCallUpdate(chat.id, (toolCall) => {
