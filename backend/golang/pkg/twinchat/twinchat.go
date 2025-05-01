@@ -120,6 +120,8 @@ func (s *Service) SendMessage(
 	if userProfile.Bio != nil {
 		systemPrompt += fmt.Sprintf("\n\nBio: %s", *userProfile.Bio)
 	}
+	now := time.Now().Format(time.RFC3339)
+	systemPrompt += fmt.Sprintf("\n\nCurrent time: %s.", now)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
