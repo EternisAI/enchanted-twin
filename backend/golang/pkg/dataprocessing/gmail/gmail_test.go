@@ -578,8 +578,8 @@ func TestCleanEmailText(t *testing.T) {
 	}{
 		{
 			name:     "remove links and footer",
-			input:    `Hello,\n\nCheck out this link: https://example.com/page1\nAnd this one: http://another-site.org/path?query=1\n\nSome normal text.\n\n--\nUnsubscribe here: https://unsubscribe.link\nRead our privacy policy https://policy.com\n© 2024 Company Name`,
-			expected: `Hello,\nCheck out this link:\nAnd this one:\nSome normal text.\n--`, // Footer lines and empty lines are removed
+			input:    "Hello,\n\nCheck out this link: https://example.com/page1\nAnd this one: http://another-site.org/path?query=1\n\nSome normal text.\n\n--\nUnsubscribe here: https://unsubscribe.link\nRead our privacy policy https://policy.com\n© 2024 Company Name",
+			expected: "Hello,\nCheck out this link:\nAnd this one:\nSome normal text.\n--", // Footer lines and empty lines are removed
 		},
 		{
 			name:     "only links",
