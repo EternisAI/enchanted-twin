@@ -245,6 +245,10 @@ const CollapsibleDataSourceGroup = ({
   isExpanded: boolean
   onToggle: () => void
 }) => {
+  const hasIndexingSource = sources.some(
+    (source) => source.isProcessed && (source.indexProgress ?? 0) > 0 && !source.isIndexed
+  )
+
   return (
     <div className="flex flex-col gap-2">
       <Button variant="ghost" className="w-full justify-start gap-2" onClick={onToggle}>
@@ -254,6 +258,7 @@ const CollapsibleDataSourceGroup = ({
         <span className="ml-auto text-sm text-muted-foreground">
           {sources.length} {sources.length === 1 ? 'source' : 'sources'}
         </span>
+        {hasIndexingSource && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
       </Button>
       {isExpanded && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6">
