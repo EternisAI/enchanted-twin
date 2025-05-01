@@ -92,7 +92,7 @@ export function ContextCard() {
                 className={`w-full resize-none transition-all duration-200 rounded-lg ${
                   !isEditing
                     ? 'min-h-0 max-h-[150px] cursor-pointer hover:bg-muted/50 border-transparent'
-                    : 'min-h-[150px] max-h-[150px]'
+                    : 'max-h-[150px] h-fit'
                 }`}
                 style={{
                   height: !isEditing ? 'auto' : '150px'

@@ -80,7 +80,7 @@ function ChatRouteComponent() {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="p-4 border-b border-border">
+      <div className="p-2 fixed top-[28px] left-0 right-0 border-b border-border backdrop-blur-md bg-background/80 z-10">
         <div className="max-w-4xl mx-auto">
           <Button variant="ghost" onClick={() => navigate({ to: '/' })} className="gap-2">
             <ArrowLeft className="w-4 h-4" />

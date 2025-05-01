@@ -76,7 +76,7 @@ function IndexComponent() {
                   onKeyDown={handleKeyDown}
                   onBlur={handleNameUpdate}
                   autoFocus
-                  className="text-3xl font-bold text-center"
+                  className="!text-3xl font-bold text-center"
                 />
               </div>
             ) : (
@@ -97,10 +97,10 @@ function IndexComponent() {
         </div>
       </div>
 
-      <div className="flex flex-col p-6 flex-1 overflow-hidden gap-4">
-        <div className="flex items-center justify-between mb-6">
-          <Button variant="outline" onClick={openOmnibar}>
-            <Plus className="w-4 h-4 mr-2" />
+      <div className="flex flex-col p-6 flex-1 overflow-hidden gap-4 w-full">
+        <div className="flex w-full items-center justify-between mb-6">
+          <Button className="w-full" variant="outline" onClick={openOmnibar}>
+            <Plus className="w-4 h-4" />
             New topic
           </Button>
         </div>
