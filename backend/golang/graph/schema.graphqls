@@ -110,6 +110,7 @@ type Subscription {
   messageAdded(chatId: ID!): Message!
   toolCallUpdated(chatId: ID!): ToolCall!
   indexingStatus: IndexingStatus!
+  notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
 }
 
@@ -194,4 +195,13 @@ type MCPServerDefinition {
 type Tool {
   name: String!
   description: String!
+}
+
+type AppNotification {
+  id: ID!
+  title: String!
+  message: String!
+  createdAt: DateTime!
+  image: String
+  link: String
 }
