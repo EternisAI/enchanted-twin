@@ -52,11 +52,11 @@ export const Omnibar = () => {
   //   }, [debouncedQuery, filteredChats.length])
 
   const handleCreateChat = useCallback(async () => {
-    if (!debouncedQuery.trim()) return
+    if (!query.trim()) return
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: debouncedQuery }
+        variables: { name: query }
       })
       const newChatId = createData?.createChat?.id
 
@@ -68,7 +68,7 @@ export const Omnibar = () => {
 
         navigate({
           to: `/chat/${newChatId}`,
-          search: { initialMessage: debouncedQuery }
+          search: { initialMessage: query }
         })
       }
     } catch (error) {
@@ -76,11 +76,11 @@ export const Omnibar = () => {
     } finally {
       closeOmnibar()
     }
-  }, [debouncedQuery, navigate, router, createChat, closeOmnibar])
+  }, [query, navigate, router, createChat, closeOmnibar])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (debouncedQuery.trim()) {
+    if (query.trim()) {
       if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
         navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
         closeOmnibar()
