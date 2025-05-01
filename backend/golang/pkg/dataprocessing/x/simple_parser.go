@@ -8,7 +8,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
-func parseTwitterFileSimple(content []byte, fileType string, userName string) ([]types.Record, error) {
+func parseTwitterFileSimple(
+	content []byte,
+	fileType string,
+	userName string,
+) ([]types.Record, error) {
 	contentStr := string(content)
 
 	var arrayPrefix string
@@ -85,7 +89,10 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 		tweetIdStart += 1 // Skip the colon
 
 		// Find the first quote after the colon
-		tweetIdQuoteStart := strings.Index(strings.TrimSpace(part[tweetIdStart:]), "\"") + tweetIdStart
+		tweetIdQuoteStart := strings.Index(
+			strings.TrimSpace(part[tweetIdStart:]),
+			"\"",
+		) + tweetIdStart
 		if tweetIdQuoteStart == -1 {
 			continue
 		}
@@ -112,7 +119,10 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 		}
 
 		fullTextStart += 1 // Skip the colon
-		fullTextStart = strings.IndexAny(strings.TrimSpace(part[fullTextStart:]), "\"'") + fullTextStart
+		fullTextStart = strings.IndexAny(
+			strings.TrimSpace(part[fullTextStart:]),
+			"\"'",
+		) + fullTextStart
 		if fullTextStart == -1 {
 			continue
 		}
@@ -146,7 +156,10 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 		expandedUrlStart += 1 // Skip the colon
 
 		// Find the first quote after the colon
-		expandedUrlQuoteStart := strings.Index(strings.TrimSpace(part[expandedUrlStart:]), "\"") + expandedUrlStart
+		expandedUrlQuoteStart := strings.Index(
+			strings.TrimSpace(part[expandedUrlStart:]),
+			"\"",
+		) + expandedUrlStart
 		if expandedUrlQuoteStart == -1 {
 			continue
 		}
@@ -167,7 +180,10 @@ func parseLikesSimple(content string, userName string) ([]types.Record, error) {
 			createdAtStart = strings.Index(part[createdAtStart:], ":") + createdAtStart
 			if createdAtStart != -1 {
 				createdAtStart += 1 // Skip the colon
-				createdAtStart = strings.IndexAny(strings.TrimSpace(part[createdAtStart:]), "\"'") + createdAtStart
+				createdAtStart = strings.IndexAny(
+					strings.TrimSpace(part[createdAtStart:]),
+					"\"'",
+				) + createdAtStart
 				if createdAtStart != -1 {
 					quote := part[createdAtStart : createdAtStart+1]
 					createdAtStart += 1

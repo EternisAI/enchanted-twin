@@ -7,15 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGmailProcessor(t *testing.T) {
 	// Create a temporary test file
 	content := `From 1828754568043628583@xxx Mon Apr 07 14:31:02 +0000 2025
-X-GM-THRID: 1828754568043628583
+X-GM-THIRD: 1828754568043628583
 X-Gmail-Labels: =?UTF-8?Q?Forward_to_bob93@live.fr,Bo=C3=AEte_de_r=C3=A9ception,Non_lus?=
 Delivered-To: bob@gmail.com
 Received: by 2002:a05:622a:68cd:b0:471:9721:748a with SMTP id ic13csp6102107qtb;
@@ -333,7 +334,7 @@ rder-bottom:0px solid #CCCCCC;background:none;height:1px;width:100%;margin:=
                          </table>=0A                          </td>=0A     =
                    </tr>=0A                      </table>=0A               =
      </td>=0A                  </tr>=0A                </table>=0A         =
-     </td>=0A            </tr>=0A          </table>=0A          <table clas=
+     </td>=0A            </tr>=0A          </table>=0A          <table class=
 s=3D"es-footer" cellspacing=3D"0" cellpadding=3D"0" align=3D"center"=0A    =
         style=3D"mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:=
 collapse;border-spacing:0px;table-layout:fixed !important;width:100%;backgr=
@@ -439,33 +440,42 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Verify we got one record
-	assert.Equal(t, 0, len(records), "Expected 0 records")
+	assert.Equal(t, 1, len(records), "Expected 1 record")
 
-	// record := records[0]
+	record := records[0]
 
-	// fmt.Printf("Record: %+v\n", record)
+	// Test record fields
+	expectedTime, _ := time.Parse(time.RFC1123Z, "Mon, 07 Apr 2025 14:31:02 +0000")
+	tests := []struct {
+		name     string
+		got      interface{}
+		expected interface{}
+	}{
+		{"Source", record.Source, "gmail"},
+		{"From", record.Data["from"], "\"Meetup\" <info@meetup.com>"},
+		{"To", record.Data["to"], "bob@gmail.com"},
+		{"Timestamp", record.Timestamp.UTC(), expectedTime.UTC()},
+		{"MyMessage", record.Data["myMessage"], false},
+	}
 
-	// // Test record fields
-	// expectedTime, _ := time.Parse(time.RFC1123Z, "Mon, 07 Apr 2025 14:31:02 +0000")
-	// tests := []struct {
-	// 	name     string
-	// 	got      interface{}
-	// 	expected interface{}
-	// }{
-	// 	{"Source", record.Source, "gmail"},
-	// 	{"From", record.Data["from"], "\"Meetup\" <info@meetup.com>"},
-	// 	{"To", record.Data["to"], "bob@gmail.com"},
-	// 	{"Timestamp", record.Timestamp.UTC(), expectedTime.UTC()},
-	// 	{"MyMessage", record.Data["myMessage"], false},
-	// }
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !assert.Equal(t, tt.expected, tt.got) {
+				t.Errorf("Expected %v, got %v", tt.expected, tt.got)
+			}
+		})
+	}
 
-	// for _, tt := range tests {
-	// 	t.Run(tt.name, func(t *testing.T) {
-	// 		if tt.got != tt.expected {
-	// 			t.Errorf("Expected %v, got %v", tt.expected, tt.got)
-	// 		}
-	// 	})
-	// }
+	// Check that content is not empty and correctly cleaned
+	content, ok := record.Data["content"].(string)
+	assert.True(t, ok, "Content should be a string")
+	assert.NotEmpty(t, content, "Content should not be empty after cleaning")
+	// Add more specific checks:
+	assert.Contains(t, content, "D.Touch", "Cleaned content should contain part of the main body")
+	assert.NotContains(t, content, "https://", "Cleaned content should not contain https links")
+	assert.NotContains(t, content, "http://", "Cleaned content should not contain http links") // Also check http
+	assert.NotContains(t, content, "Unsubscribe", "Cleaned content should not contain footer elements like 'Unsubscribe'")
+	assert.NotContains(t, content, "Privacy Policy", "Cleaned content should not contain footer elements like 'Privacy Policy'")
 }
 
 func TestToDocuments(t *testing.T) {
@@ -557,5 +567,56 @@ func TestToDocuments(t *testing.T) {
 		} else if gotValue != value {
 			t.Errorf("For metadata key '%s', expected value '%s', got '%s'", key, value, gotValue)
 		}
+	}
+}
+
+func TestCleanEmailText(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "remove links and footer",
+			input:    "Hello,\n\nCheck out this link: https://example.com/page1\nAnd this one: http://another-site.org/path?query=1\n\nSome normal text.\n\n--\nUnsubscribe here: https://unsubscribe.link\nRead our privacy policy https://policy.com\n© 2024 Company Name",
+			expected: "Hello,\nCheck out this link:\nAnd this one:\nSome normal text.\n--", // Footer lines and empty lines are removed
+		},
+		{
+			name:     "only links",
+			input:    `This has a link https://link.com/test but no footer.`,
+			expected: `This has a link  but no footer.`,
+		},
+		{
+			name: "only footer",
+			input: `This has no link.
+
+unsubscribe please
+This email was sent to you.`,
+			expected: `This has no link.`,
+		},
+		{
+			name: "no links or footer",
+			input: `Just plain text.
+With multiple lines.`,
+			expected: `Just plain text.
+With multiple lines.`,
+		},
+		{
+			name:     "empty input",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "user provided example snippet",
+			input:    "👋 Hello, Retool community! There's never been a better time to join our Community Forum (https://cWGb504.na1.hubspotlinks.com/Ctc/LY+113/cWGb504/VVVRyG8Z8BFlW1dz0y_47-q3tVGwS3m5w0KyMN2QYvzl3lcq-W69sMD-6lZ3ndW9jjRzn47xHM7W8r-xrj13QL0YW5pflwb763qLfW3PC8073ZyrDKV_3w_S9d3V5zW1kHLSH3mx5f2W3-yQXd5cFRX8W4qbYlk7v96bxW7t6f9129jTNqW2YdNC23Vxs0sW2yJMyH6zmm62W783_Ny14QXTQW3HF_pZ6PTgpjW8ms3S05r-QQ8W6Yjz2_2C49_PN1J05Jl9ZQWnV6zFll8rvVqsW1nbvBV6xqd5XW9bdDXF1_V2HqW1qCZwP46G_Rbf2jQ0bx04 ) . We just launched Builder Talks—a new live, AMA-style series featuring real Retool builders sharing their journeys.",
+			expected: "👋 Hello, Retool community! There's never been a better time to join our Community Forum ( ) . We just launched Builder Talks—a new live, AMA-style series featuring real Retool builders sharing their journeys.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := cleanEmailText(tt.input)
+			assert.Equal(t, tt.expected, actual)
+		})
 	}
 }

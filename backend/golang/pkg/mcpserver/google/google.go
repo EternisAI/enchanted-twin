@@ -6,19 +6,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/log"
+	mcp_golang "github.com/metoro-io/mcp-golang"
+
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	"github.com/charmbracelet/log"
-	mcp_golang "github.com/metoro-io/mcp-golang"
 )
 
 type GoogleClient struct {
 	Store *db.Store
 }
 
-func (c *GoogleClient) ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error) {
-
+func (c *GoogleClient) ListTools(
+	ctx context.Context,
+	cursor *string,
+) (*mcp_golang.ToolsResponse, error) {
 	tools := []mcp_golang.ToolRetType{}
 
 	gmailTools, err := GenerateGmailTools()
@@ -27,7 +30,7 @@ func (c *GoogleClient) ListTools(ctx context.Context, cursor *string) (*mcp_gola
 	}
 	tools = append(tools, gmailTools...)
 
-	googleCalendarTools, err := GenerateGoogleCalendarTools	()
+	googleCalendarTools, err := GenerateGoogleCalendarTools()
 	if err != nil {
 		return nil, err
 	}
@@ -44,8 +47,11 @@ func (c *GoogleClient) ListTools(ctx context.Context, cursor *string) (*mcp_gola
 	}, nil
 }
 
-
-func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error) {
+func (c *GoogleClient) CallTool(
+	ctx context.Context,
+	name string,
+	arguments any,
+) (*mcp_golang.ToolResponse, error) {
 	// Convert generic arguments to the expected Go struct.
 	fmt.Println("Call tool GOOGLE", name, arguments)
 
@@ -55,7 +61,6 @@ func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any)
 	}
 
 	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "google")
-
 	if err != nil {
 		return nil, err
 	}
@@ -154,5 +159,3 @@ func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any)
 		Content: content,
 	}, nil
 }
-
-

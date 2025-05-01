@@ -26,7 +26,7 @@ func init() {
 	}
 }
 
-// ContainerOptions represents options for running a Docker container
+// ContainerOptions represents options for running a Docker container.
 type ContainerOptions struct {
 	// Image settings
 	ImageName   string
@@ -46,13 +46,13 @@ type ContainerOptions struct {
 	NetworkMode   string
 }
 
-// Service manages Docker containers using the Docker CLI
+// Service manages Docker containers using the Docker CLI.
 type Service struct {
 	options ContainerOptions
 	logger  *log.Logger
 }
 
-// NewService creates a new Docker service
+// NewService creates a new Docker service.
 func NewService(options ContainerOptions, logger *log.Logger) (*Service, error) {
 	// Check if Docker is available
 	cmd := exec.Command(dockerCommand, "--version")
@@ -70,7 +70,10 @@ func NewService(options ContainerOptions, logger *log.Logger) (*Service, error) 
 		options.ImageTag = "latest"
 	}
 	if options.ContainerName == "" {
-		options.ContainerName = fmt.Sprintf("%s-container", strings.ReplaceAll(options.ImageName, "/", "-"))
+		options.ContainerName = fmt.Sprintf(
+			"%s-container",
+			strings.ReplaceAll(options.ImageName, "/", "-"),
+		)
 	}
 	if options.EnvVars == nil {
 		options.EnvVars = make(map[string]string)
@@ -88,17 +91,17 @@ func NewService(options ContainerOptions, logger *log.Logger) (*Service, error) 
 	}, nil
 }
 
-// Logger returns the service's logger
+// Logger returns the service's logger.
 func (s *Service) Logger() *log.Logger {
 	return s.logger
 }
 
-// FullImageName returns the full image name with tag
+// FullImageName returns the full image name with tag.
 func (s *Service) FullImageName() string {
 	return fmt.Sprintf("%s:%s", s.options.ImageName, s.options.ImageTag)
 }
 
-// CheckImageExists checks if the Docker image exists and returns its creation time
+// CheckImageExists checks if the Docker image exists and returns its creation time.
 func (s *Service) CheckImageExists(ctx context.Context) (bool, time.Time, error) {
 	cmd := exec.CommandContext(
 		ctx,
@@ -118,7 +121,11 @@ func (s *Service) CheckImageExists(ctx context.Context) (bool, time.Time, error)
 		if strings.Contains(stderr.String(), "No such image") {
 			return false, time.Time{}, nil
 		}
-		return false, time.Time{}, fmt.Errorf("failed to inspect image: %s: %w", stderr.String(), err)
+		return false, time.Time{}, fmt.Errorf(
+			"failed to inspect image: %s: %w",
+			stderr.String(),
+			err,
+		)
 	}
 
 	// Parse the creation time
@@ -129,14 +136,18 @@ func (s *Service) CheckImageExists(ctx context.Context) (bool, time.Time, error)
 
 	created, err := time.Parse(time.RFC3339, createdStr)
 	if err != nil {
-		s.logger.Warn("Failed to parse image creation time", slog.String("time", createdStr), slog.Any("error", err))
+		s.logger.Warn(
+			"Failed to parse image creation time",
+			slog.String("time", createdStr),
+			slog.Any("error", err),
+		)
 		return true, time.Time{}, nil
 	}
 
 	return true, created, nil
 }
 
-// BuildImage builds the Docker image
+// BuildImage builds the Docker image.
 func (s *Service) BuildImage(ctx context.Context) error {
 	// Ensure context directory exists
 	if s.options.ContextPath != "" {
@@ -180,7 +191,7 @@ func (s *Service) BuildImage(ctx context.Context) error {
 	return nil
 }
 
-// RunContainer starts the Docker container
+// RunContainer starts the Docker container.
 func (s *Service) RunContainer(ctx context.Context) error {
 	// Check if container already exists
 	cmd := exec.CommandContext(
@@ -197,7 +208,10 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to check if container exists, check if docker is running: %w", err)
+		return fmt.Errorf(
+			"failed to check if container exists, check if docker is running: %w",
+			err,
+		)
 	}
 
 	containerInfo := strings.TrimSpace(stdout.String())
@@ -213,7 +227,10 @@ func (s *Service) RunContainer(ctx context.Context) error {
 		}
 
 		// Container exists but is not running
-		s.logger.Info("Starting existing container", slog.String("container", s.options.ContainerName))
+		s.logger.Info(
+			"Starting existing container",
+			slog.String("container", s.options.ContainerName),
+		)
 		cmd = exec.CommandContext(ctx, dockerCommand, "start", containerID)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -222,7 +239,10 @@ func (s *Service) RunContainer(ctx context.Context) error {
 			return fmt.Errorf("failed to start existing container: %w", err)
 		}
 
-		s.logger.Info("Started existing container", slog.String("container", s.options.ContainerName))
+		s.logger.Info(
+			"Started existing container",
+			slog.String("container", s.options.ContainerName),
+		)
 		return nil
 	}
 
@@ -236,7 +256,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 				slog.String("host_path", hostPath),
 				slog.String("container_path", containerPath))
 
-			if err := os.MkdirAll(hostPath, 0755); err != nil {
+			if err := os.MkdirAll(hostPath, 0o755); err != nil {
 				return fmt.Errorf("failed to create host directory for volume: %w", err)
 			}
 		}
@@ -303,7 +323,7 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	return nil
 }
 
-// StopContainer stops the Docker container
+// StopContainer stops the Docker container.
 func (s *Service) StopContainer(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, dockerCommand, "stop", s.options.ContainerName)
 	var stderr bytes.Buffer
@@ -317,7 +337,7 @@ func (s *Service) StopContainer(ctx context.Context) error {
 	return nil
 }
 
-// RemoveContainer removes the Docker container
+// RemoveContainer removes the Docker container.
 func (s *Service) RemoveContainer(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, dockerCommand, "rm", "-f", s.options.ContainerName)
 	var stderr bytes.Buffer
@@ -331,7 +351,7 @@ func (s *Service) RemoveContainer(ctx context.Context) error {
 	return nil
 }
 
-// GetContainerLogs gets logs from the Docker container
+// GetContainerLogs gets logs from the Docker container.
 func (s *Service) GetContainerLogs(ctx context.Context) (string, error) {
 	cmd := exec.CommandContext(ctx, dockerCommand, "logs", "--tail", "100", s.options.ContainerName)
 	var stdout, stderr bytes.Buffer
@@ -345,7 +365,7 @@ func (s *Service) GetContainerLogs(ctx context.Context) (string, error) {
 	return stdout.String(), nil
 }
 
-// ExecuteCommand executes a command in the Docker container
+// ExecuteCommand executes a command in the Docker container.
 func (s *Service) ExecuteCommand(ctx context.Context, command []string) (string, error) {
 	args := append([]string{"exec", s.options.ContainerName}, command...)
 	cmd := exec.CommandContext(ctx, dockerCommand, args...)
@@ -361,13 +381,13 @@ func (s *Service) ExecuteCommand(ctx context.Context, command []string) (string,
 	return stdout.String(), nil
 }
 
-// Close performs any cleanup needed
+// Close performs any cleanup needed.
 func (s *Service) Close() error {
 	// No resources to clean up
 	return nil
 }
 
-// Options returns a copy of the service's container options
+// Options returns a copy of the service's container options.
 func (s *Service) Options() ContainerOptions {
 	return s.options
 }

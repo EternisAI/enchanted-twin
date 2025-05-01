@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/google/uuid"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 func (r *Repository) AddMessageToChat(ctx context.Context, message Message) (string, error) {
@@ -36,7 +37,10 @@ func (r *Repository) AddMessageToChat(ctx context.Context, message Message) (str
 	return message.ID, nil
 }
 
-func (r *Repository) GetMessagesByChatId(ctx context.Context, chatID string) ([]*model.Message, error) {
+func (r *Repository) GetMessagesByChatId(
+	ctx context.Context,
+	chatID string,
+) ([]*model.Message, error) {
 	var exists bool
 	err := r.db.GetContext(ctx, &exists, `
 		SELECT 1 FROM chats WHERE id = ? LIMIT 1

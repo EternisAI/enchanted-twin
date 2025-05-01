@@ -26,7 +26,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   }
 
   return (
-    <div className="rounded-t-lg border border-border p-4 w-full">
+    <div className="rounded-t-lg border border-border border-b-0 relative bottom-[1px] p-4 w-full">
       <div className="flex gap-3 items-center flex-1">
         <Textarea
           value={text}

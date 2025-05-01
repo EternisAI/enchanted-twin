@@ -1,9 +1,9 @@
 import { AppNav } from '@renderer/components/AppNav'
 import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { ContinueSetupButton } from '@renderer/components/ContinueSetupButton'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
+import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { useOsNotifications } from '@renderer/hooks/useNotifications'
 
 function DevBadge() {
@@ -22,8 +22,8 @@ function RootComponent() {
       </div>
       <Omnibar />
       {isCompleted && (
-        <div className="fixed top-2 right-2 z-50 h-8 no-drag">
-          <ContinueSetupButton />
+        <div className="fixed top-0 right-0 z-50 h-8 no-drag">
+          <GlobalIndexingStatus />
         </div>
       )}
       <div className="flex-1 flex flex-col overflow-hidden">

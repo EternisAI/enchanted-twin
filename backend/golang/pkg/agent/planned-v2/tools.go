@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // generateNextAction uses the LLM to determine the next actions based on the plan and history.
@@ -92,7 +93,11 @@ func (a *AgentActivities) generateNextAction(
 }
 
 // executeAction executes a tool call and returns the result.
-func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*types.ToolResult, error) {
+func (a *AgentActivities) executeAction(
+	ctx workflow.Context,
+	toolCall ToolCall,
+	state *PlanState,
+) (*types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
@@ -286,7 +291,10 @@ func executeSleep(ctx workflow.Context, params map[string]interface{}) (*types.T
 }
 
 // executeSleepUntil pauses workflow execution until the specified time.
-func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*types.ToolResult, error) {
+func executeSleepUntil(
+	ctx workflow.Context,
+	params map[string]interface{},
+) (*types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract timestamp parameter
