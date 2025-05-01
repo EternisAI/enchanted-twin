@@ -20,7 +20,7 @@ function RootComponent() {
       </div>
       <Omnibar />
       {isCompleted && (
-        <div className="fixed top-2 right-2 z-50 h-8 no-drag">
+        <div className="fixed top-0 right-0 z-50 h-8 no-drag">
           <GlobalIndexingStatus />
         </div>
       )}
