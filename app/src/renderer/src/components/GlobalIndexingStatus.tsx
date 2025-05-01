@@ -2,11 +2,11 @@ import { useSubscription } from '@apollo/client'
 import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from './ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
-import { useRouter } from '@tanstack/react-router'
+import { useSettingsStore } from '@renderer/lib/stores/settings'
 
 export function GlobalIndexingStatus() {
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
-  const router = useRouter()
+  const { open, setActiveTab } = useSettingsStore()
 
   // Workflow states
   const isIndexing = indexingData?.indexingStatus?.status === IndexingState.IndexingData
@@ -48,7 +48,8 @@ export function GlobalIndexingStatus() {
   }
 
   const handleClick = () => {
-    router.navigate({ to: '/' })
+    setActiveTab('import-data')
+    open()
   }
 
   return (

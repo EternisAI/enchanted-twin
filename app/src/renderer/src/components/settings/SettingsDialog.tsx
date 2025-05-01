@@ -9,7 +9,7 @@ import { useSettingsStore } from '@renderer/lib/stores/settings'
 import * as Tabs from '@radix-ui/react-tabs'
 
 export function SettingsDialog() {
-  const { isOpen, close } = useSettingsStore()
+  const { isOpen, close, activeTab, setActiveTab } = useSettingsStore()
   const { theme, setTheme } = useTheme()
 
   return (
@@ -17,7 +17,8 @@ export function SettingsDialog() {
       <DialogContent className="!max-w-[95vw] w-full h-[80vh] p-0 z-[100]">
         <div className="flex h-full w-full">
           <Tabs.Root
-            defaultValue="appearance"
+            value={activeTab}
+            onValueChange={setActiveTab}
             className="flex h-full w-full"
             orientation="vertical"
           >
@@ -105,10 +106,6 @@ export function SettingsDialog() {
               <Tabs.Content value="import-data" className="absolute inset-0">
                 <ScrollArea className="h-full">
                   <div className="p-8 flex flex-col gap-4">
-                    <h3 className="text-xl font-semibold">Import Data</h3>
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Manage your data sources and import data.
-                    </p>
                     <DataSourcesPanel showStatus={true} />
                   </div>
                 </ScrollArea>
