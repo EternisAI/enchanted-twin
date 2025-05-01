@@ -107,6 +107,7 @@ func (s *Store) InitOAuthTokens(ctx context.Context) error {
 			access_token TEXT NOT NULL,
 			expires_at DATETIME,
 			refresh_token TEXT NOT NULL,
+			username TEXT NOT NULL,
 			FOREIGN KEY (provider) REFERENCES oauth_providers(provider)
 		)
 	`)
@@ -195,6 +196,7 @@ type OAuthTokens struct {
 	AccessToken  string    `db:"access_token"`
 	ExpiresAt    time.Time `db:"expires_at"`
 	RefreshToken string    `db:"refresh_token"`
+	Username     string    `db:"username"`
 }
 
 // For logging with Charmbracelet log.
@@ -219,7 +221,7 @@ func (o OAuthTokens) String() string {
 	}
 
 	return fmt.Sprintf(
-		"OAuthTokens{provider=%s, token_type=%s, access_token=%s, expires_at=%s, refresh_token=%s}",
+		"OAuthTokens{provider=%s, token_type=%s, access_token=%s, expires_at=%s, refresh_token=%s, username=%s}",
 		o.Provider,
 		o.TokenType,
 		accessTokenValue,
@@ -250,7 +252,8 @@ func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthToke
 			scope,
 			access_token,
 			expires_at,
-			refresh_token
+			refresh_token,
+			username
 		FROM oauth_tokens
 		WHERE provider = ?
 	`, provider)
@@ -376,8 +379,9 @@ func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
 			scope,
             access_token, 
             expires_at, 
-            refresh_token
-        ) VALUES (?, ?, ?, ?, ?, ?)
+            refresh_token,
+			username
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `
 
 	_, err := s.db.ExecContext(ctx, query,
@@ -387,6 +391,7 @@ func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
 		tokens.AccessToken,
 		tokens.ExpiresAt,
 		tokens.RefreshToken,
+		tokens.Username,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to save OAuth tokens: %w", err)
@@ -438,7 +443,7 @@ func (s *Store) GetOAuthProviders(ctx context.Context) ([]string, error) {
 }
 
 // DeleteOAuthTokens removes tokens for a specific provider.
-func (s *Store) ClearOAuthTokens(ctx context.Context, provider string) error {
+func (s *Store) ClearOAuthTokens(ctx context.Context, provider string, username string) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE oauth_tokens 
 		SET 
@@ -446,9 +451,10 @@ func (s *Store) ClearOAuthTokens(ctx context.Context, provider string) error {
 			scope = '',
 			access_token = '',
 			expires_at = NULL,
-			refresh_token = ''
-		WHERE provider = ?
-	`, provider)
+			refresh_token = '',
+			username = ''
+		WHERE provider = ? AND username = ?
+	`, provider, username)
 	if err != nil {
 		return fmt.Errorf("failed to clear OAuth tokens for provider '%s': %w", provider, err)
 	}

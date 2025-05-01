@@ -275,6 +275,8 @@ func ExchangeToken(
 		return nil, fmt.Errorf("access token expiry too soon: %ds", expiresIn)
 	}
 
+	fmt.Println("tokenresp", tokenResp)
+
 	// Calculate expiration
 	tokenResp.ExpiresAt = timeBeforeTokenRequest.Add(time.Duration(expiresIn) * time.Second)
 
@@ -323,7 +325,12 @@ func CompleteOAuthFlow(
 		return "", err
 	}
 
-	// Store tokens
+	username, err := GetUserInfo(ctx, config.UserEndpoint, provider, tokenResp.AccessToken, tokenResp.TokenType)
+	if err != nil {
+		return "", err
+	}
+	fmt.Println("username", username)
+
 	oauthTokens := db.OAuthTokens{
 		Provider:     provider,
 		TokenType:    tokenResp.TokenType,
@@ -331,6 +338,7 @@ func CompleteOAuthFlow(
 		AccessToken:  tokenResp.AccessToken,
 		ExpiresAt:    tokenResp.ExpiresAt,
 		RefreshToken: tokenResp.RefreshToken,
+		Username:     username,
 	}
 
 	if err := store.SetOAuthTokens(ctx, oauthTokens); err != nil {
@@ -344,6 +352,55 @@ func CompleteOAuthFlow(
 		"scope", scope)
 
 	return provider, nil
+}
+
+// GetUserInfo fetches user information from the provider's user endpoint
+func GetUserInfo(ctx context.Context, userEndpoint string, provider string, accessToken string, tokenType string) (string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", userEndpoint, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create user info request: %w", err)
+	}
+
+	req.Header.Add("Authorization", fmt.Sprintf("%s %s", tokenType, accessToken))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch user info: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("user info request failed: %d %s", resp.StatusCode, body)
+	}
+
+	var userInfo map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&userInfo); err != nil {
+		return "", fmt.Errorf("failed to decode user info: %w", err)
+	}
+
+	var username string
+	switch provider {
+	case "google":
+		username = userInfo["email"].(string)
+	case "twitter":
+		data := userInfo["data"].(map[string]interface{})
+		username = data["username"].(string)
+	case "linkedin":
+		username = userInfo["id"].(string)
+	case "slack":
+		user := userInfo["user"].(map[string]interface{})
+		username = user["email"].(string)
+	default:
+		return "", fmt.Errorf("unknown provider: %s", provider)
+	}
+
+	if username == "" {
+		return "", fmt.Errorf("no username found in user info")
+	}
+
+	return username, nil
 }
 
 // RefreshOAuthToken handles the refresh token flow.
