@@ -32,7 +32,12 @@ func (m *EmbeddingsMemory) Store(
 		defer close(progressChan)
 	}
 
+	// max length of a text input to the Embeddings API
+	maxBatchTextLength := 8192
+	// number of items to Embeddings API
 	batchSize := 30
+	// number of concurrent requests to the Embeddings API
+	semaphoreSize := 3
 
 	filteredDocuments := []memory.TextDocument{}
 	for _, document := range documents {
@@ -51,13 +56,15 @@ func (m *EmbeddingsMemory) Store(
 		return nil
 	}
 
-	batches := helpers.Batch(filteredDocuments, batchSize)
+	batches := helpers.BatchWithMaxTextLength(filteredDocuments, maxBatchTextLength, batchSize, func(doc memory.TextDocument) int {
+		return len(doc.Content)
+	})
 	totalBatches := len(batches)
 	resultChan := make(chan embeddingResult, totalBatches)
 	var wg sync.WaitGroup
 	var processedBatches atomic.Int32
 
-	sem := make(chan struct{}, 3)
+	sem := make(chan struct{}, semaphoreSize)
 
 	for _, batch := range batches {
 		wg.Add(1)

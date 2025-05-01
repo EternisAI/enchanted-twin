@@ -488,12 +488,6 @@ func (r *subscriptionResolver) IndexingStatus(
 	subject := "indexing_data"
 
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
-		r.Logger.Info("Received indexing status message",
-			"subject", msg.Subject,
-			"data", string(msg.Data),
-			"connected", r.Nc.IsConnected(),
-			"status", r.Nc.Status().String())
-
 		var status model.IndexingStatus
 		err := json.Unmarshal(msg.Data, &status)
 		if err != nil {
@@ -505,7 +499,6 @@ func (r *subscriptionResolver) IndexingStatus(
 
 		select {
 		case statusChan <- &status:
-			r.Logger.Info("Successfully sent status to channel", "subject", msg.Subject)
 		case <-ctx.Done():
 			r.Logger.Info("Context canceled while sending status", "subject", msg.Subject)
 			return
@@ -631,6 +624,40 @@ func (r *userProfileResolver) IndexingStatus(
 	return &model.IndexingStatus{
 		Status: stateQuery,
 	}, nil
+}
+
+func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
+	notificationChan := make(chan *model.AppNotification, 10)
+
+	go func() {
+		defer close(notificationChan)
+
+		// Create 3 notifications with 5 second delay between each
+		for i := 1; i <= 3; i++ {
+			select {
+			case <-ctx.Done():
+				r.Logger.Info("Context cancelled while sending notifications")
+				return
+			case <-time.After(5 * time.Second):
+				notification := &model.AppNotification{
+					ID:        fmt.Sprintf("notification-%d", i),
+					Title:     fmt.Sprintf("Notification %d", i),
+					Message:   fmt.Sprintf("This is notification number %d", i),
+					CreatedAt: time.Now().Format(time.RFC3339),
+				}
+
+				select {
+				case notificationChan <- notification:
+					r.Logger.Info("Sent notification", "id", notification.ID)
+				case <-ctx.Done():
+					r.Logger.Info("Context cancelled while sending notification", "id", notification.ID)
+					return
+				}
+			}
+		}
+	}()
+
+	return notificationChan, nil
 }
 
 // ConnectedDataSources is the resolver for the connectedDataSources field.
