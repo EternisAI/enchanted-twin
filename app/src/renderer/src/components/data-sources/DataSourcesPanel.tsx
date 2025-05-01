@@ -37,12 +37,6 @@ const ADD_DATA_SOURCE = gql`
   }
 `
 
-const DELETE_DATA_SOURCE = gql`
-  mutation DeleteDataSource($name: String!) {
-    deleteDataSource(name: $name)
-  }
-`
-
 const START_INDEXING = gql`
   mutation StartIndexing {
     startIndexing
@@ -170,7 +164,7 @@ const IndexedDataSourceCard = ({
   // onRemove: () => void
 }) => {
   const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === source.name)
-  if (!sourceDetails || !source.isIndexed) return null
+  if (!sourceDetails) return null
 
   return (
     <div className="p-4 rounded-lg bg-transparent border h-full flex items-center justify-between gap-3">
@@ -179,7 +173,7 @@ const IndexedDataSourceCard = ({
         <div className="flex flex-col gap-0 justify-start">
           <h3 className="font-medium">{source.name}</h3>
           {source.hasError && <p className="text-xs text-red-500">Error</p>}
-          {!source.isIndexed ? (
+          {!source.isIndexed && !source.isProcessed ? (
             <div className="w-full bg-secondary rounded-full h-1 mt-2">
               <div
                 className="bg-primary h-1 rounded-full transition-all duration-300"
@@ -205,7 +199,7 @@ const IndexedDataSourceCard = ({
         </div>
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <span>{source.isIndexed ? '' : source.isProcessed ? 'Processing' : 'Pending'}</span>
+        <span>{source.isIndexed ? '' : source.isProcessed ? 'Indexing' : 'Pending'}</span>
       </div>
       {/* {!source.isProcessed && !source.isIndexed && (
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRemove}>
@@ -303,7 +297,6 @@ export function DataSourcesPanel({
   const { data } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
-  const [removeDataSource] = useMutation(DELETE_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null)
   const [pendingDataSources, setPendingDataSources] = useState<Record<string, PendingDataSource>>(
@@ -311,24 +304,18 @@ export function DataSourcesPanel({
   )
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
 
-  // Derived states from subscription data
-  const isIndexing =
-    indexingData?.indexingStatus?.status === IndexingState.IndexingData ||
-    indexingData?.indexingStatus?.status === IndexingState.DownloadingModel ||
-    indexingData?.indexingStatus?.status === IndexingState.ProcessingData ||
-    indexingData?.indexingStatus?.status === IndexingState.NotStarted
-
-  const isProcessing =
-    indexingData?.indexingStatus?.dataSources?.some((source) => !source.isProcessed) ?? false
-
+  // Workflow states
+  const isIndexing = indexingData?.indexingStatus?.status === IndexingState.IndexingData
+  const isProcessing = indexingData?.indexingStatus?.status === IndexingState.ProcessingData
+  const isNotStarted = indexingData?.indexingStatus?.status === IndexingState.NotStarted
   const hasError = indexingData?.indexingStatus?.error ?? false
   const hasPendingDataSources = Object.keys(pendingDataSources).length > 0
-  const allSourcesIndexed =
-    indexingData?.indexingStatus?.dataSources?.every((source) => source.isIndexed) ?? false
+  const hasUnprocessedSources =
+    data?.getDataSources?.some((source) => !source.isIndexed || source.hasError) ?? false
 
   const handleRemoveDataSource = useCallback(
     async (name: string) => {
-      await removeDataSource({ variables: { name } })
+      // await removeDataSource({ variables: { name } })
       setPendingDataSources((prev) => {
         const newState = { ...prev }
         delete newState[name]
@@ -336,7 +323,7 @@ export function DataSourcesPanel({
       })
       onDataSourceRemoved?.(name)
     },
-    [onDataSourceRemoved, removeDataSource]
+    [onDataSourceRemoved]
   )
 
   const handleSourceSelected = useCallback(
@@ -445,10 +432,12 @@ export function DataSourcesPanel({
     // 2. All sources are indexed
     // 3. We have at least one data source
     const hasDataSources = (indexingData?.indexingStatus?.dataSources?.length ?? 0) > 0
+    const allSourcesIndexed =
+      indexingData?.indexingStatus?.dataSources?.every((source) => source.isIndexed) ?? false
     if (!isIndexing && allSourcesIndexed && hasDataSources) {
       onIndexingComplete?.()
     }
-  }, [allSourcesIndexed, isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
+  }, [isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
 
   const renderIndexingProgress = () => {
     if (!indexingData?.indexingStatus?.dataSources?.length) return null
@@ -558,23 +547,42 @@ export function DataSourcesPanel({
 
       {renderIndexingProgress()}
 
-      <Button
-        size="lg"
-        onClick={handleStartIndexing}
-        disabled={isIndexing || isProcessing || !hasPendingDataSources}
-        className="w-full"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            Begin import <Play className="ml-2 h-4 w-4" />
-          </>
-        )}
-      </Button>
+      {hasUnprocessedSources && !isIndexing && !isProcessing && !isNotStarted && (
+        <Button size="lg" onClick={handleRetryIndexing} className="w-full">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Retry Import
+        </Button>
+      )}
+
+      {!hasUnprocessedSources && (
+        <Button
+          size="lg"
+          onClick={handleStartIndexing}
+          disabled={isIndexing || isProcessing || isNotStarted || !hasPendingDataSources}
+          className="w-full"
+        >
+          {isIndexing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Indexing...
+            </>
+          ) : isProcessing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : isNotStarted ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Starting...
+            </>
+          ) : (
+            <>
+              Begin import <Play className="ml-2 h-4 w-4" />
+            </>
+          )}
+        </Button>
+      )}
 
       {hasError && (
         <div className="flex gap-2">
