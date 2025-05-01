@@ -9,7 +9,7 @@ func Batch[T any](items []T, batchSize int) [][]T {
 	return batches
 }
 
-// BatchWithMaxTextLength batches items into groups of a maximum text length ensuring we do not bigger batches than API can accept
+// BatchWithMaxTextLength batches items into groups of a maximum text length ensuring we do not bigger batches than API can accept.
 func BatchWithMaxTextLength[T any](
 	items []T,
 	maxBatchTextLength int,

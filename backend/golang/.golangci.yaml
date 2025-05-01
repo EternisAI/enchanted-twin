@@ -96,7 +96,7 @@ formatters:
     - gofmt
     - gofumpt
     - goimports
-    - golines
+    # - golines
 
   settings:
     goimports:

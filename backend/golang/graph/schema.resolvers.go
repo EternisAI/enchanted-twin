@@ -636,7 +636,7 @@ func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *m
 		for i := 1; i <= 3; i++ {
 			select {
 			case <-ctx.Done():
-				r.Logger.Info("Context cancelled while sending notifications")
+				r.Logger.Info("Context canceled while sending notifications")
 				return
 			case <-time.After(5 * time.Second):
 				notification := &model.AppNotification{
@@ -650,7 +650,7 @@ func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *m
 				case notificationChan <- notification:
 					r.Logger.Info("Sent notification", "id", notification.ID)
 				case <-ctx.Done():
-					r.Logger.Info("Context cancelled while sending notification", "id", notification.ID)
+					r.Logger.Info("Context canceled while sending notification", "id", notification.ID)
 					return
 				}
 			}
