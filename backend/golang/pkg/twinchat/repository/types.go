@@ -8,14 +8,14 @@ import (
 
 type JSONForSQLLite string
 
-// ChatDB is used for database operations with proper db field mapping
+// ChatDB is used for database operations with proper db field mapping.
 type ChatDB struct {
 	ID        string `db:"id"`
 	Name      string `db:"name"`
 	CreatedAt string `db:"created_at"` // Maps to the database column created_at
 }
 
-// ToModel converts a ChatDB to a model.Chat
+// ToModel converts a ChatDB to a model.Chat.
 func (c *ChatDB) ToModel() model.Chat {
 	return model.Chat{
 		ID:        c.ID,
@@ -24,7 +24,7 @@ func (c *ChatDB) ToModel() model.Chat {
 	}
 }
 
-// Message represents a message in the chat
+// Message represents a message in the chat.
 type Message struct {
 	ID             string  `db:"id"`
 	ChatID         string  `db:"chat_id"`
@@ -37,7 +37,7 @@ type Message struct {
 }
 
 func (m *Message) ToModel() *model.Message {
-	var imageUrls = make([]string, 0)
+	imageUrls := make([]string, 0)
 	if m.ImageURLsStr != nil {
 		if err := json.Unmarshal([]byte(*m.ImageURLsStr), &imageUrls); err != nil {
 			imageUrls = []string{}

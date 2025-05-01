@@ -1,13 +1,14 @@
 package workflows
 
 import (
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/config"
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
 	nats "github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"go.temporal.io/sdk/worker"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type DataProcessingWorkflows struct {

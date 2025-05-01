@@ -74,7 +74,11 @@ func (r *Registry) Get(name string) (Tool, bool) {
 }
 
 // Execute runs a tool by name with the given parameters.
-func (r *Registry) Execute(ctx context.Context, name string, params map[string]interface{}) (ToolResult, error) {
+func (r *Registry) Execute(
+	ctx context.Context,
+	name string,
+	params map[string]interface{},
+) (ToolResult, error) {
 	tool, exists := r.Get(name)
 	if !exists {
 		return ToolResult{}, fmt.Errorf("tool '%s' not found", name)
@@ -108,8 +112,10 @@ func (r *Registry) List() []string {
 }
 
 // Global is the default registry instance shared across the application.
-var Global *Registry
-var initOnce sync.Once
+var (
+	Global   *Registry
+	initOnce sync.Once
+)
 
 // GetGlobal returns the global registry, creating it if needed.
 func GetGlobal(logger *log.Logger) *Registry {

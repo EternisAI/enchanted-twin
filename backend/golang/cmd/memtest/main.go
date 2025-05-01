@@ -26,7 +26,11 @@ func main() {
 	})
 	// Define command line flags
 	recreateSchema := flag.Bool("recreate", false, "Recreate the database schema")
-	apiKey := flag.String("api-key", "", "OpenAI API key (optional, will use env var if not provided)")
+	apiKey := flag.String(
+		"api-key",
+		"",
+		"OpenAI API key (optional, will use env var if not provided)",
+	)
 	testDoc := flag.String("doc", "", "Test document to store and process (optional)")
 	flag.Parse()
 
@@ -92,7 +96,13 @@ func main() {
 
 	// Initialize graph memory
 	logger.Info("Initializing graph memory", slog.Bool("recreate_schema", *recreateSchema))
-	graphMem, err := graphmemory.NewGraphMemory(logger, connString, aiService, *recreateSchema, envs.CompletionsModel)
+	graphMem, err := graphmemory.NewGraphMemory(
+		logger,
+		connString,
+		aiService,
+		*recreateSchema,
+		envs.CompletionsModel,
+	)
 	if err != nil {
 		logger.Error("Failed to initialize graph memory", slog.Any("error", err))
 		os.Exit(1)
@@ -150,8 +160,11 @@ func main() {
 	logger.Info("Memory test completed successfully")
 }
 
-// bootstrapPostgres initializes and starts a PostgreSQL service
-func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.PostgresService, error) {
+// bootstrapPostgres initializes and starts a PostgreSQL service.
+func bootstrapPostgres(
+	ctx context.Context,
+	logger *log.Logger,
+) (*bootstrap.PostgresService, error) {
 	// Get default options
 	options := bootstrap.DefaultPostgresOptions()
 

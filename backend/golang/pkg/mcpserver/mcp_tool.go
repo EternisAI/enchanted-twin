@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"maps"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 )
 
 type MCPClient interface {
@@ -23,7 +24,6 @@ type MCPTool struct {
 }
 
 func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (tools.ToolResult, error) {
-
 	if t.Client == nil {
 		fmt.Println("Client not found")
 		return tools.ToolResult{}, errors.New("client not found")
@@ -52,7 +52,6 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (tools.Too
 }
 
 func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
-
 	params := make(openai.FunctionParameters)
 
 	if inputSchemaMap, ok := t.Tool.InputSchema.(map[string]any); ok && inputSchemaMap != nil {

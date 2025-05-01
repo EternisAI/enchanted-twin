@@ -12,6 +12,14 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/charmbracelet/log"
+	"github.com/go-chi/chi"
+	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
+	"github.com/pkg/errors"
+	"github.com/rs/cors"
+	"go.temporal.io/sdk/client"
+
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
@@ -21,13 +29,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
-	"github.com/charmbracelet/log"
-	"github.com/go-chi/chi"
-	"github.com/gorilla/websocket"
-	"github.com/nats-io/nats.go"
-	"github.com/pkg/errors"
-	"github.com/rs/cors"
-	"go.temporal.io/sdk/client"
 )
 
 func main() {
@@ -143,7 +144,17 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 
 		if resp != nil && resp.Errors != nil && len(resp.Errors) > 0 {
 			oc := graphql.GetOperationContext(ctx)
-			input.logger.Error("gql error", "operation_name", oc.OperationName, "raw_query", oc.RawQuery, "variables", oc.Variables, "errors", resp.Errors)
+			input.logger.Error(
+				"gql error",
+				"operation_name",
+				oc.OperationName,
+				"raw_query",
+				oc.RawQuery,
+				"variables",
+				oc.Variables,
+				"errors",
+				resp.Errors,
+			)
 		}
 
 		return resp

@@ -16,7 +16,12 @@ func GetChatURL(botName string, chatUUID string) string {
 	return fmt.Sprintf("https://t.me/%s?start=%s", botName, chatUUID)
 }
 
-func PostMessage(ctx context.Context, chatUUID string, message string, chatServerUrl string) (interface{}, error) {
+func PostMessage(
+	ctx context.Context,
+	chatUUID string,
+	message string,
+	chatServerUrl string,
+) (interface{}, error) {
 	client := &http.Client{}
 	mutationPayload := map[string]interface{}{
 		"query": `
@@ -36,7 +41,12 @@ func PostMessage(ctx context.Context, chatUUID string, message string, chatServe
 	}
 
 	gqlURL := chatServerUrl
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gqlURL, bytes.NewBuffer(mutationBody))
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		gqlURL,
+		bytes.NewBuffer(mutationBody),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GraphQL request: %v", err)
 	}
@@ -52,7 +62,11 @@ func PostMessage(ctx context.Context, chatUUID string, message string, chatServe
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("GraphQL mutation request failed: status %v, body: %v", resp.StatusCode, string(bodyBytes))
+		return nil, fmt.Errorf(
+			"GraphQL mutation request failed: status %v, body: %v",
+			resp.StatusCode,
+			string(bodyBytes),
+		)
 	}
 
 	var gqlResponse struct {
