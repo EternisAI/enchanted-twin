@@ -3,6 +3,7 @@ import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generat
 import { Button } from './ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 import { useSettingsStore } from '@renderer/lib/stores/settings'
+import { Settings } from 'lucide-react'
 
 export function GlobalIndexingStatus() {
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
@@ -16,8 +17,31 @@ export function GlobalIndexingStatus() {
     (source) => !source.isIndexed || source.hasError
   )
 
+  const handleClick = () => {
+    setActiveTab('import-data')
+    open()
+  }
+
   if (!isIndexing && !isProcessing && !isNotStarted && !hasUnprocessedSources) {
-    return null
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="!bg-transparent h-8 px-3 text-xs font-medium backdrop-blur-md hover:bg-transparent transition-all duration-300"
+              onClick={handleClick}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Open settings</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    )
   }
 
   const getStatusText = () => {
@@ -45,11 +69,6 @@ export function GlobalIndexingStatus() {
     const processingProgress = (processedSources / totalSources) * 10
     const indexingProgress = (indexedSources / totalSources) * 90
     return processingProgress + indexingProgress
-  }
-
-  const handleClick = () => {
-    setActiveTab('import-data')
-    open()
   }
 
   return (

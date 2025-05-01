@@ -1,8 +1,11 @@
 // routes/chat/$chatId.tsx
 import ChatView from '@renderer/components/chat/ChatView'
 import { client } from '@renderer/graphql/lib'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { GetChatDocument } from '@renderer/graphql/generated/graphql'
+import { Button } from '@renderer/components/ui/button'
+import { ArrowLeft } from 'lucide-react'
+import { useEffect } from 'react'
 
 interface ChatSearchParams {
   initialMessage?: string
@@ -58,10 +61,40 @@ export const Route = createFileRoute('/chat/$chatId')({
 function ChatRouteComponent() {
   const { data, error } = Route.useLoaderData()
   const { initialMessage } = Route.useSearch()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        navigate({ to: '/' })
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [navigate])
 
   //   if (loading) return <div className="p-4">Loading chat...</div>
   if (!data) return <div className="p-4">Invalid chat ID.</div>
   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
 
-  return <ChatView key={data.id} chat={data} initialMessage={initialMessage} />
+  return (
+    <div className="flex flex-col h-full w-full">
+      <div className="p-4 border-b border-border">
+        <div className="max-w-4xl mx-auto">
+          <Button variant="ghost" onClick={() => navigate({ to: '/' })} className="gap-2">
+            <ArrowLeft className="w-4 h-4" />
+            Back to chats
+          </Button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-hidden w-full">
+        <div className="flex flex-col items-center h-full w-full">
+          <div className="w-full max-w-4xl mx-auto h-full">
+            <ChatView key={data.id} chat={data} initialMessage={initialMessage} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }
