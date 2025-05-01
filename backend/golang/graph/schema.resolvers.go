@@ -12,14 +12,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -28,11 +27,7 @@ func (r *chatResolver) Messages(ctx context.Context, obj *model.Chat) ([]*model.
 }
 
 // StartOAuthFlow is the resolver for the startOAuthFlow field.
-func (r *mutationResolver) StartOAuthFlow(
-	ctx context.Context,
-	provider string,
-	scope string,
-) (*model.OAuthFlow, error) {
+func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, scope string) (*model.OAuthFlow, error) {
 	auth, redir, err := auth.StartOAuthFlow(ctx, r.Logger, r.Store, provider, scope)
 	return &model.OAuthFlow{
 		AuthURL:     auth,
@@ -41,11 +36,7 @@ func (r *mutationResolver) StartOAuthFlow(
 }
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
-func (r *mutationResolver) CompleteOAuthFlow(
-	ctx context.Context,
-	state string,
-	authCode string,
-) (string, error) {
+func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
 	result, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
 	if err != nil {
 		return "", err
@@ -160,9 +151,7 @@ func (r *mutationResolver) CompleteOAuthFlow(
 }
 
 // RefreshExpiredOAuthTokens is the resolver for the refreshExpiredOAuthTokens field.
-func (r *mutationResolver) RefreshExpiredOAuthTokens(
-	ctx context.Context,
-) ([]*model.OAuthStatus, error) {
+func (r *mutationResolver) RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error) {
 	dbResults, err := auth.RefreshExpiredTokens(ctx, r.Logger, r.Store)
 	if err != nil {
 		return nil, err
@@ -176,10 +165,7 @@ func (r *mutationResolver) RefreshExpiredOAuthTokens(
 }
 
 // UpdateProfile is the resolver for the updateProfile field.
-func (r *mutationResolver) UpdateProfile(
-	ctx context.Context,
-	input model.UpdateProfileInput,
-) (bool, error) {
+func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
 	// Use SQLite for profile updates
 	return r.Store.UpdateUserProfile(ctx, input)
 }
@@ -194,11 +180,7 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string) (*model.
 }
 
 // SendMessage is the resolver for the sendMessage field.
-func (r *mutationResolver) SendMessage(
-	ctx context.Context,
-	chatID string,
-	text string,
-) (*model.Message, error) {
+func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error) {
 	subject := fmt.Sprintf("chat.%s", chatID)
 
 	userMessageJson, err := json.Marshal(model.Message{
@@ -253,11 +235,7 @@ func (r *mutationResolver) StartIndexing(ctx context.Context) (bool, error) {
 }
 
 // AddDataSource is the resolver for the addDataSource field.
-func (r *mutationResolver) AddDataSource(
-	ctx context.Context,
-	name string,
-	path string,
-) (bool, error) {
+func (r *mutationResolver) AddDataSource(ctx context.Context, name string, path string) (bool, error) {
 	_, err := r.Store.CreateDataSource(ctx, uuid.New().String(), name, path)
 	if err != nil {
 		return false, err
@@ -276,10 +254,7 @@ func (r *mutationResolver) DeleteDataSource(ctx context.Context, id string) (boo
 }
 
 // ConnectMCPServer is the resolver for the connectMCPServer field.
-func (r *mutationResolver) ConnectMCPServer(
-	ctx context.Context,
-	input model.ConnectMCPServerInput,
-) (bool, error) {
+func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (bool, error) {
 	_, err := r.MCPService.ConnectMCPServer(ctx, input)
 	if err != nil {
 		return false, err
@@ -288,11 +263,7 @@ func (r *mutationResolver) ConnectMCPServer(
 }
 
 // SendTelegramMessage is the resolver for the sendTelegramMessage field.
-func (r *mutationResolver) SendTelegramMessage(
-	ctx context.Context,
-	chatUUID string,
-	text string,
-) (bool, error) {
+func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
 	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
 	if err != nil || chatID == "" {
 		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
@@ -321,11 +292,7 @@ func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error)
 }
 
 // GetChats is the resolver for the getChats field.
-func (r *queryResolver) GetChats(
-	ctx context.Context,
-	first int32,
-	offset int32,
-) ([]*model.Chat, error) {
+func (r *queryResolver) GetChats(ctx context.Context, first int32, offset int32) ([]*model.Chat, error) {
 	chats, err := r.TwinChatService.GetChats(ctx)
 	if err != nil {
 		return nil, err
@@ -377,10 +344,7 @@ func (r *queryResolver) GetOAuthStatus(ctx context.Context) ([]*model.OAuthStatu
 }
 
 // GetChatSuggestions is the resolver for the getChatSuggestions field.
-func (r *queryResolver) GetChatSuggestions(
-	ctx context.Context,
-	chatID string,
-) ([]*model.ChatSuggestionsCategory, error) {
+func (r *queryResolver) GetChatSuggestions(ctx context.Context, chatID string) ([]*model.ChatSuggestionsCategory, error) {
 	return r.TwinChatService.GetChatSuggestions(ctx, chatID)
 }
 
@@ -407,10 +371,7 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 }
 
 // MessageAdded is the resolver for the messageAdded field.
-func (r *subscriptionResolver) MessageAdded(
-	ctx context.Context,
-	chatID string,
-) (<-chan *model.Message, error) {
+func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)
 	subject := fmt.Sprintf("chat.%s", chatID)
 
@@ -438,10 +399,7 @@ func (r *subscriptionResolver) MessageAdded(
 }
 
 // ToolCallUpdated is the resolver for the toolCallUpdated field.
-func (r *subscriptionResolver) ToolCallUpdated(
-	ctx context.Context,
-	chatID string,
-) (<-chan *model.ToolCall, error) {
+func (r *subscriptionResolver) ToolCallUpdated(ctx context.Context, chatID string) (<-chan *model.ToolCall, error) {
 	toolCalls := make(chan *model.ToolCall)
 	subject := fmt.Sprintf("chat.%s.tool_call", chatID)
 
@@ -469,9 +427,7 @@ func (r *subscriptionResolver) ToolCallUpdated(
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
-func (r *subscriptionResolver) IndexingStatus(
-	ctx context.Context,
-) (<-chan *model.IndexingStatus, error) {
+func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *model.IndexingStatus, error) {
 	if r.Nc == nil {
 		return nil, errors.New("NATS connection is nil")
 	}
@@ -530,11 +486,43 @@ func (r *subscriptionResolver) IndexingStatus(
 	return statusChan, nil
 }
 
+// NotificationAdded is the resolver for the notificationAdded field.
+func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
+	notificationChan := make(chan *model.AppNotification, 10)
+
+	go func() {
+		defer close(notificationChan)
+
+		// Create 3 notifications with 5 second delay between each
+		for i := 1; i <= 3; i++ {
+			select {
+			case <-ctx.Done():
+				r.Logger.Info("Context canceled while sending notifications")
+				return
+			case <-time.After(5 * time.Second):
+				notification := &model.AppNotification{
+					ID:        fmt.Sprintf("notification-%d", i),
+					Title:     fmt.Sprintf("Notification %d", i),
+					Message:   fmt.Sprintf("This is notification number %d", i),
+					CreatedAt: time.Now().Format(time.RFC3339),
+				}
+
+				select {
+				case notificationChan <- notification:
+					r.Logger.Info("Sent notification", "id", notification.ID)
+				case <-ctx.Done():
+					r.Logger.Info("Context canceled while sending notification", "id", notification.ID)
+					return
+				}
+			}
+		}
+	}()
+
+	return notificationChan, nil
+}
+
 // TelegramMessageAdded is the resolver for the telegramMessageAdded field.
-func (r *subscriptionResolver) TelegramMessageAdded(
-	ctx context.Context,
-	chatUUID string,
-) (<-chan *model.Message, error) {
+func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error) {
 	if r.Nc == nil {
 		return nil, errors.New("NATS connection is not initialized")
 	}
@@ -598,10 +586,7 @@ func (r *subscriptionResolver) TelegramMessageAdded(
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
-func (r *userProfileResolver) IndexingStatus(
-	ctx context.Context,
-	obj *model.UserProfile,
-) (*model.IndexingStatus, error) {
+func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
 	workflowID := "index"
 	workflowRunID := "" // Empty string means latest run
 	var stateQuery model.IndexingState
@@ -626,45 +611,8 @@ func (r *userProfileResolver) IndexingStatus(
 	}, nil
 }
 
-func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
-	notificationChan := make(chan *model.AppNotification, 10)
-
-	go func() {
-		defer close(notificationChan)
-
-		// Create 3 notifications with 5 second delay between each
-		for i := 1; i <= 3; i++ {
-			select {
-			case <-ctx.Done():
-				r.Logger.Info("Context canceled while sending notifications")
-				return
-			case <-time.After(5 * time.Second):
-				notification := &model.AppNotification{
-					ID:        fmt.Sprintf("notification-%d", i),
-					Title:     fmt.Sprintf("Notification %d", i),
-					Message:   fmt.Sprintf("This is notification number %d", i),
-					CreatedAt: time.Now().Format(time.RFC3339),
-				}
-
-				select {
-				case notificationChan <- notification:
-					r.Logger.Info("Sent notification", "id", notification.ID)
-				case <-ctx.Done():
-					r.Logger.Info("Context canceled while sending notification", "id", notification.ID)
-					return
-				}
-			}
-		}
-	}()
-
-	return notificationChan, nil
-}
-
 // ConnectedDataSources is the resolver for the connectedDataSources field.
-func (r *userProfileResolver) ConnectedDataSources(
-	ctx context.Context,
-	obj *model.UserProfile,
-) ([]*model.DataSource, error) {
+func (r *userProfileResolver) ConnectedDataSources(ctx context.Context, obj *model.UserProfile) ([]*model.DataSource, error) {
 	panic(fmt.Errorf("not implemented: ConnectedDataSources - connectedDataSources"))
 }
 
@@ -683,10 +631,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

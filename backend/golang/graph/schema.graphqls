@@ -69,6 +69,7 @@ type OAuthStatus {
   provider: String!
   expiresAt: DateTime!
   scope: [String!]!
+  username: String!
 }
 
 type OAuthFlow {

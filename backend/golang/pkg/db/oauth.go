@@ -466,6 +466,7 @@ type OAuthStatus struct {
 	Provider  string    `db:"provider"`
 	ExpiresAt time.Time `db:"expires_at"`
 	Scope     string    `db:"scope"`
+	Username  string    `db:"username"`
 }
 
 // For logging with Charmbracelet log.
@@ -485,6 +486,7 @@ func (item OAuthStatus) ToModel() model.OAuthStatus {
 		Provider:  item.Provider,
 		ExpiresAt: expiresAtStr,
 		Scope:     scopeArray,
+		Username:  item.Username,
 	}
 }
 
@@ -492,7 +494,7 @@ func (item OAuthStatus) ToModel() model.OAuthStatus {
 func (s *Store) GetOAuthStatus(ctx context.Context) ([]OAuthStatus, error) {
 	var dest []OAuthStatus
 	err := s.db.SelectContext(ctx, &dest, `
-        SELECT provider, expires_at, scope FROM oauth_tokens
+        SELECT provider, expires_at, scope, username FROM oauth_tokens
         WHERE access_token != '' AND expires_at > ?
     `, time.Now())
 	if err != nil {
