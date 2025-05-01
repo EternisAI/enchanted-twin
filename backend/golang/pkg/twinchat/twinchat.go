@@ -113,27 +113,18 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
-	userName := "Default User"
+	systemPrompt := "You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."
 	if userProfile.Name != nil {
-		userName = *userProfile.Name
+		systemPrompt += fmt.Sprintf("\n\nName: %s", *userProfile.Name)
 	}
-	userBio := ""
 	if userProfile.Bio != nil {
-		userBio = *userProfile.Bio
+		systemPrompt += fmt.Sprintf("\n\nBio: %s", *userProfile.Bio)
 	}
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
-		openai.SystemMessage(
-			"You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level.",
-		),
-		openai.UserMessage(
-			fmt.Sprintf(
-				"More information about the user:\nName: %s\nBio: %s",
-				userName, userBio,
-			),
-		),
+		openai.SystemMessage(systemPrompt),
 	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
