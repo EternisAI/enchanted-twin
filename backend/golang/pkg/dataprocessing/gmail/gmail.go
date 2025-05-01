@@ -15,6 +15,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -509,7 +510,11 @@ func cleanEmailText(s string) string {
 	)
 	s = repl.Replace(s)
 
-	// 2) per-line cleanup, stop at first footer clue
+	// 2) remove http(s) links
+	linkRegex := regexp.MustCompile(`https?://[^\s)]+`) // Avoid matching trailing ')'
+	s = linkRegex.ReplaceAllString(s, "")
+
+	// 3) per-line cleanup, stop at first footer clue
 	var out []string
 	for _, ln := range strings.Split(s, "\n") {
 		ln = strings.TrimSpace(ln)
