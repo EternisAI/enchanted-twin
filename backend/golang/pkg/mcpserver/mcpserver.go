@@ -7,6 +7,9 @@ import (
 	"os/exec"
 	"slices"
 
+	mcp "github.com/metoro-io/mcp-golang"
+	"github.com/metoro-io/mcp-golang/transport/stdio"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -14,8 +17,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/twitter"
-	mcp "github.com/metoro-io/mcp-golang"
-	"github.com/metoro-io/mcp-golang/transport/stdio"
 )
 
 type ConnectedMCPServer struct {
@@ -34,7 +35,6 @@ type service struct {
 func NewService(ctx context.Context, repo repository.Repository, store *db.Store) MCPService {
 	service := &service{repo: repo, connectedServers: []*ConnectedMCPServer{}, store: store}
 	err := service.LoadMCP(ctx)
-
 	if err != nil {
 		fmt.Println("Error loading MCP servers", err)
 	}
@@ -42,7 +42,10 @@ func NewService(ctx context.Context, repo repository.Repository, store *db.Store
 }
 
 // AddMCPServer adds a new MCP server using the repository.
-func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (*model.MCPServer, error) {
+func (s *service) ConnectMCPServer(
+	ctx context.Context,
+	input model.ConnectMCPServerInput,
+) (*model.MCPServer, error) {
 	// Here you might add validation or other business logic before calling the repo
 	enabled := true
 
@@ -114,7 +117,6 @@ func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPSe
 
 // GetMCPServers retrieves all MCP servers using the repository.
 func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error) {
-
 	mcpservers, err := s.repo.GetMCPServers(ctx)
 	if err != nil {
 		return nil, err
@@ -171,7 +173,6 @@ func (s *service) LoadMCP(ctx context.Context) error {
 	}
 
 	for _, server := range servers {
-
 		if server.Type != model.MCPServerTypeOther {
 			switch server.Type {
 			case model.MCPServerTypeTwitter:

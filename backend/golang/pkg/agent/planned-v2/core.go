@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // DefaultMaxSteps is the default number of iterations for ReAct loop.
@@ -114,7 +115,12 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 }
 
 // executeReActLoop implements the ReAct loop for executing the plan.
-func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
+func (a *AgentActivities) executeReActLoop(
+	ctx workflow.Context,
+	state *PlanState,
+	model string,
+	maxSteps int,
+) error {
 	logger := workflow.GetLogger(ctx)
 
 	// Convert our tools to OpenAI format for the API
@@ -131,7 +137,6 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 
 	// Main ReAct loop
 	for state.CurrentStep < maxSteps && !state.Complete {
-
 		// Generate the next actions using LLM
 		toolCalls, err := a.generateNextAction(ctx, state, apiToolDefinitions, model)
 		if err != nil {
@@ -337,12 +342,19 @@ func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []s
 		state.Tools = append(state.Tools, toolDef)
 	}
 
-	logger.Info("Tools registered for workflow", "count", len(state.Tools), "workflow_tools", 2, "registry_tools", len(registeredTools))
+	logger.Info(
+		"Tools registered for workflow",
+		"count",
+		len(state.Tools),
+		"workflow_tools",
+		2,
+		"registry_tools",
+		len(registeredTools),
+	)
 	return nil
 }
 
-// TODO: move to pkg/agent/tools
-// addBuiltInWorkflowTools adds the built-in workflow tools to the state
+// addBuiltInWorkflowTools adds the built-in workflow tools to the state.
 func addBuiltInWorkflowTools(state *PlanState) {
 	// Add sleep tool
 	state.Tools = append(state.Tools, types.ToolDef{

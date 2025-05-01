@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
 // ChatMessageTool implements a tool for adding messages to a chat.

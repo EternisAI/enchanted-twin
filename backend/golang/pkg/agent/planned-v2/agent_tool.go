@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"go.temporal.io/sdk/client"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 )
 
 // PlannedAgentTool implements a tool for planned agent execution.

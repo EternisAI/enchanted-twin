@@ -2,6 +2,8 @@ package graph
 
 import (
 	"github.com/charmbracelet/log"
+	"github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
@@ -9,9 +11,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
-
-	"github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
 )
 
 // This file will not be regenerated automatically.

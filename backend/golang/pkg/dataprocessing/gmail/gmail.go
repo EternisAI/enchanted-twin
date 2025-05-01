@@ -15,17 +15,19 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/charmbracelet/log"
 	"github.com/jaytaylor/html2text"
 	"github.com/sirupsen/logrus"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 type Gmail struct{}
@@ -122,12 +124,24 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 				var out result
 				select {
 				case v := <-done:
-					out = result{idx: j.idx, rec: v.r, err: v.err, size: len(j.raw), elaps: time.Since(start)}
+					out = result{
+						idx:   j.idx,
+						rec:   v.r,
+						err:   v.err,
+						size:  len(j.raw),
+						elaps: time.Since(start),
+					}
 					if v.err != nil {
 						out.raw = j.raw
 					}
 				case <-ctx.Done():
-					out = result{idx: j.idx, err: fmt.Errorf("timeout after %s", processTimeout), raw: j.raw, size: len(j.raw), elaps: time.Since(start)}
+					out = result{
+						idx:   j.idx,
+						err:   fmt.Errorf("timeout after %s", processTimeout),
+						raw:   j.raw,
+						size:  len(j.raw),
+						elaps: time.Since(start),
+					}
 				}
 				cancel()
 				results <- out
@@ -153,7 +167,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			line, err := r.ReadString('\n')
 			if err == io.EOF {
 				if in {
-					jobs <- job{idx: idx + 1, raw: buf.String()}
+					jobs <- job{idx: idx, raw: buf.String()}
 				}
 				break
 			}
@@ -163,7 +177,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			}
 			if strings.HasPrefix(line, "From ") {
 				if in {
-					jobs <- job{idx: idx + 1, raw: buf.String()}
+					jobs <- job{idx: idx, raw: buf.String()}
 					buf.Reset()
 				}
 				in = true
@@ -240,7 +254,7 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 			}
 			pt, _, _ := mime.ParseMediaType(p.Header.Get("Content-Type"))
 			enc := strings.ToLower(p.Header.Get("Content-Transfer-Encoding"))
-			r := io.Reader(p)
+			var r io.Reader = p
 			if enc == "quoted-printable" {
 				r = quotedprintable.NewReader(r)
 			}
@@ -261,14 +275,16 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 		} else {
 			final = html
 		}
-
 	} else { // ── single part ─────────────────────────────
 		enc := strings.ToLower(h.Get("Content-Transfer-Encoding"))
-		r := io.Reader(msg.Body)
+		r := msg.Body
 		if enc == "quoted-printable" {
 			r = quotedprintable.NewReader(r)
 		}
-		b, _ := io.ReadAll(r)
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return types.Record{}, err
+		}
 
 		if strings.Contains(strings.ToLower(mt), "html") {
 			html, _ := html2text.FromString(string(b), html2text.Options{OmitLinks: true, TextOnly: true})
@@ -331,7 +347,11 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, error) 
 	return out, nil
 }
 
-func (g *Gmail) fetchMessage(ctx context.Context, c *http.Client, token, id string) (types.Record, error) {
+func (g *Gmail) fetchMessage(
+	ctx context.Context,
+	c *http.Client,
+	token, id string,
+) (types.Record, error) {
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
 		fmt.Sprintf("https://gmail.googleapis.com/gmail/v1/users/me/messages/%s", id), nil)
 	req.Header.Set("Authorization", "Bearer "+token)
@@ -490,7 +510,11 @@ func cleanEmailText(s string) string {
 	)
 	s = repl.Replace(s)
 
-	// 2) per-line cleanup, stop at first footer clue
+	// 2) remove http(s) links
+	linkRegex := regexp.MustCompile(`https?://[^\s)]+`) // Avoid matching trailing ')'
+	s = linkRegex.ReplaceAllString(s, "")
+
+	// 3) per-line cleanup, stop at first footer clue
 	var out []string
 	for _, ln := range strings.Split(s, "\n") {
 		ln = strings.TrimSpace(ln)

@@ -37,12 +37,6 @@ const ADD_DATA_SOURCE = gql`
   }
 `
 
-const DELETE_DATA_SOURCE = gql`
-  mutation DeleteDataSource($name: String!) {
-    deleteDataSource(name: $name)
-  }
-`
-
 const START_INDEXING = gql`
   mutation StartIndexing {
     startIndexing
@@ -170,21 +164,35 @@ const IndexedDataSourceCard = ({
   // onRemove: () => void
 }) => {
   const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === source.name)
-  if (!sourceDetails || !source.isIndexed) return null
+  if (!sourceDetails) return null
+
+  // Calculate progress:
+  // - 10% for processing
+  // - 90% for indexing
+  const processingProgress = source.isProcessed ? 10 : 0
+  const indexingProgress = source.isIndexed
+    ? 90
+    : source.indexProgress !== undefined
+      ? source.indexProgress * 0.9
+      : 0
+  const totalProgress = processingProgress + indexingProgress
+
+  const showProgressBar =
+    !source.isIndexed && (source.isProcessed ? (source.indexProgress ?? 0) > 0 : true)
 
   return (
     <div className="p-4 rounded-lg bg-transparent border h-full flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 w-full">
         <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
-        <div className="flex flex-col gap-0 justify-start">
+        <div className="flex flex-col gap-0 justify-start w-full">
           <h3 className="font-medium">{source.name}</h3>
           {source.hasError && <p className="text-xs text-red-500">Error</p>}
-          {!source.isIndexed ? (
+          {showProgressBar ? (
             <div className="w-full bg-secondary rounded-full h-1 mt-2">
               <div
                 className="bg-primary h-1 rounded-full transition-all duration-300"
                 style={{
-                  width: `${source.indexProgress}%`
+                  width: `${totalProgress}%`
                 }}
               />
             </div>
@@ -192,7 +200,7 @@ const IndexedDataSourceCard = ({
             <TooltipProvider>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-start text-muted-foreground">
                     {format(source.updatedAt, 'MMM d, yyyy')}
                   </p>
                   <TooltipContent>
@@ -205,56 +213,21 @@ const IndexedDataSourceCard = ({
         </div>
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <span>{source.isIndexed ? '' : source.isProcessed ? 'Processing' : 'Pending'}</span>
+        <span>
+          {source.isIndexed
+            ? ''
+            : source.isProcessed
+              ? (source.indexProgress ?? 0) > 0
+                ? 'Indexing'
+                : 'Pending'
+              : 'Processing'}
+        </span>
       </div>
       {/* {!source.isProcessed && !source.isIndexed && (
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRemove}>
           <X className="h-4 w-4 text-muted-foreground" />
         </Button>
       )} */}
-    </div>
-  )
-}
-
-const DataSourceProgressItem = ({
-  source
-}: {
-  source: {
-    id: string
-    name: string
-    isProcessed: boolean
-    isIndexed: boolean
-    indexProgress?: number
-    hasError: boolean
-  }
-}) => {
-  // Calculate progress:
-  // - 10% for processing
-  // - 90% for indexing
-  const processingProgress = source.isProcessed ? 10 : 0
-  const indexingProgress = source.isIndexed
-    ? 90
-    : source.indexProgress
-      ? source.indexProgress * 0.9
-      : 0
-  const totalProgress = processingProgress + indexingProgress
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{source.name}</span>
-        <span className="text-sm text-muted-foreground">
-          {source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}
-        </span>
-      </div>
-      <div className="w-full bg-secondary rounded-full h-2">
-        <div
-          className="bg-primary h-2 rounded-full transition-all duration-300"
-          style={{
-            width: `${totalProgress}%`
-          }}
-        />
-      </div>
     </div>
   )
 }
@@ -272,6 +245,10 @@ const CollapsibleDataSourceGroup = ({
   isExpanded: boolean
   onToggle: () => void
 }) => {
+  const hasIndexingSource = sources.some(
+    (source) => source.isProcessed && (source.indexProgress ?? 0) > 0 && !source.isIndexed
+  )
+
   return (
     <div className="flex flex-col gap-2">
       <Button variant="ghost" className="w-full justify-start gap-2" onClick={onToggle}>
@@ -281,6 +258,7 @@ const CollapsibleDataSourceGroup = ({
         <span className="ml-auto text-sm text-muted-foreground">
           {sources.length} {sources.length === 1 ? 'source' : 'sources'}
         </span>
+        {hasIndexingSource && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
       </Button>
       {isExpanded && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pl-6">
@@ -303,7 +281,6 @@ export function DataSourcesPanel({
   const { data } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
-  const [removeDataSource] = useMutation(DELETE_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null)
   const [pendingDataSources, setPendingDataSources] = useState<Record<string, PendingDataSource>>(
@@ -311,24 +288,18 @@ export function DataSourcesPanel({
   )
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
 
-  // Derived states from subscription data
-  const isIndexing =
-    indexingData?.indexingStatus?.status === IndexingState.IndexingData ||
-    indexingData?.indexingStatus?.status === IndexingState.DownloadingModel ||
-    indexingData?.indexingStatus?.status === IndexingState.ProcessingData ||
-    indexingData?.indexingStatus?.status === IndexingState.NotStarted
-
-  const isProcessing =
-    indexingData?.indexingStatus?.dataSources?.some((source) => !source.isProcessed) ?? false
-
+  // Workflow states
+  const isIndexing = indexingData?.indexingStatus?.status === IndexingState.IndexingData
+  const isProcessing = indexingData?.indexingStatus?.status === IndexingState.ProcessingData
+  const isNotStarted = indexingData?.indexingStatus?.status === IndexingState.NotStarted
   const hasError = indexingData?.indexingStatus?.error ?? false
   const hasPendingDataSources = Object.keys(pendingDataSources).length > 0
-  const allSourcesIndexed =
-    indexingData?.indexingStatus?.dataSources?.every((source) => source.isIndexed) ?? false
+  const hasUnprocessedSources =
+    data?.getDataSources?.some((source) => !source.isIndexed || source.hasError) ?? false
 
   const handleRemoveDataSource = useCallback(
     async (name: string) => {
-      await removeDataSource({ variables: { name } })
+      // await removeDataSource({ variables: { name } })
       setPendingDataSources((prev) => {
         const newState = { ...prev }
         delete newState[name]
@@ -336,7 +307,7 @@ export function DataSourcesPanel({
       })
       onDataSourceRemoved?.(name)
     },
-    [onDataSourceRemoved, removeDataSource]
+    [onDataSourceRemoved]
   )
 
   const handleSourceSelected = useCallback(
@@ -445,22 +416,12 @@ export function DataSourcesPanel({
     // 2. All sources are indexed
     // 3. We have at least one data source
     const hasDataSources = (indexingData?.indexingStatus?.dataSources?.length ?? 0) > 0
+    const allSourcesIndexed =
+      indexingData?.indexingStatus?.dataSources?.every((source) => source.isIndexed) ?? false
     if (!isIndexing && allSourcesIndexed && hasDataSources) {
       onIndexingComplete?.()
     }
-  }, [allSourcesIndexed, isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
-
-  const renderIndexingProgress = () => {
-    if (!indexingData?.indexingStatus?.dataSources?.length) return null
-
-    return (
-      <div className="flex flex-col gap-4">
-        {indexingData?.indexingStatus?.dataSources?.map((source) => (
-          <DataSourceProgressItem key={source.id} source={source} />
-        ))}
-      </div>
-    )
-  }
+  }, [isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
 
   const toggleGroup = useCallback((groupName: string) => {
     setExpandedGroups((prev) => ({
@@ -556,25 +517,42 @@ export function DataSourcesPanel({
         </div>
       )}
 
-      {renderIndexingProgress()}
+      {hasUnprocessedSources && !isIndexing && !isProcessing && !isNotStarted && (
+        <Button size="lg" onClick={handleRetryIndexing} className="w-full">
+          <RefreshCw className="mr-2 h-4 w-4" />
+          Retry Import
+        </Button>
+      )}
 
-      <Button
-        size="lg"
-        onClick={handleStartIndexing}
-        disabled={isIndexing || isProcessing || !hasPendingDataSources}
-        className="w-full"
-      >
-        {isProcessing ? (
-          <>
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Processing...
-          </>
-        ) : (
-          <>
-            Begin import <Play className="ml-2 h-4 w-4" />
-          </>
-        )}
-      </Button>
+      {!hasUnprocessedSources && (
+        <Button
+          size="lg"
+          onClick={handleStartIndexing}
+          disabled={isIndexing || isProcessing || isNotStarted || !hasPendingDataSources}
+          className="w-full"
+        >
+          {isIndexing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Indexing...
+            </>
+          ) : isProcessing ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : isNotStarted ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Starting...
+            </>
+          ) : (
+            <>
+              Begin import <Play className="ml-2 h-4 w-4" />
+            </>
+          )}
+        </Button>
+      )}
 
       {hasError && (
         <div className="flex gap-2">

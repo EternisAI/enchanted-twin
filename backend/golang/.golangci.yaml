@@ -1,0 +1,137 @@
+# Defines the configuration version.
+# The only possible value is "2".
+version: "2"
+
+# Linters configuration
+linters:
+  # Disable all linters first (replacement for `disable-all: true`)
+  default: none
+  enable:
+    # Auto‑fix capable linters
+    - misspell # Finds commonly misspelled English words [auto‑fix]
+    - whitespace # Detects trailing whitespace [auto‑fix]
+    # - gocritic       # Provides diagnostics that check for bugs, performance and style issues [auto‑fix] - TODO: re‑enable after fixing exitAfterDefer and ifElseChain
+    - godot # Checks if comments end in a period [auto‑fix]
+    # - revive         # Style and code quality checks [auto‑fix] - TODO: re‑enable after adding docs
+    - nolintlint # Reports ill‑formed or insufficient nolint directives [auto‑fix]
+    - unconvert # Remove unnecessary type conversions [auto‑fix]
+
+    # Standard linters
+    - errcheck # Checks for unchecked errors
+    - govet # Reports suspicious constructs
+    - ineffassign # Detects ineffectual assignments
+    - staticcheck # Applies static analysis checks
+    - unused # Checks for unused constants, variables, functions, and types
+    # - gosec          # Inspects source code for security problems - TODO: re‑enable after fixing security issues
+    # - goconst        # Finds repeated strings that could be constants - TODO: re‑enable after refactoring
+    - nakedret # Finds naked returns
+    # - unparam        # Reports unused function parameters - TODO: re‑enable after refactoring
+    # - exhaustive     # Checks exhaustiveness of switch statements - TODO: re‑enable after fixing switch statements
+    - durationcheck # Checks for two durations multiplied together
+
+  # Settings of specific linters
+  settings:
+    errcheck:
+      # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
+      check-type-assertions: true
+    govet:
+      # Enable all analyzers
+      enable-all: true
+      # Disable specific analyzers
+      disable:
+        - fieldalignment # too aggressive for now
+    goconst:
+      # Minimal length of string constant
+      min-len: 3
+      # Minimal occurrences count to trigger
+      min-occurrences: 3
+    gocritic:
+      # Enable specific checkers
+      enabled-checks:
+        - appendAssign
+        - appendCombine
+        - assignOp
+        - captLocal
+        - caseOrder
+        - defaultCaseOrder
+        - dupBranchBody
+        - dupSubExpr
+        - elseif
+        - emptyFallthrough
+        - exitAfterDefer
+        - ifElseChain
+        - nilValReturn
+        - sloppyLen
+        - switchTrue
+        - typeSwitchVar
+        - underef
+        - unlambda
+        - unslice
+    revive:
+      # Enforce a maximum line length of 120 tokens
+      rules:
+        - name: line-length-limit
+          arguments: [120]
+    unparam:
+      # Report unused function parameters
+      check-exported: false
+    misspell:
+      # Correct spellings using locale preferences for US
+      locale: US
+    exhaustive:
+      # Presence of "default" case in switch statements satisfies exhaustiveness
+      default-signifies-exhaustive: true
+
+  exclusions:
+    rules:
+      - text: 'shadow: declaration of "err" shadows declaration'
+        linters:
+          - govet
+
+# Formatter configuration (used by `golangci-lint fmt`)
+formatters:
+  # Enable specific formatters (run with `golangci-lint fmt`).
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    # - golines
+
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/EternisAI/enchanted-twin
+    gci:
+      # Section configuration to compare against
+      sections:
+        - standard # Standard section: captures all standard packages
+        - default # Default section: contains all imports that could not be matched to another section
+        - prefix(github.com/EternisAI) # Custom section: groups imports with the specified prefix
+    gofmt:
+      # Simplify code: gofmt with `-s` option
+      simplify: true
+
+# Issue handling (filters what gets reported)
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text
+  max-same-issues: 0
+
+# Output configuration
+output:
+  # Sort results primarily by file path (then line and column)
+  sort-order:
+    - file
+
+# Run configuration
+run:
+  # Timeout for analysis, e.g. 30s, 5m
+  timeout: 5m
+  # Exit code when at least one issue was found
+  issues-exit-code: 1
+  # Include test files in the analysis
+  tests: true
+  # Global Go version to target (replaces per‑linter `go:` settings)
+  go: "1.21"

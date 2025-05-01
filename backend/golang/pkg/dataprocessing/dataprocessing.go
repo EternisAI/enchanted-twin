@@ -25,14 +25,14 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 )
 
-// Record represents a single data record that will be written to CSV
+// Record represents a single data record that will be written to CSV.
 type Record struct {
 	Data      map[string]any
 	Timestamp time.Time
 	Source    string
 }
 
-// Source interface defines methods that each data source must implement
+// Source interface defines methods that each data source must implement.
 type Source interface {
 	// ProcessFile processes the input file and returns records
 	ProcessFile(filepath string, userName string) ([]Record, error)
@@ -42,7 +42,7 @@ type Source interface {
 	Sync(ctx context.Context) ([]types.Record, error)
 }
 
-// ToCSVRecord converts a Record to a CSV record format
+// ToCSVRecord converts a Record to a CSV record format.
 func (r Record) ToCSVRecord() ([]string, error) {
 	dataJSON, err := json.Marshal(r.Data)
 	if err != nil {
@@ -280,7 +280,6 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 	}
 
 	switch strings.ToLower(sourceType) {
-
 	case "telegram":
 		if name == "" {
 			return false, fmt.Errorf("telegram requires a username")

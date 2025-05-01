@@ -66,7 +66,10 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	}
 
 	if collection.Type != "FeatureCollection" {
-		return nil, fmt.Errorf("invalid GeoJSON: expected FeatureCollection, got %s", collection.Type)
+		return nil, fmt.Errorf(
+			"invalid GeoJSON: expected FeatureCollection, got %s",
+			collection.Type,
+		)
 	}
 
 	var records []types.Record
@@ -91,7 +94,8 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 			if len(feature.Geometry.Coordinates) >= 2 {
 				addressData["longitude"] = feature.Geometry.Coordinates[0]
 				addressData["latitude"] = feature.Geometry.Coordinates[1]
-				addressData["has_coordinates"] = feature.Geometry.Coordinates[0] != 0 || feature.Geometry.Coordinates[1] != 0
+				addressData["has_coordinates"] = feature.Geometry.Coordinates[0] != 0 ||
+					feature.Geometry.Coordinates[1] != 0
 			}
 		}
 
