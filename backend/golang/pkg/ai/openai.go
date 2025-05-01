@@ -2,10 +2,12 @@ package ai
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
+	"github.com/pkg/errors"
 )
 
 type Config struct {
@@ -60,7 +62,7 @@ func (s *Service) Embeddings(
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to embed inputs (count: %d): %v", len(inputs), inputs))
 	}
 	var embeddings [][]float64
 	for _, embedding := range embedding.Data {

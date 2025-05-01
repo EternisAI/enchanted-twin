@@ -89,9 +89,8 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 		}, nil
 	}
 
-	w.Logger.Info("filteredRecords", "value", filteredRecords)
-	err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: filteredRecords}).
-		Get(ctx, nil)
+	w.Logger.Info("filteredRecords", "length", len(filteredRecords))
+	err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
 	if err != nil {
 		return GmailSyncWorkflowResponse{}, err
 	}

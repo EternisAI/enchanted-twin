@@ -1,7 +1,11 @@
 import { useMutation } from '@apollo/client'
 import { SendMessageDocument, Message, Role } from '@renderer/graphql/generated/graphql'
 
-export function useSendMessage(chatId: string, onMessageSent: (msg: Message) => void) {
+export function useSendMessage(
+  chatId: string,
+  onMessageSent: (msg: Message) => void,
+  onError: (error: Message) => void
+) {
   const [sendMessageMutation] = useMutation(SendMessageDocument, {
     update(cache, { data }) {
       if (!data?.sendMessage) return
@@ -31,12 +35,27 @@ export function useSendMessage(chatId: string, onMessageSent: (msg: Message) => 
 
     onMessageSent(optimisticMessage)
 
-    await sendMessageMutation({
-      variables: {
-        chatId,
-        text
+    try {
+      await sendMessageMutation({
+        variables: {
+          chatId,
+          text
+        }
+      })
+    } catch (error) {
+      console.error('Error sending message', error)
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        text: error instanceof Error ? error.message : 'Error sending message',
+        role: Role.Assistant,
+        imageUrls: [],
+        toolCalls: [],
+        toolResults: [],
+        createdAt: new Date().toISOString()
       }
-    })
+
+      onError(errorMessage)
+    }
   }
 
   return { sendMessage }
