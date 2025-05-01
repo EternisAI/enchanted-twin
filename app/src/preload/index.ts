@@ -47,7 +47,10 @@ const api = {
     ipcRenderer.on('update-progress', listener)
     return () => ipcRenderer.removeListener('update-progress', listener)
   },
-  getAppVersion: () => ipcRenderer.invoke('get-app-version')
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onOpenSettings: (callback: () => void) => {
+    ipcRenderer.on('open-settings', callback)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

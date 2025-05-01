@@ -19,16 +19,14 @@ interface IElectronAPI {
 }
 
 interface IApi {
-  ping: () => void
-  copyDroppedFiles: (filePaths: string[]) => Promise<void>
+  getPathForFile: (file: string) => string
+  copyDroppedFiles: (paths: string[]) => Promise<string[]>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
-  selectFiles: (options?: {
-    filters?: { name: string; extensions: string[] }[]
-  }) => Promise<{ canceled: boolean; filePaths: string[] }>
+  selectFiles: (options?: { filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePaths: string[] }>
   getNativeTheme: () => Promise<'light' | 'dark'>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
-  openOAuthUrl: (url: string, redirectUri?: string) => Promise<void>
+  openOAuthUrl: (url: string, redirectUri?: string) => void
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => void
   openLogsFolder: () => Promise<boolean>
   openAppDataFolder: () => Promise<boolean>
@@ -45,6 +43,8 @@ interface IApi {
   onUpdateProgress: (callback: (progressData: { percent: number }) => void) => () => void
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
+  restartApp: () => Promise<void>
+  onOpenSettings: (callback: () => void) => void
 }
 
 declare global {

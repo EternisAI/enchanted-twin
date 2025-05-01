@@ -1,11 +1,13 @@
-import { AppNav } from '@renderer/components/AppNav'
-import { createRootRoute, Outlet } from '@tanstack/react-router'
+import { createRootRoute, Outlet, redirect } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
 import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { useOsNotifications } from '@renderer/hooks/useNotifications'
 import UpdateNotification from '@renderer/components/UpdateNotification'
+import { useSettingsStore } from '@renderer/lib/stores/settings'
+import { useEffect } from 'react'
+import { SettingsDialog } from '@renderer/components/settings/SettingsDialog'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -14,6 +16,27 @@ function DevBadge() {
 function RootComponent() {
   const { isCompleted } = useOnboardingStore()
   useOsNotifications()
+  const { open } = useSettingsStore()
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+        e.preventDefault()
+        open()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.api.onOpenSettings(open)
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [open])
+
+  if (!isCompleted) {
+    throw redirect({ to: '/onboarding' })
+  }
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground pt-8">
@@ -29,11 +52,11 @@ function RootComponent() {
       )}
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="flex-1 flex overflow-hidden">
-          {isCompleted && <AppNav />}
           <Outlet />
         </div>
       </div>
       <UpdateNotification />
+      <SettingsDialog />
     </div>
   )
 }
