@@ -3,9 +3,10 @@ package plannedv2
 import (
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // MessageRole represents the role of a message.
@@ -129,7 +130,6 @@ type ActionRequest struct {
 	Params map[string]interface{} `json:"params"`
 }
 
-
 // PlanInput represents the input for the planned agent workflow.
 type PlanInput struct {
 	// The plan text that the agent should follow
@@ -147,7 +147,6 @@ type PlanInput struct {
 	// System prompt to use (optional)
 	SystemPrompt string `json:"system_prompt,omitempty"`
 }
-
 
 // OpenAIToCustomToolCalls converts OpenAI tool calls to our custom format.
 func OpenAIToCustomToolCalls(openaiToolCalls []openai.ChatCompletionMessageToolCall) []ToolCall {

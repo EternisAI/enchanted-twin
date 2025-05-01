@@ -5,11 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 type PlannedAgentTestSuite struct {

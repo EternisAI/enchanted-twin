@@ -5,15 +5,14 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-
-	types "github.com/EternisAI/enchanted-twin/types"
-
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/skip2/go-qrcode" // ← add
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	types "github.com/EternisAI/enchanted-twin/types"
 )
 
 type TelegramTool struct {
@@ -23,7 +22,12 @@ type TelegramTool struct {
 	ChatServerUrl string
 }
 
-func NewTelegramTool(logger *log.Logger, token string, store *db.Store, chatServerUrl string) *TelegramTool {
+func NewTelegramTool(
+	logger *log.Logger,
+	token string,
+	store *db.Store,
+	chatServerUrl string,
+) *TelegramTool {
 	if token == "" {
 		logger.Error("TELEGRAM_TOKEN environment variable not set")
 	}
@@ -60,7 +64,6 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (ToolR
 
 	fmt.Println("telegramEnabled", telegramEnabled)
 	if err2 != nil || telegramEnabled != "true" {
-
 		t.Logger.Error("telegram is not enabled", "error", err2)
 
 		chatURL := helpers.GetChatURL(types.TelegramBotName, chatUUID)

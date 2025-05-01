@@ -22,7 +22,7 @@ type Store struct {
 	db *sqlx.DB
 }
 
-// NewStore creates a new SQLite-backed store
+// NewStore creates a new SQLite-backed store.
 func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	// Create the parent directory if it doesn't exist
 	dir := filepath.Dir(dbPath)
@@ -153,12 +153,12 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	return store, nil
 }
 
-// Close closes the database connection
+// Close closes the database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// DB returns the underlying sqlx.DB instance
+// DB returns the underlying sqlx.DB instance.
 func (s *Store) DB() *sqlx.DB {
 	db := s.db
 	return db
@@ -180,7 +180,12 @@ func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 }
 
 func (s *Store) SetValue(ctx context.Context, key string, value string) error {
-	_, err := s.db.ExecContext(ctx, "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)", key, value)
+	_, err := s.db.ExecContext(
+		ctx,
+		"INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+		key,
+		value,
+	)
 	if err != nil {
 		return err
 	}

@@ -35,7 +35,7 @@ func getEnv(key, defaultValue string, printEnv bool) string {
 	return value
 }
 
-func getEnvOrPanic(key string, printEnv bool) string { //nolint
+func getEnvOrPanic(key string, printEnv bool) string {
 	value := getEnv(key, "", printEnv)
 	if value == "" {
 		panic(fmt.Sprintf("Environment variable %s is not set", key))

@@ -9,7 +9,14 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
-func CreateScheduleIfNotExists(logger *log.Logger, temporalClient client.Client, scheduleID string, interval time.Duration, workflowName any, workflowArgs []any) error {
+func CreateScheduleIfNotExists(
+	logger *log.Logger,
+	temporalClient client.Client,
+	scheduleID string,
+	interval time.Duration,
+	workflowName any,
+	workflowArgs []any,
+) error {
 	ctx := context.Background()
 	handle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
 	if handle == nil {
@@ -34,7 +41,6 @@ func CreateScheduleIfNotExists(logger *log.Logger, temporalClient client.Client,
 		},
 		Overlap: enums.SCHEDULE_OVERLAP_POLICY_SKIP,
 	})
-
 	if err != nil {
 		if err.Error() == "schedule with this ID is already registered" {
 			logger.Info("Schedule already exists, skipping creation", "scheduleID", scheduleID)
