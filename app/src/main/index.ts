@@ -11,6 +11,7 @@ import { autoUpdater } from 'electron-updater'
 import http from 'http'
 import { URL } from 'url'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
+import { registerNotificationIpc } from './notifications'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
@@ -355,6 +356,7 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(async () => {
   const splash = createSplashWindow()
+
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
     ? join(__dirname, '..', '..', 'resources', executable) // Path in development
@@ -444,6 +446,8 @@ app.whenReady().then(async () => {
 
   electronApp.setAppUserModelId('com.electron')
   mainWindow = createWindow()
+  registerNotificationIpc(mainWindow)
+
   mainWindow.once('ready-to-show', () => {
     splash.destroy()
   })
