@@ -15,6 +15,7 @@ import (
 	"net/mail"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -166,7 +167,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			line, err := r.ReadString('\n')
 			if err == io.EOF {
 				if in {
-					jobs <- job{idx: idx + 1, raw: buf.String()}
+					jobs <- job{idx: idx, raw: buf.String()}
 				}
 				break
 			}
@@ -176,7 +177,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			}
 			if strings.HasPrefix(line, "From ") {
 				if in {
-					jobs <- job{idx: idx + 1, raw: buf.String()}
+					jobs <- job{idx: idx, raw: buf.String()}
 					buf.Reset()
 				}
 				in = true
@@ -509,7 +510,11 @@ func cleanEmailText(s string) string {
 	)
 	s = repl.Replace(s)
 
-	// 2) per-line cleanup, stop at first footer clue
+	// 2) remove http(s) links
+	linkRegex := regexp.MustCompile(`https?://[^\s)]+`) // Avoid matching trailing ')'
+	s = linkRegex.ReplaceAllString(s, "")
+
+	// 3) per-line cleanup, stop at first footer clue
 	var out []string
 	for _, ln := range strings.Split(s, "\n") {
 		ln = strings.TrimSpace(ln)
