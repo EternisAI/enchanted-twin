@@ -48,7 +48,7 @@ export function ChatCard({ chat, isActive }: ChatCardProps) {
       to="/chat/$chatId"
       params={{ chatId: chat.id }}
       className={cn(
-        'flex flex-col gap-2 p-4 rounded-lg border border-border hover:border-primary/50 transition-colors',
+        'group flex flex-col gap-2 p-4 rounded-lg border border-border hover:border-primary/50 transition-colors',
         isActive && 'border-primary bg-primary/5'
       )}
     >
@@ -61,10 +61,10 @@ export function ChatCard({ chat, isActive }: ChatCardProps) {
             <Button
               variant="ghost"
               size="icon"
-              className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
+              className="opacity-0 group-hover:opacity-100 transition-all hover:bg-destructive/10"
               onClick={(e) => e.stopPropagation()}
             >
-              <Trash2 className="w-4 h-4 text-destructive" />
+              <Trash2 className="w-3 h-3 text-destructive" />
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
