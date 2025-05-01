@@ -409,55 +409,61 @@ func RefreshOAuthToken(
 	logger *log.Logger,
 	store *db.Store,
 	provider string,
-) (TokenRequest, error) {
+) (bool, error) {
 	logger.Debug("refreshing OAuth token", "provider", provider)
 
 	// Get existing tokens
 	tokens, err := store.GetOAuthTokens(ctx, provider)
 	if err != nil {
-		return TokenRequest{}, fmt.Errorf("failed to get existing tokens: %w", err)
+		return false, fmt.Errorf("failed to get existing tokens: %w", err)
 	}
 
-	if tokens.RefreshToken == "" {
-		return TokenRequest{}, fmt.Errorf("no refresh token available for provider: %s", provider)
+	if len(tokens) == 0 {
+		return false, fmt.Errorf("no tokens available for provider: %s", provider)
 	}
 
-	// Load OAuth config for provider
-	config, err := store.GetOAuthConfig(ctx, provider)
-	if err != nil {
-		return TokenRequest{}, fmt.Errorf("failed to get OAuth config: %w", err)
+	for _, token := range tokens {
+		if token.RefreshToken == "" {
+			return false, fmt.Errorf("no refresh token available for provider: %s", provider)
+		}
+
+		// Load OAuth config for provider
+		config, err := store.GetOAuthConfig(ctx, provider)
+		if err != nil {
+			return false, fmt.Errorf("failed to get OAuth config: %w", err)
+		}
+
+		// Prepare token request
+		tokenReq := TokenRequest{
+			GrantType:    "refresh_token",
+			RefreshToken: token.RefreshToken,
+			ClientID:     config.ClientID,
+			ClientSecret: config.ClientSecret,
+		}
+
+		// Exchange refresh token for new access token
+		tokenResp, err := ExchangeToken(ctx, logger, provider, *config, tokenReq)
+		if err != nil {
+			return false, err
+		}
+
+		// Update tokens in storage
+		token.AccessToken = tokenResp.AccessToken
+		token.ExpiresAt = tokenResp.ExpiresAt
+
+		// Update refresh token if provided in response
+		if tokenResp.RefreshToken != "" {
+			token.RefreshToken = tokenResp.RefreshToken
+		}
+
+		if err := store.SetOAuthTokens(ctx, token); err != nil {
+			return false, fmt.Errorf("failed to store refreshed tokens: %w", err)
+		}
+
+		logger.Debug("successfully refreshed OAuth token",
+			"provider", provider,
+			"expires_at", tokenResp.ExpiresAt)
+
 	}
-
-	// Prepare token request
-	tokenReq := TokenRequest{
-		GrantType:    "refresh_token",
-		RefreshToken: tokens.RefreshToken,
-		ClientID:     config.ClientID,
-		ClientSecret: config.ClientSecret,
-	}
-
-	// Exchange refresh token for new access token
-	tokenResp, err := ExchangeToken(ctx, logger, provider, *config, tokenReq)
-	if err != nil {
-		return TokenRequest{}, err
-	}
-
-	// Update tokens in storage
-	tokens.AccessToken = tokenResp.AccessToken
-	tokens.ExpiresAt = tokenResp.ExpiresAt
-
-	// Update refresh token if provided in response
-	if tokenResp.RefreshToken != "" {
-		tokens.RefreshToken = tokenResp.RefreshToken
-	}
-
-	if err := store.SetOAuthTokens(ctx, *tokens); err != nil {
-		return TokenRequest{}, fmt.Errorf("failed to store refreshed tokens: %w", err)
-	}
-
-	logger.Debug("successfully refreshed OAuth token",
-		"provider", provider,
-		"expires_at", tokenResp.ExpiresAt)
-
-	return tokenReq, nil
+	return true, nil
 }

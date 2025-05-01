@@ -243,8 +243,8 @@ func (s *Store) GetAllOAuthTokens(ctx context.Context) ([]OAuthTokens, error) {
 }
 
 // GetOAuthTokens retrieves tokens for a specific provider.
-func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthTokens, error) {
-	var tokens OAuthTokens
+func (s *Store) GetOAuthTokens(ctx context.Context, provider string) ([]OAuthTokens, error) {
+	var tokens []OAuthTokens
 	err := s.db.GetContext(ctx, &tokens, `
 		SELECT 
 			provider, 
@@ -263,7 +263,7 @@ func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthToke
 		}
 		return nil, fmt.Errorf("failed to get OAuth tokens for provider '%s': %w", provider, err)
 	}
-	return &tokens, nil
+	return tokens, nil
 }
 
 func (s *Store) SetOAuthStateAndVerifier(
