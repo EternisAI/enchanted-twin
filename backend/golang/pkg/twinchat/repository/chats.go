@@ -6,9 +6,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
-
 	"github.com/google/uuid"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 func (r *Repository) GetChat(ctx context.Context, id string) (model.Chat, error) {

@@ -13,14 +13,14 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
-// PlanTool implements a tool for planning and executing tasks with the planner
+// PlanTool implements a tool for planning and executing tasks with the planner.
 type PlanTool struct {
 	logger         *log.Logger
 	temporalClient client.Client
 	model          string
 }
 
-// NewPlanTool creates a new plan tool
+// NewPlanTool creates a new plan tool.
 func NewPlanTool(logger *log.Logger, temporalClient client.Client, model string) *PlanTool {
 	return &PlanTool{
 		logger:         logger,
@@ -29,13 +29,15 @@ func NewPlanTool(logger *log.Logger, temporalClient client.Client, model string)
 	}
 }
 
-// Definition returns the tool definition
+// Definition returns the tool definition.
 func (t *PlanTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "execute_plan",
-			Description: param.NewOpt("Execute a plan to carry out a specific task using a sequence of steps"),
+			Name: "execute_plan",
+			Description: param.NewOpt(
+				"Execute a plan to carry out a specific task using a sequence of steps",
+			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
@@ -65,7 +67,7 @@ func (t *PlanTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// Execute executes the plan tool
+// Execute executes the plan tool.
 func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
@@ -108,11 +110,14 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 
 	// Create the workflow input
 	input := map[string]any{
-		"plan":          plan,
-		"tools":         toolsBytes,
-		"model":         t.model,
-		"max_steps":     maxSteps,
-		"system_prompt": fmt.Sprintf("You are a helpful assistant that executes plans. Your current plan is: %s", plan),
+		"plan":      plan,
+		"tools":     toolsBytes,
+		"model":     t.model,
+		"max_steps": maxSteps,
+		"system_prompt": fmt.Sprintf(
+			"You are a helpful assistant that executes plans. Your current plan is: %s",
+			plan,
+		),
 	}
 	inputBytes, err := json.Marshal(input)
 	if err != nil {
@@ -120,7 +125,12 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	}
 
 	// Start the workflow
-	run, err := t.temporalClient.ExecuteWorkflow(ctx, workflowOptions, "PlannerWorkflow", inputBytes)
+	run, err := t.temporalClient.ExecuteWorkflow(
+		ctx,
+		workflowOptions,
+		"PlannerWorkflow",
+		inputBytes,
+	)
 	if err != nil {
 		return ToolResult{}, errors.Wrap(err, "failed to start workflow")
 	}
@@ -136,7 +146,10 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	// If no wait parameter or wait is 0, return immediately
 	if waitSeconds == 0 {
 		return ToolResult{
-			Content: fmt.Sprintf("Plan execution started with workflow ID: %s. It will continue in the background.", workflowID),
+			Content: fmt.Sprintf(
+				"Plan execution started with workflow ID: %s. It will continue in the background.",
+				workflowID,
+			),
 		}, nil
 	}
 
@@ -151,17 +164,30 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	// Check if we timed out
 	if errors.Is(err, context.DeadlineExceeded) {
 		// Query for the current output
-		resp, queryErr := t.temporalClient.QueryWorkflow(ctx, workflowID, run.GetRunID(), "get_output")
+		resp, queryErr := t.temporalClient.QueryWorkflow(
+			ctx,
+			workflowID,
+			run.GetRunID(),
+			"get_output",
+		)
 		if queryErr != nil {
 			return ToolResult{
-				Content: fmt.Sprintf("The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v", workflowID, queryErr),
+				Content: fmt.Sprintf(
+					"The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v",
+					workflowID,
+					queryErr,
+				),
 			}, nil
 		}
 
 		var output string
 		if queryErr = resp.Get(&output); queryErr != nil {
 			return ToolResult{
-				Content: fmt.Sprintf("The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v", workflowID, queryErr),
+				Content: fmt.Sprintf(
+					"The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v",
+					workflowID,
+					queryErr,
+				),
 			}, nil
 		}
 
@@ -170,7 +196,11 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 		}
 
 		return ToolResult{
-			Content: fmt.Sprintf("The plan is still executing (workflow ID: %s). It will continue in the background. Output so far: %s", workflowID, output),
+			Content: fmt.Sprintf(
+				"The plan is still executing (workflow ID: %s). It will continue in the background. Output so far: %s",
+				workflowID,
+				output,
+			),
 		}, nil
 	}
 
@@ -184,14 +214,22 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	resp, err := t.temporalClient.QueryWorkflow(ctx, workflowID, run.GetRunID(), "get_output")
 	if err != nil {
 		return ToolResult{
-			Content: fmt.Sprintf("Plan executed, but couldn't retrieve output: %v (workflow ID: %s)", err, workflowID),
+			Content: fmt.Sprintf(
+				"Plan executed, but couldn't retrieve output: %v (workflow ID: %s)",
+				err,
+				workflowID,
+			),
 		}, nil
 	}
 
 	var output string
 	if err = resp.Get(&output); err != nil {
 		return ToolResult{
-			Content: fmt.Sprintf("Plan executed, but couldn't retrieve output: %v (workflow ID: %s)", err, workflowID),
+			Content: fmt.Sprintf(
+				"Plan executed, but couldn't retrieve output: %v (workflow ID: %s)",
+				err,
+				workflowID,
+			),
 		}, nil
 	}
 
@@ -220,8 +258,7 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	}, nil
 }
 
-// getAvailableTools returns a list of tools based on the given tool names
-// It creates instances of the requested tools
+// It creates instances of the requested tools.
 func getAvailableTools(toolNames []string) []Tool {
 	// Create a map of available tool creators
 	toolCreators := map[string]func() Tool{

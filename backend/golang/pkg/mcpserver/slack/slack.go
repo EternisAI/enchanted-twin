@@ -6,18 +6,22 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/log"
+	mcp_golang "github.com/metoro-io/mcp-golang"
+
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	"github.com/charmbracelet/log"
-	mcp_golang "github.com/metoro-io/mcp-golang"
 )
 
 type SlackClient struct {
 	Store *db.Store
 }
 
-func (c *SlackClient) ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error) {
+func (c *SlackClient) ListTools(
+	ctx context.Context,
+	cursor *string,
+) (*mcp_golang.ToolsResponse, error) {
 	tools, err := GenerateSlackTools()
 	if err != nil {
 		return nil, err
@@ -31,8 +35,11 @@ func (c *SlackClient) ListTools(ctx context.Context, cursor *string) (*mcp_golan
 	}, nil
 }
 
-func (c *SlackClient) CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error) {
-
+func (c *SlackClient) CallTool(
+	ctx context.Context,
+	name string,
+	arguments any,
+) (*mcp_golang.ToolResponse, error) {
 	fmt.Println("Call tool SLACK", name, arguments)
 
 	bytes, err := helpers.ConvertToBytes(arguments)
@@ -91,7 +98,6 @@ func (c *SlackClient) CallTool(ctx context.Context, name string, arguments any) 
 	default:
 		return nil, fmt.Errorf("tool not found: %s", name)
 	}
-
 
 	return &mcp_golang.ToolResponse{
 		Content: content,

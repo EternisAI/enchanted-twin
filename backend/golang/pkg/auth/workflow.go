@@ -11,7 +11,10 @@ type TokenRefreshWorkflowInput struct {
 	Provider string `json:"provider"`
 }
 
-func TokenRefreshWorkflow(ctx workflow.Context, input TokenRefreshWorkflowInput) (TokenRequest, error) {
+func TokenRefreshWorkflow(
+	ctx workflow.Context,
+	input TokenRefreshWorkflowInput,
+) (TokenRequest, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Started token refresh workflow", "provider", input.Provider)
 

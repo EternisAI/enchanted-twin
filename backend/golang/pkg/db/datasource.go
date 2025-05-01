@@ -14,46 +14,85 @@ type DataSource struct {
 	HasError      *bool   `db:"has_error"`
 }
 
-// GetDataSources retrieves all data sources
+// GetDataSources retrieves all data sources.
 func (s *Store) GetDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, processed_path, is_indexed FROM data_sources`)
+	err := s.db.SelectContext(
+		ctx,
+		&dataSources,
+		`SELECT id, name, updated_at, path, processed_path, is_indexed FROM data_sources`,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return dataSources, nil
 }
 
-// GetUnindexedDataSources retrieves all data sources that are not indexed
+// GetUnindexedDataSources retrieves all data sources that are not indexed.
 func (s *Store) GetUnindexedDataSources(ctx context.Context) ([]*DataSource, error) {
 	var dataSources []*DataSource
-	err := s.db.SelectContext(ctx, &dataSources, `SELECT id, name, updated_at, path, processed_path, is_indexed, has_error FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE`)
+	err := s.db.SelectContext(
+		ctx,
+		&dataSources,
+		`SELECT id, name, updated_at, path, processed_path, is_indexed, has_error FROM data_sources WHERE has_error = FALSE AND is_indexed = FALSE`,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return dataSources, nil
 }
 
-// CreateDataSource creates a new data source
-func (s *Store) CreateDataSource(ctx context.Context, id string, name string, path string) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `INSERT INTO data_sources (id, name, path) VALUES (?, ?, ?)`, id, name, path)
+// CreateDataSource creates a new data source.
+func (s *Store) CreateDataSource(
+	ctx context.Context,
+	id string,
+	name string,
+	path string,
+) (*DataSource, error) {
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT INTO data_sources (id, name, path) VALUES (?, ?, ?)`,
+		id,
+		name,
+		path,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return &DataSource{ID: id, Name: name, Path: path}, nil
 }
 
-// UpdateDataSource updates a data source
-func (s *Store) UpdateDataSourceState(ctx context.Context, id string, isIndexed bool, hasError bool) (*DataSource, error) {
-	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, is_indexed = ?, has_error = ? WHERE id = ?`, isIndexed, hasError, id)
+// UpdateDataSource updates a data source.
+func (s *Store) UpdateDataSourceState(
+	ctx context.Context,
+	id string,
+	isIndexed bool,
+	hasError bool,
+) (*DataSource, error) {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, is_indexed = ?, has_error = ? WHERE id = ?`,
+		isIndexed,
+		hasError,
+		id,
+	)
 	if err != nil {
 		return nil, err
 	}
 	return &DataSource{ID: id, IsIndexed: &isIndexed, HasError: &hasError}, nil
 }
 
-func (s *Store) UpdateDataSourceProcessedPath(ctx context.Context, id string, processedPath string) error {
-	_, err := s.db.ExecContext(ctx, `UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, processed_path = ? WHERE id = ?`, processedPath, id)
+func (s *Store) UpdateDataSourceProcessedPath(
+	ctx context.Context,
+	id string,
+	processedPath string,
+) error {
+	_, err := s.db.ExecContext(
+		ctx,
+		`UPDATE data_sources SET updated_at = CURRENT_TIMESTAMP, processed_path = ? WHERE id = ?`,
+		processedPath,
+		id,
+	)
 	if err != nil {
 		return err
 	}

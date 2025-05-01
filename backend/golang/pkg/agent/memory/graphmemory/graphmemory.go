@@ -10,12 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/charmbracelet/log"
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"github.com/openai/openai-go"
 	"github.com/pkg/errors"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 type GraphMemory struct {

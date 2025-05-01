@@ -5,10 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
 type MemorySearchTool struct {
