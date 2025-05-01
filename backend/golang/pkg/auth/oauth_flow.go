@@ -59,12 +59,12 @@ func callbackHandler(
 	if authCode == "" {
 		return "", nil, fmt.Errorf("no authorization code received")
 	}
-	provider, err := CompleteOAuthFlow(ctx, logger, store, state, authCode)
+	provider, username, err := CompleteOAuthFlow(ctx, logger, store, state, authCode)
 	if err != nil {
 		return "", nil, fmt.Errorf("oauth flow completion failed: %w", err)
 	}
 
-	userInfo, err := fetchUserInfo(ctx, logger, store, provider)
+	userInfo, err := fetchUserInfo(ctx, logger, store, provider, username)
 	if err != nil {
 		return "", nil, err
 	}
@@ -78,6 +78,7 @@ func fetchUserInfo(
 	_ *log.Logger,
 	store *db.Store,
 	provider string,
+	username string,
 ) (interface{}, error) {
 	// Load OAuth config for provider
 	config, err := store.GetOAuthConfig(ctx, provider)
@@ -85,7 +86,7 @@ func fetchUserInfo(
 		return nil, fmt.Errorf("failed to get OAuth config: %w", err)
 	}
 
-	tokens, err := store.GetOAuthTokens(context.Background(), provider)
+	tokens, err := store.GetOAuthTokensByUsername(context.Background(), username)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get OAuth tokens: %w", err)
 	}

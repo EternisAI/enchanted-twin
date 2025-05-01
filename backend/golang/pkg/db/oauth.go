@@ -242,10 +242,46 @@ func (s *Store) GetAllOAuthTokens(ctx context.Context) ([]OAuthTokens, error) {
 	return tokens, nil
 }
 
-// GetOAuthTokens retrieves tokens for a specific provider.
-func (s *Store) GetOAuthTokens(ctx context.Context, provider string) ([]OAuthTokens, error) {
-	var tokens []OAuthTokens
+func (s *Store) GetOAuthTokensByUsername(ctx context.Context, username string) (*OAuthTokens, error) {
+	var tokens OAuthTokens
 	err := s.db.GetContext(ctx, &tokens, `
+		SELECT provider, token_type, scope, access_token, expires_at, refresh_token, username
+		FROM oauth_tokens
+		WHERE username = ?
+	`, username)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+	return &tokens, nil
+}
+
+// GetOAuthTokens retrieves tokens for a specific provider.
+func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthTokens, error) {
+	var tokens OAuthTokens
+	err := s.db.GetContext(ctx, &tokens, `
+		SELECT 
+			provider, 
+			token_type,
+			scope,
+			access_token,
+			expires_at,
+			refresh_token,
+			username
+		FROM oauth_tokens
+		WHERE provider = ?
+	`, provider)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Provider not found
+		}
+		return nil, fmt.Errorf("failed to get OAuth tokens for provider '%s': %w", provider, err)
+	}
+	return &tokens, nil
+}
+
+func (s *Store) GetOAuthTokensArray(ctx context.Context, provider string) ([]OAuthTokens, error) {
+	var tokens []OAuthTokens
+	err := s.db.SelectContext(ctx, &tokens, `
 		SELECT 
 			provider, 
 			token_type,

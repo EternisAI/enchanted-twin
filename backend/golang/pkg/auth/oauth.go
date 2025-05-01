@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -164,6 +165,7 @@ type TokenResponse struct {
 	RefreshToken string
 	TokenType    string
 	ExpiresAt    time.Time
+	Username     string
 }
 
 // ExchangeToken handles the HTTP request to exchange a token (authorization or refresh).
@@ -242,12 +244,38 @@ func ExchangeToken(
 				AccessToken string `json:"access_token"`
 				TokenType   string `json:"token_type"`
 			} `json:"authed_user"`
+			AccessToken string `json:"access_token"`
+			TokenType   string `json:"token_type"`
 		}
+
+		body, _ := io.ReadAll(resp.Body)
+
+		// Print raw response for debugging
+		fmt.Printf("Raw slack token response: %s\n", string(body))
+
+		// Reset the reader for JSON decoding
+		resp.Body = io.NopCloser(bytes.NewBuffer(body))
+
 		if err := json.NewDecoder(resp.Body).Decode(&slackTokenResp); err != nil {
 			return nil, fmt.Errorf("failed to parse slack token response: %w", err)
 		}
-		tokenResp.AccessToken = slackTokenResp.AuthedUser.AccessToken
-		tokenResp.TokenType = slackTokenResp.AuthedUser.TokenType
+
+		// First try authed_user.access_token
+		if slackTokenResp.AuthedUser.AccessToken != "" {
+			tokenResp.Username = slackTokenResp.AuthedUser.ID
+			tokenResp.AccessToken = slackTokenResp.AuthedUser.AccessToken
+			tokenResp.TokenType = slackTokenResp.AuthedUser.TokenType
+			if tokenResp.TokenType == "" {
+				tokenResp.TokenType = "Bearer"
+			}
+		} else if slackTokenResp.AccessToken != "" {
+			// Fall back to top-level access_token
+			tokenResp.AccessToken = slackTokenResp.AccessToken
+			tokenResp.TokenType = slackTokenResp.TokenType
+			if tokenResp.TokenType == "" {
+				tokenResp.TokenType = "Bearer"
+			}
+		}
 		// No expiry: set to approx 10 years
 		expiresIn = 10 * 365 * 24 * 3600
 	} else {
@@ -275,8 +303,6 @@ func ExchangeToken(
 		return nil, fmt.Errorf("access token expiry too soon: %ds", expiresIn)
 	}
 
-	fmt.Println("tokenresp", tokenResp)
-
 	// Calculate expiration
 	tokenResp.ExpiresAt = timeBeforeTokenRequest.Add(time.Duration(expiresIn) * time.Second)
 
@@ -290,7 +316,7 @@ func CompleteOAuthFlow(
 	store *db.Store,
 	state string,
 	authCode string,
-) (string, error) {
+) (string, string, error) {
 	logger.Debug("starting OAuth completion", "state", state)
 
 	// Retrieve session data using state
@@ -300,13 +326,13 @@ func CompleteOAuthFlow(
 		state,
 	)
 	if err != nil {
-		return "", fmt.Errorf("failed to get OAuth state: %w", err)
+		return "", "", fmt.Errorf("failed to get OAuth state: %w", err)
 	}
 
 	// Load OAuth config for provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
-		return "", fmt.Errorf("failed to get OAuth config: %w", err)
+		return "", "", fmt.Errorf("failed to get OAuth config: %w", err)
 	}
 
 	// Prepare token request
@@ -322,14 +348,31 @@ func CompleteOAuthFlow(
 	// Exchange authorization code for tokens
 	tokenResp, err := ExchangeToken(ctx, logger, provider, *config, tokenReq)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 
-	username, err := GetUserInfo(ctx, config.UserEndpoint, provider, tokenResp.AccessToken, tokenResp.TokenType)
-	if err != nil {
-		return "", err
+	// Debug output for token response
+	logger.Debug("token response received",
+		"provider", provider,
+		"access_token_length", len(tokenResp.AccessToken),
+		"token_type", tokenResp.TokenType,
+		"expires_at", tokenResp.ExpiresAt)
+
+	var username string
+	if provider == "slack" {
+		username = tokenResp.Username
+	} else {
+		username, err = GetUserInfo(ctx, config.UserEndpoint, provider, tokenResp.AccessToken, tokenResp.TokenType)
+		if err != nil {
+			logger.Error("failed to get user info",
+				"provider", provider,
+				"error", err.Error())
+			return "", "", err
+		}
+
 	}
-	fmt.Println("username", username)
+
+	logger.Debug("got username from provider", "provider", provider, "username", username)
 
 	oauthTokens := db.OAuthTokens{
 		Provider:     provider,
@@ -342,7 +385,7 @@ func CompleteOAuthFlow(
 	}
 
 	if err := store.SetOAuthTokens(ctx, oauthTokens); err != nil {
-		return "", fmt.Errorf("failed to store tokens: %w", err)
+		return "", "", fmt.Errorf("failed to store tokens: %w", err)
 	}
 
 	logger.Debug("completed OAuth flow: stored tokens to database",
@@ -351,7 +394,7 @@ func CompleteOAuthFlow(
 		"expires_at", tokenResp.ExpiresAt,
 		"scope", scope)
 
-	return provider, nil
+	return provider, username, nil
 }
 
 // GetUserInfo fetches user information from the provider's user endpoint
@@ -390,8 +433,20 @@ func GetUserInfo(ctx context.Context, userEndpoint string, provider string, acce
 	case "linkedin":
 		username = userInfo["id"].(string)
 	case "slack":
-		user := userInfo["user"].(map[string]interface{})
-		username = user["email"].(string)
+		// Handle different possible structures for Slack response
+		fmt.Println("userInfo", userInfo)
+		if user, ok := userInfo["authed_user"].(map[string]interface{}); ok && user != nil {
+			if slackID, ok := user["id"].(string); ok && slackID != "" {
+				username = slackID
+			} else {
+				return "", fmt.Errorf("no id found in slack user info")
+			}
+		} else {
+			// Print the response for debugging
+			responseBytes, _ := json.Marshal(userInfo)
+			fmt.Printf("Slack user info response: %s\n", string(responseBytes))
+			return "", fmt.Errorf("unable to extract email from slack user info")
+		}
 	default:
 		return "", fmt.Errorf("unknown provider: %s", provider)
 	}
@@ -413,7 +468,7 @@ func RefreshOAuthToken(
 	logger.Debug("refreshing OAuth token", "provider", provider)
 
 	// Get existing tokens
-	tokens, err := store.GetOAuthTokens(ctx, provider)
+	tokens, err := store.GetOAuthTokensArray(ctx, provider)
 	if err != nil {
 		return false, fmt.Errorf("failed to get existing tokens: %w", err)
 	}
