@@ -14,7 +14,7 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={close}>
-      <DialogContent className="!max-w-[95vw] w-full h-[80vh] p-0 z-[100]">
+      <DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0 z-[100]">
         <div className="flex h-full w-full">
           <Tabs.Root
             value={activeTab}
