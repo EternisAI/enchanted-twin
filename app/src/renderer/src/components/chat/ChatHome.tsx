@@ -62,21 +62,6 @@ export default function ChatHome() {
               <ContextCard />
             </div>
           </div>
-
-          <div className="flex gap-10 p-4 border border-border rounded-lg max-w-lg mx-auto w-full">
-            <div className="flex flex-col gap-2">
-              <span>Today&apos;s Highlight</span>
-              <span className="text-muted-foreground text-sm">10 Messages</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <span>Last 30 days</span>
-              <span className="text-muted-foreground text-sm">10 Messages</span>
-            </div>
-            <div className="flex flex-col gap-2">
-              <span>Twin Suggestions</span>
-              <span className="text-muted-foreground text-sm">Go Walk</span>
-            </div>
-          </div>
         </div>
         <div className="px-6 h-[130px] w-full flex flex-col justify-end">
           <MessageInput isWaitingTwinResponse={false} onSend={handleStartChat} />
