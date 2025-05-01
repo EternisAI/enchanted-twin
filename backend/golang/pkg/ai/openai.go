@@ -2,10 +2,12 @@ package ai
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
+	"github.com/pkg/errors"
 )
 
 type Config struct {
@@ -40,7 +42,6 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 		Tools:    tools,
 	})
 }
-
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,
@@ -49,7 +50,7 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to embed inputs (count: %d): %v", len(inputs), inputs))
 	}
 	var embeddings [][]float64
 	for _, embedding := range embedding.Data {
