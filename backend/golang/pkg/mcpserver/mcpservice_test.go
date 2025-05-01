@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	db "github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
-	"github.com/charmbracelet/log"
 )
 
 func TestMCPService_GetTools(t *testing.T) {
@@ -29,7 +30,6 @@ func TestMCPService_GetTools(t *testing.T) {
 		Args:    []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
 		Type:    model.MCPServerTypeOther,
 	})
-
 	if err != nil {
 		t.Fatalf("Failed to add MCPServer: %v", err)
 	}
@@ -85,7 +85,6 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 		Args:    []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
 		Type:    model.MCPServerTypeOther,
 	})
-
 	if err != nil {
 		t.Fatalf("Failed to add MCPServer: %v", err)
 	}

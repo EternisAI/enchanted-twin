@@ -7,24 +7,22 @@ import (
 	"github.com/invopop/jsonschema"
 )
 
-var (
-	jsonSchemaReflector = jsonschema.Reflector{
-		BaseSchemaID:              "",
-		Anonymous:                 true,
-		AssignAnchor:              false,
-		AllowAdditionalProperties: true,
-		DoNotReference:            true,
-		ExpandedStruct:            true,
-		FieldNameTag:              "",
-		IgnoredTypes:              nil,
-		Lookup:                    nil,
-		Mapper:                    nil,
-		Namer:                     nil,
-		KeyNamer:                  nil,
-		AdditionalFields:          nil,
-		CommentMap:                nil,
-	}
-)
+var jsonSchemaReflector = jsonschema.Reflector{
+	BaseSchemaID:              "",
+	Anonymous:                 true,
+	AssignAnchor:              false,
+	AllowAdditionalProperties: true,
+	DoNotReference:            true,
+	ExpandedStruct:            true,
+	FieldNameTag:              "",
+	IgnoredTypes:              nil,
+	Lookup:                    nil,
+	Mapper:                    nil,
+	Namer:                     nil,
+	KeyNamer:                  nil,
+	AdditionalFields:          nil,
+	CommentMap:                nil,
+}
 
 func ConverToInputSchema(args any) (map[string]any, error) {
 	jsonSchema := jsonSchemaReflector.ReflectFromType(reflect.TypeOf(args))
@@ -43,7 +41,6 @@ func ConverToInputSchema(args any) (map[string]any, error) {
 }
 
 func ConvertToBytes(args any) ([]byte, error) {
-
 	// First, convert the incoming arguments (which should be a generic JSON-like
 	// structure) into a map[string]any so that we have an "inputSchema" equivalent.
 	var inputSchema map[string]any

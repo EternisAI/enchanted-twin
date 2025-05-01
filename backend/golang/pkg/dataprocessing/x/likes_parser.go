@@ -12,9 +12,14 @@ func parseLikesAlternative(arrayContent string, userName string) ([]types.Record
 	var records []types.Record
 	now := time.Now()
 
-	fmt.Printf("Like array content first 100 chars: %s\n", arrayContent[:min(100, len(arrayContent))])
+	fmt.Printf(
+		"Like array content first 100 chars: %s\n",
+		arrayContent[:min(100, len(arrayContent))],
+	)
 
-	likeObjRegex := regexp.MustCompile(`\{\s*"?like"?:\s*\{[\s\S]*?tweetId[\s\S]*?fullText[\s\S]*?expandedUrl[\s\S]*?\}\s*\}`)
+	likeObjRegex := regexp.MustCompile(
+		`\{\s*"?like"?:\s*\{[\s\S]*?tweetId[\s\S]*?fullText[\s\S]*?expandedUrl[\s\S]*?\}\s*\}`,
+	)
 	likeMatches := likeObjRegex.FindAllString(arrayContent, -1)
 
 	fmt.Printf("Found %d like objects with regex\n", len(likeMatches))

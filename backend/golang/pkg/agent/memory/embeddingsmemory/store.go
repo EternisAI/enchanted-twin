@@ -23,7 +23,11 @@ type embeddingResult struct {
 
 // Store processes documents, generates embeddings, and stores them.
 // It optionally sends progress updates via the progressChan.
-func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
+func (m *EmbeddingsMemory) Store(
+	ctx context.Context,
+	documents []memory.TextDocument,
+	progressChan chan<- memory.ProgressUpdate,
+) error {
 	if progressChan != nil {
 		defer close(progressChan)
 	}
@@ -43,7 +47,6 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 	}
 
 	if len(filteredDocuments) == 0 {
-
 		if progressChan != nil {
 			select {
 			case progressChan <- memory.ProgressUpdate{Processed: 0, Total: 0}:
@@ -93,7 +96,6 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 	}()
 
 	for result := range resultChan {
-
 		if result.err != nil {
 			return fmt.Errorf("embedding failed: %w", result.err)
 		}
@@ -115,11 +117,17 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 
 			case <-ctx.Done():
 
-				m.logger.Warn("Context cancelled during progress update send")
+				m.logger.Warn("Context canceled during progress update send")
 				return ctx.Err()
 			default:
 
-				m.logger.Warn("Progress channel full or receiver not ready, skipping update", "processed", processed, "total", totalBatches)
+				m.logger.Warn(
+					"Progress channel full or receiver not ready, skipping update",
+					"processed",
+					processed,
+					"total",
+					totalBatches,
+				)
 			}
 		}
 	}

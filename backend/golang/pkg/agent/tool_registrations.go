@@ -1,12 +1,13 @@
 package agent
 
 import (
+	"github.com/charmbracelet/log"
+	"go.temporal.io/sdk/client"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/charmbracelet/log"
-	"go.temporal.io/sdk/client"
 )
 
 // ToolProvider is an interface for services that provide tools.

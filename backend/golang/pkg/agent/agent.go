@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 const MAX_STEPS = 10
@@ -107,13 +108,29 @@ func (a *Agent) Execute(
 			var args map[string]any
 			err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
 			if err != nil {
-				a.logger.Error("Error unmarshalling tool call arguments", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments, "error", err)
+				a.logger.Error(
+					"Error unmarshalling tool call arguments",
+					"name",
+					toolCall.Function.Name,
+					"args",
+					toolCall.Function.Arguments,
+					"error",
+					err,
+				)
 				return AgentResponse{}, err
 			}
 
 			toolResult, err := tool.Execute(ctx, args)
 			if err != nil {
-				a.logger.Error("Error executing tool", "name", toolCall.Function.Name, "args", args, "error", err)
+				a.logger.Error(
+					"Error executing tool",
+					"name",
+					toolCall.Function.Name,
+					"args",
+					args,
+					"error",
+					err,
+				)
 				return AgentResponse{}, err
 			}
 

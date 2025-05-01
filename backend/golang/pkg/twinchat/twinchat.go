@@ -6,18 +6,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/agent"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/pkg/errors"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
 type Service struct {
@@ -270,7 +271,13 @@ func (s *Service) SendMessage(
 	if len(response.ToolCalls) > 0 {
 		toolCalls := make([]model.ToolCall, 0)
 		for _, toolCall := range response.ToolCalls {
-			s.logger.Info("Tool call", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments)
+			s.logger.Info(
+				"Tool call",
+				"name",
+				toolCall.Function.Name,
+				"args",
+				toolCall.Function.Arguments,
+			)
 
 			toolCall := model.ToolCall{
 				ID:          toolCall.ID,
