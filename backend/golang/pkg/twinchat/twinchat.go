@@ -113,7 +113,15 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
-	fmt.Println("User Profile", *userProfile.Name, *userProfile.Bio)
+	userName := "Default User"
+	if userProfile.Name != nil {
+		userName = *userProfile.Name
+	}
+	userBio := ""
+	if userProfile.Bio != nil {
+		userBio = *userProfile.Bio
+	}
+
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
@@ -123,7 +131,7 @@ func (s *Service) SendMessage(
 		openai.UserMessage(
 			fmt.Sprintf(
 				"More information about the user:\nName: %s\nBio: %s",
-				*userProfile.Name, *userProfile.Bio,
+				userName, userBio,
 			),
 		),
 	)
