@@ -182,9 +182,9 @@ const IndexedDataSourceCard = ({
 
   return (
     <div className="p-4 rounded-lg bg-transparent border h-full flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 w-full">
         <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
-        <div className="flex flex-col gap-0 justify-start">
+        <div className="flex flex-col gap-0 justify-start w-full">
           <h3 className="font-medium">{source.name}</h3>
           {source.hasError && <p className="text-xs text-red-500">Error</p>}
           {showProgressBar ? (
@@ -200,7 +200,7 @@ const IndexedDataSourceCard = ({
             <TooltipProvider>
               <Tooltip delayDuration={0}>
                 <TooltipTrigger>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-start text-muted-foreground">
                     {format(source.updatedAt, 'MMM d, yyyy')}
                   </p>
                   <TooltipContent>
