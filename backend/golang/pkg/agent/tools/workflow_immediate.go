@@ -3,10 +3,22 @@ package tools
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+	"go.temporal.io/sdk/workflow"
 )
+
+// WorkflowImmediateTool defines the interface for tools that execute directly within a workflow
+// These tools have special handling in the workflow context and aren't executed as activities
+type WorkflowImmediateTool interface {
+	Tool // Embed the base Tool interface
+
+	// ExecuteInWorkflow executes the tool directly in a workflow context
+	// This is used for tools that need to use workflow-specific functionality like Sleep
+	ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error)
+}
 
 // FinalResponseTool is a special tool that represents a final response from the agent
 type FinalResponseTool struct{}
@@ -42,6 +54,18 @@ func (t *FinalResponseTool) Execute(ctx context.Context, inputs map[string]any) 
 	return ToolResult{
 		Content: output,
 	}, nil
+}
+
+// ExecuteInWorkflow executes the final_response tool in a workflow context
+func (t *FinalResponseTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error) {
+	output, _ := inputs["output"].(string)
+	result := &types.ToolResult{
+		Tool:    "final_response",
+		Params:  inputs,
+		Content: output,
+		Data:    output,
+	}
+	return result, nil
 }
 
 // SleepTool is a special tool that pauses execution for a specified duration
@@ -82,6 +106,80 @@ func (t *SleepTool) Execute(ctx context.Context, inputs map[string]any) (ToolRes
 	}, fmt.Errorf("sleep tool can only be executed within a workflow context")
 }
 
+// ExecuteInWorkflow executes the sleep tool in a workflow context
+func (t *SleepTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error) {
+	logger := workflow.GetLogger(ctx)
+
+	// Extract duration parameter
+	var durationSec float64
+	var ok bool
+
+	// Try to extract duration as float64
+	durationSec, ok = inputs["duration"].(float64)
+	if !ok {
+		// Try to parse from other types
+		if durInt, isInt := inputs["duration"].(int); isInt {
+			durationSec = float64(durInt)
+			ok = true
+		} else if durStr, isStr := inputs["duration"].(string); isStr {
+			// Try parsing string as float
+			var err error
+			var durFloat float64
+			if _, err = fmt.Sscanf(durStr, "%f", &durFloat); err == nil {
+				durationSec = durFloat
+				ok = true
+			}
+		}
+	}
+
+	// Check if we have a valid duration
+	if !ok || durationSec <= 0 {
+		return nil, fmt.Errorf("sleep tool requires a positive duration parameter (seconds)")
+	}
+
+	// Cap the maximum sleep duration for safety
+	maxSleepSec := 24 * 60 * 60.0 // 24 hours in seconds
+	if durationSec > maxSleepSec {
+		logger.Warn(
+			"Sleep duration capped",
+			"requested_seconds",
+			durationSec,
+			"max_seconds",
+			maxSleepSec,
+		)
+		durationSec = maxSleepSec
+	}
+
+	// Get optional reason parameter
+	reason := ExtractReason(inputs)
+
+	// Convert to duration
+	duration := time.Duration(durationSec * float64(time.Second))
+
+	// Sleep in the workflow
+	if err := workflow.Sleep(ctx, duration); err != nil {
+		logger.Error("Error during tool sleep", "error", err)
+		return nil, fmt.Errorf("sleep error: %w", err)
+	}
+
+	// Create result message
+	message := fmt.Sprintf(
+		"Slept for %.2f seconds. Reason: %s",
+		duration.Seconds(),
+		reason,
+	)
+
+	// Return result
+	result := &types.ToolResult{
+		Tool:    "sleep",
+		Params:  inputs,
+		Content: message,
+		Data:    message,
+	}
+
+	return result, nil
+}
+
 // SleepUntilTool is a special tool that pauses execution until a specified time
 type SleepUntilTool struct{}
 
@@ -120,6 +218,87 @@ func (t *SleepUntilTool) Execute(ctx context.Context, inputs map[string]any) (To
 	}, fmt.Errorf("sleep_until tool can only be executed within a workflow context")
 }
 
+// ExecuteInWorkflow executes the sleep_until tool in a workflow context
+func (t *SleepUntilTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error) {
+	logger := workflow.GetLogger(ctx)
+
+	// Extract timestamp parameter
+	timestampStr, ok := inputs["timestamp"].(string)
+	if !ok || timestampStr == "" {
+		return nil, fmt.Errorf("sleep_until tool requires a timestamp parameter (ISO8601 format)")
+	}
+
+	// Parse the timestamp
+	targetTime, err := time.Parse(time.RFC3339, timestampStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse timestamp '%s': %w", timestampStr, err)
+	}
+
+	// Get current time
+	now := workflow.Now(ctx)
+
+	// Calculate duration to sleep
+	sleepDuration := targetTime.Sub(now)
+
+	// Check if time is in the past
+	if sleepDuration <= 0 {
+		result := &types.ToolResult{
+			Tool:   "sleep_until",
+			Params: inputs,
+			Content: fmt.Sprintf(
+				"Target time %s is in the past. No sleep performed.",
+				targetTime.Format(time.RFC3339),
+			),
+			Data: "Target time is in the past",
+		}
+
+		return result, nil
+	}
+
+	// Cap the maximum sleep duration for safety
+	maxSleepDuration := 24 * time.Hour // 24 hours
+	if sleepDuration > maxSleepDuration {
+		logger.Warn(
+			"Sleep duration capped",
+			"requested_duration",
+			sleepDuration,
+			"max_duration",
+			maxSleepDuration,
+		)
+		sleepDuration = maxSleepDuration
+	}
+
+	// Get optional reason parameter
+	reason := ExtractReason(inputs)
+
+	// Sleep in the workflow
+	if err := workflow.Sleep(ctx, sleepDuration); err != nil {
+		logger.Error("Error during tool sleep", "error", err)
+		return nil, fmt.Errorf("sleep error: %w", err)
+	}
+
+	// Get the actual time after sleep
+	actualTime := workflow.Now(ctx)
+
+	// Create result message
+	message := fmt.Sprintf(
+		"Slept until %s (sleep duration: %s). Reason: %s",
+		actualTime.Format(time.RFC3339),
+		sleepDuration,
+		reason,
+	)
+
+	// Return result
+	result := &types.ToolResult{
+		Tool:    "sleep_until",
+		Params:  inputs,
+		Content: message,
+		Data:    message,
+	}
+
+	return result, nil
+}
+
 // ExtractReason extracts the optional reason parameter from tool inputs
 func ExtractReason(inputs map[string]any) string {
 	reason := "No reason specified"
@@ -127,6 +306,24 @@ func ExtractReason(inputs map[string]any) string {
 		reason = reasonParam
 	}
 	return reason
+}
+
+// GetWorkflowImmediateTool gets a workflow immediate tool by name
+func GetWorkflowImmediateTool(name string) (WorkflowImmediateTool, bool) {
+	tools := map[string]WorkflowImmediateTool{
+		"final_response": &FinalResponseTool{},
+		"sleep":          &SleepTool{},
+		"sleep_until":    &SleepUntilTool{},
+	}
+
+	tool, exists := tools[name]
+	return tool, exists
+}
+
+// IsWorkflowImmediateTool checks if a tool is a workflow immediate tool
+func IsWorkflowImmediateTool(name string) bool {
+	_, exists := GetWorkflowImmediateTool(name)
+	return exists
 }
 
 // WorkflowImmediateTools returns all tools that are executed directly within a workflow

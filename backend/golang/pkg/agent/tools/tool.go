@@ -3,15 +3,13 @@ package tools
 import (
 	"context"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 )
 
-type ToolResult struct {
-	Content   string
-	ImageURLs []string
-}
-
+// Tool is a local alias for the Tool interface to avoid import cycles
+// We're maintaining compatibility with the existing codebase while we transition
 type Tool interface {
 	Definition() openai.ChatCompletionToolParam
-	Execute(ctx context.Context, inputs map[string]any) (ToolResult, error)
+	Execute(ctx context.Context, inputs map[string]any) (*types.StandardToolResult, error)
 }

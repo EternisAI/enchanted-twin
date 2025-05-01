@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 )

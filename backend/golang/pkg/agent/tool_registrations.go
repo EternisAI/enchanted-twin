@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -17,7 +16,6 @@ type ToolProvider interface {
 // CreateStandardTools creates the standard set of tools based on available dependencies.
 func CreateStandardTools(
 	logger *log.Logger,
-	memoryStorage memory.Storage,
 	telegramToken string,
 	store *db.Store,
 	temporalClient client.Client,
@@ -33,11 +31,7 @@ func CreateStandardTools(
 	standardTools = append(standardTools, &tools.SearchTool{})
 	standardTools = append(standardTools, &tools.ImageTool{})
 
-	// Create tools that need dependencies
-	if memoryStorage != nil {
-		memoryTool := tools.NewMemorySearchTool(logger, memoryStorage)
-		standardTools = append(standardTools, memoryTool)
-	}
+	// Memory tools are now registered directly in main
 
 	// Create Telegram tool if token is available
 	if telegramToken != "" && store != nil {
@@ -65,7 +59,6 @@ func CreateStandardTools(
 func RegisterStandardTools(
 	registry tools.ToolRegistry,
 	logger *log.Logger,
-	memoryStorage memory.Storage,
 	telegramToken string,
 	store *db.Store,
 	temporalClient client.Client,
@@ -75,7 +68,6 @@ func RegisterStandardTools(
 	// Create standard tools
 	standardTools := CreateStandardTools(
 		logger,
-		memoryStorage,
 		telegramToken,
 		store,
 		temporalClient,

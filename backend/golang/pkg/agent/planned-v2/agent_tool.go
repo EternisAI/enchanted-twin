@@ -139,7 +139,7 @@ func (t *PlannedAgentTool) Execute(
 	)
 
 	// Wait for workflow completion with timeout
-	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	var result string
