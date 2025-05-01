@@ -50,7 +50,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
       animate="animate"
       variants={messageAnimation}
     >
-      <div className="bg-white text-foreground rounded-lg px-4 py-2 shadow max-w-md dark:border dark:bg-muted">
+      <div className="text-foreground rounded-lg px-4 py-2 shadow max-w-full">
         {message.text && <Markdown>{message.text}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="flex flex-col gap-2 my-2">
