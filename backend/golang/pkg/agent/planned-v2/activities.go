@@ -17,12 +17,18 @@ const DefaultToolTimeout = 1 * time.Minute
 
 type AgentActivities struct {
 	aiService *ai.Service
+	registry  tools.ToolRegistry
+	executor  *ToolExecutor
 }
 
-func NewAgentActivities(aiService *ai.Service) *AgentActivities {
-	return &AgentActivities{
+func NewAgentActivities(ctx context.Context, aiService *ai.Service, registry tools.ToolRegistry) *AgentActivities {
+	activities := &AgentActivities{
 		aiService: aiService,
+		registry:  registry,
+		executor:  NewToolExecutor(registry, nil),
 	}
+
+	return activities
 }
 
 func (a *AgentActivities) RegisterActivities(w worker.Worker) {
@@ -55,13 +61,17 @@ func (a *AgentActivities) ExecuteToolActivity(
 	logger.Info("Executing tool", "tool", toolName, "args", args)
 
 	// Special built-in workflow tools
-	if toolName == "sleep" || toolName == "sleep_until" {
-		// These are handled directly in tools.go and not in the registry
+	if toolName == "sleep" || toolName == "sleep_until" || toolName == "final_response" {
+		// These are handled directly in the workflow and not in the registry
 		return nil, fmt.Errorf("tool '%s' should be handled by the workflow directly", toolName)
 	}
 
-	// Use the global registry
-	registry := tools.GetGlobal(nil) // We don't pass logger as it's already initialized
+	// Use the injected registry if available, otherwise fall back to global
+	registry := a.registry
+	if registry == nil {
+		registry = tools.GetGlobal(nil)
+	}
+
 	tool, exists := registry.Get(toolName)
 	if !exists {
 		return nil, fmt.Errorf("tool not found in registry: %s", toolName)

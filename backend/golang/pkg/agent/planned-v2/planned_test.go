@@ -1,10 +1,12 @@
 package plannedv2
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
@@ -19,7 +21,8 @@ type PlannedAgentTestSuite struct {
 }
 
 func (s *PlannedAgentTestSuite) SetupTest() {
-	s.activities = NewAgentActivities(&ai.Service{})
+	registry := tools.NewRegistry()
+	s.activities = NewAgentActivities(context.Background(), &ai.Service{}, registry)
 }
 
 // TestPlannedAgentWorkflow is the entry point for running the test suite.

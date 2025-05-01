@@ -3,6 +3,7 @@ package plannedv2
 import (
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
@@ -48,7 +49,10 @@ type PlanState struct {
 	History []HistoryEntry `json:"history"`
 
 	// Available tools for the agent
-	Tools []types.ToolDef `json:"tools"`
+	// Tools []types.ToolDef `json:"tools"`
+
+	// Registry for tool lookup and execution. Tools should be serializable
+	Registry tools.ToolRegistry `json:"tools"`
 
 	// Image URLs generated (if any)
 	ImageURLs []string `json:"image_urls"`

@@ -378,7 +378,8 @@ func bootstrapTemporalWorker(
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	agentActivities := plannedv2.NewAgentActivities(input.aiCompletionsService)
+	registry := tools.GetGlobal(nil)
+	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, registry)
 	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
 	input.logger.Info("Registered planned agent workflow")
 

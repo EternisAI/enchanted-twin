@@ -17,6 +17,7 @@ import (
 
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/root"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
@@ -69,7 +70,8 @@ func main() {
 	aiService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 
 	// Register workflows
-	agentActivities := plannedv2.NewAgentActivities(aiService)
+	registry := tools.GetGlobal(logger)
+	agentActivities := plannedv2.NewAgentActivities(context.Background(), aiService, registry)
 	w.RegisterWorkflow(plannedv2.PlannedAgentWorkflow)
 	agentActivities.RegisterPlannedAgentWorkflow(w, logger)
 	logger.Info("Registered PlannedV2 Workflows and Activities")

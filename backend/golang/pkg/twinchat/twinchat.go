@@ -26,7 +26,7 @@ type Service struct {
 	nc               *nats.Conn
 	logger           *log.Logger
 	completionsModel string
-	toolRegistry     *tools.Registry
+	toolRegistry     *tools.ToolMapRegistry
 }
 
 func NewService(

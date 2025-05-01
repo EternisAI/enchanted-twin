@@ -132,13 +132,10 @@ func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall,
 		return result, nil
 	}
 
-	// Check if tool exists
+	// Check if tool exists in registry
 	var found bool
-	for _, tool := range state.Tools {
-		if tool.Name == toolName {
-			found = true
-			break
-		}
+	if state.Registry != nil {
+		_, found = state.Registry.Get(toolName)
 	}
 
 	if !found {
