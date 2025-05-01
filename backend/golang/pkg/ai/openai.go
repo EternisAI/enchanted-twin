@@ -2,10 +2,12 @@ package ai
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
+	"github.com/pkg/errors"
 )
 
 type Config struct {
@@ -24,16 +26,23 @@ func NewOpenAIService(apiKey string, baseUrl string) *Service {
 	}
 }
 
-func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
+func (s *Service) ParamsCompletions(
+	ctx context.Context,
+	params openai.ChatCompletionNewParams,
+) (openai.ChatCompletionMessage, error) {
 	completion, err := s.client.Chat.Completions.New(ctx, params)
-
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
 	}
 	return completion.Choices[0].Message, nil
 }
 
-func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+func (s *Service) Completions(
+	ctx context.Context,
+	messages []openai.ChatCompletionMessageParamUnion,
+	tools []openai.ChatCompletionToolParam,
+	model string,
+) (openai.ChatCompletionMessage, error) {
 	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
 		Model:    model,
@@ -41,7 +50,11 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 	})
 }
 
-func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
+func (s *Service) Embeddings(
+	ctx context.Context,
+	inputs []string,
+	model string,
+) ([][]float64, error) {
 	embedding, err := s.client.Embeddings.New(ctx, openai.EmbeddingNewParams{
 		Model: model,
 		Input: openai.EmbeddingNewParamsInputUnion{
@@ -49,7 +62,7 @@ func (s *Service) Embeddings(ctx context.Context, inputs []string, model string)
 		},
 	})
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, fmt.Sprintf("failed to embed inputs (count: %d): %v", len(inputs), inputs))
 	}
 	var embeddings [][]float64
 	for _, embedding := range embedding.Data {

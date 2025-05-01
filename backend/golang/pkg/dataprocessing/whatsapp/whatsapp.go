@@ -7,10 +7,11 @@ import (
 	"log"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 type Source struct{}
@@ -23,7 +24,7 @@ func (s *Source) Name() string {
 	return "whatsapp"
 }
 
-// ReadWhatsAppDB reads the WhatsApp database and returns Records
+// ReadWhatsAppDB reads the WhatsApp database and returns Records.
 func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	// Open the database
 	db, err := sql.Open("sqlite3", dbPath)
@@ -184,13 +185,26 @@ func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
 func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
+		content, err := helpers.CastToType[string](record.Data["TEXT"])
+		if err != nil {
+			return nil, err
+		}
+		from, err := helpers.CastToType[string](record.Data["FROMNAME"])
+		if err != nil {
+			return nil, err
+		}
+		to, err := helpers.CastToType[string](record.Data["TONAME"])
+		if err != nil {
+			return nil, err
+		}
+
 		documents = append(documents, memory.TextDocument{
-			Content:   record.Data["TEXT"].(string), // Use simplified key
+			Content:   content,
 			Timestamp: &record.Timestamp,
 			Tags:      []string{"whatsapp"},
 			Metadata: map[string]string{
-				"from": record.Data["FROMNAME"].(string), // Use simplified key
-				"to":   record.Data["TONAME"].(string),   // Use simplified key
+				"from": from,
+				"to":   to,
 			},
 		})
 	}

@@ -35,6 +35,10 @@ interface IApi {
   deleteAppData: () => Promise<boolean>
   isPackaged: () => Promise<boolean>
   restartApp: () => Promise<void>
+  notify: (notification: AppNotification) => void
+  onDeepLink: (cb: (url: string) => void) => void
+  getNotificationStatus: () => Promise<boolean>
+  openSettings: () => void
 }
 
 declare global {

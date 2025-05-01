@@ -1,18 +1,10 @@
 import { gql, useQuery, useMutation } from '@apollo/client'
 import { PencilIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '../ui/button'
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription
-} from '../ui/sheet'
 import { Textarea } from '../ui/textarea'
 import { toast } from 'sonner'
-import { ScrollArea } from '../ui/scroll-area'
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -29,10 +21,10 @@ const GET_PROFILE = gql`
 `
 
 export function ContextCard() {
-  const { data: userData, loading, refetch } = useQuery(GET_PROFILE)
+  const { data: userData, refetch } = useQuery(GET_PROFILE)
   const [updateProfile, { loading: updateLoading }] = useMutation(UPDATE_PROFILE)
   const [context, setContext] = useState('')
-  const [open, setOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     if (userData?.profile?.bio) {
@@ -45,11 +37,16 @@ export function ContextCard() {
     const { data } = await updateProfile({ variables: { input: { bio: context } } })
     if (data?.updateProfile) {
       await refetch()
-      setOpen(false)
+      setIsEditing(false)
       toast.success('Context updated successfully')
     } else {
       toast.error('Failed to update context')
     }
+  }
+
+  const handleCancel = () => {
+    setContext(userData?.profile?.bio || '')
+    setIsEditing(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -57,47 +54,90 @@ export function ContextCard() {
       e.preventDefault()
       handleSubmit(e as unknown as React.FormEvent)
     }
+    if (e.key === 'Escape') {
+      handleCancel()
+    }
+  }
+
+  const handleStartEditing = () => {
+    setContext('')
+    setIsEditing(true)
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <div className="relative p-4 border border-border rounded-lg flex items-center justify-between">
-        {!loading && (
-          <div className="line-clamp-6 text-sm">{userData?.profile?.bio || 'Add context'}</div>
-        )}
-        <SheetTrigger asChild>
-          <Button variant="ghost" size="icon" className="">
-            <PencilIcon className="text-muted-foreground size-4" />
-          </Button>
-        </SheetTrigger>
-      </div>
-      <SheetContent className="flex flex-col h-full">
-        <SheetHeader>
-          <SheetTitle>Add Context</SheetTitle>
-        </SheetHeader>
-        <div className="flex-1 overflow-hidden">
-          <ScrollArea className="h-full">
-            <SheetDescription className="px-4">
-              Share information about yourself, your preferences, or any other context that might
-              help your twin understand you better.
-            </SheetDescription>
-            <form className="flex flex-col gap-4 p-4" onSubmit={handleSubmit}>
+    <motion.div className="relative" transition={{ duration: 0.15, ease: 'easeOut' }}>
+      <AnimatePresence mode="wait">
+        {userData?.profile?.bio || isEditing ? (
+          <motion.div
+            key="context"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="space-y-2"
+          >
+            <motion.div
+              className="relative"
+              animate={{ height: isEditing ? 'auto' : 'auto' }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+            >
               <Textarea
-                placeholder="Enter any information that might help your twin understand you better..."
                 value={context}
                 onChange={(e) => setContext(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="min-h-[200px]"
+                onBlur={() => !context.trim() && handleSubmit({} as React.FormEvent)}
+                readOnly={!isEditing}
+                placeholder="Add context..."
+                onClick={() => !isEditing && setIsEditing(true)}
+                className={`w-full resize-none transition-all duration-200 rounded-lg ${
+                  !isEditing
+                    ? 'min-h-0 max-h-[150px] cursor-pointer hover:bg-muted/50 border-transparent'
+                    : 'min-h-[150px] max-h-[150px]'
+                }`}
+                style={{
+                  height: !isEditing ? 'auto' : '150px'
+                }}
+                autoFocus={isEditing}
               />
-            </form>
-          </ScrollArea>
-        </div>
-        <div className="p-4 border-t">
-          <Button disabled={updateLoading} className="w-full" onClick={handleSubmit}>
-            Save Context
-          </Button>
-        </div>
-      </SheetContent>
-    </Sheet>
+            </motion.div>
+            {isEditing && (
+              <motion.div
+                className="flex justify-end gap-2"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+              >
+                <Button variant="ghost" size="sm" onClick={handleCancel}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSubmit} disabled={updateLoading}>
+                  Save
+                </Button>
+              </motion.div>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="flex items-center justify-center"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleStartEditing}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <PencilIcon className="size-4" />
+              Add Context
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }

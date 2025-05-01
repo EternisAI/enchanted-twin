@@ -102,7 +102,9 @@ func parseDirectMessages(arrayContent string, userId string) ([]types.Record, er
 
 		convObj := arrayContent[startPos[0]:endPos]
 
-		conversationIdRegex := regexp.MustCompile(`"?conversationId"?\s*:\s*(?:"([^"]+)"|'([^']+)')`)
+		conversationIdRegex := regexp.MustCompile(
+			`"?conversationId"?\s*:\s*(?:"([^"]+)"|'([^']+)')`,
+		)
 		conversationIdMatch := conversationIdRegex.FindStringSubmatch(convObj)
 		if len(conversationIdMatch) < 2 {
 			continue

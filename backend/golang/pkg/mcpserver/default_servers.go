@@ -32,7 +32,18 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 			ID:      "slack",
 			Name:    "Slack",
 			Command: "docker",
-			Args:    []string{"run", "-i", "--rm", "-e", "SLACK_BOT_TOKEN", "-e", "SLACK_TEAM_ID", "-e", "SLACK_CHANNEL_IDS", "mcp/slack"},
+			Args: []string{
+				"run",
+				"-i",
+				"--rm",
+				"-e",
+				"SLACK_BOT_TOKEN",
+				"-e",
+				"SLACK_TEAM_ID",
+				"-e",
+				"SLACK_CHANNEL_IDS",
+				"mcp/slack",
+			},
 			Envs: []*model.KeyValue{
 				{
 					Key:   "SLACK_BOT_TOKEN",

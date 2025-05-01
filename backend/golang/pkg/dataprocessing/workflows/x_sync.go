@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/workflow"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
-	"github.com/pkg/errors"
-	"go.temporal.io/sdk/temporal"
-	"go.temporal.io/sdk/workflow"
 )
 
 type XSyncWorkflowInput struct{}
@@ -24,7 +25,10 @@ type XSyncWorkflowResponse struct {
 	LastRecordTimestamp time.Time `json:"lastRecordTimestamp"`
 }
 
-func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyncWorkflowInput) (XSyncWorkflowResponse, error) {
+func (w *DataProcessingWorkflows) XSyncWorkflow(
+	ctx workflow.Context,
+	input XSyncWorkflowInput,
+) (XSyncWorkflowResponse, error) {
 	if w.Store == nil {
 		return XSyncWorkflowResponse{}, errors.New("store is nil")
 	}
@@ -88,7 +92,8 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 	}
 
 	w.Logger.Info("filteredRecords", "value", filteredRecords)
-	err = workflow.ExecuteActivity(ctx, w.XIndexActivity, XIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
+	err = workflow.ExecuteActivity(ctx, w.XIndexActivity, XIndexActivityInput{Records: filteredRecords}).
+		Get(ctx, nil)
 	if err != nil {
 		return XSyncWorkflowResponse{}, err
 	}
@@ -99,7 +104,13 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(ctx workflow.Context, input XSyn
 
 	lastRecordID := ""
 	if id, ok := lastRecord.Data["id"]; ok && id != nil {
-		lastRecordID = id.(string)
+		if idStr, ok := id.(string); ok {
+			lastRecordID = idStr
+		} else {
+			// Try to convert to string if possible
+			lastRecordID = fmt.Sprintf("%v", id)
+			w.Logger.Warn("Expected string ID but got different type", "id_type", fmt.Sprintf("%T", id), "id_value", id)
+		}
 	}
 	workflowResponse.LastRecordID = lastRecordID
 	workflowResponse.LastRecordTimestamp = lastRecord.Timestamp
@@ -117,7 +128,10 @@ type XFetchActivityResponse struct {
 	Records []types.Record `json:"records"`
 }
 
-func (w *DataProcessingWorkflows) XFetchActivity(ctx context.Context, input XFetchActivityInput) (XFetchActivityResponse, error) {
+func (w *DataProcessingWorkflows) XFetchActivity(
+	ctx context.Context,
+	input XFetchActivityInput,
+) (XFetchActivityResponse, error) {
 	tokens, err := w.Store.GetOAuthTokens(ctx, "twitter")
 	if err != nil {
 		return XFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
@@ -139,7 +153,10 @@ type XIndexActivityInput struct {
 
 type XIndexActivityResponse struct{}
 
-func (w *DataProcessingWorkflows) XIndexActivity(ctx context.Context, input XIndexActivityInput) (XIndexActivityResponse, error) {
+func (w *DataProcessingWorkflows) XIndexActivity(
+	ctx context.Context,
+	input XIndexActivityInput,
+) (XIndexActivityResponse, error) {
 	documents, err := x.ToDocuments(input.Records)
 	if err != nil {
 		return XIndexActivityResponse{}, err

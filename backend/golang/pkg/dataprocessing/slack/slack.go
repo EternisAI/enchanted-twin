@@ -120,7 +120,6 @@ func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocu
 	textDocuments := make([]memory.TextDocument, 0, len(records))
 
 	for _, record := range records {
-
 		getString := func(key string) string {
 			if val, ok := record.Data[key]; ok {
 				if strVal, ok := val.(string); ok {
