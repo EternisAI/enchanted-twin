@@ -72,7 +72,7 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: 'onboarding-storage',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => localStorage)
     }
   )
