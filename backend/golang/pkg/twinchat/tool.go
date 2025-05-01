@@ -23,19 +23,6 @@ type ChatMessageTool struct {
 	nc      *nats.Conn
 }
 
-// NewChatMessageTool creates a new chat message tool.
-func NewChatMessageTool(
-	logger *log.Logger,
-	storage repository.Repository,
-	nc *nats.Conn,
-) *ChatMessageTool {
-	return &ChatMessageTool{
-		logger:  logger,
-		storage: storage,
-		nc:      nc,
-	}
-}
-
 // Definition returns the tool definition.
 func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
@@ -43,7 +30,7 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 		Function: openai.FunctionDefinitionParam{
 			Name: "send_chat_message",
 			Description: param.NewOpt(
-				"Sends a message to a specified chat, allows specifying the message role (system, user, or assistant)",
+				"Sends a message to a specified chat as the assistant",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
@@ -56,11 +43,6 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 						"type":        "string",
 						"description": "The message text to send",
 					},
-					"role": map[string]any{
-						"type":        "string",
-						"description": "The role of the message (user, assistant, or system)",
-						"enum":        []string{"user", "assistant", "system"},
-					},
 					"image_urls": map[string]any{
 						"type":        "array",
 						"description": "Optional list of image URLs to include with the message",
@@ -69,7 +51,7 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 						},
 					},
 				},
-				"required": []string{"chat_id", "message", "role"},
+				"required": []string{"chat_id", "message"},
 			},
 		},
 	}
@@ -91,17 +73,8 @@ func (t *ChatMessageTool) Execute(
 		return tools.ToolResult{}, fmt.Errorf("message is required")
 	}
 
-	role, ok := args["role"].(string)
-	if !ok || role == "" {
-		return tools.ToolResult{}, fmt.Errorf("role is required")
-	}
-
-	// Validate role enum
-	if role != "user" && role != "assistant" && role != "system" {
-		return tools.ToolResult{}, fmt.Errorf(
-			"role must be one of 'user', 'assistant', or 'system'",
-		)
-	}
+	// Always use "assistant" role since only agents can use this tool
+	role := "assistant"
 
 	// Extract optional image URLs
 	var imageURLs []string

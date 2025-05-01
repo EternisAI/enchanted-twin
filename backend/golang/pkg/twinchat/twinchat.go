@@ -435,11 +435,11 @@ func (s *Service) Tools() []tools.Tool {
 		return []tools.Tool{}
 	}
 
-	chatMessageTool := NewChatMessageTool(
-		s.logger,
-		*repo,
-		s.nc,
-	)
+	chatMessageTool := &ChatMessageTool{
+		logger:  s.logger,
+		storage: *repo,
+		nc:      s.nc,
+	}
 
 	return []tools.Tool{chatMessageTool}
 }
