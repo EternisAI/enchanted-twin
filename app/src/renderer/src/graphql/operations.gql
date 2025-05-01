@@ -122,6 +122,10 @@ mutation DeleteChat($chatId: ID!) {
   }
 }
 
+mutation UpdateProfile($input: UpdateProfileInput!) {
+  updateProfile(input: $input)
+}
+
 subscription MessageAdded($chatId: ID!) {
   messageAdded(chatId: $chatId) {
     id
