@@ -163,6 +163,17 @@ subscription IndexingStatus {
   }
 }
 
+subscription NotificationAdded {
+  notificationAdded {
+    id
+    title
+    message
+    image
+    link
+    createdAt
+  }
+}
+
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }

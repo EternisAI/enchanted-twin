@@ -3,6 +3,7 @@ import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { Card } from '@renderer/components/ui/card'
+import NotificationStatusCard from '@renderer/components/settings/notifications/NotificationStatusCard'
 
 export const Route = createFileRoute('/settings')({
   component: Settings
@@ -45,6 +46,8 @@ function Settings() {
           </Button>
         </div>
       </Card>
+
+      <NotificationStatusCard />
     </div>
   )
 }
