@@ -166,6 +166,20 @@ const IndexedDataSourceCard = ({
   const sourceDetails = SUPPORTED_DATA_SOURCES.find((s) => s.name === source.name)
   if (!sourceDetails) return null
 
+  // Calculate progress:
+  // - 10% for processing
+  // - 90% for indexing
+  const processingProgress = source.isProcessed ? 10 : 0
+  const indexingProgress = source.isIndexed
+    ? 90
+    : source.indexProgress !== undefined
+      ? source.indexProgress * 0.9
+      : 0
+  const totalProgress = processingProgress + indexingProgress
+
+  const showProgressBar =
+    !source.isIndexed && (source.isProcessed ? (source.indexProgress ?? 0) > 0 : true)
+
   return (
     <div className="p-4 rounded-lg bg-transparent border h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
@@ -173,12 +187,12 @@ const IndexedDataSourceCard = ({
         <div className="flex flex-col gap-0 justify-start">
           <h3 className="font-medium">{source.name}</h3>
           {source.hasError && <p className="text-xs text-red-500">Error</p>}
-          {!source.isIndexed && !source.isProcessed ? (
+          {showProgressBar ? (
             <div className="w-full bg-secondary rounded-full h-1 mt-2">
               <div
                 className="bg-primary h-1 rounded-full transition-all duration-300"
                 style={{
-                  width: `${source.indexProgress}%`
+                  width: `${totalProgress}%`
                 }}
               />
             </div>
@@ -199,56 +213,21 @@ const IndexedDataSourceCard = ({
         </div>
       </div>
       <div className="flex items-center gap-1 text-xs text-muted-foreground">
-        <span>{source.isIndexed ? '' : source.isProcessed ? 'Indexing' : 'Pending'}</span>
+        <span>
+          {source.isIndexed
+            ? ''
+            : source.isProcessed
+              ? (source.indexProgress ?? 0) > 0
+                ? 'Indexing'
+                : 'Pending'
+              : 'Processing'}
+        </span>
       </div>
       {/* {!source.isProcessed && !source.isIndexed && (
         <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onRemove}>
           <X className="h-4 w-4 text-muted-foreground" />
         </Button>
       )} */}
-    </div>
-  )
-}
-
-const DataSourceProgressItem = ({
-  source
-}: {
-  source: {
-    id: string
-    name: string
-    isProcessed: boolean
-    isIndexed: boolean
-    indexProgress?: number
-    hasError: boolean
-  }
-}) => {
-  // Calculate progress:
-  // - 10% for processing
-  // - 90% for indexing
-  const processingProgress = source.isProcessed ? 10 : 0
-  const indexingProgress = source.isIndexed
-    ? 90
-    : source.indexProgress
-      ? source.indexProgress * 0.9
-      : 0
-  const totalProgress = processingProgress + indexingProgress
-
-  return (
-    <div className="flex flex-col gap-2">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{source.name}</span>
-        <span className="text-sm text-muted-foreground">
-          {source.isIndexed ? 'Indexed' : source.isProcessed ? 'Processing' : 'Pending'}
-        </span>
-      </div>
-      <div className="w-full bg-secondary rounded-full h-2">
-        <div
-          className="bg-primary h-2 rounded-full transition-all duration-300"
-          style={{
-            width: `${totalProgress}%`
-          }}
-        />
-      </div>
     </div>
   )
 }
@@ -439,18 +418,6 @@ export function DataSourcesPanel({
     }
   }, [isIndexing, onIndexingComplete, indexingData?.indexingStatus?.dataSources])
 
-  const renderIndexingProgress = () => {
-    if (!indexingData?.indexingStatus?.dataSources?.length) return null
-
-    return (
-      <div className="flex flex-col gap-4">
-        {indexingData?.indexingStatus?.dataSources?.map((source) => (
-          <DataSourceProgressItem key={source.id} source={source} />
-        ))}
-      </div>
-    )
-  }
-
   const toggleGroup = useCallback((groupName: string) => {
     setExpandedGroups((prev) => ({
       ...prev,
@@ -544,8 +511,6 @@ export function DataSourcesPanel({
           )}
         </div>
       )}
-
-      {renderIndexingProgress()}
 
       {hasUnprocessedSources && !isIndexing && !isProcessing && !isNotStarted && (
         <Button size="lg" onClick={handleRetryIndexing} className="w-full">

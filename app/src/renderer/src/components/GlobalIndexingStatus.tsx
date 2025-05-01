@@ -1,7 +1,6 @@
 import { useSubscription } from '@apollo/client'
 import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from './ui/button'
-import { Loader2, RefreshCw } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 import { useRouter } from '@tanstack/react-router'
 
@@ -63,11 +62,6 @@ export function GlobalIndexingStatus() {
             onClick={handleClick}
           >
             <div className="flex items-center gap-2">
-              {isIndexing || isProcessing || isNotStarted ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : (
-                <RefreshCw className="h-3 w-3" />
-              )}
               <span>{getStatusText()}</span>
               <div className="w-16 bg-secondary rounded-full h-1">
                 <div
