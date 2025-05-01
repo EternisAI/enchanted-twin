@@ -4,6 +4,7 @@ import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { ContinueSetupButton } from '@renderer/components/ContinueSetupButton'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
+import { useOsNotifications } from '@renderer/hooks/useNotifications'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -11,6 +12,7 @@ function DevBadge() {
 
 function RootComponent() {
   const { isCompleted } = useOnboardingStore()
+  useOsNotifications()
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground pt-8">
