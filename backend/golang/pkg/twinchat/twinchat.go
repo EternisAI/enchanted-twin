@@ -17,6 +17,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -28,6 +29,7 @@ type Service struct {
 	logger           *log.Logger
 	completionsModel string
 	toolRegistry     *tools.Registry
+	store            *db.Store
 }
 
 func NewService(
@@ -36,6 +38,7 @@ func NewService(
 	storage Storage,
 	nc *nats.Conn,
 	completionsModel string,
+	store *db.Store,
 ) *Service {
 	// Get the global tool registry
 	registry := tools.GetGlobal(logger)
@@ -47,6 +50,7 @@ func NewService(
 		nc:               nc,
 		completionsModel: completionsModel,
 		toolRegistry:     registry,
+		store:            store,
 	}
 }
 
@@ -105,12 +109,25 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
+	userProfile, err := s.store.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	systemPrompt := "You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."
+	if userProfile.Name != nil {
+		systemPrompt += fmt.Sprintf("\n\nName: %s", *userProfile.Name)
+	}
+	if userProfile.Bio != nil {
+		systemPrompt += fmt.Sprintf("\n\nBio: %s", *userProfile.Bio)
+	}
+	now := time.Now().Format(time.RFC3339)
+	systemPrompt += fmt.Sprintf("\n\nCurrent time: %s.", now)
+
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
-		openai.SystemMessage(
-			"You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level.",
-		),
+		openai.SystemMessage(systemPrompt),
 	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
