@@ -704,7 +704,10 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						s.Logger.Info("Error getting telegram enabled", "error", err)
 					}
 					if telegramEnabled != "true" {
-						helpers.SetTelegramEnabled(ctx, s.Store, true)
+						err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
+						if err != nil {
+							s.Logger.Error("Error setting telegram enabled", "error", err)
+						}
 					}
 
 					s.Logger.Info("Received message", "message", response.Payload.Data.TelegramMessageAdded.Text)
