@@ -89,13 +89,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
-      - name: Upload latest.yml to S3
-        run: |
-          aws s3 sync app/dist/mac-arm64 s3://enchanted-app --acl public-read --region us-east-1
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-
       - name: Verify notarization
         run: |
           RESULT=$(spctl --assess --type exec --verbose=4 app/dist/mac-arm64/Enchanted.app 2>&1)
