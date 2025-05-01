@@ -67,11 +67,7 @@ func (a *AgentActivities) generateNextAction(
 
 	// Convert OpenAI tool calls to our custom format
 	toolCalls := ToolCallsFromOpenAI(completion.ToolCalls)
-
-	// Add to state's tool calls history
-	for _, toolCall := range toolCalls {
-		state.ToolCalls = append(state.ToolCalls, toolCall)
-	}
+	state.ToolCalls = append(state.ToolCalls, toolCalls...)
 
 	logger.Info("Generated next actions", "total_tool_calls", len(toolCalls))
 
