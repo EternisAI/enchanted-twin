@@ -404,12 +404,6 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 	subject := "indexing_data"
 
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
-		r.Logger.Info("Received indexing status message",
-			"subject", msg.Subject,
-			"data", string(msg.Data),
-			"connected", r.Nc.IsConnected(),
-			"status", r.Nc.Status().String())
-
 		var status model.IndexingStatus
 		err := json.Unmarshal(msg.Data, &status)
 		if err != nil {
@@ -421,7 +415,6 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 
 		select {
 		case statusChan <- &status:
-			r.Logger.Info("Successfully sent status to channel", "subject", msg.Subject)
 		case <-ctx.Done():
 			r.Logger.Info("Context cancelled while sending status", "subject", msg.Subject)
 			return
