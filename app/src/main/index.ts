@@ -323,11 +323,13 @@ function setupAutoUpdater() {
 }
 
 function checkForUpdates(silent = false) {
+  log.info(`[checkForUpdates] Called with silent=${silent}`)
+
   if (updateDownloaded) {
-    log.info(`Update previously downloaded. Silent check: ${silent}`)
+    log.info(`[checkForUpdates] Update previously downloaded. Silent check: ${silent}`)
 
     if (silent) {
-      log.info('Silent check found downloaded update. Initiating quit and install.')
+      log.info('[checkForUpdates] Silent check found downloaded update. Initiating quit and install...')
       autoUpdater.quitAndInstall(true, true)
     } else {
       if (mainWindow) {
@@ -436,6 +438,10 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(async () => {
   const splash = createSplashWindow()
+
+  // Log the app version first thing!
+  log.info(`App version: ${app.getVersion()}`)
+
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
     ? join(__dirname, '..', '..', 'resources', executable) // Path in development

@@ -52,15 +52,29 @@ jobs:
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
 
       - name: Set app version
-        if: github.event_name == 'workflow_dispatch'
+        # Run for both workflow_dispatch and release events
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
         working-directory: app
         run: |
+          # Determine version based on trigger event
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          elif [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            echo "Unknown event type: ${{ github.event_name }}"
+            exit 1
+          fi
+
           # Extract version number without 'v' prefix (e.g., 1.2.3 from v1.2.3)
-          VERSION="${{ github.event.inputs.version }}"
-          VERSION_NUMBER="${VERSION#v}"
+          if [[ "$VERSION" == v* ]]; then
+            VERSION_NUMBER="${VERSION#v}"
+          else
+            VERSION_NUMBER="$VERSION" # Handle cases where 'v' prefix might be missing
+          fi
           
           # Update version in package.json
-          jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
+          jq ".version = \\"$VERSION_NUMBER\\"" package.json > package.json.tmp
           mv package.json.tmp package.json
           echo "Updated package.json version to $VERSION_NUMBER"
 
