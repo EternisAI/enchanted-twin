@@ -18,6 +18,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/google_addresses"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -313,8 +314,11 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 	case "chatgpt":
 		source := chatgpt.New(inputPath)
 		records, err = source.ProcessDirectory(name)
+	case "misc":
+		source := misc.New(inputPath)
+		records, err = source.ProcessDirectory()
 	default:
-		return false, fmt.Errorf("unsupported source type: %s", sourceType)
+		return true, nil
 	}
 
 	err = SaveRecords(records, outputPath)
