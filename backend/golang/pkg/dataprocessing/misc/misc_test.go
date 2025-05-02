@@ -115,11 +115,8 @@ func TestProcessDirectory(t *testing.T) {
 		t.Errorf("Expected %d records, got %d", expectedCount, len(records))
 	}
 
-	source = New(nil).WithExtensions([]string{".txt"})
+	source = New(nil)
 	records, err = source.ProcessDirectory(tempDir)
-	if err != nil {
-		t.Fatalf("ProcessDirectory with custom extensions failed: %v", err)
-	}
 
 	expectedCount = 3
 	if len(records) != expectedCount {

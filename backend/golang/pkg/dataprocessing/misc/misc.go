@@ -22,26 +22,18 @@ const (
 type Source struct {
 	openAiService *ai.Service
 	chunkSize     int
-	extensions    []string
 }
 
 func New(openAiService *ai.Service) *Source {
 	return &Source{
 		openAiService: openAiService,
 		chunkSize:     DefaultChunkSize,
-		extensions:    []string{".txt", ".md", ".log"}, // Default extensions to process
 	}
 }
 
 // WithChunkSize allows setting a custom chunk size
 func (s *Source) WithChunkSize(size int) *Source {
 	s.chunkSize = size
-	return s
-}
-
-// WithExtensions allows setting which file extensions to process
-func (s *Source) WithExtensions(extensions []string) *Source {
-	s.extensions = extensions
 	return s
 }
 
@@ -88,7 +80,7 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 	}
 
 	// Run completion with our tool
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{isHumanReadableTool}, "gpt-3.5-turbo")
+	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{isHumanReadableTool}, "gpt-4o-mini")
 	if err != nil {
 		return false, fmt.Errorf("failed to analyze content: %w", err)
 	}
@@ -209,20 +201,6 @@ func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
 		}
 
 		if d.IsDir() {
-			return nil
-		}
-
-		// Check if the file has one of the supported extensions
-		ext := strings.ToLower(filepath.Ext(path))
-		isSupported := false
-		for _, supportedExt := range s.extensions {
-			if ext == supportedExt {
-				isSupported = true
-				break
-			}
-		}
-
-		if !isSupported {
 			return nil
 		}
 
