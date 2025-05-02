@@ -310,15 +310,28 @@ function setupAutoUpdater() {
   })
 
   autoUpdater.on('update-downloaded', (info) => {
-    log.info('Update downloaded:', info)
     updateDownloaded = true
-    
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'Update downloaded, restart to install')
-      log.info('Update download complete. Installation will occur on next restart or manual check.')
-    } else {
-      log.warn('Update downloaded but mainWindow is not available to notify.')
-    }
+    log.info('Update downloaded', info)
+    mainWindow?.webContents.send('update-status', 'Update downloaded – ready to install')
+
+    dialog
+      .showMessageBox(mainWindow!, {
+        type: 'info',
+        title: 'Update Ready',
+        message: `Version ${info.version} has been downloaded. Install and restart now?`,
+        buttons: ['Install & Restart', 'Later'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          log.info('User accepted update – restarting')
+          // small delay so the dialog can close cleanly
+          setTimeout(() => autoUpdater.quitAndInstall(true, true), 300)
+        } else {
+          log.info('User chose to install later')
+        }
+      })
   })
 }
 
