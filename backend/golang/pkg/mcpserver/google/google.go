@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
-	"github.com/charmbracelet/log"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 
-	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
@@ -60,24 +57,6 @@ func (c *GoogleClient) CallTool(
 		return nil, err
 	}
 
-	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "google")
-	if err != nil {
-		return nil, err
-	}
-
-	logger := log.Default()
-	if oauthTokens.ExpiresAt.Before(time.Now()) {
-		fmt.Println("Refreshing token for google")
-		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "google")
-		if err != nil {
-			return nil, err
-		}
-		oauthTokens, err = c.Store.GetOAuthTokens(ctx, "google")
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	var content []*mcp_golang.Content
 
 	switch name {
@@ -122,7 +101,7 @@ func (c *GoogleClient) CallTool(
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processSearchFiles(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processSearchFiles(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +111,7 @@ func (c *GoogleClient) CallTool(
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processReadFile(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processReadFile(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +121,7 @@ func (c *GoogleClient) CallTool(
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processListEvents(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processListEvents(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
@@ -152,7 +131,7 @@ func (c *GoogleClient) CallTool(
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processCreateEvent(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processCreateEvent(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}

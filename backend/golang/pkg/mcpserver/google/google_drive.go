@@ -12,6 +12,7 @@ import (
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
@@ -33,12 +34,14 @@ type SearchFilesQuery struct {
 }
 
 type SearchFilesArguments struct {
+	EmailAccount string           `json:"email_account" 		   jsonschema:"required,description=The email account to list files from"`
 	Query     SearchFilesQuery `json:"query,omitempty"      jsonschema:"required,description=The query string to search for file titles"`
 	PageToken string           `json:"page_token,omitempty" jsonschema:"description=Optional page token for pagination."`
 	Limit     int              `json:"limit,omitempty"      jsonschema:"description=Maximum number of files to return, default is 10, minimum 10, maximum 50."`
 }
 
 type ReadFileArguments struct {
+	EmailAccount string `json:"email_account" 		   jsonschema:"required,description=The email account to list files from"`
 	FileID string `json:"file_id" jsonschema:"required,description=The ID of the file to read."`
 }
 
@@ -93,9 +96,14 @@ func (q *SearchFilesQuery) ToQuery() string {
 
 func processSearchFiles(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	args SearchFilesArguments,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	driveService, err := getDriveService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
@@ -150,9 +158,13 @@ func processSearchFiles(
 
 func processReadFile(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	args ReadFileArguments,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
 	driveService, err := getDriveService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
@@ -385,6 +397,8 @@ func getDriveService(ctx context.Context, accessToken string) (*drive.Service, e
 	}
 	return driveService, nil
 }
+
+
 
 func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType

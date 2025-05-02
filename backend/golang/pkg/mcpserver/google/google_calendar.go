@@ -10,6 +10,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
@@ -24,6 +25,7 @@ const (
 )
 
 type ListEventsArguments struct {
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to list events from"`
 	CalendarID string `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'. Use 'primary' for the primary calendar of the authenticated user."`
 	TimeMin    string `json:"time_min,omitempty"    jsonschema:"description=Start time (RFC3339 format) for the query. Example: '2024-01-01T00:00:00Z'"`
 	TimeMax    string `json:"time_max,omitempty"    jsonschema:"description=End time (RFC3339 format) for the query. Example: '2024-01-02T00:00:00Z'"`
@@ -33,6 +35,7 @@ type ListEventsArguments struct {
 }
 
 type CreateEventArgs struct {
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to create events from"`
 	CalendarID  string   `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'."`
 	Summary     string   `json:"summary"               jsonschema:"required,description=Title of the event."`
 	Description string   `json:"description,omitempty" jsonschema:"description=Description of the event."`
@@ -44,9 +47,14 @@ type CreateEventArgs struct {
 
 func processListEvents(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	args ListEventsArguments,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	calendarService, err := getCalendarService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Calendar service: %w", err)
@@ -118,9 +126,14 @@ func processListEvents(
 
 func processCreateEvent(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	args CreateEventArgs,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	calendarService, err := getCalendarService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Calendar service: %w", err)
