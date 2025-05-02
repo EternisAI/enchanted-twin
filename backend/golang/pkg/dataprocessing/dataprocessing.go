@@ -443,7 +443,11 @@ func Sync(ctx context.Context, sourceName string, accessToken string, store *db.
 	}
 
 	if !authorized {
-		store.SetOAuthTokenError(ctx, accessToken, true)
+		if err := store.SetOAuthTokenError(ctx, accessToken, true); err != nil {
+			// Log the error, but continue as the main error (if any) is handled below
+			// TODO: Consider how to handle this more robustly
+			log.Printf("Error setting OAuth token error status for %s: %v", sourceName, err)
+		}
 	}
 
 	if err != nil {

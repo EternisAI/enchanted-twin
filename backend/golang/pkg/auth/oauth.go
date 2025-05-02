@@ -527,7 +527,10 @@ func RefreshOAuthToken(
 			lastError = err
 
 			token.Error = true
-			store.SetOAuthTokens(ctx, token)
+			if err := store.SetOAuthTokens(ctx, token); err != nil {
+				// Log the error but continue processing other tokens
+				logger.Error("failed to update token error status", "provider", provider, "username", token.Username, "error", err)
+			}
 			continue
 		}
 

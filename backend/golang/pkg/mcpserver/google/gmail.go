@@ -19,16 +19,16 @@ import (
 )
 
 const (
-	SEARCH_EMAILS_TOOL_NAME = "search_emails"
-	SEND_EMAIL_TOOL_NAME    = "send_email"
-	EMAIL_BY_ID_TOOL_NAME   = "email_by_id"
+	SEARCH_EMAILS_TOOL_NAME       = "search_emails"
+	SEND_EMAIL_TOOL_NAME          = "send_email"
+	EMAIL_BY_ID_TOOL_NAME         = "email_by_id"
 	LIST_EMAIL_ACCOUNTS_TOOL_NAME = "list_email_accounts"
 )
 
 const (
-	SEARCH_EMAILS_TOOL_DESCRIPTION = "Search the emails from the user's inbox, returns subject, from, date and id"
-	SEND_EMAIL_TOOL_DESCRIPTION    = "Send an email to recipient email address"
-	EMAIL_BY_ID_TOOL_DESCRIPTION   = "Get the email by id, returns subject, from, date and body"
+	SEARCH_EMAILS_TOOL_DESCRIPTION       = "Search the emails from the user's inbox, returns subject, from, date and id"
+	SEND_EMAIL_TOOL_DESCRIPTION          = "Send an email to recipient email address"
+	EMAIL_BY_ID_TOOL_DESCRIPTION         = "Get the email by id, returns subject, from, date and body"
 	LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION = "List the email accounts the user has"
 )
 
@@ -46,14 +46,14 @@ type SearchEmailsArguments struct {
 	EmailAccount string     `json:"email_account" jsonschema:"required,description=The email account to list emails from"`
 	Query        EmailQuery `json:"query"      jsonschema:"description=The query to list emails, default is 'in:inbox'"`
 	PageToken    string     `json:"page_token" jsonschema:"description=The page token to list, default is empty"`
-	Limit     	 int        `json:"limit"      jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	Limit        int        `json:"limit"      jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
-	EmailAccount   string `json:"email_account" jsonschema:"required,description=The email account to send the email from"`
-	To             string `json:"to"  jsonschema:"required,description=The email address to send the email to"`
-	Subject        string `json:"subject" jsonschema:"required,description=The subject of the email"`
-	Body           string `json:"body"    jsonschema:"required,description=The body of the email"`
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to send the email from"`
+	To           string `json:"to"  jsonschema:"required,description=The email address to send the email to"`
+	Subject      string `json:"subject" jsonschema:"required,description=The subject of the email"`
+	Body         string `json:"body"    jsonschema:"required,description=The body of the email"`
 }
 
 type EmailByIdArguments struct {
@@ -102,7 +102,6 @@ func processSearchEmails(
 	store *db.Store,
 	arguments SearchEmailsArguments,
 ) ([]*mcp_golang.Content, error) {
-
 	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -187,7 +186,6 @@ func processSendEmail(
 	store *db.Store,
 	arguments SendEmailArguments,
 ) ([]*mcp_golang.Content, error) {
-
 	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -235,7 +233,6 @@ func processEmailById(
 	store *db.Store,
 	arguments EmailByIdArguments,
 ) ([]*mcp_golang.Content, error) {
-
 	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
 	if err != nil {
 		return nil, err
@@ -299,7 +296,7 @@ func processListEmailAccounts(
 	if err != nil {
 		return nil, err
 	}
-	
+
 	emailAccounts := make([]string, 0)
 	for _, oauthToken := range oauthTokens {
 		emailAccounts = append(emailAccounts, oauthToken.Username)
@@ -403,10 +400,6 @@ func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 		InputSchema: emailByIdSchema,
 	})
 
-
-	if err != nil {
-		return nil, fmt.Errorf("error generating schema for list_email_accounts: %w", err)
-	}
 	desc = LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION
 	tools = append(tools, mcp_golang.ToolRetType{
 		Name:        LIST_EMAIL_ACCOUNTS_TOOL_NAME,

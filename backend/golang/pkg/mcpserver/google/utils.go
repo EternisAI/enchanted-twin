@@ -12,8 +12,6 @@ type TimeRange struct {
 	To   uint64 `json:"to"   jsonschema:",description=The end timestamp in seconds of the time range, default is 0"`
 }
 
-
-
 func GetAccessToken(ctx context.Context, store *db.Store, emailAccount string) (string, error) {
 	oauthTokens, err := store.GetOAuthTokensArray(ctx, "google")
 	if err != nil {
