@@ -9,11 +9,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
 )
 
 const (
@@ -32,7 +33,7 @@ func New(openAiService *ai.Service) *Source {
 	}
 }
 
-// WithChunkSize allows setting a custom chunk size
+// WithChunkSize allows setting a custom chunk size.
 func (s *Source) WithChunkSize(size int) *Source {
 	s.chunkSize = size
 	return s
@@ -42,7 +43,7 @@ func (s *Source) Name() string {
 	return "misc"
 }
 
-// IsHumanReadableContent uses OpenAI to determine if the content is human-readable
+// IsHumanReadableContent uses OpenAI to determine if the content is human-readable.
 func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bool, error) {
 	contentSample := content
 	if len(content) > 500 {
@@ -99,7 +100,7 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 	return strings.Contains(strings.ToLower(response.Content), "true"), nil
 }
 
-// ExtractContentTags uses OpenAI to extract relevant tags from the content
+// ExtractContentTags uses OpenAI to extract relevant tags from the content.
 func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
 	contentSample := content
 	if len(content) > 1000 {
@@ -264,7 +265,7 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	return records, nil
 }
 
-// ProcessDirectory walks through a directory and processes all text files
+// ProcessDirectory walks through a directory and processes all text files.
 func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
@@ -301,7 +302,6 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
-
 		metadata := map[string]string{}
 
 		content := ""
