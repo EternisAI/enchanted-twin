@@ -81,12 +81,18 @@ func (c *GoogleClient) CallTool(
 	var content []*mcp_golang.Content
 
 	switch name {
+	case LIST_EMAIL_ACCOUNTS_TOOL_NAME:
+		result, err := processListEmailAccounts(ctx, c.Store)
+		if err != nil {
+			return nil, err
+		}
+		content = result
 	case SEARCH_EMAILS_TOOL_NAME:
 		var argumentsTyped SearchEmailsArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processSearchEmails(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processSearchEmails(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
@@ -96,7 +102,7 @@ func (c *GoogleClient) CallTool(
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processSendEmail(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processSendEmail(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +112,7 @@ func (c *GoogleClient) CallTool(
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processEmailById(ctx, oauthTokens.AccessToken, argumentsTyped)
+		result, err := processEmailById(ctx, c.Store, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}

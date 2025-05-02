@@ -101,7 +101,7 @@ func (s *Store) InitOAuthTokens(ctx context.Context) error {
 	// Create the tokens table
 	_, err := s.db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS oauth_tokens (
-			provider TEXT PRIMARY KEY,
+			provider TEXT NOT NULL,
 			token_type TEXT NOT NULL,
 			scope TEXT NOT NULL ,
 			access_token TEXT NOT NULL,
@@ -109,6 +109,7 @@ func (s *Store) InitOAuthTokens(ctx context.Context) error {
 			refresh_token TEXT NOT NULL,
 			username TEXT NOT NULL,
 			error BOOLEAN NOT NULL DEFAULT FALSE,
+			PRIMARY KEY (provider, username),
 			FOREIGN KEY (provider) REFERENCES oauth_providers(provider)
 		)
 	`)
@@ -274,10 +275,11 @@ func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthToke
 			error
 		FROM oauth_tokens
 		WHERE provider = ?
+		LIMIT 1
 	`, provider)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // Provider not found
+			return nil, nil // Provider not found or no tokens for provider
 		}
 		return nil, fmt.Errorf("failed to get OAuth tokens for provider '%s': %w", provider, err)
 	}

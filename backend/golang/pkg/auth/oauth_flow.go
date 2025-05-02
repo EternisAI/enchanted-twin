@@ -113,6 +113,7 @@ func fetchUserInfo(
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Println("Error sending user request:", err)
 		return nil, fmt.Errorf("failed to send user request: %w", err)
 	}
 	defer func() {
