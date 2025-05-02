@@ -33,13 +33,13 @@ const (
 )
 
 type EmailQuery struct {
-	In        string    `json:"in"         jsonschema:"description=The inbox to list emails from, default is 'inbox'"`
+	In         string     `json:"in"         jsonschema:"description=The inbox to list emails from, default is 'inbox'"`
 	TimeFilter TimeFilter `json:"time_filter" jsonschema:"description=The time filter to list emails, default is empty"`
-	From      string    `json:"from"       jsonschema:"description=The sender of the emails to list, default is empty"`
-	To        string    `json:"to"         jsonschema:"description=The recipient of the emails to list, default is empty"`
-	Subject   string    `json:"subject"    jsonschema:"description=The text to search for in the subject of the emails, default is empty"`
-	Body      string    `json:"body"       jsonschema:"description=The text to search for in the body of the emails, default is empty"`
-	Label     string    `json:"label"      jsonschema:"description=The label of the emails to list, default is empty"`
+	From       string     `json:"from"       jsonschema:"description=The sender of the emails to list, default is empty"`
+	To         string     `json:"to"         jsonschema:"description=The recipient of the emails to list, default is empty"`
+	Subject    string     `json:"subject"    jsonschema:"description=The text to search for in the subject of the emails, default is empty"`
+	Body       string     `json:"body"       jsonschema:"description=The text to search for in the body of the emails, default is empty"`
+	Label      string     `json:"label"      jsonschema:"description=The label of the emails to list, default is empty"`
 }
 
 type SearchEmailsArguments struct {
