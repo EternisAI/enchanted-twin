@@ -3,13 +3,12 @@ package plannedv2
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
-	"go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
@@ -31,8 +30,6 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 			MaximumAttempts: 3,
 		},
 	})
-
-	var a *AgentActivities
 
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting PlannedAgentWorkflow", "input_size", len(input))
@@ -57,29 +54,25 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 
 	// Create initial state
 	state := PlanState{
-		Plan:        planInput.Plan,
-		CurrentStep: 0,
-		Complete:    false,
-		Messages:    []ai.Message{},
-		ToolCalls:   []ToolCall{},
-		ToolResults: []types.ToolResult{},
-		History:     []HistoryEntry{},
-		Output:      "",
-		ImageURLs:   []string{},
-		StartTime:   workflow.Now(ctx),
-	}
-
-	// Fetch and register tools
-	if err := fetchAndRegisterTools(ctx, &state, planInput.ToolNames); err != nil {
-		state.Error = fmt.Sprintf("failed to fetch tools: %v", err)
-		return fmt.Errorf("failed to fetch tools: %w", err)
+		Plan:          planInput.Plan,
+		CurrentStep:   0,
+		Complete:      false,
+		Schedule:      planInput.Schedule,
+		Messages:      []ai.Message{},
+		SelectedTools: planInput.ToolNames,
+		ToolCalls:     []ToolCall{},
+		ToolResults:   []types.ToolResult{},
+		History:       []HistoryEntry{},
+		Output:        "",
+		ImageURLs:     []string{},
+		StartTime:     workflow.Now(ctx),
 	}
 
 	// Add system prompt
 	systemPrompt := planInput.SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = fmt.Sprintf(
-			"You are a helpful assistant that follows a plan. Your task is to execute this plan step by step:\n\n%s\n\nAs you work through the plan, think step-by-step, use tools when needed, and provide a clear final answer.",
+			"You are a helpful assistant that follows a plan.\nYour task is to execute this plan step by step:\n\n%s\n\nAs you work through the plan, think step-by-step, use tools when needed, and provide a clear final answer.",
 			planInput.Plan,
 		)
 	}
@@ -105,7 +98,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	}
 
 	// Execute the plan
-	err := a.executeReActLoop(ctx, &state, planInput.Model, planInput.MaxSteps)
+	err := executeReActLoop(ctx, &state, planInput.Model, planInput.MaxSteps)
 	if err != nil {
 		state.Error = fmt.Sprintf("execution failed: %v", err)
 		return fmt.Errorf("execution failed: %w", err)
@@ -115,26 +108,29 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 }
 
 // executeReActLoop implements the ReAct loop for executing the plan.
-func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
+func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
 	logger := workflow.GetLogger(ctx)
 
-	// Get tool definitions from the registry
-	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
-	if state.Registry != nil {
-		apiToolDefinitions = state.Registry.Definitions()
+	userMessage := "Please faithfully complete the following task\n"
+	if state.Schedule != "" {
+		userMessage += fmt.Sprintf("Schedule: %s\n\n", state.Schedule)
 	}
-
+	userMessage += fmt.Sprintf("Plan: %s\n\n", state.Plan)
 	// Prompt the agent to start executing the plan
 	state.Messages = append(
 		state.Messages,
-		ai.NewUserMessage(fmt.Sprintf("Please start executing this plan: %s", state.Plan)),
+		ai.NewUserMessage(userMessage),
 	)
 
 	// Main ReAct loop
 	for state.CurrentStep < maxSteps && !state.Complete {
+		// Update the system time in the first message
+		if err := updateSystemTime(ctx, state); err != nil {
+			logger.Warn("Failed to update system time", "error", err)
+		}
 
 		// Generate the next actions using LLM
-		toolCalls, err := a.generateNextAction(ctx, state, apiToolDefinitions, model)
+		toolCalls, err := generateNextAction(ctx, state, model)
 		if err != nil {
 			logger.Error("Failed to generate next actions", "error", err)
 			state.History = append(state.History, HistoryEntry{
@@ -180,7 +176,7 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 			}
 
 			// Execute the tool call
-			result, err := a.executeAction(ctx, toolCall, state)
+			result, err := executeAction(ctx, toolCall, state)
 
 			// Always add a tool message, either with result or error
 			if err != nil {
@@ -258,8 +254,11 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 			),
 		)
 
+		// For the final completion, we need an AgentActivities instance,
+		// which would typically be provided by the caller
+		var activities *AgentActivities
 		var finalCompletion openai.ChatCompletionMessage
-		err := workflow.ExecuteActivity(ctx, a.LLMCompletionActivity, model, state.Messages, []openai.ChatCompletionToolParam{}).
+		err := workflow.ExecuteActivity(ctx, activities.LLMCompletionActivity, model, state.Messages, []openai.ChatCompletionToolParam{}).
 			Get(ctx, &finalCompletion)
 		if err != nil {
 			logger.Error("Failed to get final summary", "error", err)
@@ -279,75 +278,111 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 	return nil
 }
 
-// fetchAndRegisterTools fetches available tools and registers them.
-func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []string) error {
-	logger := workflow.GetLogger(ctx)
-	logger.Info("Fetching and registering tools", "requested_tools", toolNames)
+func updateSystemTime(ctx workflow.Context, state *PlanState) error {
+	// TODO: should use a template for/to update the system message
+	// Update the system time in the state
+	if state == nil || len(state.Messages) == 0 {
+		return fmt.Errorf("state is nil or messages empty")
+	}
+	if state.Messages[0].Role != "system" {
+		return fmt.Errorf("first message is not a system message")
+	}
 
-	// Get the global tool registry
-	registry := tools.GetGlobal(nil) // Logger not needed here as it's already initialized
+	now := time.Now().Format(time.RFC3339)
+	timePattern := "Current System Time: "
+	timeStr := fmt.Sprintf("%s%s\n", timePattern, now)
 
-	// Set the registry in the state for later use
-	state.Registry = registry
+	// Check if the message already contains a time pattern
+	currentContent := state.Messages[0].Content
 
-	// Always add built-in workflow tools
-	addBuiltInWorkflowTools(state, logger)
-
-	registeredTools := []tools.Tool{}
-
-	// If specific tools were requested, get only those
-	if len(toolNames) > 0 {
-		for _, name := range toolNames {
-			// Skip built-in workflow tools as they're added separately
-			if name == "sleep" || name == "sleep_until" || name == "final_response" {
-				continue
-			}
-
-			if tool, exists := registry.Get(name); exists {
-				registeredTools = append(registeredTools, tool)
-			} else {
-				logger.Warn("Requested tool not found in registry", "tool", name)
-			}
+	if timeIndex := strings.Index(currentContent, timePattern); timeIndex != -1 {
+		// Find the end of the existing timestamp (look for newline)
+		endOfLine := strings.Index(currentContent[timeIndex:], "\n")
+		if endOfLine == -1 {
+			// If no newline, append one to the new time string
+			newContent := currentContent[:timeIndex] + timeStr
+			state.Messages[0].Content = newContent
+		} else {
+			// Replace just the line with the timestamp
+			newContent := currentContent[:timeIndex] + timeStr + currentContent[timeIndex+endOfLine+1:]
+			state.Messages[0].Content = newContent
 		}
 	} else {
-		// No specific tools requested, get all tools from registry
-		for _, name := range registry.List() {
-			// Skip built-in workflow tools as they're added separately
-			if name == "sleep" || name == "sleep_until" || name == "final_response" {
-				continue
-			}
-
-			if tool, exists := registry.Get(name); exists {
-				registeredTools = append(registeredTools, tool)
-			}
+		// No existing timestamp, add to the end with appropriate newlines
+		if !strings.HasSuffix(currentContent, "\n") {
+			currentContent += "\n\n"
+		} else if !strings.HasSuffix(currentContent, "\n\n") {
+			currentContent += "\n"
 		}
+		state.Messages[0].Content = currentContent + timeStr
 	}
-
-	// Register all regular tools from the registry
-	if len(registeredTools) > 0 {
-		if err := registry.Register(registeredTools...); err != nil {
-			logger.Error("Failed to register tools", "error", err)
-		}
-	}
-
-	workflowToolCount := len(tools.WorkflowImmediateTools())
-	logger.Info("Tools registered for workflow",
-		"total_tools", len(registry.List()),
-		"workflow_tools", workflowToolCount,
-		"registry_tools", len(registeredTools))
 
 	return nil
 }
 
-// addBuiltInWorkflowTools adds the built-in workflow tools to the state
-func addBuiltInWorkflowTools(state *PlanState, logger log.Logger) {
-	// Register workflow immediate tools with the registry
-	if state.Registry != nil {
-		if err := state.Registry.Register(tools.WorkflowImmediateTools()...); err != nil {
-			logger.Warn("Failed to register workflow immediate tools", "error", err)
-			// Error is non-critical as it just means some workflow tools won't be available
-		} else {
-			logger.Debug("Registered workflow immediate tools", "count", len(tools.WorkflowImmediateTools()))
-		}
-	}
-}
+// // fetchAndRegisterTools fetches available tools and registers them.
+// func fetchAndRegisterTools(ctx workflow.Context, state *PlanState, toolNames []string) error {
+// 	logger := workflow.GetLogger(ctx)
+// 	logger.Info("Fetching and registering tools", "requested_tools", toolNames)
+
+// 	// Always add built-in workflow tools
+// 	addBuiltInWorkflowTools(state, logger)
+
+// 	registeredTools := []tools.Tool{}
+
+// 	// If specific tools were requested, get only those
+// 	if len(toolNames) > 0 {
+// 		for _, name := range toolNames {
+// 			// Skip built-in workflow tools as they're added separately
+// 			if name == "sleep" || name == "sleep_until" || name == "final_response" {
+// 				continue
+// 			}
+
+// 			if tool, exists := registry.Get(name); exists {
+// 				registeredTools = append(registeredTools, tool)
+// 			} else {
+// 				logger.Warn("Requested tool not found in registry", "tool", name)
+// 			}
+// 		}
+// 	} else {
+// 		// No specific tools requested, get all tools from registry
+// 		for _, name := range registry.List() {
+// 			// Skip built-in workflow tools as they're added separately
+// 			if name == "sleep" || name == "sleep_until" || name == "final_response" {
+// 				continue
+// 			}
+
+// 			if tool, exists := registry.Get(name); exists {
+// 				registeredTools = append(registeredTools, tool)
+// 			}
+// 		}
+// 	}
+
+// 	// Register all regular tools from the registry
+// 	if len(registeredTools) > 0 {
+// 		if err := registry.Register(registeredTools...); err != nil {
+// 			logger.Error("Failed to register tools", "error", err)
+// 		}
+// 	}
+
+// 	workflowToolCount := len(tools.WorkflowImmediateTools())
+// 	logger.Info("Tools registered for workflow",
+// 		"total_tools", len(registry.List()),
+// 		"workflow_tools", workflowToolCount,
+// 		"registry_tools", len(registeredTools))
+
+// 	return nil
+// }
+
+// // addBuiltInWorkflowTools adds the built-in workflow tools to the state
+// func addBuiltInWorkflowTools(state *PlanState, logger log.Logger) {
+// 	// Register workflow immediate tools with the registry
+// 	if state.Registry != nil {
+// 		if err := state.Registry.Register(tools.WorkflowImmediateTools()...); err != nil {
+// 			logger.Warn("Failed to register workflow immediate tools", "error", err)
+// 			// Error is non-critical as it just means some workflow tools won't be available
+// 		} else {
+// 			logger.Debug("Registered workflow immediate tools", "count", len(tools.WorkflowImmediateTools()))
+// 		}
+// 	}
+// }

@@ -29,14 +29,14 @@ func (t *FinalResponseTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "final_response",
-			Description: param.NewOpt("Provide a final response to the user's query"),
+			Name:        "complete_workflow",
+			Description: param.NewOpt("Complete the workflow and provide an optional response"),
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{
 					"output": map[string]any{
 						"type":        "string",
-						"description": "The final response content to provide to the user",
+						"description": "Response content that the caller may retrieve",
 					},
 				},
 				"required": []string{"output"},

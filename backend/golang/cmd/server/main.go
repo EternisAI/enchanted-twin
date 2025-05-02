@@ -164,34 +164,6 @@ func main() {
 	// Initialize global tool registry
 	toolRegistry := tools.NewRegistry()
 
-	// Initialize and start the temporal worker
-	temporalWorker, err := bootstrapTemporalWorker(
-		&bootstrapTemporalWorkerInput{
-			logger:               logger,
-			temporalClient:       temporalClient,
-			envs:                 envs,
-			store:                store,
-			nc:                   nc,
-			ollamaClient:         ollamaClient,
-			memory:               mem,
-			aiCompletionsService: aiCompletionsService,
-			registry:             toolRegistry,
-		},
-	)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start temporal worker"))
-	}
-	defer temporalWorker.Stop()
-
-	// Create TwinChat service with minimal dependencies
-	twinChatService := twinchat.NewService(
-		logger,
-		aiCompletionsService,
-		chatStorage,
-		nc,
-		envs.CompletionsModel,
-	)
-
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
 		toolRegistry,
@@ -201,6 +173,16 @@ func main() {
 		temporalClient,
 		envs.CompletionsModel,
 		envs.TelegramChatServer,
+	)
+
+	// Create TwinChat service with minimal dependencies
+	twinChatService := twinchat.NewService(
+		logger,
+		aiCompletionsService,
+		chatStorage,
+		nc,
+		toolRegistry,
+		envs.CompletionsModel,
 	)
 
 	// Register tools from the TwinChat service
@@ -224,6 +206,25 @@ func main() {
 		"names",
 		toolRegistry.List(),
 	)
+
+	// Initialize and start the temporal worker
+	temporalWorker, err := bootstrapTemporalWorker(
+		&bootstrapTemporalWorkerInput{
+			logger:               logger,
+			temporalClient:       temporalClient,
+			envs:                 envs,
+			store:                store,
+			nc:                   nc,
+			ollamaClient:         ollamaClient,
+			memory:               mem,
+			aiCompletionsService: aiCompletionsService,
+			registry:             toolRegistry,
+		},
+	)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start temporal worker"))
+	}
+	defer temporalWorker.Stop()
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -381,7 +382,7 @@ func bootstrapTemporalWorker(
 	// Register the planned agent v2 workflow
 	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.registry)
 	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
-	input.logger.Info("Registered planned agent workflow")
+	input.logger.Info("Registered planned agent workflow", "tools", input.registry.List())
 
 	// Start the worker
 	err := w.Start()

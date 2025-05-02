@@ -52,15 +52,6 @@ func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *P
 		return result, nil
 	}
 
-	// Check if tool exists in registry
-	var found bool
-	if state.Registry != nil {
-		_, found = state.Registry.Get(toolName)
-	}
-	if !found {
-		return nil, fmt.Errorf("tool not found: %s", toolName)
-	}
-
 	// Execute the tool activity
 	var result types.ToolResult
 	err := workflow.ExecuteActivity(ctx, e.executeToolActivity, toolName, params).Get(ctx, &result)

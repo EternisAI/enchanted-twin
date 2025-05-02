@@ -147,7 +147,7 @@ func (t *ChatMessageTool) Execute(
 	}
 
 	return &types.StructuredToolResult{
-		ToolName: "send_chat_message",
+		ToolName:   "send_chat_message",
 		ToolParams: args,
 		Output: map[string]any{
 			"content": fmt.Sprintf("Message sent to chat %s with ID %s", chatID, id),

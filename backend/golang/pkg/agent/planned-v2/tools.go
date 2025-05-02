@@ -12,10 +12,9 @@ import (
 )
 
 // generateNextAction uses the LLM to determine the next actions based on the plan and history.
-func (a *AgentActivities) generateNextAction(
+func generateNextAction(
 	ctx workflow.Context,
 	state *PlanState,
-	tools []openai.ChatCompletionToolParam,
 	model string,
 ) ([]ToolCall, error) {
 	logger := workflow.GetLogger(ctx)
@@ -23,7 +22,9 @@ func (a *AgentActivities) generateNextAction(
 	// Execute LLM completion to get next action
 	var completion openai.ChatCompletionMessage
 
-	err := workflow.ExecuteActivity(ctx, a.LLMCompletionActivity, model, state.Messages, tools).
+	// We need an AgentActivities instance for the activity call
+	var activities *AgentActivities
+	err := workflow.ExecuteActivity(ctx, activities.LLMCompletionActivity, model, state.Messages, state.SelectedTools).
 		Get(ctx, &completion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate next actions: %w", err)
@@ -75,7 +76,7 @@ func (a *AgentActivities) generateNextAction(
 }
 
 // executeAction executes a tool call and returns the result.
-func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (types.ToolResult, error) {
+func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
@@ -127,19 +128,10 @@ func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall,
 		return result, nil
 	}
 
-	// Check if tool exists in registry
-	var found bool
-	if state.Registry != nil {
-		_, found = state.Registry.Get(toolName)
-	}
-
-	if !found {
-		return nil, fmt.Errorf("tool not found: %s", toolName)
-	}
-
 	// Execute the tool activity
+	var activities *AgentActivities
 	var result types.ToolResult
-	err := workflow.ExecuteActivity(ctx, a.ExecuteToolActivity, toolName, params).Get(ctx, &result)
+	err := workflow.ExecuteActivity(ctx, activities.ExecuteToolActivity, toolName, params).Get(ctx, &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
 	}

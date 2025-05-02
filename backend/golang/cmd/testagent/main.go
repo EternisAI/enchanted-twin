@@ -421,7 +421,7 @@ func handleTestPlanned(c client.Client, logger *log.Logger, envs *config.Config)
 		Plan: *testPlanFlag,
 		// ToolNames: []string{"echo", "sleep"},  // TODO: add flag for these
 		Model:    model,
-		MaxSteps: 5,
+		MaxSteps: 100,
 	}
 
 	// Marshal input to JSON

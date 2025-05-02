@@ -59,6 +59,10 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 							"type": "string",
 						},
 					},
+					"schedule": map[string]any{
+						"type":        "string",
+						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;BYHOUR=0;BYMINUTE=0' for daily at midnight)",
+					},
 					"system_prompt": map[string]any{
 						"type":        "string",
 						"description": "Optional system prompt override",
@@ -99,8 +103,15 @@ func (t *PlannedAgentTool) Execute(
 		systemPrompt = promptArg
 	}
 
+	schedule := ""
+	if scheduleArg, ok := args["schedule"].(string); ok {
+		schedule = scheduleArg
+	}
+
 	// Create workflow input
 	input := PlanInput{
+		Origin:      args,
+		Schedule:     schedule,
 		Plan:         plan,
 		ToolNames:    toolNames,
 		Model:        t.model,

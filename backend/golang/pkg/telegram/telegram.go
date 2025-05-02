@@ -275,7 +275,10 @@ func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.C
 		twitterReverseChronTimelineTool,
 	}
 
-	response, err := newAgent.Execute(ctx, messageHistory, tools)
+	origin := map[string]any{
+		"source": "telegram",
+	}
+	response, err := newAgent.Execute(ctx, origin, messageHistory, tools)
 	if err != nil {
 		return agent.AgentResponse{}, err
 	}

@@ -19,13 +19,19 @@ type ToolRegistry interface {
 	Get(name string) (Tool, bool)
 
 	// Execute runs a tool by name with the given parameters.
-	Execute(ctx context.Context, name string, params map[string]interface{}) (types.ToolResult, error)
+	Execute(ctx context.Context, name string, params map[string]any) (types.ToolResult, error)
 
 	// Definitions returns OpenAI-compatible tool definitions for all registered tools.
 	Definitions() []openai.ChatCompletionToolParam
 
 	// List returns a list of all registered tool names.
 	List() []string
+
+	// Excluding returns a new registry with the specified tools excluded.
+	Excluding(toolNames ...string) *ToolMapRegistry
+
+	// Selecting returns a new registry with only the specified tools included.
+	Selecting(toolNames ...string) *ToolMapRegistry
 }
 
 // ToolMapRegistry manages the registration and retrieval of tools.
@@ -79,7 +85,7 @@ func (r *ToolMapRegistry) Get(name string) (Tool, bool) {
 }
 
 // Execute runs a tool by name with the given parameters.
-func (r *ToolMapRegistry) Execute(ctx context.Context, name string, params map[string]interface{}) (types.ToolResult, error) {
+func (r *ToolMapRegistry) Execute(ctx context.Context, name string, params map[string]any) (types.ToolResult, error) {
 	tool, exists := r.Get(name)
 	if !exists {
 		return nil, fmt.Errorf("tool '%s' not found", name)
@@ -123,6 +129,54 @@ func (r *ToolMapRegistry) List() []string {
 		names = append(names, name)
 	}
 	return names
+}
+
+// Excluding returns a new registry with the specified tools excluded.
+func (r *ToolMapRegistry) Excluding(toolNames ...string) *ToolMapRegistry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Create a map for faster lookup of excluded tools
+	excluded := make(map[string]bool)
+	for _, name := range toolNames {
+		excluded[name] = true
+	}
+
+	// Create a new registry with only the non-excluded tools
+	newRegistry := NewRegistry()
+
+	for name, tool := range r.tools {
+		if !excluded[name] {
+			// Safe to ignore error since we're copying from a valid registry
+			_ = newRegistry.Register(tool)
+		}
+	}
+
+	return newRegistry
+}
+
+// Selecting returns a new registry with only the specified tools included.
+func (r *ToolMapRegistry) Selecting(toolNames ...string) *ToolMapRegistry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	// Create a map for faster lookup of selected tools
+	selected := make(map[string]bool)
+	for _, name := range toolNames {
+		selected[name] = true
+	}
+
+	// Create a new registry with only the selected tools
+	newRegistry := NewRegistry()
+
+	for name, tool := range r.tools {
+		if selected[name] {
+			// Safe to ignore error since we're copying from a valid registry
+			_ = newRegistry.Register(tool)
+		}
+	}
+
+	return newRegistry
 }
 
 // Global is the default registry instance shared across the application.

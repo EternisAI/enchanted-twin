@@ -51,6 +51,7 @@ type AgentResponse struct {
 
 func (a *Agent) Execute(
 	ctx context.Context,
+	origin map[string]any,
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 ) (AgentResponse, error) {
@@ -111,6 +112,7 @@ func (a *Agent) Execute(
 				a.logger.Error("Error unmarshalling tool call arguments", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments, "error", err)
 				return AgentResponse{}, err
 			}
+			args["origin"] = origin
 
 			toolResult, err := tool.Execute(ctx, args)
 			if err != nil {

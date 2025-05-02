@@ -3,7 +3,6 @@ package plannedv2
 import (
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
@@ -22,6 +21,9 @@ type PlanState struct {
 	// The original plan text
 	Plan string `json:"plan"`
 
+	// RRULE-formatted schedule (optional)
+	Schedule string `json:"schedule,omitempty"`
+
 	// Current execution progress
 	CurrentStep int `json:"current_step"`
 
@@ -37,6 +39,9 @@ type PlanState struct {
 	// Message history in serializable format
 	Messages []ai.Message `json:"messages"`
 
+	// SelectedTools represents the tools available for execution
+	SelectedTools []string `json:"selected_tools,omitempty"`
+
 	// Tool calls made in a serializable format
 	ToolCalls []ToolCall `json:"tool_calls"`
 
@@ -50,9 +55,6 @@ type PlanState struct {
 
 	// Available tools for the agent
 	// Tools []types.ToolDef `json:"tools"`
-
-	// Registry for tool lookup and execution. Tools should be serializable
-	Registry tools.ToolRegistry `json:"tools"`
 
 	// Image URLs generated (if any)
 	ImageURLs []string `json:"image_urls"`
@@ -84,6 +86,12 @@ type ActionRequest struct {
 
 // PlanInput represents the input for the planned agent workflow.
 type PlanInput struct {
+	// Origin of the tool call
+	Origin map[string]any `json:"origin"`
+
+	// RRULE-formatted schedule (optional)
+	Schedule string `json:"schedule,omitempty"`
+
 	// The plan text that the agent should follow
 	Plan string `json:"plan"`
 

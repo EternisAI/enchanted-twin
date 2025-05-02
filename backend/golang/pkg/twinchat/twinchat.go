@@ -35,11 +35,9 @@ func NewService(
 	aiService *ai.Service,
 	storage Storage,
 	nc *nats.Conn,
+	registry *tools.ToolMapRegistry,
 	completionsModel string,
 ) *Service {
-	// Get the global tool registry
-	registry := tools.GetGlobal(logger)
-
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -52,6 +50,7 @@ func NewService(
 
 func (s *Service) Execute(
 	ctx context.Context,
+	chatID string,
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
@@ -65,11 +64,6 @@ func (s *Service) Execute(
 		postToolCallback,
 	)
 
-	// Ensure we have a valid registry
-	if s.toolRegistry == nil {
-		s.toolRegistry = tools.GetGlobal(s.logger)
-	}
-
 	// Get the tool list from the registry
 	toolsList := []tools.Tool{}
 	for _, name := range s.toolRegistry.List() {
@@ -78,7 +72,11 @@ func (s *Service) Execute(
 		}
 	}
 
-	response, err := agent.Execute(ctx, messageHistory, toolsList)
+	origin := map[string]any{
+		"chat_id": chatID,
+	}
+
+	response, err := agent.Execute(ctx, origin, messageHistory, toolsList)
 	if err != nil {
 		return nil, err
 	}
@@ -105,12 +103,14 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
+	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."
+	now := time.Now().Format(time.RFC3339)
+	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now)
+
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
-		openai.SystemMessage(
-			"You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level.",
-		),
+		openai.SystemMessage(systemPrompt),
 	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
@@ -169,7 +169,7 @@ func (s *Service) SendMessage(
 		}
 	}
 
-	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback)
+	response, err := s.Execute(ctx, chatID, messageHistory, preToolCallback, postToolCallback)
 	if err != nil {
 		return nil, err
 	}

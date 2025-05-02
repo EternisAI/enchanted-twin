@@ -40,13 +40,27 @@ func (a *AgentActivities) LLMCompletionActivity(
 	ctx context.Context,
 	model string,
 	messages []ai.Message,
-	tools []openai.ChatCompletionToolParam,
+	selectedTools []string,
 ) (openai.ChatCompletionMessage, error) {
+	toolz := a.registry
+	if len(selectedTools) > 0 {
+		toolz = toolz.Selecting(selectedTools...)
+	}
+	toolz = toolz.Excluding("schedule_task")
+
+	availableTools := toolz.Definitions()
+	for _, tool := range tools.WorkflowImmediateTools() {
+		toolDef := tool.Definition()
+		if toolDef.Function.Name == "" {
+			continue
+		}
+		availableTools = append(availableTools, toolDef)
+	}
 
 	params := openai.ChatCompletionNewParams{
 		Model:    model,
 		Messages: ai.ToOpenAIMessages(messages),
-		Tools:    tools,
+		Tools:    availableTools,
 	}
 
 	return a.aiService.ParamsCompletions(ctx, params)
