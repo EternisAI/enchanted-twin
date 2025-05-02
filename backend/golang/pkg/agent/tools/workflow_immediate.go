@@ -116,7 +116,7 @@ func (t *SleepTool) Execute(ctx context.Context, inputs map[string]any) (types.T
 			"content": "Sleep must be executed within a workflow context",
 		},
 		ToolError: errorMsg,
-	}, errors.New("%s", errorMsg)
+	}, errors.New(errorMsg)
 }
 
 // ExecuteInWorkflow executes the sleep tool in a workflow context.
@@ -235,7 +235,7 @@ func (t *SleepUntilTool) Execute(ctx context.Context, inputs map[string]any) (ty
 			"content": "Sleep_until must be executed within a workflow context",
 		},
 		ToolError: errorMsg,
-	}, errors.New("%s", errorMsg)
+	}, errors.New(errorMsg)
 }
 
 // ExecuteInWorkflow executes the sleep_until tool in a workflow context.
