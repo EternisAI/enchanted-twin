@@ -465,7 +465,7 @@ func RefreshOAuthToken(
 	store *db.Store,
 	provider string,
 ) (bool, error) {
-	logger.Debug("refreshing OAuth token", "provider", provider)
+	logger.Debug("refreshing OAuth tokens", "provider", provider)
 
 	// Get existing tokens
 	tokens, err := store.GetOAuthTokensArray(ctx, provider)
@@ -477,15 +477,21 @@ func RefreshOAuthToken(
 		return false, fmt.Errorf("no tokens available for provider: %s", provider)
 	}
 
+	successCount := 0
+	var lastError error
+
 	for _, token := range tokens {
 		if token.RefreshToken == "" {
-			return false, fmt.Errorf("no refresh token available for provider: %s", provider)
+			logger.Warn("skipping token with no refresh token", "provider", provider)
+			continue
 		}
 
 		// Load OAuth config for provider
 		config, err := store.GetOAuthConfig(ctx, provider)
 		if err != nil {
-			return false, fmt.Errorf("failed to get OAuth config: %w", err)
+			logger.Error("failed to get OAuth config", "provider", provider, "error", err)
+			lastError = fmt.Errorf("failed to get OAuth config: %w", err)
+			continue
 		}
 
 		// Prepare token request
@@ -499,7 +505,9 @@ func RefreshOAuthToken(
 		// Exchange refresh token for new access token
 		tokenResp, err := ExchangeToken(ctx, logger, provider, *config, tokenReq)
 		if err != nil {
-			return false, err
+			logger.Error("failed to exchange token", "provider", provider, "error", err)
+			lastError = err
+			continue
 		}
 
 		// Update tokens in storage
@@ -512,13 +520,28 @@ func RefreshOAuthToken(
 		}
 
 		if err := store.SetOAuthTokens(ctx, token); err != nil {
-			return false, fmt.Errorf("failed to store refreshed tokens: %w", err)
+			logger.Error("failed to store refreshed tokens", "provider", provider, "error", err)
+			lastError = fmt.Errorf("failed to store refreshed tokens: %w", err)
+			continue
 		}
 
 		logger.Debug("successfully refreshed OAuth token",
 			"provider", provider,
+			"username", token.Username,
 			"expires_at", tokenResp.ExpiresAt)
 
+		successCount++
 	}
-	return true, nil
+
+	// Return success if at least one token was refreshed
+	if successCount > 0 {
+		return true, nil
+	}
+
+	// If we got here and no tokens were refreshed, return the last error
+	if lastError != nil {
+		return false, fmt.Errorf("failed to refresh any tokens for %s: %w", provider, lastError)
+	}
+
+	return false, fmt.Errorf("no tokens processed for provider: %s", provider)
 }
