@@ -27,10 +27,10 @@ const (
 )
 
 type SearchFilesQuery struct {
-	FileName     string    `json:"file_name,omitempty"     jsonschema:",description=The text to search for in the name of the files, default is empty"`
-	FullText     string    `json:"full_text,omitempty"     jsonschema:",description=The text to search for in the content of the files, default is empty"`
-	CreatedTime  TimeRange `json:"created_time,omitempty"  jsonschema:",description=The time range to list files, default is empty"`
-	ModifiedTime TimeRange `json:"modified_time,omitempty" jsonschema:",description=The time range to list files, default is empty"`
+	FileName     string     `json:"file_name,omitempty" jsonschema:",description=The text to search for in the name of the files, default is empty"`
+	FullText     string     `json:"full_text,omitempty" jsonschema:",description=The text to search for in the content of the files, default is empty"`
+	CreatedTime  TimeFilter `json:"created_time,omitempty" jsonschema:",description=The time filter to list files, if not empty, minimum duration is 1 hour"`
+	ModifiedTime TimeFilter `json:"modified_time,omitempty" jsonschema:",description=The time filter to list files, if not empty, minimum duration is 1 hour"`
 }
 
 type SearchFilesArguments struct {
@@ -45,7 +45,7 @@ type ReadFileArguments struct {
 	FileID       string `json:"file_id" jsonschema:"required,description=The ID of the file to read."`
 }
 
-func (q *SearchFilesQuery) ToQuery() string {
+func (q *SearchFilesQuery) ToQuery() (string, error) {
 	query := ""
 
 	if q.FileName != "" {
@@ -58,40 +58,45 @@ func (q *SearchFilesQuery) ToQuery() string {
 		}
 		query += fmt.Sprintf("fullText contains '%s'", q.FullText)
 	}
-
-	if q.ModifiedTime.From != 0 {
+	currentTime := time.Now()
+	start, end, err := q.ModifiedTime.ToUnixRange(currentTime)
+	if err != nil {
+		return "", err
+	}
+	if start != 0 {
 		if query != "" {
 			query += " and "
 		}
-		timeFrom := time.Unix(int64(q.ModifiedTime.From), 0).UTC().Format(time.RFC3339)
-		query += fmt.Sprintf("modifiedTime > '%s'", timeFrom[:len(timeFrom)-1])
+
+		query += fmt.Sprintf("modifiedTime > '%s'", time.Unix(int64(start), 0).UTC().Format(time.RFC3339))
 	}
 
-	if q.ModifiedTime.To != 0 {
+	if end != 0 {
 		if query != "" {
 			query += " and "
 		}
-		timeTo := time.Unix(int64(q.ModifiedTime.To), 0).UTC().Format(time.RFC3339)
-		query += fmt.Sprintf("modifiedTime < '%s'", timeTo[:len(timeTo)-1])
+		query += fmt.Sprintf("modifiedTime < '%s'", time.Unix(int64(end), 0).UTC().Format(time.RFC3339))
 	}
 
-	if q.CreatedTime.From != 0 {
+	start, end, err = q.CreatedTime.ToUnixRange(currentTime)
+	if err != nil {
+		return "", err
+	}
+	if start != 0 {
 		if query != "" {
 			query += " and "
 		}
-		timeFrom := time.Unix(int64(q.CreatedTime.From), 0).UTC().Format(time.RFC3339)
-		query += fmt.Sprintf("createdTime > '%s'", timeFrom[:len(timeFrom)-1])
+		query += fmt.Sprintf("createdTime > '%s'", time.Unix(int64(start), 0).UTC().Format(time.RFC3339))
 	}
 
-	if q.CreatedTime.To != 0 {
+	if end != 0 {
 		if query != "" {
 			query += " and "
 		}
-		timeTo := time.Unix(int64(q.CreatedTime.To), 0).UTC().Format(time.RFC3339)
-		query += fmt.Sprintf("createdTime < '%s'", timeTo[:len(timeTo)-1])
+		query += fmt.Sprintf("createdTime < '%s'", time.Unix(int64(end), 0).UTC().Format(time.RFC3339))
 	}
 
-	return query
+	return query, nil
 }
 
 func processSearchFiles(
@@ -109,7 +114,10 @@ func processSearchFiles(
 		return nil, fmt.Errorf("error initializing Drive service: %w", err)
 	}
 
-	q := args.Query.ToQuery()
+	q, err := args.Query.ToQuery()
+	if err != nil {
+		return nil, fmt.Errorf("error converting query to string: %w", err)
+	}
 
 	if q == "" {
 		q = "trashed=false"

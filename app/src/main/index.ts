@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -12,6 +12,7 @@ import http from 'http'
 import { URL } from 'url'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
+import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
@@ -447,6 +448,8 @@ app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.electron')
   mainWindow = createWindow()
   registerNotificationIpc(mainWindow)
+  registerMediaPermissionHandlers(session.defaultSession)
+  registerPermissionIpc()
 
   mainWindow.once('ready-to-show', () => {
     splash.destroy()

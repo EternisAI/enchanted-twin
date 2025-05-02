@@ -34,7 +34,7 @@ const (
 
 type EmailQuery struct {
 	In        string    `json:"in"         jsonschema:"description=The inbox to list emails from, default is 'inbox'"`
-	TimeRange TimeRange `json:"time_range" jsonschema:"description=The time range to list emails, default is empty"`
+	TimeFilter TimeFilter `json:"time_filter" jsonschema:"description=The time filter to list emails, default is empty"`
 	From      string    `json:"from"       jsonschema:"description=The sender of the emails to list, default is empty"`
 	To        string    `json:"to"         jsonschema:"description=The recipient of the emails to list, default is empty"`
 	Subject   string    `json:"subject"    jsonschema:"description=The text to search for in the subject of the emails, default is empty"`
@@ -61,22 +61,24 @@ type EmailByIdArguments struct {
 	Id           string `json:"id" jsonschema:"required,description=The id of the email"`
 }
 
-func (q *EmailQuery) ToQuery() string {
+func (q *EmailQuery) ToQuery() (string, error) {
 	query := "in:inbox"
 	if q.In != "" {
 		query = "in:" + q.In
 	}
-	if q.TimeRange.From != 0 {
-		query += fmt.Sprintf(" after:%d", q.TimeRange.From)
+
+	start, end, err := q.TimeFilter.ToUnixRange(time.Now())
+	if err != nil {
+		fmt.Println("Error converting time filter to unix range:", err)
+		return "", err
 	}
-	if q.TimeRange.To != 0 {
-		currentTime := time.Now().Unix()
 
-		if q.TimeRange.To > uint64(currentTime) {
-			q.TimeRange.To = uint64(currentTime)
-		}
+	if start != 0 {
+		query += fmt.Sprintf(" after:%d", start)
+	}
 
-		query += fmt.Sprintf(" before:%d", q.TimeRange.To)
+	if end != 0 {
+		query += fmt.Sprintf(" before:%d", end)
 	}
 
 	if q.From != "" {
@@ -94,7 +96,7 @@ func (q *EmailQuery) ToQuery() string {
 	if q.Label != "" {
 		query += fmt.Sprintf(" label:%s", q.Label)
 	}
-	return query
+	return query, nil
 }
 
 func processSearchEmails(
@@ -133,7 +135,11 @@ func processSearchEmails(
 		maxResults = 10
 	}
 
-	query := arguments.Query.ToQuery()
+	query, err := arguments.Query.ToQuery()
+	if err != nil {
+		fmt.Println("Error converting query to string:", err)
+		return nil, err
+	}
 
 	request := gmailService.Users.Messages.List("me").Q(query).MaxResults(int64(maxResults))
 	if arguments.PageToken != "" {
@@ -249,6 +255,10 @@ func processEmailById(
 	if err != nil {
 		fmt.Println("Error initializing Gmail service:", err)
 		return nil, err
+	}
+
+	if arguments.Id == "" {
+		return nil, errors.New("id is required")
 	}
 
 	msg, err := gmailService.Users.Messages.Get("me", arguments.Id).Do()

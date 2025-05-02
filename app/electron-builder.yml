@@ -21,8 +21,9 @@ nsis:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSCameraUsageDescription: We need camera for video with twin
+    - NSMicrophoneUsageDescription: We need mic for audio recording to twin
+    - NSScreenCaptureUsageDescription: Screen sharing to twin
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
   notarize: false
@@ -42,4 +43,3 @@ publish:
   owner: EternisAI
   repo: enchanted-twin
   provider: github
-

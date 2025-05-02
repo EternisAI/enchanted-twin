@@ -32,17 +32,20 @@ export default function NotificationStatusCard() {
 
   return (
     <div className="flex flex-col gap-1">
-      <h3 className="text-xl font-medium mb-2">Permissions</h3>
-
-      <div className="flex items-center justify-between py-1">
+      <div className="grid grid-cols-3 items-center py-1">
         <span>Notifications</span>
-        {isMacOS ? (
-          <Button className="w-fit" size="sm" onClick={openOsSettings}>
-            Open Notification Center
-          </Button>
-        ) : (
-          <span className="text-muted-foreground">{isNotificationsEnabled}</span>
-        )}
+
+        <div className="text-center">Protected</div>
+
+        <div className="text-right">
+          {isMacOS ? (
+            <Button className="w-fit" size="sm" onClick={openOsSettings}>
+              Open notification center
+            </Button>
+          ) : (
+            <span className="text-muted-foreground">{isNotificationsEnabled}</span>
+          )}
+        </div>
       </div>
 
       <div className="flex pt-2">

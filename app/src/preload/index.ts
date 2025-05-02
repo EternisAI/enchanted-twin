@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { AppNotification } from '../renderer/src/graphql/generated/graphql'
+import { MediaType } from '../main/mediaPermissions'
 
 const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -32,7 +33,9 @@ const api = {
   onDeepLink: (cb: (url: string) => void) =>
     ipcRenderer.on('open-deeplink', (_evt, url) => cb(url)),
   getNotificationStatus: () => ipcRenderer.invoke('notification-status'),
-  openSettings: () => ipcRenderer.invoke('open-notification-settings')
+  openSettings: () => ipcRenderer.invoke('open-notification-settings'),
+  queryMediaStatus: (type: MediaType) => ipcRenderer.invoke('permissions:get-status', type),
+  requestMediaAccess: (type: MediaType) => ipcRenderer.invoke('permissions:request', type)
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
