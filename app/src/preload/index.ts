@@ -35,7 +35,18 @@ const api = {
   getNotificationStatus: () => ipcRenderer.invoke('notification-status'),
   openSettings: () => ipcRenderer.invoke('open-notification-settings'),
   queryMediaStatus: (type: MediaType) => ipcRenderer.invoke('permissions:get-status', type),
-  requestMediaAccess: (type: MediaType) => ipcRenderer.invoke('permissions:request', type)
+  requestMediaAccess: (type: MediaType) => ipcRenderer.invoke('permissions:request', type),
+  checkForUpdates: (silent: boolean = false) => ipcRenderer.invoke('check-for-updates', silent),
+  onUpdateStatus: (callback: (status: string) => void) => {
+    const listener = (_: any, status: string) => callback(status)
+    ipcRenderer.on('update-status', listener)
+    return () => ipcRenderer.removeListener('update-status', listener)
+  },
+  onUpdateProgress: (callback: (progress: any) => void) => {
+    const listener = (_: any, progress: any) => callback(progress)
+    ipcRenderer.on('update-progress', listener)
+    return () => ipcRenderer.removeListener('update-progress', listener)
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to
