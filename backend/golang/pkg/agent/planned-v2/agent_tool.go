@@ -128,7 +128,7 @@ func (t *PlannedAgentTool) Execute(
 
 	// Start the workflow
 	t.logger.Info("Starting planned agent workflow", "plan_length", len(plan), "tools", toolNames)
-	execution, err := t.temporalClient.ExecuteWorkflow(
+	run, err := t.temporalClient.ExecuteWorkflow(
 		ctx,
 		workflowOptions,
 		WorkflowName,
@@ -145,9 +145,9 @@ func (t *PlannedAgentTool) Execute(
 	t.logger.Info(
 		"Workflow started",
 		"workflow_id",
-		execution.GetID(),
+		run.GetID(),
 		"run_id",
-		execution.GetRunID(),
+		run.GetRunID(),
 	)
 
 	// Wait for workflow completion with timeout
@@ -155,14 +155,14 @@ func (t *PlannedAgentTool) Execute(
 	defer cancel()
 
 	var result string
-	err = execution.Get(waitCtx, &result)
+	err = run.Get(waitCtx, &result)
 	if err != nil {
 		// Try to query for output in case of timeout
 		var output string
 		resp, queryErr := t.temporalClient.QueryWorkflow(
 			ctx,
-			execution.GetID(),
-			execution.GetRunID(),
+			run.GetID(),
+			run.GetRunID(),
 			QueryGetOutput,
 			nil,
 		)

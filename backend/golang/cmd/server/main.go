@@ -251,12 +251,12 @@ func main() {
 			select {
 			case <-ticker.C:
 				chatUUID, err := telegramService.GetChatUUID(context.Background())
-				fmt.Println("chatUUID", chatUUID)
+				// fmt.Println("chatUUID", chatUUID)
 				if err != nil {
 					logger.Error("Error getting chat UUID", slog.Any("error", err))
 					continue
 				}
-				fmt.Println("Subscribing to Telegram", chatUUID)
+				// fmt.Println("Subscribing to Telegram", chatUUID)
 				err = telegramService.Subscribe(appCtx, chatUUID)
 
 				if err == nil {
