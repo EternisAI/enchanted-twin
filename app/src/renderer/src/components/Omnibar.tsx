@@ -3,7 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronRight, Send } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useMutation, useQuery } from '@apollo/client'
-import { CreateChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
+import {
+  CreateChatDocument,
+  GetChatsDocument,
+  SendMessageDocument
+} from '@renderer/graphql/generated/graphql'
 import { useNavigate } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
 import { useRouter } from '@tanstack/react-router'
@@ -17,6 +21,7 @@ export const Omnibar = () => {
   const navigate = useNavigate()
   const router = useRouter()
   const [createChat] = useMutation(CreateChatDocument)
+  const [sendMessage] = useMutation(SendMessageDocument)
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
@@ -29,17 +34,13 @@ export const Omnibar = () => {
   )
 
   useEffect(() => {
-    // Clear any existing timeout
     if (debounceTimeout.current) {
       clearTimeout(debounceTimeout.current)
     }
 
-    // Set a new timeout
     debounceTimeout.current = setTimeout(() => {
       setDebouncedQuery(query)
-    }, 150) // 150ms delay
-
-    // Cleanup
+    }, 150)
     return () => {
       if (debounceTimeout.current) {
         clearTimeout(debounceTimeout.current)
@@ -61,22 +62,25 @@ export const Omnibar = () => {
       const newChatId = createData?.createChat?.id
 
       if (newChatId) {
+        navigate({
+          to: `/chat/${newChatId}`,
+          search: { initialMessage: query }
+        })
+
+        // Refetch all chats
         await client.cache.evict({ fieldName: 'getChats' })
         await router.invalidate({
           filter: (match) => match.routeId === '/chat'
         })
 
-        navigate({
-          to: `/chat/${newChatId}`,
-          search: { initialMessage: query }
-        })
+        sendMessage({ variables: { chatId: newChatId, text: query } })
       }
     } catch (error) {
       console.error('Failed to create chat:', error)
     } finally {
       closeOmnibar()
     }
-  }, [query, navigate, router, createChat, closeOmnibar])
+  }, [query, navigate, router, createChat, sendMessage, closeOmnibar])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
