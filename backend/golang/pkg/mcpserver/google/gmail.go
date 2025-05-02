@@ -29,19 +29,19 @@ const (
 )
 
 type EmailQuery struct {
-	In string `json:"in" jsonschema:"description=The inbox to list emails from, default is 'inbox'"`
+	In         string     `json:"in" jsonschema:"description=The inbox to list emails from, default is 'inbox'"`
 	TimeFilter TimeFilter `json:"time_filter" jsonschema:"description=The time filter to list emails"`
-	From string `json:"from" jsonschema:"description=The sender of the emails to list, default is empty"`
-	To   string `json:"to" jsonschema:"description=The recipient of the emails to list, default is empty"`
-	Subject string `json:"subject" jsonschema:"description=The text to search for in the subject of the emails, default is empty"`
-	Body string `json:"body" jsonschema:"description=The text to search for in the body of the emails, default is empty"`
-	Label string `json:"label" jsonschema:"description=The label of the emails to list, default is empty"`
+	From       string     `json:"from" jsonschema:"description=The sender of the emails to list, default is empty"`
+	To         string     `json:"to" jsonschema:"description=The recipient of the emails to list, default is empty"`
+	Subject    string     `json:"subject" jsonschema:"description=The text to search for in the subject of the emails, default is empty"`
+	Body       string     `json:"body" jsonschema:"description=The text to search for in the body of the emails, default is empty"`
+	Label      string     `json:"label" jsonschema:"description=The label of the emails to list, default is empty"`
 }
 
 type SearchEmailsArguments struct {
 	Query     EmailQuery `json:"query" jsonschema:"description=The query to list emails, default is 'in:inbox'"`
-	PageToken string `json:"page_token" jsonschema:"description=The page token to list, default is empty"`
-	Limit     int    `json:"limit" jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	PageToken string     `json:"page_token" jsonschema:"description=The page token to list, default is empty"`
+	Limit     int        `json:"limit" jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
@@ -123,9 +123,7 @@ func processSearchEmails(
 		maxResults = 10
 	}
 
-
 	query, err := arguments.Query.ToQuery()
-
 	if err != nil {
 		fmt.Println("Error converting query to string:", err)
 		return nil, err
@@ -236,7 +234,6 @@ func processEmailById(
 		fmt.Println("Error initializing Gmail service:", err)
 		return nil, err
 	}
-
 
 	if arguments.Id == "" {
 		return nil, errors.New("id is required")

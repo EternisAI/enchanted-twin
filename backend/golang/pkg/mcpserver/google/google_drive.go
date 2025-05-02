@@ -26,10 +26,10 @@ const (
 )
 
 type SearchFilesQuery struct {
-	FileName      string    `json:"file_name,omitempty" jsonschema:",description=The text to search for in the name of the files, default is empty"`
-	FullText      string    `json:"full_text,omitempty" jsonschema:",description=The text to search for in the content of the files, default is empty"`
-	CreatedTime   TimeFilter `json:"created_time,omitempty" jsonschema:",description=The time range to list files, if not empty, minimum duration is 1 hour"`
-	ModifiedTime  TimeFilter `json:"modified_time,omitempty" jsonschema:",description=The time range to list files, if not empty, minimum duration is 1 hour"`
+	FileName     string     `json:"file_name,omitempty" jsonschema:",description=The text to search for in the name of the files, default is empty"`
+	FullText     string     `json:"full_text,omitempty" jsonschema:",description=The text to search for in the content of the files, default is empty"`
+	CreatedTime  TimeFilter `json:"created_time,omitempty" jsonschema:",description=The time range to list files, if not empty, minimum duration is 1 hour"`
+	ModifiedTime TimeFilter `json:"modified_time,omitempty" jsonschema:",description=The time range to list files, if not empty, minimum duration is 1 hour"`
 }
 
 type SearchFilesArguments struct {
