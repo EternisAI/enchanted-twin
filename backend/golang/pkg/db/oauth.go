@@ -227,6 +227,7 @@ func (o OAuthTokens) String() string {
 		accessTokenValue,
 		o.ExpiresAt.Format(time.RFC3339),
 		refreshTokenValue,
+		o.Username,
 	)
 }
 
