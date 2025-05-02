@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	DefaultChunkSize = 1000
+	DefaultChunkSize = 200
 )
 
 type Source struct {
@@ -121,14 +121,14 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	fileName := fileInfo.Name()
 
 	scanner := bufio.NewScanner(file)
-	var content strings.Builder
+	var fullContent strings.Builder
 
 	firstLine := true
 	for scanner.Scan() {
 		if !firstLine {
-			content.WriteString("\n")
+			fullContent.WriteString("\n")
 		}
-		content.WriteString(scanner.Text())
+		fullContent.WriteString(scanner.Text())
 		firstLine = false
 	}
 
@@ -136,7 +136,7 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		return nil, fmt.Errorf("error reading file %s: %w", filePath, err)
 	}
 
-	textContent := content.String()
+	textContent := fullContent.String()
 
 	// Return early if the file is empty
 	if len(textContent) == 0 {
@@ -153,8 +153,7 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		return []types.Record{emptyRecord}, nil
 	}
 
-	// Use OpenAI to check if the content is human-readable
-	isHumanReadable, err := s.IsHumanReadableContent(context.Background(), textContent[:1000])
+	isHumanReadable, err := s.IsHumanReadableContent(context.Background(), textContent[min(len(textContent), 1000):])
 	fmt.Printf("filePath: %s\n", filePath)
 	fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
 	fmt.Printf("textContent: %s\n", textContent)
@@ -168,18 +167,16 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	}
 
 	var records []types.Record
-	for i := 0; i < len(textContent); i += s.chunkSize {
-		end := i + s.chunkSize
-		if end > len(textContent) {
-			end = len(textContent)
-		}
 
-		chunk := textContent[i:end]
+	// Split by lines and create a record for each line
+	lines := strings.Split(textContent, "\n")
+	for i, line := range lines {
 		records = append(records, types.Record{
 			Data: map[string]interface{}{
-				"content":  chunk,
+				"content":  line,
 				"filename": fileName,
-				"chunk":    i / s.chunkSize,
+				"chunk":    i,
+				"line":     i + 1,
 			},
 			Timestamp: timestamp,
 			Source:    s.Name(),
