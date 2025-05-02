@@ -18,7 +18,7 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
+    "build:mac": "electron-vite build && electron-builder --mac --publish always",
     "build:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
@@ -96,18 +96,15 @@
       }
     ],
     "publish": {
-      "provider": "github",
-      "owner": "EternisAI",
-      "repo": "enchanted-twin",
-      "releaseType": "release"
+      "provider": "s3",
+      "bucket": "enchanted-app",
+      "region": "us-east-1"
     },
     "mac": {
-      "target": {
-        "target": "dmg",
-        "arch": [
-          "arm64"
-        ]
-      },
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
