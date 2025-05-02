@@ -23,12 +23,21 @@ type embeddingResult struct {
 
 // Store processes documents, generates embeddings, and stores them.
 // It optionally sends progress updates via the progressChan.
-func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
+func (m *EmbeddingsMemory) Store(
+	ctx context.Context,
+	documents []memory.TextDocument,
+	progressChan chan<- memory.ProgressUpdate,
+) error {
 	if progressChan != nil {
 		defer close(progressChan)
 	}
 
+	// max length of a text input to the Embeddings API
+	maxBatchTextLength := 8192
+	// number of items to Embeddings API
 	batchSize := 30
+	// number of concurrent requests to the Embeddings API
+	semaphoreSize := 3
 
 	filteredDocuments := []memory.TextDocument{}
 	for _, document := range documents {
@@ -47,13 +56,15 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 		return nil
 	}
 
-	batches := helpers.Batch(filteredDocuments, batchSize)
+	batches := helpers.BatchWithMaxTextLength(filteredDocuments, maxBatchTextLength, batchSize, func(doc memory.TextDocument) int {
+		return len(doc.Content)
+	})
 	totalBatches := len(batches)
 	resultChan := make(chan embeddingResult, totalBatches)
 	var wg sync.WaitGroup
 	var processedBatches atomic.Int32
 
-	sem := make(chan struct{}, 3)
+	sem := make(chan struct{}, semaphoreSize)
 
 	for _, batch := range batches {
 		wg.Add(1)
@@ -110,7 +121,13 @@ func (m *EmbeddingsMemory) Store(ctx context.Context, documents []memory.TextDoc
 				return ctx.Err()
 			default:
 
-				m.logger.Warn("Progress channel full or receiver not ready, skipping update", "processed", processed, "total", totalBatches)
+				m.logger.Warn(
+					"Progress channel full or receiver not ready, skipping update",
+					"processed",
+					processed,
+					"total",
+					totalBatches,
+				)
 			}
 		}
 	}

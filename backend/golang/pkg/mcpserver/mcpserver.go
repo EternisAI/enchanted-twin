@@ -42,7 +42,10 @@ func NewService(ctx context.Context, repo repository.Repository, store *db.Store
 }
 
 // AddMCPServer adds a new MCP server using the repository.
-func (s *service) ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (*model.MCPServer, error) {
+func (s *service) ConnectMCPServer(
+	ctx context.Context,
+	input model.ConnectMCPServerInput,
+) (*model.MCPServer, error) {
 	// Here you might add validation or other business logic before calling the repo
 	enabled := true
 

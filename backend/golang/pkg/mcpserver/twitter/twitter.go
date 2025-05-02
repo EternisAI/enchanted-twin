@@ -18,7 +18,10 @@ type TwitterClient struct {
 	Store *db.Store
 }
 
-func (c *TwitterClient) ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error) {
+func (c *TwitterClient) ListTools(
+	ctx context.Context,
+	cursor *string,
+) (*mcp_golang.ToolsResponse, error) {
 	inputSchema, err := helpers.ConverToInputSchema(ListFeedTweetsArguments{})
 	if err != nil {
 		return nil, err
@@ -74,7 +77,11 @@ func (c *TwitterClient) ListTools(ctx context.Context, cursor *string) (*mcp_gol
 	}, nil
 }
 
-func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error) {
+func (c *TwitterClient) CallTool(
+	ctx context.Context,
+	name string,
+	arguments any,
+) (*mcp_golang.ToolResponse, error) {
 	fmt.Println("Call tool TWITTER", name, arguments)
 
 	bytes, err := helpers.ConvertToBytes(arguments)
@@ -118,7 +125,7 @@ func (c *TwitterClient) CallTool(ctx context.Context, name string, arguments any
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
 			return nil, err
 		}
-		result, err := processPostTweet(oauthTokens.AccessToken, argumentsTyped)
+		result, err := processPostTweet(ctx, oauthTokens.AccessToken, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}

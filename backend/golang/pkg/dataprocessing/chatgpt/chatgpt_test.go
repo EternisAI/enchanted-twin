@@ -6600,7 +6600,13 @@ func TestProcessFileConversations(t *testing.T) {
 
 	if len(records) > 0 {
 		assert.Equal(t, "chatgpt", records[0].Source)
-		assert.True(t, expectedTime.Equal(records[0].Timestamp), "Timestamp mismatch. Expected %v, got %v", expectedTime, records[0].Timestamp)
+		assert.True(
+			t,
+			expectedTime.Equal(records[0].Timestamp),
+			"Timestamp mismatch. Expected %v, got %v",
+			expectedTime,
+			records[0].Timestamp,
+		)
 	}
 
 	fmt.Println(records) // Keep this commented out unless debugging

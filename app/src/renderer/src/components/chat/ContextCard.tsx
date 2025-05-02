@@ -1,16 +1,8 @@
 import { gql, useQuery, useMutation } from '@apollo/client'
-import { PlusIcon } from 'lucide-react'
+import { PencilIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Button } from '../ui/button'
-import { Card, CardHeader, CardTitle, CardContent } from '../ui/card'
-import {
-  Sheet,
-  SheetTrigger,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetDescription
-} from '../ui/sheet'
 import { Textarea } from '../ui/textarea'
 import { toast } from 'sonner'
 
@@ -29,10 +21,10 @@ const GET_PROFILE = gql`
 `
 
 export function ContextCard() {
-  const { data: userData, loading, refetch } = useQuery(GET_PROFILE)
+  const { data: userData, refetch } = useQuery(GET_PROFILE)
   const [updateProfile, { loading: updateLoading }] = useMutation(UPDATE_PROFILE)
   const [context, setContext] = useState('')
-  const [open, setOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
 
   useEffect(() => {
     if (userData?.profile?.bio) {
@@ -45,11 +37,16 @@ export function ContextCard() {
     const { data } = await updateProfile({ variables: { input: { bio: context } } })
     if (data?.updateProfile) {
       await refetch()
-      setOpen(false)
+      setIsEditing(false)
       toast.success('Context updated successfully')
     } else {
       toast.error('Failed to update context')
     }
+  }
+
+  const handleCancel = () => {
+    setContext(userData?.profile?.bio || '')
+    setIsEditing(false)
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -57,40 +54,90 @@ export function ContextCard() {
       e.preventDefault()
       handleSubmit(e as unknown as React.FormEvent)
     }
+    if (e.key === 'Escape') {
+      handleCancel()
+    }
+  }
+
+  const handleStartEditing = () => {
+    setContext('')
+    setIsEditing(true)
   }
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Card className="w-full">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between gap-2">
-              <span className="text-muted-foreground">Context</span>
-              <PlusIcon className="size-4" />
-            </CardTitle>
-          </CardHeader>
-          {!loading && <CardContent>{userData?.profile?.bio || ''}</CardContent>}
-        </Card>
-      </SheetTrigger>
-      <SheetContent>
-        <SheetHeader>
-          <SheetTitle>Add Context</SheetTitle>
-          <SheetDescription>
-            Share information about yourself, your preferences, or any other context that might help
-            your twin understand you better.
-          </SheetDescription>
-        </SheetHeader>
-        <form className="px-4 flex flex-col gap-4" onSubmit={handleSubmit}>
-          <Textarea
-            placeholder="Enter any information that might help your twin understand you better..."
-            value={context}
-            onChange={(e) => setContext(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="min-h-[200px] px-4"
-          />
-          <Button disabled={updateLoading}>Save Context</Button>
-        </form>
-      </SheetContent>
-    </Sheet>
+    <motion.div className="relative" transition={{ duration: 0.15, ease: 'easeOut' }}>
+      <AnimatePresence mode="wait">
+        {userData?.profile?.bio || isEditing ? (
+          <motion.div
+            key="context"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="space-y-2"
+          >
+            <motion.div
+              className="relative"
+              animate={{ height: isEditing ? 'auto' : 'auto' }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+            >
+              <Textarea
+                value={context}
+                onChange={(e) => setContext(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onBlur={() => !context.trim() && handleSubmit({} as React.FormEvent)}
+                readOnly={!isEditing}
+                placeholder="Add context..."
+                onClick={() => !isEditing && setIsEditing(true)}
+                className={`w-full resize-none transition-all duration-200 rounded-lg ${
+                  !isEditing
+                    ? 'min-h-0 max-h-[150px] cursor-pointer hover:bg-muted/50 border-transparent'
+                    : 'min-h-[150px] max-h-[150px]'
+                }`}
+                style={{
+                  height: !isEditing ? 'auto' : '150px'
+                }}
+                autoFocus={isEditing}
+              />
+            </motion.div>
+            {isEditing && (
+              <motion.div
+                className="flex justify-end gap-2"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+              >
+                <Button variant="ghost" size="sm" onClick={handleCancel}>
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSubmit} disabled={updateLoading}>
+                  Save
+                </Button>
+              </motion.div>
+            )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="empty"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="flex items-center justify-center"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleStartEditing}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground"
+            >
+              <PencilIcon className="size-4" />
+              Add Context
+            </Button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
   )
 }

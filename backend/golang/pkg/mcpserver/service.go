@@ -12,7 +12,10 @@ import (
 // MCPService defines the interface for managing MCP server data.
 type MCPService interface {
 	// ConnectMCPServer connects a new MCP server based on the provided input.
-	ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (*model.MCPServer, error)
+	ConnectMCPServer(
+		ctx context.Context,
+		input model.ConnectMCPServerInput,
+	) (*model.MCPServer, error)
 	// GetMCPServers retrieves all MCP servers.
 	GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error)
 	// Load MCP Server from database

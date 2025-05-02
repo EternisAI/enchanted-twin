@@ -122,6 +122,10 @@ mutation DeleteChat($chatId: ID!) {
   }
 }
 
+mutation UpdateProfile($input: UpdateProfileInput!) {
+  updateProfile(input: $input)
+}
+
 subscription MessageAdded($chatId: ID!) {
   messageAdded(chatId: $chatId) {
     id
@@ -160,6 +164,17 @@ subscription IndexingStatus {
       indexProgress
       hasError
     }
+  }
+}
+
+subscription NotificationAdded {
+  notificationAdded {
+    id
+    title
+    message
+    image
+    link
+    createdAt
   }
 }
 

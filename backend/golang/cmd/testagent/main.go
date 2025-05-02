@@ -25,13 +25,21 @@ import (
 )
 
 var (
-	commandFlag   = flag.String("cmd", "", "Command to send to the agent (create_agent, start_agent, signal_agent, list_agents, list_runs, get_agent, stop, test_planned)")
+	commandFlag = flag.String(
+		"cmd",
+		"",
+		"Command to send to the agent (create_agent, start_agent, signal_agent, list_agents, list_runs, get_agent, stop, test_planned)",
+	)
 	agentIDFlag   = flag.String("agent-id", "", "Agent ID for the command")
 	blueprintFlag = flag.String("blueprint", "", "Path to blueprint JSON file (for create_agent)")
 	runIDFlag     = flag.String("run-id", "", "Run ID (for signal_agent)")
 	signalFlag    = flag.String("signal", "", "Signal name (for signal_agent)")
 	payloadFlag   = flag.String("payload", "{}", "JSON payload (for signal_agent or start_agent)")
-	testPlanFlag  = flag.String("plan", "1. Say hello.\n2. Tell me a hilarious joke about cats\n3. Wait 5 seconds so I can catch my breath.\n4. Tell me a hilarious joke about dogs", "Plan for the test-planned command")
+	testPlanFlag  = flag.String(
+		"plan",
+		"1. Say hello.\n2. Tell me a hilarious joke about cats\n3. Wait 5 seconds so I can catch my breath.\n4. Tell me a hilarious joke about dogs",
+		"Plan for the test-planned command",
+	)
 )
 
 func main() {
@@ -55,7 +63,11 @@ func main() {
 	logger.Info("Temporal server started")
 
 	// Create temporal client
-	temporalClient, err := bootstrap.CreateTemporalClient("localhost:7233", bootstrap.TemporalNamespace, "")
+	temporalClient, err := bootstrap.CreateTemporalClient(
+		"localhost:7233",
+		bootstrap.TemporalNamespace,
+		"",
+	)
 	if err != nil {
 		logger.Error("Unable to create temporal client", "error", err)
 		os.Exit(1)
@@ -212,7 +224,15 @@ func handleStartAgent(c client.Client, logger *log.Logger) error {
 	found := false
 	for id, run := range runs {
 		if run.AgentID == *agentIDFlag {
-			logger.Info("Agent started", "agent_id", *agentIDFlag, "run_id", id, "started", run.Started)
+			logger.Info(
+				"Agent started",
+				"agent_id",
+				*agentIDFlag,
+				"run_id",
+				id,
+				"started",
+				run.Started,
+			)
 			found = true
 			break
 		}
@@ -282,9 +302,15 @@ func handleListAgents(c client.Client, logger *log.Logger) error {
 
 func handleGetAgent(c client.Client, agentID string, logger *log.Logger) error {
 	ctx := context.Background()
-	resp, err := c.QueryWorkflow(ctx, root.RootWorkflowID, "", root.QueryGetAgent, map[string]string{
-		"agent_id": agentID,
-	})
+	resp, err := c.QueryWorkflow(
+		ctx,
+		root.RootWorkflowID,
+		"",
+		root.QueryGetAgent,
+		map[string]string{
+			"agent_id": agentID,
+		},
+	)
 	if err != nil {
 		return fmt.Errorf("failed to query workflow: %w", err)
 	}
@@ -317,7 +343,17 @@ func handleListRuns(c client.Client, logger *log.Logger) error {
 
 	logger.Info("Active runs:", "count", len(runs))
 	for id, run := range runs {
-		logger.Info("Run", "id", id, "agent_id", run.AgentID, "started", run.Started, "status", run.Status)
+		logger.Info(
+			"Run",
+			"id",
+			id,
+			"agent_id",
+			run.AgentID,
+			"started",
+			run.Started,
+			"status",
+			run.Status,
+		)
 	}
 
 	return nil
@@ -468,7 +504,13 @@ func handleTestPlanned(c client.Client, logger *log.Logger, envs *config.Config)
 	}
 
 	// Display results
-	logger.Info("Workflow completed successfully", "output", state.Output, "steps", state.CurrentStep)
+	logger.Info(
+		"Workflow completed successfully",
+		"output",
+		state.Output,
+		"steps",
+		state.CurrentStep,
+	)
 
 	// Display history
 	logger.Info("Workflow history:")
@@ -499,7 +541,9 @@ func interactiveMode(c client.Client, logger *log.Logger) error {
 		logger.Warn("Failed to list tools", "error", err)
 	}
 
-	logger.Info("Interactive mode is running. Polling for state updates every 5 seconds. Press Ctrl+C to exit.")
+	logger.Info(
+		"Interactive mode is running. Polling for state updates every 5 seconds. Press Ctrl+C to exit.",
+	)
 
 	// Set up ticker for periodic updates
 	ticker := time.NewTicker(5 * time.Second)

@@ -125,7 +125,11 @@ func (s *TelegramService) Start(ctx context.Context) error {
 		case <-ctx.Done():
 			return nil
 		default:
-			url := fmt.Sprintf("https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30", s.Token, lastUpdateID+1)
+			url := fmt.Sprintf(
+				"https://api.telegram.org/bot%s/getUpdates?offset=%d&timeout=30",
+				s.Token,
+				lastUpdateID+1,
+			)
 
 			req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 			if err != nil {
@@ -225,7 +229,11 @@ func (s *TelegramService) Start(ctx context.Context) error {
 	}
 }
 
-func (s *TelegramService) CreateChat(ctx context.Context, chatID string, chatUUID string) (string, error) {
+func (s *TelegramService) CreateChat(
+	ctx context.Context,
+	chatID string,
+	chatUUID string,
+) (string, error) {
 	fmt.Println("chatID", chatID)
 	fmt.Println("chatUUID", chatUUID)
 	err := s.Store.SetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID), chatID)
@@ -247,7 +255,10 @@ func (s *TelegramService) GetChatID(ctx context.Context) (string, error) {
 	return chatID, nil
 }
 
-func (s *TelegramService) GetChatIDFromChatUUID(ctx context.Context, chatUUID string) (string, error) {
+func (s *TelegramService) GetChatIDFromChatUUID(
+	ctx context.Context,
+	chatUUID string,
+) (string, error) {
 	chatID, err := s.Store.GetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID))
 	if err != nil {
 		return "", err
@@ -263,7 +274,11 @@ func (s *TelegramService) GetChatUUID(ctx context.Context) (string, error) {
 	return chatUUID, nil
 }
 
-func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.ChatCompletionMessageParamUnion, message string) (agent.AgentResponse, error) {
+func (s *TelegramService) Execute(
+	ctx context.Context,
+	messageHistory []openai.ChatCompletionMessageParamUnion,
+	message string,
+) (agent.AgentResponse, error) {
 	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, nil, nil)
 
 	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.Store)
@@ -282,7 +297,15 @@ func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.C
 	if err != nil {
 		return agent.AgentResponse{}, err
 	}
-	s.Logger.Debug("Agent response", "content", response.Content, "tool_calls", len(response.ToolCalls), "tool_results", len(response.ToolResults))
+	s.Logger.Debug(
+		"Agent response",
+		"content",
+		response.Content,
+		"tool_calls",
+		len(response.ToolCalls),
+		"tool_results",
+		len(response.ToolResults),
+	)
 
 	return response, nil
 }
@@ -298,7 +321,12 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 		return nil, fmt.Errorf("failed to convert last update ID to int: %w", err)
 	}
 
-	url := fmt.Sprintf("%s/bot%s/getUpdates?offset=%d&limit=10", types.TelegramAPIBase, s.Token, lastUpdateIDInt)
+	url := fmt.Sprintf(
+		"%s/bot%s/getUpdates?offset=%d&limit=10",
+		types.TelegramAPIBase,
+		s.Token,
+		lastUpdateIDInt,
+	)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -350,7 +378,9 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 	return messages, nil
 }
 
-func (s *TelegramService) TransformToOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUnion {
+func (s *TelegramService) TransformToOpenAIMessages(
+	messages []Message,
+) []openai.ChatCompletionMessageParamUnion {
 	openAIMessages := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
 
 	for _, msg := range messages {
@@ -438,7 +468,13 @@ func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, d
 
 	messageID, err := strconv.Atoi(data.ID)
 	if err != nil {
-		s.Logger.Warn("Failed to convert WebSocket message ID (GraphQL ID) to int. Using 0.", "error", err, "graphQL_ID", data.ID)
+		s.Logger.Warn(
+			"Failed to convert WebSocket message ID (GraphQL ID) to int. Using 0.",
+			"error",
+			err,
+			"graphQL_ID",
+			data.ID,
+		)
 		messageID = 0
 	}
 
@@ -452,7 +488,13 @@ func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, d
 
 	parsedTime, err := time.Parse(time.RFC3339, data.CreatedAt)
 	if err != nil {
-		s.Logger.Error("Failed to parse CreatedAt timestamp from WebSocket", "error", err, "timestamp", data.CreatedAt)
+		s.Logger.Error(
+			"Failed to parse CreatedAt timestamp from WebSocket",
+			"error",
+			err,
+			"timestamp",
+			data.CreatedAt,
+		)
 		return nil, fmt.Errorf("failed to parse CreatedAt timestamp from WebSocket: %w", err)
 	}
 	date := int(parsedTime.Unix())
@@ -592,7 +634,11 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				if err := conn.ReadJSON(&response); err != nil {
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						if err := conn.SetReadDeadline(time.Time{}); err != nil {
-							s.Logger.Warn("Failed to reset read deadline after timeout", "error", err)
+							s.Logger.Warn(
+								"Failed to reset read deadline after timeout",
+								"error",
+								err,
+							)
 						}
 						continue
 					}
@@ -606,7 +652,10 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 					if reconnectAttempts >= maxReconnectAttempts {
-						exitErr = fmt.Errorf("max reconnection attempts reached after error: %w", err)
+						exitErr = fmt.Errorf(
+							"max reconnection attempts reached after error: %w",
+							err,
+						)
 						return
 					}
 
@@ -690,7 +739,11 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					continue
 				}
 				if err := conn.SetReadDeadline(time.Time{}); err != nil {
-					s.Logger.Warn("Failed to reset read deadline after successful read", "error", err)
+					s.Logger.Warn(
+						"Failed to reset read deadline after successful read",
+						"error",
+						err,
+					)
 				}
 
 				if response.Type == "data" {
@@ -704,24 +757,44 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						s.Logger.Info("Error getting telegram enabled", "error", err)
 					}
 					if telegramEnabled != "true" {
-						helpers.SetTelegramEnabled(ctx, s.Store, true)
+						err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
+						if err != nil {
+							s.Logger.Error("Error setting telegram enabled", "error", err)
+						}
 					}
 
-					s.Logger.Info("Received message", "message", response.Payload.Data.TelegramMessageAdded.Text)
-					newMessage, err := s.transformWebSocketDataToMessage(ctx, response.Payload.Data.TelegramMessageAdded, chatUUID)
+					s.Logger.Info(
+						"Received message",
+						"message",
+						response.Payload.Data.TelegramMessageAdded.Text,
+					)
+					newMessage, err := s.transformWebSocketDataToMessage(
+						ctx,
+						response.Payload.Data.TelegramMessageAdded,
+						chatUUID,
+					)
 					if err != nil {
 						continue
 					}
 
 					s.LastMessages = append(s.LastMessages, *newMessage)
 
-					agentResponse, err := s.Execute(ctx, s.TransformToOpenAIMessages(s.LastMessages), newMessage.Text)
+					agentResponse, err := s.Execute(
+						ctx,
+						s.TransformToOpenAIMessages(s.LastMessages),
+						newMessage.Text,
+					)
 					if err != nil {
 						continue
 					}
 
 					if agentResponse.Content != "" {
-						_, err := helpers.PostMessage(ctx, chatUUID, agentResponse.Content, s.ChatServerUrl)
+						_, err := helpers.PostMessage(
+							ctx,
+							chatUUID,
+							agentResponse.Content,
+							s.ChatServerUrl,
+						)
 						if err != nil {
 							s.Logger.Error("Error with GraphQL mutation response", "error", err)
 						} else {

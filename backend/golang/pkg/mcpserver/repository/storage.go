@@ -29,7 +29,11 @@ INSERT INTO mcp_servers (id, name, command, args, envs, type, created_at, enable
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
 `
 
-func (r *Repository) AddMCPServer(ctx context.Context, input *model.ConnectMCPServerInput, enabled *bool) (*model.MCPServer, error) {
+func (r *Repository) AddMCPServer(
+	ctx context.Context,
+	input *model.ConnectMCPServerInput,
+	enabled *bool,
+) (*model.MCPServer, error) {
 	newID := uuid.NewString()
 	createdAt := time.Now().Format(time.RFC3339)
 
@@ -50,7 +54,18 @@ func (r *Repository) AddMCPServer(ctx context.Context, input *model.ConnectMCPSe
 		enabledValue = *enabled
 	}
 
-	_, err = r.db.ExecContext(ctx, insertMCPServerQuery, newID, input.Name, input.Command, string(argsJSON), string(envsJSON), input.Type.String(), createdAt, enabledValue)
+	_, err = r.db.ExecContext(
+		ctx,
+		insertMCPServerQuery,
+		newID,
+		input.Name,
+		input.Command,
+		string(argsJSON),
+		string(envsJSON),
+		input.Type.String(),
+		createdAt,
+		enabledValue,
+	)
 	if err != nil {
 		r.logger.Error("failed to insert mcp server", "error", err, "name", input.Name)
 		return nil, err
@@ -106,7 +121,13 @@ func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, err
 		var argsSlice []string
 		if dbServer.Args != "" {
 			if err := json.Unmarshal([]byte(dbServer.Args), &argsSlice); err != nil {
-				r.logger.Error("failed to unmarshal args for mcp server", "error", err, "id", dbServer.ID)
+				r.logger.Error(
+					"failed to unmarshal args for mcp server",
+					"error",
+					err,
+					"id",
+					dbServer.ID,
+				)
 				// Skip this server or return error? Skipping for now.
 				continue
 			}
@@ -114,7 +135,13 @@ func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, err
 		var envsSlice []*model.KeyValue
 		if dbServer.Envs != "" {
 			if err := json.Unmarshal([]byte(dbServer.Envs), &envsSlice); err != nil {
-				r.logger.Error("failed to unmarshal envs for mcp server", "error", err, "id", dbServer.ID)
+				r.logger.Error(
+					"failed to unmarshal envs for mcp server",
+					"error",
+					err,
+					"id",
+					dbServer.ID,
+				)
 				// Skip this server or return error? Skipping for now.
 				continue
 			}
@@ -122,7 +149,13 @@ func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, err
 
 		var mcpType model.MCPServerType
 		if err := mcpType.UnmarshalGQL(dbServer.Type); err != nil {
-			r.logger.Error("failed to unmarshal type for mcp server", "error", err, "id", dbServer.ID)
+			r.logger.Error(
+				"failed to unmarshal type for mcp server",
+				"error",
+				err,
+				"id",
+				dbServer.ID,
+			)
 			// Skip this server or return error? Skipping for now.
 			continue
 		}

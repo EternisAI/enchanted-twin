@@ -197,7 +197,10 @@ func findRandomAvailablePort() string {
 	}()
 
 	// Get the port from the listener
-	addr := ln.Addr().(*net.TCPAddr)
+	addr, ok := ln.Addr().(*net.TCPAddr)
+	if !ok {
+		return "" // Unable to get TCP address
+	}
 	return fmt.Sprintf("%d", addr.Port)
 }
 

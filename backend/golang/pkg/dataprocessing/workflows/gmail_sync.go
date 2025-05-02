@@ -24,7 +24,10 @@ type GmailSyncWorkflowResponse struct {
 	LastRecordTimestamp time.Time `json:"lastRecordTimestamp"`
 }
 
-func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input GmailSyncWorkflowInput) (GmailSyncWorkflowResponse, error) {
+func (w *DataProcessingWorkflows) GmailSyncWorkflow(
+	ctx workflow.Context,
+	input GmailSyncWorkflowInput,
+) (GmailSyncWorkflowResponse, error) {
 	if w.Store == nil {
 		return GmailSyncWorkflowResponse{}, errors.New("store is nil")
 	}
@@ -59,7 +62,8 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input 
 	}
 
 	var response GmailFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput{}).Get(ctx, &response)
+	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput{}).
+		Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err
 	}
@@ -85,7 +89,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input 
 		}, nil
 	}
 
-	w.Logger.Info("filteredRecords", "value", filteredRecords)
+	w.Logger.Info("filteredRecords", "length", len(filteredRecords))
 	err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: filteredRecords}).Get(ctx, nil)
 	if err != nil {
 		return GmailSyncWorkflowResponse{}, err
@@ -110,7 +114,10 @@ type GmailFetchActivityResponse struct {
 	Records []types.Record `json:"records"`
 }
 
-func (w *DataProcessingWorkflows) GmailFetchActivity(ctx context.Context, input GmailFetchActivityInput) (GmailFetchActivityResponse, error) {
+func (w *DataProcessingWorkflows) GmailFetchActivity(
+	ctx context.Context,
+	input GmailFetchActivityInput,
+) (GmailFetchActivityResponse, error) {
 	tokens, err := w.Store.GetOAuthTokens(ctx, "google")
 	if err != nil {
 		return GmailFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
@@ -132,7 +139,10 @@ type GmailIndexActivityInput struct {
 
 type GmailIndexActivityResponse struct{}
 
-func (w *DataProcessingWorkflows) GmailIndexActivity(ctx context.Context, input GmailIndexActivityInput) (GmailIndexActivityResponse, error) {
+func (w *DataProcessingWorkflows) GmailIndexActivity(
+	ctx context.Context,
+	input GmailIndexActivityInput,
+) (GmailIndexActivityResponse, error) {
 	documents, err := gmail.ToDocuments(input.Records)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err

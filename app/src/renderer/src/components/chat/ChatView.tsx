@@ -85,11 +85,18 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     })
   }
 
-  const { sendMessage } = useSendMessage(chat.id, (msg) => {
-    upsertMessage(msg)
-    setIsWaitingTwinResponse(true)
-    setShowSuggestions(false)
-  })
+  const { sendMessage } = useSendMessage(
+    chat.id,
+    (msg) => {
+      upsertMessage(msg)
+      setIsWaitingTwinResponse(true)
+      setShowSuggestions(false)
+    },
+    (msg) => {
+      upsertMessage(msg)
+      setIsWaitingTwinResponse(false)
+    }
+  )
 
   useMessageSubscription(chat.id, (msg) => {
     if (msg.role === Role.User) {
@@ -101,7 +108,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   })
 
   useToolCallUpdate(chat.id, (toolCall) => {
-    updateToolCallInMessage(toolCall as ToolCall & { messageId: string })
+    updateToolCallInMessage(toolCall)
   })
 
   useEffect(() => {
@@ -125,7 +132,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
           </div>
         </div>
       </div>
-      <div className="flex flex-col px-6 py-4 w-full items-center justify-center">
+      <div className="flex flex-col px-6 py-4 pb-0 w-full items-center justify-center">
         <div className="max-w-4xl mx-auto w-full flex justify-center items-center relative">
           <ChatSuggestions
             chatId={chat.id}

@@ -27,7 +27,11 @@ func main() {
 	})
 
 	// Set up command line flags
-	providerFlag := flag.String("provider", "", "OAuth provides to authenticate - comma separated, e.g. 'twitter,google,linkedin'")
+	providerFlag := flag.String(
+		"provider",
+		"",
+		"OAuth provides to authenticate - comma separated, e.g. 'twitter,google,linkedin'",
+	)
 	refreshFlag := flag.Bool("refresh", false, "Specify to refresh all expired tokens")
 	dbPath := flag.String("db-path", "./store.db", "Path to the SQLite database file")
 	logger.Info("Using database path", "path", *dbPath)
@@ -72,7 +76,15 @@ func main() {
 			os.Exit(1)
 		}
 		for _, s := range status {
-			logger.Info("token status", "provider", s.Provider, "scope", s.Scope, "expires_at", s.ExpiresAt.Format(time.RFC3339))
+			logger.Info(
+				"token status",
+				"provider",
+				s.Provider,
+				"scope",
+				s.Scope,
+				"expires_at",
+				s.ExpiresAt.Format(time.RFC3339),
+			)
 		}
 	}
 

@@ -218,12 +218,14 @@ func (o OAuthTokens) String() string {
 		}
 	}
 
-	return fmt.Sprintf("OAuthTokens{provider=%s, token_type=%s, access_token=%s, expires_at=%s, refresh_token=%s}",
+	return fmt.Sprintf(
+		"OAuthTokens{provider=%s, token_type=%s, access_token=%s, expires_at=%s, refresh_token=%s}",
 		o.Provider,
 		o.TokenType,
 		accessTokenValue,
 		o.ExpiresAt.Format(time.RFC3339),
-		refreshTokenValue)
+		refreshTokenValue,
+	)
 }
 
 // GetAllOAuthTokens retrieves all OAuth tokens from the database.
@@ -261,7 +263,13 @@ func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthToke
 	return &tokens, nil
 }
 
-func (s *Store) SetOAuthStateAndVerifier(ctx context.Context, provider string, state string, codeVerifier string, scope string) error {
+func (s *Store) SetOAuthStateAndVerifier(
+	ctx context.Context,
+	provider string,
+	state string,
+	codeVerifier string,
+	scope string,
+) error {
 	query := `
         INSERT OR REPLACE INTO oauth_sessions 
         (state, provider, code_verifier, state_created_at, scope)
@@ -271,7 +279,11 @@ func (s *Store) SetOAuthStateAndVerifier(ctx context.Context, provider string, s
 	return err
 }
 
-func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger *log.Logger, state string) (string, string, string, error) {
+func (s *Store) GetAndClearOAuthProviderAndVerifier(
+	ctx context.Context,
+	logger *log.Logger,
+	state string,
+) (string, string, string, error) {
 	// Start a transaction
 	tx, err := s.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -402,7 +414,11 @@ func (s *Store) GetOAuthConfig(ctx context.Context, provider string) (*OAuthConf
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("provider '%s' not found", provider)
 		}
-		return nil, fmt.Errorf("failed to get OAuth configuration for provider '%s': %w", provider, err)
+		return nil, fmt.Errorf(
+			"failed to get OAuth configuration for provider '%s': %w",
+			provider,
+			err,
+		)
 	}
 
 	return &config, nil

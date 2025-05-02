@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Button } from '../ui/button'
 import { StopCircleIcon } from 'lucide-react'
+import { Textarea } from '../ui/textarea'
 
 type MessageInputProps = {
   onSend: (text: string) => void
@@ -25,20 +26,23 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   }
 
   return (
-    <div className="flex gap-3 items-center flex-1">
-      <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={handleKeyDown}
-        rows={3}
-        placeholder="Type a message..."
-        className="flex-1 resize-none border rounded-md p-2 text-sm"
-      />
-      <SendButton
-        onSend={handleSend}
-        isWaitingTwinResponse={isWaitingTwinResponse}
-        onStop={onStop}
-      />
+    <div className="rounded-t-lg border border-border border-b-0 relative bottom-[1px] p-4 w-full">
+      <div className="flex gap-3 items-center flex-1">
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={3}
+          autoFocus
+          placeholder="Type a message..."
+          className="flex-1 resize-none"
+        />
+        <SendButton
+          onSend={handleSend}
+          isWaitingTwinResponse={isWaitingTwinResponse}
+          onStop={onStop}
+        />
+      </div>
     </div>
   )
 }

@@ -18,7 +18,10 @@ type GoogleClient struct {
 	Store *db.Store
 }
 
-func (c *GoogleClient) ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error) {
+func (c *GoogleClient) ListTools(
+	ctx context.Context,
+	cursor *string,
+) (*mcp_golang.ToolsResponse, error) {
 	tools := []mcp_golang.ToolRetType{}
 
 	gmailTools, err := GenerateGmailTools()
@@ -44,7 +47,11 @@ func (c *GoogleClient) ListTools(ctx context.Context, cursor *string) (*mcp_gola
 	}, nil
 }
 
-func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error) {
+func (c *GoogleClient) CallTool(
+	ctx context.Context,
+	name string,
+	arguments any,
+) (*mcp_golang.ToolResponse, error) {
 	// Convert generic arguments to the expected Go struct.
 	fmt.Println("Call tool GOOGLE", name, arguments)
 
@@ -90,6 +97,16 @@ func (c *GoogleClient) CallTool(ctx context.Context, name string, arguments any)
 			return nil, err
 		}
 		result, err := processSendEmail(ctx, oauthTokens.AccessToken, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
+	case EMAIL_BY_ID_TOOL_NAME:
+		var argumentsTyped EmailByIdArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		result, err := processEmailById(ctx, oauthTokens.AccessToken, argumentsTyped)
 		if err != nil {
 			return nil, err
 		}

@@ -67,7 +67,10 @@ func (s *ChatGPTDataSource) Name() string {
 	return "chatgpt"
 }
 
-func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username string) ([]types.Record, error) {
+func (s *ChatGPTDataSource) ProcessFileConversations(
+	filePath string,
+	username string,
+) ([]types.Record, error) {
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err

@@ -18,7 +18,10 @@ type SlackClient struct {
 	Store *db.Store
 }
 
-func (c *SlackClient) ListTools(ctx context.Context, cursor *string) (*mcp_golang.ToolsResponse, error) {
+func (c *SlackClient) ListTools(
+	ctx context.Context,
+	cursor *string,
+) (*mcp_golang.ToolsResponse, error) {
 	tools, err := GenerateSlackTools()
 	if err != nil {
 		return nil, err
@@ -32,7 +35,11 @@ func (c *SlackClient) ListTools(ctx context.Context, cursor *string) (*mcp_golan
 	}, nil
 }
 
-func (c *SlackClient) CallTool(ctx context.Context, name string, arguments any) (*mcp_golang.ToolResponse, error) {
+func (c *SlackClient) CallTool(
+	ctx context.Context,
+	name string,
+	arguments any,
+) (*mcp_golang.ToolResponse, error) {
 	fmt.Println("Call tool SLACK", name, arguments)
 
 	bytes, err := helpers.ConvertToBytes(arguments)

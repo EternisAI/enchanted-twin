@@ -24,26 +24,35 @@ const (
 
 type ListChannelsArguments struct {
 	Cursor string `json:"cursor" jsonschema:"description=The cursor for pagination, empty if first page"`
-	Limit  int    `json:"limit" jsonschema:"required,description=The number of channels to list, minimum 10, maximum 50"`
+	Limit  int    `json:"limit"  jsonschema:"required,description=The number of channels to list, minimum 10, maximum 50"`
 }
 
 type PostMessageArguments struct {
 	ChannelID string `json:"channel_id" jsonschema:"required,description=The ID of the channel to post the message to"`
-	Text      string `json:"text" jsonschema:"required,description=The content of the message"`
+	Text      string `json:"text"       jsonschema:"required,description=The content of the message"`
 }
 
 type SearchMessagesArguments struct {
-	Query  string `json:"query" jsonschema:"required,description=The query to search for"`
+	Query  string `json:"query"  jsonschema:"required,description=The query to search for"`
 	Cursor string `json:"cursor" jsonschema:"description=The cursor for pagination, empty if first page"`
-	ID     string `json:"id" jsonschema:"description=The ID of the channel/conversation to search in"`
+	ID     string `json:"id"     jsonschema:"description=The ID of the channel/conversation to search in"`
 }
 
-func processListChannels(ctx context.Context, accessToken string, arguments ListChannelsArguments) ([]*mcp_golang.Content, error) {
+func processListChannels(
+	ctx context.Context,
+	accessToken string,
+	arguments ListChannelsArguments,
+) ([]*mcp_golang.Content, error) {
 	api := slack.New(accessToken)
 	params := &slack.GetConversationsParameters{
 		Cursor: arguments.Cursor,
 		Limit:  arguments.Limit,
-		Types:  []string{"public_channel", "private_channel", "mpim", "im"}, // Adjust types as needed
+		Types: []string{
+			"public_channel",
+			"private_channel",
+			"mpim",
+			"im",
+		}, // Adjust types as needed
 	}
 
 	channels, nextCursor, err := api.GetConversationsContext(ctx, params)
@@ -83,7 +92,11 @@ func processListChannels(ctx context.Context, accessToken string, arguments List
 	return contents, nil
 }
 
-func processPostMessage(ctx context.Context, accessToken string, arguments PostMessageArguments) ([]*mcp_golang.Content, error) {
+func processPostMessage(
+	ctx context.Context,
+	accessToken string,
+	arguments PostMessageArguments,
+) ([]*mcp_golang.Content, error) {
 	api := slack.New(accessToken)
 
 	// Post the message
@@ -110,7 +123,11 @@ func processPostMessage(ctx context.Context, accessToken string, arguments PostM
 	}, nil
 }
 
-func processSearchMessages(ctx context.Context, accessToken string, arguments SearchMessagesArguments) ([]*mcp_golang.Content, error) {
+func processSearchMessages(
+	ctx context.Context,
+	accessToken string,
+	arguments SearchMessagesArguments,
+) ([]*mcp_golang.Content, error) {
 	api := slack.New(accessToken)
 
 	// Slack's search parameters are a bit different.
@@ -165,21 +182,21 @@ func processSearchMessages(ctx context.Context, accessToken string, arguments Se
 	}
 
 	// Determine the next page cursor (which is just the next page number as a string)
-	var nextCursor *string
+	// var nextCursor *string
 	// if results.Paging.Page < results.Paging.Pages {
 	// 	nextPageStr := fmt.Sprintf("%d", results.Paging.Page+1)
 	// 	nextCursor = &nextPageStr
 	// }
 
 	// Append the next cursor information as a text content if it exists
-	if nextCursor != nil && *nextCursor != "" {
-		contents = append(contents, &mcp_golang.Content{
-			Type: "text",
-			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Next page cursor: %s", *nextCursor),
-			},
-		})
-	}
+	// if nextCursor != nil && *nextCursor != "" {
+	// 	contents = append(contents, &mcp_golang.Content{
+	// 		Type: "text",
+	// 		TextContent: &mcp_golang.TextContent{
+	// 			Text: fmt.Sprintf("Next page cursor: %s", *nextCursor),
+	// 		},
+	// 	})
+	// }
 
 	return contents, nil
 }

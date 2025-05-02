@@ -22,6 +22,9 @@ func ToOpenAIMessage(message model.Message) (openai.ChatCompletionMessageParamUn
 	case "tool":
 		return openai.ToolMessage(*message.Text, ""), nil
 	default:
-		return openai.ChatCompletionMessageParamUnion{}, fmt.Errorf("unknown message role: %s", message.Role)
+		return openai.ChatCompletionMessageParamUnion{}, fmt.Errorf(
+			"unknown message role: %s",
+			message.Role,
+		)
 	}
 }

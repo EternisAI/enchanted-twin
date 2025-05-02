@@ -40,7 +40,11 @@ const (
 )
 
 func NewTemporalClient(dbPath string) (client.Client, error) {
-	return CreateTemporalClient(fmt.Sprintf("%s:%d", TemporalServerIP, TemporalServerPort), TemporalNamespace, "")
+	return CreateTemporalClient(
+		fmt.Sprintf("%s:%d", TemporalServerIP, TemporalServerPort),
+		TemporalNamespace,
+		"",
+	)
 }
 
 func CreateTemporalClient(address string, namespace string, apiKey string) (client.Client, error) {
@@ -194,7 +198,12 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 		log.Fatalf("failed to setup SQLite schema: %v", err)
 	}
 
-	namespaceConfig, err := sqliteschema.NewNamespaceConfig(clusterName, TemporalNamespace, false, nil)
+	namespaceConfig, err := sqliteschema.NewNamespaceConfig(
+		clusterName,
+		TemporalNamespace,
+		false,
+		nil,
+	)
 	if err != nil {
 		log.Fatalf("unable to create namespace config: %s", err)
 	}
@@ -207,7 +216,10 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 		log.Fatalf("unable to create authorizer: %s", err)
 	}
 	temporalLogger := temporallog.NewNoopLogger().With()
-	claimMapper, err := authorization.GetClaimMapperFromConfig(&conf.Global.Authorization, temporalLogger)
+	claimMapper, err := authorization.GetClaimMapperFromConfig(
+		&conf.Global.Authorization,
+		temporalLogger,
+	)
 	if err != nil {
 		log.Fatalf("unable to create claim mapper: %s", err)
 	}
@@ -220,14 +232,23 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 		temporal.ForServices(temporal.DefaultServices),
 		temporal.WithStaticHosts(map[primitives.ServiceName]static.Hosts{
 			primitives.FrontendService: static.SingleLocalHost(fmt.Sprintf("%s:%d", ip, port)),
-			primitives.HistoryService:  static.SingleLocalHost(fmt.Sprintf("%s:%d", ip, historyPort)),
-			primitives.MatchingService: static.SingleLocalHost(fmt.Sprintf("%s:%d", ip, matchingPort)),
-			primitives.WorkerService:   static.SingleLocalHost(fmt.Sprintf("%s:%d", ip, workerPort)),
+			primitives.HistoryService: static.SingleLocalHost(
+				fmt.Sprintf("%s:%d", ip, historyPort),
+			),
+			primitives.MatchingService: static.SingleLocalHost(
+				fmt.Sprintf("%s:%d", ip, matchingPort),
+			),
+			primitives.WorkerService: static.SingleLocalHost(
+				fmt.Sprintf("%s:%d", ip, workerPort),
+			),
 		}),
 		temporal.WithLogger(temporalLogger),
 		temporal.WithAuthorizer(authorizer),
-		temporal.WithClaimMapper(func(*config.Config) authorization.ClaimMapper { return claimMapper }),
-		temporal.WithDynamicConfigClient(dynConf))
+		temporal.WithClaimMapper(
+			func(*config.Config) authorization.ClaimMapper { return claimMapper },
+		),
+		temporal.WithDynamicConfigClient(dynConf),
+	)
 	if err != nil {
 		log.Fatalf("unable to start server: %s", err)
 	}

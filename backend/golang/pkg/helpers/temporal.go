@@ -9,7 +9,14 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
-func CreateScheduleIfNotExists(logger *log.Logger, temporalClient client.Client, scheduleID string, interval time.Duration, workflowName any, workflowArgs []any) error {
+func CreateScheduleIfNotExists(
+	logger *log.Logger,
+	temporalClient client.Client,
+	scheduleID string,
+	interval time.Duration,
+	workflowName any,
+	workflowArgs []any,
+) error {
 	ctx := context.Background()
 	handle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
 	if handle == nil {

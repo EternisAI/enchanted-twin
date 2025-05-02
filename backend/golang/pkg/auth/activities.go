@@ -24,7 +24,10 @@ func (a *OAuthActivities) RegisterWorkflowsAndActivities(worker *worker.Worker) 
 	(*worker).RegisterActivity(a.RefreshTokenActivity)
 }
 
-func (w *OAuthActivities) RefreshTokenActivity(ctx context.Context, provider string) (TokenRequest, error) {
+func (w *OAuthActivities) RefreshTokenActivity(
+	ctx context.Context,
+	provider string,
+) (TokenRequest, error) {
 	logger := log.Default()
 
 	return RefreshOAuthToken(ctx, logger, w.authStore, provider)

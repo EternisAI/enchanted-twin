@@ -70,7 +70,10 @@ func NewService(options ContainerOptions, logger *log.Logger) (*Service, error) 
 		options.ImageTag = "latest"
 	}
 	if options.ContainerName == "" {
-		options.ContainerName = fmt.Sprintf("%s-container", strings.ReplaceAll(options.ImageName, "/", "-"))
+		options.ContainerName = fmt.Sprintf(
+			"%s-container",
+			strings.ReplaceAll(options.ImageName, "/", "-"),
+		)
 	}
 	if options.EnvVars == nil {
 		options.EnvVars = make(map[string]string)
@@ -118,7 +121,11 @@ func (s *Service) CheckImageExists(ctx context.Context) (bool, time.Time, error)
 		if strings.Contains(stderr.String(), "No such image") {
 			return false, time.Time{}, nil
 		}
-		return false, time.Time{}, fmt.Errorf("failed to inspect image: %s: %w", stderr.String(), err)
+		return false, time.Time{}, fmt.Errorf(
+			"failed to inspect image: %s: %w",
+			stderr.String(),
+			err,
+		)
 	}
 
 	// Parse the creation time
@@ -129,7 +136,11 @@ func (s *Service) CheckImageExists(ctx context.Context) (bool, time.Time, error)
 
 	created, err := time.Parse(time.RFC3339, createdStr)
 	if err != nil {
-		s.logger.Warn("Failed to parse image creation time", slog.String("time", createdStr), slog.Any("error", err))
+		s.logger.Warn(
+			"Failed to parse image creation time",
+			slog.String("time", createdStr),
+			slog.Any("error", err),
+		)
 		return true, time.Time{}, nil
 	}
 
@@ -197,7 +208,10 @@ func (s *Service) RunContainer(ctx context.Context) error {
 	cmd.Stderr = os.Stderr
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to check if container exists, check if docker is running: %w", err)
+		return fmt.Errorf(
+			"failed to check if container exists, check if docker is running: %w",
+			err,
+		)
 	}
 
 	containerInfo := strings.TrimSpace(stdout.String())
@@ -213,7 +227,10 @@ func (s *Service) RunContainer(ctx context.Context) error {
 		}
 
 		// Container exists but is not running
-		s.logger.Info("Starting existing container", slog.String("container", s.options.ContainerName))
+		s.logger.Info(
+			"Starting existing container",
+			slog.String("container", s.options.ContainerName),
+		)
 		cmd = exec.CommandContext(ctx, dockerCommand, "start", containerID)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -222,7 +239,10 @@ func (s *Service) RunContainer(ctx context.Context) error {
 			return fmt.Errorf("failed to start existing container: %w", err)
 		}
 
-		s.logger.Info("Started existing container", slog.String("container", s.options.ContainerName))
+		s.logger.Info(
+			"Started existing container",
+			slog.String("container", s.options.ContainerName),
+		)
 		return nil
 	}
 

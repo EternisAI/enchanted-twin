@@ -80,7 +80,7 @@ func GetUser(accessToken string) (*User, error) {
 
 type ListFeedTweetsArguments struct {
 	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
-	Limit           int    `json:"limit" jsonschema:"required,description=The number of tweets to list, minimum 10, maximum 50"`
+	Limit           int    `json:"limit"            jsonschema:"required,description=The number of tweets to list, minimum 10, maximum 50"`
 }
 
 type PostTweetArguments struct {
@@ -94,7 +94,7 @@ type SearchTweetsArguments struct {
 
 type ListBookmarksArguments struct {
 	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
-	Limit           int    `json:"limit" jsonschema:"required,description=The number of bookmarks to list, minimum 10, maximum 50"`
+	Limit           int    `json:"limit"            jsonschema:"required,description=The number of bookmarks to list, minimum 10, maximum 50"`
 }
 
 type authorize struct {
@@ -105,7 +105,11 @@ func (a authorize) Add(req *http.Request) {
 	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", a.Token))
 }
 
-func processListFeedTweets(ctx context.Context, accessToken string, arguments ListFeedTweetsArguments) ([]*mcp_golang.Content, error) {
+func processListFeedTweets(
+	ctx context.Context,
+	accessToken string,
+	arguments ListFeedTweetsArguments,
+) ([]*mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -124,13 +128,21 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 		maxResults = arguments.Limit
 	}
 
-	feed, err := client.UserTweetReverseChronologicalTimeline(ctx, user.Data.ID, twitter.UserTweetReverseChronologicalTimelineOpts{
-		MaxResults:      maxResults,
-		PaginationToken: arguments.PaginationToken,
-		TweetFields:     []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
-		UserFields:      []twitter.UserField{twitter.UserFieldUserName},
-		Expansions:      []twitter.Expansion{twitter.ExpansionAuthorID},
-	})
+	feed, err := client.UserTweetReverseChronologicalTimeline(
+		ctx,
+		user.Data.ID,
+		twitter.UserTweetReverseChronologicalTimelineOpts{
+			MaxResults:      maxResults,
+			PaginationToken: arguments.PaginationToken,
+			TweetFields: []twitter.TweetField{
+				twitter.TweetFieldPublicMetrics,
+				twitter.TweetFieldCreatedAt,
+				twitter.TweetFieldAuthorID,
+			},
+			UserFields: []twitter.UserField{twitter.UserFieldUserName},
+			Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
+		},
+	)
 	if err != nil {
 		fmt.Println("Error getting feed:", err)
 		return nil, err
@@ -148,7 +160,13 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n", tweet.Text, tweet.CreatedAt, tweet.AuthorID, tweetURL),
+				Text: fmt.Sprintf(
+					"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+					tweet.Text,
+					tweet.CreatedAt,
+					tweet.AuthorID,
+					tweetURL,
+				),
 			},
 		})
 	}
@@ -163,20 +181,41 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 	return contents, nil
 }
 
-func processPostTweet(_ string, _arguments PostTweetArguments) ([]*mcp_golang.Content, error) {
-	fmt.Println("Posting tweet", _arguments.Content)
+func processPostTweet(
+	ctx context.Context,
+	accessToken string,
+	_arguments PostTweetArguments,
+) ([]*mcp_golang.Content, error) {
+	client := &twitter.Client{
+		Authorizer: authorize{
+			Token: accessToken,
+		},
+		Client: http.DefaultClient,
+		Host:   "https://api.twitter.com",
+	}
+
+	_, err := client.CreateTweet(ctx, twitter.CreateTweetRequest{
+		Text: _arguments.Content,
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	return []*mcp_golang.Content{
 		{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: "Posted tweet",
+				Text: "Posted tweet successfully",
 			},
 		},
 	}, nil
 }
 
-func processSearchTweets(ctx context.Context, accessToken string, arguments SearchTweetsArguments) ([]*mcp_golang.Content, error) {
+func processSearchTweets(
+	ctx context.Context,
+	accessToken string,
+	arguments SearchTweetsArguments,
+) ([]*mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -191,10 +230,14 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 	}
 
 	search, err := client.TweetRecentSearch(ctx, arguments.Query, twitter.TweetRecentSearchOpts{
-		MaxResults:  limit,
-		Expansions:  []twitter.Expansion{twitter.ExpansionAuthorID},
-		UserFields:  []twitter.UserField{twitter.UserFieldUserName},
-		TweetFields: []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
+		MaxResults: limit,
+		Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
+		UserFields: []twitter.UserField{twitter.UserFieldUserName},
+		TweetFields: []twitter.TweetField{
+			twitter.TweetFieldPublicMetrics,
+			twitter.TweetFieldCreatedAt,
+			twitter.TweetFieldAuthorID,
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -213,7 +256,13 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n", tweet.Text, tweet.CreatedAt, tweet.AuthorID, tweetURL),
+				Text: fmt.Sprintf(
+					"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+					tweet.Text,
+					tweet.CreatedAt,
+					tweet.AuthorID,
+					tweetURL,
+				),
 			},
 		})
 	}
@@ -228,7 +277,11 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 	return contents, nil
 }
 
-func processListBookmarks(ctx context.Context, accessToken string, arguments ListBookmarksArguments) ([]*mcp_golang.Content, error) {
+func processListBookmarks(
+	ctx context.Context,
+	accessToken string,
+	arguments ListBookmarksArguments,
+) ([]*mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -252,13 +305,21 @@ func processListBookmarks(ctx context.Context, accessToken string, arguments Lis
 		limit = arguments.Limit
 	}
 
-	bookmarks, err := client.TweetBookmarksLookup(ctx, user.Data.ID, twitter.TweetBookmarksLookupOpts{
-		MaxResults:      limit,
-		Expansions:      []twitter.Expansion{twitter.ExpansionAuthorID},
-		UserFields:      []twitter.UserField{twitter.UserFieldUserName},
-		TweetFields:     []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
-		PaginationToken: paginationToken,
-	})
+	bookmarks, err := client.TweetBookmarksLookup(
+		ctx,
+		user.Data.ID,
+		twitter.TweetBookmarksLookupOpts{
+			MaxResults: limit,
+			Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
+			UserFields: []twitter.UserField{twitter.UserFieldUserName},
+			TweetFields: []twitter.TweetField{
+				twitter.TweetFieldPublicMetrics,
+				twitter.TweetFieldCreatedAt,
+				twitter.TweetFieldAuthorID,
+			},
+			PaginationToken: paginationToken,
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +337,13 @@ func processListBookmarks(ctx context.Context, accessToken string, arguments Lis
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
-				Text: fmt.Sprintf("Bookmark: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n", bookmark.Text, bookmark.CreatedAt, bookmark.AuthorID, bookmarkURL),
+				Text: fmt.Sprintf(
+					"Bookmark: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+					bookmark.Text,
+					bookmark.CreatedAt,
+					bookmark.AuthorID,
+					bookmarkURL,
+				),
 			},
 		})
 	}
