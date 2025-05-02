@@ -45,7 +45,7 @@ func (s *Source) Name() string {
 	return "x"
 }
 
-func (s *Source) ProcessFile(filePath string, userId string) ([]types.Record, error) {
+func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -69,10 +69,10 @@ func (s *Source) ProcessFile(filePath string, userId string) ([]types.Record, er
 
 	fmt.Printf("Detected file type: %s\n", fileType)
 
-	records, err := parseTwitterFileSimple(content, fileType, userId)
+	records, err := parseTwitterFileSimple(content, fileType)
 	if err != nil {
 		fmt.Printf("Simple parser failed, trying regex parser: %v\n", err)
-		records, err = parseTwitterFile(content, fileType, userId)
+		records, err = parseTwitterFile(content, fileType)
 		if err != nil {
 			fmt.Printf("Error processing %s: %v\n", fileType, err)
 			return nil, err
@@ -104,16 +104,10 @@ func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", timestampStr)
 }
 
-func (s *Source) ProcessDirectory(userName string, xApiKey string) ([]types.Record, error) {
+func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
 	var allRecords []types.Record
 
-	userId, err := GetUserIDByUsername(userName, xApiKey)
-	if err != nil {
-		userId = "0"
-	}
-	fmt.Printf("User ID: %s\n", userId)
-
-	err = filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -131,7 +125,7 @@ func (s *Source) ProcessDirectory(userName string, xApiKey string) ([]types.Reco
 			return nil
 		}
 
-		records, err := s.ProcessFile(path, userId)
+		records, err := s.ProcessFile(path)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil

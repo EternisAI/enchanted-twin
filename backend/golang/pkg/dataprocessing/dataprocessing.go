@@ -24,6 +24,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
+	"github.com/openai/openai-go"
 )
 
 // Record represents a single data record that will be written to CSV.
@@ -255,7 +256,7 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 	return tempDir, nil
 }
 
-func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (bool, error) {
+func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiClient *openai.Client) (bool, error) {
 	var records []types.Record
 	var err error
 
@@ -304,7 +305,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 			return false, fmt.Errorf("x requires a username")
 		}
 		source := x.New(inputPath)
-		records, err = source.ProcessDirectory(name, xApiKey)
+		records, err = source.ProcessDirectory(name)
 	case "whatsapp":
 		source := whatsapp.New()
 		records, err = source.ProcessFile(inputPath)
