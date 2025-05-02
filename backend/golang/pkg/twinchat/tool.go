@@ -30,14 +30,14 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 		Function: openai.FunctionDefinitionParam{
 			Name: "send_chat_message",
 			Description: param.NewOpt(
-				"Sends a message to a specified chat as the assistant",
+				"Communicate with your human twin by sending a message to the specified chat",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
 					"chat_id": map[string]any{
 						"type":        "string",
-						"description": "ID of the chat to send the message to",
+						"description": "ID of the chat to send the message to (eg. \"chatId:2f0b10c4-7de1-43a1-85b5-ceafbab9d271\")",
 					},
 					"message": map[string]any{
 						"type":        "string",

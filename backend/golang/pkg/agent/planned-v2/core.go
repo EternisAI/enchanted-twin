@@ -76,6 +76,8 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 			planInput.Plan,
 		)
 	}
+	originStr, _ := json.Marshal(planInput.Origin)
+	systemPrompt += fmt.Sprintf("\n\nTask Origin: %s\n", originStr)
 	state.Messages = append(state.Messages, ai.NewSystemMessage(systemPrompt))
 
 	// Add initial thought to history
