@@ -6,7 +6,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
-// GetUserProfile retrieves the user profile
+// GetUserProfile retrieves the user profile.
 func (s *Store) GetUserProfile(ctx context.Context) (*model.UserProfile, error) {
 	var profile struct {
 		Name *string `db:"name"`
@@ -22,7 +22,7 @@ func (s *Store) GetUserProfile(ctx context.Context) (*model.UserProfile, error) 
 	}, nil
 }
 
-// UpdateUserProfile updates the user profile
+// UpdateUserProfile updates the user profile.
 func (s *Store) UpdateUserProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
 	result, err := s.db.NamedExecContext(ctx, `
 		UPDATE user_profiles

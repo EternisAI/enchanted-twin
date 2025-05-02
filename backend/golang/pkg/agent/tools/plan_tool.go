@@ -6,22 +6,23 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/client"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
-// PlanTool implements a tool for planning and executing tasks with the planner
+// PlanTool implements a tool for planning and executing tasks with the planner.
 type PlanTool struct {
 	logger         *log.Logger
 	temporalClient client.Client
 	model          string
 }
 
-// NewPlanTool creates a new plan tool
+// NewPlanTool creates a new plan tool.
 func NewPlanTool(logger *log.Logger, temporalClient client.Client, model string) *PlanTool {
 	return &PlanTool{
 		logger:         logger,
@@ -30,7 +31,7 @@ func NewPlanTool(logger *log.Logger, temporalClient client.Client, model string)
 	}
 }
 
-// Definition returns the tool definition
+// Definition returns the tool definition.
 func (t *PlanTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
@@ -66,7 +67,7 @@ func (t *PlanTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// Execute executes the plan tool
+// Execute executes the plan tool.
 func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (*types.StructuredToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
@@ -253,8 +254,7 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (*types.Str
 	}, nil
 }
 
-// getAvailableTools returns a list of tools based on the given tool names
-// It creates instances of the requested tools
+// It creates instances of the requested tools.
 func getAvailableTools(toolNames []string) []Tool {
 	// Create a map of available tool creators
 	toolCreators := map[string]func() Tool{

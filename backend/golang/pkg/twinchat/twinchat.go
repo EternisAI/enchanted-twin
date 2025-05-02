@@ -6,6 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
+	"github.com/pkg/errors"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -13,12 +20,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-	"github.com/charmbracelet/log"
-	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
-	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
-	"github.com/pkg/errors"
 )
 
 type Service struct {

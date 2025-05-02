@@ -11,11 +11,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// Global variables
+// Global variables.
 var (
 	server        *http.Server
 	httpsServer   *http.Server
@@ -23,7 +24,7 @@ var (
 	flowWaitGroup sync.WaitGroup
 )
 
-// openBrowser opens the provided URL in the default browser
+// openBrowser opens the provided URL in the default browser.
 func openBrowser(u string) error {
 	var cmd *exec.Cmd
 
@@ -39,7 +40,7 @@ func openBrowser(u string) error {
 	return cmd.Start()
 }
 
-// callbackHandler handles the OAuth callback
+// callbackHandler handles the OAuth callback.
 func callbackHandler(ctx context.Context, logger *log.Logger, store *db.Store, r *http.Request) (string, interface{}, error) {
 	if err := r.URL.Query().Get("error"); err != "" {
 		return "", nil, fmt.Errorf("error: %s", err)
@@ -54,7 +55,6 @@ func callbackHandler(ctx context.Context, logger *log.Logger, store *db.Store, r
 		return "", nil, fmt.Errorf("no authorization code received")
 	}
 	provider, err := CompleteOAuthFlow(ctx, logger, store, state, authCode)
-
 	if err != nil {
 		return "", nil, fmt.Errorf("oauth flow completion failed: %w", err)
 	}
@@ -67,7 +67,7 @@ func callbackHandler(ctx context.Context, logger *log.Logger, store *db.Store, r
 	return provider, userInfo, nil
 }
 
-// fetchUserInfo fetches user information using an access token
+// fetchUserInfo fetches user information using an access token.
 func fetchUserInfo(ctx context.Context, _ *log.Logger, store *db.Store, provider string) (interface{}, error) {
 	// Load OAuth config for provider
 	config, err := store.GetOAuthConfig(ctx, provider)
@@ -154,7 +154,7 @@ func OAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, provide
 	return nil
 }
 
-// StartOAuthCallbackServer starts the HTTP server to handle OAuth callbacks
+// StartOAuthCallbackServer starts the HTTP server to handle OAuth callbacks.
 func StartOAuthCallbackServer(logger *log.Logger, store *db.Store) error {
 	serverMutex.Lock()
 	defer serverMutex.Unlock()
@@ -217,7 +217,7 @@ func StartOAuthCallbackServer(logger *log.Logger, store *db.Store) error {
 	return nil
 }
 
-// ShutdownOAuthCallbackServer gracefully shuts down the callback server
+// ShutdownOAuthCallbackServer gracefully shuts down the callback server.
 func ShutdownOAuthCallbackServer(ctx context.Context, logger *log.Logger) error {
 	// Create a channel to signal when WaitGroup is done
 	done := make(chan struct{})
@@ -232,7 +232,7 @@ func ShutdownOAuthCallbackServer(ctx context.Context, logger *log.Logger) error 
 	case <-done:
 		logger.Info("All OAuth flows completed successfully")
 	case <-ctx.Done():
-		logger.Warn("Context cancelled while waiting for OAuth flows")
+		logger.Warn("Context canceled while waiting for OAuth flows")
 	case <-time.After(5 * time.Minute):
 		logger.Warn("Timeout waiting for OAuth flows to complete")
 	}

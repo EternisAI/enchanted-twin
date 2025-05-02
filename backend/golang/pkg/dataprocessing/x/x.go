@@ -227,7 +227,6 @@ type DirectMessageData struct {
 func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
-
 		content := ""
 		metadata := map[string]string{}
 		tags := []string{"social", "x"}
@@ -275,7 +274,6 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 				"source": "x",
 			}
 			tags = append(tags, "direct_message")
-
 		}
 
 		documents = append(documents, memory.TextDocument{

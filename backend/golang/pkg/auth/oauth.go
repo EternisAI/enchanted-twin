@@ -13,11 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// generatePKCEPair generates PKCE code verifier and challenge
+// generatePKCEPair generates PKCE code verifier and challenge.
 func generatePKCEPair() (string, string, error) {
 	// Generate a random byte slice for the verifier
 	b := make([]byte, 32)
@@ -37,7 +38,7 @@ func generatePKCEPair() (string, string, error) {
 	return codeVerifier, challenge, nil
 }
 
-// generateRandomState generates a random state string
+// generateRandomState generates a random state string.
 func generateRandomState() (string, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
@@ -94,7 +95,6 @@ func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, pr
 	authURL.RawQuery = q.Encode()
 
 	err = store.SetOAuthStateAndVerifier(ctx, provider, state, codeVerifier, scope)
-
 	if err != nil {
 		return "", "", fmt.Errorf("unable to store state and verifier for provider '%s': %w", provider, err)
 	}
@@ -119,7 +119,7 @@ func RefreshExpiredTokens(ctx context.Context, logger *log.Logger, store *db.Sto
 	return store.GetOAuthStatus(ctx)
 }
 
-// TokenRequest represents the parameters for token requests (both authorization and refresh)
+// TokenRequest represents the parameters for token requests (both authorization and refresh).
 type TokenRequest struct {
 	GrantType    string
 	Code         string
@@ -130,7 +130,7 @@ type TokenRequest struct {
 	CodeVerifier string
 }
 
-// TokenResponse encapsulates the response from token endpoints
+// TokenResponse encapsulates the response from token endpoints.
 type TokenResponse struct {
 	AccessToken  string
 	RefreshToken string
@@ -138,7 +138,7 @@ type TokenResponse struct {
 	ExpiresAt    time.Time
 }
 
-// ExchangeToken handles the HTTP request to exchange a token (authorization or refresh)
+// ExchangeToken handles the HTTP request to exchange a token (authorization or refresh).
 func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, config db.OAuthConfig, tokenReq TokenRequest) (*TokenResponse, error) {
 	// Prepare request data
 	data := url.Values{}
@@ -247,7 +247,7 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, con
 	return &tokenResp, nil
 }
 
-// CompleteOAuthFlow handles the authorization code exchange flow
+// CompleteOAuthFlow handles the authorization code exchange flow.
 func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, state string, authCode string) (string, error) {
 	logger.Debug("starting OAuth completion", "state", state)
 
@@ -302,7 +302,7 @@ func CompleteOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store,
 	return provider, nil
 }
 
-// RefreshOAuthToken handles the refresh token flow
+// RefreshOAuthToken handles the refresh token flow.
 func RefreshOAuthToken(ctx context.Context, logger *log.Logger, store *db.Store, provider string) (TokenRequest, error) {
 	logger.Debug("refreshing OAuth token", "provider", provider)
 

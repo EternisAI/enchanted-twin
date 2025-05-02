@@ -4,18 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"github.com/slack-go/slack"
+
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
-const LIST_CHANNELS_TOOL_NAME = "list_slack_channels"
-const POST_MESSAGE_TOOL_NAME = "post_slack_message"
-const SEARCH_MESSAGES_TOOL_NAME = "search_slack_messages"
+const (
+	LIST_CHANNELS_TOOL_NAME   = "list_slack_channels"
+	POST_MESSAGE_TOOL_NAME    = "post_slack_message"
+	SEARCH_MESSAGES_TOOL_NAME = "search_slack_messages"
+)
 
-const LIST_CHANNELS_TOOL_DESCRIPTION = "List the channels the user is a member of"
-const POST_MESSAGE_TOOL_DESCRIPTION = "Post a message to a channel"
-const SEARCH_MESSAGES_TOOL_DESCRIPTION = "Search for messages in channels"
+const (
+	LIST_CHANNELS_TOOL_DESCRIPTION   = "List the channels the user is a member of"
+	POST_MESSAGE_TOOL_DESCRIPTION    = "Post a message to a channel"
+	SEARCH_MESSAGES_TOOL_DESCRIPTION = "Search for messages in channels"
+)
 
 type ListChannelsArguments struct {
 	Cursor string `json:"cursor" jsonschema:"description=The cursor for pagination, empty if first page"`

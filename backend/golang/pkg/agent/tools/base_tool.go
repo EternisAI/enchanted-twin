@@ -3,12 +3,13 @@ package tools
 import (
 	"context"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
-// BaseTool provides a simple implementation of the Tool interface
+// BaseTool provides a simple implementation of the Tool interface.
 type BaseTool struct {
 	name        string
 	description string
@@ -16,7 +17,7 @@ type BaseTool struct {
 	execute     func(ctx context.Context, inputs map[string]any) (types.ToolResult, error)
 }
 
-// NewBaseTool creates a tool with the given parameters
+// NewBaseTool creates a tool with the given parameters.
 func NewBaseTool(
 	name string,
 	description string,
@@ -31,7 +32,7 @@ func NewBaseTool(
 	}
 }
 
-// Definition returns the tool definition
+// Definition returns the tool definition.
 func (t *BaseTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
@@ -43,7 +44,7 @@ func (t *BaseTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// Execute runs the tool with given inputs
+// Execute runs the tool with given inputs.
 func (t *BaseTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	result, err := t.execute(ctx, inputs)
 

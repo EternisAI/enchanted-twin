@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // generateNextAction uses the LLM to determine the next actions based on the plan and history.

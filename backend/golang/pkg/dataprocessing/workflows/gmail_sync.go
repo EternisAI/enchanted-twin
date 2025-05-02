@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pkg/errors"
+	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/workflow"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/pkg/errors"
-	"go.temporal.io/sdk/temporal"
-	"go.temporal.io/sdk/workflow"
 )
 
 type GmailSyncWorkflowInput struct{}
@@ -73,7 +74,6 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(ctx workflow.Context, input 
 		if record.Timestamp.After(previousResult.LastRecordTimestamp) {
 			filteredRecords = append(filteredRecords, record)
 		}
-
 	}
 
 	if len(filteredRecords) == 0 {

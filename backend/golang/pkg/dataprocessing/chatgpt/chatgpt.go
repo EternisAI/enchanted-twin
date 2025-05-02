@@ -89,7 +89,6 @@ func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username s
 		}
 
 		for _, message := range conversation.Mapping {
-
 			if message.Message == nil {
 				continue
 			}
@@ -122,9 +121,7 @@ func (s *ChatGPTDataSource) ProcessFileConversations(filePath string, username s
 				Source:    s.Name(),
 			}
 			records = append(records, record)
-
 		}
-
 	}
 
 	return records, nil
@@ -170,7 +167,6 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	textDocuments := make([]memory.TextDocument, 0, len(records))
 
 	for _, record := range records {
-
 		getString := func(key string) string {
 			if val, ok := record.Data[key]; ok {
 				if strVal, ok := val.(string); ok {

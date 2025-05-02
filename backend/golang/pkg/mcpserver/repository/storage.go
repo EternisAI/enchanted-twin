@@ -3,13 +3,13 @@ package repository
 import (
 	"context"
 	"encoding/json"
-
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 type Repository struct {

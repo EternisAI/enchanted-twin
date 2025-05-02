@@ -150,7 +150,7 @@ func main() {
 	logger.Info("Memory test completed successfully")
 }
 
-// bootstrapPostgres initializes and starts a PostgreSQL service
+// bootstrapPostgres initializes and starts a PostgreSQL service.
 func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*bootstrap.PostgresService, error) {
 	// Get default options
 	options := bootstrap.DefaultPostgresOptions()

@@ -5,15 +5,15 @@ import (
 	"encoding/base64"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
-	apptypes "github.com/EternisAI/enchanted-twin/types"
-
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/skip2/go-qrcode"
+
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	apptypes "github.com/EternisAI/enchanted-twin/types"
 )
 
 type TelegramTool struct {
@@ -72,7 +72,6 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agent
 
 	fmt.Println("telegramEnabled", telegramEnabled)
 	if err2 != nil || telegramEnabled != "true" {
-
 		t.Logger.Error("telegram is not enabled", "error", err2)
 
 		chatURL := helpers.GetChatURL(apptypes.TelegramBotName, chatUUID)

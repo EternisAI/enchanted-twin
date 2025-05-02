@@ -400,7 +400,7 @@ func handleStopWorkflow(c client.Client, logger *log.Logger) error {
 	return nil
 }
 
-// handleTestPlanned tests the planned agent workflow
+// handleTestPlanned tests the planned agent workflow.
 func handleTestPlanned(c client.Client, logger *log.Logger, envs *config.Config) error {
 	// Get the selected tool
 	logger.Info("Testing planned agent", "plan", *testPlanFlag)

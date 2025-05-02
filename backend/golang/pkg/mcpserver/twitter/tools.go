@@ -11,15 +11,19 @@ import (
 	mcp_golang "github.com/metoro-io/mcp-golang"
 )
 
-const LIST_FEED_TOOL_NAME = "list_feed_tweets"
-const POST_TWEET_TOOL_NAME = "post_tweet"
-const SEARCH_TWEETS_TOOL_NAME = "search_tweets"
-const LIST_BOOKMARKS_TOOL_NAME = "list_bookmarks"
+const (
+	LIST_FEED_TOOL_NAME      = "list_feed_tweets"
+	POST_TWEET_TOOL_NAME     = "post_tweet"
+	SEARCH_TWEETS_TOOL_NAME  = "search_tweets"
+	LIST_BOOKMARKS_TOOL_NAME = "list_bookmarks"
+)
 
-const LIST_FEED_TOOL_DESCRIPTION = "List the tweets from the user's feed"
-const POST_TWEET_TOOL_DESCRIPTION = "Post a tweet"
-const SEARCH_TWEETS_TOOL_DESCRIPTION = "Search for tweets"
-const LIST_BOOKMARKS_TOOL_DESCRIPTION = "List the bookmarks of the user"
+const (
+	LIST_FEED_TOOL_DESCRIPTION      = "List the tweets from the user's feed"
+	POST_TWEET_TOOL_DESCRIPTION     = "Post a tweet"
+	SEARCH_TWEETS_TOOL_DESCRIPTION  = "Search for tweets"
+	LIST_BOOKMARKS_TOOL_DESCRIPTION = "List the bookmarks of the user"
+)
 
 type User struct {
 	Data struct {
@@ -102,7 +106,6 @@ func (a authorize) Add(req *http.Request) {
 }
 
 func processListFeedTweets(ctx context.Context, accessToken string, arguments ListFeedTweetsArguments) ([]*mcp_golang.Content, error) {
-
 	client := &twitter.Client{
 		Authorizer: authorize{
 			Token: accessToken,
@@ -128,7 +131,6 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 		UserFields:      []twitter.UserField{twitter.UserFieldUserName},
 		Expansions:      []twitter.Expansion{twitter.ExpansionAuthorID},
 	})
-
 	if err != nil {
 		fmt.Println("Error getting feed:", err)
 		return nil, err
@@ -162,7 +164,6 @@ func processListFeedTweets(ctx context.Context, accessToken string, arguments Li
 }
 
 func processPostTweet(_ string, _arguments PostTweetArguments) ([]*mcp_golang.Content, error) {
-
 	fmt.Println("Posting tweet", _arguments.Content)
 
 	return []*mcp_golang.Content{
@@ -195,7 +196,6 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 		UserFields:  []twitter.UserField{twitter.UserFieldUserName},
 		TweetFields: []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
 	})
-
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +228,6 @@ func processSearchTweets(ctx context.Context, accessToken string, arguments Sear
 	return contents, nil
 }
 
-
 func processListBookmarks(ctx context.Context, accessToken string, arguments ListBookmarksArguments) ([]*mcp_golang.Content, error) {
 	client := &twitter.Client{
 		Authorizer: authorize{
@@ -260,7 +259,6 @@ func processListBookmarks(ctx context.Context, accessToken string, arguments Lis
 		TweetFields:     []twitter.TweetField{twitter.TweetFieldPublicMetrics, twitter.TweetFieldCreatedAt, twitter.TweetFieldAuthorID},
 		PaginationToken: paginationToken,
 	})
-
 	if err != nil {
 		return nil, err
 	}

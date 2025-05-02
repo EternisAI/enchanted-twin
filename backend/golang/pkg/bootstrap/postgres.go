@@ -15,7 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 )
 
-// PostgresOptions represents configuration options for a PostgreSQL container
+// PostgresOptions represents configuration options for a PostgreSQL container.
 type PostgresOptions struct {
 	Version       string // PostgreSQL version tag (default: "17")
 	Port          string // Host port to bind to (default: "5432")
@@ -26,14 +26,14 @@ type PostgresOptions struct {
 	ContainerName string // Container name (default: "enchanted-twin-postgres")
 }
 
-// PostgresService manages a PostgreSQL Docker container
+// PostgresService manages a PostgreSQL Docker container.
 type PostgresService struct {
 	dockerService *docker.Service
 	options       PostgresOptions
 	logger        *log.Logger
 }
 
-// DefaultPostgresOptions returns a PostgresOptions struct with default values
+// DefaultPostgresOptions returns a PostgresOptions struct with default values.
 func DefaultPostgresOptions() PostgresOptions {
 	// Use standard user config directory for data path instead of CWD or hardcoded macOS path
 	var baseDataDir string
@@ -65,7 +65,7 @@ func DefaultPostgresOptions() PostgresOptions {
 	}
 }
 
-// NewPostgresService creates a new PostgreSQL service with sensible defaults
+// NewPostgresService creates a new PostgreSQL service with sensible defaults.
 func NewPostgresService(logger *log.Logger, options PostgresOptions) (*PostgresService, error) {
 	// Merge provided options with defaults
 	defaults := DefaultPostgresOptions()
@@ -126,7 +126,7 @@ func NewPostgresService(logger *log.Logger, options PostgresOptions) (*PostgresS
 	}, nil
 }
 
-// Start starts the PostgreSQL container and optionally waits for it to be ready
+// Start starts the PostgreSQL container and optionally waits for it to be ready.
 func (s *PostgresService) Start(ctx context.Context, waitForReady bool) error {
 	// Remove any existing container first to ensure consistent port mappings
 	// s.logger.Info("Removing any existing PostgreSQL container to ensure clean start")
@@ -149,7 +149,7 @@ func (s *PostgresService) Start(ctx context.Context, waitForReady bool) error {
 	return nil
 }
 
-// WaitForReady waits for PostgreSQL to be ready to accept connections
+// WaitForReady waits for PostgreSQL to be ready to accept connections.
 func (s *PostgresService) WaitForReady(ctx context.Context, maxWaitTime time.Duration) error {
 	s.logger.Info("Waiting for PostgreSQL to be ready")
 
@@ -183,7 +183,7 @@ func (s *PostgresService) WaitForReady(ctx context.Context, maxWaitTime time.Dur
 
 // Removed unused function: isPortAvailable
 
-// findRandomAvailablePort finds a random available port
+// findRandomAvailablePort finds a random available port.
 func findRandomAvailablePort() string {
 	// Try to get a random port by asking the OS for one
 	ln, err := net.Listen("tcp", ":0")
@@ -201,17 +201,17 @@ func findRandomAvailablePort() string {
 	return fmt.Sprintf("%d", addr.Port)
 }
 
-// Stop stops the PostgreSQL container
+// Stop stops the PostgreSQL container.
 func (s *PostgresService) Stop(ctx context.Context) error {
 	return s.dockerService.StopContainer(ctx)
 }
 
-// Remove removes the PostgreSQL container
+// Remove removes the PostgreSQL container.
 func (s *PostgresService) Remove(ctx context.Context) error {
 	return s.dockerService.RemoveContainer(ctx)
 }
 
-// EnsureDatabase ensures a database exists in PostgreSQL, creating it if it doesn't
+// EnsureDatabase ensures a database exists in PostgreSQL, creating it if it doesn't.
 func (s *PostgresService) EnsureDatabase(ctx context.Context, dbName string) error {
 	s.logger.Info("Ensuring PostgreSQL database exists", "database", dbName)
 
@@ -242,7 +242,7 @@ func (s *PostgresService) EnsureDatabase(ctx context.Context, dbName string) err
 	return nil
 }
 
-// GetConnectionString returns the connection string for PostgreSQL
+// GetConnectionString returns the connection string for PostgreSQL.
 func (s *PostgresService) GetConnectionString(dbName string) string {
 	// If dbName is empty, use the default database
 	if dbName == "" {
@@ -253,12 +253,12 @@ func (s *PostgresService) GetConnectionString(dbName string) string {
 		s.options.User, s.options.Password, s.options.Port, dbName)
 }
 
-// GetLogs gets logs from the PostgreSQL container
+// GetLogs gets logs from the PostgreSQL container.
 func (s *PostgresService) GetLogs(ctx context.Context) (string, error) {
 	return s.dockerService.GetContainerLogs(ctx)
 }
 
-// ExecuteSQL executes a SQL command in PostgreSQL
+// ExecuteSQL executes a SQL command in PostgreSQL.
 func (s *PostgresService) ExecuteSQL(ctx context.Context, database, sql string) (string, error) {
 	return s.dockerService.ExecuteCommand(ctx, []string{
 		"psql",
@@ -268,7 +268,7 @@ func (s *PostgresService) ExecuteSQL(ctx context.Context, database, sql string) 
 	})
 }
 
-// DockerService returns the underlying Docker service
+// DockerService returns the underlying Docker service.
 func (s *PostgresService) DockerService() *docker.Service {
 	return s.dockerService
 }

@@ -3,8 +3,9 @@ package plannedv2
 import (
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // Signal types for the planned agent workflow.

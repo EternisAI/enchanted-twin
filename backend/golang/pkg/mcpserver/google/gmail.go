@@ -7,35 +7,38 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"golang.org/x/oauth2"
-
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
+
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
-const SEARCH_EMAILS_TOOL_NAME = "search_emails"
-const SEND_EMAIL_TOOL_NAME = "send_email"
+const (
+	SEARCH_EMAILS_TOOL_NAME = "search_emails"
+	SEND_EMAIL_TOOL_NAME    = "send_email"
+)
 
-const SEARCH_EMAILS_TOOL_DESCRIPTION = "Search the emails from the user's inbox"
-const SEND_EMAIL_TOOL_DESCRIPTION = "Send an email to recipient email address"
-
+const (
+	SEARCH_EMAILS_TOOL_DESCRIPTION = "Search the emails from the user's inbox"
+	SEND_EMAIL_TOOL_DESCRIPTION    = "Send an email to recipient email address"
+)
 
 type EmailQuery struct {
-	In string `json:"in" jsonschema:",description=The inbox to list emails from, default is 'inbox'"`
+	In        string    `json:"in" jsonschema:",description=The inbox to list emails from, default is 'inbox'"`
 	TimeRange TimeRange `json:"time_range" jsonschema:",description=The time range to list emails, default is empty"`
-	From string `json:"from" jsonschema:",description=The sender of the emails to list, default is empty"`
-	To   string `json:"to" jsonschema:",description=The recipient of the emails to list, default is empty"`
-	Subject string `json:"subject" jsonschema:",description=The text to search for in the subject of the emails, default is empty"`
-	Body string `json:"body" jsonschema:",description=The text to search for in the body of the emails, default is empty"`
-	Label string `json:"label" jsonschema:",description=The label of the emails to list, default is empty"`
+	From      string    `json:"from" jsonschema:",description=The sender of the emails to list, default is empty"`
+	To        string    `json:"to" jsonschema:",description=The recipient of the emails to list, default is empty"`
+	Subject   string    `json:"subject" jsonschema:",description=The text to search for in the subject of the emails, default is empty"`
+	Body      string    `json:"body" jsonschema:",description=The text to search for in the body of the emails, default is empty"`
+	Label     string    `json:"label" jsonschema:",description=The label of the emails to list, default is empty"`
 }
 
 type SearchEmailsArguments struct {
 	Query     EmailQuery `json:"query" jsonschema:",description=The query to list emails, default is 'in:inbox'"`
-	PageToken string `json:"page_token" jsonschema:",description=The page token to list, default is empty"`
-	Limit     int    `json:"limit" jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	PageToken string     `json:"page_token" jsonschema:",description=The page token to list, default is empty"`
+	Limit     int        `json:"limit" jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
@@ -80,9 +83,7 @@ func (q *EmailQuery) ToQuery() string {
 	return query
 }
 
-
 func processSearchEmails(ctx context.Context, accessToken string, arguments SearchEmailsArguments) ([]*mcp_golang.Content, error) {
-
 	// Configure OAuth2 token
 	token := &oauth2.Token{
 		AccessToken: accessToken,
@@ -106,7 +107,7 @@ func processSearchEmails(ctx context.Context, accessToken string, arguments Sear
 
 	if maxResults <= 0 {
 		// default limit
-		maxResults = 10 
+		maxResults = 10
 	}
 
 	query := arguments.Query.ToQuery()
@@ -148,28 +149,26 @@ func processSearchEmails(ctx context.Context, accessToken string, arguments Sear
 			fmt.Println("Error getting body:", err)
 			continue
 		}
-		
-		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s\nBody: %s", 
+
+		formattedText := fmt.Sprintf("From: %s\nSubject: %s\nDate: %s\nID: %s\nBody: %s",
 			from, subject, date, msg.Id, body)
-		
+
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
 				Text: formattedText,
 			},
 		})
-
 	}
 
 	return contents, nil
 }
 
 func processSendEmail(ctx context.Context, accessToken string, arguments SendEmailArguments) ([]*mcp_golang.Content, error) {
-
 	token := &oauth2.Token{
 		AccessToken: accessToken,
 	}
-	
+
 	config := oauth2.Config{}
 	client := config.Client(ctx, token)
 
@@ -226,22 +225,25 @@ func createMessage(from, to, subject, bodyContent string) *gmail.Message {
 }
 
 func getBody(p *gmail.MessagePart) (string, error) {
-    if p == nil { return "", errors.New("empty payload") }
+	if p == nil {
+		return "", errors.New("empty payload")
+	}
 
-    if p.Body != nil && len(p.Body.Data) > 0 &&
-       (p.MimeType == "text/plain" || p.MimeType == "text/html") {
-        data, err := base64.URLEncoding.DecodeString(p.Body.Data) // URL-safe base64
-        if err != nil { return "", err }
-        return string(data), nil
-    }
-    for _, part := range p.Parts {                    // recurse into multipart/*
-        if body, _ := getBody(part); body != "" {
-            return body, nil
-        }
-    }
-    return "", errors.New("no body found")
+	if p.Body != nil && len(p.Body.Data) > 0 &&
+		(p.MimeType == "text/plain" || p.MimeType == "text/html") {
+		data, err := base64.URLEncoding.DecodeString(p.Body.Data) // URL-safe base64
+		if err != nil {
+			return "", err
+		}
+		return string(data), nil
+	}
+	for _, part := range p.Parts { // recurse into multipart/*
+		if body, _ := getBody(part); body != "" {
+			return body, nil
+		}
+	}
+	return "", errors.New("no body found")
 }
-
 
 func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType

@@ -2,11 +2,12 @@ package types
 
 import (
 	"context"
+
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 )
 
-// ToolResult defines the interface for results returned by tools
+// ToolResult defines the interface for results returned by tools.
 type ToolResult interface {
 	// Tool returns the name of the tool that was executed
 	Tool() string
@@ -27,7 +28,7 @@ type ToolResult interface {
 	Params() map[string]any
 }
 
-// StructuredToolResult is a standard implementation of ToolResult
+// StructuredToolResult is a standard implementation of ToolResult.
 type StructuredToolResult struct {
 	ToolName   string         `json:"tool"`
 	ToolParams map[string]any `json:"params"`
@@ -69,7 +70,7 @@ func (t *StructuredToolResult) Params() map[string]any {
 	return t.ToolParams
 }
 
-// SimpleToolResult creates a minimal tool result with just content
+// SimpleToolResult creates a minimal tool result with just content.
 func SimpleToolResult(content string) *StructuredToolResult {
 	return &StructuredToolResult{
 		Output: map[string]any{
@@ -79,7 +80,7 @@ func SimpleToolResult(content string) *StructuredToolResult {
 	}
 }
 
-// ImageToolResult creates a tool result with image URLs
+// ImageToolResult creates a tool result with image URLs.
 func ImageToolResult(content string, imageURLs []string) *StructuredToolResult {
 	return &StructuredToolResult{
 		Output: map[string]any{
@@ -112,7 +113,7 @@ func (t ToolDef) GetReturns() map[string]any {
 	return map[string]any(t.Returns)
 }
 
-// Tool defines the interface for all executable tools
+// Tool defines the interface for all executable tools.
 type Tool interface {
 	// Definition returns the tool metadata
 	Definition() openai.ChatCompletionToolParam

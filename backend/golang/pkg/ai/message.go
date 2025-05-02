@@ -5,7 +5,7 @@ import (
 	"github.com/openai/openai-go/packages/param"
 )
 
-// MessageRole represents the role of a message
+// MessageRole represents the role of a message.
 type MessageRole string
 
 const (
@@ -15,8 +15,7 @@ const (
 	MessageRoleTool      MessageRole = "tool"
 )
 
-// Message represents a chat message in a format that serializes well and can be converted to/from OpenAI format
-// TODO: replace with openai.ChatCompletionMessageParamUnion once https://github.com/openai/openai-go/issues/247 gets resolved
+// TODO: replace with openai.ChatCompletionMessageParamUnion once https://github.com/openai/openai-go/issues/247 gets resolved.
 type Message struct {
 	Role       MessageRole `json:"role"`
 	Content    string      `json:"content,omitempty"`
@@ -25,14 +24,14 @@ type Message struct {
 	ToolCallID string      `json:"tool_call_id,omitempty"`
 }
 
-// ToolCall represents a tool call in a serializable format
+// ToolCall represents a tool call in a serializable format.
 type ToolCall struct {
 	ID       string           `json:"id"`
 	Type     string           `json:"type"` // Usually "function"
 	Function ToolCallFunction `json:"function"`
 }
 
-// ToOpenAIToolCallParam converts the ToolCall to OpenAI format
+// ToOpenAIToolCallParam converts the ToolCall to OpenAI format.
 func (tc ToolCall) ToOpenAIToolCallParam() openai.ChatCompletionMessageToolCallParam {
 	return openai.ChatCompletionMessageToolCallParam{
 		ID: tc.ID,
@@ -43,7 +42,7 @@ func (tc ToolCall) ToOpenAIToolCallParam() openai.ChatCompletionMessageToolCallP
 	}
 }
 
-// FromOpenAIToolCall creates a ToolCall from an OpenAI tool call
+// FromOpenAIToolCall creates a ToolCall from an OpenAI tool call.
 func FromOpenAIToolCall(tc openai.ChatCompletionMessageToolCall) ToolCall {
 	return ToolCall{
 		ID:   tc.ID,
@@ -55,8 +54,7 @@ func FromOpenAIToolCall(tc openai.ChatCompletionMessageToolCall) ToolCall {
 	}
 }
 
-// FromOpenAIMessage converts an OpenAI message to our format
-// Note: ChatCompletionMessage will always be an assistant message
+// Note: ChatCompletionMessage will always be an assistant message.
 func FromOpenAIMessage(msg openai.ChatCompletionMessage) Message {
 	// Convert any tool calls
 	toolCalls := make([]ToolCall, 0, len(msg.ToolCalls))
@@ -66,13 +64,13 @@ func FromOpenAIMessage(msg openai.ChatCompletionMessage) Message {
 	return NewAssistantMessage(msg.Content, toolCalls)
 }
 
-// ToolCallFunction represents a function call in a serializable format
+// ToolCallFunction represents a function call in a serializable format.
 type ToolCallFunction struct {
 	Name      string `json:"name"`
 	Arguments string `json:"arguments"`
 }
 
-// NewSystemMessage creates a system message
+// NewSystemMessage creates a system message.
 func NewSystemMessage(content string) Message {
 	return Message{
 		Role:    MessageRoleSystem,
@@ -80,7 +78,7 @@ func NewSystemMessage(content string) Message {
 	}
 }
 
-// NewUserMessage creates a user message
+// NewUserMessage creates a user message.
 func NewUserMessage(content string) Message {
 	return Message{
 		Role:    MessageRoleUser,
@@ -88,7 +86,7 @@ func NewUserMessage(content string) Message {
 	}
 }
 
-// NewAssistantMessage creates an assistant message
+// NewAssistantMessage creates an assistant message.
 func NewAssistantMessage(content string, toolCalls []ToolCall) Message {
 	return Message{
 		Role:      MessageRoleAssistant,
@@ -97,7 +95,7 @@ func NewAssistantMessage(content string, toolCalls []ToolCall) Message {
 	}
 }
 
-// NewToolMessage creates a tool message
+// NewToolMessage creates a tool message.
 func NewToolMessage(content string, toolCallID string) Message {
 	return Message{
 		Role:       MessageRoleTool,
@@ -106,7 +104,7 @@ func NewToolMessage(content string, toolCallID string) Message {
 	}
 }
 
-// ToOpenAIMessage converts a Message to OpenAI format
+// ToOpenAIMessage converts a Message to OpenAI format.
 func (m Message) ToOpenAIMessage() openai.ChatCompletionMessageParamUnion {
 	switch m.Role {
 	case MessageRoleSystem:
@@ -148,7 +146,7 @@ func (m Message) ToOpenAIMessage() openai.ChatCompletionMessageParamUnion {
 	}
 }
 
-// ToOpenAIMessages converts a slice of Messages to OpenAI format
+// ToOpenAIMessages converts a slice of Messages to OpenAI format.
 func ToOpenAIMessages(messages []Message) []openai.ChatCompletionMessageParamUnion {
 	result := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
 	for _, msg := range messages {

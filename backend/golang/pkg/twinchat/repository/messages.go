@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/google/uuid"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 func (r *Repository) AddMessageToChat(ctx context.Context, message Message) (string, error) {

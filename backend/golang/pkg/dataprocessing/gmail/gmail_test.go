@@ -7,15 +7,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestGmailProcessor(t *testing.T) {
 	// Create a temporary test file
 	content := `From 1828754568043628583@xxx Mon Apr 07 14:31:02 +0000 2025
-X-GM-THRID: 1828754568043628583
+X-GM-THIRD: 1828754568043628583
 X-Gmail-Labels: =?UTF-8?Q?Forward_to_bob93@live.fr,Bo=C3=AEte_de_r=C3=A9ception,Non_lus?=
 Delivered-To: bob@gmail.com
 Received: by 2002:a05:622a:68cd:b0:471:9721:748a with SMTP id ic13csp6102107qtb;
@@ -333,7 +334,7 @@ rder-bottom:0px solid #CCCCCC;background:none;height:1px;width:100%;margin:=
                          </table>=0A                          </td>=0A     =
                    </tr>=0A                      </table>=0A               =
      </td>=0A                  </tr>=0A                </table>=0A         =
-     </td>=0A            </tr>=0A          </table>=0A          <table clas=
+     </td>=0A            </tr>=0A          </table>=0A          <table class=
 s=3D"es-footer" cellspacing=3D"0" cellpadding=3D"0" align=3D"center"=0A    =
         style=3D"mso-table-lspace:0pt;mso-table-rspace:0pt;border-collapse:=
 collapse;border-spacing:0px;table-layout:fixed !important;width:100%;backgr=

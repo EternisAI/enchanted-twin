@@ -5,18 +5,19 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
-// ToolExecutor handles execution of tools in workflow context
+// ToolExecutor handles execution of tools in workflow context.
 type ToolExecutor struct {
 	registry tools.ToolRegistry
 }
 
-// NewToolExecutor creates a new tool executor with the given registry
+// NewToolExecutor creates a new tool executor with the given registry.
 func NewToolExecutor(registry tools.ToolRegistry, logger *log.Logger) *ToolExecutor {
 	executor := &ToolExecutor{
 		registry: registry,
@@ -25,7 +26,7 @@ func NewToolExecutor(registry tools.ToolRegistry, logger *log.Logger) *ToolExecu
 	return executor
 }
 
-// Execute runs a tool call and returns the result
+// Execute runs a tool call and returns the result.
 func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *PlanState) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
@@ -45,10 +46,10 @@ func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *P
 		if err != nil {
 			return nil, err
 		}
-		
+
 		// Store the result in the tool call
 		toolCall.Result = result
-		
+
 		return result, nil
 	}
 
@@ -65,7 +66,7 @@ func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *P
 	return result, nil
 }
 
-// executeToolActivity is a wrapper around the registry's Execute method
+// executeToolActivity is a wrapper around the registry's Execute method.
 func (e *ToolExecutor) executeToolActivity(ctx context.Context, toolName string, params map[string]any) (types.ToolResult, error) {
 	// Use the registry from the executor
 	// In a real implementation, we'd pass the state's registry to the activity
@@ -91,7 +92,7 @@ func (e *ToolExecutor) executeToolActivity(ctx context.Context, toolName string,
 	return toolResult, nil
 }
 
-// ExecuteBatch executes multiple tool calls in parallel
+// ExecuteBatch executes multiple tool calls in parallel.
 func (e *ToolExecutor) ExecuteBatch(ctx workflow.Context, toolCalls []ToolCall, state *PlanState) ([]types.ToolResult, error) {
 	// Create a future for each tool call
 	futures := make([]workflow.Future, len(toolCalls))

@@ -7,10 +7,10 @@ import (
 	"log"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type Source struct{}
@@ -23,7 +23,7 @@ func (s *Source) Name() string {
 	return "whatsapp"
 }
 
-// ReadWhatsAppDB reads the WhatsApp database and returns Records
+// ReadWhatsAppDB reads the WhatsApp database and returns Records.
 func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	// Open the database
 	db, err := sql.Open("sqlite3", dbPath)

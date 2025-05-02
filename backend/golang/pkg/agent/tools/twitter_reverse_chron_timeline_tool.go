@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
-	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	twitter "github.com/g8rswimmer/go-twitter/v2"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"golang.org/x/oauth2"
+
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type dbAuthorizer struct {

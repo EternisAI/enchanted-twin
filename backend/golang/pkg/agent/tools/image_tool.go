@@ -3,16 +3,17 @@ package tools
 import (
 	"context"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 type ImageTool struct{}
 
 func (e *ImageTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	return &types.StructuredToolResult{
-		ToolName: "image_tool",
+		ToolName:   "image_tool",
 		ToolParams: inputs,
 		Output: map[string]any{
 			"content": "Here are the image URLs. <system>user has received the images</system>",

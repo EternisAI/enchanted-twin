@@ -12,14 +12,14 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/auth"
-	"github.com/EternisAI/enchanted-twin/pkg/telegram"
-
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/google/uuid"
 	nats "github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 )
 
 // Messages is the resolver for the messages field.
@@ -424,7 +424,7 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 		case statusChan <- &status:
 			r.Logger.Info("Successfully sent status to channel", "subject", msg.Subject)
 		case <-ctx.Done():
-			r.Logger.Info("Context cancelled while sending status", "subject", msg.Subject)
+			r.Logger.Info("Context canceled while sending status", "subject", msg.Subject)
 			return
 		default:
 			r.Logger.Warn("Status channel is full, dropping message", "subject", msg.Subject)
@@ -544,7 +544,7 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 		case messages <- message:
 			r.Logger.Info("Sent message to channel", "chat_id", chatID)
 		case <-ctx.Done():
-			r.Logger.Info("Context cancelled while sending message", "chat_id", chatID)
+			r.Logger.Info("Context canceled while sending message", "chat_id", chatID)
 			return
 		default:
 			r.Logger.Warn("Message channel is full, dropping message", "chat_id", chatID)

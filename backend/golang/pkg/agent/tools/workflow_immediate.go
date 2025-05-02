@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+	"github.com/pkg/errors"
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
-// WorkflowImmediateTool defines the interface for tools that execute directly within a workflow
-// These tools have special handling in the workflow context and aren't executed as activities
+// These tools have special handling in the workflow context and aren't executed as activities.
 type WorkflowImmediateTool interface {
 	Tool // Embed the base Tool interface
 
@@ -21,10 +22,10 @@ type WorkflowImmediateTool interface {
 	ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error)
 }
 
-// FinalResponseTool is a special tool that represents a final response from the agent
+// FinalResponseTool is a special tool that represents a final response from the agent.
 type FinalResponseTool struct{}
 
-// Definition returns the tool definition
+// Definition returns the tool definition.
 func (t *FinalResponseTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
@@ -45,7 +46,7 @@ func (t *FinalResponseTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// Execute processes the final response
+// Execute processes the final response.
 func (t *FinalResponseTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	output, ok := inputs["output"].(string)
 	if !ok {
@@ -61,7 +62,7 @@ func (t *FinalResponseTool) Execute(ctx context.Context, inputs map[string]any) 
 	}, nil
 }
 
-// ExecuteInWorkflow executes the final_response tool in a workflow context
+// ExecuteInWorkflow executes the final_response tool in a workflow context.
 func (t *FinalResponseTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error) {
 	output, _ := inputs["output"].(string)
 	result := &types.StructuredToolResult{
@@ -75,10 +76,10 @@ func (t *FinalResponseTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[s
 	return result, nil
 }
 
-// SleepTool is a special tool that pauses execution for a specified duration
+// SleepTool is a special tool that pauses execution for a specified duration.
 type SleepTool struct{}
 
-// Definition returns the tool definition
+// Definition returns the tool definition.
 func (t *SleepTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
@@ -103,8 +104,7 @@ func (t *SleepTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// Execute processes the sleep request
-// Note: This cannot be executed directly in an activity, but needs special workflow handling
+// Note: This cannot be executed directly in an activity, but needs special workflow handling.
 func (t *SleepTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	// This implementation is a placeholder - the actual sleep happens in the workflow
 	// via the workflow immediate execution
@@ -116,10 +116,10 @@ func (t *SleepTool) Execute(ctx context.Context, inputs map[string]any) (types.T
 			"content": "Sleep must be executed within a workflow context",
 		},
 		ToolError: errorMsg,
-	}, fmt.Errorf(errorMsg)
+	}, errors.New("%s", errorMsg)
 }
 
-// ExecuteInWorkflow executes the sleep tool in a workflow context
+// ExecuteInWorkflow executes the sleep tool in a workflow context.
 func (t *SleepTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
@@ -195,10 +195,10 @@ func (t *SleepTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]an
 	return result, nil
 }
 
-// SleepUntilTool is a special tool that pauses execution until a specified time
+// SleepUntilTool is a special tool that pauses execution until a specified time.
 type SleepUntilTool struct{}
 
-// Definition returns the tool definition
+// Definition returns the tool definition.
 func (t *SleepUntilTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
@@ -223,8 +223,7 @@ func (t *SleepUntilTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// Execute processes the sleep_until request
-// Note: This cannot be executed directly in an activity, but needs special workflow handling
+// Note: This cannot be executed directly in an activity, but needs special workflow handling.
 func (t *SleepUntilTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	// This implementation is a placeholder - the actual sleep happens in the workflow
 	// via the workflow immediate execution
@@ -236,10 +235,10 @@ func (t *SleepUntilTool) Execute(ctx context.Context, inputs map[string]any) (ty
 			"content": "Sleep_until must be executed within a workflow context",
 		},
 		ToolError: errorMsg,
-	}, fmt.Errorf(errorMsg)
+	}, errors.New("%s", errorMsg)
 }
 
-// ExecuteInWorkflow executes the sleep_until tool in a workflow context
+// ExecuteInWorkflow executes the sleep_until tool in a workflow context.
 func (t *SleepUntilTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
@@ -326,7 +325,7 @@ func (t *SleepUntilTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[stri
 	return result, nil
 }
 
-// ExtractReason extracts the optional reason parameter from tool inputs
+// ExtractReason extracts the optional reason parameter from tool inputs.
 func ExtractReason(inputs map[string]any) string {
 	reason := "No reason specified"
 	if reasonParam, hasReason := inputs["reason"].(string); hasReason && reasonParam != "" {
@@ -335,7 +334,7 @@ func ExtractReason(inputs map[string]any) string {
 	return reason
 }
 
-// GetWorkflowImmediateTool gets a workflow immediate tool by name
+// GetWorkflowImmediateTool gets a workflow immediate tool by name.
 func GetWorkflowImmediateTool(name string) (WorkflowImmediateTool, bool) {
 	tools := map[string]WorkflowImmediateTool{
 		"final_response": &FinalResponseTool{},
@@ -347,13 +346,13 @@ func GetWorkflowImmediateTool(name string) (WorkflowImmediateTool, bool) {
 	return tool, exists
 }
 
-// IsWorkflowImmediateTool checks if a tool is a workflow immediate tool
+// IsWorkflowImmediateTool checks if a tool is a workflow immediate tool.
 func IsWorkflowImmediateTool(name string) bool {
 	_, exists := GetWorkflowImmediateTool(name)
 	return exists
 }
 
-// WorkflowImmediateTools returns all tools that are executed directly within a workflow
+// WorkflowImmediateTools returns all tools that are executed directly within a workflow.
 func WorkflowImmediateTools() []Tool {
 	return []Tool{
 		&FinalResponseTool{},

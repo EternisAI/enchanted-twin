@@ -6,12 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"go.temporal.io/sdk/client"
+
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // PlannedAgentTool implements a tool for planned agent execution.
@@ -110,7 +111,7 @@ func (t *PlannedAgentTool) Execute(
 
 	// Create workflow input
 	input := PlanInput{
-		Origin:      args,
+		Origin:       args,
 		Schedule:     schedule,
 		Plan:         plan,
 		ToolNames:    toolNames,

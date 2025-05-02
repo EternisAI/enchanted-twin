@@ -21,11 +21,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/charmbracelet/log"
 	"github.com/jaytaylor/html2text"
 	"github.com/sirupsen/logrus"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 type Gmail struct{}
@@ -261,7 +262,6 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 		} else {
 			final = html
 		}
-
 	} else { // ── single part ─────────────────────────────
 		enc := strings.ToLower(h.Get("Content-Transfer-Encoding"))
 		r := io.Reader(msg.Body)

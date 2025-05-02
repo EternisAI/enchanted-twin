@@ -8,6 +8,11 @@ import (
 	"sync"
 	"time"
 
+	ollamaapi "github.com/ollama/ollama/api"
+	"github.com/pkg/errors"
+	"go.temporal.io/sdk/temporal"
+	"go.temporal.io/sdk/workflow"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
@@ -20,10 +25,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	ollamaapi "github.com/ollama/ollama/api"
-	"github.com/pkg/errors"
-	"go.temporal.io/sdk/temporal"
-	"go.temporal.io/sdk/workflow"
 )
 
 type InitializeWorkflowInput struct{}
@@ -289,7 +290,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 	var wg sync.WaitGroup
 	resultChan := make(chan struct{})
 	for i, dataSourceDB := range dataSourcesDB {
-
 		if dataSourceDB.ProcessedPath == nil {
 			w.Logger.Error("Processed path is nil", "dataSource", dataSourceDB.Name)
 			continue
@@ -394,7 +394,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(ctx context.Context, input I
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
 		}
-
 	}
 	go func() {
 		wg.Wait()

@@ -1684,7 +1684,7 @@ func TestProcessFileConversations(t *testing.T) {
                     "type": "search_result",
                     "url": "https://www.tripadvisor.com/ShowTopic-g150793-i46-k14612385-Need_rental_for_3_months_please-Puerto_Vallarta.html",
                     "title": "Need rental for 3 months, please! - Puerto Vallarta Forum - Tripadvisor",
-                    "snippet": "We need a long term apartment in \"Puerto Vallarta\", near the centre for 3 months. mid January to mid March 2024, but flexible.",
+                    "snippet": "We need a long term apartment in \"Puerto Vallarta\", near the center for 3 months. mid January to mid March 2024, but flexible.",
                     "ref_id": {
                       "turn_index": 0,
                       "ref_type": "search",
@@ -3489,8 +3489,8 @@ func TestProcessFileConversations(t *testing.T) {
                   {
                     "type": "search_result",
                     "url": "https://meander.co.nz/puerto-vallarta-neighbourhoods/",
-                    "title": "A guide to Puerto Vallarta neighbourhoods - Anna.Kiwi",
-                    "snippet": "Puerto Vallarta neighbourhood guide \u00b7 Centro \u00b7 Zona Romantica (aka Romantic Zone or Old Town) \u00b7 Gringo Gulch \u00b7 El Cerro \u00b7 Cinco de Decembre \u00b7 El Remence / Las Canoas ...",
+                    "title": "A guide to Puerto Vallarta neighborhoods - Anna.Kiwi",
+                    "snippet": "Puerto Vallarta neighborhood guide \u00b7 Centro \u00b7 Zona Romantica (aka Romantic Zone or Old Town) \u00b7 Gringo Gulch \u00b7 El Cerro \u00b7 Cinco de December \u00b7 El Remence / Las Canoas ...",
                     "ref_id": {
                       "turn_index": 0,
                       "ref_type": "search",

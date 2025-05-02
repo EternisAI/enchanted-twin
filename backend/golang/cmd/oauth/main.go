@@ -9,11 +9,10 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-
-	"github.com/pkg/errors"
 )
 
 func main() {

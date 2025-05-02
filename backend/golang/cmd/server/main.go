@@ -17,6 +17,16 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/charmbracelet/log"
+	"github.com/go-chi/chi"
+	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
+	ollamaapi "github.com/ollama/ollama/api"
+	"github.com/pkg/errors"
+	"github.com/rs/cors"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -34,15 +44,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-	"github.com/charmbracelet/log"
-	"github.com/go-chi/chi"
-	"github.com/gorilla/websocket"
-	"github.com/nats-io/nats.go"
-	ollamaapi "github.com/ollama/ollama/api"
-	"github.com/pkg/errors"
-	"github.com/rs/cors"
-	"go.temporal.io/sdk/client"
-	"go.temporal.io/sdk/worker"
 )
 
 func main() {

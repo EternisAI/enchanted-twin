@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
-
 	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 func ToOpenAIMessage(message model.Message) (openai.ChatCompletionMessageParamUnion, error) {

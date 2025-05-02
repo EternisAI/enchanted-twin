@@ -5,12 +5,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 const MAX_STEPS = 10

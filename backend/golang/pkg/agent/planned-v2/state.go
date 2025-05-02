@@ -3,9 +3,10 @@ package plannedv2
 import (
 	"time"
 
+	"github.com/openai/openai-go"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/openai/openai-go"
 )
 
 // ToolCall represents a tool call in a serializable format.

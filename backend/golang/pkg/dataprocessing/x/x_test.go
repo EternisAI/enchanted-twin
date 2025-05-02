@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestProcessLikeFile(t *testing.T) {
@@ -271,7 +272,7 @@ func TestProcessDirectMessageFile(t *testing.T) {
             "recipientId" : "1638683789647032320",
             "reactions" : [ ],
             "urls" : [ ],
-            "text" : "Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks",
+            "text" : "Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks",
             "mediaUrls" : [ ],
             "senderId" : "1676928456225898496",
             "id" : "1833975099671633984",
@@ -518,7 +519,7 @@ func TestProcessDirectory(t *testing.T) {
             "recipientId" : "1638683789647032320",
             "reactions" : [ ],
             "urls" : [ ],
-            "text" : "Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks",
+            "text" : "Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks",
             "mediaUrls" : [ ],
             "senderId" : "1676928456225898496",
             "id" : "1833975099671633984",
@@ -589,7 +590,7 @@ func TestToDocuments(t *testing.T) {
 	}()
 
 	// Write test data to the file
-	testData := `{"data":{"conversationId":"1638683789647032320-1676928456225898496","myMessage":false,"recipientId":"1638683789647032320","senderId":"1676928456225898496","text":"Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks","type":"direct_message"},"timestamp":"2024-09-11T21:05:12Z","source":"x"}
+	testData := `{"data":{"conversationId":"1638683789647032320-1676928456225898496","myMessage":false,"recipientId":"1638683789647032320","senderId":"1676928456225898496","text":"Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks","type":"direct_message"},"timestamp":"2024-09-11T21:05:12Z","source":"x"}
 {"data":{"expandedUrl":"","fullText":"A verified internet scales humanity","tweetId":"12345","type":"like"},"timestamp":"2025-04-18T17:21:50-06:00","source":"x"}
 {"data":{"favoriteCount":"0","fullText":"@ChopJurassic @ReallyAmerican1 yes you do","id":"1904572225459806695","lang":"en","retweetCount":"0","type":"tweet","userId":"0"},"timestamp":"2025-03-25T16:32:58Z","source":"x"}`
 
@@ -616,7 +617,7 @@ func TestToDocuments(t *testing.T) {
 
 	// Check direct message
 	expectedTimestamp1, _ := time.Parse(time.RFC3339, "2024-09-11T21:05:12Z")
-	assert.Equal(t, "Hello\nican't login in discord\nloading undefinitely\nworks on phone though\nregion: Mexico\nthanks", docs[0].Content)
+	assert.Equal(t, "Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks", docs[0].Content)
 	assert.Equal(t, &expectedTimestamp1, docs[0].Timestamp)
 	assert.Equal(t, []string{"social", "x", "direct_message"}, docs[0].Tags)
 

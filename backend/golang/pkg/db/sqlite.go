@@ -22,7 +22,7 @@ type Store struct {
 	db *sqlx.DB
 }
 
-// NewStore creates a new SQLite-backed store
+// NewStore creates a new SQLite-backed store.
 func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	// Create the parent directory if it doesn't exist
 	dir := filepath.Dir(dbPath)
@@ -153,12 +153,12 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	return store, nil
 }
 
-// Close closes the database connection
+// Close closes the database connection.
 func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-// DB returns the underlying sqlx.DB instance
+// DB returns the underlying sqlx.DB instance.
 func (s *Store) DB() *sqlx.DB {
 	db := s.db
 	return db

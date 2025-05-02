@@ -3,9 +3,10 @@ package mcpserver
 import (
 	"context"
 
+	mcp "github.com/metoro-io/mcp-golang"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	mcp "github.com/metoro-io/mcp-golang"
 )
 
 // MCPService defines the interface for managing MCP server data.

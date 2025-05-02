@@ -4,22 +4,16 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"time"
-
-	"github.com/charmbracelet/log"
-
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/metadata"
-
-	"net"
-
 	uiserver "github.com/temporalio/ui-server/v2/server"
 	uiconfig "github.com/temporalio/ui-server/v2/server/config"
 	uiserveroptions "github.com/temporalio/ui-server/v2/server/server_options"
@@ -34,6 +28,8 @@ import (
 	"go.temporal.io/server/common/primitives"
 	sqliteschema "go.temporal.io/server/schema/sqlite"
 	"go.temporal.io/server/temporal"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 )
 
 const (
@@ -276,7 +272,7 @@ func checkPortsAvailable(ip string, ports []int) error {
 	return nil
 }
 
-// TemporalService represents a Temporal service that can be started and stopped
+// TemporalService represents a Temporal service that can be started and stopped.
 type TemporalService struct {
 	logger       *log.Logger
 	dbPath       string
@@ -285,7 +281,7 @@ type TemporalService struct {
 	port         int
 }
 
-// NewTemporalService creates a new Temporal service
+// NewTemporalService creates a new Temporal service.
 func NewTemporalService(logger *log.Logger) (*TemporalService, error) {
 	// Create a unique SQLite DB path for this instance
 	dbPath := fmt.Sprintf("/tmp/temporaldb-%s.db", uuid.New().String())
@@ -298,7 +294,7 @@ func NewTemporalService(logger *log.Logger) (*TemporalService, error) {
 	}, nil
 }
 
-// Start starts the Temporal service
+// Start starts the Temporal service.
 func (s *TemporalService) Start(ctx context.Context) error {
 	_, cancel := context.WithCancel(ctx)
 	s.serverCancel = cancel
@@ -309,7 +305,7 @@ func (s *TemporalService) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the Temporal service
+// Stop stops the Temporal service.
 func (s *TemporalService) Stop(ctx context.Context) error {
 	if s.serverCancel != nil {
 		s.serverCancel()
@@ -319,7 +315,7 @@ func (s *TemporalService) Stop(ctx context.Context) error {
 	return nil
 }
 
-// WaitForReady waits for the Temporal service to be ready
+// WaitForReady waits for the Temporal service to be ready.
 func (s *TemporalService) WaitForReady(ctx context.Context, timeout time.Duration) error {
 	select {
 	case <-s.readyChan:
@@ -331,7 +327,7 @@ func (s *TemporalService) WaitForReady(ctx context.Context, timeout time.Duratio
 	}
 }
 
-// GetHostPort returns the host:port address of the Temporal service
+// GetHostPort returns the host:port address of the Temporal service.
 func (s *TemporalService) GetHostPort() string {
 	return fmt.Sprintf("%s:%d", TemporalServerIP, s.port)
 }

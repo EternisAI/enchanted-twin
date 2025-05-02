@@ -3,9 +3,10 @@ package auth
 import (
 	"context"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/worker"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func NewOAuthActivities(authStore *db.Store) *OAuthActivities {

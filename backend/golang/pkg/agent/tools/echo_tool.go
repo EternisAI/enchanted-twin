@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/pkg/errors"
+
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // EchoTool is a simple tool that echoes back the input text.

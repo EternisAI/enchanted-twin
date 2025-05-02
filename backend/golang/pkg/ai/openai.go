@@ -26,7 +26,6 @@ func NewOpenAIService(apiKey string, baseUrl string) *Service {
 
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
 	completion, err := s.client.Chat.Completions.New(ctx, params)
-
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
 	}
@@ -41,7 +40,7 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 	})
 }
 
-// CompletionsWithMessages executes a completion using our internal message format
+// CompletionsWithMessages executes a completion using our internal message format.
 func (s *Service) CompletionsWithMessages(ctx context.Context, messages []Message, tools []openai.ChatCompletionToolParam, model string) (Message, error) {
 	// Convert our messages to OpenAI format
 	openaiMessages := ToOpenAIMessages(messages)

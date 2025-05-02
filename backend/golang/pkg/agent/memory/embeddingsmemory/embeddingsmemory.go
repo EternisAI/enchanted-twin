@@ -3,9 +3,10 @@ package embeddingsmemory
 import (
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/charmbracelet/log"
 	"github.com/jmoiron/sqlx"
+
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 type EmbeddingsMemory struct {
@@ -67,7 +68,7 @@ func (m *EmbeddingsMemory) ensureDbSchema(recreate bool) error {
 	return nil
 }
 
-// OpenAI embeddings are 1536 dim, we want to pad Ollama embeddings to 1536 dim
+// OpenAI embeddings are 1536 dim, we want to pad Ollama embeddings to 1536 dim.
 func padVector(vec []float64, length int) []float64 {
 	if len(vec) >= length {
 		return vec[:length]

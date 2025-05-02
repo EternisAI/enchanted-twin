@@ -5,24 +5,25 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
-// MemorySearchTool implements a tool for searching agent memory
+// MemorySearchTool implements a tool for searching agent memory.
 type MemorySearchTool struct {
 	Logger *log.Logger
 	Memory Storage
 }
 
-// NewMemorySearchTool creates a new memory search tool
+// NewMemorySearchTool creates a new memory search tool.
 func NewMemorySearchTool(logger *log.Logger, memory Storage) *MemorySearchTool {
 	return &MemorySearchTool{Logger: logger, Memory: memory}
 }
 
-// Execute runs the memory search
+// Execute runs the memory search.
 func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (types.ToolResult, error) {
 	queryVal, exists := input["query"]
 	if !exists {
@@ -64,7 +65,7 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 	return types.SimpleToolResult(resultText), nil
 }
 
-// Definition returns the OpenAI tool definition
+// Definition returns the OpenAI tool definition.
 func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
@@ -86,12 +87,12 @@ func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-// GetMemoryTools returns all memory-related tools
+// GetMemoryTools returns all memory-related tools.
 func GetMemoryTools(logger *log.Logger, storage Storage) []types.Tool {
 	if storage == nil {
 		return []types.Tool{}
 	}
-	
+
 	return []types.Tool{
 		NewMemorySearchTool(logger, storage),
 	}

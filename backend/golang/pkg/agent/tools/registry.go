@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // ToolRegistry defines the contract for tool registries.
@@ -180,8 +181,10 @@ func (r *ToolMapRegistry) Selecting(toolNames ...string) *ToolMapRegistry {
 }
 
 // Global is the default registry instance shared across the application.
-var Global *ToolMapRegistry
-var initOnce sync.Once
+var (
+	Global   *ToolMapRegistry
+	initOnce sync.Once
+)
 
 // GetGlobal returns the global registry, creating it if needed.
 func GetGlobal(logger *log.Logger) *ToolMapRegistry {

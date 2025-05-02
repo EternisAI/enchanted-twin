@@ -3,9 +3,10 @@ package tools
 import (
 	"context"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 type SearchTool struct{}

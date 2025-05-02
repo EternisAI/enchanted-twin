@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
-// InitOAuth initializes both OAuth providers and tokens tables
+// InitOAuth initializes both OAuth providers and tokens tables.
 func (s *Store) InitOAuth(ctx context.Context) error {
 	if err := s.InitOAuthProviders(ctx); err != nil {
 		return err
@@ -28,7 +29,7 @@ func (s *Store) InitOAuth(ctx context.Context) error {
 	return nil
 }
 
-// InitOAuthProviders initializes the OAuth providers in the database
+// InitOAuthProviders initializes the OAuth providers in the database.
 func (s *Store) InitOAuthProviders(ctx context.Context) error {
 	// Create the table if it doesn't exist
 	_, err := s.db.ExecContext(ctx, `
@@ -95,7 +96,7 @@ func (s *Store) InitOAuthProviders(ctx context.Context) error {
 	return nil
 }
 
-// InitOAuthTokens initializes the OAuth tokens table
+// InitOAuthTokens initializes the OAuth tokens table.
 func (s *Store) InitOAuthTokens(ctx context.Context) error {
 	// Create the tokens table
 	_, err := s.db.ExecContext(ctx, `
@@ -116,7 +117,7 @@ func (s *Store) InitOAuthTokens(ctx context.Context) error {
 	return nil
 }
 
-// InitOAuthTokens initializes the OAuth tokens table
+// InitOAuthTokens initializes the OAuth tokens table.
 func (s *Store) InitOAuthSessions(ctx context.Context) error {
 	// Create the tokens table
 	_, err := s.db.ExecContext(ctx, `
@@ -136,7 +137,7 @@ func (s *Store) InitOAuthSessions(ctx context.Context) error {
 	return nil
 }
 
-// OAuthConfig stores configuration for OAuth providers
+// OAuthConfig stores configuration for OAuth providers.
 type OAuthConfig struct {
 	ClientID      string `db:"client_id"`
 	RedirectURI   string `db:"redirect_uri"`
@@ -186,7 +187,7 @@ var oauthConfig = map[string]OAuthConfig{
 	},
 }
 
-// OAuthTokens represents oauth tokens for various providers
+// OAuthTokens represents oauth tokens for various providers.
 type OAuthTokens struct {
 	Provider     string    `db:"provider"`
 	TokenType    string    `db:"token_type"`
@@ -196,7 +197,7 @@ type OAuthTokens struct {
 	RefreshToken string    `db:"refresh_token"`
 }
 
-// For logging with Charmbracelet log
+// For logging with Charmbracelet log.
 func (o OAuthTokens) String() string {
 	// Safe display of token prefixes only
 	accessTokenValue := "<empty>"
@@ -225,7 +226,7 @@ func (o OAuthTokens) String() string {
 		refreshTokenValue)
 }
 
-// GetAllOAuthTokens retrieves all OAuth tokens from the database
+// GetAllOAuthTokens retrieves all OAuth tokens from the database.
 func (s *Store) GetAllOAuthTokens(ctx context.Context) ([]OAuthTokens, error) {
 	var tokens []OAuthTokens
 	err := s.db.SelectContext(ctx, &tokens, `
@@ -237,7 +238,7 @@ func (s *Store) GetAllOAuthTokens(ctx context.Context) ([]OAuthTokens, error) {
 	return tokens, nil
 }
 
-// GetOAuthTokens retrieves tokens for a specific provider
+// GetOAuthTokens retrieves tokens for a specific provider.
 func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthTokens, error) {
 	var tokens OAuthTokens
 	err := s.db.GetContext(ctx, &tokens, `
@@ -354,7 +355,7 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(ctx context.Context, logger 
 	return dest.Provider, dest.CodeVerifier, dest.Scope, nil
 }
 
-// SetOAuthTokens saves or updates tokens for a provider
+// SetOAuthTokens saves or updates tokens for a provider.
 func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
 	query := `
         INSERT OR REPLACE INTO oauth_tokens (
@@ -382,7 +383,7 @@ func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
 	return nil
 }
 
-// GetOAuthConfig retrieves the OAuth configuration for a provider
+// GetOAuthConfig retrieves the OAuth configuration for a provider.
 func (s *Store) GetOAuthConfig(ctx context.Context, provider string) (*OAuthConfig, error) {
 	var config OAuthConfig
 	err := s.db.GetContext(ctx, &config, `
@@ -407,7 +408,7 @@ func (s *Store) GetOAuthConfig(ctx context.Context, provider string) (*OAuthConf
 	return &config, nil
 }
 
-// GetOAuthProviders returns a list of all available OAuth providers
+// GetOAuthProviders returns a list of all available OAuth providers.
 func (s *Store) GetOAuthProviders(ctx context.Context) ([]string, error) {
 	var providers []string
 	err := s.db.SelectContext(ctx, &providers, `
@@ -420,7 +421,7 @@ func (s *Store) GetOAuthProviders(ctx context.Context) ([]string, error) {
 	return providers, nil
 }
 
-// DeleteOAuthTokens removes tokens for a specific provider
+// DeleteOAuthTokens removes tokens for a specific provider.
 func (s *Store) ClearOAuthTokens(ctx context.Context, provider string) error {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE oauth_tokens 
@@ -445,7 +446,7 @@ type OAuthStatus struct {
 	Scope     string    `db:"scope"`
 }
 
-// For logging with Charmbracelet log
+// For logging with Charmbracelet log.
 func (item OAuthStatus) ToModel() model.OAuthStatus {
 	expiresAtStr := ""
 	if !item.ExpiresAt.IsZero() {

@@ -14,6 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
+	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats.go"
+	"github.com/openai/openai-go"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -21,10 +26,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	types "github.com/EternisAI/enchanted-twin/types"
-	"github.com/charmbracelet/log"
-	"github.com/gorilla/websocket"
-	"github.com/nats-io/nats.go"
-	"github.com/openai/openai-go"
 )
 
 var ErrSubscriptionNilTextMessage = errors.New("subscription stopped due to nil text message")
@@ -177,7 +178,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 			}
 
 			for _, update := range result.Result {
-
 				lastUpdateID = update.UpdateID
 				s.Logger.Info("Received message",
 					"message_id", update.Message.MessageID,
@@ -454,7 +454,6 @@ func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, d
 	if err != nil {
 		s.Logger.Error("Failed to parse CreatedAt timestamp from WebSocket", "error", err, "timestamp", data.CreatedAt)
 		return nil, fmt.Errorf("failed to parse CreatedAt timestamp from WebSocket: %w", err)
-
 	}
 	date := int(parsedTime.Unix())
 
@@ -591,7 +590,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if err := conn.ReadJSON(&response); err != nil {
-
 					if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 						if err := conn.SetReadDeadline(time.Time{}); err != nil {
 							s.Logger.Warn("Failed to reset read deadline after timeout", "error", err)
@@ -696,7 +694,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
-
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
 						exitErr = ErrSubscriptionNilTextMessage
 						return
@@ -744,7 +741,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 							}
 						}
 					}
-
 				} else if response.Type == "connection_ack" {
 					connectionAcknowledged = true
 				} else if response.Type == "ka" {
