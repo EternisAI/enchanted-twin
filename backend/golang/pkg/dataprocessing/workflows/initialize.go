@@ -260,7 +260,7 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 		input.SourcePath,
 		outputPath,
 		input.Username,
-		"",
+		w.OpenAIService,
 	)
 	if err != nil {
 		w.Logger.Error(

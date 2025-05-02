@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/google_addresses"
@@ -24,7 +25,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
-	"github.com/openai/openai-go"
 )
 
 // Record represents a single data record that will be written to CSV.
@@ -256,7 +256,7 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 	return tempDir, nil
 }
 
-func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiClient *openai.Client) (bool, error) {
+func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiService *ai.Service) (bool, error) {
 	var records []types.Record
 	var err error
 
@@ -316,8 +316,8 @@ func ProcessSource(sourceType string, inputPath string, outputPath string, name 
 		source := chatgpt.New(inputPath)
 		records, err = source.ProcessDirectory(name)
 	case "misc":
-		source := misc.New(inputPath)
-		records, err = source.ProcessDirectory()
+		source := misc.New(openAiService)
+		records, err = source.ProcessDirectory(inputPath)
 	default:
 		return true, nil
 	}
