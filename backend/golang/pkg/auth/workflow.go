@@ -14,7 +14,7 @@ type TokenRefreshWorkflowInput struct {
 func TokenRefreshWorkflow(
 	ctx workflow.Context,
 	input TokenRefreshWorkflowInput,
-) (TokenRequest, error) {
+) (bool, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Started token refresh workflow", "provider", input.Provider)
 
@@ -31,12 +31,12 @@ func TokenRefreshWorkflow(
 
 	var a *OAuthActivities
 
-	var tokenReq TokenRequest
-	if err := workflow.ExecuteActivity(ctx, a.RefreshTokenActivity, input.Provider).Get(ctx, &tokenReq); err != nil {
+	var result bool
+	if err := workflow.ExecuteActivity(ctx, a.RefreshTokenActivity, input.Provider).Get(ctx, &result); err != nil {
 		logger.Error("Failed to refresh token", "provider", input.Provider, "error", err)
-		return TokenRequest{}, err
+		return false, err
 	}
 
 	logger.Info("Successfully refreshed token", "provider", input.Provider)
-	return tokenReq, nil
+	return result, nil
 }
