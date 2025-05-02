@@ -83,7 +83,7 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 		return false, fmt.Errorf("failed to analyze content: %w", err)
 	}
 
-	if response.ToolCalls != nil && len(response.ToolCalls) > 0 {
+	if len(response.ToolCalls) > 0 {
 		toolCall := response.ToolCalls[0]
 		if toolCall.Function.Name == "is_human_readable" {
 			arguments := toolCall.Function.Arguments
@@ -143,7 +143,7 @@ func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]stri
 		return nil, fmt.Errorf("failed to extract tags: %w", err)
 	}
 
-	if response.ToolCalls != nil && len(response.ToolCalls) > 0 {
+	if len(response.ToolCalls) > 0 {
 		toolCall := response.ToolCalls[0]
 		if toolCall.Function.Name == "extract_tags" {
 			arguments := toolCall.Function.Arguments
@@ -180,7 +180,11 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			fmt.Printf("failed to close file %s: %v\n", filePath, err)
+		}
+	}()
 
 	fileInfo, err := file.Stat()
 	if err != nil {

@@ -14,7 +14,11 @@ func TestProcessFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Fatalf("Failed to remove temp directory: %v", err)
+		}
+	}()
 
 	testContent := "This is a test file.\nIt has multiple lines.\nEach line has some content.\nWe want to make sure it processes correctly."
 	testFilePath := filepath.Join(tempDir, "test.txt")
@@ -73,7 +77,11 @@ func TestProcessDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Fatalf("Failed to remove temp directory: %v", err)
+		}
+	}()
 
 	subDir := filepath.Join(tempDir, "subdir")
 	if err := os.Mkdir(subDir, 0o755); err != nil {
@@ -117,6 +125,9 @@ func TestProcessDirectory(t *testing.T) {
 
 	source = New(nil)
 	records, err = source.ProcessDirectory(tempDir)
+	if err != nil {
+		t.Fatalf("ProcessDirectory failed: %v", err)
+	}
 
 	expectedCount = 3
 	if len(records) != expectedCount {
