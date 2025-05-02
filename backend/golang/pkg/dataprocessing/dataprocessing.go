@@ -319,7 +319,7 @@ func ProcessSource(sourceType string, inputPath string, outputPath string, name 
 		source := misc.New(openAiService)
 		records, err = source.ProcessDirectory(inputPath)
 	default:
-		return true, nil
+		return true, fmt.Errorf("unsupported source: %s", sourceType)
 	}
 
 	err = SaveRecords(records, outputPath)
