@@ -290,7 +290,7 @@ type IndexDataActivityResponse struct {
 	DataSourcesResponse []*model.DataSource `json:"dataSources"`
 }
 
-func publishIndexingStatus2(
+func publishIndexingStatus(
 	w *DataProcessingWorkflows,
 	dataSources []*model.DataSource,
 	state model.IndexingState,
@@ -372,7 +372,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				}
 
 				dataSourcesResponse[i].IndexProgress = int32(percentage)
-				publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, nil)
+				publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
 			}
 		}()
 
@@ -452,6 +452,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
+		default:
+			w.Logger.Error("Unsupported data source", "dataSource", dataSourceDB.Name)
 		}
 	}
 	go func() {
