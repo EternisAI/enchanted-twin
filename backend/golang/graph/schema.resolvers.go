@@ -14,6 +14,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/google/uuid"
@@ -37,7 +38,7 @@ func (r *mutationResolver) StartOAuthFlow(ctx context.Context, provider string, 
 
 // CompleteOAuthFlow is the resolver for the completeOAuthFlow field.
 func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
-	result, _, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	result, username, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
 	if err != nil {
 		return "", err
 	}
@@ -74,7 +75,7 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			"x-sync-schedule",
 			time.Minute*10,
 			"XSyncWorkflow",
-			[]any{},
+			[]any{workflows.XSyncWorkflowInput{Username: username}},
 		)
 		if err != nil {
 			r.Logger.Error("Error creating schedule", "error", err)
@@ -112,7 +113,7 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			"gmail-sync-schedule",
 			time.Minute*2,
 			"GmailSyncWorkflow",
-			[]any{},
+			[]any{workflows.GmailSyncWorkflowInput{Username: username}},
 		)
 		if err != nil {
 			r.Logger.Error("Error creating schedule", "error", err)

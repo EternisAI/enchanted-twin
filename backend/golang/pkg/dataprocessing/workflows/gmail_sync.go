@@ -16,7 +16,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
-type GmailSyncWorkflowInput struct{}
+type GmailSyncWorkflowInput struct {
+	Username string `json:"username"`
+}
 
 type GmailSyncWorkflowResponse struct {
 	EndTime             time.Time `json:"endTime"`
@@ -62,7 +64,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 	}
 
 	var response GmailFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput{}).
+	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput{Username: input.Username}).
 		Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err
@@ -118,7 +120,7 @@ func (w *DataProcessingWorkflows) GmailFetchActivity(
 	ctx context.Context,
 	input GmailFetchActivityInput,
 ) (GmailFetchActivityResponse, error) {
-	tokens, err := w.Store.GetOAuthTokens(ctx, "google")
+	tokens, err := w.Store.GetOAuthTokensByUsername(ctx, "google", input.Username)
 	if err != nil {
 		return GmailFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}

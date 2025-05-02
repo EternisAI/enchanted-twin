@@ -86,7 +86,7 @@ func fetchUserInfo(
 		return nil, fmt.Errorf("failed to get OAuth config: %w", err)
 	}
 
-	tokens, err := store.GetOAuthTokensByUsername(context.Background(), username)
+	tokens, err := store.GetOAuthTokensByUsername(context.Background(), provider, username)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get OAuth tokens: %w", err)
 	}

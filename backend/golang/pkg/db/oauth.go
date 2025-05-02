@@ -242,13 +242,13 @@ func (s *Store) GetAllOAuthTokens(ctx context.Context) ([]OAuthTokens, error) {
 	return tokens, nil
 }
 
-func (s *Store) GetOAuthTokensByUsername(ctx context.Context, username string) (*OAuthTokens, error) {
+func (s *Store) GetOAuthTokensByUsername(ctx context.Context, provider string, username string) (*OAuthTokens, error) {
 	var tokens OAuthTokens
 	err := s.db.GetContext(ctx, &tokens, `
 		SELECT provider, token_type, scope, access_token, expires_at, refresh_token, username
 		FROM oauth_tokens
-		WHERE username = ?
-	`, username)
+		WHERE provider = ? AND username = ?
+	`, provider, username)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}
