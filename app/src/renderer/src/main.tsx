@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import './assets/main.css'
+import '@livekit/components-styles'
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
