@@ -147,6 +147,7 @@ type ComplexityRoot struct {
 	}
 
 	OAuthStatus struct {
+		Error     func(childComplexity int) int
 		ExpiresAt func(childComplexity int) int
 		Provider  func(childComplexity int) int
 		Scope     func(childComplexity int) int
@@ -739,6 +740,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.OAuthFlow.RedirectURI(childComplexity), true
+
+	case "OAuthStatus.error":
+		if e.complexity.OAuthStatus.Error == nil {
+			break
+		}
+
+		return e.complexity.OAuthStatus.Error(childComplexity), true
 
 	case "OAuthStatus.expiresAt":
 		if e.complexity.OAuthStatus.ExpiresAt == nil {
@@ -4032,6 +4040,8 @@ func (ec *executionContext) fieldContext_Mutation_refreshExpiredOAuthTokens(_ co
 				return ec.fieldContext_OAuthStatus_scope(ctx, field)
 			case "username":
 				return ec.fieldContext_OAuthStatus_username(ctx, field)
+			case "error":
+				return ec.fieldContext_OAuthStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OAuthStatus", field.Name)
 		},
@@ -4823,6 +4833,50 @@ func (ec *executionContext) fieldContext_OAuthStatus_username(_ context.Context,
 	return fc, nil
 }
 
+func (ec *executionContext) _OAuthStatus_error(ctx context.Context, field graphql.CollectedField, obj *model.OAuthStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthStatus_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthStatus_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_profile(ctx, field)
 	if err != nil {
@@ -5116,6 +5170,8 @@ func (ec *executionContext) fieldContext_Query_getOAuthStatus(_ context.Context,
 				return ec.fieldContext_OAuthStatus_scope(ctx, field)
 			case "username":
 				return ec.fieldContext_OAuthStatus_username(ctx, field)
+			case "error":
+				return ec.fieldContext_OAuthStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OAuthStatus", field.Name)
 		},
@@ -9238,6 +9294,11 @@ func (ec *executionContext) _OAuthStatus(ctx context.Context, sel ast.SelectionS
 			}
 		case "username":
 			out.Values[i] = ec._OAuthStatus_username(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._OAuthStatus_error(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

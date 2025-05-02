@@ -525,6 +525,9 @@ func RefreshOAuthToken(
 		if err != nil {
 			logger.Error("failed to exchange token", "provider", provider, "error", err)
 			lastError = err
+
+			token.Error = true
+			store.SetOAuthTokens(ctx, token)
 			continue
 		}
 

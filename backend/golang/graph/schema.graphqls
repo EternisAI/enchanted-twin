@@ -70,6 +70,7 @@ type OAuthStatus {
   expiresAt: DateTime!
   scope: [String!]!
   username: String!
+  error: Boolean!
 }
 
 type OAuthFlow {
