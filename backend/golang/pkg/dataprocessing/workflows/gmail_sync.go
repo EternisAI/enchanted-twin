@@ -64,7 +64,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 	}
 
 	var response GmailFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput{Username: input.Username}).
+	err = workflow.ExecuteActivity(ctx, w.GmailFetchActivity, GmailFetchActivityInput(input)).
 		Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err

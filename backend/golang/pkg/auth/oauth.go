@@ -410,7 +410,12 @@ func GetUserInfo(ctx context.Context, userEndpoint string, provider string, acce
 	if err != nil {
 		return "", fmt.Errorf("failed to fetch user info: %w", err)
 	}
-	defer resp.Body.Close()
+
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			fmt.Printf("failed to close user info response body: %s\n", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
