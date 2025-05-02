@@ -369,7 +369,6 @@ func CompleteOAuthFlow(
 				"error", err.Error())
 			return "", "", err
 		}
-
 	}
 
 	logger.Debug("got username from provider", "provider", provider, "username", username)
@@ -397,7 +396,7 @@ func CompleteOAuthFlow(
 	return provider, username, nil
 }
 
-// GetUserInfo fetches user information from the provider's user endpoint
+// GetUserInfo fetches user information from the provider's user endpoint.
 func GetUserInfo(ctx context.Context, userEndpoint string, provider string, accessToken string, tokenType string) (string, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", userEndpoint, nil)
 	if err != nil {
@@ -426,12 +425,26 @@ func GetUserInfo(ctx context.Context, userEndpoint string, provider string, acce
 	var username string
 	switch provider {
 	case "google":
-		username = userInfo["email"].(string)
+		email, ok := userInfo["email"].(string)
+		if !ok {
+			return "", fmt.Errorf("failed to extract email from google user info")
+		}
+		username = email
 	case "twitter":
-		data := userInfo["data"].(map[string]interface{})
-		username = data["username"].(string)
+		data, ok := userInfo["data"].(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("failed to extract data from twitter user info")
+		}
+		username, ok = data["username"].(string)
+		if !ok {
+			return "", fmt.Errorf("failed to extract username from twitter user info")
+		}
 	case "linkedin":
-		username = userInfo["id"].(string)
+		data, ok := userInfo["id"].(string)
+		if !ok {
+			return "", fmt.Errorf("failed to extract id from linkedin user info")
+		}
+		username = data
 	case "slack":
 		// Handle different possible structures for Slack response
 		fmt.Println("userInfo", userInfo)
