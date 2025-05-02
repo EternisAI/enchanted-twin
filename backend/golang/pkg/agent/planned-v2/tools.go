@@ -75,7 +75,7 @@ func (a *AgentActivities) generateNextAction(
 }
 
 // executeAction executes a tool call and returns the result.
-func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*types.ToolResult, error) {
+func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
@@ -90,11 +90,10 @@ func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall,
 	// Special case for final response
 	if toolName == "final_response" {
 		output, _ := params["output"].(string)
-		result := &types.ToolResult{
-			Tool:    toolName,
-			Params:  params,
-			Content: output,
-			Data:    output,
+		result := &types.StructuredToolResult{
+			ToolName:   toolName,
+			ToolParams: params,
+			Output:     map[string]any{"content": output, "data": output},
 		}
 
 		// Store the result in the tool call
@@ -146,9 +145,9 @@ func (a *AgentActivities) executeAction(ctx workflow.Context, toolCall ToolCall,
 	}
 
 	// Store the result in the tool call
-	toolCall.Result = &result
+	toolCall.Result = result
 
-	return &result, nil
+	return result, nil
 }
 
 // SleepConfig holds common configuration for sleep operations.
@@ -160,7 +159,7 @@ type SleepConfig struct {
 }
 
 // executeSleepWithConfig performs the actual sleep operation and returns a result.
-func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*types.ToolResult, error) {
+func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Log the sleep
@@ -196,16 +195,15 @@ func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*types.To
 	}
 
 	// Return result
-	return &types.ToolResult{
-		Tool:    config.ToolName,
-		Params:  config.Params,
-		Content: message,
-		Data:    message,
+	return &types.StructuredToolResult{
+		ToolName:   config.ToolName,
+		ToolParams: config.Params,
+		Output:     map[string]any{"content": message, "data": message},
 	}, nil
 }
 
 // executeSleep pauses workflow execution for the specified duration.
-func executeSleep(ctx workflow.Context, params map[string]interface{}) (*types.ToolResult, error) {
+func executeSleep(ctx workflow.Context, params map[string]interface{}) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract duration parameter
@@ -266,7 +264,7 @@ func executeSleep(ctx workflow.Context, params map[string]interface{}) (*types.T
 }
 
 // executeSleepUntil pauses workflow execution until the specified time.
-func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*types.ToolResult, error) {
+func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract timestamp parameter
@@ -289,14 +287,17 @@ func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (*ty
 
 	// Check if time is in the past
 	if sleepDuration <= 0 {
-		return &types.ToolResult{
-			Tool:   "sleep_until",
-			Params: params,
-			Content: fmt.Sprintf(
-				"Target time %s is in the past. No sleep performed.",
-				targetTime.Format(time.RFC3339),
-			),
-			Data: "Target time is in the past",
+		message := fmt.Sprintf(
+			"Target time %s is in the past. No sleep performed.",
+			targetTime.Format(time.RFC3339),
+		)
+		return &types.StructuredToolResult{
+			ToolName:   "sleep_until",
+			ToolParams: params,
+			Output: map[string]any{
+				"content": message,
+				"data":    "Target time is in the past",
+			},
 		}, nil
 	}
 

@@ -197,35 +197,36 @@ func (a *AgentActivities) executeReActLoop(ctx workflow.Context, state *PlanStat
 				errorMsg := fmt.Sprintf("Error executing %s: %v", toolCall.Function.Name, err)
 
 				// Add error message as a tool result
-				errorResult := types.ToolResult{
-					Tool:    toolCall.Function.Name,
-					Params:  make(map[string]interface{}),
-					Content: errorMsg,
-					Error:   err.Error(),
+				errorResult := &types.StructuredToolResult{
+					ToolName:   toolCall.Function.Name,
+					ToolParams: make(map[string]interface{}),
+					Output:     map[string]any{"content": errorMsg},
+					ToolError:  err.Error(),
 				}
 
 				// Add the error result to our collection
 				state.ToolResults = append(state.ToolResults, errorResult)
 
 				// Add tool message to message history with error
-				state.Messages = append(state.Messages, ai.NewToolMessage(errorMsg, toolCall.ID))
+				state.Messages = append(state.Messages, ai.NewToolMessage(errorResult.Content(), toolCall.ID))
 			} else {
 				// Add the successful tool result to our collection
-				state.ToolResults = append(state.ToolResults, *result)
+				state.ToolResults = append(state.ToolResults, result)
 
 				// Add tool message to message history with result
-				state.Messages = append(state.Messages, ai.NewToolMessage(result.Content, toolCall.ID))
+				state.Messages = append(state.Messages, ai.NewToolMessage(result.Content(), toolCall.ID))
 
 				// Record the observation in history
 				state.History = append(state.History, HistoryEntry{
 					Type:      "observation",
-					Content:   result.Content,
+					Content:   result.Content(),
 					Timestamp: workflow.Now(ctx),
 				})
 
 				// Collect image URLs if any
-				if len(result.ImageURLs) > 0 {
-					state.ImageURLs = append(state.ImageURLs, result.ImageURLs...)
+				imageURLs := result.ImageURLs()
+				if len(imageURLs) > 0 {
+					state.ImageURLs = append(state.ImageURLs, imageURLs...)
 				}
 			}
 		}

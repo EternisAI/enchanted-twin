@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 )
 
@@ -11,5 +11,5 @@ import (
 // We're maintaining compatibility with the existing codebase while we transition
 type Tool interface {
 	Definition() openai.ChatCompletionToolParam
-	Execute(ctx context.Context, inputs map[string]any) (*types.StandardToolResult, error)
+	Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error)
 }

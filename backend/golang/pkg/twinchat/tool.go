@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -61,16 +61,16 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 func (t *ChatMessageTool) Execute(
 	ctx context.Context,
 	args map[string]any,
-) (tools.ToolResult, error) {
+) (types.ToolResult, error) {
 	// Validate required parameters
 	chatID, ok := args["chat_id"].(string)
 	if !ok || chatID == "" {
-		return tools.ToolResult{}, fmt.Errorf("chat_id is required")
+		return nil, fmt.Errorf("chat_id is required")
 	}
 
 	message, ok := args["message"].(string)
 	if !ok || message == "" {
-		return tools.ToolResult{}, fmt.Errorf("message is required")
+		return nil, fmt.Errorf("message is required")
 	}
 
 	// Always use "assistant" role since only agents can use this tool
@@ -106,7 +106,7 @@ func (t *ChatMessageTool) Execute(
 	if len(imageURLs) > 0 {
 		imageURLsJSON, err := json.Marshal(imageURLs)
 		if err != nil {
-			return tools.ToolResult{}, fmt.Errorf("failed to marshal image URLs: %w", err)
+			return nil, fmt.Errorf("failed to marshal image URLs: %w", err)
 		}
 		dbMessage.ImageURLsStr = &[]string{string(imageURLsJSON)}[0]
 	}
@@ -114,7 +114,7 @@ func (t *ChatMessageTool) Execute(
 	// Add message to the database
 	id, err := t.storage.AddMessageToChat(ctx, dbMessage)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to add message to chat: %w", err)
+		return nil, fmt.Errorf("failed to add message to chat: %w", err)
 	}
 
 	// Prepare the message for NATS
@@ -136,17 +136,21 @@ func (t *ChatMessageTool) Execute(
 	// Marshal the message for NATS
 	natsMessageJSON, err := json.Marshal(natsMessage)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to marshal NATS message: %w", err)
+		return nil, fmt.Errorf("failed to marshal NATS message: %w", err)
 	}
 
 	// Publish the message to NATS
 	subject := fmt.Sprintf("chat.%s", chatID)
 	err = t.nc.Publish(subject, natsMessageJSON)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to publish message to NATS: %w", err)
+		return nil, fmt.Errorf("failed to publish message to NATS: %w", err)
 	}
 
-	return tools.ToolResult{
-		Content: fmt.Sprintf("Message sent to chat %s with ID %s", chatID, id),
+	return &types.StructuredToolResult{
+		ToolName: "send_chat_message",
+		ToolParams: args,
+		Output: map[string]any{
+			"content": fmt.Sprintf("Message sent to chat %s with ID %s", chatID, id),
+		},
 	}, nil
 }

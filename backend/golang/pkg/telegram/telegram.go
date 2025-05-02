@@ -270,7 +270,7 @@ func (s *TelegramService) Execute(ctx context.Context, messageHistory []openai.C
 	tools := []tools.Tool{
 		&tools.SearchTool{},
 		&tools.ImageTool{},
-		tools.NewMemorySearchTool(s.Logger, s.Memory),
+		memory.NewMemorySearchTool(s.Logger, s.Memory),
 		tools.NewTelegramTool(s.Logger, s.Token, s.Store, s.ChatServerUrl),
 		twitterReverseChronTimelineTool,
 	}

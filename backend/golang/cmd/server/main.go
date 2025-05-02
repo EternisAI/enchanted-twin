@@ -161,6 +161,9 @@ func main() {
 	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
 	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
 
+	// Initialize global tool registry
+	toolRegistry := tools.NewRegistry()
+
 	// Initialize and start the temporal worker
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
@@ -172,6 +175,7 @@ func main() {
 			ollamaClient:         ollamaClient,
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
+			registry:             toolRegistry,
 		},
 	)
 	if err != nil {
@@ -188,14 +192,10 @@ func main() {
 		envs.CompletionsModel,
 	)
 
-	// Initialize global tool registry
-	toolRegistry := tools.GetGlobal(logger)
-
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
 		toolRegistry,
 		logger,
-		mem,
 		envs.TelegramToken,
 		store,
 		temporalClient,
@@ -353,6 +353,7 @@ type bootstrapTemporalWorkerInput struct {
 	nc                   *nats.Conn
 	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
+	registry             tools.ToolRegistry
 	aiCompletionsService *ai.Service
 }
 
@@ -378,8 +379,7 @@ func bootstrapTemporalWorker(
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	registry := tools.GetGlobal(nil)
-	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, registry)
+	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.registry)
 	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
 	input.logger.Info("Registered planned agent workflow")
 

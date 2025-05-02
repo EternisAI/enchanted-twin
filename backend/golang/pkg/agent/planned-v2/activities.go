@@ -56,7 +56,7 @@ func (a *AgentActivities) ExecuteToolActivity(
 	ctx context.Context,
 	toolName string,
 	args map[string]interface{},
-) (*types.ToolResult, error) {
+) (types.ToolResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("Executing tool", "tool", toolName, "args", args)
 
@@ -68,9 +68,6 @@ func (a *AgentActivities) ExecuteToolActivity(
 
 	// Use the injected registry if available, otherwise fall back to global
 	registry := a.registry
-	if registry == nil {
-		registry = tools.GetGlobal(nil)
-	}
 
 	tool, exists := registry.Get(toolName)
 	if !exists {
@@ -83,12 +80,6 @@ func (a *AgentActivities) ExecuteToolActivity(
 		return nil, fmt.Errorf("failed to execute tool '%s': %w", toolName, err)
 	}
 
-	// Convert to our ToolResult format
-	return &types.ToolResult{
-		Tool:      toolName,
-		Params:    args,
-		Content:   result.Content,
-		Data:      result.Content, // Using content as data for compatibility
-		ImageURLs: result.ImageURLs,
-	}, nil
+	// Return the result directly since it already implements the ToolResult interface
+	return result, nil
 }

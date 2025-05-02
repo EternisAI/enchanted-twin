@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/pkg/errors"
@@ -34,13 +35,22 @@ func (t *EchoTool) Definition() openai.ChatCompletionToolParam {
 }
 
 // Execute simply returns the input text.
-func (t *EchoTool) Execute(ctx context.Context, args map[string]interface{}) (ToolResult, error) {
+func (t *EchoTool) Execute(ctx context.Context, args map[string]interface{}) (agenttypes.ToolResult, error) {
 	text, ok := args["text"].(string)
 	if !ok || text == "" {
-		return ToolResult{}, errors.New("text parameter is required")
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "echo",
+			ToolParams: args,
+			ToolError:  "text parameter is required",
+		}, errors.New("text parameter is required")
 	}
 
-	return ToolResult{
-		Content: fmt.Sprintf("Echo: %s", text),
+	content := fmt.Sprintf("Echo: %s", text)
+	return &agenttypes.StructuredToolResult{
+		ToolName:   "echo",
+		ToolParams: args,
+		Output: map[string]any{
+			"content": content,
+		},
 	}, nil
 }

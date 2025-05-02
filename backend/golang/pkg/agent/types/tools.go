@@ -29,10 +29,14 @@ type ToolResult interface {
 
 // StructuredToolResult is a standard implementation of ToolResult
 type StructuredToolResult struct {
-	ToolName string         `json:"tool"`
-	Params   map[string]any `json:"params"`
-	Output   map[string]any `json:"data,omitempty"`
-	Error    string         `json:"error,omitempty"`
+	ToolName   string         `json:"tool"`
+	ToolParams map[string]any `json:"params"`
+	Output     map[string]any `json:"data,omitempty"`
+	ToolError  string         `json:"error,omitempty"`
+}
+
+func (t *StructuredToolResult) Tool() string {
+	return t.ToolName
 }
 
 func (t *StructuredToolResult) Content() string {
@@ -43,20 +47,46 @@ func (t *StructuredToolResult) Content() string {
 	return ""
 }
 
+func (t *StructuredToolResult) Data() any {
+	if data, ok := t.Output["data"]; ok {
+		return data
+	}
+	return t.Output
+}
+
+func (t *StructuredToolResult) ImageURLs() []string {
+	if images, ok := t.Output["images"].([]string); ok {
+		return images
+	}
+	return nil
+}
+
+func (t *StructuredToolResult) Error() string {
+	return t.ToolError
+}
+
+func (t *StructuredToolResult) Params() map[string]any {
+	return t.ToolParams
+}
+
 // SimpleToolResult creates a minimal tool result with just content
 func SimpleToolResult(content string) *StructuredToolResult {
 	return &StructuredToolResult{
-		ToolContent: content,
-		Params:      make(map[string]any),
+		Output: map[string]any{
+			"content": content,
+		},
+		ToolParams: make(map[string]any),
 	}
 }
 
 // ImageToolResult creates a tool result with image URLs
 func ImageToolResult(content string, imageURLs []string) *StructuredToolResult {
 	return &StructuredToolResult{
-		ToolContent: content,
-		ToolImages:  imageURLs,
-		Params:      make(map[string]any),
+		Output: map[string]any{
+			"content": content,
+			"images":  imageURLs,
+		},
+		ToolParams: make(map[string]any),
 	}
 }
 

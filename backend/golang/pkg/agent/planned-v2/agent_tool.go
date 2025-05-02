@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/openai/openai-go"
@@ -74,10 +74,14 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 func (t *PlannedAgentTool) Execute(
 	ctx context.Context,
 	args map[string]any,
-) (tools.ToolResult, error) {
+) (agenttypes.ToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
-		return tools.ToolResult{}, fmt.Errorf("plan is required")
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  "plan is required",
+		}, fmt.Errorf("plan is required")
 	}
 
 	// Extract optional parameters
@@ -105,7 +109,11 @@ func (t *PlannedAgentTool) Execute(
 
 	inputJSON, err := json.Marshal(input)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to marshal input: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  fmt.Sprintf("failed to marshal input: %v", err),
+		}, fmt.Errorf("failed to marshal input: %w", err)
 	}
 
 	// Generate a unique workflow ID using UUID
@@ -127,7 +135,11 @@ func (t *PlannedAgentTool) Execute(
 		inputJSON,
 	)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to start workflow: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  fmt.Sprintf("failed to start workflow: %v", err),
+		}, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
 	t.logger.Info(
@@ -157,22 +169,32 @@ func (t *PlannedAgentTool) Execute(
 		if queryErr == nil {
 			queryErr = resp.Get(&output)
 			if queryErr == nil && output != "" {
-				return tools.ToolResult{
-					Content: fmt.Sprintf(
-						"Plan execution in progress. Current output: %s",
-						output,
-					),
-					ImageURLs: []string{},
+				return &agenttypes.StructuredToolResult{
+					ToolName:   "schedule_task",
+					ToolParams: args,
+					Output: map[string]any{
+						"content": fmt.Sprintf(
+							"Plan execution in progress. Current output: %s",
+							output,
+						),
+					},
 				}, nil
 			}
 		}
 
-		return tools.ToolResult{}, fmt.Errorf("workflow execution failed: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  fmt.Sprintf("workflow execution failed: %v", err),
+		}, fmt.Errorf("workflow execution failed: %w", err)
 	}
 
 	// Create the result
-	return tools.ToolResult{
-		Content:   result,
-		ImageURLs: []string{},
+	return &agenttypes.StructuredToolResult{
+		ToolName:   "schedule_task",
+		ToolParams: args,
+		Output: map[string]any{
+			"content": result,
+		},
 	}, nil
 }

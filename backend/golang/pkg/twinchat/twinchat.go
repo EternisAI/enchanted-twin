@@ -9,6 +9,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
@@ -53,7 +54,7 @@ func (s *Service) Execute(
 	ctx context.Context,
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
-	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
 		s.logger,
@@ -142,20 +143,20 @@ func (s *Service) SendMessage(
 	}
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
-	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult) {
+	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:        toolCall.ID,
 			Name:      toolCall.Function.Name,
 			MessageID: assistantMessageId,
 			Result: &model.ToolCallResult{
-				Content:   &toolResult.Content,
-				ImageUrls: toolResult.ImageURLs,
+				Content:   helpers.Ptr(toolResult.Content()),
+				ImageUrls: toolResult.ImageURLs(),
 			},
 			IsCompleted: true,
 		})
 		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
-			Content:   &toolResult.Content,
-			ImageUrls: toolResult.ImageURLs,
+			Content:   helpers.Ptr(toolResult.Content()),
+			ImageUrls: toolResult.ImageURLs(),
 		}
 		if err != nil {
 			s.logger.Error("failed to marshal tool call", "error", err)

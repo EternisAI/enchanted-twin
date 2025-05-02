@@ -26,7 +26,7 @@ func NewToolExecutor(registry tools.ToolRegistry, logger *log.Logger) *ToolExecu
 }
 
 // Execute runs a tool call and returns the result
-func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *PlanState) (*types.ToolResult, error) {
+func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *PlanState) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
@@ -69,9 +69,9 @@ func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *P
 	}
 
 	// Store the result in the tool call
-	toolCall.Result = &result
+	toolCall.Result = result
 
-	return &result, nil
+	return result, nil
 }
 
 // executeToolActivity is a wrapper around the registry's Execute method
@@ -80,43 +80,38 @@ func (e *ToolExecutor) executeToolActivity(ctx context.Context, toolName string,
 	// In a real implementation, we'd pass the state's registry to the activity
 	registry := e.registry
 	if registry == nil {
-		return types.ToolResult{
-			Tool:   toolName,
-			Params: params,
-			Error:  "no registry available",
+		return &types.StructuredToolResult{
+			ToolName:   toolName,
+			ToolParams: params,
+			ToolError:  "no registry available",
 		}, fmt.Errorf("no registry available")
 	}
 
 	toolResult, err := registry.Execute(ctx, toolName, params)
 	if err != nil {
-		return types.ToolResult{
-			Tool:   toolName,
-			Params: params,
-			Error:  err.Error(),
+		return &types.StructuredToolResult{
+			ToolName:   toolName,
+			ToolParams: params,
+			ToolError:  err.Error(),
 		}, nil
 	}
 
-	// Convert tools.ToolResult to types.ToolResult
-	return types.ToolResult{
-		Tool:      toolName,
-		Params:    params,
-		Content:   toolResult.Content,
-		ImageURLs: toolResult.ImageURLs,
-	}, nil
+	// Tool results are already in the correct format
+	return toolResult, nil
 }
 
 // ExecuteBatch executes multiple tool calls in parallel
-func (e *ToolExecutor) ExecuteBatch(ctx workflow.Context, toolCalls []ToolCall, state *PlanState) ([]*types.ToolResult, error) {
+func (e *ToolExecutor) ExecuteBatch(ctx workflow.Context, toolCalls []ToolCall, state *PlanState) ([]types.ToolResult, error) {
 	// Create a future for each tool call
 	futures := make([]workflow.Future, len(toolCalls))
-	results := make([]*types.ToolResult, len(toolCalls))
+	results := make([]types.ToolResult, len(toolCalls))
 
 	// Start all tool calls in parallel
 	for i, toolCall := range toolCalls {
 		toolCallCopy := toolCall // Create a copy to avoid closure capturing the loop variable
 		// Use local execution instead of activity for now
 		// This will be expanded in the future to support parallel activity execution
-		future := workflow.ExecuteLocalActivity(ctx, func() (*types.ToolResult, error) {
+		future := workflow.ExecuteLocalActivity(ctx, func() (types.ToolResult, error) {
 			return e.Execute(ctx, toolCallCopy, state)
 		})
 		futures[i] = future
@@ -124,11 +119,13 @@ func (e *ToolExecutor) ExecuteBatch(ctx workflow.Context, toolCalls []ToolCall, 
 
 	// Wait for all futures to complete
 	for i, future := range futures {
-		var result *types.ToolResult
+		var result types.ToolResult
 		if err := future.Get(ctx, &result); err != nil {
-			results[i] = &types.ToolResult{
-				Tool:  toolCalls[i].Function.Name,
-				Error: err.Error(),
+			// Create an error result
+			results[i] = &types.StructuredToolResult{
+				ToolName:   toolCalls[i].Function.Name,
+				ToolError:  err.Error(),
+				ToolParams: make(map[string]any),
 			}
 		} else {
 			results[i] = result

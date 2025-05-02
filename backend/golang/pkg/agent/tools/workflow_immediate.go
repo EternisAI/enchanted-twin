@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"go.temporal.io/sdk/workflow"
@@ -17,7 +18,7 @@ type WorkflowImmediateTool interface {
 
 	// ExecuteInWorkflow executes the tool directly in a workflow context
 	// This is used for tools that need to use workflow-specific functionality like Sleep
-	ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error)
+	ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error)
 }
 
 // FinalResponseTool is a special tool that represents a final response from the agent
@@ -45,25 +46,31 @@ func (t *FinalResponseTool) Definition() openai.ChatCompletionToolParam {
 }
 
 // Execute processes the final response
-func (t *FinalResponseTool) Execute(ctx context.Context, inputs map[string]any) (ToolResult, error) {
+func (t *FinalResponseTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	output, ok := inputs["output"].(string)
 	if !ok {
-		return ToolResult{}, fmt.Errorf("final_response tool requires an 'output' parameter of type string")
+		return nil, fmt.Errorf("final_response tool requires an 'output' parameter of type string")
 	}
 
-	return ToolResult{
-		Content: output,
+	return &types.StructuredToolResult{
+		ToolName:   "final_response",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": output,
+		},
 	}, nil
 }
 
 // ExecuteInWorkflow executes the final_response tool in a workflow context
-func (t *FinalResponseTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error) {
+func (t *FinalResponseTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error) {
 	output, _ := inputs["output"].(string)
-	result := &types.ToolResult{
-		Tool:    "final_response",
-		Params:  inputs,
-		Content: output,
-		Data:    output,
+	result := &types.StructuredToolResult{
+		ToolName:   "final_response",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": output,
+			"data":    output,
+		},
 	}
 	return result, nil
 }
@@ -98,16 +105,22 @@ func (t *SleepTool) Definition() openai.ChatCompletionToolParam {
 
 // Execute processes the sleep request
 // Note: This cannot be executed directly in an activity, but needs special workflow handling
-func (t *SleepTool) Execute(ctx context.Context, inputs map[string]any) (ToolResult, error) {
+func (t *SleepTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	// This implementation is a placeholder - the actual sleep happens in the workflow
 	// via the workflow immediate execution
-	return ToolResult{
-		Content: "Sleep must be executed within a workflow context",
-	}, fmt.Errorf("sleep tool can only be executed within a workflow context")
+	errorMsg := "sleep tool can only be executed within a workflow context"
+	return &types.StructuredToolResult{
+		ToolName:   "sleep",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": "Sleep must be executed within a workflow context",
+		},
+		ToolError: errorMsg,
+	}, fmt.Errorf(errorMsg)
 }
 
 // ExecuteInWorkflow executes the sleep tool in a workflow context
-func (t *SleepTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error) {
+func (t *SleepTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract duration parameter
@@ -170,11 +183,13 @@ func (t *SleepTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]an
 	)
 
 	// Return result
-	result := &types.ToolResult{
-		Tool:    "sleep",
-		Params:  inputs,
-		Content: message,
-		Data:    message,
+	result := &types.StructuredToolResult{
+		ToolName:   "sleep",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": message,
+			"data":    message,
+		},
 	}
 
 	return result, nil
@@ -210,16 +225,22 @@ func (t *SleepUntilTool) Definition() openai.ChatCompletionToolParam {
 
 // Execute processes the sleep_until request
 // Note: This cannot be executed directly in an activity, but needs special workflow handling
-func (t *SleepUntilTool) Execute(ctx context.Context, inputs map[string]any) (ToolResult, error) {
+func (t *SleepUntilTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	// This implementation is a placeholder - the actual sleep happens in the workflow
 	// via the workflow immediate execution
-	return ToolResult{
-		Content: "Sleep_until must be executed within a workflow context",
-	}, fmt.Errorf("sleep_until tool can only be executed within a workflow context")
+	errorMsg := "sleep_until tool can only be executed within a workflow context"
+	return &types.StructuredToolResult{
+		ToolName:   "sleep_until",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": "Sleep_until must be executed within a workflow context",
+		},
+		ToolError: errorMsg,
+	}, fmt.Errorf(errorMsg)
 }
 
 // ExecuteInWorkflow executes the sleep_until tool in a workflow context
-func (t *SleepUntilTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (*types.ToolResult, error) {
+func (t *SleepUntilTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[string]any) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract timestamp parameter
@@ -242,14 +263,18 @@ func (t *SleepUntilTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[stri
 
 	// Check if time is in the past
 	if sleepDuration <= 0 {
-		result := &types.ToolResult{
-			Tool:   "sleep_until",
-			Params: inputs,
-			Content: fmt.Sprintf(
-				"Target time %s is in the past. No sleep performed.",
-				targetTime.Format(time.RFC3339),
-			),
-			Data: "Target time is in the past",
+		message := fmt.Sprintf(
+			"Target time %s is in the past. No sleep performed.",
+			targetTime.Format(time.RFC3339),
+		)
+
+		result := &types.StructuredToolResult{
+			ToolName:   "sleep_until",
+			ToolParams: inputs,
+			Output: map[string]any{
+				"content": message,
+				"data":    "Target time is in the past",
+			},
 		}
 
 		return result, nil
@@ -289,11 +314,13 @@ func (t *SleepUntilTool) ExecuteInWorkflow(ctx workflow.Context, inputs map[stri
 	)
 
 	// Return result
-	result := &types.ToolResult{
-		Tool:    "sleep_until",
-		Params:  inputs,
-		Content: message,
-		Data:    message,
+	result := &types.StructuredToolResult{
+		ToolName:   "sleep_until",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": message,
+			"data":    message,
+		},
 	}
 
 	return result, nil

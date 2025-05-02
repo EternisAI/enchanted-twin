@@ -19,7 +19,7 @@ type ToolRegistry interface {
 	Get(name string) (Tool, bool)
 
 	// Execute runs a tool by name with the given parameters.
-	Execute(ctx context.Context, name string, params map[string]interface{}) (ToolResult, error)
+	Execute(ctx context.Context, name string, params map[string]interface{}) (types.ToolResult, error)
 
 	// Definitions returns OpenAI-compatible tool definitions for all registered tools.
 	Definitions() []openai.ChatCompletionToolParam
@@ -79,13 +79,26 @@ func (r *ToolMapRegistry) Get(name string) (Tool, bool) {
 }
 
 // Execute runs a tool by name with the given parameters.
-func (r *ToolMapRegistry) Execute(ctx context.Context, name string, params map[string]interface{}) (ToolResult, error) {
+func (r *ToolMapRegistry) Execute(ctx context.Context, name string, params map[string]interface{}) (types.ToolResult, error) {
 	tool, exists := r.Get(name)
 	if !exists {
-		return ToolResult{}, fmt.Errorf("tool '%s' not found", name)
+		return nil, fmt.Errorf("tool '%s' not found", name)
 	}
 
-	return tool.Execute(ctx, params)
+	result, err := tool.Execute(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Ensure the tool name is set
+	if result.Tool() == "" {
+		// If it's a structured tool result, we can set the name
+		if structResult, ok := result.(*types.StructuredToolResult); ok {
+			structResult.ToolName = name
+		}
+	}
+
+	return result, nil
 }
 
 // Definitions returns OpenAI-compatible tool definitions for all registered tools.

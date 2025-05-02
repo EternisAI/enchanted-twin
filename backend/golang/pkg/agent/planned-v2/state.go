@@ -14,7 +14,7 @@ import (
 type ToolCall struct {
 	ai.ToolCall
 	// Result of the tool execution (nil if not yet executed)
-	Result *types.ToolResult `json:"result,omitempty"`
+	Result types.ToolResult `json:"result,omitempty"`
 }
 
 // PlanState represents the unified state for planned agent execution.
