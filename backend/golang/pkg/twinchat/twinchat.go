@@ -129,6 +129,10 @@ func (s *Service) SendMessage(
 		messageHistory,
 		openai.SystemMessage(systemPrompt),
 	)
+	messageHistory = append(
+		messageHistory,
+		openai.SystemMessage(fmt.Sprintf("Current date and time:%s  and timestamp:%d", time.Now().Format(time.RFC3339),time.Now().Unix())),
+	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
 		if err != nil {
