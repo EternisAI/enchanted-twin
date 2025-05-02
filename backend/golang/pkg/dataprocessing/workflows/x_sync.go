@@ -66,7 +66,7 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(
 	}
 
 	var response XFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
+	err = workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{Username: input.Username}).Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err
 	}
