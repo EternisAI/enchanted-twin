@@ -179,8 +179,6 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 			Data: map[string]interface{}{
 				"content":  chunk,
 				"filename": fileName,
-				"type":     "text",
-				"path":     filePath,
 				"chunk":    i / s.chunkSize,
 			},
 			Timestamp: timestamp,
