@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	DefaultChunkSize = 200
+	DefaultChunkSize = 1000
 )
 
 type Source struct {
@@ -121,14 +121,14 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	fileName := fileInfo.Name()
 
 	scanner := bufio.NewScanner(file)
-	var fullContent strings.Builder
+	var content strings.Builder
 
 	firstLine := true
 	for scanner.Scan() {
 		if !firstLine {
-			fullContent.WriteString("\n")
+			content.WriteString("\n")
 		}
-		fullContent.WriteString(scanner.Text())
+		content.WriteString(scanner.Text())
 		firstLine = false
 	}
 
@@ -136,7 +136,7 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		return nil, fmt.Errorf("error reading file %s: %w", filePath, err)
 	}
 
-	textContent := fullContent.String()
+	textContent := content.String()
 
 	// Return early if the file is empty
 	if len(textContent) == 0 {
@@ -167,16 +167,18 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	}
 
 	var records []types.Record
+	for i := 0; i < len(textContent); i += s.chunkSize {
+		end := i + s.chunkSize
+		if end > len(textContent) {
+			end = len(textContent)
+		}
 
-	// Split by lines and create a record for each line
-	lines := strings.Split(textContent, "\n")
-	for i, line := range lines {
+		chunk := textContent[i:end]
 		records = append(records, types.Record{
 			Data: map[string]interface{}{
-				"content":  line,
+				"content":  chunk,
 				"filename": fileName,
-				"chunk":    i,
-				"line":     i + 1,
+				"chunk":    i / s.chunkSize,
 			},
 			Timestamp: timestamp,
 			Source:    s.Name(),
