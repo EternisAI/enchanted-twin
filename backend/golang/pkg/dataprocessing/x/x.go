@@ -290,7 +290,7 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	return documents, nil
 }
 
-func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
+func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
 	// Create HTTP client with OAuth token
 	client := &http.Client{
 		Timeout: 30 * time.Second,
@@ -304,21 +304,21 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create user request: %w", err)
+		return nil, false, fmt.Errorf("failed to create user request: %w", err)
 	}
 
 	fmt.Println("Making request with accessToken:", accessToken)
 	userReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
 	userResp, err := client.Do(userReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user data: %w", err)
+		return nil, false, fmt.Errorf("failed to fetch user data: %w", err)
 	}
 	defer func() { _ = userResp.Body.Close() }()
 
 	// Read the body
 	bodyBytes, err := io.ReadAll(userResp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return nil, false, fmt.Errorf("failed to read response body: %w", err)
 	}
 	fmt.Printf("Response Status: %d\n", userResp.StatusCode)
 	fmt.Printf("Response Body: %s\n", string(bodyBytes))
@@ -326,8 +326,16 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	// Create a new reader with the body bytes for json.Decoder
 	userResp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
+	if userResp.StatusCode == 401 {
+		return nil, false, fmt.Errorf(
+			"failed to fetch user data. Status: %d, Response: %s",
+			userResp.StatusCode,
+			string(bodyBytes),
+		)
+	}
+
 	if userResp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"failed to fetch user data. Status: %d, Response: %s",
 			userResp.StatusCode,
 			string(bodyBytes),
@@ -342,7 +350,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	}
 
 	if err := json.NewDecoder(userResp.Body).Decode(&userResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode user response: %w", err)
+		return nil, true, fmt.Errorf("failed to decode user response: %w", err)
 	}
 
 	fmt.Printf("Retrieved user ID: %s\n", userResponse.Data.ID)
@@ -357,7 +365,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create tweets request: %w", err)
+		return nil, true, fmt.Errorf("failed to create tweets request: %w", err)
 	}
 
 	tweetsReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
@@ -368,13 +376,13 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 
 	tweetsResp, err := client.Do(tweetsReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch tweets: %w", err)
+		return nil, true, fmt.Errorf("failed to fetch tweets: %w", err)
 	}
 	defer func() { _ = tweetsResp.Body.Close() }()
 
 	if tweetsResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(tweetsResp.Body)
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"failed to fetch tweets. Status: %d, Response: %s",
 			tweetsResp.StatusCode,
 			string(body),
@@ -395,7 +403,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	}
 
 	if err := json.NewDecoder(tweetsResp.Body).Decode(&tweetsResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode tweets response: %w", err)
+		return nil, true, fmt.Errorf("failed to decode tweets response: %w", err)
 	}
 
 	for _, tweet := range tweetsResponse.Data {
@@ -433,7 +441,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 		nil,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create likes request: %w", err)
+		return nil, true, fmt.Errorf("failed to create likes request: %w", err)
 	}
 
 	likesReq.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
@@ -444,13 +452,19 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 
 	likesResp, err := client.Do(likesReq)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch likes: %w", err)
+		return nil, true, fmt.Errorf("failed to fetch likes: %w", err)
 	}
 	defer func() { _ = likesResp.Body.Close() }()
 
+	if likesResp.StatusCode == 401 {
+		return nil, false, fmt.Errorf(
+			"failed to fetch likes. Status: %d",
+			likesResp.StatusCode,
+		)
+	}
 	if likesResp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(likesResp.Body)
-		return nil, fmt.Errorf(
+		return nil, true, fmt.Errorf(
 			"failed to fetch likes. Status: %d, Response: %s",
 			likesResp.StatusCode,
 			string(body),
@@ -476,7 +490,7 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 	}
 
 	if err := json.NewDecoder(likesResp.Body).Decode(&likesResponse); err != nil {
-		return nil, fmt.Errorf("failed to decode likes response: %w", err)
+		return nil, true, fmt.Errorf("failed to decode likes response: %w", err)
 	}
 
 	for _, like := range likesResponse.Data {
@@ -509,5 +523,5 @@ func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, 
 		return records[i].Timestamp.After(records[j].Timestamp)
 	})
 
-	return records, nil
+	return records, true, nil
 }

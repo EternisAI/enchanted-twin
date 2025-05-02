@@ -108,6 +108,8 @@ type OAuthStatus struct {
 	Provider  string   `json:"provider"`
 	ExpiresAt string   `json:"expiresAt"`
 	Scope     []string `json:"scope"`
+	Username  string   `json:"username"`
+	Error     bool     `json:"error"`
 }
 
 type Query struct {
