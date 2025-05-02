@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/openai/openai-go"
@@ -43,13 +44,11 @@ func (s *Source) Name() string {
 
 // IsHumanReadableContent uses OpenAI to determine if the content is human-readable
 func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bool, error) {
-	// Create content sample to analyze (use a limited sample to save tokens)
 	contentSample := content
 	if len(content) > 500 {
 		contentSample = content[:500]
 	}
 
-	// Define a tool for checking if content is human-readable
 	isHumanReadableTool := openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
@@ -74,22 +73,18 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 		},
 	}
 
-	// Create a simple user message with our request
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(fmt.Sprintf("Please analyze this text sample and determine if it contains human-readable content: %s", contentSample)),
 	}
 
-	// Run completion with our tool
 	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{isHumanReadableTool}, "gpt-4o-mini")
 	if err != nil {
 		return false, fmt.Errorf("failed to analyze content: %w", err)
 	}
 
-	// Parse the tool response
 	if response.ToolCalls != nil && len(response.ToolCalls) > 0 {
 		toolCall := response.ToolCalls[0]
 		if toolCall.Function.Name == "is_human_readable" {
-			// Extract the boolean value from the function arguments
 			arguments := toolCall.Function.Arguments
 			if strings.Contains(arguments, "\"isHumanReadable\":true") {
 				return true, nil
@@ -101,19 +96,16 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 		}
 	}
 
-	// Fallback to simple text response check
 	return strings.Contains(strings.ToLower(response.Content), "true"), nil
 }
 
 // ExtractContentTags uses OpenAI to extract relevant tags from the content
 func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
-	// Create content sample to analyze (use a limited sample to save tokens)
 	contentSample := content
 	if len(content) > 1000 {
 		contentSample = content[:1000]
 	}
 
-	// Define a tool for extracting tags
 	extractTagsTool := openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
@@ -141,36 +133,28 @@ func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]stri
 		},
 	}
 
-	// Create a simple user message with our request
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.UserMessage(fmt.Sprintf("Please analyze this text sample and extract 3-5 relevant tags that describe its content: %s", contentSample)),
 	}
 
-	// Run completion with our tool
 	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{extractTagsTool}, "gpt-4o-mini")
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract tags: %w", err)
 	}
 
-	// Parse the tool response
 	if response.ToolCalls != nil && len(response.ToolCalls) > 0 {
 		toolCall := response.ToolCalls[0]
 		if toolCall.Function.Name == "extract_tags" {
-			// Extract the tags from the function arguments
 			arguments := toolCall.Function.Arguments
 
-			// Simple parsing approach (can be improved with proper JSON parsing)
 			if strings.Contains(arguments, "\"tags\":") {
-				// Extract the tags array part
 				tagsStart := strings.Index(arguments, "\"tags\":")
 				if tagsStart != -1 {
 					tagsJSON := arguments[tagsStart:]
-					// Find the opening and closing brackets of the array
 					arrayStart := strings.Index(tagsJSON, "[")
 					arrayEnd := strings.Index(tagsJSON, "]")
 					if arrayStart != -1 && arrayEnd != -1 && arrayEnd > arrayStart {
 						tagsArray := tagsJSON[arrayStart+1 : arrayEnd]
-						// Split by commas and clean up the strings
 						tagsParts := strings.Split(tagsArray, ",")
 						tags := make([]string, 0, len(tagsParts))
 						for _, tag := range tagsParts {
@@ -187,7 +171,6 @@ func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]stri
 		}
 	}
 
-	// Fallback - return empty tags
 	return []string{}, nil
 }
 
@@ -218,6 +201,19 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		firstLine = false
 	}
 
+	isHumanReadable, err := s.IsHumanReadableContent(context.Background(), content.String())
+	fmt.Printf("filePath: %s\n", filePath)
+	fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
+	fmt.Printf("textContent: %s\n", content.String())
+
+	if err != nil {
+		return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
+	}
+
+	if !isHumanReadable {
+		return nil, fmt.Errorf("file %s does not contain human-readable content", filePath)
+	}
+
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error reading file %s: %w", filePath, err)
 	}
@@ -239,24 +235,10 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		return []types.Record{emptyRecord}, nil
 	}
 
-	isHumanReadable, err := s.IsHumanReadableContent(context.Background(), textContent[min(len(textContent), 1000):])
-	fmt.Printf("filePath: %s\n", filePath)
-	fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
-	fmt.Printf("textContent: %s\n", textContent)
-
-	if err != nil {
-		return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
-	}
-
-	if !isHumanReadable {
-		return nil, fmt.Errorf("file %s does not contain human-readable content", filePath)
-	}
-
-	// Extract tags for the overall content
 	tags, err := s.ExtractContentTags(context.Background(), textContent)
 	if err != nil {
 		fmt.Printf("Warning: Failed to extract tags for %s: %v\n", filePath, err)
-		tags = []string{} // Use empty tags array if extraction fails
+		tags = []string{}
 	}
 
 	var records []types.Record
@@ -314,4 +296,40 @@ func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
 
 func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
 	return nil, fmt.Errorf("sync not supported for local text files")
+}
+
+func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+	documents := make([]memory.TextDocument, 0, len(records))
+	for _, record := range records {
+
+		metadata := map[string]string{}
+
+		content := ""
+		if contentVal, ok := record.Data["content"]; ok && contentVal != nil {
+			if contentStr, ok := contentVal.(string); ok {
+				content = contentStr
+			}
+		}
+
+		if pathVal, ok := record.Data["path"]; ok && pathVal != nil {
+			if pathStr, ok := pathVal.(string); ok {
+				metadata["path"] = pathStr
+			}
+		}
+
+		var tags []string
+		if tagsVal, ok := record.Data["tags"]; ok && tagsVal != nil {
+			if tagsArr, ok := tagsVal.([]string); ok {
+				tags = tagsArr
+			}
+		}
+
+		documents = append(documents, memory.TextDocument{
+			Content:   content,
+			Timestamp: &record.Timestamp,
+			Metadata:  metadata,
+			Tags:      tags,
+		})
+	}
+	return documents, nil
 }

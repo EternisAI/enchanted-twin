@@ -19,6 +19,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -446,6 +447,18 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "chatgpt", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+		case "misc":
+			documents, err := misc.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "misc", len(documents))
 			err = w.Memory.Store(ctx, documents, progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
