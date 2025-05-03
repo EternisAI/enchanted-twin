@@ -23,6 +23,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 // Record represents a single data record that will be written to CSV.
@@ -427,17 +428,26 @@ func SaveRecords(records []types.Record, outputPath string) error {
 	return nil
 }
 
-func Sync(ctx context.Context, sourceName string, accessToken string) ([]types.Record, error) {
+func Sync(ctx context.Context, sourceName string, accessToken string, store *db.Store) ([]types.Record, error) {
 	var records []types.Record
 	var err error
 
+	var authorized bool
 	switch sourceName {
 	case "gmail":
-		records, err = gmail.New().Sync(ctx, accessToken)
+		records, authorized, err = gmail.New().Sync(ctx, accessToken)
 	case "x":
-		records, err = x.New("").Sync(ctx, accessToken)
+		records, authorized, err = x.New("").Sync(ctx, accessToken)
 	default:
 		return nil, fmt.Errorf("unsupported source: %s", sourceName)
+	}
+
+	if !authorized {
+		if err := store.SetOAuthTokenError(ctx, accessToken, true); err != nil {
+			// Log the error, but continue as the main error (if any) is handled below
+			// TODO: Consider how to handle this more robustly
+			log.Printf("Error setting OAuth token error status for %s: %v", sourceName, err)
+		}
 	}
 
 	if err != nil {

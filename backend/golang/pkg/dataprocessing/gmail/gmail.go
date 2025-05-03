@@ -305,7 +305,7 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 
 /* ────────────────────────────────────────────  Gmail API sync  ───────────────────────────────────────── */
 
-func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, error) {
+func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, bool, error) {
 	c := &http.Client{Timeout: 30 * time.Second}
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
@@ -318,21 +318,21 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, error) 
 
 	resp, err := c.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	defer resp.Body.Close() //nolint:errcheck
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("gmail list: %d %s", resp.StatusCode, b)
+		return nil, false, fmt.Errorf("gmail list: %d %s", resp.StatusCode, b)
 	}
 
 	var list struct {
 		Messages []struct{ ID string } `json:"messages"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	var out []types.Record
@@ -344,7 +344,7 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, error) 
 		}
 		out = append(out, rec)
 	}
-	return out, nil
+	return out, true, nil
 }
 
 func (g *Gmail) fetchMessage(

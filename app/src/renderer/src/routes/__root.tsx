@@ -5,6 +5,7 @@ import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
 import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { useOsNotifications } from '@renderer/hooks/useNotifications'
+import UpdateNotification from '@renderer/components/UpdateNotification'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -32,6 +33,7 @@ function RootComponent() {
           <Outlet />
         </div>
       </div>
+      <UpdateNotification />
     </div>
   )
 }
