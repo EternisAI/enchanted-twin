@@ -86,6 +86,12 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
           )}
         </Button>
       </form>
+      <p
+        className="text-sm text-muted-foreground cursor-pointer"
+        onClick={() => window.api.openLogsFolder()}
+      >
+        Debug Logs
+      </p>
     </OnboardingLayout>
   )
 }
