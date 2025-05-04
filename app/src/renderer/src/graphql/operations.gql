@@ -185,6 +185,7 @@ subscription MessageStream($chatId: ID!) {
     role
     isComplete
     createdAt
+    imageUrls
   }
 }
 

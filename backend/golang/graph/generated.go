@@ -129,7 +129,7 @@ type ComplexityRoot struct {
 	MessageStreamPayload struct {
 		Chunk      func(childComplexity int) int
 		CreatedAt  func(childComplexity int) int
-		ImageURL   func(childComplexity int) int
+		ImageUrls  func(childComplexity int) int
 		IsComplete func(childComplexity int) int
 		MessageID  func(childComplexity int) int
 		Role       func(childComplexity int) int
@@ -618,12 +618,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.MessageStreamPayload.CreatedAt(childComplexity), true
 
-	case "MessageStreamPayload.imageUrl":
-		if e.complexity.MessageStreamPayload.ImageURL == nil {
+	case "MessageStreamPayload.imageUrls":
+		if e.complexity.MessageStreamPayload.ImageUrls == nil {
 			break
 		}
 
-		return e.complexity.MessageStreamPayload.ImageURL(childComplexity), true
+		return e.complexity.MessageStreamPayload.ImageUrls(childComplexity), true
 
 	case "MessageStreamPayload.isComplete":
 		if e.complexity.MessageStreamPayload.IsComplete == nil {
@@ -4182,8 +4182,8 @@ func (ec *executionContext) fieldContext_MessageStreamPayload_createdAt(_ contex
 	return fc, nil
 }
 
-func (ec *executionContext) _MessageStreamPayload_imageUrl(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_MessageStreamPayload_imageUrl(ctx, field)
+func (ec *executionContext) _MessageStreamPayload_imageUrls(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_imageUrls(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -4196,21 +4196,24 @@ func (ec *executionContext) _MessageStreamPayload_imageUrl(ctx context.Context, 
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.ImageURL, nil
+		return obj.ImageUrls, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*string)
+	res := resTmp.([]string)
 	fc.Result = res
-	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_MessageStreamPayload_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_MessageStreamPayload_imageUrls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "MessageStreamPayload",
 		Field:      field,
@@ -6281,8 +6284,8 @@ func (ec *executionContext) fieldContext_Subscription_messageStream(ctx context.
 				return ec.fieldContext_MessageStreamPayload_isComplete(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_MessageStreamPayload_createdAt(ctx, field)
-			case "imageUrl":
-				return ec.fieldContext_MessageStreamPayload_imageUrl(ctx, field)
+			case "imageUrls":
+				return ec.fieldContext_MessageStreamPayload_imageUrls(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type MessageStreamPayload", field.Name)
 		},
@@ -9558,8 +9561,11 @@ func (ec *executionContext) _MessageStreamPayload(ctx context.Context, sel ast.S
 			}
 		case "createdAt":
 			out.Values[i] = ec._MessageStreamPayload_createdAt(ctx, field, obj)
-		case "imageUrl":
-			out.Values[i] = ec._MessageStreamPayload_imageUrl(ctx, field, obj)
+		case "imageUrls":
+			out.Values[i] = ec._MessageStreamPayload_imageUrls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

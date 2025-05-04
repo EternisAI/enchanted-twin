@@ -9,14 +9,19 @@ import (
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
+
+type StreamDelta struct {
+	ContentDelta string
+	IsCompleted  bool
+	ImageURLs    []string
+}
 
 func (a *Agent) ExecuteStream(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
-	onDelta func(ai.StreamDelta),
+	onDelta func(StreamDelta),
 ) (AgentResponse, error) {
 	// Build lookup + OpenAI tool defs once.
 	toolDefs := make([]openai.ChatCompletionToolParam, 0, len(currentTools))
@@ -73,7 +78,10 @@ func (a *Agent) ExecuteStream(
 				if ok {
 					stepContent += delta.ContentDelta
 					if onDelta != nil {
-						onDelta(delta)
+						onDelta(StreamDelta{
+							ContentDelta: delta.ContentDelta,
+							IsCompleted:  delta.IsCompleted,
+						})
 					}
 				} else {
 					stream.Content = nil
@@ -87,6 +95,11 @@ func (a *Agent) ExecuteStream(
 					}
 					stepCalls = append(stepCalls, tc)
 					stepResults = append(stepResults, res)
+					for _, image := range res.ImageURLs {
+						onDelta(StreamDelta{
+							ImageURLs: []string{image},
+						})
+					}
 				} else {
 					stream.ToolCalls = nil
 				}
