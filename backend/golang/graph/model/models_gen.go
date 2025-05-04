@@ -102,6 +102,7 @@ type MessageStreamPayload struct {
 	Role       Role    `json:"role"`
 	IsComplete bool    `json:"isComplete"`
 	CreatedAt  *string `json:"createdAt,omitempty"`
+	ImageURL   *string `json:"imageUrl,omitempty"`
 }
 
 type Mutation struct {

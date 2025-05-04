@@ -129,6 +129,7 @@ type ComplexityRoot struct {
 	MessageStreamPayload struct {
 		Chunk      func(childComplexity int) int
 		CreatedAt  func(childComplexity int) int
+		ImageURL   func(childComplexity int) int
 		IsComplete func(childComplexity int) int
 		MessageID  func(childComplexity int) int
 		Role       func(childComplexity int) int
@@ -616,6 +617,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.MessageStreamPayload.CreatedAt(childComplexity), true
+
+	case "MessageStreamPayload.imageUrl":
+		if e.complexity.MessageStreamPayload.ImageURL == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.ImageURL(childComplexity), true
 
 	case "MessageStreamPayload.isComplete":
 		if e.complexity.MessageStreamPayload.IsComplete == nil {
@@ -4174,6 +4182,47 @@ func (ec *executionContext) fieldContext_MessageStreamPayload_createdAt(_ contex
 	return fc, nil
 }
 
+func (ec *executionContext) _MessageStreamPayload_imageUrl(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_imageUrl(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ImageURL, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_imageUrl(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_startOAuthFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_startOAuthFlow(ctx, field)
 	if err != nil {
@@ -6232,6 +6281,8 @@ func (ec *executionContext) fieldContext_Subscription_messageStream(ctx context.
 				return ec.fieldContext_MessageStreamPayload_isComplete(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_MessageStreamPayload_createdAt(ctx, field)
+			case "imageUrl":
+				return ec.fieldContext_MessageStreamPayload_imageUrl(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type MessageStreamPayload", field.Name)
 		},
@@ -9507,6 +9558,8 @@ func (ec *executionContext) _MessageStreamPayload(ctx context.Context, sel ast.S
 			}
 		case "createdAt":
 			out.Values[i] = ec._MessageStreamPayload_createdAt(ctx, field, obj)
+		case "imageUrl":
+			out.Values[i] = ec._MessageStreamPayload_imageUrl(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

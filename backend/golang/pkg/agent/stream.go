@@ -18,7 +18,6 @@ func (a *Agent) ExecuteStream(
 	currentTools []tools.Tool,
 	onDelta func(ai.StreamDelta),
 ) (AgentResponse, error) {
-
 	// Build lookup + OpenAI tool defs once.
 	toolDefs := make([]openai.ChatCompletionToolParam, 0, len(currentTools))
 	toolMap := map[string]tools.Tool{}
