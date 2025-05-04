@@ -9,13 +9,14 @@ import (
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 func (a *Agent) ExecuteStream(
 	ctx context.Context,
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
-	onDelta func(string),
+	onDelta func(ai.StreamDelta),
 ) (AgentResponse, error) {
 
 	// Build lookup + OpenAI tool defs once.
@@ -71,7 +72,7 @@ func (a *Agent) ExecuteStream(
 			select {
 			case delta, ok := <-stream.Content:
 				if ok {
-					stepContent += delta
+					stepContent += delta.ContentDelta
 					if onDelta != nil {
 						onDelta(delta)
 					}
@@ -106,7 +107,7 @@ func (a *Agent) ExecuteStream(
 			}
 		}
 
-		// ----- append chat messages for next round -----
+		// append chat messages for next round
 		if stepContent != "" || len(stepCalls) > 0 {
 			messages = append(messages, openai.ChatCompletionMessage{
 				Role:      "assistant",
@@ -117,7 +118,6 @@ func (a *Agent) ExecuteStream(
 		for i, call := range stepCalls {
 			messages = append(messages, openai.ToolMessage(stepResults[i].Content, call.ID))
 		}
-		// ------------------------------------------------
 
 		// keep global history
 		allCalls = append(allCalls, stepCalls...)

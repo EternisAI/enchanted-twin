@@ -7,8 +7,13 @@ import (
 	"github.com/openai/openai-go"
 )
 
+type StreamDelta struct {
+	ContentDelta string
+	IsCompleted  bool
+}
+
 type Stream struct {
-	Content   <-chan string
+	Content   <-chan StreamDelta
 	ToolCalls <-chan openai.ChatCompletionMessageToolCall
 	Err       <-chan error
 }
@@ -19,7 +24,7 @@ func (s *Service) CompletionsStream(
 	tools []openai.ChatCompletionToolParam,
 	model string,
 ) Stream {
-	contentCh := make(chan string, 64)
+	contentCh := make(chan StreamDelta, 64)
 	toolCh := make(chan openai.ChatCompletionMessageToolCall, 8)
 	errCh := make(chan error, 1)
 
@@ -57,9 +62,19 @@ func (s *Service) CompletionsStream(
 				}
 			}
 
+			if _, ok := acc.JustFinishedContent(); ok {
+				contentCh <- StreamDelta{
+					ContentDelta: "",
+					IsCompleted:  true,
+				}
+			}
+
 			// Content delta?
 			if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-				contentCh <- chunk.Choices[0].Delta.Content
+				contentCh <- StreamDelta{
+					ContentDelta: chunk.Choices[0].Delta.Content,
+					IsCompleted:  false,
+				}
 			}
 
 			select {

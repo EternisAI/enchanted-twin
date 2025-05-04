@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jaytaylor/html2text"
@@ -13,63 +14,71 @@ import (
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 const (
-	SEARCH_EMAILS_TOOL_NAME = "search_emails"
-	SEND_EMAIL_TOOL_NAME    = "send_email"
-	EMAIL_BY_ID_TOOL_NAME   = "email_by_id"
+	SEARCH_EMAILS_TOOL_NAME       = "search_emails"
+	SEND_EMAIL_TOOL_NAME          = "send_email"
+	EMAIL_BY_ID_TOOL_NAME         = "email_by_id"
+	LIST_EMAIL_ACCOUNTS_TOOL_NAME = "list_email_accounts"
 )
 
 const (
-	SEARCH_EMAILS_TOOL_DESCRIPTION = "Search the emails from the user's inbox, returns subject, from, date and id"
-	SEND_EMAIL_TOOL_DESCRIPTION    = "Send an email to recipient email address"
-	EMAIL_BY_ID_TOOL_DESCRIPTION   = "Get the email by id, returns subject, from, date and body"
+	SEARCH_EMAILS_TOOL_DESCRIPTION       = "Search the emails from the user's inbox, returns subject, from, date and id"
+	SEND_EMAIL_TOOL_DESCRIPTION          = "Send an email to recipient email address"
+	EMAIL_BY_ID_TOOL_DESCRIPTION         = "Get the email by id, returns subject, from, date and body"
+	LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION = "List the email accounts the user has"
 )
 
 type EmailQuery struct {
-	In        string    `json:"in"         jsonschema:",description=The inbox to list emails from, default is 'inbox'"`
-	TimeRange TimeRange `json:"time_range" jsonschema:",description=The time range to list emails, default is empty"`
-	From      string    `json:"from"       jsonschema:",description=The sender of the emails to list, default is empty"`
-	To        string    `json:"to"         jsonschema:",description=The recipient of the emails to list, default is empty"`
-	Subject   string    `json:"subject"    jsonschema:",description=The text to search for in the subject of the emails, default is empty"`
-	Body      string    `json:"body"       jsonschema:",description=The text to search for in the body of the emails, default is empty"`
-	Label     string    `json:"label"      jsonschema:",description=The label of the emails to list, default is empty"`
+	In         string     `json:"in"         jsonschema:"description=The inbox to list emails from, default is 'inbox'"`
+	TimeFilter TimeFilter `json:"time_filter" jsonschema:"description=The time filter to list emails, default is empty"`
+	From       string     `json:"from"       jsonschema:"description=The sender of the emails to list, default is empty"`
+	To         string     `json:"to"         jsonschema:"description=The recipient of the emails to list, default is empty"`
+	Subject    string     `json:"subject"    jsonschema:"description=The text to search for in the subject of the emails, default is empty"`
+	Body       string     `json:"body"       jsonschema:"description=The text to search for in the body of the emails, default is empty"`
+	Label      string     `json:"label"      jsonschema:"description=The label of the emails to list, default is empty"`
 }
 
 type SearchEmailsArguments struct {
-	Query     EmailQuery `json:"query"      jsonschema:",description=The query to list emails, default is 'in:inbox'"`
-	PageToken string     `json:"page_token" jsonschema:",description=The page token to list, default is empty"`
-	Limit     int        `json:"limit"      jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
+	EmailAccount string     `json:"email_account" jsonschema:"required,description=The email account to list emails from"`
+	Query        EmailQuery `json:"query"      jsonschema:"description=The query to list emails, default is 'in:inbox'"`
+	PageToken    string     `json:"page_token" jsonschema:"description=The page token to list, default is empty"`
+	Limit        int        `json:"limit"      jsonschema:"required,description=The number of emails to list, minimum 10, maximum 50"`
 }
 
 type SendEmailArguments struct {
-	To      string `json:"to"      jsonschema:"required,description=The email address to send the email to"`
-	Subject string `json:"subject" jsonschema:"required,description=The subject of the email"`
-	Body    string `json:"body"    jsonschema:"required,description=The body of the email"`
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to send the email from"`
+	To           string `json:"to"  jsonschema:"required,description=The email address to send the email to"`
+	Subject      string `json:"subject" jsonschema:"required,description=The subject of the email"`
+	Body         string `json:"body"    jsonschema:"required,description=The body of the email"`
 }
 
 type EmailByIdArguments struct {
-	Id string `json:"id" jsonschema:"required,description=The id of the email"`
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to get the email from"`
+	Id           string `json:"id" jsonschema:"required,description=The id of the email"`
 }
 
-func (q *EmailQuery) ToQuery() string {
+func (q *EmailQuery) ToQuery() (string, error) {
 	query := "in:inbox"
 	if q.In != "" {
 		query = "in:" + q.In
 	}
-	if q.TimeRange.From != 0 {
-		query += fmt.Sprintf(" after:%d", q.TimeRange.From)
+
+	start, end, err := q.TimeFilter.ToUnixRange(time.Now())
+	if err != nil {
+		fmt.Println("Error converting time filter to unix range:", err)
+		return "", err
 	}
-	if q.TimeRange.To != 0 {
-		currentTime := time.Now().Unix()
 
-		if q.TimeRange.To > uint64(currentTime) {
-			q.TimeRange.To = uint64(currentTime)
-		}
+	if start != 0 {
+		query += fmt.Sprintf(" after:%d", start)
+	}
 
-		query += fmt.Sprintf(" before:%d", q.TimeRange.To)
+	if end != 0 {
+		query += fmt.Sprintf(" before:%d", end)
 	}
 
 	if q.From != "" {
@@ -87,14 +96,19 @@ func (q *EmailQuery) ToQuery() string {
 	if q.Label != "" {
 		query += fmt.Sprintf(" label:%s", q.Label)
 	}
-	return query
+	return query, nil
 }
 
 func processSearchEmails(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	arguments SearchEmailsArguments,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	// Configure OAuth2 token
 	token := &oauth2.Token{
 		AccessToken: accessToken,
@@ -121,7 +135,11 @@ func processSearchEmails(
 		maxResults = 10
 	}
 
-	query := arguments.Query.ToQuery()
+	query, err := arguments.Query.ToQuery()
+	if err != nil {
+		fmt.Println("Error converting query to string:", err)
+		return nil, err
+	}
 
 	request := gmailService.Users.Messages.List("me").Q(query).MaxResults(int64(maxResults))
 	if arguments.PageToken != "" {
@@ -171,9 +189,14 @@ func processSearchEmails(
 
 func processSendEmail(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	arguments SendEmailArguments,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	token := &oauth2.Token{
 		AccessToken: accessToken,
 	}
@@ -213,9 +236,14 @@ func processSendEmail(
 
 func processEmailById(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	arguments EmailByIdArguments,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	token := &oauth2.Token{
 		AccessToken: accessToken,
 	}
@@ -227,6 +255,10 @@ func processEmailById(
 	if err != nil {
 		fmt.Println("Error initializing Gmail service:", err)
 		return nil, err
+	}
+
+	if arguments.Id == "" {
+		return nil, errors.New("id is required")
 	}
 
 	msg, err := gmailService.Users.Messages.Get("me", arguments.Id).Do()
@@ -261,6 +293,30 @@ func processEmailById(
 			Type: "text",
 			TextContent: &mcp_golang.TextContent{
 				Text: formattedText,
+			},
+		},
+	}, nil
+}
+
+func processListEmailAccounts(
+	ctx context.Context,
+	store *db.Store,
+) ([]*mcp_golang.Content, error) {
+	oauthTokens, err := store.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return nil, err
+	}
+
+	emailAccounts := make([]string, 0)
+	for _, oauthToken := range oauthTokens {
+		emailAccounts = append(emailAccounts, oauthToken.Username)
+	}
+
+	return []*mcp_golang.Content{
+		{
+			Type: "text",
+			TextContent: &mcp_golang.TextContent{
+				Text: "Email accounts: " + strings.Join(emailAccounts, ", "),
 			},
 		},
 	}, nil
@@ -352,6 +408,13 @@ func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 		Name:        EMAIL_BY_ID_TOOL_NAME,
 		Description: &desc,
 		InputSchema: emailByIdSchema,
+	})
+
+	desc = LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        LIST_EMAIL_ACCOUNTS_TOOL_NAME,
+		Description: &desc,
+		InputSchema: "{}",
 	})
 
 	return tools, nil
