@@ -71,6 +71,7 @@ type MessageStreamPayload {
   role: Role!
   isComplete: Boolean!
   createdAt: DateTime
+  imageUrl: String
 }
 
 type OAuthStatus {

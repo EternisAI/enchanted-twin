@@ -588,10 +588,7 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 }
 
 // MessageStream is the resolver for the messageStream subscription.
-func (r *subscriptionResolver) MessageStream(
-	ctx context.Context,
-	chatID string,
-) (<-chan *model.MessageStreamPayload, error) {
+func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error) {
 	subject := fmt.Sprintf("chat.%s.stream", chatID)
 	ch := make(chan *model.MessageStreamPayload, 12) // small buffer
 
