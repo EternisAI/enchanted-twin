@@ -59,6 +59,7 @@ func (s *Service) Execute(
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
+	onDelta func(agent.StreamDelta),
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
 		s.logger,
@@ -82,7 +83,7 @@ func (s *Service) Execute(
 		}
 	}
 
-	response, err := agent.Execute(ctx, messageHistory, toolsList)
+	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +191,23 @@ func (s *Service) SendMessage(
 		}
 	}
 
-	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback)
+	// user message - add to db and publish to NATS channel
+	userMsgID := uuid.New().String()
+	createdAt := time.Now().Format(time.RFC3339)
+
+	onDelta := func(delta agent.StreamDelta) {
+		payload := model.MessageStreamPayload{
+			MessageID:  assistantMessageId,
+			ImageUrls:  delta.ImageURLs,
+			Chunk:      delta.ContentDelta,
+			Role:       model.RoleAssistant,
+			IsComplete: delta.IsCompleted,
+			CreatedAt:  &createdAt,
+		}
+		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
+	}
+
+	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback, onDelta)
 	if err != nil {
 		return nil, err
 	}
@@ -239,10 +256,6 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
-
-	// user message - add to db and publish to NATS channel
-	userMsgID := uuid.New().String()
-	createdAt := time.Now().Format(time.RFC3339)
 
 	// Create the message for DB
 	userMsg := repository.Message{

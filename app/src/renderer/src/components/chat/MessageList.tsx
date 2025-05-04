@@ -17,7 +17,7 @@ export default function MessageList({ messages, isWaitingTwinResponse }: Message
           <AssistantMessageBubble key={msg.id} message={msg} />
         )
       )}
-      {isWaitingTwinResponse && (
+      {/* {isWaitingTwinResponse && (
         <motion.div
           className="text-sm text-muted-foreground italic px-3 py-1 bg-accent rounded-md w-fit"
           initial="initial"
@@ -25,7 +25,6 @@ export default function MessageList({ messages, isWaitingTwinResponse }: Message
           variants={{
             initial: { opacity: 0, y: 20 },
             animate: { opacity: 1, y: 0 }
-            // transition: { ease: 'easeOut', }
           }}
         >
           <div className="flex items-center justify-center gap-1 h-5">
@@ -36,10 +35,9 @@ export default function MessageList({ messages, isWaitingTwinResponse }: Message
                 style={{ animationDelay: `${i * 0.15}s` }}
               />
             ))}
-            {/* Your twin is thinking... */}
           </div>
         </motion.div>
-      )}
+      )} */}
     </div>
   )
 }

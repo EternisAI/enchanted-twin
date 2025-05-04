@@ -587,6 +587,32 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	return messages, nil
 }
 
+// MessageStream is the resolver for the messageStream subscription.
+func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error) {
+	subject := fmt.Sprintf("chat.%s.stream", chatID)
+	ch := make(chan *model.MessageStreamPayload, 12) // small buffer
+
+	sub, err := r.Nc.Subscribe(subject, func(m *nats.Msg) {
+		var p model.MessageStreamPayload
+		if err := json.Unmarshal(m.Data, &p); err != nil {
+			r.Logger.Warn("stream unmarshal error", "err", err)
+			return
+		}
+		ch <- &p
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(ch)
+	}()
+
+	return ch, nil
+}
+
 // IndexingStatus is the resolver for the indexingStatus field.
 func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
 	workflowID := "index"
