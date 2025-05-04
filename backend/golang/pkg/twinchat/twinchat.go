@@ -59,7 +59,7 @@ func (s *Service) Execute(
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
-	onDelta func(string),
+	onDelta func(ai.StreamDelta),
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
 		s.logger,
@@ -130,6 +130,10 @@ func (s *Service) SendMessage(
 		messageHistory,
 		openai.SystemMessage(systemPrompt),
 	)
+	messageHistory = append(
+		messageHistory,
+		openai.SystemMessage(fmt.Sprintf("Current date and time:%s  and timestamp:%d", time.Now().Format(time.RFC3339), time.Now().Unix())),
+	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
 		if err != nil {
@@ -191,12 +195,12 @@ func (s *Service) SendMessage(
 	userMsgID := uuid.New().String()
 	createdAt := time.Now().Format(time.RFC3339)
 
-	onDelta := func(part string) {
+	onDelta := func(delta ai.StreamDelta) {
 		payload := model.MessageStreamPayload{
 			MessageID:  assistantMessageId,
-			Chunk:      part,
+			Chunk:      delta.ContentDelta,
 			Role:       model.RoleAssistant,
-			IsComplete: false,
+			IsComplete: delta.IsCompleted,
 			CreatedAt:  &createdAt,
 		}
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)

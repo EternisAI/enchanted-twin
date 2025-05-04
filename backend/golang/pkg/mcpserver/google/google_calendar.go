@@ -10,6 +10,7 @@ import (
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
 
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
@@ -24,29 +25,36 @@ const (
 )
 
 type ListEventsArguments struct {
-	CalendarID string `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'. Use 'primary' for the primary calendar of the authenticated user."`
-	TimeMin    string `json:"time_min,omitempty"    jsonschema:"description=Start time (RFC3339 format) for the query. Example: '2024-01-01T00:00:00Z'"`
-	TimeMax    string `json:"time_max,omitempty"    jsonschema:"description=End time (RFC3339 format) for the query. Example: '2024-01-02T00:00:00Z'"`
-	MaxResults int    `json:"max_results,omitempty" jsonschema:"description=Maximum number of events returned on one result page. Default is 10, minimum 10, maximum 50."`
-	PageToken  string `json:"page_token,omitempty"  jsonschema:"description=Token specifying which result page to return."`
-	Query      string `json:"q,omitempty"           jsonschema:"description=Free text search query terms to find events that match these terms in any field, except for extended properties."`
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to list events from"`
+	CalendarID   string `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'. Use 'primary' for the primary calendar of the authenticated user."`
+	TimeMin      string `json:"time_min,omitempty"    jsonschema:"description=Start time (RFC3339 format) for the query. Example: '2024-01-01T00:00:00Z'"`
+	TimeMax      string `json:"time_max,omitempty"    jsonschema:"description=End time (RFC3339 format) for the query. Example: '2024-01-02T00:00:00Z'"`
+	MaxResults   int    `json:"max_results,omitempty" jsonschema:"description=Maximum number of events returned on one result page. Default is 10, minimum 10, maximum 50."`
+	PageToken    string `json:"page_token,omitempty"  jsonschema:"description=Token specifying which result page to return."`
+	Query        string `json:"q,omitempty"           jsonschema:"description=Free text search query terms to find events that match these terms in any field, except for extended properties."`
 }
 
 type CreateEventArgs struct {
-	CalendarID  string   `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'."`
-	Summary     string   `json:"summary"               jsonschema:"required,description=Title of the event."`
-	Description string   `json:"description,omitempty" jsonschema:"description=Description of the event."`
-	StartTime   string   `json:"start_time"            jsonschema:"required,description=The start time of the event (RFC3339 format). Example: '2024-01-01T10:00:00Z'"`
-	EndTime     string   `json:"end_time"              jsonschema:"required,description=The end time of the event (RFC3339 format). Example: '2024-01-01T11:00:00Z'"`
-	Attendees   []string `json:"attendees,omitempty"   jsonschema:"description=List of email addresses of attendees."`
-	Location    string   `json:"location,omitempty"    jsonschema:"description=Geographic location of the event as free-form text."`
+	EmailAccount string   `json:"email_account" jsonschema:"required,description=The email account to create events from"`
+	CalendarID   string   `json:"calendar_id,omitempty" jsonschema:"description=Calendar identifier. Default is 'primary'."`
+	Summary      string   `json:"summary"               jsonschema:"required,description=Title of the event."`
+	Description  string   `json:"description,omitempty" jsonschema:"description=Description of the event."`
+	StartTime    string   `json:"start_time"            jsonschema:"required,description=The start time of the event (RFC3339 format). Example: '2024-01-01T10:00:00Z'"`
+	EndTime      string   `json:"end_time"              jsonschema:"required,description=The end time of the event (RFC3339 format). Example: '2024-01-01T11:00:00Z'"`
+	Attendees    []string `json:"attendees,omitempty"   jsonschema:"description=List of email addresses of attendees."`
+	Location     string   `json:"location,omitempty"    jsonschema:"description=Geographic location of the event as free-form text."`
 }
 
 func processListEvents(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	args ListEventsArguments,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	calendarService, err := getCalendarService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Calendar service: %w", err)
@@ -118,9 +126,14 @@ func processListEvents(
 
 func processCreateEvent(
 	ctx context.Context,
-	accessToken string,
+	store *db.Store,
 	args CreateEventArgs,
 ) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, args.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
 	calendarService, err := getCalendarService(ctx, accessToken)
 	if err != nil {
 		return nil, fmt.Errorf("error initializing Calendar service: %w", err)

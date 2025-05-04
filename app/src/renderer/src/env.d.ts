@@ -34,11 +34,16 @@ interface IApi {
   openAppDataFolder: () => Promise<boolean>
   deleteAppData: () => Promise<boolean>
   isPackaged: () => Promise<boolean>
-  restartApp: () => Promise<void>
+  restartApp: () => void
   notify: (notification: AppNotification) => void
   onDeepLink: (cb: (url: string) => void) => void
   getNotificationStatus: () => Promise<boolean>
   openSettings: () => void
+  queryMediaStatus: (type: MediaType) => string
+  requestMediaAccess: (type: MediaType) => string
+  onUpdateStatus: (callback: (status: string) => void) => () => void
+  onUpdateProgress: (callback: (progressData: { percent: number }) => void) => () => void
+  checkForUpdates: (silent: boolean) => Promise<void>
 }
 
 declare global {

@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -12,6 +12,7 @@ import http from 'http'
 import { URL } from 'url'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
+import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
@@ -28,6 +29,8 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
+
+let updateDownloaded = false
 
 function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
   return new Promise((resolve, reject) => {
@@ -252,21 +255,41 @@ function setupAutoUpdater() {
 
   autoUpdater.logger = log
   log.transports.file.level = 'debug'
+  autoUpdater.autoDownload = true
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', 'Checking for update...')
+    }
   })
 
   autoUpdater.on('update-available', (info) => {
     log.info('Update available:', info)
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', 'Update available, downloading...')
+    }
   })
 
   autoUpdater.on('update-not-available', (info) => {
     log.info('Update not available:', info)
+
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', 'No updates available')
+    }
   })
 
   autoUpdater.on('error', (err) => {
     log.error('Error in auto-updater:', err)
+
+    if (mainWindow) {
+      mainWindow.webContents.send('update-status', `Error: ${err.message}`)
+
+      dialog.showErrorBox(
+        'Update Error',
+        `An error occurred while updating the application: ${err.message}`
+      )
+    }
   })
 
   autoUpdater.on('download-progress', (progressObj) => {
@@ -274,37 +297,101 @@ function setupAutoUpdater() {
     logMessage += ` - Downloaded ${progressObj.percent}%`
     logMessage += ` (${progressObj.transferred}/${progressObj.total})`
     log.info(logMessage)
+
+    if (mainWindow) {
+      mainWindow.webContents.send('update-progress', progressObj)
+    }
   })
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('Update downloaded:', info)
+    updateDownloaded = true
+    mainWindow?.webContents.send('update-status', 'Update downloaded – ready to install')
 
-    // Show dialog to let user decide when to restart and install
-    // dialog
-    //   .showMessageBox({
-    //     type: 'info',
-    //     title: 'Update Ready',
-    //     message: 'A new version has been downloaded.',
-    //     detail: 'Would you like to restart the application now to install the update?',
-    //     buttons: ['Restart Now', 'Later'],
-    //     defaultId: 0,
-    //     cancelId: 1
-    //   })
-    //   .then(({ response }) => {
-    //     if (response === 0) {
-    //       // User clicked "Restart Now"
-    //       log.info('User opted to restart for update')
-    //       autoUpdater.quitAndInstall(true, true)
-    //     } else {
-    //       // User clicked "Later"
-    //       log.info('User postponed update installation')
-    //     }
-    //   })
+    dialog
+      .showMessageBox(mainWindow!, {
+        type: 'info',
+        title: 'Update Ready',
+        message: `Version ${info.version} has been downloaded. Install and restart now?`,
+        buttons: ['Install & Restart', 'Later'],
+        defaultId: 0,
+        cancelId: 1
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          log.info('User accepted update – restarting')
+          // small delay so the dialog can close cleanly
+          setTimeout(() => autoUpdater.quitAndInstall(true, true), 300)
+        } else {
+          log.info('User chose to install later')
+        }
+      })
   })
+}
 
-  // Check for updates
-  log.info('Checking for application updates...')
-  // autoUpdater.checkForUpdatesAndNotify()
+function checkForUpdates(silent = false) {
+  log.info(`[checkForUpdates] Called with silent=${silent}`)
+
+  if (updateDownloaded) {
+    log.info(`[checkForUpdates] Update previously downloaded. Silent check: ${silent}`)
+    if (silent) {
+      log.info('[checkForUpdates] Silent check found downloaded update. Initiating quit and install...')
+      autoUpdater.quitAndInstall(true, true)
+    } else {
+      if (mainWindow) {
+        dialog
+          .showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'Install Updates',
+            message: 'Updates downloaded previously are ready to be installed.',
+            buttons: ['Install and Restart', 'Later'],
+            defaultId: 0,
+            cancelId: 1
+          })
+          .then(({ response }) => {
+            if (response === 0) {
+              log.info('User initiated app restart for previously downloaded update')
+              autoUpdater.quitAndInstall(true, true)
+            } else {
+              log.info('User chose to install later.')
+            }
+          })
+      } else {
+        log.warn('Cannot prompt user to install update, mainWindow is not available.')
+      }
+    }
+    return
+  }
+  log.info(`Checking for updates... (Silent: ${silent})`)
+  if (mainWindow && !silent) {
+    mainWindow.webContents.send('update-status', 'Checking for update...')
+  }
+
+  autoUpdater
+    .checkForUpdates()
+    .then((result) => {
+      if (!result || !result.updateInfo || result.updateInfo.version === app.getVersion()) {
+         if (mainWindow && !silent) {
+             mainWindow.webContents.send('update-status', 'No updates available')
+             dialog.showMessageBox(mainWindow, {
+               type: 'info',
+               title: 'No Updates',
+               message: 'You are using the latest version of the application.',
+               buttons: ['OK']
+             })
+         }
+      }
+    })
+    .catch((err) => {
+      log.error('Error checking for updates:', err)
+      if (mainWindow && !silent) {
+        mainWindow.webContents.send('update-status', `Error checking for updates: ${err.message}`)
+         dialog.showErrorBox(
+           'Update Check Error',
+           `An error occurred while checking for updates: ${err.message}`
+         )
+      }
+    })
 }
 
 function createWindow(): BrowserWindow {
@@ -356,6 +443,8 @@ function createWindow(): BrowserWindow {
 
 app.whenReady().then(async () => {
   const splash = createSplashWindow()
+
+  log.info(`App version: ${app.getVersion()}`)
 
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
@@ -447,10 +536,16 @@ app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.electron')
   mainWindow = createWindow()
   registerNotificationIpc(mainWindow)
+  registerMediaPermissionHandlers(session.defaultSession)
+  registerPermissionIpc()
 
-  mainWindow.once('ready-to-show', () => {
-    splash.destroy()
-  })
+  splash.destroy()
+
+  // Perform initial check after main window exists, wait a bit for autoUpdater setup
+  setTimeout(() => {
+    log.info('Performing initial silent update check.')
+    checkForUpdates(true)
+  }, 5000)
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -538,9 +633,14 @@ app.whenReady().then(async () => {
   })
 
   ipcMain.handle('restart-app', async () => {
-    log.info('Restarting app')
-    app.relaunch()
-    app.exit(0)
+    log.info('Restarting app manually')
+    if (updateDownloaded) {
+      log.info('Update pending, installing before manual restart.')
+      autoUpdater.quitAndInstall(true, true)
+    } else {
+      app.relaunch()
+      app.exit(0)
+    }
   })
 
   ipcMain.handle('open-logs-folder', async () => {
@@ -609,6 +709,12 @@ app.whenReady().then(async () => {
 
   ipcMain.handle('isPackaged', () => {
     return app.isPackaged
+  })
+
+  ipcMain.handle('check-for-updates', async (_, silent = false) => {
+    log.info(`Manual update check requested (silent: ${silent})`)
+    checkForUpdates(silent)
+    return true
   })
 })
 
