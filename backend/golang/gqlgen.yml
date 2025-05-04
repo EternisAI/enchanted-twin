@@ -1,155 +1,137 @@
-# Where are all the schema files located? globs are supported eg  src/**/*.graphqls
-schema:
-  - graph/*.graphqls
+# Defines the configuration version.
+# The only possible value is "2".
+version: "2"
 
-# Where should the generated server code go?
-exec:
-  package: graph
-  layout: single-file # Only other option is "follow-schema," ie multi-file.
+# Linters configuration
+linters:
+  # Disable all linters first (replacement for `disable-all: true`)
+  default: none
+  enable:
+    # Auto‑fix capable linters
+    - misspell # Finds commonly misspelled English words [auto‑fix]
+    - whitespace # Detects trailing whitespace [auto‑fix]
+    # - gocritic       # Provides diagnostics that check for bugs, performance and style issues [auto‑fix] - TODO: re‑enable after fixing exitAfterDefer and ifElseChain
+    - godot # Checks if comments end in a period [auto‑fix]
+    # - revive         # Style and code quality checks [auto‑fix] - TODO: re‑enable after adding docs
+    - nolintlint # Reports ill‑formed or insufficient nolint directives [auto‑fix]
+    - unconvert # Remove unnecessary type conversions [auto‑fix]
 
-  # Only for single-file layout:
-  filename: graph/generated.go
+    # Standard linters
+    - errcheck # Checks for unchecked errors
+    - govet # Reports suspicious constructs
+    - ineffassign # Detects ineffectual assignments
+    - staticcheck # Applies static analysis checks
+    - unused # Checks for unused constants, variables, functions, and types
+    # - gosec          # Inspects source code for security problems - TODO: re‑enable after fixing security issues
+    # - goconst        # Finds repeated strings that could be constants - TODO: re‑enable after refactoring
+    - nakedret # Finds naked returns
+    # - unparam        # Reports unused function parameters - TODO: re‑enable after refactoring
+    # - exhaustive     # Checks exhaustiveness of switch statements - TODO: re‑enable after fixing switch statements
+    - durationcheck # Checks for two durations multiplied together
 
-  # Only for follow-schema layout:
-  # dir: graph
-  # filename_template: "{name}.generated.go"
+  # Settings of specific linters
+  settings:
+    errcheck:
+      # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
+      check-type-assertions: true
+    govet:
+      # Enable all analyzers
+      enable-all: true
+      # Disable specific analyzers
+      disable:
+        - fieldalignment # too aggressive for now
+    goconst:
+      # Minimal length of string constant
+      min-len: 3
+      # Minimal occurrences count to trigger
+      min-occurrences: 3
+    gocritic:
+      # Enable specific checkers
+      enabled-checks:
+        - appendAssign
+        - appendCombine
+        - assignOp
+        - captLocal
+        - caseOrder
+        - defaultCaseOrder
+        - dupBranchBody
+        - dupSubExpr
+        - elseif
+        - emptyFallthrough
+        - exitAfterDefer
+        - ifElseChain
+        - nilValReturn
+        - sloppyLen
+        - switchTrue
+        - typeSwitchVar
+        - underef
+        - unlambda
+        - unslice
+    revive:
+      # Enforce a maximum line length of 120 tokens
+      rules:
+        - name: line-length-limit
+          arguments: [120]
+    unparam:
+      # Report unused function parameters
+      check-exported: false
+    misspell:
+      # Correct spellings using locale preferences for US
+      locale: US
+    exhaustive:
+      # Presence of "default" case in switch statements satisfies exhaustiveness
+      default-signifies-exhaustive: true
 
-  # Optional: Maximum number of goroutines in concurrency to use per child resolvers(default: unlimited)
-  # worker_limit: 1000
+  exclusions:
+    rules:
+      - text: 'shadow: declaration of "err" shadows declaration'
+        linters:
+          - govet
 
-# Uncomment to enable federation
-# federation:
-#   filename: graph/federation.go
-#   package: graph
-#   version: 2
-#   options:
-#     computed_requires: true
+# Formatter configuration (used by `golangci-lint fmt`)
+formatters:
+  # Enable specific formatters (run with `golangci-lint fmt`).
+  enable:
+    - gci
+    - gofmt
+    - gofumpt
+    - goimports
+    # - golines
 
-# Where should any generated models go?
-model:
-  filename: graph/model/models_gen.go
-  package: model
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/EternisAI/enchanted-twin
+    gci:
+      # Section configuration to compare against
+      sections:
+        - standard # Standard section: captures all standard packages
+        - default # Default section: contains all imports that could not be matched to another section
+        - prefix(github.com/EternisAI) # Custom section: groups imports with the specified prefix
+    gofmt:
+      # Simplify code: gofmt with `-s` option
+      simplify: true
 
-  # Optional: Pass in a path to a new gotpl template to use for generating the models
-  # model_template: [your/path/model.gotpl]
+# Issue handling (filters what gets reported)
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text
+  max-same-issues: 0
 
-# Where should the resolver implementations go?
-resolver:
-  package: graph
-  layout: follow-schema # Only other option is "single-file."
+# Output configuration
+output:
+  # Sort results primarily by file path (then line and column)
+  sort-order:
+    - file
 
-  # Only for single-file layout:
-  # filename: graph/resolver.go
-
-  # Only for follow-schema layout:
-  dir: graph
-  filename_template: "{name}.resolvers.go"
-
-  # Optional: turn on to not generate template comments above resolvers
-  # omit_template_comment: false
-  # Optional: Pass in a path to a new gotpl template to use for generating resolvers
-  # resolver_template: [your/path/resolver.gotpl]
-  # Optional: turn on to avoid rewriting existing resolver(s) when generating
-  # preserve_resolver: false
-
-# Optional: turn on use ` + "`" + `gqlgen:"fieldName"` + "`" + ` tags in your models
-# struct_tag: json
-
-# Optional: turn on to use []Thing instead of []*Thing
-# omit_slice_element_pointers: false
-
-# Optional: turn on to omit Is<Name>() methods to interface and unions
-# omit_interface_checks: true
-
-# Optional: turn on to skip generation of ComplexityRoot struct content and Complexity function
-# omit_complexity: false
-
-# Optional: turn on to not generate any file notice comments in generated files
-# omit_gqlgen_file_notice: false
-
-# Optional: turn on to exclude the gqlgen version in the generated file notice. No effect if `omit_gqlgen_file_notice` is true.
-# omit_gqlgen_version_in_file_notice: false
-
-# Optional: turn on to exclude root models such as Query and Mutation from the generated models file.
-# omit_root_models: false
-
-# Optional: turn on to exclude resolver fields from the generated models file.
-# omit_resolver_fields: false
-
-# Optional: turn off to make struct-type struct fields not use pointers
-# e.g. type Thing struct { FieldA OtherThing } instead of { FieldA *OtherThing }
-# struct_fields_always_pointers: true
-
-# Optional: turn off to make resolvers return values instead of pointers for structs
-# resolvers_always_return_pointers: true
-
-# Optional: turn on to return pointers instead of values in unmarshalInput
-# return_pointers_in_unmarshalinput: false
-
-# Optional: wrap nullable input fields with Omittable
-# nullable_input_omittable: true
-
-# Optional: set to speed up generation time by not performing a final validation pass.
-# skip_validation: true
-
-# Optional: set to skip running `go mod tidy` when generating server code
-# skip_mod_tidy: true
-
-# Optional: if this is set to true, argument directives that
-# decorate a field with a null value will still be called.
-#
-# This enables argumment directives to not just mutate
-# argument values but to set them even if they're null.
-call_argument_directives_with_null: true
-
-# Optional: set build tags that will be used to load packages
-# go_build_tags:
-#  - private
-#  - enterprise
-
-# Optional: set to modify the initialisms regarded for Go names
-# go_initialisms:
-#   replace_defaults: false # if true, the default initialisms will get dropped in favor of the new ones instead of being added
-#   initialisms: # List of initialisms to for Go names
-#     - 'CC'
-#     - 'BCC'
-
-# gqlgen will search for any type names in the schema in these go packages
-# if they match it will use them, otherwise it will generate them.
-autobind:
-#  - "github.com/EternisAI/enchanted-twin/graph/model"
-
-# This section declares type mapping between the GraphQL and go type systems
-#
-# The first line in each type will be used as defaults for resolver arguments and
-# modelgen, the others will be allowed when binding to fields. Configure them to
-# your liking
-models:
-  ID:
-    model:
-      - github.com/99designs/gqlgen/graphql.ID
-      - github.com/99designs/gqlgen/graphql.Int
-      - github.com/99designs/gqlgen/graphql.Int64
-      - github.com/99designs/gqlgen/graphql.Int32
-  # gqlgen provides a default GraphQL UUID convenience wrapper for github.com/google/uuid 
-  # but you can override this to provide your own GraphQL UUID implementation
-  UUID:
-    model:
-      - github.com/99designs/gqlgen/graphql.UUID
-
-  # The GraphQL spec explicitly states that the Int type is a signed 32-bit
-  # integer. Using Go int or int64 to represent it can lead to unexpected
-  # behavior, and some GraphQL tools like Apollo Router will fail when
-  # communicating numbers that overflow 32-bits.
-  #
-  # You may choose to use the custom, built-in Int64 scalar to represent 64-bit
-  # integers, or ignore the spec and bind Int to graphql.Int / graphql.Int64
-  # (the default behavior of gqlgen). This is fine in simple use cases when you
-  # do not need to worry about interoperability and only expect small numbers.
-  Int:
-    model:
-      - github.com/99designs/gqlgen/graphql.Int32
-  Int64:
-    model:
-      - github.com/99designs/gqlgen/graphql.Int
-      - github.com/99designs/gqlgen/graphql.Int64
+# Run configuration
+run:
+  # Timeout for analysis, e.g. 30s, 5m
+  timeout: 5m
+  # Exit code when at least one issue was found
+  issues-exit-code: 1
+  # Include test files in the analysis
+  tests: true
+  # Global Go version to target (replaces per‑linter `go:` settings)
+  go: "1.21"
