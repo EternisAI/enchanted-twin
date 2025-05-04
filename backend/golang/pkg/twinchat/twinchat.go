@@ -59,7 +59,7 @@ func (s *Service) Execute(
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
-	onDelta func(ai.StreamDelta),
+	onDelta func(agent.StreamDelta),
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
 		s.logger,
@@ -195,9 +195,10 @@ func (s *Service) SendMessage(
 	userMsgID := uuid.New().String()
 	createdAt := time.Now().Format(time.RFC3339)
 
-	onDelta := func(delta ai.StreamDelta) {
+	onDelta := func(delta agent.StreamDelta) {
 		payload := model.MessageStreamPayload{
 			MessageID:  assistantMessageId,
+			ImageUrls:  delta.ImageURLs,
 			Chunk:      delta.ContentDelta,
 			Role:       model.RoleAssistant,
 			IsComplete: delta.IsCompleted,

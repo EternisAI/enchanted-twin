@@ -3,14 +3,14 @@ import { MessageStreamDocument, Role } from '@renderer/graphql/generated/graphql
 
 export function useMessageStreamSubscription(
   chatId: string,
-  onChunk: (messageId: string, chunk: string, isComplete: boolean) => void
+  onChunk: (messageId: string, chunk: string, isComplete: boolean, imageUrls: string[]) => void
 ) {
   useSubscription(MessageStreamDocument, {
     variables: { chatId },
     onData: ({ data }) => {
       const payload = data.data?.messageStream
       if (payload && payload.role === Role.Assistant) {
-        onChunk(payload.messageId, payload.chunk, payload.isComplete)
+        onChunk(payload.messageId, payload.chunk, payload.isComplete, payload.imageUrls)
       }
     }
   })

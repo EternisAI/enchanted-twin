@@ -107,7 +107,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   //   setShowSuggestions(true)
   // })
 
-  useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete) => {
+  useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete, imageUrls) => {
     const existingMessage = messages.find((m) => m.id === messageId)
     if (!existingMessage) {
       upsertMessage({
@@ -115,14 +115,16 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
         text: chunk ?? '',
         role: Role.Assistant,
         createdAt: new Date().toISOString(),
-        imageUrls: [],
+        imageUrls: imageUrls ?? [],
         toolCalls: [],
         toolResults: []
       })
     } else {
+      const allImageUrls = existingMessage.imageUrls.concat(imageUrls ?? [])
       const updatedMessage = {
         ...existingMessage,
-        text: (existingMessage.text ?? '') + (chunk ?? '')
+        text: (existingMessage.text ?? '') + (chunk ?? ''),
+        imageUrls: allImageUrls
       }
       upsertMessage(updatedMessage)
     }

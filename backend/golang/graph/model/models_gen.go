@@ -97,12 +97,12 @@ type Message struct {
 }
 
 type MessageStreamPayload struct {
-	MessageID  string  `json:"messageId"`
-	Chunk      string  `json:"chunk"`
-	Role       Role    `json:"role"`
-	IsComplete bool    `json:"isComplete"`
-	CreatedAt  *string `json:"createdAt,omitempty"`
-	ImageURL   *string `json:"imageUrl,omitempty"`
+	MessageID  string   `json:"messageId"`
+	Chunk      string   `json:"chunk"`
+	Role       Role     `json:"role"`
+	IsComplete bool     `json:"isComplete"`
+	CreatedAt  *string  `json:"createdAt,omitempty"`
+	ImageUrls  []string `json:"imageUrls"`
 }
 
 type Mutation struct {
