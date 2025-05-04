@@ -112,7 +112,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     if (!existingMessage) {
       upsertMessage({
         id: messageId,
-        text: chunk,
+        text: chunk ?? '',
         role: Role.Assistant,
         createdAt: new Date().toISOString(),
         imageUrls: [],
@@ -122,7 +122,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     } else {
       const updatedMessage = {
         ...existingMessage,
-        text: existingMessage.text + chunk
+        text: (existingMessage.text ?? '') + (chunk ?? '')
       }
       upsertMessage(updatedMessage)
     }
