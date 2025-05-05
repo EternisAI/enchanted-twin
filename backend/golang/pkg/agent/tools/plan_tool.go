@@ -11,6 +11,8 @@ import (
 	"github.com/openai/openai-go/packages/param"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/client"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // PlanTool implements a tool for planning and executing tasks with the planner.
@@ -34,10 +36,8 @@ func (t *PlanTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name: "execute_plan",
-			Description: param.NewOpt(
-				"Execute a plan to carry out a specific task using a sequence of steps",
-			),
+			Name:        "execute_plan",
+			Description: param.NewOpt("Execute a plan to carry out a specific task using a sequence of steps"),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
@@ -68,10 +68,10 @@ func (t *PlanTool) Definition() openai.ChatCompletionToolParam {
 }
 
 // Execute executes the plan tool.
-func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult, error) {
+func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (*types.StructuredToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
-		return ToolResult{}, errors.New("plan is required")
+		return nil, errors.New("plan is required")
 	}
 
 	// Extract optional tool names
@@ -105,34 +105,26 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	availableTools := getAvailableTools(toolNames)
 	toolsBytes, err := json.Marshal(availableTools)
 	if err != nil {
-		return ToolResult{}, errors.Wrap(err, "failed to marshal tools")
+		return nil, errors.Wrap(err, "failed to marshal tools")
 	}
 
 	// Create the workflow input
 	input := map[string]any{
-		"plan":      plan,
-		"tools":     toolsBytes,
-		"model":     t.model,
-		"max_steps": maxSteps,
-		"system_prompt": fmt.Sprintf(
-			"You are a helpful assistant that executes plans. Your current plan is: %s",
-			plan,
-		),
+		"plan":          plan,
+		"tools":         toolsBytes,
+		"model":         t.model,
+		"max_steps":     maxSteps,
+		"system_prompt": fmt.Sprintf("You are a helpful assistant that executes plans. Your current plan is: %s", plan),
 	}
 	inputBytes, err := json.Marshal(input)
 	if err != nil {
-		return ToolResult{}, errors.Wrap(err, "failed to marshal input")
+		return nil, errors.Wrap(err, "failed to marshal input")
 	}
 
 	// Start the workflow
-	run, err := t.temporalClient.ExecuteWorkflow(
-		ctx,
-		workflowOptions,
-		"PlannerWorkflow",
-		inputBytes,
-	)
+	run, err := t.temporalClient.ExecuteWorkflow(ctx, workflowOptions, "PlannerWorkflow", inputBytes)
 	if err != nil {
-		return ToolResult{}, errors.Wrap(err, "failed to start workflow")
+		return nil, errors.Wrap(err, "failed to start workflow")
 	}
 
 	t.logger.Info("Started planner workflow", "workflowID", workflowID, "runID", run.GetRunID())
@@ -145,11 +137,12 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 
 	// If no wait parameter or wait is 0, return immediately
 	if waitSeconds == 0 {
-		return ToolResult{
-			Content: fmt.Sprintf(
-				"Plan execution started with workflow ID: %s. It will continue in the background.",
-				workflowID,
-			),
+		return &types.StructuredToolResult{
+			ToolName:   "execute_plan",
+			ToolParams: args,
+			Output: map[string]any{
+				"content": fmt.Sprintf("Plan execution started with workflow ID: %s. It will continue in the background.", workflowID),
+			},
 		}, nil
 	}
 
@@ -164,30 +157,25 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	// Check if we timed out
 	if errors.Is(err, context.DeadlineExceeded) {
 		// Query for the current output
-		resp, queryErr := t.temporalClient.QueryWorkflow(
-			ctx,
-			workflowID,
-			run.GetRunID(),
-			"get_output",
-		)
+		resp, queryErr := t.temporalClient.QueryWorkflow(ctx, workflowID, run.GetRunID(), "get_output")
 		if queryErr != nil {
-			return ToolResult{
-				Content: fmt.Sprintf(
-					"The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v",
-					workflowID,
-					queryErr,
-				),
+			return &types.StructuredToolResult{
+				ToolName:   "execute_plan",
+				ToolParams: args,
+				Output: map[string]any{
+					"content": fmt.Sprintf("The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v", workflowID, queryErr),
+				},
 			}, nil
 		}
 
 		var output string
 		if queryErr = resp.Get(&output); queryErr != nil {
-			return ToolResult{
-				Content: fmt.Sprintf(
-					"The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v",
-					workflowID,
-					queryErr,
-				),
+			return &types.StructuredToolResult{
+				ToolName:   "execute_plan",
+				ToolParams: args,
+				Output: map[string]any{
+					"content": fmt.Sprintf("The plan is still executing (workflow ID: %s). It will continue in the background. The output so far could not be retrieved: %v", workflowID, queryErr),
+				},
 			}, nil
 		}
 
@@ -195,41 +183,45 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 			output = "No output yet."
 		}
 
-		return ToolResult{
-			Content: fmt.Sprintf(
-				"The plan is still executing (workflow ID: %s). It will continue in the background. Output so far: %s",
-				workflowID,
-				output,
-			),
+		return &types.StructuredToolResult{
+			ToolName:   "execute_plan",
+			ToolParams: args,
+			Output: map[string]any{
+				"content": fmt.Sprintf("The plan is still executing (workflow ID: %s). It will continue in the background. Output so far: %s", workflowID, output),
+			},
 		}, nil
 	}
 
 	if err != nil {
-		return ToolResult{
-			Content: fmt.Sprintf("Error executing plan: %v (workflow ID: %s)", err, workflowID),
+		return &types.StructuredToolResult{
+			ToolName:   "execute_plan",
+			ToolParams: args,
+			Output: map[string]any{
+				"content": fmt.Sprintf("Error executing plan: %v (workflow ID: %s)", err, workflowID),
+			},
 		}, nil
 	}
 
 	// Query for the final output
 	resp, err := t.temporalClient.QueryWorkflow(ctx, workflowID, run.GetRunID(), "get_output")
 	if err != nil {
-		return ToolResult{
-			Content: fmt.Sprintf(
-				"Plan executed, but couldn't retrieve output: %v (workflow ID: %s)",
-				err,
-				workflowID,
-			),
+		return &types.StructuredToolResult{
+			ToolName:   "execute_plan",
+			ToolParams: args,
+			Output: map[string]any{
+				"content": fmt.Sprintf("Plan executed, but couldn't retrieve output: %v (workflow ID: %s)", err, workflowID),
+			},
 		}, nil
 	}
 
 	var output string
 	if err = resp.Get(&output); err != nil {
-		return ToolResult{
-			Content: fmt.Sprintf(
-				"Plan executed, but couldn't retrieve output: %v (workflow ID: %s)",
-				err,
-				workflowID,
-			),
+		return &types.StructuredToolResult{
+			ToolName:   "execute_plan",
+			ToolParams: args,
+			Output: map[string]any{
+				"content": fmt.Sprintf("Plan executed, but couldn't retrieve output: %v (workflow ID: %s)", err, workflowID),
+			},
 		}, nil
 	}
 
@@ -238,7 +230,7 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 	stateResp, err := t.temporalClient.QueryWorkflow(ctx, workflowID, run.GetRunID(), "get_state")
 	if err != nil {
 		t.logger.Error("Failed to query workflow state", "error", err)
-		return ToolResult{}, errors.Wrap(err, "failed to query workflow state")
+		return nil, errors.Wrap(err, "failed to query workflow state")
 	}
 
 	var state map[string]any
@@ -252,9 +244,13 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (ToolResult
 		}
 	}
 
-	return ToolResult{
-		Content:   output,
-		ImageURLs: imageURLs,
+	return &types.StructuredToolResult{
+		ToolName:   "execute_plan",
+		ToolParams: args,
+		Output: map[string]any{
+			"content": output,
+			"images":  imageURLs,
+		},
 	}, nil
 }
 

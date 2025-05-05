@@ -1,6 +1,7 @@
 package plannedv2
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -9,7 +10,7 @@ import (
 	"github.com/stretchr/testify/suite"
 	"go.temporal.io/sdk/testsuite"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
@@ -20,7 +21,8 @@ type PlannedAgentTestSuite struct {
 }
 
 func (s *PlannedAgentTestSuite) SetupTest() {
-	s.activities = NewAgentActivities(&ai.Service{})
+	registry := tools.NewRegistry()
+	s.activities = NewAgentActivities(context.Background(), &ai.Service{}, registry)
 }
 
 // TestPlannedAgentWorkflow is the entry point for running the test suite.
@@ -69,13 +71,13 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 			}, nil
 		})
 
-	// Mock execute tool activity
-	env.OnActivity(s.activities.ExecuteToolActivity, "echo", mustMatchAny).Return(
-		&types.ToolResult{
-			Tool:    "echo",
-			Content: "Echo: Starting execution of the plan",
-			Data:    "Echo: Starting execution of the plan",
-		}, nil)
+	// TODO: Mock execute tool activity
+	// env.OnActivity(s.activities.ExecuteToolActivity, "echo", mustMatchAny).Return(
+	// 	&types.ToolResult{
+	// 		Tool:    "echo",
+	// 		Content: "Echo: Starting execution of the plan",
+	// 		Data:    "Echo: Starting execution of the plan",
+	// 	}, nil)
 
 	// Create sample input
 	input := PlanInput{
@@ -147,13 +149,13 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 			}, nil
 		})
 
-	// Mock for sleep tool execution
-	env.OnActivity(s.activities.ExecuteToolActivity, "sleep", mustMatchAny).Return(
-		&types.ToolResult{
-			Tool:    "sleep",
-			Content: "Slept for 2 seconds. Reason: Testing sleep functionality",
-			Data:    "Sleep completed",
-		}, nil)
+	// TODO: Mock for sleep tool execution
+	// env.OnActivity(s.activities.ExecuteToolActivity, "sleep", mustMatchAny).Return(
+	// 	&types.ToolResult{
+	// 		Tool:    "sleep",
+	// 		Content: "Slept for 2 seconds. Reason: Testing sleep functionality",
+	// 		Data:    "Sleep completed",
+	// 	}, nil)
 
 	// Create sample input
 	input := PlanInput{

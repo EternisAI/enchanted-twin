@@ -10,6 +10,7 @@ import (
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
@@ -21,7 +22,7 @@ type Agent struct {
 	aiService        *ai.Service
 	CompletionsModel string
 	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
-	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult)
+	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult)
 }
 
 func NewAgent(
@@ -30,7 +31,7 @@ func NewAgent(
 	aiService *ai.Service,
 	completionsModel string,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
-	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 ) *Agent {
 	return &Agent{
 		logger:           logger,
@@ -45,19 +46,20 @@ func NewAgent(
 type AgentResponse struct {
 	Content     string
 	ToolCalls   []openai.ChatCompletionMessageToolCall
-	ToolResults []tools.ToolResult
+	ToolResults []types.ToolResult
 	ImageURLs   []string
 }
 
 func (a *Agent) Execute(
 	ctx context.Context,
+	origin map[string]any,
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 ) (AgentResponse, error) {
 	currentStep := 0
 	responseContent := ""
 	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
-	toolResults := make([]tools.ToolResult, 0)
+	toolResults := make([]types.ToolResult, 0)
 	imageURLs := make([]string, 0)
 
 	apiToolDefinitions := make([]openai.ChatCompletionToolParam, 0)
@@ -108,29 +110,14 @@ func (a *Agent) Execute(
 			var args map[string]any
 			err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
 			if err != nil {
-				a.logger.Error(
-					"Error unmarshalling tool call arguments",
-					"name",
-					toolCall.Function.Name,
-					"args",
-					toolCall.Function.Arguments,
-					"error",
-					err,
-				)
+				a.logger.Error("Error unmarshalling tool call arguments", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments, "error", err)
 				return AgentResponse{}, err
 			}
+			args["origin"] = origin
 
 			toolResult, err := tool.Execute(ctx, args)
 			if err != nil {
-				a.logger.Error(
-					"Error executing tool",
-					"name",
-					toolCall.Function.Name,
-					"args",
-					args,
-					"error",
-					err,
-				)
+				a.logger.Error("Error executing tool", "name", toolCall.Function.Name, "args", args, "error", err)
 				return AgentResponse{}, err
 			}
 
@@ -146,11 +133,12 @@ func (a *Agent) Execute(
 				a.PostToolCallback(toolCall, toolResult)
 			}
 
-			if toolResult.ImageURLs != nil {
-				imageURLs = append(imageURLs, toolResult.ImageURLs...)
+			resultImageURLs := toolResult.ImageURLs()
+			if len(resultImageURLs) > 0 {
+				imageURLs = append(imageURLs, resultImageURLs...)
 			}
 
-			messages = append(messages, openai.ToolMessage(toolResult.Content, toolCall.ID))
+			messages = append(messages, openai.ToolMessage(toolResult.Content(), toolCall.ID))
 
 			toolCalls = append(toolCalls, toolCall)
 			toolResults = append(toolResults, toolResult)

@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // Signal types for the planned agent workflow.
@@ -42,11 +44,11 @@ func registerQueries(ctx workflow.Context, state *PlanState) error {
 		return fmt.Errorf("failed to register get_output query handler: %w", err)
 	}
 	// Register query to get tool calls
-	if err := workflow.SetQueryHandler(ctx, QueryGetToolCalls, func() ([]map[string]interface{}, error) {
+	if err := workflow.SetQueryHandler(ctx, QueryGetToolCalls, func() ([]map[string]any, error) {
 		// Convert to JSON-serializable format
-		result := make([]map[string]interface{}, len(state.ToolCalls))
+		result := make([]map[string]any, len(state.ToolCalls))
 		for i, tc := range state.ToolCalls {
-			result[i] = map[string]interface{}{
+			result[i] = map[string]any{
 				"id":       tc.ID,
 				"type":     tc.Type,
 				"function": tc.Function,
@@ -71,7 +73,7 @@ func registerSignals(ctx workflow.Context, state *PlanState) error {
 	stopChan := workflow.GetSignalChannel(ctx, SignalStop)
 	workflow.Go(ctx, func(ctx workflow.Context) {
 		for {
-			var signal interface{}
+			var signal any
 			stopChan.Receive(ctx, &signal)
 			// Set the state to complete
 			state.Complete = true
@@ -94,7 +96,7 @@ func registerSignals(ctx workflow.Context, state *PlanState) error {
 				// Add a system message to indicate plan update
 				state.Messages = append(
 					state.Messages,
-					SystemMessage(fmt.Sprintf("The plan has been updated to: %s", newPlan)),
+					ai.NewSystemMessage(fmt.Sprintf("The plan has been updated to: %s", newPlan)),
 				)
 				// Add to history
 				state.History = append(state.History, HistoryEntry{
