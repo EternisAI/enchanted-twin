@@ -41,12 +41,7 @@ func openBrowser(u string) error {
 }
 
 // callbackHandler handles the OAuth callback.
-func callbackHandler(
-	ctx context.Context,
-	logger *log.Logger,
-	store *db.Store,
-	r *http.Request,
-) (string, interface{}, error) {
+func callbackHandler(ctx context.Context, logger *log.Logger, store *db.Store, r *http.Request) (string, interface{}, error) {
 	if err := r.URL.Query().Get("error"); err != "" {
 		return "", nil, fmt.Errorf("error: %s", err)
 	}
@@ -79,7 +74,7 @@ func fetchUserInfo(
 	store *db.Store,
 	provider string,
 	username string,
-) (interface{}, error) {
+) (any, error) {
 	// Load OAuth config for provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
@@ -222,8 +217,7 @@ func StartOAuthCallbackServer(logger *log.Logger, store *db.Store) error {
 	// Start the HTTPS server in a goroutine
 	go func() {
 		logger.Info("Starting OAuth callback HTTPS server", "address", httpsServer.Addr)
-		if err := httpsServer.ListenAndServeTLS("./cert.pem", "./key.pem"); err != nil &&
-			err != http.ErrServerClosed {
+		if err := httpsServer.ListenAndServeTLS("./cert.pem", "./key.pem"); err != nil && err != http.ErrServerClosed {
 			logger.Error("HTTPS server error", "error", err)
 		}
 	}()

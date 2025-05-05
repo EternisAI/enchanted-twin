@@ -5,13 +5,19 @@ import (
 
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 type SearchTool struct{}
 
-func (e *SearchTool) Execute(ctx context.Context, inputs map[string]any) (ToolResult, error) {
-	return ToolResult{
-		Content: "The funniest thing that happened in UK last week was dogs chilling in a hot tub.",
+func (e *SearchTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
+	return &types.StructuredToolResult{
+		ToolName:   "search_tool",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": "The funniest thing that happened in UK last week was dogs chilling in a hot tub.",
+		},
 	}, nil
 }
 

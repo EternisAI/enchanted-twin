@@ -335,7 +335,9 @@ function checkForUpdates(silent = false) {
   if (updateDownloaded) {
     log.info(`[checkForUpdates] Update previously downloaded. Silent check: ${silent}`)
     if (silent) {
-      log.info('[checkForUpdates] Silent check found downloaded update. Initiating quit and install...')
+      log.info(
+        '[checkForUpdates] Silent check found downloaded update. Initiating quit and install...'
+      )
       autoUpdater.quitAndInstall(true, true)
     } else {
       if (mainWindow) {
@@ -371,25 +373,25 @@ function checkForUpdates(silent = false) {
     .checkForUpdates()
     .then((result) => {
       if (!result || !result.updateInfo || result.updateInfo.version === app.getVersion()) {
-         if (mainWindow && !silent) {
-             mainWindow.webContents.send('update-status', 'No updates available')
-             dialog.showMessageBox(mainWindow, {
-               type: 'info',
-               title: 'No Updates',
-               message: 'You are using the latest version of the application.',
-               buttons: ['OK']
-             })
-         }
+        if (mainWindow && !silent) {
+          mainWindow.webContents.send('update-status', 'No updates available')
+          dialog.showMessageBox(mainWindow, {
+            type: 'info',
+            title: 'No Updates',
+            message: 'You are using the latest version of the application.',
+            buttons: ['OK']
+          })
+        }
       }
     })
     .catch((err) => {
       log.error('Error checking for updates:', err)
       if (mainWindow && !silent) {
         mainWindow.webContents.send('update-status', `Error checking for updates: ${err.message}`)
-         dialog.showErrorBox(
-           'Update Check Error',
-           `An error occurred while checking for updates: ${err.message}`
-         )
+        dialog.showErrorBox(
+          'Update Check Error',
+          `An error occurred while checking for updates: ${err.message}`
+        )
       }
     })
 }
@@ -569,6 +571,10 @@ app.whenReady().then(async () => {
       nativeTheme.themeSource = theme
     }
     return nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
+  })
+
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion()
   })
 
   nativeTheme.on('updated', () => {

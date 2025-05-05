@@ -49,13 +49,7 @@ func generateRandomState() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
-func StartOAuthFlow(
-	ctx context.Context,
-	logger *log.Logger,
-	store *db.Store,
-	provider string,
-	scope string,
-) (string, string, error) {
+func StartOAuthFlow(ctx context.Context, logger *log.Logger, store *db.Store, provider string, scope string) (string, string, error) {
 	// Get config for supported provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
@@ -103,31 +97,15 @@ func StartOAuthFlow(
 
 	err = store.SetOAuthStateAndVerifier(ctx, provider, state, codeVerifier, scope)
 	if err != nil {
-		return "", "", fmt.Errorf(
-			"unable to store state and verifier for provider '%s': %w",
-			provider,
-			err,
-		)
+		return "", "", fmt.Errorf("unable to store state and verifier for provider '%s': %w", provider, err)
 	}
 
-	logger.Debug(
-		"start OAuth flow: stored state and verifier to database",
-		"provider",
-		provider,
-		"state",
-		state,
-		"scope",
-		scope,
-	)
+	logger.Debug("start OAuth flow: stored state and verifier to database", "provider", provider, "state", state, "scope", scope)
 
 	return authURL.String(), config.RedirectURI, nil
 }
 
-func RefreshExpiredTokens(
-	ctx context.Context,
-	logger *log.Logger,
-	store *db.Store,
-) ([]db.OAuthStatus, error) {
+func RefreshExpiredTokens(ctx context.Context, logger *log.Logger, store *db.Store) ([]db.OAuthStatus, error) {
 	logger.Debug("refreshing expired tokens")
 	providers, err := store.GetProvidersForRefresh(ctx)
 	if err != nil {
@@ -136,13 +114,7 @@ func RefreshExpiredTokens(
 	for _, provider := range providers {
 		_, err := RefreshOAuthToken(ctx, logger, store, provider.Provider)
 		if err != nil {
-			logger.Error(
-				"failed to refresh OAuth token",
-				"provider",
-				provider.Provider,
-				"error",
-				err,
-			)
+			logger.Error("failed to refresh OAuth token", "provider", provider.Provider, "error", err)
 		}
 	}
 	return store.GetOAuthStatus(ctx)
@@ -169,13 +141,7 @@ type TokenResponse struct {
 }
 
 // ExchangeToken handles the HTTP request to exchange a token (authorization or refresh).
-func ExchangeToken(
-	ctx context.Context,
-	logger *log.Logger,
-	provider string,
-	config db.OAuthConfig,
-	tokenReq TokenRequest,
-) (*TokenResponse, error) {
+func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, config db.OAuthConfig, tokenReq TokenRequest) (*TokenResponse, error) {
 	// Prepare request data
 	data := url.Values{}
 	data.Set("grant_type", tokenReq.GrantType)
@@ -320,11 +286,7 @@ func CompleteOAuthFlow(
 	logger.Debug("starting OAuth completion", "state", state)
 
 	// Retrieve session data using state
-	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(
-		ctx,
-		logger,
-		state,
-	)
+	provider, codeVerifier, scope, err := store.GetAndClearOAuthProviderAndVerifier(ctx, logger, state)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to get OAuth state: %w", err)
 	}

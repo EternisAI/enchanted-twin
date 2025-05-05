@@ -11,6 +11,7 @@ import (
 	"github.com/openai/openai-go/packages/param"
 	"golang.org/x/oauth2"
 
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -64,25 +65,43 @@ func NewTwitterTool(store db.Store) *TwitterReverseChronologicalTimelineTool {
 
 func (t *TwitterReverseChronologicalTimelineTool) Execute(
 	ctx context.Context,
-	_ map[string]any,
-) (ToolResult, error) {
+	inputs map[string]any,
+) (agenttypes.ToolResult, error) {
 	token, err := t.store.GetOAuthTokens(ctx, "twitter")
 	if err != nil {
-		return ToolResult{}, fmt.Errorf("oauth tokens: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "twitter_reverse_chronological_timeline",
+			ToolParams: inputs,
+			ToolError:  fmt.Sprintf("oauth tokens: %v", err),
+		}, fmt.Errorf("oauth tokens: %w", err)
 	}
 
 	if token == nil {
-		return ToolResult{
-			Content: "You must first connect your Twitter account to use this tool.",
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "twitter_reverse_chronological_timeline",
+			ToolParams: inputs,
+			Output: map[string]any{
+				"content": "You must first connect your Twitter account to use this tool.",
+			},
 		}, nil
 	}
 
 	out, err := t.GetReverseChronologicalTimeline(ctx, token)
 	if err != nil {
-		return ToolResult{}, fmt.Errorf("get reverse chronological timeline: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "twitter_reverse_chronological_timeline",
+			ToolParams: inputs,
+			ToolError:  fmt.Sprintf("get reverse chronological timeline: %v", err),
+		}, fmt.Errorf("get reverse chronological timeline: %w", err)
 	}
 
-	return ToolResult{Content: out}, nil
+	return &agenttypes.StructuredToolResult{
+		ToolName:   "twitter_reverse_chronological_timeline",
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": out,
+		},
+	}, nil
 }
 
 func (t *TwitterReverseChronologicalTimelineTool) GetReverseChronologicalTimeline(

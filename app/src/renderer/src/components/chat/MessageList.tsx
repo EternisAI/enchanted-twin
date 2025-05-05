@@ -17,7 +17,7 @@ export default function MessageList({ messages, isWaitingTwinResponse }: Message
           <AssistantMessageBubble key={msg.id} message={msg} />
         )
       )}
-      {/* {isWaitingTwinResponse && (
+      {isWaitingTwinResponse && (
         <motion.div
           className="text-sm text-muted-foreground italic px-3 py-1 bg-accent rounded-md w-fit"
           initial="initial"
@@ -31,13 +31,13 @@ export default function MessageList({ messages, isWaitingTwinResponse }: Message
             {[...Array(3)].map((_, i) => (
               <div
                 key={i}
-                className="h-2 w-2 bg-green-500/70 rounded-full animate-bounce"
+                className="h-2 w-2 bg-gray-500 rounded-full animate-bounce"
                 style={{ animationDelay: `${i * 0.15}s` }}
               />
             ))}
           </div>
         </motion.div>
-      )} */}
+      )}
     </div>
   )
 }

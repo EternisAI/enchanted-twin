@@ -13,7 +13,7 @@ import (
 	"github.com/openai/openai-go/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
@@ -24,19 +24,6 @@ type ChatMessageTool struct {
 	nc      *nats.Conn
 }
 
-// NewChatMessageTool creates a new chat message tool.
-func NewChatMessageTool(
-	logger *log.Logger,
-	storage repository.Repository,
-	nc *nats.Conn,
-) *ChatMessageTool {
-	return &ChatMessageTool{
-		logger:  logger,
-		storage: storage,
-		nc:      nc,
-	}
-}
-
 // Definition returns the tool definition.
 func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
@@ -44,23 +31,18 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 		Function: openai.FunctionDefinitionParam{
 			Name: "send_chat_message",
 			Description: param.NewOpt(
-				"Sends a message to a specified chat, allows specifying the message role (system, user, or assistant)",
+				"Communicate with your human twin by sending a message to the specified chat",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
 					"chat_id": map[string]any{
 						"type":        "string",
-						"description": "ID of the chat to send the message to",
+						"description": "ID of the chat to send the message to (eg. \"chatId:2f0b10c4-7de1-43a1-85b5-ceafbab9d271\")",
 					},
 					"message": map[string]any{
 						"type":        "string",
 						"description": "The message text to send",
-					},
-					"role": map[string]any{
-						"type":        "string",
-						"description": "The role of the message (user, assistant, or system)",
-						"enum":        []string{"user", "assistant", "system"},
 					},
 					"image_urls": map[string]any{
 						"type":        "array",
@@ -70,7 +52,7 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 						},
 					},
 				},
-				"required": []string{"chat_id", "message", "role"},
+				"required": []string{"chat_id", "message"},
 			},
 		},
 	}
@@ -80,29 +62,20 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 func (t *ChatMessageTool) Execute(
 	ctx context.Context,
 	args map[string]any,
-) (tools.ToolResult, error) {
+) (types.ToolResult, error) {
 	// Validate required parameters
 	chatID, ok := args["chat_id"].(string)
 	if !ok || chatID == "" {
-		return tools.ToolResult{}, fmt.Errorf("chat_id is required")
+		return nil, fmt.Errorf("chat_id is required")
 	}
 
 	message, ok := args["message"].(string)
 	if !ok || message == "" {
-		return tools.ToolResult{}, fmt.Errorf("message is required")
+		return nil, fmt.Errorf("message is required")
 	}
 
-	role, ok := args["role"].(string)
-	if !ok || role == "" {
-		return tools.ToolResult{}, fmt.Errorf("role is required")
-	}
-
-	// Validate role enum
-	if role != "user" && role != "assistant" && role != "system" {
-		return tools.ToolResult{}, fmt.Errorf(
-			"role must be one of 'user', 'assistant', or 'system'",
-		)
-	}
+	// Always use "assistant" role since only agents can use this tool
+	role := "assistant"
 
 	// Extract optional image URLs
 	var imageURLs []string
@@ -134,7 +107,7 @@ func (t *ChatMessageTool) Execute(
 	if len(imageURLs) > 0 {
 		imageURLsJSON, err := json.Marshal(imageURLs)
 		if err != nil {
-			return tools.ToolResult{}, fmt.Errorf("failed to marshal image URLs: %w", err)
+			return nil, fmt.Errorf("failed to marshal image URLs: %w", err)
 		}
 		dbMessage.ImageURLsStr = &[]string{string(imageURLsJSON)}[0]
 	}
@@ -142,7 +115,7 @@ func (t *ChatMessageTool) Execute(
 	// Add message to the database
 	id, err := t.storage.AddMessageToChat(ctx, dbMessage)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to add message to chat: %w", err)
+		return nil, fmt.Errorf("failed to add message to chat: %w", err)
 	}
 
 	// Prepare the message for NATS
@@ -164,17 +137,21 @@ func (t *ChatMessageTool) Execute(
 	// Marshal the message for NATS
 	natsMessageJSON, err := json.Marshal(natsMessage)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to marshal NATS message: %w", err)
+		return nil, fmt.Errorf("failed to marshal NATS message: %w", err)
 	}
 
 	// Publish the message to NATS
 	subject := fmt.Sprintf("chat.%s", chatID)
 	err = t.nc.Publish(subject, natsMessageJSON)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to publish message to NATS: %w", err)
+		return nil, fmt.Errorf("failed to publish message to NATS: %w", err)
 	}
 
-	return tools.ToolResult{
-		Content: fmt.Sprintf("Message sent to chat %s with ID %s", chatID, id),
+	return &types.StructuredToolResult{
+		ToolName:   "send_chat_message",
+		ToolParams: args,
+		Output: map[string]any{
+			"content": fmt.Sprintf("Message sent to chat %s with ID %s", chatID, id),
+		},
 	}, nil
 }
