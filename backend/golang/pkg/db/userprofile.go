@@ -12,11 +12,7 @@ func (s *Store) GetUserProfile(ctx context.Context) (*model.UserProfile, error) 
 		Name *string `db:"name"`
 		Bio  *string `db:"bio"`
 	}
-	err := s.db.GetContext(
-		ctx,
-		&profile,
-		`SELECT name, bio FROM user_profiles WHERE id = 'default'`,
-	)
+	err := s.db.GetContext(ctx, &profile, `SELECT name, bio FROM user_profiles WHERE id = 'default'`)
 	if err != nil {
 		return nil, err
 	}
@@ -27,10 +23,7 @@ func (s *Store) GetUserProfile(ctx context.Context) (*model.UserProfile, error) 
 }
 
 // UpdateUserProfile updates the user profile.
-func (s *Store) UpdateUserProfile(
-	ctx context.Context,
-	input model.UpdateProfileInput,
-) (bool, error) {
+func (s *Store) UpdateUserProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error) {
 	result, err := s.db.NamedExecContext(ctx, `
 		UPDATE user_profiles
 		SET

@@ -1,4 +1,4 @@
-package tools
+package memory
 
 import (
 	"context"
@@ -9,32 +9,35 @@ import (
 	openai "github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
+// MemorySearchTool implements a tool for searching agent memory.
 type MemorySearchTool struct {
 	Logger *log.Logger
-	Memory memory.Storage
+	Memory Storage
 }
 
-func NewMemorySearchTool(logger *log.Logger, memory memory.Storage) *MemorySearchTool {
+// NewMemorySearchTool creates a new memory search tool.
+func NewMemorySearchTool(logger *log.Logger, memory Storage) *MemorySearchTool {
 	return &MemorySearchTool{Logger: logger, Memory: memory}
 }
 
-func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (ToolResult, error) {
+// Execute runs the memory search.
+func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (types.ToolResult, error) {
 	queryVal, exists := input["query"]
 	if !exists {
-		return ToolResult{}, errors.New("query is required")
+		return nil, errors.New("query is required")
 	}
 
 	query, ok := queryVal.(string)
 	if !ok {
-		return ToolResult{}, errors.New("query must be a string")
+		return nil, errors.New("query must be a string")
 	}
 
 	result, err := t.Memory.Query(ctx, query)
 	if err != nil {
-		return ToolResult{}, err
+		return nil, err
 	}
 	resultText := ""
 	for i, text := range result.Text {
@@ -59,11 +62,10 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (T
 		resultText,
 	)
 
-	return ToolResult{
-		Content: resultText,
-	}, nil
+	return types.SimpleToolResult(resultText), nil
 }
 
+// Definition returns the OpenAI tool definition.
 func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
@@ -82,5 +84,16 @@ func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
 				"required": []string{"query"},
 			},
 		},
+	}
+}
+
+// GetMemoryTools returns all memory-related tools.
+func GetMemoryTools(logger *log.Logger, storage Storage) []types.Tool {
+	if storage == nil {
+		return []types.Tool{}
+	}
+
+	return []types.Tool{
+		NewMemorySearchTool(logger, storage),
 	}
 }

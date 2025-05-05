@@ -4,6 +4,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import { Card } from '@renderer/components/ui/card'
 import PermissionsCard from '@renderer/components/settings/permissions/PermissionsCard'
+import useAppVersion from '@renderer/hooks/useAppVersion'
 
 export const Route = createFileRoute('/settings')({
   component: Settings
@@ -11,6 +12,7 @@ export const Route = createFileRoute('/settings')({
 
 function Settings() {
   const { theme, setTheme } = useTheme()
+  const { version } = useAppVersion()
 
   return (
     <div className="p-6 flex flex-col gap-6 w-full max-w-4xl mx-auto">
@@ -48,6 +50,11 @@ function Settings() {
       </Card>
 
       <PermissionsCard />
+
+      <Card className="p-6 w-full">
+        <h3 className="text-xl font-semibold">Updates</h3>
+        <p className="text-sm text-muted-foreground">Version {version}</p>
+      </Card>
     </div>
   )
 }
