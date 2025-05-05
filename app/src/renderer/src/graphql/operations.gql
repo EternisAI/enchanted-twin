@@ -91,6 +91,17 @@ query GetMCPServers {
   }
 }
 
+query GetAgentTasks {
+  getAgentTasks {
+    id
+    name
+    schedule
+    plan
+    createdAt
+    updatedAt
+  }
+}
+
 mutation CreateChat($name: String!) {
   createChat(name: $name) {
     id
@@ -206,4 +217,8 @@ mutation StartOAuthFlow($provider: String!, $scope: String!) {
 
 mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
   completeOAuthFlow(state: $state, authCode: $authCode)
+}
+
+mutation DeleteAgentTask($id: ID!) {
+  deleteAgentTask(id: $id)
 }
