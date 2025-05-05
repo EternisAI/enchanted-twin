@@ -56,7 +56,11 @@ jobs:
         if: github.event_name == 'workflow_dispatch' || github.event_name == 'release'
         working-directory: app
         run: |
-          VERSION="${{ github.event.inputs.version }}"
+          if [ "${{ github.event_name }}" == "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="${{ github.event.inputs.version }}"
+          fi
           VERSION_NUMBER="${VERSION#v}"
           # Update version in package.json
           jq ".version = \"$VERSION_NUMBER\"" package.json > package.json.tmp
