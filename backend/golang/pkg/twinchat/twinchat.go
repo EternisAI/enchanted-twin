@@ -51,10 +51,10 @@ func NewService(
 
 func (s *Service) Execute(
 	ctx context.Context,
-	chatID string,
+	origin map[string]any,
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
-	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 	onDelta func(agent.StreamDelta),
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
@@ -72,10 +72,6 @@ func (s *Service) Execute(
 		if tool, exists := s.toolRegistry.Get(name); exists {
 			toolsList = append(toolsList, tool)
 		}
-	}
-
-	origin := map[string]any{
-		"chat_id": chatID,
 	}
 
 	// TODO(cosmic): pass origin to agent
@@ -192,7 +188,12 @@ func (s *Service) SendMessage(
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}
 
-	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback, onDelta)
+	origin := map[string]any{
+		"chat_id":    chatID,
+		"message_id": userMsgID,
+	}
+
+	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta)
 	if err != nil {
 		return nil, err
 	}
