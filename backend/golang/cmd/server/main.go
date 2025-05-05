@@ -47,7 +47,7 @@ import (
 )
 
 func main() {
-	logger := log.NewWithOptions(os.Stderr, log.Options{
+	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           log.DebugLevel,

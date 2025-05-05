@@ -65,10 +65,21 @@ enum Role {
   ASSISTANT
 }
 
+type MessageStreamPayload {
+  messageId: ID!
+  chunk: String!
+  role: Role!
+  isComplete: Boolean!
+  createdAt: DateTime
+  imageUrls: [String!]!
+}
+
 type OAuthStatus {
   provider: String!
   expiresAt: DateTime!
   scope: [String!]!
+  username: String!
+  error: Boolean!
 }
 
 type OAuthFlow {
@@ -112,6 +123,7 @@ type Subscription {
   indexingStatus: IndexingStatus!
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
+  messageStream(chatId: ID!): MessageStreamPayload!
 }
 
 type DataSource {

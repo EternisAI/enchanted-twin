@@ -54,12 +54,12 @@ func callbackHandler(ctx context.Context, logger *log.Logger, store *db.Store, r
 	if authCode == "" {
 		return "", nil, fmt.Errorf("no authorization code received")
 	}
-	provider, err := CompleteOAuthFlow(ctx, logger, store, state, authCode)
+	provider, username, err := CompleteOAuthFlow(ctx, logger, store, state, authCode)
 	if err != nil {
 		return "", nil, fmt.Errorf("oauth flow completion failed: %w", err)
 	}
 
-	userInfo, err := fetchUserInfo(ctx, logger, store, provider)
+	userInfo, err := fetchUserInfo(ctx, logger, store, provider, username)
 	if err != nil {
 		return "", nil, err
 	}
@@ -68,14 +68,20 @@ func callbackHandler(ctx context.Context, logger *log.Logger, store *db.Store, r
 }
 
 // fetchUserInfo fetches user information using an access token.
-func fetchUserInfo(ctx context.Context, _ *log.Logger, store *db.Store, provider string) (interface{}, error) {
+func fetchUserInfo(
+	ctx context.Context,
+	_ *log.Logger,
+	store *db.Store,
+	provider string,
+	username string,
+) (any, error) {
 	// Load OAuth config for provider
 	config, err := store.GetOAuthConfig(ctx, provider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get OAuth config: %w", err)
 	}
 
-	tokens, err := store.GetOAuthTokens(context.Background(), provider)
+	tokens, err := store.GetOAuthTokensByUsername(context.Background(), provider, username)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get OAuth tokens: %w", err)
 	}
@@ -102,6 +108,7 @@ func fetchUserInfo(ctx context.Context, _ *log.Logger, store *db.Store, provider
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Println("Error sending user request:", err)
 		return nil, fmt.Errorf("failed to send user request: %w", err)
 	}
 	defer func() {

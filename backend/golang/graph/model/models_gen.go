@@ -96,6 +96,15 @@ type Message struct {
 	CreatedAt   string      `json:"createdAt"`
 }
 
+type MessageStreamPayload struct {
+	MessageID  string   `json:"messageId"`
+	Chunk      string   `json:"chunk"`
+	Role       Role     `json:"role"`
+	IsComplete bool     `json:"isComplete"`
+	CreatedAt  *string  `json:"createdAt,omitempty"`
+	ImageUrls  []string `json:"imageUrls"`
+}
+
 type Mutation struct {
 }
 
@@ -108,6 +117,8 @@ type OAuthStatus struct {
 	Provider  string   `json:"provider"`
 	ExpiresAt string   `json:"expiresAt"`
 	Scope     []string `json:"scope"`
+	Username  string   `json:"username"`
+	Error     bool     `json:"error"`
 }
 
 type Query struct {

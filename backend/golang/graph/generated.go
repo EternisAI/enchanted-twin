@@ -126,6 +126,15 @@ type ComplexityRoot struct {
 		ToolResults func(childComplexity int) int
 	}
 
+	MessageStreamPayload struct {
+		Chunk      func(childComplexity int) int
+		CreatedAt  func(childComplexity int) int
+		ImageUrls  func(childComplexity int) int
+		IsComplete func(childComplexity int) int
+		MessageID  func(childComplexity int) int
+		Role       func(childComplexity int) int
+	}
+
 	Mutation struct {
 		AddDataSource             func(childComplexity int, name string, path string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
@@ -147,9 +156,11 @@ type ComplexityRoot struct {
 	}
 
 	OAuthStatus struct {
+		Error     func(childComplexity int) int
 		ExpiresAt func(childComplexity int) int
 		Provider  func(childComplexity int) int
 		Scope     func(childComplexity int) int
+		Username  func(childComplexity int) int
 	}
 
 	Query struct {
@@ -166,6 +177,7 @@ type ComplexityRoot struct {
 	Subscription struct {
 		IndexingStatus       func(childComplexity int) int
 		MessageAdded         func(childComplexity int, chatID string) int
+		MessageStream        func(childComplexity int, chatID string) int
 		NotificationAdded    func(childComplexity int) int
 		TelegramMessageAdded func(childComplexity int, chatUUID string) int
 		ToolCallUpdated      func(childComplexity int, chatID string) int
@@ -230,6 +242,7 @@ type SubscriptionResolver interface {
 	IndexingStatus(ctx context.Context) (<-chan *model.IndexingStatus, error)
 	NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error)
 	TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error)
+	MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error)
 }
 type UserProfileResolver interface {
 	IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error)
@@ -591,6 +604,48 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Message.ToolResults(childComplexity), true
 
+	case "MessageStreamPayload.chunk":
+		if e.complexity.MessageStreamPayload.Chunk == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.Chunk(childComplexity), true
+
+	case "MessageStreamPayload.createdAt":
+		if e.complexity.MessageStreamPayload.CreatedAt == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.CreatedAt(childComplexity), true
+
+	case "MessageStreamPayload.imageUrls":
+		if e.complexity.MessageStreamPayload.ImageUrls == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.ImageUrls(childComplexity), true
+
+	case "MessageStreamPayload.isComplete":
+		if e.complexity.MessageStreamPayload.IsComplete == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.IsComplete(childComplexity), true
+
+	case "MessageStreamPayload.messageId":
+		if e.complexity.MessageStreamPayload.MessageID == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.MessageID(childComplexity), true
+
+	case "MessageStreamPayload.role":
+		if e.complexity.MessageStreamPayload.Role == nil {
+			break
+		}
+
+		return e.complexity.MessageStreamPayload.Role(childComplexity), true
+
 	case "Mutation.addDataSource":
 		if e.complexity.Mutation.AddDataSource == nil {
 			break
@@ -739,6 +794,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.OAuthFlow.RedirectURI(childComplexity), true
 
+	case "OAuthStatus.error":
+		if e.complexity.OAuthStatus.Error == nil {
+			break
+		}
+
+		return e.complexity.OAuthStatus.Error(childComplexity), true
+
 	case "OAuthStatus.expiresAt":
 		if e.complexity.OAuthStatus.ExpiresAt == nil {
 			break
@@ -759,6 +821,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.OAuthStatus.Scope(childComplexity), true
+
+	case "OAuthStatus.username":
+		if e.complexity.OAuthStatus.Username == nil {
+			break
+		}
+
+		return e.complexity.OAuthStatus.Username(childComplexity), true
 
 	case "Query.getChat":
 		if e.complexity.Query.GetChat == nil {
@@ -849,6 +918,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Subscription.MessageAdded(childComplexity, args["chatId"].(string)), true
+
+	case "Subscription.messageStream":
+		if e.complexity.Subscription.MessageStream == nil {
+			break
+		}
+
+		args, err := ec.field_Subscription_messageStream_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Subscription.MessageStream(childComplexity, args["chatId"].(string)), true
 
 	case "Subscription.notificationAdded":
 		if e.complexity.Subscription.NotificationAdded == nil {
@@ -1557,6 +1638,29 @@ func (ec *executionContext) field_Subscription_messageAdded_args(ctx context.Con
 	return args, nil
 }
 func (ec *executionContext) field_Subscription_messageAdded_argsChatID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("chatId"))
+	if tmp, ok := rawArgs["chatId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Subscription_messageStream_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Subscription_messageStream_argsChatID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["chatId"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Subscription_messageStream_argsChatID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
@@ -3861,6 +3965,267 @@ func (ec *executionContext) fieldContext_Message_createdAt(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _MessageStreamPayload_messageId(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_messageId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.MessageID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_messageId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MessageStreamPayload_chunk(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_chunk(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Chunk, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_chunk(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MessageStreamPayload_role(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_role(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Role, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(model.Role)
+	fc.Result = res
+	return ec.marshalNRole2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_role(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Role does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MessageStreamPayload_isComplete(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_isComplete(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsComplete, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_isComplete(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MessageStreamPayload_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_createdAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CreatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalODateTime2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_createdAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _MessageStreamPayload_imageUrls(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MessageStreamPayload_imageUrls(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ImageUrls, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNString2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MessageStreamPayload_imageUrls(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MessageStreamPayload",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_startOAuthFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_startOAuthFlow(ctx, field)
 	if err != nil {
@@ -4022,6 +4387,10 @@ func (ec *executionContext) fieldContext_Mutation_refreshExpiredOAuthTokens(_ co
 				return ec.fieldContext_OAuthStatus_expiresAt(ctx, field)
 			case "scope":
 				return ec.fieldContext_OAuthStatus_scope(ctx, field)
+			case "username":
+				return ec.fieldContext_OAuthStatus_username(ctx, field)
+			case "error":
+				return ec.fieldContext_OAuthStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OAuthStatus", field.Name)
 		},
@@ -4769,6 +5138,94 @@ func (ec *executionContext) fieldContext_OAuthStatus_scope(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _OAuthStatus_username(ctx context.Context, field graphql.CollectedField, obj *model.OAuthStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthStatus_username(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Username, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthStatus_username(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _OAuthStatus_error(ctx context.Context, field graphql.CollectedField, obj *model.OAuthStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_OAuthStatus_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_OAuthStatus_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "OAuthStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_profile(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_profile(ctx, field)
 	if err != nil {
@@ -5060,6 +5517,10 @@ func (ec *executionContext) fieldContext_Query_getOAuthStatus(_ context.Context,
 				return ec.fieldContext_OAuthStatus_expiresAt(ctx, field)
 			case "scope":
 				return ec.fieldContext_OAuthStatus_scope(ctx, field)
+			case "username":
+				return ec.fieldContext_OAuthStatus_username(ctx, field)
+			case "error":
+				return ec.fieldContext_OAuthStatus_error(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type OAuthStatus", field.Name)
 		},
@@ -5754,6 +6215,89 @@ func (ec *executionContext) fieldContext_Subscription_telegramMessageAdded(ctx c
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Subscription_telegramMessageAdded_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_messageStream(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_messageStream(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().MessageStream(rctx, fc.Args["chatId"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.MessageStreamPayload):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNMessageStreamPayload2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageStreamPayload(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_messageStream(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "messageId":
+				return ec.fieldContext_MessageStreamPayload_messageId(ctx, field)
+			case "chunk":
+				return ec.fieldContext_MessageStreamPayload_chunk(ctx, field)
+			case "role":
+				return ec.fieldContext_MessageStreamPayload_role(ctx, field)
+			case "isComplete":
+				return ec.fieldContext_MessageStreamPayload_isComplete(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_MessageStreamPayload_createdAt(ctx, field)
+			case "imageUrls":
+				return ec.fieldContext_MessageStreamPayload_imageUrls(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type MessageStreamPayload", field.Name)
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Subscription_messageStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -8984,6 +9528,67 @@ func (ec *executionContext) _Message(ctx context.Context, sel ast.SelectionSet, 
 	return out
 }
 
+var messageStreamPayloadImplementors = []string{"MessageStreamPayload"}
+
+func (ec *executionContext) _MessageStreamPayload(ctx context.Context, sel ast.SelectionSet, obj *model.MessageStreamPayload) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, messageStreamPayloadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("MessageStreamPayload")
+		case "messageId":
+			out.Values[i] = ec._MessageStreamPayload_messageId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "chunk":
+			out.Values[i] = ec._MessageStreamPayload_chunk(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "role":
+			out.Values[i] = ec._MessageStreamPayload_role(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isComplete":
+			out.Values[i] = ec._MessageStreamPayload_isComplete(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "createdAt":
+			out.Values[i] = ec._MessageStreamPayload_createdAt(ctx, field, obj)
+		case "imageUrls":
+			out.Values[i] = ec._MessageStreamPayload_imageUrls(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var mutationImplementors = []string{"Mutation"}
 
 func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -9177,6 +9782,16 @@ func (ec *executionContext) _OAuthStatus(ctx context.Context, sel ast.SelectionS
 			}
 		case "scope":
 			out.Values[i] = ec._OAuthStatus_scope(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "username":
+			out.Values[i] = ec._OAuthStatus_username(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._OAuthStatus_error(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
@@ -9452,6 +10067,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_notificationAdded(ctx, fields[0])
 	case "telegramMessageAdded":
 		return ec._Subscription_telegramMessageAdded(ctx, fields[0])
+	case "messageStream":
+		return ec._Subscription_messageStream(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -10446,6 +11063,20 @@ func (ec *executionContext) marshalNMessage2ᚖgithubᚗcomᚋEternisAIᚋenchan
 	return ec._Message(ctx, sel, v)
 }
 
+func (ec *executionContext) marshalNMessageStreamPayload2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageStreamPayload(ctx context.Context, sel ast.SelectionSet, v model.MessageStreamPayload) graphql.Marshaler {
+	return ec._MessageStreamPayload(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNMessageStreamPayload2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐMessageStreamPayload(ctx context.Context, sel ast.SelectionSet, v *model.MessageStreamPayload) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._MessageStreamPayload(ctx, sel, v)
+}
+
 func (ec *executionContext) marshalNOAuthFlow2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐOAuthFlow(ctx context.Context, sel ast.SelectionSet, v model.OAuthFlow) graphql.Marshaler {
 	return ec._OAuthFlow(ctx, sel, &v)
 }
@@ -10974,6 +11605,22 @@ func (ec *executionContext) marshalOBoolean2ᚖbool(ctx context.Context, sel ast
 		return graphql.Null
 	}
 	res := graphql.MarshalBoolean(*v)
+	return res
+}
+
+func (ec *executionContext) unmarshalODateTime2ᚖstring(ctx context.Context, v any) (*string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalString(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalODateTime2ᚖstring(ctx context.Context, sel ast.SelectionSet, v *string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	res := graphql.MarshalString(*v)
 	return res
 }
 

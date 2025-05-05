@@ -178,6 +178,17 @@ subscription NotificationAdded {
   }
 }
 
+subscription MessageStream($chatId: ID!) {
+  messageStream(chatId: $chatId) {
+    messageId
+    chunk
+    role
+    isComplete
+    createdAt
+    imageUrls
+  }
+}
+
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }

@@ -134,4 +134,4 @@ run:
   # Include test files in the analysis
   tests: true
   # Global Go version to target (replaces per‑linter `go:` settings)
-  go: "1.21"
+  go: "1.24"

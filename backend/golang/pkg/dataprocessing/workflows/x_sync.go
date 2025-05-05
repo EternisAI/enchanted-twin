@@ -16,7 +16,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 )
 
-type XSyncWorkflowInput struct{}
+type XSyncWorkflowInput struct {
+	Username string `json:"username"`
+}
 
 type XSyncWorkflowResponse struct {
 	EndTime             time.Time `json:"endTime"`
@@ -64,7 +66,7 @@ func (w *DataProcessingWorkflows) XSyncWorkflow(
 	}
 
 	var response XFetchActivityResponse
-	err = workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput{}).Get(ctx, &response)
+	err = workflow.ExecuteActivity(ctx, w.XFetchActivity, XFetchActivityInput(input)).Get(ctx, &response)
 	if err != nil {
 		return workflowResponse, err
 	}
@@ -132,7 +134,7 @@ func (w *DataProcessingWorkflows) XFetchActivity(
 	ctx context.Context,
 	input XFetchActivityInput,
 ) (XFetchActivityResponse, error) {
-	tokens, err := w.Store.GetOAuthTokens(ctx, "twitter")
+	tokens, err := w.Store.GetOAuthTokensByUsername(ctx, "twitter", input.Username)
 	if err != nil {
 		return XFetchActivityResponse{}, fmt.Errorf("failed to get OAuth tokens: %w", err)
 	}
@@ -140,7 +142,7 @@ func (w *DataProcessingWorkflows) XFetchActivity(
 		return XFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for X")
 	}
 	w.Logger.Debug("XFetchActivity", "tokens", tokens)
-	records, err := dataprocessing.Sync(ctx, "x", tokens.AccessToken)
+	records, err := dataprocessing.Sync(ctx, "x", tokens.AccessToken, w.Store)
 	if err != nil {
 		return XFetchActivityResponse{}, err
 	}
