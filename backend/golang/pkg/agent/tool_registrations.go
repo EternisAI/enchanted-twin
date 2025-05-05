@@ -30,12 +30,12 @@ func RegisterStandardTools(
 	registeredTools := []tools.Tool{}
 
 	// Register basic tools
-	searchTool := &tools.SearchTool{}
-	if err := registry.Register(searchTool); err == nil {
-		registeredTools = append(registeredTools, searchTool)
-	} else {
-		logger.Warn("Failed to register search tool", "error", err)
-	}
+	// searchTool := &tools.SearchTool{}
+	// if err := registry.Register(searchTool); err == nil {
+	// 	registeredTools = append(registeredTools, searchTool)
+	// } else {
+	// 	logger.Warn("Failed to register search tool", "error", err)
+	// }
 
 	imageTool := &tools.ImageTool{}
 	if err := registry.Register(imageTool); err == nil {

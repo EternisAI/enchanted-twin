@@ -40,6 +40,7 @@ type EmailQuery struct {
 	Subject    string     `json:"subject"    jsonschema:"description=The text to search for in the subject of the emails, default is empty"`
 	Body       string     `json:"body"       jsonschema:"description=The text to search for in the body of the emails, default is empty"`
 	Label      string     `json:"label"      jsonschema:"description=The label of the emails to list, default is empty"`
+	IsUnread   bool       `json:"is_unread"  jsonschema:"description=Whether to list unread emails, default is false"`
 }
 
 type SearchEmailsArguments struct {
@@ -95,6 +96,9 @@ func (q *EmailQuery) ToQuery() (string, error) {
 	}
 	if q.Label != "" {
 		query += fmt.Sprintf(" label:%s", q.Label)
+	}
+	if q.IsUnread {
+		query += " is:unread"
 	}
 	return query, nil
 }

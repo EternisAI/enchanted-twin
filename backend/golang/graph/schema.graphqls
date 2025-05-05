@@ -115,6 +115,7 @@ type Mutation {
   deleteDataSource(id: ID!): Boolean!
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
+  removeMCPServer(id: String!): Boolean!
 }
 
 type Subscription {
