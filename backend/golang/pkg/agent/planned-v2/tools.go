@@ -9,13 +9,13 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // generateNextAction uses the LLM to determine the next actions based on the plan and history.
-func (a *AgentActivities) generateNextAction(
+func generateNextAction(
 	ctx workflow.Context,
 	state *PlanState,
-	tools []openai.ChatCompletionToolParam,
 	model string,
 ) ([]ToolCall, error) {
 	logger := workflow.GetLogger(ctx)
@@ -23,16 +23,22 @@ func (a *AgentActivities) generateNextAction(
 	// Execute LLM completion to get next action
 	var completion openai.ChatCompletionMessage
 
-	err := workflow.ExecuteActivity(ctx, a.LLMCompletionActivity, model, state.Messages, tools).
+	// We need an AgentActivities instance for the activity call
+	var activities *AgentActivities
+	err := workflow.ExecuteActivity(ctx, activities.LLMCompletionActivity, model, state.Messages, state.SelectedTools).
 		Get(ctx, &completion)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate next actions: %w", err)
 	}
 
 	// Add the LLM's response to the message history
+	aiToolCalls := make([]ai.ToolCall, 0, len(completion.ToolCalls))
+	for _, tc := range completion.ToolCalls {
+		aiToolCalls = append(aiToolCalls, ai.FromOpenAIToolCall(tc))
+	}
 	state.Messages = append(
 		state.Messages,
-		AssistantMessage(completion.Content, completion.ToolCalls),
+		ai.NewAssistantMessage(completion.Content, aiToolCalls),
 	)
 
 	// Add as thought to history
@@ -48,11 +54,13 @@ func (a *AgentActivities) generateNextAction(
 
 		// Create a special "final_response" tool call
 		finalResponseCall := ToolCall{
-			ID:   "final_response_" + workflow.Now(ctx).Format(time.RFC3339),
-			Type: "function",
-			Function: ToolCallFunction{
-				Name:      "final_response",
-				Arguments: fmt.Sprintf(`{"output": %q}`, completion.Content),
+			ToolCall: ai.ToolCall{
+				ID:   "final_response_" + workflow.Now(ctx).Format(time.RFC3339),
+				Type: "function",
+				Function: ai.ToolCallFunction{
+					Name:      "final_response",
+					Arguments: fmt.Sprintf(`{"output": %q}`, completion.Content),
+				},
 			},
 		}
 
@@ -60,32 +68,8 @@ func (a *AgentActivities) generateNextAction(
 	}
 
 	// Convert OpenAI tool calls to our custom format
-	toolCalls := make([]ToolCall, 0, len(completion.ToolCalls))
-
-	for _, toolCall := range completion.ToolCalls {
-		// Parse arguments
-		var args map[string]any
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-			logger.Warn("Failed to parse tool arguments", "error", err)
-			continue
-		}
-
-		// Create the tool call
-		customToolCall := ToolCall{
-			ID:   toolCall.ID,
-			Type: string(toolCall.Type), // Convert from constant.Function to string
-			Function: ToolCallFunction{
-				Name:      toolCall.Function.Name,
-				Arguments: toolCall.Function.Arguments,
-			},
-		}
-
-		// Add to the tool calls
-		toolCalls = append(toolCalls, customToolCall)
-
-		// Also add to the history for tracking
-		state.ToolCalls = append(state.ToolCalls, customToolCall)
-	}
+	toolCalls := ToolCallsFromOpenAI(completion.ToolCalls)
+	state.ToolCalls = append(state.ToolCalls, toolCalls...)
 
 	logger.Info("Generated next actions", "total_tool_calls", len(toolCalls))
 
@@ -93,11 +77,7 @@ func (a *AgentActivities) generateNextAction(
 }
 
 // executeAction executes a tool call and returns the result.
-func (a *AgentActivities) executeAction(
-	ctx workflow.Context,
-	toolCall ToolCall,
-	state *PlanState,
-) (*types.ToolResult, error) {
+func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
@@ -112,11 +92,10 @@ func (a *AgentActivities) executeAction(
 	// Special case for final response
 	if toolName == "final_response" {
 		output, _ := params["output"].(string)
-		result := &types.ToolResult{
-			Tool:    toolName,
-			Params:  params,
-			Content: output,
-			Data:    output,
+		result := &types.StructuredToolResult{
+			ToolName:   toolName,
+			ToolParams: params,
+			Output:     map[string]any{"content": output, "data": output},
 		}
 
 		// Store the result in the tool call
@@ -150,30 +129,18 @@ func (a *AgentActivities) executeAction(
 		return result, nil
 	}
 
-	// Check if tool exists
-	var found bool
-	for _, tool := range state.Tools {
-		if tool.Name == toolName {
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return nil, fmt.Errorf("tool not found: %s", toolName)
-	}
-
 	// Execute the tool activity
+	var activities *AgentActivities
 	var result types.ToolResult
-	err := workflow.ExecuteActivity(ctx, a.ExecuteToolActivity, toolName, params).Get(ctx, &result)
+	err := workflow.ExecuteActivity(ctx, activities.ExecuteToolActivity, toolName, params).Get(ctx, &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
 	}
 
 	// Store the result in the tool call
-	toolCall.Result = &result
+	toolCall.Result = result
 
-	return &result, nil
+	return result, nil
 }
 
 // SleepConfig holds common configuration for sleep operations.
@@ -185,7 +152,7 @@ type SleepConfig struct {
 }
 
 // executeSleepWithConfig performs the actual sleep operation and returns a result.
-func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*types.ToolResult, error) {
+func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Log the sleep
@@ -221,16 +188,15 @@ func executeSleepWithConfig(ctx workflow.Context, config SleepConfig) (*types.To
 	}
 
 	// Return result
-	return &types.ToolResult{
-		Tool:    config.ToolName,
-		Params:  config.Params,
-		Content: message,
-		Data:    message,
+	return &types.StructuredToolResult{
+		ToolName:   config.ToolName,
+		ToolParams: config.Params,
+		Output:     map[string]any{"content": message, "data": message},
 	}, nil
 }
 
 // executeSleep pauses workflow execution for the specified duration.
-func executeSleep(ctx workflow.Context, params map[string]interface{}) (*types.ToolResult, error) {
+func executeSleep(ctx workflow.Context, params map[string]interface{}) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract duration parameter
@@ -291,10 +257,7 @@ func executeSleep(ctx workflow.Context, params map[string]interface{}) (*types.T
 }
 
 // executeSleepUntil pauses workflow execution until the specified time.
-func executeSleepUntil(
-	ctx workflow.Context,
-	params map[string]interface{},
-) (*types.ToolResult, error) {
+func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (types.ToolResult, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Extract timestamp parameter
@@ -317,14 +280,17 @@ func executeSleepUntil(
 
 	// Check if time is in the past
 	if sleepDuration <= 0 {
-		return &types.ToolResult{
-			Tool:   "sleep_until",
-			Params: params,
-			Content: fmt.Sprintf(
-				"Target time %s is in the past. No sleep performed.",
-				targetTime.Format(time.RFC3339),
-			),
-			Data: "Target time is in the past",
+		message := fmt.Sprintf(
+			"Target time %s is in the past. No sleep performed.",
+			targetTime.Format(time.RFC3339),
+		)
+		return &types.StructuredToolResult{
+			ToolName:   "sleep_until",
+			ToolParams: params,
+			Output: map[string]any{
+				"content": message,
+				"data":    "Target time is in the past",
+			},
 		}, nil
 	}
 

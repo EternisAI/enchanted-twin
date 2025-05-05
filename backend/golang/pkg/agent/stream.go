@@ -9,6 +9,7 @@ import (
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 type StreamDelta struct {
@@ -35,31 +36,31 @@ func (a *Agent) ExecuteStream(
 	var (
 		finalContent string
 		allCalls     []openai.ChatCompletionMessageToolCall
-		allResults   []tools.ToolResult
+		allResults   []types.ToolResult
 		allImages    []string
 	)
 
-	runTool := func(tc openai.ChatCompletionMessageToolCall) (tools.ToolResult, error) {
+	runTool := func(tc openai.ChatCompletionMessageToolCall) (types.ToolResult, error) {
 		if a.PreToolCallback != nil {
 			a.PreToolCallback(tc)
 		}
 		tool, ok := toolMap[tc.Function.Name]
 		if !ok {
-			return tools.ToolResult{}, fmt.Errorf("tool %q not found", tc.Function.Name)
+			return types.SimpleToolResult(""), fmt.Errorf("tool %q not found", tc.Function.Name)
 		}
 		var args map[string]any
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return tools.ToolResult{}, err
+			return types.SimpleToolResult(""), err
 		}
 		res, err := tool.Execute(ctx, args)
 		if err != nil {
-			return tools.ToolResult{}, err
+			return types.SimpleToolResult(""), err
 		}
 		if a.PostToolCallback != nil {
 			a.PostToolCallback(tc, res)
 		}
-		if res.ImageURLs != nil {
-			allImages = append(allImages, res.ImageURLs...)
+		if urls := res.ImageURLs(); len(urls) > 0 {
+			allImages = append(allImages, urls...)
 		}
 		return res, nil
 	}
@@ -67,7 +68,7 @@ func (a *Agent) ExecuteStream(
 	for step := 0; step < MAX_STEPS; step++ {
 		stepContent := ""
 		stepCalls := []openai.ChatCompletionMessageToolCall{}
-		stepResults := []tools.ToolResult{}
+		stepResults := []types.ToolResult{}
 
 		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, a.CompletionsModel)
 
@@ -95,9 +96,12 @@ func (a *Agent) ExecuteStream(
 					}
 					stepCalls = append(stepCalls, tc)
 					stepResults = append(stepResults, res)
-					for _, image := range res.ImageURLs {
+
+					// Send image URLs if any
+					imageURLs := res.ImageURLs()
+					if len(imageURLs) > 0 {
 						onDelta(StreamDelta{
-							ImageURLs: []string{image},
+							ImageURLs: imageURLs,
 						})
 					}
 				} else {
@@ -128,7 +132,7 @@ func (a *Agent) ExecuteStream(
 			}.ToParam())
 		}
 		for i, call := range stepCalls {
-			messages = append(messages, openai.ToolMessage(stepResults[i].Content, call.ID))
+			messages = append(messages, openai.ToolMessage(stepResults[i].Content(), call.ID))
 		}
 
 		// keep global history

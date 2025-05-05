@@ -99,5 +99,5 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 		t.Fatalf("Failed to execute tool: %v", err)
 	}
 
-	fmt.Println(tool_response.Content)
+	fmt.Println(tool_response.Content())
 }

@@ -12,7 +12,7 @@ import (
 	"github.com/openai/openai-go/packages/param"
 	"go.temporal.io/sdk/client"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 // PlannedAgentTool implements a tool for planned agent execution.
@@ -48,19 +48,23 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"plan": map[string]interface{}{
+				"properties": map[string]any{
+					"plan": map[string]any{
 						"type":        "string",
 						"description": "A detailed step-by-step plan to execute",
 					},
-					"tools": map[string]interface{}{
+					"tools": map[string]any{
 						"type":        "array",
 						"description": "Optional list of tool names to use (defaults to all available tools)",
-						"items": map[string]interface{}{
+						"items": map[string]any{
 							"type": "string",
 						},
 					},
-					"system_prompt": map[string]interface{}{
+					"schedule": map[string]any{
+						"type":        "string",
+						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;BYHOUR=0;BYMINUTE=0' for daily at midnight)",
+					},
+					"system_prompt": map[string]any{
 						"type":        "string",
 						"description": "Optional system prompt override",
 					},
@@ -74,16 +78,20 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 // Execute starts the planned agent workflow and waits for completion.
 func (t *PlannedAgentTool) Execute(
 	ctx context.Context,
-	args map[string]interface{},
-) (tools.ToolResult, error) {
+	args map[string]any,
+) (agenttypes.ToolResult, error) {
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
-		return tools.ToolResult{}, fmt.Errorf("plan is required")
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  "plan is required",
+		}, fmt.Errorf("plan is required")
 	}
 
 	// Extract optional parameters
 	toolNames := []string{}
-	if toolsArg, ok := args["tools"].([]interface{}); ok {
+	if toolsArg, ok := args["tools"].([]any); ok {
 		for _, t := range toolsArg {
 			if toolName, ok := t.(string); ok {
 				toolNames = append(toolNames, toolName)
@@ -96,8 +104,15 @@ func (t *PlannedAgentTool) Execute(
 		systemPrompt = promptArg
 	}
 
+	schedule := ""
+	if scheduleArg, ok := args["schedule"].(string); ok {
+		schedule = scheduleArg
+	}
+
 	// Create workflow input
 	input := PlanInput{
+		Origin:       args,
+		Schedule:     schedule,
 		Plan:         plan,
 		ToolNames:    toolNames,
 		Model:        t.model,
@@ -106,7 +121,11 @@ func (t *PlannedAgentTool) Execute(
 
 	inputJSON, err := json.Marshal(input)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to marshal input: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  fmt.Sprintf("failed to marshal input: %v", err),
+		}, fmt.Errorf("failed to marshal input: %w", err)
 	}
 
 	// Generate a unique workflow ID using UUID
@@ -121,59 +140,73 @@ func (t *PlannedAgentTool) Execute(
 
 	// Start the workflow
 	t.logger.Info("Starting planned agent workflow", "plan_length", len(plan), "tools", toolNames)
-	execution, err := t.temporalClient.ExecuteWorkflow(
+	run, err := t.temporalClient.ExecuteWorkflow(
 		ctx,
 		workflowOptions,
 		WorkflowName,
 		inputJSON,
 	)
 	if err != nil {
-		return tools.ToolResult{}, fmt.Errorf("failed to start workflow: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  fmt.Sprintf("failed to start workflow: %v", err),
+		}, fmt.Errorf("failed to start workflow: %w", err)
 	}
 
 	t.logger.Info(
 		"Workflow started",
 		"workflow_id",
-		execution.GetID(),
+		run.GetID(),
 		"run_id",
-		execution.GetRunID(),
+		run.GetRunID(),
 	)
 
 	// Wait for workflow completion with timeout
-	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
+	waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
 	var result string
-	err = execution.Get(waitCtx, &result)
+	err = run.Get(waitCtx, &result)
 	if err != nil {
 		// Try to query for output in case of timeout
 		var output string
 		resp, queryErr := t.temporalClient.QueryWorkflow(
 			ctx,
-			execution.GetID(),
-			execution.GetRunID(),
+			run.GetID(),
+			run.GetRunID(),
 			QueryGetOutput,
 			nil,
 		)
 		if queryErr == nil {
 			queryErr = resp.Get(&output)
 			if queryErr == nil && output != "" {
-				return tools.ToolResult{
-					Content: fmt.Sprintf(
-						"Plan execution in progress. Current output: %s",
-						output,
-					),
-					ImageURLs: []string{},
+				return &agenttypes.StructuredToolResult{
+					ToolName:   "schedule_task",
+					ToolParams: args,
+					Output: map[string]any{
+						"content": fmt.Sprintf(
+							"Plan execution in progress. Current output: %s",
+							output,
+						),
+					},
 				}, nil
 			}
 		}
 
-		return tools.ToolResult{}, fmt.Errorf("workflow execution failed: %w", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  fmt.Sprintf("workflow execution failed: %v", err),
+		}, fmt.Errorf("workflow execution failed: %w", err)
 	}
 
 	// Create the result
-	return tools.ToolResult{
-		Content:   result,
-		ImageURLs: []string{},
+	return &agenttypes.StructuredToolResult{
+		ToolName:   "schedule_task",
+		ToolParams: args,
+		Output: map[string]any{
+			"content": result,
+		},
 	}, nil
 }
