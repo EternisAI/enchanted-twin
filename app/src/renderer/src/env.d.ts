@@ -44,6 +44,7 @@ interface IApi {
   onUpdateStatus: (callback: (status: string) => void) => () => void
   onUpdateProgress: (callback: (progressData: { percent: number }) => void) => () => void
   checkForUpdates: (silent: boolean) => Promise<void>
+  getAppVersion: () => Promise<string>
 }
 
 declare global {
