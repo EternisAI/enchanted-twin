@@ -149,7 +149,6 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 		}()
 	}
 
-	// feed jobs
 	go func() {
 		f, err := os.Open(path)
 		if err != nil {
@@ -157,6 +156,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			close(jobs)
 			return
 		}
+
 		defer f.Close() //nolint:errcheck
 
 		var buf bytes.Buffer
@@ -190,7 +190,6 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 		close(jobs)
 	}()
 
-	// collect
 	go func() { wg.Wait(); close(results) }()
 
 	records := make(map[int]types.Record)
@@ -240,7 +239,6 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 	mt, params, _ := mime.ParseMediaType(h.Get("Content-Type"))
 	var final string
 
-	// ── multipart ───────────────────────────────────────
 	if strings.HasPrefix(mt, "multipart/") {
 		mr := multipart.NewReader(msg.Body, params["boundary"])
 		var plain, html string
@@ -275,7 +273,7 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 		} else {
 			final = html
 		}
-	} else { // ── single part ─────────────────────────────
+	} else {
 		enc := strings.ToLower(h.Get("Content-Transfer-Encoding"))
 		r := msg.Body
 		if enc == "quoted-printable" {
@@ -419,7 +417,6 @@ func SortByOldest(records []types.Record) {
 		return
 	}
 
-	// Sort in place
 	for i := 0; i < len(records)-1; i++ {
 		for j := i + 1; j < len(records); j++ {
 			if records[i].Timestamp.After(records[j].Timestamp) {
@@ -467,14 +464,12 @@ func (g *Gmail) fetchMessage(
 		return types.Record{}, err
 	}
 
-	// headers → map
 	h := map[string]string{}
 	for _, v := range msg.Payload.Headers {
 		h[v.Name] = v.Value
 	}
 	date, _ := mail.ParseDate(h["Date"])
 
-	// ── extract preferred body ───────────────────────────
 	var plain, html string
 
 	for _, p := range msg.Payload.Parts {
@@ -489,7 +484,6 @@ func (g *Gmail) fetchMessage(
 		}
 	}
 
-	// single-part fallback
 	if plain == "" && html == "" && msg.Payload.Body.Data != "" {
 		switch {
 		case strings.HasPrefix(msg.Payload.MimeType, "text/plain"):
