@@ -129,9 +129,9 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
       upsertMessage(updatedMessage)
     }
 
-    if (isComplete) {
-      setIsWaitingTwinResponse(false)
-    }
+    // if (isComplete) {
+    setIsWaitingTwinResponse(false)
+    // }
   })
 
   useToolCallUpdate(chat.id, (toolCall) => {
