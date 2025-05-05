@@ -121,6 +121,20 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			return "", err
 		}
 
+		options := client.StartWorkflowOptions{
+			ID:        "gmail-history-workflow",
+			TaskQueue: "default",
+		}
+		_, err := (r.TemporalClient).ExecuteWorkflow(
+			ctx,
+			options,
+			"GmailHistoryWorkflow",
+			map[string]interface{}{"username": username},
+		)
+		if err != nil {
+			return "", fmt.Errorf("error executing workflow: %v", err)
+		}
+
 	case "slack":
 		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 			Name:    "Slack",
@@ -145,6 +159,7 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			r.Logger.Error("Error creating schedule", "error", err)
 			return "", err
 		}
+
 	default:
 		// Nothing to do
 	}

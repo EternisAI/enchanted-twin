@@ -347,6 +347,92 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, bool, e
 	return out, true, nil
 }
 
+// SyncWithDateRange fetches emails within a specific date range with pagination
+// startDate and endDate should be in YYYY/MM/DD format
+// If endDate is empty, it defaults to current time
+// If maxResults is <= 0, it defaults to 100
+// Returns records, hasMorePages, nextPageToken, error
+func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate string, maxResults int, pageToken string) ([]types.Record, bool, string, error) {
+	if maxResults <= 0 {
+		maxResults = 100
+	}
+
+	c := &http.Client{Timeout: 30 * time.Second}
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://gmail.googleapis.com/gmail/v1/users/me/messages", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	q := req.URL.Query()
+	q.Set("maxResults", fmt.Sprintf("%d", maxResults))
+
+	// Build the query
+	queryParams := []string{"in:inbox"}
+	if startDate != "" {
+		queryParams = append(queryParams, fmt.Sprintf("after:%s", startDate))
+	}
+	if endDate != "" {
+		queryParams = append(queryParams, fmt.Sprintf("before:%s", endDate))
+	}
+	q.Set("q", strings.Join(queryParams, " "))
+
+	// Add page token for pagination if provided
+	if pageToken != "" {
+		q.Set("pageToken", pageToken)
+	}
+
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, false, "", err
+	}
+
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, false, "", fmt.Errorf("gmail list: %d %s", resp.StatusCode, b)
+	}
+
+	var list struct {
+		Messages      []struct{ ID string } `json:"messages"`
+		NextPageToken string                `json:"nextPageToken"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, false, "", err
+	}
+
+	var out []types.Record
+	for _, m := range list.Messages {
+		rec, err := g.fetchMessage(ctx, c, token, m.ID)
+		if err != nil {
+			log.Errorf("message %s: %v", m.ID, err)
+			continue
+		}
+		out = append(out, rec)
+	}
+
+	hasMore := list.NextPageToken != ""
+	return out, hasMore, list.NextPageToken, nil
+}
+
+// sortByOldest sorts records by timestamp (oldest first)
+func SortByOldest(records []types.Record) {
+	if len(records) <= 1 {
+		return
+	}
+
+	// Sort in place
+	for i := 0; i < len(records)-1; i++ {
+		for j := i + 1; j < len(records); j++ {
+			if records[i].Timestamp.After(records[j].Timestamp) {
+				records[i], records[j] = records[j], records[i]
+			}
+		}
+	}
+}
+
 func (g *Gmail) fetchMessage(
 	ctx context.Context,
 	c *http.Client,
