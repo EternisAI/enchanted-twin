@@ -38,13 +38,12 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 		},
 	})
 
-	monthsBefore := 12 // Total months to go back
-	windowSize := 3    // Size of each time window in months
-	limit := 10000     // Maximum number of records to fetch
+	monthsBefore := 12
+	windowSize := 3
+	limit := 10000
 
 	var allRecords []types.Record
 
-	// Outer loop for time windows
 	for window := 0; window < monthsBefore/windowSize; window++ {
 		startOffset := window*windowSize + windowSize
 		endOffset := window * windowSize
@@ -57,7 +56,6 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 
 		w.Logger.Info("Fetching window", "startDate", startDateStr, "endDate", endDateStr)
 
-		// Inner loop for pagination within a time window
 		nextPageToken := ""
 		hasMore := true
 

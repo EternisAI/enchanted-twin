@@ -347,11 +347,6 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, bool, e
 	return out, true, nil
 }
 
-// SyncWithDateRange fetches emails within a specific date range with pagination
-// startDate and endDate should be in YYYY/MM/DD format
-// If endDate is empty, it defaults to current time
-// If maxResults is <= 0, it defaults to 100
-// Returns records, hasMorePages, nextPageToken, error
 func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate string, maxResults int, pageToken string) ([]types.Record, bool, string, error) {
 	if maxResults <= 0 {
 		maxResults = 100
@@ -366,7 +361,6 @@ func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate
 	q := req.URL.Query()
 	q.Set("maxResults", fmt.Sprintf("%d", maxResults))
 
-	// Build the query
 	queryParams := []string{"in:inbox"}
 	if startDate != "" {
 		queryParams = append(queryParams, fmt.Sprintf("after:%s", startDate))
@@ -376,7 +370,6 @@ func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate
 	}
 	q.Set("q", strings.Join(queryParams, " "))
 
-	// Add page token for pagination if provided
 	if pageToken != "" {
 		q.Set("pageToken", pageToken)
 	}
@@ -388,7 +381,11 @@ func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate
 		return nil, false, "", err
 	}
 
-	defer resp.Body.Close() //nolint:errcheck
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Errorf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
@@ -417,7 +414,6 @@ func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate
 	return out, hasMore, list.NextPageToken, nil
 }
 
-// sortByOldest sorts records by timestamp (oldest first)
 func SortByOldest(records []types.Record) {
 	if len(records) <= 1 {
 		return
