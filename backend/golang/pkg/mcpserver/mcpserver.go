@@ -286,6 +286,10 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 	return allTools, nil
 }
 
+func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
+	return s.repo.DeleteMCPServer(ctx, id)
+}
+
 func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

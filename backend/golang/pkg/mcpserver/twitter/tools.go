@@ -231,13 +231,13 @@ func processSearchTweets(
 
 	search, err := client.TweetRecentSearch(ctx, arguments.Query, twitter.TweetRecentSearchOpts{
 		MaxResults: limit,
-		Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
-		UserFields: []twitter.UserField{twitter.UserFieldUserName},
 		TweetFields: []twitter.TweetField{
 			twitter.TweetFieldPublicMetrics,
 			twitter.TweetFieldCreatedAt,
 			twitter.TweetFieldAuthorID,
 		},
+		UserFields: []twitter.UserField{twitter.UserFieldUserName},
+		Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
 	})
 	if err != nil {
 		return nil, err
@@ -260,7 +260,7 @@ func processSearchTweets(
 					"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
 					tweet.Text,
 					tweet.CreatedAt,
-					tweet.AuthorID,
+					authorName,
 					tweetURL,
 				),
 			},
