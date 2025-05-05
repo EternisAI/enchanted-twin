@@ -1,18 +1,10 @@
 import { DataSourcesPanel } from './components/data-sources/DataSourcesPanel'
 import MCPPanel from './components/oauth/MCPPanel'
 import { ScrollArea } from './components/ui/scroll-area'
-import { useEffect, useState } from 'react'
+import useAppVersion from './hooks/useAppVersion'
 
 export default function App(): React.JSX.Element {
-  const [version, setVersion] = useState<string>('')
-
-  useEffect(() => {
-    const getVersion = async () => {
-      const appVersion = await window.api.getAppVersion()
-      setVersion(appVersion)
-    }
-    getVersion()
-  }, [])
+  const { version } = useAppVersion()
 
   return (
     <ScrollArea className="h-full w-full">
