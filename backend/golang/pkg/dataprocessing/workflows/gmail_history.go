@@ -38,43 +38,59 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 		},
 	})
 
-	monthsBefore := 3
-	limit := 10000
-
-	endDate := time.Now().AddDate(0, -monthsBefore, 0)
-	endDateStr := endDate.Format("2006-01-02")
+	monthsBefore := 12 // Total months to go back
+	windowSize := 3    // Size of each time window in months
+	limit := 10000     // Maximum number of records to fetch
 
 	var allRecords []types.Record
-	nextPageToken := ""
-	hasMore := true
 
-	for hasMore && len(allRecords) < limit {
+	// Outer loop for time windows
+	for window := 0; window < monthsBefore/windowSize; window++ {
+		startOffset := window*windowSize + windowSize
+		endOffset := window * windowSize
 
-		var response GmailHistoryFetchActivityResponse
-		err := workflow.ExecuteActivity(ctx, w.GmailFetchHistoryActivity, GmailHistoryFetchActivityInput{
-			Username:      input.Username,
-			EndDate:       endDateStr,
-			NextPageToken: nextPageToken,
-		}).
-			Get(ctx, &response)
-		if err != nil {
-			return GmailHistoryWorkflowResponse{}, err
+		startDate := time.Now().AddDate(0, -startOffset, 0)
+		endDate := time.Now().AddDate(0, -endOffset, 0)
+
+		startDateStr := startDate.Format("2006-01-02")
+		endDateStr := endDate.Format("2006-01-02")
+
+		w.Logger.Info("Fetching window", "startDate", startDateStr, "endDate", endDateStr)
+
+		// Inner loop for pagination within a time window
+		nextPageToken := ""
+		hasMore := true
+
+		for hasMore && len(allRecords) < limit {
+			var response GmailHistoryFetchActivityResponse
+			err := workflow.ExecuteActivity(ctx, w.GmailFetchHistoryActivity, GmailHistoryFetchActivityInput{
+				Username:      input.Username,
+				StartDate:     startDateStr,
+				EndDate:       endDateStr,
+				NextPageToken: nextPageToken,
+			}).
+				Get(ctx, &response)
+			if err != nil {
+				return GmailHistoryWorkflowResponse{}, err
+			}
+
+			allRecords = append(allRecords, response.Records...)
+			hasMore = response.More
+			nextPageToken = response.NextPageToken
+
+			if len(allRecords) >= limit {
+				break
+			}
+
+			workflow.Sleep(ctx, 1*time.Second)
 		}
-
-		allRecords = append(allRecords, response.Records...)
-		hasMore = response.More
-		nextPageToken = response.NextPageToken
 
 		if len(allRecords) >= limit {
 			break
 		}
-
-		gmail.SortByOldest(allRecords)
-
-		workflow.Sleep(ctx, 1*time.Second)
-
 	}
 
+	gmail.SortByOldest(allRecords)
 	w.Logger.Info("All records", "value", len(allRecords))
 
 	err := workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: allRecords}).Get(ctx, nil)
@@ -87,6 +103,7 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 
 type GmailHistoryFetchActivityInput struct {
 	Username      string `json:"username"`
+	StartDate     string `json:"startDate"`
 	EndDate       string `json:"endDate"`
 	NextPageToken string `json:"nextPageToken"`
 }
@@ -111,7 +128,7 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 
 	g := gmail.New()
 
-	records, more, token, err := g.SyncWithDateRange(ctx, tokens.AccessToken, "", input.EndDate, 50, input.NextPageToken)
+	records, more, token, err := g.SyncWithDateRange(ctx, tokens.AccessToken, input.StartDate, input.EndDate, 50, input.NextPageToken)
 	if err != nil {
 		return GmailHistoryFetchActivityResponse{}, err
 	}
