@@ -184,13 +184,28 @@ func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
 func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
+		content, ok := record.Data["TEXT"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert TEXT field to string")
+		}
+
+		fromName, ok := record.Data["FROMNAME"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert FROMNAME field to string")
+		}
+
+		toName, ok := record.Data["TONAME"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert TONAME field to string")
+		}
+
 		documents = append(documents, memory.TextDocument{
-			Content:   record.Data["TEXT"].(string), // Use simplified key
+			Content:   content,
 			Timestamp: &record.Timestamp,
 			Tags:      []string{"whatsapp"},
 			Metadata: map[string]string{
-				"from": record.Data["FROMNAME"].(string), // Use simplified key
-				"to":   record.Data["TONAME"].(string),   // Use simplified key
+				"from": fromName,
+				"to":   toName,
 			},
 		})
 	}
