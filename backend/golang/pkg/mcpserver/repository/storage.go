@@ -174,3 +174,16 @@ func (r *Repository) GetMCPServers(ctx context.Context) ([]*model.MCPServer, err
 
 	return servers, nil
 }
+
+const deleteMCPServerQuery = `
+DELETE FROM mcp_servers WHERE id = $1;
+`
+
+func (r *Repository) DeleteMCPServer(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, deleteMCPServerQuery, id)
+	if err != nil {
+		r.logger.Error("failed to delete mcp server", "error", err, "id", id)
+		return err
+	}
+	return nil
+}

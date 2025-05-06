@@ -24,4 +24,6 @@ type MCPService interface {
 	GetTools(ctx context.Context) ([]mcp.ToolRetType, error)
 	// Get Tools for internal use
 	GetInternalTools(ctx context.Context) ([]tools.Tool, error)
+	// Remove MCP Server
+	RemoveMCPServer(ctx context.Context, id string) error
 }
