@@ -574,10 +574,7 @@ func ToDocuments(recs []types.Record) ([]memory.TextDocument, error) {
 	return out, nil
 }
 
-// cleanEmailText normalises line-breaks, zaps zero-width & NBSP chars,
-// collapses excess whitespace, and chops common footer / unsubscribe sections.
 func cleanEmailText(s string) string {
-	// 1) normalise breaks + common "invisible" chars
 	repl := strings.NewReplacer(
 		"\r\n", "\n", "\r", "\n",
 		"\u00a0", " ", // NBSP
@@ -586,11 +583,9 @@ func cleanEmailText(s string) string {
 	)
 	s = repl.Replace(s)
 
-	// 2) remove http(s) links
 	linkRegex := regexp.MustCompile(`https?://[^\s)]+`) // Avoid matching trailing ')'
 	s = linkRegex.ReplaceAllString(s, "")
 
-	// 3) per-line cleanup, stop at first footer clue
 	var out []string
 	for _, ln := range strings.Split(s, "\n") {
 		ln = strings.TrimSpace(ln)
@@ -604,7 +599,7 @@ func cleanEmailText(s string) string {
 			strings.HasPrefix(lc, "©") ||
 			strings.HasPrefix(lc, "google llc") ||
 			strings.HasPrefix(lc, "this email was sent") {
-			break // discard everything after the first footer hit
+			break
 		}
 		out = append(out, ln)
 	}
