@@ -7,7 +7,7 @@ import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { useSettingsStore } from '@renderer/lib/stores/settings'
 import * as Tabs from '@radix-ui/react-tabs'
-import ReactFocusLock from 'react-focus-lock'
+import FocusLock from 'react-focus-lock'
 
 export function SettingsDialog() {
   const { isOpen, close, activeTab, setActiveTab } = useSettingsStore()
@@ -15,7 +15,7 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={close}>
-      <ReactFocusLock disabled={!isOpen}>
+      <FocusLock disabled={!isOpen} returnFocus>
         <DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0 z-[100]">
           <div className="flex h-full w-full">
             <Tabs.Root
@@ -150,7 +150,7 @@ export function SettingsDialog() {
             </Tabs.Root>
           </div>
         </DialogContent>
-      </ReactFocusLock>
+      </FocusLock>
     </Dialog>
   )
 }

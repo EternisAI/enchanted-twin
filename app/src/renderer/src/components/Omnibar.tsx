@@ -120,7 +120,7 @@ export const Omnibar = () => {
   }, [isOpen, selectedIndex, filteredChats, navigate, closeOmnibar])
 
   return (
-    <FocusLock disabled={!isOpen}>
+    <FocusLock disabled={!isOpen} returnFocus>
       <AnimatePresence>
         {isOpen && (
           <motion.div
