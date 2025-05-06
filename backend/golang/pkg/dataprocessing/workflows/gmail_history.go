@@ -2,7 +2,9 @@ package workflows
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/pkg/errors"
@@ -13,6 +15,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
+
+// Maximum input size for Temporal payloads (slightly under 2MB to be safe)
+const MaxTemporalInputSizeBytes = 1900 * 1024
 
 type GmailHistoryWorkflowInput struct {
 	Username string `json:"username"`
@@ -87,20 +92,15 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 				break
 			}
 
-			workflow.Sleep(ctx, 1*time.Second)
+			err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: response.Records}).Get(ctx, nil)
+			if err != nil {
+				return GmailHistoryWorkflowResponse{}, err
+			}
 		}
 
 		if len(allRecords) >= limit {
 			break
 		}
-	}
-
-	gmail.SortByOldest(allRecords)
-	w.Logger.Info("All records", "value", len(allRecords))
-
-	err := workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: allRecords}).Get(ctx, nil)
-	if err != nil {
-		return GmailHistoryWorkflowResponse{}, err
 	}
 
 	return GmailHistoryWorkflowResponse{}, nil
@@ -138,7 +138,96 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 		return GmailHistoryFetchActivityResponse{}, err
 	}
 
-	return GmailHistoryFetchActivityResponse{Records: records, NextPageToken: token, More: more}, nil
+	// Check if records size exceeds Temporal payload limit
+	trimmedRecords, err := ensureRecordsUnderSizeLimit(records)
+	if err != nil {
+		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to process records size: %w", err)
+	}
+
+	if len(trimmedRecords) < len(records) {
+		w.Logger.Info("Trimmed oversized records payload",
+			"original_count", len(records),
+			"trimmed_count", len(trimmedRecords))
+	}
+
+	return GmailHistoryFetchActivityResponse{Records: trimmedRecords, NextPageToken: token, More: more}, nil
+}
+
+// ensureRecordsUnderSizeLimit ensures that the records payload is under the Temporal size limit
+// It removes the largest records if necessary to stay under the limit
+func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error) {
+	if len(records) == 0 {
+		return records, nil
+	}
+
+	// Calculate initial size
+	totalSize, recordSizes, err := calculateRecordsSize(records)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Println("===========TOTAL SIZE", totalSize)
+
+	if totalSize <= MaxTemporalInputSizeBytes {
+		return records, nil
+	}
+
+	type recordWithSize struct {
+		record types.Record
+		size   int
+		index  int
+	}
+
+	recordsWithSize := make([]recordWithSize, len(records))
+	for i, size := range recordSizes {
+		recordsWithSize[i] = recordWithSize{
+			record: records[i],
+			size:   size,
+			index:  i,
+		}
+	}
+
+	sort.Slice(recordsWithSize, func(i, j int) bool {
+		return recordsWithSize[i].size > recordsWithSize[j].size
+	})
+
+	resultRecords := make([]types.Record, len(records))
+	copy(resultRecords, records)
+
+	for i := 0; totalSize > MaxTemporalInputSizeBytes && i < len(recordsWithSize); i++ {
+		idx := recordsWithSize[i].index
+		totalSize -= recordsWithSize[i].size
+
+		resultRecords[idx] = types.Record{}
+	}
+
+	filteredRecords := make([]types.Record, 0, len(resultRecords))
+	for _, r := range resultRecords {
+		if r.Source != "" || r.Timestamp != (time.Time{}) || len(r.Data) > 0 {
+			filteredRecords = append(filteredRecords, r)
+		}
+	}
+
+	return filteredRecords, nil
+}
+
+// calculateRecordsSize calculates the total size of records in bytes and the size of each record
+func calculateRecordsSize(records []types.Record) (int, []int, error) {
+	totalSize := 0
+	recordSizes := make([]int, len(records))
+
+	for i, record := range records {
+		data, err := json.Marshal(record)
+		if err != nil {
+			return 0, nil, fmt.Errorf("failed to marshal record for size calculation: %w", err)
+		}
+
+		size := len(data)
+		recordSizes[i] = size
+		totalSize += size
+	}
+
+	return totalSize, recordSizes, nil
 }
 
 type GmailHistoryIndexActivityInput struct {
