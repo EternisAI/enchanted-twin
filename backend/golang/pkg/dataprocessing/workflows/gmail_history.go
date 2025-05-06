@@ -129,7 +129,6 @@ func (w *DataProcessingWorkflows) GmailFetchAndIndexActivity(
 						w.Logger.Debug("Skipping duplicate email", "message_id", msgID)
 					}
 				} else {
-
 					windowRecords = append(windowRecords, record)
 					w.Logger.Warn("Email missing message_id", "subject", record.Data["subject"])
 				}
