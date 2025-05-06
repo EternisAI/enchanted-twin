@@ -33,8 +33,11 @@ type PlanState struct {
 	// Current execution progress
 	CurrentStep int `json:"current_step"`
 
+	// Execution metadata
+	StartedAt time.Time `json:"started_at"`
+
 	// Flag indicating if execution is complete
-	Complete bool `json:"complete"`
+	CompletedAt time.Time `json:"completed_at"`
 
 	// Final output when plan is complete
 	Output string `json:"output"`
@@ -56,7 +59,8 @@ type PlanState struct {
 
 	// Typed history entries (for structured logging and UI)
 	// NOTE: currently this mostly duplicates the Messages field
-	// it may be useful for future UI or logging needs
+	// except it tracks the type of each entry (thought, action, etc.)
+	// and the timestamp of each entry. (used for `UpdatedAt`)
 	History []HistoryEntry `json:"history"`
 
 	// Available tools for the agent
@@ -65,8 +69,6 @@ type PlanState struct {
 	// Image URLs generated (if any)
 	ImageURLs []string `json:"image_urls"`
 
-	// Execution metadata
-	StartTime time.Time `json:"start_time"`
 }
 
 // HistoryEntry represents a single entry in the agent's execution history.
