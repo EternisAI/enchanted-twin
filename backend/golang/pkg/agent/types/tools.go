@@ -1,29 +1,94 @@
 package types
 
 import (
+	"context"
+
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 )
 
-// ToolResult contains the result of tool execution.
-type ToolResult struct {
-	// Name of the tool that was executed
-	Tool string `json:"tool"`
+// ToolResult defines the interface for results returned by tools.
+type ToolResult interface {
+	// Tool returns the name of the tool that was executed
+	Tool() string
 
-	// Parameters used for the execution
-	Params map[string]any `json:"params"`
+	// Content returns the text content result from the tool
+	Content() string
 
-	// Content result from the tool
-	Content string `json:"content"`
+	// Data returns any structured data from the tool
+	Data() any
 
-	// Structured result data (if any)
-	Data any `json:"data,omitempty"`
+	// ImageURLs returns any image URLs produced by the tool
+	ImageURLs() []string
 
-	// Image URLs produced (if any)
-	ImageURLs []string `json:"image_urls,omitempty"`
+	// Error returns any error message if execution failed
+	Error() string
 
-	// Error message (if execution failed)
-	Error string `json:"error,omitempty"`
+	// Params returns the parameters used for execution
+	Params() map[string]any
+}
+
+// StructuredToolResult is a standard implementation of ToolResult.
+type StructuredToolResult struct {
+	ToolName   string         `json:"tool"`
+	ToolParams map[string]any `json:"params"`
+	Output     map[string]any `json:"data,omitempty"`
+	ToolError  string         `json:"error,omitempty"`
+}
+
+func (t *StructuredToolResult) Tool() string {
+	return t.ToolName
+}
+
+func (t *StructuredToolResult) Content() string {
+	if content, ok := t.Output["content"].(string); ok {
+		return content
+	}
+
+	return ""
+}
+
+func (t *StructuredToolResult) Data() any {
+	if data, ok := t.Output["data"]; ok {
+		return data
+	}
+	return t.Output
+}
+
+func (t *StructuredToolResult) ImageURLs() []string {
+	if images, ok := t.Output["images"].([]string); ok {
+		return images
+	}
+	return nil
+}
+
+func (t *StructuredToolResult) Error() string {
+	return t.ToolError
+}
+
+func (t *StructuredToolResult) Params() map[string]any {
+	return t.ToolParams
+}
+
+// SimpleToolResult creates a minimal tool result with just content.
+func SimpleToolResult(content string) *StructuredToolResult {
+	return &StructuredToolResult{
+		Output: map[string]any{
+			"content": content,
+		},
+		ToolParams: make(map[string]any),
+	}
+}
+
+// ImageToolResult creates a tool result with image URLs.
+func ImageToolResult(content string, imageURLs []string) *StructuredToolResult {
+	return &StructuredToolResult{
+		Output: map[string]any{
+			"content": content,
+			"images":  imageURLs,
+		},
+		ToolParams: make(map[string]any),
+	}
 }
 
 // ToOpenAIToolParam converts a ToolDef to OpenAI tool format.
@@ -46,4 +111,13 @@ func (t ToolDef) GetParameters() map[string]any {
 // GetReturns returns the Returns field as a map[string]any.
 func (t ToolDef) GetReturns() map[string]any {
 	return map[string]any(t.Returns)
+}
+
+// Tool defines the interface for all executable tools.
+type Tool interface {
+	// Definition returns the tool metadata
+	Definition() openai.ChatCompletionToolParam
+
+	// Execute runs the tool with given inputs
+	Execute(ctx context.Context, inputs map[string]any) (ToolResult, error)
 }

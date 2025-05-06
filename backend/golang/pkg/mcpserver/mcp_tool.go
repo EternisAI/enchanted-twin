@@ -10,7 +10,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 type MCPClient interface {
@@ -23,32 +23,54 @@ type MCPTool struct {
 	Tool   mcp_golang.ToolRetType
 }
 
-func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (tools.ToolResult, error) {
+func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error) {
 	if t.Client == nil {
 		fmt.Println("Client not found")
-		return tools.ToolResult{}, errors.New("client not found")
+		return &agenttypes.StructuredToolResult{
+			ToolName:   t.Tool.Name,
+			ToolParams: inputs,
+			ToolError:  "client not found",
+		}, errors.New("client not found")
 	}
 
 	response, err := t.Client.CallTool(ctx, t.Tool.Name, inputs)
 	if err != nil {
-		return tools.ToolResult{}, err
+		return &agenttypes.StructuredToolResult{
+			ToolName:   t.Tool.Name,
+			ToolParams: inputs,
+			ToolError:  err.Error(),
+		}, err
 	}
 
 	if len(response.Content) == 0 {
-		return tools.ToolResult{
-			Content: "No content returned from tool",
+		return &agenttypes.StructuredToolResult{
+			ToolName:   t.Tool.Name,
+			ToolParams: inputs,
+			Output: map[string]any{
+				"content": "No content returned from tool",
+			},
 		}, nil
 	}
-	result := tools.ToolResult{}
+
+	resultText := ""
+	resultImages := []string{}
 	for _, content := range response.Content {
 		if content.ImageContent != nil {
-			result.ImageURLs = append(result.ImageURLs, content.ImageContent.Data)
+			resultImages = append(resultImages, content.ImageContent.Data)
 		}
 		if content.TextContent != nil {
-			result.Content = fmt.Sprintf("%s\n%s", result.Content, content.TextContent.Text)
+			resultText = fmt.Sprintf("%s\n%s", resultText, content.TextContent.Text)
 		}
 	}
-	return result, nil
+
+	return &agenttypes.StructuredToolResult{
+		ToolName:   t.Tool.Name,
+		ToolParams: inputs,
+		Output: map[string]any{
+			"content": resultText,
+			"images":  resultImages,
+		},
+	}, nil
 }
 
 func (t *MCPTool) Definition() openai.ChatCompletionToolParam {

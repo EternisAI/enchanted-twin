@@ -321,11 +321,7 @@ func TestProcessDirectMessageFile(t *testing.T) {
 		}
 
 		if !expectedConversationIds[conversationId] {
-			t.Errorf(
-				"Unexpected conversationId '%v', expected one of %v",
-				conversationId,
-				expectedConversationIds,
-			)
+			t.Errorf("Unexpected conversationId '%v', expected one of %v", conversationId, expectedConversationIds)
 		}
 
 		if _, ok := data["text"]; !ok {
@@ -621,11 +617,7 @@ func TestToDocuments(t *testing.T) {
 
 	// Check direct message
 	expectedTimestamp1, _ := time.Parse(time.RFC3339, "2024-09-11T21:05:12Z")
-	assert.Equal(
-		t,
-		"Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks",
-		docs[0].Content,
-	)
+	assert.Equal(t, "Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks", docs[0].Content)
 	assert.Equal(t, &expectedTimestamp1, docs[0].Timestamp)
 	assert.Equal(t, []string{"social", "x", "direct_message"}, docs[0].Tags)
 

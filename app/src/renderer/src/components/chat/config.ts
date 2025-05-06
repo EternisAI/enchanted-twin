@@ -14,5 +14,9 @@ export const TOOL_NAMES = {
   telegram_send_message: {
     inProgress: 'Sending message',
     completed: 'Message sent to Telegram'
+  },
+  perplexity_ask: {
+    inProgress: 'Searching the web',
+    completed: 'Web Search'
   }
 }

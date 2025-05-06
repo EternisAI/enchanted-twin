@@ -16,8 +16,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -28,8 +28,7 @@ type Service struct {
 	nc               *nats.Conn
 	logger           *log.Logger
 	completionsModel string
-	toolRegistry     *tools.Registry
-	store            *db.Store
+	toolRegistry     *tools.ToolMapRegistry
 }
 
 func NewService(
@@ -37,12 +36,9 @@ func NewService(
 	aiService *ai.Service,
 	storage Storage,
 	nc *nats.Conn,
+	registry *tools.ToolMapRegistry,
 	completionsModel string,
-	store *db.Store,
 ) *Service {
-	// Get the global tool registry
-	registry := tools.GetGlobal(logger)
-
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
@@ -50,15 +46,15 @@ func NewService(
 		nc:               nc,
 		completionsModel: completionsModel,
 		toolRegistry:     registry,
-		store:            store,
 	}
 }
 
 func (s *Service) Execute(
 	ctx context.Context,
+	origin map[string]any,
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
-	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult),
+	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 	onDelta func(agent.StreamDelta),
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
@@ -70,11 +66,6 @@ func (s *Service) Execute(
 		postToolCallback,
 	)
 
-	// Ensure we have a valid registry
-	if s.toolRegistry == nil {
-		s.toolRegistry = tools.GetGlobal(s.logger)
-	}
-
 	// Get the tool list from the registry
 	toolsList := []tools.Tool{}
 	for _, name := range s.toolRegistry.List() {
@@ -83,6 +74,7 @@ func (s *Service) Execute(
 		}
 	}
 
+	// TODO(cosmic): pass origin to agent
 	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta)
 	if err != nil {
 		return nil, err
@@ -110,20 +102,9 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
-	userProfile, err := s.store.GetUserProfile(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	systemPrompt := "You are a personal assistant or digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."
-	if userProfile.Name != nil {
-		systemPrompt += fmt.Sprintf("\n\nName: %s", *userProfile.Name)
-	}
-	if userProfile.Bio != nil {
-		systemPrompt += fmt.Sprintf("\n\nBio: %s", *userProfile.Bio)
-	}
+	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."
 	now := time.Now().Format(time.RFC3339)
-	systemPrompt += fmt.Sprintf("\n\nCurrent time: %s.", now)
+	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
@@ -165,20 +146,20 @@ func (s *Service) SendMessage(
 	}
 
 	toolCallResultsMap := make(map[string]model.ToolCallResult)
-	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult tools.ToolResult) {
+	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
 		tcJson, err := json.Marshal(model.ToolCall{
 			ID:        toolCall.ID,
 			Name:      toolCall.Function.Name,
 			MessageID: assistantMessageId,
 			Result: &model.ToolCallResult{
-				Content:   &toolResult.Content,
-				ImageUrls: toolResult.ImageURLs,
+				Content:   helpers.Ptr(toolResult.Content()),
+				ImageUrls: toolResult.ImageURLs(),
 			},
 			IsCompleted: true,
 		})
 		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
-			Content:   &toolResult.Content,
-			ImageUrls: toolResult.ImageURLs,
+			Content:   helpers.Ptr(toolResult.Content()),
+			ImageUrls: toolResult.ImageURLs(),
 		}
 		if err != nil {
 			s.logger.Error("failed to marshal tool call", "error", err)
@@ -207,7 +188,12 @@ func (s *Service) SendMessage(
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}
 
-	response, err := s.Execute(ctx, messageHistory, preToolCallback, postToolCallback, onDelta)
+	origin := map[string]any{
+		"chat_id":    chatID,
+		"message_id": userMsgID,
+	}
+
+	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta)
 	if err != nil {
 		return nil, err
 	}
@@ -305,13 +291,7 @@ func (s *Service) SendMessage(
 	if len(response.ToolCalls) > 0 {
 		toolCalls := make([]model.ToolCall, 0)
 		for _, toolCall := range response.ToolCalls {
-			s.logger.Info(
-				"Tool call",
-				"name",
-				toolCall.Function.Name,
-				"args",
-				toolCall.Function.Arguments,
-			)
+			s.logger.Info("Tool call", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments)
 
 			toolCall := model.ToolCall{
 				ID:          toolCall.ID,
@@ -476,11 +456,11 @@ func (s *Service) Tools() []tools.Tool {
 		return []tools.Tool{}
 	}
 
-	chatMessageTool := NewChatMessageTool(
-		s.logger,
-		*repo,
-		s.nc,
-	)
+	chatMessageTool := &ChatMessageTool{
+		logger:  s.logger,
+		storage: *repo,
+		nc:      s.nc,
+	}
 
 	return []tools.Tool{chatMessageTool}
 }
