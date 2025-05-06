@@ -283,7 +283,6 @@ func (s *TelegramService) Execute(
 
 	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.Store)
 	tools := []tools.Tool{
-		&tools.SearchTool{},
 		&tools.ImageTool{},
 		memory.NewMemorySearchTool(s.Logger, s.Memory),
 		tools.NewTelegramTool(s.Logger, s.Token, s.Store, s.ChatServerUrl),
