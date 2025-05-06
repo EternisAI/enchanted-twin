@@ -53,7 +53,7 @@ export function ChatCard({ chat, isActive }: ChatCardProps) {
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-lg font-medium hover:text-primary transition-colors">
+        <span className="text-lg font-semibold hover:text-primary transition-colors">
           {chat.name || 'Untitled Chat'}
         </span>
         <AlertDialog>
