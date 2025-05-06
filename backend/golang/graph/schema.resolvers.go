@@ -411,7 +411,7 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			ctx,
 			run.WorkflowID,
 			run.RunID,
-			"get_state", // TODO: use planed.QueryGetState
+			planned.QueryGetState,
 		)
 		if err != nil {
 			r.Logger.Warn("failed to query workflow", "error", err)

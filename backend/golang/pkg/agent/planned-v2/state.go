@@ -1,7 +1,9 @@
 package plannedv2
 
 import (
+	"encoding/json"
 	"time"
+	"fmt"
 
 	"github.com/openai/openai-go"
 
@@ -113,6 +115,36 @@ type PlanInput struct {
 
 	// System prompt to use (optional)
 	SystemPrompt string `json:"system_prompt,omitempty"`
+}
+
+// UnmarshalJSON custom unmarshaler for PlanState
+func (ps *PlanState) UnmarshalJSON(data []byte) error {
+	// Alias type to avoid recursion during unmarshaling
+	type Alias PlanState
+	aux := &struct {
+		ToolResults []json.RawMessage `json:"tool_results"`
+		*Alias
+	}{
+		Alias: (*Alias)(ps),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	ps.ToolResults = make([]types.ToolResult, len(aux.ToolResults))
+	for i, rawMsg := range aux.ToolResults {
+		// Attempt to unmarshal into the most common concrete type
+		// In a real scenario with multiple concrete types, you might need
+		// a "type" field in the JSON to decide which struct to unmarshal into.
+		var structuredResult types.StructuredToolResult
+		if err := json.Unmarshal(rawMsg, &structuredResult); err == nil {
+			ps.ToolResults[i] = &structuredResult
+		} else {
+			return fmt.Errorf("failed to unmarshal tool_results[%d] into StructuredToolResult: %w. JSON: %s", i, err, string(rawMsg))
+		}
+	}
+	return nil
 }
 
 // ToolCallsFromOpenAI converts OpenAI tool calls to our custom format.
