@@ -130,7 +130,7 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		}
 
 		if err != nil {
-			return "", fmt.Errorf("error marshalling input: %v", err)
+			return "", fmt.Errorf("error marshaling input: %v", err)
 		}
 		_, err = (r.TemporalClient).ExecuteWorkflow(
 			ctx,

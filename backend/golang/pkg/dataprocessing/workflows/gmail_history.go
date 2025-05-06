@@ -164,7 +164,7 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 	return GmailHistoryFetchActivityResponse{Records: trimmedRecords, NextPageToken: token, More: more}, nil
 }
 
-// Ensures that the records payload is under the Temporal size limit
+// Ensures that the records payload is under the Temporal size limit.
 func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error) {
 	if len(records) == 0 {
 		return records, nil
