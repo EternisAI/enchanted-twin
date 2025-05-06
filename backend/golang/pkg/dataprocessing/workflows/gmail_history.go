@@ -47,6 +47,7 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 	limit := 10000
 
 	var allRecords []types.Record
+	processedMessageIds := make(map[string]bool)
 
 	totalWindows := (daysBefore + windowSizeDays - 1) / windowSizeDays
 
@@ -83,7 +84,19 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 				return GmailHistoryWorkflowResponse{}, err
 			}
 
-			allRecords = append(allRecords, response.Records...)
+			var uniqueRecords []types.Record
+			for _, record := range response.Records {
+				if messageId, ok := record.Data["messageId"].(string); ok && messageId != "" {
+					if !processedMessageIds[messageId] {
+						processedMessageIds[messageId] = true
+						uniqueRecords = append(uniqueRecords, record)
+					}
+				} else {
+					uniqueRecords = append(uniqueRecords, record)
+				}
+			}
+
+			allRecords = append(allRecords, uniqueRecords...)
 			hasMore = response.More
 			nextPageToken = response.NextPageToken
 
@@ -91,7 +104,7 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 				break
 			}
 
-			err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: response.Records}).Get(ctx, nil)
+			err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: uniqueRecords}).Get(ctx, nil)
 			if err != nil {
 				return GmailHistoryWorkflowResponse{}, err
 			}
@@ -157,7 +170,6 @@ func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error)
 		return records, nil
 	}
 
-	// Calculate initial size
 	totalSize, recordSizes, err := calculateRecordsSize(records)
 	if err != nil {
 		return nil, err

@@ -502,11 +502,11 @@ func (g *Gmail) fetchMessage(
 
 	return types.Record{
 		Data: map[string]interface{}{
-			"from":      h["From"],
-			"to":        h["To"],
-			"subject":   h["Subject"],
-			"content":   content,
-			"myMessage": false,
+			"from":       h["From"],
+			"to":         h["To"],
+			"subject":    h["Subject"],
+			"content":    content,
+			"message_id": id,
 		},
 		Timestamp: date,
 		Source:    g.Name(),
