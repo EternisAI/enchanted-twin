@@ -125,11 +125,18 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 			ID:        "gmail-history-workflow",
 			TaskQueue: "default",
 		}
-		_, err := (r.TemporalClient).ExecuteWorkflow(
+		input := workflows.GmailHistoryWorkflowInput{
+			Username: username,
+		}
+
+		if err != nil {
+			return "", fmt.Errorf("error marshalling input: %v", err)
+		}
+		_, err = (r.TemporalClient).ExecuteWorkflow(
 			ctx,
 			options,
 			"GmailHistoryWorkflow",
-			map[string]interface{}{"username": username},
+			input,
 		)
 		if err != nil {
 			return "", fmt.Errorf("error executing workflow: %v", err)
