@@ -2,8 +2,8 @@ package plannedv2
 
 import (
 	"encoding/json"
-	"time"
 	"fmt"
+	"time"
 
 	"github.com/openai/openai-go"
 
@@ -117,7 +117,7 @@ type PlanInput struct {
 	SystemPrompt string `json:"system_prompt,omitempty"`
 }
 
-// UnmarshalJSON custom unmarshaler for PlanState
+// UnmarshalJSON custom unmarshaler for PlanState.
 func (ps *PlanState) UnmarshalJSON(data []byte) error {
 	// Alias type to avoid recursion during unmarshaling
 	type Alias PlanState
