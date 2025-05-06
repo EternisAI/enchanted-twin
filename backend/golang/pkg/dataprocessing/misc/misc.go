@@ -207,10 +207,6 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	}
 
 	isHumanReadable, err := s.IsHumanReadableContent(context.Background(), content.String())
-	fmt.Printf("filePath: %s\n", filePath)
-	fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
-	fmt.Printf("textContent: %s\n", content.String())
-
 	if err != nil {
 		return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
 	}
@@ -295,7 +291,6 @@ func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
 		return nil, fmt.Errorf("error walking directory %s: %w", inputPath, err)
 	}
 
-	fmt.Printf("Successfully processed %d records from directory %s\n", len(allRecords), inputPath)
 	return allRecords, nil
 }
 
