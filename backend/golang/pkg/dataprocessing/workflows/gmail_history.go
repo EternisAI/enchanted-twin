@@ -39,17 +39,24 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 	})
 
 	monthsBefore := 12
-	windowSize := 3
+	windowSize := 1
 	limit := 10000
 
 	var allRecords []types.Record
 
-	for window := 0; window < monthsBefore/windowSize; window++ {
-		startOffset := window*windowSize + windowSize
-		endOffset := window * windowSize
+	totalWindows := (monthsBefore + windowSize - 1) / windowSize
 
-		startDate := time.Now().AddDate(0, -startOffset, 0)
-		endDate := time.Now().AddDate(0, -endOffset, 0)
+	for window := 0; window < totalWindows; window++ {
+		endMonthsAgo := window * windowSize
+
+		startMonthsAgo := endMonthsAgo + windowSize
+
+		if startMonthsAgo > monthsBefore {
+			startMonthsAgo = monthsBefore
+		}
+
+		startDate := time.Now().AddDate(0, -startMonthsAgo, 0)
+		endDate := time.Now().AddDate(0, -endMonthsAgo, 0)
 
 		startDateStr := startDate.Format("2006-01-02")
 		endDateStr := endDate.Format("2006-01-02")
