@@ -175,8 +175,6 @@ func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error)
 		return nil, err
 	}
 
-	fmt.Println("===========TOTAL SIZE", totalSize)
-
 	if totalSize <= MaxTemporalInputSizeBytes {
 		return records, nil
 	}
