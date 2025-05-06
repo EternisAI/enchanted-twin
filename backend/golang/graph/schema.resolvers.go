@@ -12,16 +12,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -402,10 +401,12 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active runs: %w", err)
 	}
+	r.Logger.Debug("active runs", "count", len(runs))
 
 	tasks := make([]*model.AgentTask, 0, len(runs))
 	for _, run := range runs {
 		// TODO: below as func GetState() to plannedv2 or baseagent
+		r.Logger.Debug("querying workflow", "workflow_id", run.WorkflowID, "run_id", run.RunID)
 		queryRes, err := tc.QueryWorkflow(
 			ctx,
 			run.WorkflowID,
@@ -422,7 +423,10 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			continue
 		}
 
-		updatedAt := state.History[len(state.History)-1].Timestamp
+		updatedAt := run.CreatedAt
+		if len(state.History) > 0 {
+			updatedAt = state.History[len(state.History)-1].Timestamp
+		}
 
 		tasks = append(tasks, &model.AgentTask{
 			ID:        run.RunID,
@@ -724,10 +728,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

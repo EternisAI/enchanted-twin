@@ -170,7 +170,7 @@ func handleStartChildWorkflow(ctx workflow.Context, state *RootState, args map[s
 	// --- Update State ---
 	state.ActiveTasks[runID] = &ChildRunInfo{
 		RunID:      runID,
-		WorkflowID: workflowName,
+		WorkflowID: childExecution.ID,
 		TaskID:     taskID, // Store the user-provided task ID
 		CreatedAt:  workflow.Now(ctx),
 	}
