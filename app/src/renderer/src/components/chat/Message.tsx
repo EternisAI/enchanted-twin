@@ -79,7 +79,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
     >
       <div className="flex flex-col text-foreground py-2 max-w-[90%]">
         {thinkingText && (
-          <Collapsible className="flex flex-col gap-2 pb-2">
+          <Collapsible defaultOpen className="flex flex-col gap-2 pb-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:underline group">
               <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
               <span className="font-medium">💭 Reasoning</span>
