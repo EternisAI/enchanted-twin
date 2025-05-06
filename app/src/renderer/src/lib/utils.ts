@@ -8,6 +8,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatRRuleToText(rruleString: string): string {
   try {
+    if (!rruleString) return ''
     const rule = rrulestr(rruleString)
     return rule.toText()
   } catch (err) {

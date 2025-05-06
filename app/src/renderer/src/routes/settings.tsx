@@ -53,14 +53,18 @@ function Settings() {
           </div>
         </Card>
 
+        <div>
+          <Card className="p-6 w-full">
+            <h3 className="text-xl font-semibold">Updates</h3>
+            <p className="text-sm text-muted-foreground">Version {version}</p>
+          </Card>
+        </div>
+
         <PermissionsCard />
 
-        <Card className="p-6 w-full">
-          <h3 className="text-xl font-semibold">Updates</h3>
-          <p className="text-sm text-muted-foreground">Version {version}</p>
-        </Card>
-
-        <AgentTasks />
+        <div>
+          <AgentTasks />
+        </div>
       </div>
     </div>
   )

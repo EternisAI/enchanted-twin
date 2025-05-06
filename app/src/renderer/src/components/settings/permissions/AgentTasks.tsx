@@ -1,4 +1,8 @@
 import { useMutation, useQuery } from '@apollo/client'
+import { formatDistanceToNow } from 'date-fns'
+import { Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
+
 import { Tooltip, TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
@@ -9,39 +13,11 @@ import {
   GetAgentTasksDocument
 } from '@renderer/graphql/generated/graphql'
 import { formatRRuleToText } from '@renderer/lib/utils'
-import { formatDistanceToNow } from 'date-fns'
-import { Trash2 } from 'lucide-react'
-import { toast } from 'sonner'
-
-const MOCK_AGENT_TASKS: AgentTask[] = [
-  {
-    id: '1',
-    name: 'Send a mock list every day at 9am',
-    schedule: 'RRULE:FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0',
-    plan: 'Come up with a mock list to send user',
-    createdAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
-    updatedAt: new Date()
-  },
-  {
-    id: '2',
-    name: 'Send a mock joke every month on the last day of the month at 6pm',
-    schedule: 'RRULE:FREQ=DAILY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=8;BYMINUTE=0;BYSECOND=0',
-    plan: 'Think of the best jokes and send them to the user',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  },
-  {
-    id: '3',
-    name: 'Send reminders',
-    schedule: 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20251231T235959Z',
-    plan: 'Send reminders every week on Mon, Wed, Fri until December 31, 2025',
-    createdAt: new Date(),
-    updatedAt: new Date()
-  }
-]
 
 export default function AgentTasks() {
-  const { data, loading } = useQuery(GetAgentTasksDocument)
+  const { data, loading } = useQuery(GetAgentTasksDocument, {
+    fetchPolicy: 'network-only'
+  })
   const [deleteAgentTask] = useMutation(DeleteAgentTaskDocument, {
     onCompleted: () => {
       toast.success('Agent task deleted')
@@ -51,7 +27,7 @@ export default function AgentTasks() {
     }
   })
 
-  const agentTasks = data?.getAgentTasks || MOCK_AGENT_TASKS
+  const agentTasks = data?.getAgentTasks || []
 
   return (
     <Card className="p-6 w-full">
@@ -64,13 +40,17 @@ export default function AgentTasks() {
       {/* {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>} */}
 
       <div className="flex flex-col gap-4">
-        {agentTasks.map((task) => (
-          <AgentTaskRow
-            key={task.id}
-            task={task}
-            onDelete={(id) => deleteAgentTask({ variables: { id } })}
-          />
-        ))}
+        {agentTasks.length === 0 ? (
+          <p>No agent tasks found</p>
+        ) : (
+          agentTasks.map((task) => (
+            <AgentTaskRow
+              key={task.id}
+              task={task}
+              onDelete={(id) => deleteAgentTask({ variables: { id } })}
+            />
+          ))
+        )}
       </div>
     </Card>
   )
@@ -90,7 +70,7 @@ export function AgentTaskRow({ task, onDelete }: Props) {
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-4">
             <p className="text-lg font-medium">{task.name}</p>
-            <Badge variant="outline">Runs {humanSchedule}</Badge>
+            {humanSchedule && <Badge variant="outline">Runs {humanSchedule}</Badge>}
           </div>
           {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>}
         </div>
@@ -117,8 +97,8 @@ export function AgentTaskRow({ task, onDelete }: Props) {
       </div>
 
       <div className="flex gap-4 text-xs text-muted-foreground">
-        <span>Created {formatDistanceToNow(new Date(task.createdAt))} ago</span>
-        <span>Updated {formatDistanceToNow(new Date(task.updatedAt))} ago</span>
+        {task.createdAt && <span>Created {formatDistanceToNow(new Date(task.createdAt))} ago</span>}
+        {task.updatedAt && <span>Updated {formatDistanceToNow(new Date(task.updatedAt))} ago</span>}
       </div>
     </div>
   )
