@@ -1,13 +1,15 @@
 import { Dialog, DialogContent } from '@renderer/components/ui/dialog'
 import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
-import { Monitor, Moon, Sun, Database, Settings2, Plug } from 'lucide-react'
+import { Monitor, Moon, Sun, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { useSettingsStore } from '@renderer/lib/stores/settings'
 import * as Tabs from '@radix-ui/react-tabs'
 import FocusLock from 'react-focus-lock'
+import PermissionsCard from './permissions/PermissionsCard'
+import Versions from '../Versions'
 
 export function SettingsDialog() {
   const { isOpen, close, activeTab, setActiveTab } = useSettingsStore()
@@ -38,6 +40,20 @@ export function SettingsDialog() {
                 >
                   <Database className="h-4 w-4" />
                   Import Data
+                </Tabs.Trigger>
+                <Tabs.Trigger
+                  value="permissions"
+                  className="flex items-center gap-2 w-full p-2 data-[state=active]:bg-accent rounded-md"
+                >
+                  <Shield className="h-4 w-4" />
+                  Permissions
+                </Tabs.Trigger>
+                <Tabs.Trigger
+                  value="updates"
+                  className="flex items-center gap-2 w-full p-2 data-[state=active]:bg-accent rounded-md"
+                >
+                  <RefreshCcw className="h-4 w-4" />
+                  Updates
                 </Tabs.Trigger>
                 <Tabs.Trigger
                   value="appearance"
@@ -105,6 +121,17 @@ export function SettingsDialog() {
                   </ScrollArea>
                 </Tabs.Content>
 
+                <Tabs.Content value="permissions" className="absolute inset-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-8 flex flex-col gap-4">
+                      <h3 className="text-xl font-semibold">Permissions</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Manage your app&apos;s permissions to access your device&apos;s features.
+                      </p>
+                      <PermissionsCard />
+                    </div>
+                  </ScrollArea>
+                </Tabs.Content>
                 <Tabs.Content value="import-data" className="absolute inset-0">
                   <ScrollArea className="h-full">
                     <div className="p-8 flex flex-col gap-4">
@@ -112,7 +139,17 @@ export function SettingsDialog() {
                     </div>
                   </ScrollArea>
                 </Tabs.Content>
-
+                <Tabs.Content value="updates" className="absolute inset-0">
+                  <ScrollArea className="h-full">
+                    <div className="p-8 flex flex-col gap-4">
+                      <h3 className="text-xl font-semibold">Updates</h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Check for updates and manage your app&apos;s notifications.
+                      </p>
+                      <Versions />
+                    </div>
+                  </ScrollArea>
+                </Tabs.Content>
                 <Tabs.Content value="advanced" className="absolute inset-0">
                   <ScrollArea className="h-full">
                     <div className="p-8 flex flex-col gap-4">
