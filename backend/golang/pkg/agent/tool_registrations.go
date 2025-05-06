@@ -29,7 +29,6 @@ func CreateStandardTools(
 	standardTools = append(standardTools, tools.WorkflowImmediateTools()...)
 
 	// Create basic tools
-	standardTools = append(standardTools, &tools.SearchTool{})
 	standardTools = append(standardTools, &tools.ImageTool{})
 
 	// Memory tools are now registered directly in main

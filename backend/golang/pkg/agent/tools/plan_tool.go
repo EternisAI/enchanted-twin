@@ -258,8 +258,7 @@ func (t *PlanTool) Execute(ctx context.Context, args map[string]any) (*types.Str
 func getAvailableTools(toolNames []string) []Tool {
 	// Create a map of available tool creators
 	toolCreators := map[string]func() Tool{
-		"search": func() Tool { return &SearchTool{} },
-		"image":  func() Tool { return &ImageTool{} },
+		"image": func() Tool { return &ImageTool{} },
 		"echo": func() Tool {
 			return &EchoTool{}
 		},
