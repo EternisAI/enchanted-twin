@@ -436,6 +436,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		RootClient:             root.NewRootClient(input.temporalClient, input.logger),
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

@@ -16,8 +16,8 @@ const (
 
 // Query names.
 const (
-	QueryListActiveRuns = "list_workflows"
-	QueryCommandStatus  = "get_command_status"
+	QueryListWorkflows = "list_workflows"
+	QueryCommandStatus = "get_command_status"
 )
 
 // Command names.
@@ -49,24 +49,25 @@ type CommandStatus struct {
 
 // ChildRunInfo stores basic info about an active child workflow.
 type ChildRunInfo struct {
-	RunID     string    `json:"run_id"`  // Temporal's Run ID
-	TaskID    string    `json:"task_id"` // User-provided ID (optional)
-	StartTime time.Time `json:"start_time"`
+	RunID      string    `json:"run_id"`      // Temporal's Run ID
+	WorkflowID string    `json:"workflow_id"` // Child workflow ID
+	TaskID     string    `json:"task_id"`     // User-provided ID (optional)
+	CreatedAt  time.Time `json:"start_time"`
 	// Status field can be added later when lifecycle management is implemented
 }
 
-// LauncherState holds the persistent workflow state.
-type LauncherState struct {
+// RootState holds the persistent workflow state.
+type RootState struct {
 	// Tracks active planned agent runs (key: RunID)
-	ActiveRuns map[string]*ChildRunInfo `json:"active_runs"`
+	ActiveTasks map[string]*ChildRunInfo `json:"active_runs"`
 	// Tracks processed command IDs for idempotency
 	ProcessedCommands map[string]CommandStatus `json:"processed_commands"`
 }
 
 // Helper to create initial state.
-func NewLauncherState() *LauncherState {
-	return &LauncherState{
-		ActiveRuns:        make(map[string]*ChildRunInfo),
+func NewRootState() *RootState {
+	return &RootState{
+		ActiveTasks:       make(map[string]*ChildRunInfo),
 		ProcessedCommands: make(map[string]CommandStatus),
 	}
 }

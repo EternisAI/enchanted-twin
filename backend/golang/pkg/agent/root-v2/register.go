@@ -64,7 +64,7 @@ func EnsureRunRootWorkflow(ctx context.Context, c client.Client, logger *log.Log
 
 	logger.Info("Executing RootWorkflow...")
 	// Pass nil for the initial state
-	_, err = c.ExecuteWorkflow(ctx, workflowOptions, RootWorkflow, (*LauncherState)(nil))
+	_, err = c.ExecuteWorkflow(ctx, workflowOptions, RootWorkflow, (*RootState)(nil))
 	if err != nil {
 		// Check if the error is because it's already running (due to race condition or policy)
 		if _, ok := err.(*serviceerror.WorkflowExecutionAlreadyStarted); ok {

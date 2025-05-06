@@ -15,7 +15,7 @@ const (
 )
 
 // RootWorkflow launches and manages child agent workflows.
-func RootWorkflow(ctx workflow.Context, prevState *LauncherState) error {
+func RootWorkflow(ctx workflow.Context, prevState *RootState) error {
 	logger := workflow.GetLogger(ctx)
 	logger.Info("PlannedAgentLauncherWorkflow starting or continuing", "WorkflowID", RootWorkflowID)
 
@@ -23,14 +23,14 @@ func RootWorkflow(ctx workflow.Context, prevState *LauncherState) error {
 	state := prevState
 	if state == nil {
 		logger.Info("Initializing new LauncherState")
-		state = NewLauncherState()
+		state = NewRootState()
 	}
 
 	// --- Setup Query Handlers ---
-	err := workflow.SetQueryHandler(ctx, QueryListActiveRuns, func() (map[string]*ChildRunInfo, error) {
+	err := workflow.SetQueryHandler(ctx, QueryListWorkflows, func() (map[string]*ChildRunInfo, error) {
 		// Return a copy
-		runsCopy := make(map[string]*ChildRunInfo, len(state.ActiveRuns))
-		maps.Copy(runsCopy, state.ActiveRuns)
+		runsCopy := make(map[string]*ChildRunInfo, len(state.ActiveTasks))
+		maps.Copy(runsCopy, state.ActiveTasks)
 		return runsCopy, nil
 	})
 	if err != nil {
@@ -119,11 +119,11 @@ func RootWorkflow(ctx workflow.Context, prevState *LauncherState) error {
 
 // --- Command Handler ---
 
-func handleStartChildWorkflow(ctx workflow.Context, state *LauncherState, args map[string]any) (string, error) {
+func handleStartChildWorkflow(ctx workflow.Context, state *RootState, args map[string]any) (string, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Child Workflow args
-	workflowName, ok := args[ArgWorkflowName]
+	workflowName, ok := args[ArgWorkflowName].(string)
 	if !ok || workflowName == "" {
 		return "", fmt.Errorf("missing or invalid argument %s (json string)", ArgWorkflowName)
 	}
@@ -168,10 +168,11 @@ func handleStartChildWorkflow(ctx workflow.Context, state *LauncherState, args m
 	logger.Info("Child workflow started", "ChildWorkflowID", childExecution.ID, "RunID", runID)
 
 	// --- Update State ---
-	state.ActiveRuns[runID] = &ChildRunInfo{
-		RunID:     runID,
-		TaskID:    taskID, // Store the user-provided task ID
-		StartTime: workflow.Now(ctx),
+	state.ActiveTasks[runID] = &ChildRunInfo{
+		RunID:      runID,
+		WorkflowID: workflowName,
+		TaskID:     taskID, // Store the user-provided task ID
+		CreatedAt:  workflow.Now(ctx),
 	}
 
 	// --- V0: No Lifecycle Management ---
@@ -186,7 +187,7 @@ func handleStartChildWorkflow(ctx workflow.Context, state *LauncherState, args m
 // --- Helper Functions ---
 
 // pruneProcessedCommands removes old command statuses to prevent unbounded map growth.
-func pruneProcessedCommands(ctx workflow.Context, state *LauncherState, now time.Time) {
+func pruneProcessedCommands(ctx workflow.Context, state *RootState, now time.Time) {
 	logger := workflow.GetLogger(ctx) // Use context from where it's called if possible
 	count := 0
 	for cmdID, status := range state.ProcessedCommands {
