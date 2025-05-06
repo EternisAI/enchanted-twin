@@ -253,7 +253,6 @@ func main() {
 			select {
 			case <-ticker.C:
 				chatUUID, err := telegramService.GetChatUUID(context.Background())
-
 				if err != nil {
 					logger.Error("Error getting chat UUID", slog.Any("error", err))
 					continue

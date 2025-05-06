@@ -167,7 +167,6 @@ func (s *Store) DB() *sqlx.DB {
 func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 	var value sql.NullString
 
-
 	err := s.db.GetContext(ctx, &value, "SELECT value FROM config WHERE key = ?", key)
 	if err != nil {
 		return "", err
