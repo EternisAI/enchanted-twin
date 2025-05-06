@@ -1,17 +1,17 @@
+import { useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client'
 import { GetMcpServersDocument, RemoveMcpServerDocument } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { Card } from '../ui/card'
-import { Plug } from 'lucide-react'
+import { Plug, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '../ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
+import MCPConnectionForm from './MCPConnectionForm'
 
-export default function MCPPanel({
-  header = true,
-  allowRemove = false
-}: {
-  header?: boolean
-  allowRemove?: boolean
-}) {
+export default function MCPPanel({ header = true }: { header?: boolean }) {
+  const [isConnectOpen, setIsConnectOpen] = useState(false)
+
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
   const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
     onCompleted: () => {
@@ -52,9 +52,7 @@ export default function MCPPanel({
             key={server.id}
             server={server}
             onConnect={refetch}
-            onRemove={
-              allowRemove ? () => deleteMcpServer({ variables: { id: server.id } }) : undefined
-            }
+            onRemove={() => deleteMcpServer({ variables: { id: server.id } })}
           />
         ))}
         {mcpServers.length === 0 && (
@@ -62,6 +60,31 @@ export default function MCPPanel({
             No MCP servers configured
           </div>
         )}
+      </div>
+
+      <div className="py-4 flex justify-center">
+        <Dialog open={isConnectOpen} onOpenChange={setIsConnectOpen}>
+          <DialogTrigger asChild>
+            <Button
+              variant="outline"
+              className="max-w-lg py-10 flex flex-col gap-2 items-center justify-center"
+            >
+              <Plus className="w-6 h-6" />
+              <span>Connect Custom MCP</span>
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Connect Custom MCP Server</DialogTitle>
+            </DialogHeader>
+            <MCPConnectionForm
+              onSuccess={() => {
+                refetch()
+                setIsConnectOpen(false)
+              }}
+            />
+          </DialogContent>
+        </Dialog>
       </div>
     </Card>
   )

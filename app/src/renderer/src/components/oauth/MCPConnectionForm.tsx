@@ -1,35 +1,17 @@
 import { useState } from 'react'
+import { useMutation } from '@apollo/client'
+import { ConnectMcpServerDocument, McpServerType } from '@renderer/graphql/generated/graphql'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import { Textarea } from '../ui/textarea'
 import { Trash2, ClipboardPaste } from 'lucide-react'
 import { toast } from 'sonner'
-import { useMutation, useQuery } from '@apollo/client'
-import { Input } from '@renderer/components/ui/input'
-import { Button } from '@renderer/components/ui/button'
-import { Card } from '@renderer/components/ui/card'
-import { Textarea } from '@renderer/components/ui/textarea'
-import {
-  ConnectMcpServerDocument,
-  GetMcpServersDocument,
-  McpServerType
-} from '@renderer/graphql/generated/graphql'
-import MCPPanel from '@renderer/components/oauth/MCPPanel'
 
-export default function MCPPage() {
-  const { refetch } = useQuery(GetMcpServersDocument)
-
-  return (
-    <div className="p-6 gap-6 w-full h-full flex flex-col overflow-y-auto">
-      <h2 className="text-4xl mb-6">MCP Servers</h2>
-      <div className="flex gap-6">
-        <div>
-          <MCPPanel allowRemove header={false} />
-        </div>
-        <MCPConnectionForm onConnect={refetch} />
-      </div>
-    </div>
-  )
+interface MCPConnectionFormProps {
+  onSuccess: () => void
 }
 
-function MCPConnectionForm({ onConnect }: { onConnect: () => void }) {
+export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps) {
   const [connectMcpServer, { loading }] = useMutation(ConnectMcpServerDocument, {
     onCompleted: () => {
       setName('')
@@ -38,7 +20,7 @@ function MCPConnectionForm({ onConnect }: { onConnect: () => void }) {
       setEnvVars([{ key: '', value: '' }])
       setPastedText('')
       toast.success('MCP server connected')
-      onConnect()
+      onSuccess()
     },
     onError: (error: Error) => {
       console.error(error)
@@ -85,6 +67,7 @@ function MCPConnectionForm({ onConnect }: { onConnect: () => void }) {
       setCommand(command)
       setArgumentsList(args)
       setEnvVars(Object.entries(env).map(([key, value]) => ({ key, value: value as string })))
+      setPastedText('')
       toast.success(`Prefilled with server "${firstName}"`)
     } catch (err) {
       console.error(err)
@@ -93,12 +76,12 @@ function MCPConnectionForm({ onConnect }: { onConnect: () => void }) {
   }
 
   return (
-    <Card className="max-w-xl mx-auto p-6 space-y-6">
-      <h1 className="text-xl font-bold">Connect to MCP Server</h1>
+    <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <label>Paste JSON Config</label>
         <Textarea
           placeholder="Paste MCP config JSON here..."
+          className="min-h-30"
           value={pastedText}
           onChange={(e) => setPastedText(e.target.value)}
         />
@@ -202,6 +185,6 @@ function MCPConnectionForm({ onConnect }: { onConnect: () => void }) {
       <Button className="w-full mt-4" onClick={handleConnect} disabled={loading}>
         {loading ? 'Connecting...' : 'Connect'}
       </Button>
-    </Card>
+    </div>
   )
 }
