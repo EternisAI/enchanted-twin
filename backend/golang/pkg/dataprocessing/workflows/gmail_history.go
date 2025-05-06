@@ -16,7 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
-// Maximum input size for Temporal payloads (slightly under 2MB to be safe)
 const MaxTemporalInputSizeBytes = 1900 * 1024
 
 type GmailHistoryWorkflowInput struct {
@@ -138,7 +137,6 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 		return GmailHistoryFetchActivityResponse{}, err
 	}
 
-	// Check if records size exceeds Temporal payload limit
 	trimmedRecords, err := ensureRecordsUnderSizeLimit(records)
 	if err != nil {
 		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("failed to process records size: %w", err)
@@ -153,8 +151,7 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 	return GmailHistoryFetchActivityResponse{Records: trimmedRecords, NextPageToken: token, More: more}, nil
 }
 
-// ensureRecordsUnderSizeLimit ensures that the records payload is under the Temporal size limit
-// It removes the largest records if necessary to stay under the limit
+// Ensures that the records payload is under the Temporal size limit
 func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error) {
 	if len(records) == 0 {
 		return records, nil
@@ -211,7 +208,6 @@ func ensureRecordsUnderSizeLimit(records []types.Record) ([]types.Record, error)
 	return filteredRecords, nil
 }
 
-// calculateRecordsSize calculates the total size of records in bytes and the size of each record
 func calculateRecordsSize(records []types.Record) (int, []int, error) {
 	totalSize := 0
 	recordSizes := make([]int, len(records))
