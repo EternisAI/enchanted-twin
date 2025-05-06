@@ -167,7 +167,6 @@ func (s *Store) DB() *sqlx.DB {
 func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 	var value sql.NullString
 
-	fmt.Println("GetValue", key)
 	err := s.db.GetContext(ctx, &value, "SELECT value FROM config WHERE key = ?", key)
 	if err != nil {
 		return "", err
@@ -175,7 +174,7 @@ func (s *Store) GetValue(ctx context.Context, key string) (string, error) {
 	if !value.Valid {
 		return "", nil // Return empty string for NULL values
 	}
-	fmt.Println("GetValue", key, value.String)
+
 	return value.String, nil
 }
 
