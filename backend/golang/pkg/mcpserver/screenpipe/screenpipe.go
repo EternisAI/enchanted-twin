@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"runtime"
 	"time"
 
 	mcp_golang "github.com/metoro-io/mcp-golang"
@@ -61,83 +60,6 @@ func (c *ScreenpipeClient) CallTool(
 		if err != nil {
 			return nil, err
 		}
-	case ClickElementToolName:
-		arguments := &ClickElementArguments{}
-		err = json.Unmarshal(bytes, arguments)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err = processClickElement(ctx, c, *arguments, isMac())
-		if err != nil {
-			return nil, err
-		}
-	case FillElementToolName:
-		arguments := &FillElementArguments{}
-		err = json.Unmarshal(bytes, arguments)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err = processFillElement(ctx, c, *arguments, isMac())
-		if err != nil {
-			return nil, err
-		}
-	case ScrollElementToolName:
-		arguments := &ScrollElementArguments{}
-		err = json.Unmarshal(bytes, arguments)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err = processScrollElement(ctx, c, *arguments, isMac())
-		if err != nil {
-			return nil, err
-		}
-	case OpenApplicationToolName:
-		arguments := &OpenApplicationArguments{}
-		err = json.Unmarshal(bytes, arguments)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err = processOpenApplication(ctx, c, *arguments, isMac())
-		if err != nil {
-			return nil, err
-		}
-	case OpenURLToolName:
-		arguments := &OpenURLArguments{}
-		err = json.Unmarshal(bytes, arguments)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err = processOpenURL(ctx, c, *arguments)
-		if err != nil {
-			return nil, err
-		}
-	case FindElementsToolName:
-		arguments := &FindElementsArguments{}
-		err = json.Unmarshal(bytes, arguments)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err = processFindElements(ctx, c, *arguments, isMac())
-		if err != nil {
-			return nil, err
-		}
-	case PixelControlToolName:
-		arguments := &PixelControlArguments{}
-		err = json.Unmarshal(bytes, arguments)
-		if err != nil {
-			return nil, err
-		}
-
-		content, err = processPixelControl(ctx, c, *arguments)
-		if err != nil {
-			return nil, err
-		}
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
@@ -145,13 +67,4 @@ func (c *ScreenpipeClient) CallTool(
 	return &mcp_golang.ToolResponse{
 		Content: content,
 	}, nil
-}
-
-func isMac() bool {
-	switch runtime.GOOS {
-	case "windows":
-		return false
-	default: // darwin (macOS), linux, etc.
-		return true
-	}
 }
