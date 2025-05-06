@@ -173,6 +173,7 @@ enum MCPServerType {
   GOOGLE
   SLACK
   OTHER
+  SCREENPIPE
 }
 
 input ConnectMCPServerInput {
