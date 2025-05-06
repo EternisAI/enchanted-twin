@@ -80,10 +80,12 @@ func (w *DataProcessingWorkflows) GmailFetchAndIndexActivity(
 	g := gmail.New()
 	totalProcessed := 0
 
-	// Process the history in windows
 	totalWindows := (input.DaysBefore + input.WindowSizeDays - 1) / input.WindowSizeDays
 
 	totalRecords := make([]types.Record, 0)
+
+	seenMessageIDs := make(map[string]bool)
+
 	for window := 0; window < totalWindows; window++ {
 		endDaysAgo := window * input.WindowSizeDays
 		startDaysAgo := endDaysAgo + input.WindowSizeDays
@@ -118,7 +120,21 @@ func (w *DataProcessingWorkflows) GmailFetchAndIndexActivity(
 				return GmailFetchAndIndexActivityResponse{}, err
 			}
 
-			windowRecords = append(windowRecords, records...)
+			for _, record := range records {
+				if msgID, ok := record.Data["message_id"].(string); ok {
+					if !seenMessageIDs[msgID] {
+						seenMessageIDs[msgID] = true
+						windowRecords = append(windowRecords, record)
+					} else {
+						w.Logger.Debug("Skipping duplicate email", "message_id", msgID)
+					}
+				} else {
+
+					windowRecords = append(windowRecords, record)
+					w.Logger.Warn("Email missing message_id", "subject", record.Data["subject"])
+				}
+			}
+
 			windowProcessed += len(records)
 			nextPageToken = token
 
