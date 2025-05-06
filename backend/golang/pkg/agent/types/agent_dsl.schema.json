@@ -147,7 +147,8 @@
                                 "workflow",
                                 "query",
                                 "signal",
-                                "update"
+                                "update",
+                                "immediate"
                             ]
                         }
                     },

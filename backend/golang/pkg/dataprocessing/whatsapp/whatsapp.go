@@ -11,7 +11,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 type Source struct{}
@@ -185,17 +184,19 @@ func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
 func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
-		content, err := helpers.CastToType[string](record.Data["TEXT"])
-		if err != nil {
-			return nil, err
+		content, ok := record.Data["TEXT"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert TEXT field to string")
 		}
-		from, err := helpers.CastToType[string](record.Data["FROMNAME"])
-		if err != nil {
-			return nil, err
+
+		fromName, ok := record.Data["FROMNAME"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert FROMNAME field to string")
 		}
-		to, err := helpers.CastToType[string](record.Data["TONAME"])
-		if err != nil {
-			return nil, err
+
+		toName, ok := record.Data["TONAME"].(string)
+		if !ok {
+			return nil, fmt.Errorf("failed to convert TONAME field to string")
 		}
 
 		documents = append(documents, memory.TextDocument{
@@ -203,8 +204,8 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			Timestamp: &record.Timestamp,
 			Tags:      []string{"whatsapp"},
 			Metadata: map[string]string{
-				"from": from,
-				"to":   to,
+				"from": fromName,
+				"to":   toName,
 			},
 		})
 	}

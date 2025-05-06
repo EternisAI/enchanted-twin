@@ -162,23 +162,19 @@ func main() {
 	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
 	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
 
-	// Initialize and start the temporal worker
-	temporalWorker, err := bootstrapTemporalWorker(
-		&bootstrapTemporalWorkerInput{
-			logger:               logger,
-			temporalClient:       temporalClient,
-			envs:                 envs,
-			store:                store,
-			nc:                   nc,
-			ollamaClient:         ollamaClient,
-			memory:               mem,
-			aiCompletionsService: aiCompletionsService,
-		},
+	// Initialize global tool registry
+	toolRegistry := tools.NewRegistry()
+
+	// Register standard tools
+	standardTools := agent.RegisterStandardTools(
+		toolRegistry,
+		logger,
+		envs.TelegramToken,
+		store,
+		temporalClient,
+		envs.CompletionsModel,
+		envs.TelegramChatServer,
 	)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start temporal worker"))
-	}
-	defer temporalWorker.Stop()
 
 	// Create TwinChat service with minimal dependencies
 	twinChatService := twinchat.NewService(
@@ -186,23 +182,8 @@ func main() {
 		aiCompletionsService,
 		chatStorage,
 		nc,
-		envs.CompletionsModel,
-		store,
-	)
-
-	// Initialize global tool registry
-	toolRegistry := tools.GetGlobal(logger)
-
-	// Register standard tools
-	standardTools := agent.RegisterStandardTools(
 		toolRegistry,
-		logger,
-		mem,
-		envs.TelegramToken,
-		store,
-		temporalClient,
 		envs.CompletionsModel,
-		envs.TelegramChatServer,
 	)
 
 	// Register tools from the TwinChat service
@@ -227,6 +208,25 @@ func main() {
 		toolRegistry.List(),
 	)
 
+	// Initialize and start the temporal worker
+	temporalWorker, err := bootstrapTemporalWorker(
+		&bootstrapTemporalWorkerInput{
+			logger:               logger,
+			temporalClient:       temporalClient,
+			envs:                 envs,
+			store:                store,
+			nc:                   nc,
+			ollamaClient:         ollamaClient,
+			memory:               mem,
+			aiCompletionsService: aiCompletionsService,
+			registry:             toolRegistry,
+		},
+	)
+	if err != nil {
+		panic(errors.Wrap(err, "Unable to start temporal worker"))
+	}
+	defer temporalWorker.Stop()
+
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
 		Token:            envs.TelegramToken,
@@ -246,17 +246,14 @@ func main() {
 		defer ticker.Stop()
 
 		// Create a context that respects application shutdown
-		appCtx, appCancel := signal.NotifyContext(
-			context.Background(),
-			os.Interrupt,
-			syscall.SIGTERM,
-		)
+		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer appCancel()
 
 		for {
 			select {
 			case <-ticker.C:
 				chatUUID, err := telegramService.GetChatUUID(context.Background())
+
 				if err != nil {
 					logger.Error("Error getting chat UUID", slog.Any("error", err))
 					continue
@@ -272,9 +269,7 @@ func main() {
 				}
 
 			case <-appCtx.Done():
-				logger.Info(
-					"Stopping Telegram subscription poller due to application shutdown signal",
-				)
+				logger.Info("Stopping Telegram subscription poller due to application shutdown signal")
 				return
 			}
 		}
@@ -359,6 +354,7 @@ type bootstrapTemporalWorkerInput struct {
 	nc                   *nats.Conn
 	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
+	registry             tools.ToolRegistry
 	aiCompletionsService *ai.Service
 }
 
@@ -384,9 +380,9 @@ func bootstrapTemporalWorker(
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	agentActivities := plannedv2.NewAgentActivities(input.aiCompletionsService)
+	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.registry)
 	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
-	input.logger.Info("Registered planned agent workflow")
+	input.logger.Info("Registered planned agent workflow", "tools", input.registry.List())
 
 	// Start the worker
 	err := w.Start()

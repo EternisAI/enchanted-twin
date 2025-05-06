@@ -413,6 +413,7 @@ var enumValues_ToolDefEntrypointType = []interface{}{
 	"query",
 	"signal",
 	"update",
+	"immediate",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

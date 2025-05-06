@@ -283,14 +283,16 @@ func (s *TelegramService) Execute(
 
 	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.Store)
 	tools := []tools.Tool{
-		&tools.SearchTool{},
 		&tools.ImageTool{},
-		tools.NewMemorySearchTool(s.Logger, s.Memory),
+		memory.NewMemorySearchTool(s.Logger, s.Memory),
 		tools.NewTelegramTool(s.Logger, s.Token, s.Store, s.ChatServerUrl),
 		twitterReverseChronTimelineTool,
 	}
 
-	response, err := newAgent.Execute(ctx, messageHistory, tools)
+	origin := map[string]any{
+		"source": "telegram",
+	}
+	response, err := newAgent.Execute(ctx, origin, messageHistory, tools)
 	if err != nil {
 		return agent.AgentResponse{}, err
 	}
