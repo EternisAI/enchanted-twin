@@ -37,6 +37,5 @@ func (workflows *DataProcessingWorkflows) RegisterWorkflowsAndActivities(worker 
 	(*worker).RegisterActivity(workflows.GmailIndexActivity)
 
 	(*worker).RegisterWorkflow(workflows.GmailHistoryWorkflow)
-	(*worker).RegisterActivity(workflows.GmailFetchHistoryActivity)
-	(*worker).RegisterActivity(workflows.GmailHistoryIndexActivity)
+	(*worker).RegisterActivity(workflows.GmailFetchAndIndexActivity)
 }
