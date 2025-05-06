@@ -6,6 +6,7 @@ import { TOOL_NAMES } from './config'
 import { Badge } from '../ui/badge'
 import Markdown from './Markdown'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
+import { useMemo } from 'react'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -13,11 +14,24 @@ const messageAnimation = {
   transition: { duration: 0.3, ease: 'easeOut' }
 }
 
-function parseThinkingText(text: string) {
-  const thinkMatch = text.match(/<think>([\s\S]*?)<\/think>/)
-  const thinkingText = thinkMatch?.[1]?.trim()
-  const messageText = text.replace(/<think>[\s\S]*?<\/think>/, '').trim()
-  return { thinkingText, messageText }
+function extractReasoningAndReply(raw: string): {
+  thinkingText: string | null
+  replyText: string
+} {
+  const thinkingTag = '<think>'
+  const thinkingEndTag = '</think>'
+
+  if (!raw.startsWith(thinkingTag)) return { thinkingText: null, replyText: raw }
+
+  const closingIndex = raw.indexOf(thinkingEndTag)
+  if (closingIndex !== -1) {
+    const thinking = raw.slice(thinkingTag.length, closingIndex).trim()
+    const rest = raw.slice(closingIndex + thinkingEndTag.length).trim()
+    return { thinkingText: thinking, replyText: rest }
+  } else {
+    const thinking = raw.slice(thinkingTag.length).trim()
+    return { thinkingText: thinking, replyText: '' }
+  }
 }
 
 export function UserMessageBubble({ message }: { message: Message }) {
@@ -51,7 +65,10 @@ export function UserMessageBubble({ message }: { message: Message }) {
 }
 
 export function AssistantMessageBubble({ message }: { message: Message }) {
-  const { thinkingText, messageText } = parseThinkingText(message.text || '')
+  const { thinkingText, replyText } = useMemo(
+    () => extractReasoningAndReply(message.text || ''),
+    [message.text]
+  )
 
   return (
     <motion.div
@@ -78,7 +95,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           </Collapsible>
         )}
 
-        {messageText && <Markdown>{messageText}</Markdown>}
+        {replyText && <Markdown>{replyText}</Markdown>}
         {message.imageUrls.length > 0 && (
           <div className="flex flex-col gap-2 my-2">
             {message.imageUrls.map((url, i) => (
