@@ -11,28 +11,29 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	mcp_golang "github.com/metoro-io/mcp-golang"
+
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 const (
-	// Tool Names
-	SearchContentToolName = "search_content"
-	PixelControlToolName  = "pixel_control"
-	FindElementsToolName  = "find_elements"
-	ClickElementToolName  = "click_element"
-	FillElementToolName   = "fill_element"
-	ScrollElementToolName = "scroll_element"
+	// Tool Names.
+	SearchContentToolName   = "search_content"
+	PixelControlToolName    = "pixel_control"
+	FindElementsToolName    = "find_elements"
+	ClickElementToolName    = "click_element"
+	FillElementToolName     = "fill_element"
+	ScrollElementToolName   = "scroll_element"
 	OpenApplicationToolName = "open_application"
 	OpenURLToolName         = "open_url"
 
-	// Tool Descriptions
-	SearchContentToolDescription = "Search through screenpipe recorded content (OCR text, audio transcriptions, UI elements). Use this to find specific content that has appeared on your screen or been spoken. Results include timestamps, app context, and the content itself."
-	PixelControlToolDescription  = "Control mouse and keyboard at the pixel level. This is a cross-platform tool that works on all operating systems. Use this to type text, press keys, move the mouse, and click buttons."
-	FindElementsToolDescription  = "Find UI elements with a specific role in an application. MacOS specific roles: 'AXButton', 'AXTextField', etc. Use MacOS Accessibility Inspector app to identify exact roles."
-	ClickElementToolDescription  = "Click an element in an application using its id (MacOS only)"
-	FillElementToolDescription   = "Type text into an element in an application (MacOS only)"
-	ScrollElementToolDescription = "Scroll an element in a specific direction (MacOS only)"
+	// Tool Descriptions.
+	SearchContentToolDescription   = "Search through screenpipe recorded content (OCR text, audio transcriptions, UI elements). Use this to find specific content that has appeared on your screen or been spoken. Results include timestamps, app context, and the content itself."
+	PixelControlToolDescription    = "Control mouse and keyboard at the pixel level. This is a cross-platform tool that works on all operating systems. Use this to type text, press keys, move the mouse, and click buttons."
+	FindElementsToolDescription    = "Find UI elements with a specific role in an application. MacOS specific roles: 'AXButton', 'AXTextField', etc. Use MacOS Accessibility Inspector app to identify exact roles."
+	ClickElementToolDescription    = "Click an element in an application using its id (MacOS only)"
+	FillElementToolDescription     = "Type text into an element in an application (MacOS only)"
+	ScrollElementToolDescription   = "Scroll an element in a specific direction (MacOS only)"
 	OpenApplicationToolDescription = "Open an application by name"
 	OpenURLToolDescription         = "Open a URL in a browser"
 )
@@ -40,21 +41,21 @@ const (
 // Argument Structs
 
 type SearchContentArguments struct {
-	Query        string `json:"q" jsonschema:"description=Search query to find in recorded content"`
-	ContentType  string `json:"content_type,omitempty" jsonschema:"enum=all|ocr|audio|ui,description=Type of content to search: 'ocr' for screen text, 'audio' for spoken words, 'ui' for UI elements, or 'all' for everything,default=all"`
-	Limit        int    `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return,default=10"`
-	Offset       int    `json:"offset,omitempty" jsonschema:"description=Number of results to skip (for pagination),default=0"`
-	StartTime    string `json:"start_time,omitempty" jsonschema:"format=date-time,description=Start time in ISO format UTC (e.g. 2024-01-01T00:00:00Z). Filter results from this time onward."`
-	EndTime      string `json:"end_time,omitempty" jsonschema:"format=date-time,description=End time in ISO format UTC (e.g. 2024-01-01T00:00:00Z). Filter results up to this time."`
-	AppName      string `json:"app_name,omitempty" jsonschema:"description=Filter by application name (e.g. 'Chrome', 'Safari', 'Terminal')"`
-	WindowName   string `json:"window_name,omitempty" jsonschema:"description=Filter by window name or title"`
-	MinLength    int    `json:"min_length,omitempty" jsonschema:"description=Minimum content length in characters"`
-	MaxLength    int    `json:"max_length,omitempty" jsonschema:"description=Maximum content length in characters"`
+	Query       string `json:"q" jsonschema:"description=Search query to find in recorded content"`
+	ContentType string `json:"content_type,omitempty" jsonschema:"enum=all|ocr|audio|ui,description=Type of content to search: 'ocr' for screen text, 'audio' for spoken words, 'ui' for UI elements, or 'all' for everything,default=all"`
+	Limit       int    `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return,default=10"`
+	Offset      int    `json:"offset,omitempty" jsonschema:"description=Number of results to skip (for pagination),default=0"`
+	StartTime   string `json:"start_time,omitempty" jsonschema:"format=date-time,description=Start time in ISO format UTC (e.g. 2024-01-01T00:00:00Z). Filter results from this time onward."`
+	EndTime     string `json:"end_time,omitempty" jsonschema:"format=date-time,description=End time in ISO format UTC (e.g. 2024-01-01T00:00:00Z). Filter results up to this time."`
+	AppName     string `json:"app_name,omitempty" jsonschema:"description=Filter by application name (e.g. 'Chrome', 'Safari', 'Terminal')"`
+	WindowName  string `json:"window_name,omitempty" jsonschema:"description=Filter by window name or title"`
+	MinLength   int    `json:"min_length,omitempty" jsonschema:"description=Minimum content length in characters"`
+	MaxLength   int    `json:"max_length,omitempty" jsonschema:"description=Maximum content length in characters"`
 }
 
 type PixelControlData struct {
 	// For WriteText and KeyPress
-	Text string `json:"text,omitempty"` 
+	Text string `json:"text,omitempty"`
 	// For MouseMove
 	X *int `json:"x,omitempty"`
 	Y *int `json:"y,omitempty"`
@@ -117,14 +118,17 @@ type OpenURLArguments struct {
 
 func processSearchContent(
 	ctx context.Context,
-	client *ScreenpipeClient, 
+	client *ScreenpipeClient,
 	arguments SearchContentArguments,
 ) ([]*mcp_golang.Content, error) {
+	if arguments.Limit < 10 || arguments.Limit > 100 {
+		arguments.Limit = 10
+	}
 	resp, err := client.SearchContent(ctx, arguments)
 	if err != nil {
 		return []*mcp_golang.Content{{
 			Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("failed to search screenpipe: %v", err)},
-		}}, nil // Return error message as content, as per Python example
+		}}, nil
 	}
 
 	if len(resp.Data) == 0 {
@@ -159,9 +163,8 @@ func processSearchContent(
 		formattedResults = append(formattedResults, textOutput)
 	}
 
-
 	fmt.Println("Search content response:", formattedResults)
-	
+
 	return []*mcp_golang.Content{{
 		Type: "text", TextContent: &mcp_golang.TextContent{Text: "Search Results:\n\n" + strings.Join(formattedResults, "\n")},
 	}}, nil
@@ -222,7 +225,7 @@ func processFindElements(
 			Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("failed to find elements: %v", err)},
 		}}, nil
 	}
-	if !resp.Success { // This check might be redundant if client.FindElements already guarantees success or returns error
+	if !resp.Success {
 		return []*mcp_golang.Content{{
 			Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("failed to find elements: %s", resp.Error)},
 		}}, nil
@@ -293,7 +296,7 @@ func processFillElement(
 			Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("failed to fill element: %v", err)},
 		}}, nil
 	}
-	// Python returns: "successfully filled element with text"
+
 	return []*mcp_golang.Content{{
 		Type: "text", TextContent: &mcp_golang.TextContent{Text: "successfully filled element with text"},
 	}}, nil
@@ -310,12 +313,9 @@ func processScrollElement(
 			Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("the '%s' tool is only available on MacOS.", ScrollElementToolName)},
 		}}, nil
 	}
+
 	// TODO: Implement client.ScrollElement call and response handling
-	// For now, placeholder based on other similar tools
-	// _, err := client.ScrollElement(ctx, arguments) // Assuming a ScrollElement method exists
-	// if err != nil {
-	// 	return []*mcp_golang.Content{{Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("failed to scroll element: %v", err)}}}, nil
-	// }
+
 	fmt.Printf("Processing ScrollElement with args: %+v (Not implemented yet)\n", arguments)
 	return []*mcp_golang.Content{{
 		Type: "text", TextContent: &mcp_golang.TextContent{Text: "ScrollElement success placeholder (Not implemented)."},
@@ -326,11 +326,9 @@ func processOpenApplication(
 	ctx context.Context,
 	client *ScreenpipeClient,
 	arguments OpenApplicationArguments,
-	isMacOS bool, 
+	isMacOS bool,
 ) ([]*mcp_golang.Content, error) {
 	if !isMacOS {
-		// Python returns: f"attempting to open application '{arguments.get('app_name')}' on {CURRENT_OS}"
-		// For Go, we don't have CURRENT_OS easily here, so a generic non-macOS message.
 		return []*mcp_golang.Content{{
 			Type: "text", TextContent: &mcp_golang.TextContent{Text: fmt.Sprintf("the '%s' tool for direct operation is primarily for MacOS. Attempting on non-MacOS may have different behavior or be a no-op.", OpenApplicationToolName)},
 		}}, nil
@@ -368,7 +366,6 @@ func processOpenURL(
 }
 
 func GetInputSchema(args any) map[string]any {
-
 	inputSchema, err := helpers.ConverToInputSchema(args)
 	if err != nil {
 		return nil
@@ -377,16 +374,7 @@ func GetInputSchema(args any) map[string]any {
 	return inputSchema
 }
 
-
-// You will also need a way to register these tools with the mcp_golang server,
-// similar to how it's done in the main application or a central registry.
-// This typically involves creating mcp_golang.Tool instances with the names,
-// descriptions, input schemas (derived from the structs), and the handler functions.
-
-// Example of how a tool might be registered (conceptual):
-
 func GetScreenpipeTools(client *ScreenpipeClient, isMacOS bool) (*mcp_golang.ToolsResponse, error) {
-	// Assign constants to variables to get their addresses
 	searchContentDesc := SearchContentToolDescription
 	pixelControlDesc := PixelControlToolDescription
 	findElementsDesc := FindElementsToolDescription
@@ -439,17 +427,10 @@ func GetScreenpipeTools(client *ScreenpipeClient, isMacOS bool) (*mcp_golang.Too
 		},
 	}
 
-	if isMacOS {
-
-		// Add MacOS specific tools here, similar structure
-	}
 	return &mcp_golang.ToolsResponse{
 		Tools: tools,
 	}, nil
 }
-
-
-
 
 // --- Common API Structures ---
 
@@ -479,7 +460,7 @@ func (c *ScreenpipeClient) makeRequest(
 	responseDest interface{},
 ) error {
 	fullURL := c.apiBaseURL + endpoint
-	if queryParams != nil && len(queryParams) > 0 {
+	if len(queryParams) > 0 {
 		fullURL += "?" + queryParams.Encode()
 	}
 
@@ -500,15 +481,11 @@ func (c *ScreenpipeClient) makeRequest(
 	if requestBody != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	// if c.authToken != "" {
-	// 	req.Header.Set("Authorization", "Bearer "+c.authToken)
-	// }
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to execute request: %w", err)
 	}
-	defer resp.Body.Close()
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -534,12 +511,18 @@ func (c *ScreenpipeClient) makeRequest(
 			return fmt.Errorf("failed to unmarshal response body into target: %w. Body: %s", err, string(bodyBytes))
 		}
 	}
+
+	err = resp.Body.Close()
+	if err != nil {
+		fmt.Println("failed to close response body: %w", err)
+	}
+
 	return nil
 }
 
 // --- API Specific Structs ---
 
-// SearchContent
+// SearchContent.
 type ScreenpipeSearchResultContent struct {
 	Text          string `json:"text,omitempty"`
 	AppName       string `json:"app_name,omitempty"`
@@ -555,29 +538,28 @@ type ScreenpipeSearchResultItem struct {
 }
 
 type ScreenpipeSearchResponse struct {
-	Data []ScreenpipeSearchResultItem `json:"data"` // Matches python: results.extend(data.get("data", []))
-	// Screenpipe API for search doesn't seem to have a top-level success/error field based on python client
+	Data []ScreenpipeSearchResultItem `json:"data"`
 }
 
-// PixelControl
+// PixelControl.
 type PixelControlAction struct {
-	Type string      `json:"type"` // ActionType from arguments
-	Data interface{} `json:"data"` // Data from arguments (PixelControlData struct)
+	Type string      `json:"type"`
+	Data interface{} `json:"data"`
 }
 type PixelControlRequest struct {
 	Action PixelControlAction `json:"action"`
 }
 
-// ElementSelector (common for click, fill, find)
+// ElementSelector (common for click, fill, find).
 type ElementSelector struct {
 	AppName           string `json:"app_name"`
 	WindowName        string `json:"window_name,omitempty"`
 	Locator           string `json:"locator"`
-	UseBackgroundApps *bool  `json:"use_background_apps,omitempty"` // Pointer to handle omitempty for default true
-	ActivateApp       *bool  `json:"activate_app,omitempty"`        // Pointer to handle omitempty for default true
+	UseBackgroundApps *bool  `json:"use_background_apps,omitempty"`
+	ActivateApp       *bool  `json:"activate_app,omitempty"`
 }
 
-// ClickElement
+// ClickElement.
 type ClickElementRequest struct {
 	Selector ElementSelector `json:"selector"`
 }
@@ -590,17 +572,17 @@ type ClickElementResponse struct {
 	Result ClickElementResult `json:"result,omitempty"`
 }
 
-// FillElement
+// FillElement.
 type FillElementRequest struct {
 	Selector ElementSelector `json:"selector"`
 	Text     string          `json:"text"`
 }
 
-// FindElements
+// FindElements.
 type FindElementsRequest struct {
 	Selector   ElementSelector `json:"selector"`
-	MaxResults int             `json:"max_results,omitempty"` // API default is 10
-	MaxDepth   *int            `json:"max_depth,omitempty"`   // Optional
+	MaxResults int             `json:"max_results,omitempty"`
+	MaxDepth   *int            `json:"max_depth,omitempty"`
 }
 type ScreenpipeUIElement struct {
 	ID          string `json:"id"`
@@ -613,12 +595,12 @@ type FindElementsResponse struct {
 	Data []ScreenpipeUIElement `json:"data,omitempty"`
 }
 
-// OpenApplication
+// OpenApplication.
 type OpenApplicationRequest struct {
 	AppName string `json:"app_name"`
 }
 
-// OpenURL
+// OpenURL.
 type OpenURLRequest struct {
 	URL     string `json:"url"`
 	Browser string `json:"browser,omitempty"`
@@ -634,10 +616,10 @@ func (c *ScreenpipeClient) SearchContent(ctx context.Context, args SearchContent
 	if args.ContentType != "" && args.ContentType != "all" {
 		params.Set("content_type", args.ContentType)
 	}
-	if args.Limit > 0 { // Default is 10 in schema, API should handle if omitted
+	if args.Limit > 0 {
 		params.Set("limit", strconv.Itoa(args.Limit))
 	}
-	if args.Offset > 0 { // Default is 0
+	if args.Offset > 0 {
 		params.Set("offset", strconv.Itoa(args.Offset))
 	}
 	if args.StartTime != "" {
@@ -662,9 +644,6 @@ func (c *ScreenpipeClient) SearchContent(ctx context.Context, args SearchContent
 	var resp ScreenpipeSearchResponse
 	err := c.makeRequest(ctx, http.MethodGet, "/search", params, nil, &resp)
 	if err != nil {
-		// Python code implies direct data access, so error handling might need to be specific if not a typical ScreenpipeAPIError
-		// For now, makeRequest should handle basic error reporting.
-		// If parsing fails specifically, the python code returns a custom message.
 		if _, ok := err.(*json.SyntaxError); ok {
 			return nil, fmt.Errorf("failed to parse JSON response from /search: %w", err)
 		}
@@ -677,7 +656,7 @@ func (c *ScreenpipeClient) PixelControl(ctx context.Context, args PixelControlAr
 	payload := PixelControlRequest{
 		Action: PixelControlAction{
 			Type: args.ActionType,
-			Data: args.Data, // Assumes args.Data (PixelControlData struct) marshals correctly
+			Data: args.Data,
 		},
 	}
 	var resp ScreenpipeBaseResponse
@@ -693,11 +672,10 @@ func (c *ScreenpipeClient) PixelControl(ctx context.Context, args PixelControlAr
 
 func (c *ScreenpipeClient) ClickElement(ctx context.Context, args ClickElementArguments) (*ClickElementResponse, error) {
 	selector := ElementSelector{
-		AppName:    args.App,
-		WindowName: args.Window,
-		Locator:    "#" + args.ID,
-		// Use pointers directly from args. API should default to true if omitted by omitempty.
-		UseBackgroundApps: args.UseBackgroundApps, 
+		AppName:           args.App,
+		WindowName:        args.Window,
+		Locator:           "#" + args.ID,
+		UseBackgroundApps: args.UseBackgroundApps,
 		ActivateApp:       args.ActivateApp,
 	}
 
@@ -715,13 +693,13 @@ func (c *ScreenpipeClient) ClickElement(ctx context.Context, args ClickElementAr
 
 func (c *ScreenpipeClient) FillElement(ctx context.Context, args FillElementArguments) (*ScreenpipeBaseResponse, error) {
 	selector := ElementSelector{
-		AppName:    args.App,
-		WindowName: args.Window,
-		Locator:    "#" + args.ID,
+		AppName:           args.App,
+		WindowName:        args.Window,
+		Locator:           "#" + args.ID,
 		UseBackgroundApps: args.UseBackgroundApps,
 		ActivateApp:       args.ActivateApp,
 	}
-	
+
 	payload := FillElementRequest{
 		Selector: selector,
 		Text:     args.Text,
@@ -739,9 +717,9 @@ func (c *ScreenpipeClient) FillElement(ctx context.Context, args FillElementArgu
 
 func (c *ScreenpipeClient) FindElements(ctx context.Context, args FindElementsArguments) (*FindElementsResponse, error) {
 	selector := ElementSelector{
-		AppName:    args.App,
-		WindowName: args.Window,
-		Locator:    args.Role, 
+		AppName:           args.App,
+		WindowName:        args.Window,
+		Locator:           args.Role,
 		UseBackgroundApps: args.UseBackgroundApps,
 		ActivateApp:       args.ActivateApp,
 	}
@@ -764,9 +742,7 @@ func (c *ScreenpipeClient) FindElements(ctx context.Context, args FindElementsAr
 }
 
 func (c *ScreenpipeClient) OpenApplication(ctx context.Context, args OpenApplicationArguments) (*ScreenpipeBaseResponse, error) {
-	// This method assumes it's called when on MacOS, as per Python's conditional logic.
-	// The actual OS check should be in the tool handler.
-	payload := OpenApplicationRequest{AppName: args.AppName}
+	payload := OpenApplicationRequest(args)
 	var resp ScreenpipeBaseResponse
 	err := c.makeRequest(ctx, http.MethodPost, "/experimental/operator/open-application", nil, payload, &resp)
 	if err != nil {
@@ -779,10 +755,7 @@ func (c *ScreenpipeClient) OpenApplication(ctx context.Context, args OpenApplica
 }
 
 func (c *ScreenpipeClient) OpenURL(ctx context.Context, args OpenURLArguments) (*ScreenpipeBaseResponse, error) {
-	payload := OpenURLRequest{
-		URL:     args.URL,
-		Browser: args.Browser, // omitempty if ""
-	}
+	payload := OpenURLRequest(args)
 	var resp ScreenpipeBaseResponse
 	err := c.makeRequest(ctx, http.MethodPost, "/experimental/operator/open-url", nil, payload, &resp)
 	if err != nil {

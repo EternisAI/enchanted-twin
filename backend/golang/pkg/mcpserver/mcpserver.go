@@ -82,7 +82,7 @@ func (s *service) ConnectMCPServer(
 			})
 		case model.MCPServerTypeScreenpipe:
 			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-				ID: mcpServer.ID,
+				ID:     mcpServer.ID,
 				Client: screenpipe.NewClient(),
 			})
 		default:
@@ -204,7 +204,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				})
 			case model.MCPServerTypeScreenpipe:
 				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-					ID: server.ID,
+					ID:     server.ID,
 					Client: screenpipe.NewClient(),
 				})
 			default:
@@ -212,7 +212,6 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			}
 			continue
 		}
-
 
 		cmd := exec.Command(server.Command, server.Args...)
 
