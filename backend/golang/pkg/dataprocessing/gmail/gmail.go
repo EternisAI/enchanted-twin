@@ -230,10 +230,9 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 	date, _ := mail.ParseDate(h.Get("Date"))
 
 	data := map[string]interface{}{
-		"from":      h.Get("From"),
-		"to":        h.Get("To"),
-		"subject":   h.Get("Subject"),
-		"myMessage": strings.EqualFold(h.Get("From"), user),
+		"from":    h.Get("From"),
+		"to":      h.Get("To"),
+		"subject": h.Get("Subject"),
 	}
 
 	mt, params, _ := mime.ParseMediaType(h.Get("Content-Type"))
