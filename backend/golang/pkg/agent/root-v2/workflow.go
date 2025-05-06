@@ -2,14 +2,17 @@ package root
 
 import (
 	"fmt"
+	"maps"
 	"time"
 
 	"go.temporal.io/sdk/workflow"
 )
 
-// History size/event count threshold to trigger ContinueAsNew
-const historyThreshold = 10000               // Adjust as needed
-const commandPruningAge = 7 * 24 * time.Hour // Prune command statuses older than 1 week
+// History size/event count threshold to trigger ContinueAsNew.
+const (
+	historyThreshold  = 10000              // Adjust as needed
+	commandPruningAge = 7 * 24 * time.Hour // Prune command statuses older than 1 week
+)
 
 // RootWorkflow launches and manages child agent workflows.
 func RootWorkflow(ctx workflow.Context, prevState *LauncherState) error {
@@ -27,9 +30,7 @@ func RootWorkflow(ctx workflow.Context, prevState *LauncherState) error {
 	err := workflow.SetQueryHandler(ctx, QueryListActiveRuns, func() (map[string]*ChildRunInfo, error) {
 		// Return a copy
 		runsCopy := make(map[string]*ChildRunInfo, len(state.ActiveRuns))
-		for k, v := range state.ActiveRuns {
-			runsCopy[k] = v
-		}
+		maps.Copy(runsCopy, state.ActiveRuns)
 		return runsCopy, nil
 	})
 	if err != nil {
@@ -110,6 +111,7 @@ func RootWorkflow(ctx workflow.Context, prevState *LauncherState) error {
 			pruneProcessedCommands(ctx, state, workflow.Now(ctx))
 			// TODO: In a future version, prune state.ActiveRuns based on querying Temporal for their actual status
 			// For V0, we just carry over all runs listed as "active".
+			// TODO: Should drain the signal and command queues here
 			return workflow.NewContinueAsNewError(ctx, RootWorkflow, state)
 		}
 	}
@@ -126,12 +128,15 @@ func handleStartChildWorkflow(ctx workflow.Context, state *LauncherState, args m
 		return "", fmt.Errorf("missing or invalid argument %s (json string)", ArgWorkflowName)
 	}
 
-	taskID, ok := args[ArgTaskID].(string)
-	if !ok || taskID == "" {
+	taskID, okTaskID := args[ArgTaskID].(string)
+	if !okTaskID || taskID == "" {
 		return "", fmt.Errorf("missing or invalid argument %s (json string)", ArgTaskID)
 	}
 
-	childArgs, ok := args[ArgWorkflowArgs].([]any)
+	childArgs, okChildArgs := args[ArgWorkflowArgs].([]any)
+	if !okChildArgs {
+		return "", fmt.Errorf("invalid argument %s (json array)", ArgWorkflowArgs)
+	}
 
 	// --- Start Child Workflow ---
 	// Use a child workflow ID that includes the task ID if provided for easier identification
