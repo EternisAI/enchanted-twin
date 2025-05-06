@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -43,136 +42,65 @@ func (s *Source) Name() string {
 	return "misc"
 }
 
-// IsHumanReadableContent uses OpenAI to determine if the content is human-readable.
+// IsHumanReadableContent uses a language model to determine if the content is human-readable.
 func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bool, error) {
 	contentSample := content
 	if len(content) > 500 {
 		contentSample = content[:500]
 	}
 
-	isHumanReadableTool := openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name: "is_human_readable",
-			Description: param.NewOpt(
-				"Determine if the provided text sample contains human-readable content",
-			),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"textSample": map[string]interface{}{
-						"type":        "string",
-						"description": "The text sample to analyze",
-					},
-					"isHumanReadable": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Whether the text contains human-readable content (not binary data, not just code, not just random characters)",
-					},
-				},
-				"required": []string{"textSample", "isHumanReadable"},
-			},
-		},
-	}
-
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(fmt.Sprintf("Please analyze this text sample and determine if it contains human-readable content: %s", contentSample)),
+		openai.UserMessage(fmt.Sprintf("Analyze this text sample and determine if it contains human-readable content (not binary data, not just code, not just random characters). Reply with ONLY 'yes' or 'no'.\n\nText sample: %s", contentSample)),
 	}
 
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{isHumanReadableTool}, "gpt-4o-mini")
+	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, "gemma3:1b")
 	if err != nil {
 		return false, fmt.Errorf("failed to analyze content: %w", err)
 	}
 
-	if len(response.ToolCalls) > 0 {
-		toolCall := response.ToolCalls[0]
-		if toolCall.Function.Name == "is_human_readable" {
-			arguments := toolCall.Function.Arguments
-			if strings.Contains(arguments, "\"isHumanReadable\":true") {
-				return true, nil
-			} else if strings.Contains(arguments, "\"isHumanReadable\":false") {
-				return false, nil
-			} else {
-				return false, fmt.Errorf("unexpected tool response format: %s", arguments)
-			}
-		}
-	}
-
-	return strings.Contains(strings.ToLower(response.Content), "true"), nil
+	responseText := strings.ToLower(strings.TrimSpace(response.Content))
+	return strings.Contains(responseText, "yes"), nil
 }
 
-// ExtractContentTags uses OpenAI to extract relevant tags from the content.
+// ExtractContentTags uses a language model to extract relevant tags from the content.
 func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
 	contentSample := content
 	if len(content) > 1000 {
 		contentSample = content[:1000]
 	}
 
-	extractTagsTool := openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name: "extract_tags",
-			Description: param.NewOpt(
-				"Extract relevant tags that describe the content",
-			),
-			Parameters: openai.FunctionParameters{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"textSample": map[string]interface{}{
-						"type":        "string",
-						"description": "The text sample to analyze",
-					},
-					"tags": map[string]interface{}{
-						"type":        "array",
-						"description": "A list of 3-5 tags that describe the content's topic, domain, and key concepts",
-						"items": map[string]interface{}{
-							"type": "string",
-						},
-					},
-				},
-				"required": []string{"textSample", "tags"},
-			},
-		},
-	}
-
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(fmt.Sprintf("Please analyze this text sample and extract 3-5 relevant tags that describe its content: %s", contentSample)),
+		openai.UserMessage(fmt.Sprintf("Extract 3-5 tags that describe this content. Reply with ONLY a comma-separated list of tags (no explanations, just the tags).\n\nText sample: %s", contentSample)),
 	}
 
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{extractTagsTool}, "gpt-4o-mini")
+	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, "gemma3:1b")
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract tags: %w", err)
 	}
 
-	if len(response.ToolCalls) > 0 {
-		toolCall := response.ToolCalls[0]
-		if toolCall.Function.Name == "extract_tags" {
-			arguments := toolCall.Function.Arguments
+	// Process the response to extract tags
+	responseText := strings.TrimSpace(response.Content)
 
-			if strings.Contains(arguments, "\"tags\":") {
-				tagsStart := strings.Index(arguments, "\"tags\":")
-				if tagsStart != -1 {
-					tagsJSON := arguments[tagsStart:]
-					arrayStart := strings.Index(tagsJSON, "[")
-					arrayEnd := strings.Index(tagsJSON, "]")
-					if arrayStart != -1 && arrayEnd != -1 && arrayEnd > arrayStart {
-						tagsArray := tagsJSON[arrayStart+1 : arrayEnd]
-						tagsParts := strings.Split(tagsArray, ",")
-						tags := make([]string, 0, len(tagsParts))
-						for _, tag := range tagsParts {
-							tag = strings.TrimSpace(tag)
-							tag = strings.Trim(tag, "\"")
-							if tag != "" {
-								tags = append(tags, tag)
-							}
-						}
-						return tags, nil
-					}
-				}
-			}
+	// Clean up line breaks, extra spaces, and potential markdown formatting
+	responseText = strings.ReplaceAll(responseText, "\n", " ")
+	responseText = strings.ReplaceAll(responseText, "  ", " ")
+	responseText = strings.ReplaceAll(responseText, "* ", "")
+	responseText = strings.ReplaceAll(responseText, "- ", "")
+
+	// Split by commas
+	tagsList := strings.Split(responseText, ",")
+
+	// Clean up individual tags
+	tags := make([]string, 0, len(tagsList))
+	for _, tag := range tagsList {
+		tag = strings.TrimSpace(tag)
+		// Skip if empty or too long
+		if tag != "" && len(tag) < 50 {
+			tags = append(tags, tag)
 		}
 	}
 
-	return []string{}, nil
+	return tags, nil
 }
 
 func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
