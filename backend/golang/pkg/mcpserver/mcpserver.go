@@ -15,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/google"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/screenpipe"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/twitter"
 )
@@ -78,6 +79,11 @@ func (s *service) ConnectMCPServer(
 				Client: &slack.SlackClient{
 					Store: s.store,
 				},
+			})
+		case model.MCPServerTypeScreenpipe:
+			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+				ID: mcpServer.ID,
+				Client: screenpipe.NewClient(),
 			})
 		default:
 			return nil, fmt.Errorf("unsupported server type")
@@ -196,11 +202,17 @@ func (s *service) LoadMCP(ctx context.Context) error {
 						Store: s.store,
 					},
 				})
+			case model.MCPServerTypeScreenpipe:
+				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+					ID: server.ID,
+					Client: screenpipe.NewClient(),
+				})
 			default:
 				// nothing to do
 			}
 			continue
 		}
+
 
 		cmd := exec.Command(server.Command, server.Args...)
 
