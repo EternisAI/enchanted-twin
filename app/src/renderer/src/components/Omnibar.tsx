@@ -12,7 +12,7 @@ import { useNavigate } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
 import { useRouter } from '@tanstack/react-router'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
-
+import FocusLock from 'react-focus-lock'
 export const Omnibar = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
   //   const [isThinking, setIsThinking] = useState(false)
@@ -70,7 +70,7 @@ export const Omnibar = () => {
         // Refetch all chats
         await client.cache.evict({ fieldName: 'getChats' })
         await router.invalidate({
-          filter: (match) => match.routeId === '/chat'
+          filter: (match) => match.routeId === '/chat/$chatId'
         })
 
         sendMessage({ variables: { chatId: newChatId, text: query } })
@@ -120,106 +120,109 @@ export const Omnibar = () => {
   }, [isOpen, selectedIndex, filteredChats, navigate, closeOmnibar])
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-sm"
-          onClick={closeOmnibar}
-        >
+    <FocusLock disabled={!isOpen}>
+      <AnimatePresence>
+        {isOpen && (
           <motion.div
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.95, opacity: 0 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
-            className="w-full max-w-xl px-4"
-            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-sm"
+            onClick={closeOmnibar}
           >
-            <form onSubmit={handleSubmit}>
-              <motion.div
-                className={cn(
-                  'flex flex-col gap-3 rounded-lg border border-border bg-background/90 p-4 shadow-xl',
-                  'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  {/* <TwinAvatar size={40} state={isThinking ? 'thinking' : 'idle'} /> */}
-                  <input
-                    type="text"
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value)
-                      setSelectedIndex(0)
-                    }}
-                    placeholder="What would you like to discuss?"
-                    className="flex-1 bg-transparent text-foreground placeholder-muted-foreground outline-none"
-                    autoFocus
-                  />
-                  {debouncedQuery.trim() && filteredChats.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={handleCreateChat}
-                      className="rounded-full p-1 text-primary hover:bg-muted"
-                    >
-                      <Send className="h-5 w-5" />
-                    </button>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              className="w-full max-w-xl px-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <form onSubmit={handleSubmit}>
+                <motion.div
+                  className={cn(
+                    'flex flex-col gap-3 rounded-lg border border-border bg-background/90 p-4 shadow-xl',
+                    'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
                   )}
-                </div>
+                >
+                  <div className="flex items-center gap-3">
+                    {/* <TwinAvatar size={40} state={isThinking ? 'thinking' : 'idle'} /> */}
+                    <input
+                      type="text"
+                      value={query}
+                      onChange={(e) => {
+                        setQuery(e.target.value)
+                        setSelectedIndex(0)
+                      }}
+                      placeholder="What would you like to discuss?"
+                      className="flex-1 bg-transparent text-foreground placeholder-muted-foreground outline-none"
+                      autoFocus
+                    />
+                    {debouncedQuery.trim() && filteredChats.length === 0 && (
+                      <button
+                        type="button"
+                        onClick={handleCreateChat}
+                        className="rounded-full p-1 text-primary hover:bg-muted"
+                      >
+                        <Send className="h-5 w-5" />
+                      </button>
+                    )}
+                  </div>
 
-                <AnimatePresence mode="wait">
-                  {debouncedQuery && filteredChats.length > 0 && (
-                    <motion.div
-                      key="results"
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeInOut' }}
-                      className="rounded-lg border border-border bg-background/90 overflow-hidden"
-                    >
-                      <div className="py-1">
-                        {filteredChats.map((chat, index) => (
-                          <button
-                            key={chat.id}
-                            type="button"
-                            onClick={() => {
-                              navigate({ to: `/chat/${chat.id}` })
-                              closeOmnibar()
-                            }}
-                            className={cn(
-                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
-                              'hover:bg-muted/80',
-                              selectedIndex === index && 'bg-primary/10 text-primary'
-                            )}
-                          >
-                            <span className="truncate">{chat.name}</span>
-                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                        ))}
-                        {debouncedQuery.trim() && (
-                          <button
-                            type="button"
-                            onClick={handleCreateChat}
-                            className={cn(
-                              'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
-                              'hover:bg-muted/80',
-                              selectedIndex === filteredChats.length && 'bg-primary/10 text-primary'
-                            )}
-                          >
-                            <span>New chat: &quot;{debouncedQuery}&quot;</span>
-                            <Send className="h-4 w-4 text-muted-foreground" />
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            </form>
+                  <AnimatePresence mode="wait">
+                    {debouncedQuery && filteredChats.length > 0 && (
+                      <motion.div
+                        key="results"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        className="rounded-lg border border-border bg-background/90 overflow-hidden"
+                      >
+                        <div className="py-1">
+                          {filteredChats.map((chat, index) => (
+                            <button
+                              key={chat.id}
+                              type="button"
+                              onClick={() => {
+                                navigate({ to: `/chat/${chat.id}` })
+                                closeOmnibar()
+                              }}
+                              className={cn(
+                                'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
+                                'hover:bg-muted/80',
+                                selectedIndex === index && 'bg-primary/10 text-primary'
+                              )}
+                            >
+                              <span className="truncate">{chat.name}</span>
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                          ))}
+                          {debouncedQuery.trim() && (
+                            <button
+                              type="button"
+                              onClick={handleCreateChat}
+                              className={cn(
+                                'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
+                                'hover:bg-muted/80',
+                                selectedIndex === filteredChats.length &&
+                                  'bg-primary/10 text-primary'
+                              )}
+                            >
+                              <span>New chat: &quot;{debouncedQuery}&quot;</span>
+                              <Send className="h-4 w-4 text-muted-foreground" />
+                            </button>
+                          )}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              </form>
+            </motion.div>
           </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        )}
+      </AnimatePresence>
+    </FocusLock>
   )
 }
