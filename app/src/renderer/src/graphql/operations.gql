@@ -207,3 +207,11 @@ mutation StartOAuthFlow($provider: String!, $scope: String!) {
 mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
   completeOAuthFlow(state: $state, authCode: $authCode)
 }
+
+mutation ConnectMCPServer($input: ConnectMCPServerInput!) {
+  connectMCPServer(input: $input)
+}
+
+mutation RemoveMCPServer($id: String!) {
+  removeMCPServer(id: $id)
+}

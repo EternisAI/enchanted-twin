@@ -1,11 +1,27 @@
-import { useQuery } from '@apollo/client'
-import { GetMcpServersDocument } from '@renderer/graphql/generated/graphql'
+import { useMutation, useQuery } from '@apollo/client'
+import { GetMcpServersDocument, RemoveMcpServerDocument } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { Card } from '../ui/card'
 import { Plug } from 'lucide-react'
+import { toast } from 'sonner'
 
-export default function MCPPanel({ header = true }: { header?: boolean }) {
+export default function MCPPanel({
+  header = true,
+  allowRemove = false
+}: {
+  header?: boolean
+  allowRemove?: boolean
+}) {
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
+  const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
+    onCompleted: () => {
+      toast.success('MCP server removed')
+      refetch()
+    },
+    onError: () => {
+      toast.error('Failed to remove MCP server')
+    }
+  })
 
   const mcpServers = data?.getMCPServers || []
 
@@ -32,7 +48,14 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
       )}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         {mcpServers.map((server) => (
-          <MCPServerItem key={server.id} server={server} onConnect={refetch} />
+          <MCPServerItem
+            key={server.id}
+            server={server}
+            onConnect={refetch}
+            onRemove={
+              allowRemove ? () => deleteMcpServer({ variables: { id: server.id } }) : undefined
+            }
+          />
         ))}
         {mcpServers.length === 0 && (
           <div className="text-center text-muted-foreground py-8 border rounded-lg">
