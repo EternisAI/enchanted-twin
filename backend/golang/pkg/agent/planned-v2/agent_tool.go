@@ -42,34 +42,38 @@ func (t *PlannedAgentTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name: "schedule_task",
+			Name: "execute_plan", // Renamed from schedule_task
 			Description: param.NewOpt(
-				"Schedule a task to be executed periodically by the agent with planning and reasoning",
+				"Execute a multi-step plan using an autonomous agent. " +
+					"Optionally schedule the plan for repeated execution.",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
+					// --- Required ---
+					"name": map[string]any{
+						"type":        "string",
+						"description": "A name for the task the plan is designed to accomplish.",
+					},
 					"plan": map[string]any{
 						"type":        "string",
-						"description": "A detailed step-by-step plan to execute",
+						"description": "A detailed step-by-step plan for the agent to execute.",
 					},
+					// --- Optional ---
 					"tools": map[string]any{
 						"type":        "array",
-						"description": "Optional list of tool names to use (defaults to all available tools)",
+						"description": "Optional list of tool names the agent executing the plan should have access to (defaults to a standard set).",
 						"items": map[string]any{
 							"type": "string",
 						},
 					},
 					"schedule": map[string]any{
-						"type":        "string",
-						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;BYHOUR=0;BYMINUTE=0' for daily at midnight)",
-					},
-					"system_prompt": map[string]any{
-						"type":        "string",
-						"description": "Optional system prompt override",
+						"type": "string",
+						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;INTERVAL=1;BYHOUR=9'). " +
+							"If provided, the plan will be scheduled for repeated execution.",
 					},
 				},
-				"required": []string{"plan"},
+				"required": []string{"name", "plan"},
 			},
 		},
 	}
@@ -80,6 +84,7 @@ func (t *PlannedAgentTool) Execute(
 	ctx context.Context,
 	args map[string]any,
 ) (agenttypes.ToolResult, error) {
+
 	plan, ok := args["plan"].(string)
 	if !ok || plan == "" {
 		return &agenttypes.StructuredToolResult{
@@ -87,6 +92,15 @@ func (t *PlannedAgentTool) Execute(
 			ToolParams: args,
 			ToolError:  "plan is required",
 		}, fmt.Errorf("plan is required")
+	}
+
+	name, ok := args["name"].(string)
+	if !ok || name == "" {
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "schedule_task",
+			ToolParams: args,
+			ToolError:  "name is required",
+		}, fmt.Errorf("name is required")
 	}
 
 	// Extract optional parameters
@@ -99,11 +113,6 @@ func (t *PlannedAgentTool) Execute(
 		}
 	}
 
-	systemPrompt := ""
-	if promptArg, ok := args["system_prompt"].(string); ok {
-		systemPrompt = promptArg
-	}
-
 	schedule := ""
 	if scheduleArg, ok := args["schedule"].(string); ok {
 		schedule = scheduleArg
@@ -111,12 +120,12 @@ func (t *PlannedAgentTool) Execute(
 
 	// Create workflow input
 	input := PlanInput{
-		Origin:       args,
-		Schedule:     schedule,
-		Plan:         plan,
-		ToolNames:    toolNames,
-		Model:        t.model,
-		SystemPrompt: systemPrompt,
+		// Origin:    args,
+		Name:      name,
+		Schedule:  schedule,
+		Plan:      plan,
+		ToolNames: toolNames,
+		Model:     t.model,
 	}
 
 	inputJSON, err := json.Marshal(input)
