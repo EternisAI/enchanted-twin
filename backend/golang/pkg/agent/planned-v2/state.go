@@ -68,7 +68,6 @@ type PlanState struct {
 
 	// Image URLs generated (if any)
 	ImageURLs []string `json:"image_urls"`
-
 }
 
 // HistoryEntry represents a single entry in the agent's execution history.

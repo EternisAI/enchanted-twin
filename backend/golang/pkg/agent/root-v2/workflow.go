@@ -83,6 +83,8 @@ func RootWorkflow(ctx workflow.Context, prevState *RootState) error {
 			switch cmd.Cmd {
 			case CmdStartChildWorkflow:
 				runID, cmdErr = handleStartChildWorkflow(ctx, state, cmd.Args)
+			case CmdTerminateChildWorkflow:
+				cmdErr = handleTerminateChildWorkflow(ctx, state, cmd.Args)
 			default:
 				cmdErr = fmt.Errorf("unknown command type: %s", cmd.Cmd)
 			}
@@ -182,6 +184,39 @@ func handleStartChildWorkflow(ctx workflow.Context, state *RootState, args map[s
 	// and then update the status in ActiveRuns.
 
 	return runID, nil // Return the RunID
+}
+
+// handleTerminateChildWorkflow handles a request to terminate a running child workflow.
+func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args map[string]any) error {
+	logger := workflow.GetLogger(ctx)
+
+	// Get required arguments
+	runID, okRunID := args[ArgRunID].(string)
+	if !okRunID || runID == "" {
+		return fmt.Errorf("missing or invalid argument %s", ArgRunID)
+	}
+
+	// Reason is optional but useful for logging
+	reason, _ := args[ArgReason].(string)
+	if reason == "" {
+		reason = "Terminated by RootWorkflow command"
+	}
+
+	task, found := state.ActiveTasks[runID]
+	if !found {
+		logger.Warn("Attempted to terminate task not found in state", "RunID", runID)
+		return nil
+	}
+
+	// Terminate the workflow
+	logger.Info("Attempting to terminate child workflow", "WorkflowID", task.WorkflowID, "RunID", runID, "Reason", reason)
+
+	// TODO: could keep the child future in state and try terminate with future.Cancel(ctx)
+	// but this may or may not work across different incarnations/across ContinueAsNew boundaries
+
+	// childWorkflowHandle := workflow.GetExternalWorkflowHandle(ctx, task.WorkflowID, task.RunID)
+
+	return nil
 }
 
 // --- Helper Functions ---
