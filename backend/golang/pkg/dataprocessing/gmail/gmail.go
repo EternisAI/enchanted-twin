@@ -149,7 +149,6 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 		}()
 	}
 
-	// feed jobs
 	go func() {
 		f, err := os.Open(path)
 		if err != nil {
@@ -157,6 +156,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 			close(jobs)
 			return
 		}
+
 		defer f.Close() //nolint:errcheck
 
 		var buf bytes.Buffer
@@ -190,7 +190,6 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 		close(jobs)
 	}()
 
-	// collect
 	go func() { wg.Wait(); close(results) }()
 
 	records := make(map[int]types.Record)
@@ -231,16 +230,14 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 	date, _ := mail.ParseDate(h.Get("Date"))
 
 	data := map[string]interface{}{
-		"from":      h.Get("From"),
-		"to":        h.Get("To"),
-		"subject":   h.Get("Subject"),
-		"myMessage": strings.EqualFold(h.Get("From"), user),
+		"from":    h.Get("From"),
+		"to":      h.Get("To"),
+		"subject": h.Get("Subject"),
 	}
 
 	mt, params, _ := mime.ParseMediaType(h.Get("Content-Type"))
 	var final string
 
-	// ── multipart ───────────────────────────────────────
 	if strings.HasPrefix(mt, "multipart/") {
 		mr := multipart.NewReader(msg.Body, params["boundary"])
 		var plain, html string
@@ -275,7 +272,7 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 		} else {
 			final = html
 		}
-	} else { // ── single part ─────────────────────────────
+	} else {
 		enc := strings.ToLower(h.Get("Content-Transfer-Encoding"))
 		r := msg.Body
 		if enc == "quoted-printable" {
@@ -347,6 +344,87 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, bool, e
 	return out, true, nil
 }
 
+func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate string, maxResults int, pageToken string) ([]types.Record, bool, string, error) {
+	if maxResults <= 0 {
+		maxResults = 100
+	}
+
+	c := &http.Client{Timeout: 30 * time.Second}
+
+	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
+		"https://gmail.googleapis.com/gmail/v1/users/me/messages", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+
+	q := req.URL.Query()
+	q.Set("maxResults", fmt.Sprintf("%d", maxResults))
+
+	queryParams := []string{"in:inbox"}
+	if startDate != "" {
+		queryParams = append(queryParams, fmt.Sprintf("after:%s", startDate))
+	}
+	if endDate != "" {
+		queryParams = append(queryParams, fmt.Sprintf("before:%s", endDate))
+	}
+	q.Set("q", strings.Join(queryParams, " "))
+
+	if pageToken != "" {
+		q.Set("pageToken", pageToken)
+	}
+
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, false, "", err
+	}
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Errorf("failed to close response body: %v", err)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return nil, false, "", fmt.Errorf("gmail list: %d %s", resp.StatusCode, b)
+	}
+
+	var list struct {
+		Messages      []struct{ ID string } `json:"messages"`
+		NextPageToken string                `json:"nextPageToken"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		return nil, false, "", err
+	}
+
+	var out []types.Record
+	for _, m := range list.Messages {
+		rec, err := g.fetchMessage(ctx, c, token, m.ID)
+		if err != nil {
+			log.Errorf("message %s: %v", m.ID, err)
+			continue
+		}
+		out = append(out, rec)
+	}
+
+	hasMore := list.NextPageToken != ""
+	return out, hasMore, list.NextPageToken, nil
+}
+
+func SortByOldest(records []types.Record) {
+	if len(records) <= 1 {
+		return
+	}
+
+	for i := 0; i < len(records)-1; i++ {
+		for j := i + 1; j < len(records); j++ {
+			if records[i].Timestamp.After(records[j].Timestamp) {
+				records[i], records[j] = records[j], records[i]
+			}
+		}
+	}
+}
+
 func (g *Gmail) fetchMessage(
 	ctx context.Context,
 	c *http.Client,
@@ -385,14 +463,12 @@ func (g *Gmail) fetchMessage(
 		return types.Record{}, err
 	}
 
-	// headers → map
 	h := map[string]string{}
 	for _, v := range msg.Payload.Headers {
 		h[v.Name] = v.Value
 	}
 	date, _ := mail.ParseDate(h["Date"])
 
-	// ── extract preferred body ───────────────────────────
 	var plain, html string
 
 	for _, p := range msg.Payload.Parts {
@@ -407,7 +483,6 @@ func (g *Gmail) fetchMessage(
 		}
 	}
 
-	// single-part fallback
 	if plain == "" && html == "" && msg.Payload.Body.Data != "" {
 		switch {
 		case strings.HasPrefix(msg.Payload.MimeType, "text/plain"):
@@ -426,11 +501,11 @@ func (g *Gmail) fetchMessage(
 
 	return types.Record{
 		Data: map[string]interface{}{
-			"from":      h["From"],
-			"to":        h["To"],
-			"subject":   h["Subject"],
-			"content":   content,
-			"myMessage": false,
+			"from":       h["From"],
+			"to":         h["To"],
+			"subject":    h["Subject"],
+			"content":    content,
+			"message_id": id,
 		},
 		Timestamp: date,
 		Source:    g.Name(),
@@ -498,10 +573,7 @@ func ToDocuments(recs []types.Record) ([]memory.TextDocument, error) {
 	return out, nil
 }
 
-// cleanEmailText normalises line-breaks, zaps zero-width & NBSP chars,
-// collapses excess whitespace, and chops common footer / unsubscribe sections.
 func cleanEmailText(s string) string {
-	// 1) normalise breaks + common "invisible" chars
 	repl := strings.NewReplacer(
 		"\r\n", "\n", "\r", "\n",
 		"\u00a0", " ", // NBSP
@@ -510,11 +582,9 @@ func cleanEmailText(s string) string {
 	)
 	s = repl.Replace(s)
 
-	// 2) remove http(s) links
 	linkRegex := regexp.MustCompile(`https?://[^\s)]+`) // Avoid matching trailing ')'
 	s = linkRegex.ReplaceAllString(s, "")
 
-	// 3) per-line cleanup, stop at first footer clue
 	var out []string
 	for _, ln := range strings.Split(s, "\n") {
 		ln = strings.TrimSpace(ln)
@@ -528,7 +598,7 @@ func cleanEmailText(s string) string {
 			strings.HasPrefix(lc, "©") ||
 			strings.HasPrefix(lc, "google llc") ||
 			strings.HasPrefix(lc, "this email was sent") {
-			break // discard everything after the first footer hit
+			break
 		}
 		out = append(out, ln)
 	}
