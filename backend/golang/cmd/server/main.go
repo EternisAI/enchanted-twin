@@ -519,7 +519,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 
 func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
-	container, err := sqlstore.New("sqlite3", "file:examplestore.db?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
 		panic(err)
 	}
@@ -531,16 +531,16 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 	client.AddEventHandler(whatsapp.EventHandler(memoryStorage))
 
-	fmt.Println("Waiting for WhatsApp connection signal...")
+	logger.Info("Waiting for WhatsApp connection signal...")
 	connectChan := whatsapp.GetConnectChannel()
 	<-connectChan
-	fmt.Println("Received signal to start WhatsApp connection")
+	logger.Info("Received signal to start WhatsApp connection")
 
 	if client.Store.ID == nil {
 		qrChan, _ := client.GetQRChannel(context.Background())
 		err = client.Connect()
 		if err != nil {
-			fmt.Println("Error connecting to WhatsApp", err)
+			logger.Error("Error connecting to WhatsApp", slog.Any("error", err))
 		}
 		for evt := range qrChan {
 			if evt.Event == "code" {
@@ -553,10 +553,9 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 				select {
 				case whatsappQRChan <- qrEvent:
 				default:
-					fmt.Println("Warning: QR channel buffer full, dropping event")
+					logger.Warn("Warning: QR channel buffer full, dropping event")
 				}
-				fmt.Println("QR code:", evt.Code)
-				fmt.Println("Received new WhatsApp QR code")
+				logger.Info("Received new WhatsApp QR code", "qr_code", evt.Code)
 			} else if evt.Event == "success" {
 				qrEvent := whatsapp.QRCodeEvent{
 					Event: "success",
@@ -564,16 +563,15 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 				}
 				whatsapp.SetLatestQREvent(qrEvent)
 				whatsapp.GetQRChannel() <- qrEvent
-				fmt.Println("Login successful!")
-				fmt.Println("WhatsApp connection successful")
+				logger.Info("WhatsApp connection successful")
 			} else {
-				fmt.Println("Login event:", evt.Event)
+				logger.Info("Login event", "event", evt.Event)
 			}
 		}
 	} else {
 		err = client.Connect()
 		if err != nil {
-			fmt.Println("Error connecting to WhatsApp", err)
+			logger.Error("Error connecting to WhatsApp", slog.Any("error", err))
 		} else {
 			qrEvent := whatsapp.QRCodeEvent{
 				Event: "success",
@@ -581,7 +579,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 			}
 			whatsapp.SetLatestQREvent(qrEvent)
 			whatsapp.GetQRChannel() <- qrEvent
-			fmt.Println("Already logged in, reusing session")
+			logger.Info("Already logged in, reusing session")
 		}
 	}
 
