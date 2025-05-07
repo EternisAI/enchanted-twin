@@ -211,3 +211,34 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	}
 	return documents, nil
 }
+
+// ProcessNewMessage processes a new WhatsApp message and stores it in memory
+func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) error {
+	if message == "" {
+		return fmt.Errorf("empty message content")
+	}
+
+	timestamp := time.Now()
+
+	document := memory.TextDocument{
+		ID:        fmt.Sprintf("whatsapp-%d", time.Now().UnixNano()),
+		Content:   message,
+		Timestamp: &timestamp,
+		Tags:      []string{"whatsapp", "message"},
+		Metadata: map[string]string{
+			"from":     fromName,
+			"to":       toName,
+			"type":     "message",
+			"platform": "whatsapp",
+		},
+	}
+
+	progressChan := make(chan memory.ProgressUpdate, 1)
+
+	err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+	if err != nil {
+		return fmt.Errorf("failed to store WhatsApp message: %w", err)
+	}
+
+	return nil
+}
