@@ -19,7 +19,10 @@ type ToolCall struct {
 
 // PlanState represents the unified state for planned agent execution.
 type PlanState struct {
-	// The original plan text
+	// Name of the task this plan will address
+	Name string `json:"name"`
+
+	// The plan text that the agent should follow
 	Plan string `json:"plan"`
 
 	// RRULE-formatted schedule (optional)
@@ -82,13 +85,16 @@ type ActionRequest struct {
 	Tool string `json:"tool"`
 
 	// Parameters for the tool
-	Params map[string]interface{} `json:"params"`
+	Params map[string]any `json:"params"`
 }
 
 // PlanInput represents the input for the planned agent workflow.
 type PlanInput struct {
 	// Origin of the tool call
 	Origin map[string]any `json:"origin"`
+
+	// Name of the task this plan will address
+	Name string `json:"name"`
 
 	// RRULE-formatted schedule (optional)
 	Schedule string `json:"schedule,omitempty"`

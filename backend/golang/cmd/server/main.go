@@ -32,6 +32,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/root-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -156,6 +157,12 @@ func main() {
 	temporalClient, err := bootstrapTemporalServer(logger, envs)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
+	}
+
+	// Ensure the root workflow is running
+	if err := root.EnsureRunRootWorkflow(context.Background(), temporalClient, logger); err != nil {
+		logger.Error("Failed to ensure root workflow is running", "error", err)
+		logger.Error("Child workflows may not be able to start")
 	}
 
 	// Initialize MCP Service
@@ -374,6 +381,9 @@ func bootstrapTemporalWorker(
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
+	// Root workflow
+	root.RegisterWorkflowsAndActivities(&w, input.logger)
+
 	// Register auth activities
 	authActivities := auth.NewOAuthActivities(input.store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
@@ -424,6 +434,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		RootClient:             root.NewRootClient(input.temporalClient, input.logger),
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

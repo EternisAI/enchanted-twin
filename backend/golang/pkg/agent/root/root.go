@@ -196,9 +196,9 @@ func (h *RootHandlers) CmdDeregisterTool(_ workflow.Context, args struct {
 *───────────────────────────────────────────────────────────────────────────*/
 
 func RootWorkflow(ctx workflow.Context, prev *RootState) error {
-	st := prev
-	if st == nil {
-		st = &RootState{
+	state := prev
+	if state == nil {
+		state = &RootState{
 			Registry:          map[string]*AgentInfo{},
 			ActiveRuns:        map[string]*ChildRunInfo{},
 			Tools:             map[string]types.ToolDef{},
@@ -206,7 +206,7 @@ func RootWorkflow(ctx workflow.Context, prev *RootState) error {
 			ShutdownRequested: false,
 		}
 	}
-	h := &RootHandlers{st: st}
+	h := &RootHandlers{st: state}
 	if err := autoWire(ctx, h); err != nil {
 		return err
 	}
@@ -225,11 +225,11 @@ func RootWorkflow(ctx workflow.Context, prev *RootState) error {
 				logger.Info("Stopping workflow by request")
 
 				// Set graceful shutdown flag in state
-				st.ShutdownRequested = true
+				state.ShutdownRequested = true
 			}
 
-			if _, dup := st.SeenCmdIDs[cmd.CmdID]; !dup {
-				st.SeenCmdIDs[cmd.CmdID] = struct{}{}
+			if _, dup := state.SeenCmdIDs[cmd.CmdID]; !dup {
+				state.SeenCmdIDs[cmd.CmdID] = struct{}{}
 				dispatch(cmd, ctx, h)
 			}
 		})
@@ -237,15 +237,15 @@ func RootWorkflow(ctx workflow.Context, prev *RootState) error {
 		sel.Select(ctx)
 
 		// Check if shutdown was requested via command
-		if st.ShutdownRequested {
+		if state.ShutdownRequested {
 			logger := workflow.GetLogger(ctx)
-			logger.Info("Graceful shutdown requested, saving state and exiting")
-			return workflow.NewContinueAsNewError(ctx, RootWorkflow, st)
+			logger.Info("Graceful shutdown requested, exiting...")
+			return nil
 		}
 
 		info := workflow.GetInfo(ctx)
 		if info.GetCurrentHistorySize() > historyEventCut {
-			return workflow.NewContinueAsNewError(ctx, RootWorkflow, st)
+			return workflow.NewContinueAsNewError(ctx, RootWorkflow, state)
 		}
 	}
 }
