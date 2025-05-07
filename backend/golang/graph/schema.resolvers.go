@@ -422,7 +422,7 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 	isConnected := r.WhatsAppConnected
 	qrCodeData := r.WhatsAppQRCode
 
-	statusMessage := "WhatsApp is not connected."
+	statusMessage := ""
 	if isConnected {
 		statusMessage = "WhatsApp is connected and ready."
 	} else if qrCodeData != nil {
@@ -707,16 +707,38 @@ func (r *subscriptionResolver) WhatsAppQRCodeUpdated(ctx context.Context) (<-cha
 			return
 		}
 
+		event, ok := eventData["event"].(string)
+		if !ok {
+			r.Logger.Error("Event is not a string")
+			return
+		}
+
+		timestamp, ok := eventData["timestamp"].(string)
+		if !ok {
+			r.Logger.Error("Timestamp is not a string")
+			return
+		}
+
+		isConnected, ok := eventData["is_connected"].(bool)
+		if !ok {
+			r.Logger.Error("Is connected is not a boolean")
+			return
+		}
+
 		// Create update object
 		update := &model.WhatsAppQRCodeUpdate{
-			Event:       eventData["event"].(string),
-			Timestamp:   eventData["timestamp"].(string),
-			IsConnected: eventData["is_connected"].(bool),
+			Event:       event,
+			Timestamp:   timestamp,
+			IsConnected: isConnected,
 		}
 
 		// Only include QR code if event is 'code' and qr_code_data exists
 		if update.Event == "code" && eventData["qr_code_data"] != nil {
-			qrCode := eventData["qr_code_data"].(string)
+			qrCode, ok := eventData["qr_code_data"].(string)
+			if !ok {
+				r.Logger.Error("QR code data is not a string")
+				return
+			}
 			update.QRCodeData = &qrCode
 			r.Logger.Info("QR code included in update", "qr_length", len(qrCode))
 		}

@@ -129,10 +129,14 @@ func main() {
 				}
 				jsonData, err := json.Marshal(qrCodeUpdate)
 				if err == nil {
-					nc.Publish("whatsapp.qr_code", jsonData)
-					fmt.Println("Published WhatsApp QR code to NATS")
+					err = nc.Publish("whatsapp.qr_code", jsonData)
+					if err != nil {
+						logger.Error("Failed to publish WhatsApp QR code to NATS", slog.Any("error", err))
+					} else {
+						logger.Info("Published WhatsApp QR code to NATS")
+					}
 				} else {
-					fmt.Println("Failed to marshal WhatsApp QR code data", "error", err)
+					logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
 				}
 			case "success":
 				whatsAppConnected = true
@@ -148,8 +152,12 @@ func main() {
 				}
 				jsonData, err := json.Marshal(successUpdate)
 				if err == nil {
-					nc.Publish("whatsapp.qr_code", jsonData)
-					logger.Info("Published WhatsApp connection success to NATS")
+					err = nc.Publish("whatsapp.qr_code", jsonData)
+					if err != nil {
+						logger.Error("Failed to publish WhatsApp connection success to NATS", slog.Any("error", err))
+					} else {
+						logger.Info("Published WhatsApp connection success to NATS")
+					}
 				} else {
 					logger.Error("Failed to marshal WhatsApp success data", "error", err)
 				}
