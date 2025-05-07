@@ -1,17 +1,17 @@
-import { useState } from 'react'
 import { useMutation, useQuery } from '@apollo/client'
-import { GetMcpServersDocument, RemoveMcpServerDocument } from '@renderer/graphql/generated/graphql'
+import {
+  GetMcpServersDocument,
+  GetToolsDocument,
+  RemoveMcpServerDocument
+} from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { Card } from '../ui/card'
-import { Plug, Plus } from 'lucide-react'
+import { Plug } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '../ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '../ui/dialog'
-import MCPConnectionForm from './MCPConnectionForm'
+import ConnectMCPServerButton from './MCPConnectServerButton'
 
 export default function MCPPanel({ header = true }: { header?: boolean }) {
-  const [isConnectOpen, setIsConnectOpen] = useState(false)
-
+  const { data: toolsData } = useQuery(GetToolsDocument)
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
   const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
     onCompleted: () => {
@@ -25,7 +25,7 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
 
   const mcpServers = data?.getMCPServers || []
 
-  console.log('mcpServers', mcpServers)
+  console.log('toolsData', toolsData)
 
   if (loading) return <div className="py-4 text-center">Loading MCP servers...</div>
   if (error)
@@ -55,6 +55,7 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
             onRemove={() => deleteMcpServer({ variables: { id: server.id } })}
           />
         ))}
+        <ConnectMCPServerButton onSuccess={refetch} />
         {mcpServers.length === 0 && (
           <div className="text-center text-muted-foreground py-8 border rounded-lg">
             No MCP servers configured
@@ -62,30 +63,7 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
         )}
       </div>
 
-      <div className="py-4 flex justify-center">
-        <Dialog open={isConnectOpen} onOpenChange={setIsConnectOpen}>
-          <DialogTrigger asChild>
-            <Button
-              variant="outline"
-              className="max-w-lg py-10 flex flex-col gap-2 items-center justify-center"
-            >
-              <Plus className="w-6 h-6" />
-              <span>Connect Custom MCP</span>
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Connect Custom MCP Server</DialogTitle>
-            </DialogHeader>
-            <MCPConnectionForm
-              onSuccess={() => {
-                refetch()
-                setIsConnectOpen(false)
-              }}
-            />
-          </DialogContent>
-        </Dialog>
-      </div>
+      <div className="py-4 flex justify-center"></div>
     </Card>
   )
 }

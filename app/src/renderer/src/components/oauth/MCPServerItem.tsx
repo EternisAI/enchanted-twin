@@ -24,7 +24,6 @@ import {
   AlertDialogFooter,
   AlertDialogCancel
 } from '../ui/alert-dialog'
-
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
     provider: 'google',
@@ -36,6 +35,7 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
     scope: 'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read'
   },
   TWITTER: { provider: 'twitter', scope: 'like.read tweet.read users.read offline.access' },
+  SCREENPIPE: { provider: 'screenpipe', scope: '' },
   OTHER: { provider: 'other', scope: '' }
 }
 
@@ -43,6 +43,7 @@ const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   GOOGLE: <Google />,
   SLACK: <Slack />,
   TWITTER: <XformerlyTwitter />,
+  SCREENPIPE: <></>,
   OTHER: <></>
 }
 
@@ -146,7 +147,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
               Connect
             </Button>
           )}
-          {server.connected && onRemove && (
+          {onRemove && server.connected && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline" size="sm">
@@ -161,14 +162,14 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Do not remove</AlertDialogCancel>
+                  <AlertDialogCancel>Do not delete</AlertDialogCancel>
                   <Button
                     variant="destructive"
                     onClick={() => {
                       onRemove()
                     }}
                   >
-                    Remove
+                    Delete
                   </Button>
                 </AlertDialogFooter>
               </AlertDialogContent>
