@@ -6,7 +6,7 @@ const (
 	RootWorkflowID = "enchanted_twin_root"
 
 	// WorkflowTaskQueue is the task queue for all agent workflows.
-	WorkflowTaskQueue = "default" // TODO: use separate queue for root agent
+	WorkflowTaskQueue = "default" // TODO: maybe use separate queue for root agent
 
 	// Default heartbeat interval (5 minutes).
 	DefaultHeartbeat = 5 * 60 * 1000 // milliseconds

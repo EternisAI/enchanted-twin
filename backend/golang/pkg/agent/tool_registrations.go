@@ -47,7 +47,7 @@ func CreateStandardTools(
 
 	// Create PlannedAgentTool if temporal client is available
 	if temporalClient != nil && completionsModel != "" {
-		plannedAgentTool := plannedv2.NewPlannedAgentTool(logger, temporalClient, completionsModel)
+		plannedAgentTool := plannedv2.NewExecutePlanTool(logger, temporalClient, completionsModel)
 		standardTools = append(standardTools, plannedAgentTool)
 	}
 

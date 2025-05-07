@@ -294,8 +294,7 @@ func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (typ
 		}, nil
 	}
 
-	// Cap the maximum sleep duration for safety
-	maxSleepDuration := 24 * time.Hour // 24 hours
+	maxSleepDuration := 32 * 24 * time.Hour
 	if sleepDuration > maxSleepDuration {
 		logger.Warn(
 			"Sleep duration capped",
@@ -323,7 +322,7 @@ func executeSleepUntil(ctx workflow.Context, params map[string]interface{}) (typ
 }
 
 // extractReason extracts the optional reason parameter from the params map.
-func extractReason(params map[string]interface{}) string {
+func extractReason(params map[string]any) string {
 	reason := "No reason specified"
 	if reasonParam, hasReason := params["reason"].(string); hasReason && reasonParam != "" {
 		reason = reasonParam

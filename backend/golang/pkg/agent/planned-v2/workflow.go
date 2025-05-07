@@ -20,10 +20,13 @@ const DefaultMaxSteps = 100
 // Constants for workflow operations.
 const (
 	DefaultExecutionTimeout = 30 * time.Second
+	DefaultSystemPrompt     = "You are a helpful digital twin assistant that follows a plan. " +
+		"Your task is to execute this plan step by step, use tools when needed, " +
+		"and provide a clear final answer."
 )
 
 // PlannedAgentWorkflow is the main workflow for executing an agent plan.
-func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
+func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
 	// Configure workflow
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: DefaultExecutionTimeout,
@@ -32,35 +35,27 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 		},
 	})
 
-	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting PlannedAgentWorkflow", "input_size", len(input))
-
-	// Parse input
-	var planInput PlanInput
-	if err := json.Unmarshal(input, &planInput); err != nil {
-		return fmt.Errorf("failed to unmarshal input: %w", err)
-	}
-
-	if planInput.Plan == "" {
+	if input.Plan == "" {
 		return fmt.Errorf("plan is required but was empty")
 	}
 
 	// Set default model if not provided
-	if planInput.Model == "" {
-		planInput.Model = "gpt-4o" // Default model
+	if input.Model == "" {
+		input.Model = "gpt-4o" // Default model
 	}
 
 	// Set default max steps if not provided
-	planInput.MaxSteps = DefaultMaxSteps
+	input.MaxSteps = DefaultMaxSteps
 
 	// Create initial state
 	state := PlanState{
-		Plan:          planInput.Plan,
+		Name:          input.Name,
+		Plan:          input.Plan,
 		CurrentStep:   0,
 		Complete:      false,
-		Schedule:      planInput.Schedule,
+		Schedule:      input.Schedule,
 		Messages:      []ai.Message{},
-		SelectedTools: planInput.ToolNames,
+		SelectedTools: input.ToolNames,
 		ToolCalls:     []ToolCall{},
 		ToolResults:   []types.ToolResult{},
 		History:       []HistoryEntry{},
@@ -70,14 +65,11 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	}
 
 	// Add system prompt
-	systemPrompt := planInput.SystemPrompt
+	systemPrompt := input.SystemPrompt
 	if systemPrompt == "" {
-		systemPrompt = fmt.Sprintf(
-			"You are a helpful assistant that follows a plan.\nYour task is to execute this plan step by step:\n\n%s\n\nAs you work through the plan, think step-by-step, use tools when needed, and provide a clear final answer.",
-			planInput.Plan,
-		)
+		systemPrompt = DefaultSystemPrompt
 	}
-	originStr, _ := json.Marshal(planInput.Origin)
+	originStr, _ := json.Marshal(input.Origin)
 	systemPrompt += fmt.Sprintf("\n\nTask Origin: %s\n", originStr)
 	state.Messages = append(state.Messages, ai.NewSystemMessage(systemPrompt))
 
@@ -101,7 +93,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 	}
 
 	// Execute the plan
-	err := executeReActLoop(ctx, &state, planInput.Model, planInput.MaxSteps)
+	err := executeReActLoop(ctx, &state, input.Model, input.MaxSteps)
 	if err != nil {
 		state.Error = fmt.Sprintf("execution failed: %v", err)
 		return fmt.Errorf("execution failed: %w", err)
@@ -114,11 +106,11 @@ func PlannedAgentWorkflow(ctx workflow.Context, input []byte) error {
 func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
 	logger := workflow.GetLogger(ctx)
 
-	userMessage := "Please faithfully complete the following task\n"
+	userMessage := "Faithfully complete the task by following the plan\n"
 	if state.Schedule != "" {
-		userMessage += fmt.Sprintf("Schedule: %s\n\n", state.Schedule)
+		userMessage += fmt.Sprintf("## The plan is scheduled for: %s\n\n", state.Schedule)
 	}
-	userMessage += fmt.Sprintf("Plan: %s\n\n", state.Plan)
+	userMessage += fmt.Sprintf("## Plan: %s\n\n", state.Plan)
 	// Prompt the agent to start executing the plan
 	state.Messages = append(
 		state.Messages,
