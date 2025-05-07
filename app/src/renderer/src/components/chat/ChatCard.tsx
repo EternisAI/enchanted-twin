@@ -56,38 +56,39 @@ export function ChatCard({ chat, isActive }: ChatCardProps) {
         <span className="text-base font-semibold hover:text-primary transition-colors">
           {chat.name || 'Untitled Chat'}
         </span>
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="opacity-0 group-hover:opacity-100 transition-all hover:bg-destructive/10"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Trash2 className="w-3 h-3 text-destructive" />
-            </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete chat</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. It will permanently delete the chat.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Do not delete</AlertDialogCancel>
+        <div onClick={(e) => e.preventDefault()}>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
               <Button
-                variant="destructive"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  deleteChat({ variables: { chatId: chat.id } })
-                }}
+                variant="ghost"
+                size="icon"
+                className="opacity-0 group-focus:opacity-100 focus:opacity-100 group-hover:opacity-100 transition-all hover:bg-destructive/10"
               >
-                Delete
+                <Trash2 className="w-3 h-3 text-destructive" />
               </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete chat</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. It will permanently delete the chat.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Do not delete</AlertDialogCancel>
+                <Button
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    deleteChat({ variables: { chatId: chat.id } })
+                  }}
+                >
+                  Delete
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
       <p className="text-sm text-muted-foreground line-clamp-2">{truncatedText}</p>
       <div className="text-xs text-muted-foreground">

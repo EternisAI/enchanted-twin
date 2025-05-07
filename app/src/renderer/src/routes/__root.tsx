@@ -9,6 +9,7 @@ import { useSettingsStore } from '@renderer/lib/stores/settings'
 import { useEffect } from 'react'
 import { SettingsDialog } from '@renderer/components/settings/SettingsDialog'
 import { LayoutGroup, motion } from 'framer-motion'
+import { ScrollArea } from '@renderer/components/ui/scroll-area'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -52,7 +53,9 @@ function RootComponent() {
         )}
         <motion.div className="flex-1 flex flex-col overflow-hidden">
           <motion.div className="flex-1 flex overflow-hidden relative">
-            <Outlet />
+            <ScrollArea className="flex-1">
+              <Outlet />
+            </ScrollArea>
             <Omnibar />
           </motion.div>
         </motion.div>
