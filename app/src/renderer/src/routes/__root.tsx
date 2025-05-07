@@ -6,6 +6,7 @@ import { Omnibar } from '@renderer/components/Omnibar'
 import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { useOsNotifications } from '@renderer/hooks/useNotifications'
 import UpdateNotification from '@renderer/components/UpdateNotification'
+import { TooltipProvider } from '@renderer/components/ui/tooltip'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -17,23 +18,25 @@ function RootComponent() {
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground pt-8">
-      <AdminKeyboardShortcuts />
-      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
-        {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
-      </div>
-      <Omnibar />
-      {isCompleted && (
-        <div className="fixed top-0 right-0 z-50 h-8 no-drag">
-          <GlobalIndexingStatus />
+      <TooltipProvider>
+        <AdminKeyboardShortcuts />
+        <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
+          {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
         </div>
-      )}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex overflow-hidden">
-          {isCompleted && <AppNav />}
-          <Outlet />
+        <Omnibar />
+        {isCompleted && (
+          <div className="fixed top-0 right-0 z-50 h-8 no-drag">
+            <GlobalIndexingStatus />
+          </div>
+        )}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-1 flex overflow-hidden">
+            {isCompleted && <AppNav />}
+            <Outlet />
+          </div>
         </div>
-      </div>
-      <UpdateNotification />
+        <UpdateNotification />
+      </TooltipProvider>
     </div>
   )
 }
