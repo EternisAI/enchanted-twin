@@ -683,66 +683,92 @@ func (r *subscriptionResolver) WhatsAppQRCodeUpdated(ctx context.Context) (<-cha
 	// Create a channel to send updates to the client
 	updateChan := make(chan *model.WhatsAppQRCodeUpdate, 10)
 
-	// Create a goroutine to listen for QR code updates
-	go func() {
-		defer close(updateChan)
+	if r.Nc == nil {
+		return nil, errors.New("NATS connection is not initialized")
+	}
 
-		// Get the WhatsApp QR channel
-		qrChan := whatsapp.GetQRChannel()
+	subject := "whatsapp.qr_code"
+	r.Logger.Info("Subscribing to WhatsApp QR code updates", "subject", subject)
 
-		// Send the latest event immediately if available (for late subscribers)
-		latestEvent := whatsapp.GetLatestQREvent()
-		if latestEvent != nil {
-			update := &model.WhatsAppQRCodeUpdate{
-				Event:       latestEvent.Event,
-				Timestamp:   time.Now().Format(time.RFC3339),
-				IsConnected: latestEvent.Event == "success",
-			}
+	// Subscribe to the NATS subject for QR code updates
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		if msg == nil || len(msg.Data) == 0 {
+			r.Logger.Error("Received nil or empty NATS message")
+			return
+		}
 
-			if latestEvent.Event == "code" {
-				update.QRCodeData = &latestEvent.Code
-			}
+		r.Logger.Info("Received WhatsApp QR code update from NATS", "data_length", len(msg.Data))
 
+		// Parse the message data
+		var eventData map[string]interface{}
+		if err := json.Unmarshal(msg.Data, &eventData); err != nil {
+			r.Logger.Error("Failed to unmarshal WhatsApp QR code update", "error", err)
+			return
+		}
+
+		// Create update object
+		update := &model.WhatsAppQRCodeUpdate{
+			Event:       eventData["event"].(string),
+			Timestamp:   eventData["timestamp"].(string),
+			IsConnected: eventData["is_connected"].(bool),
+		}
+
+		// Only include QR code if event is 'code' and qr_code_data exists
+		if update.Event == "code" && eventData["qr_code_data"] != nil {
+			qrCode := eventData["qr_code_data"].(string)
+			update.QRCodeData = &qrCode
+			r.Logger.Info("QR code included in update", "qr_length", len(qrCode))
+		}
+
+		// Send update to client
+		select {
+		case updateChan <- update:
+			r.Logger.Info("Sent WhatsApp QR code update to GraphQL client", "event", update.Event)
+		case <-ctx.Done():
+			r.Logger.Warn("Context done while sending QR update")
+			return
+		default:
+			r.Logger.Warn("Channel buffer full, couldn't send QR update")
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to subscribe to NATS subject: %w", err)
+	}
+
+	// Also send the current state immediately if available
+	if r.WhatsAppConnected || r.WhatsAppQRCode != nil {
+		event := "unknown"
+		if r.WhatsAppConnected {
+			event = "success"
+		} else if r.WhatsAppQRCode != nil {
+			event = "code"
+		}
+
+		update := &model.WhatsAppQRCodeUpdate{
+			Event:       event,
+			Timestamp:   time.Now().Format(time.RFC3339),
+			IsConnected: r.WhatsAppConnected,
+			QRCodeData:  r.WhatsAppQRCode,
+		}
+
+		go func(update *model.WhatsAppQRCodeUpdate) {
 			select {
 			case updateChan <- update:
-				// Successfully sent
-			case <-ctx.Done():
-				return
+				r.Logger.Info("Sent initial WhatsApp state to client", "event", update.Event)
+			case <-time.After(1 * time.Second):
+				r.Logger.Warn("Timeout sending initial WhatsApp state")
 			}
+		}(update)
+	}
+
+	// Clean up when context is done
+	go func() {
+		<-ctx.Done()
+		if err := sub.Unsubscribe(); err != nil {
+			r.Logger.Error("Error unsubscribing from NATS", "error", err)
 		}
-
-		// Listen for updates until context is canceled
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case evt, ok := <-qrChan:
-				if !ok {
-					// Channel closed
-					return
-				}
-
-				// Create update object
-				update := &model.WhatsAppQRCodeUpdate{
-					Event:       evt.Event,
-					Timestamp:   time.Now().Format(time.RFC3339),
-					IsConnected: evt.Event == "success",
-				}
-
-				// Only include QR code if event is 'code'
-				if evt.Event == "code" {
-					update.QRCodeData = &evt.Code
-				}
-
-				// Send update to client
-				select {
-				case updateChan <- update:
-					// Successfully sent
-				case <-ctx.Done():
-					return
-				}
-			}
-		}
+		close(updateChan)
+		r.Logger.Info("WhatsApp QR code subscription ended")
 	}()
 
 	return updateChan, nil

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	stderrs "errors"
 	"fmt"
 	"log/slog"
@@ -141,21 +142,6 @@ func main() {
 
 	go whatsappMain()
 
-	go func() {
-		for evt := range whatsappQRChan {
-			if evt.Event == "code" {
-				qrCode := evt.Code
-				currentWhatsAppQRCode = &qrCode
-				whatsAppConnected = false
-				fmt.Println("Received new WhatsApp QR code")
-			} else if evt.Event == "success" {
-				whatsAppConnected = true
-				currentWhatsAppQRCode = nil
-				fmt.Println("WhatsApp connection successful")
-			}
-		}
-	}()
-
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
@@ -209,6 +195,52 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create nats client"))
 	}
 	logger.Info("NATS client started")
+
+	// Move WhatsApp NATS code here after nc is initialized
+	go func() {
+		for evt := range whatsappQRChan {
+			if evt.Event == "code" {
+				qrCode := evt.Code
+				currentWhatsAppQRCode = &qrCode
+				whatsAppConnected = false
+				fmt.Println("Received new WhatsApp QR code, length:", len(qrCode))
+
+				// Publish QR code event to NATS for subscriptions
+				qrCodeUpdate := map[string]interface{}{
+					"event":        "code",
+					"qr_code_data": qrCode,
+					"is_connected": false,
+					"timestamp":    time.Now().Format(time.RFC3339),
+				}
+				jsonData, err := json.Marshal(qrCodeUpdate)
+				if err == nil {
+					nc.Publish("whatsapp.qr_code", jsonData)
+					fmt.Println("Published WhatsApp QR code to NATS")
+				} else {
+					fmt.Println("Failed to marshal WhatsApp QR code data", "error", err)
+				}
+			} else if evt.Event == "success" {
+				whatsAppConnected = true
+				currentWhatsAppQRCode = nil
+				fmt.Println("WhatsApp connection successful")
+
+				// Publish success event to NATS for subscriptions
+				successUpdate := map[string]interface{}{
+					"event":        "success",
+					"qr_code_data": nil,
+					"is_connected": true,
+					"timestamp":    time.Now().Format(time.RFC3339),
+				}
+				jsonData, err := json.Marshal(successUpdate)
+				if err == nil {
+					nc.Publish("whatsapp.qr_code", jsonData)
+					logger.Info("Published WhatsApp connection success to NATS")
+				} else {
+					logger.Error("Failed to marshal WhatsApp success data", "error", err)
+				}
+			}
+		}
+	}()
 
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
@@ -499,7 +531,8 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Debug:            false,
 	}).Handler)
 
-	srv := handler.New(gqlSchema(&graph.Resolver{
+	// Create resolver with pointers to whatsApp fields so they stay updated
+	resolver := &graph.Resolver{
 		Logger:                 input.logger,
 		TemporalClient:         input.temporalClient,
 		TwinChatService:        input.twinChatService,
@@ -508,9 +541,12 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		TelegramService:        input.telegramService,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
-	}))
+	}
+
+	srv := handler.New(gqlSchema(resolver))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.Options{})
