@@ -70,7 +70,7 @@ type RootState struct {
 // Helper to create initial state.
 func NewRootState() *RootState {
 	return &RootState{
-		Tasks:       make(map[string]*ChildRunInfo),
+		Tasks:             make(map[string]*ChildRunInfo),
 		ProcessedCommands: make(map[string]CommandStatus),
 	}
 }
