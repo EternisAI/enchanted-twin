@@ -256,7 +256,7 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 	return tempDir, nil
 }
 
-func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiService *ai.Service) (bool, error) {
+func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiService *ai.Service, completionsModel string) (bool, error) {
 	var records []types.Record
 	var err error
 
@@ -316,7 +316,7 @@ func ProcessSource(sourceType string, inputPath string, outputPath string, name 
 		source := chatgpt.New(inputPath)
 		records, err = source.ProcessDirectory(name)
 	case "misc":
-		source := misc.New(openAiService)
+		source := misc.New(openAiService, completionsModel)
 		records, err = source.ProcessDirectory(inputPath)
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)

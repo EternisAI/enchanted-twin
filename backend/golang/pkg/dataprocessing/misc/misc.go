@@ -21,45 +21,101 @@ const (
 )
 
 type Source struct {
-	openAiService *ai.Service
-	chunkSize     int
+	openAiService    *ai.Service
+	chunkSize        int
+	completionsModel string
 }
 
-func New(openAiService *ai.Service) *Source {
+func New(openAiService *ai.Service, completionsModel string) *Source {
 	return &Source{
-		openAiService: openAiService,
-		chunkSize:     DefaultChunkSize,
+		openAiService:    openAiService,
+		chunkSize:        DefaultChunkSize,
+		completionsModel: completionsModel,
 	}
-}
-
-// WithChunkSize allows setting a custom chunk size.
-func (s *Source) WithChunkSize(size int) *Source {
-	s.chunkSize = size
-	return s
 }
 
 func (s *Source) Name() string {
 	return "misc"
 }
 
-// IsHumanReadableContent uses a language model to determine if the content is human-readable.
+// IsHumanReadableContent determines if the content is human-readable text.
 func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bool, error) {
-	contentSample := content
-	if len(content) > 500 {
-		contentSample = content[:500]
+	if len(content) == 0 {
+		return true, nil
 	}
 
-	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(fmt.Sprintf("Analyze this text sample and determine if it contains human-readable content (not binary data, not just code, not just random characters). Reply with ONLY 'yes' or 'no'.\n\nText sample: %s", contentSample)),
+	var (
+		totalChars        = 0
+		printableChars    = 0
+		wordChars         = 0
+		replacementChars  = 0
+		consecutiveSpaces = 0
+		maxWordLength     = 0
+		currentWordLength = 0
+	)
+
+	for _, r := range content {
+		totalChars++
+
+		if r == '\uFFFD' {
+			replacementChars++
+		}
+
+		if r >= 32 && r <= 126 {
+			printableChars++
+
+			if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+				wordChars++
+				currentWordLength++
+			} else {
+				if currentWordLength > maxWordLength {
+					maxWordLength = currentWordLength
+				}
+				currentWordLength = 0
+			}
+
+			if r == ' ' {
+				consecutiveSpaces++
+			} else {
+				consecutiveSpaces = 0
+			}
+		} else if r != '\n' && r != '\r' && r != '\t' {
+			if currentWordLength > maxWordLength {
+				maxWordLength = currentWordLength
+			}
+			currentWordLength = 0
+		}
+
+		if totalChars >= 1000 {
+			break
+		}
 	}
 
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, "gemma3:1b")
-	if err != nil {
-		return false, fmt.Errorf("failed to analyze content: %w", err)
+	if currentWordLength > maxWordLength {
+		maxWordLength = currentWordLength
 	}
 
-	responseText := strings.ToLower(strings.TrimSpace(response.Content))
-	return strings.Contains(responseText, "yes"), nil
+	replacementRatio := float64(replacementChars) / float64(totalChars)
+	printableRatio := float64(printableChars) / float64(totalChars)
+	wordCharRatio := float64(wordChars) / float64(totalChars)
+
+	if replacementRatio > 0.05 {
+		return false, nil
+	}
+
+	if printableRatio < 0.7 {
+		return false, nil
+	}
+
+	if wordCharRatio < 0.2 {
+		return false, nil
+	}
+
+	if maxWordLength < 3 {
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // ExtractContentTags uses a language model to extract relevant tags from the content.
@@ -73,28 +129,23 @@ func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]stri
 		openai.UserMessage(fmt.Sprintf("Extract 3-5 tags that describe this content. Reply with ONLY a comma-separated list of tags (no explanations, just the tags).\n\nText sample: %s", contentSample)),
 	}
 
-	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, "gemma3:1b")
+	response, err := s.openAiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{}, s.completionsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to extract tags: %w", err)
 	}
 
-	// Process the response to extract tags
 	responseText := strings.TrimSpace(response.Content)
 
-	// Clean up line breaks, extra spaces, and potential markdown formatting
 	responseText = strings.ReplaceAll(responseText, "\n", " ")
 	responseText = strings.ReplaceAll(responseText, "  ", " ")
 	responseText = strings.ReplaceAll(responseText, "* ", "")
 	responseText = strings.ReplaceAll(responseText, "- ", "")
 
-	// Split by commas
 	tagsList := strings.Split(responseText, ",")
 
-	// Clean up individual tags
 	tags := make([]string, 0, len(tagsList))
 	for _, tag := range tagsList {
 		tag = strings.TrimSpace(tag)
-		// Skip if empty or too long
 		if tag != "" && len(tag) < 50 {
 			tags = append(tags, tag)
 		}
@@ -119,6 +170,11 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		return nil, fmt.Errorf("failed to get file info for %s: %w", filePath, err)
 	}
 
+	const maxFileSize = 5 * 1024 * 1024
+	if fileInfo.Size() > maxFileSize {
+		return nil, fmt.Errorf("file %s is too large (%d bytes), maximum size is %d bytes", filePath, fileInfo.Size(), maxFileSize)
+	}
+
 	timestamp := fileInfo.ModTime()
 	fileName := fileInfo.Name()
 
@@ -139,6 +195,8 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
 	}
 
+	fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
+
 	if !isHumanReadable {
 		return nil, fmt.Errorf("file %s does not contain human-readable content", filePath)
 	}
@@ -149,7 +207,6 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 
 	textContent := content.String()
 
-	// Return early if the file is empty
 	if len(textContent) == 0 {
 		emptyRecord := types.Record{
 			Data: map[string]interface{}{
@@ -193,7 +250,6 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	return records, nil
 }
 
-// ProcessDirectory walks through a directory and processes all text files.
 func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
