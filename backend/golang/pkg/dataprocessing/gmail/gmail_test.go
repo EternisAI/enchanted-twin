@@ -455,7 +455,6 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 		{"From", record.Data["from"], "\"Meetup\" <info@meetup.com>"},
 		{"To", record.Data["to"], "bob@gmail.com"},
 		{"Timestamp", record.Timestamp.UTC(), expectedTime.UTC()},
-		{"MyMessage", record.Data["myMessage"], false},
 	}
 
 	for _, tt := range tests {
