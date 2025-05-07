@@ -9,13 +9,15 @@ import (
 )
 
 type AgentTask struct {
-	ID        string  `json:"id"`
-	Name      string  `json:"name"`
-	Schedule  string  `json:"schedule"`
-	Plan      *string `json:"plan,omitempty"`
-	CreatedAt string  `json:"createdAt"`
-	UpdatedAt string  `json:"updatedAt"`
-	EndedAt   *string `json:"endedAt,omitempty"`
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Schedule    string  `json:"schedule"`
+	Plan        *string `json:"plan,omitempty"`
+	CreatedAt   string  `json:"createdAt"`
+	UpdatedAt   string  `json:"updatedAt"`
+	CompletedAt *string `json:"completedAt,omitempty"`
+	EndedAt     *string `json:"endedAt,omitempty"`
+	Output      *string `json:"output,omitempty"`
 }
 
 type AppNotification struct {

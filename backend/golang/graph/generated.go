@@ -52,13 +52,15 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	AgentTask struct {
-		CreatedAt func(childComplexity int) int
-		EndedAt   func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Plan      func(childComplexity int) int
-		Schedule  func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		CompletedAt func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		EndedAt     func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Name        func(childComplexity int) int
+		Output      func(childComplexity int) int
+		Plan        func(childComplexity int) int
+		Schedule    func(childComplexity int) int
+		UpdatedAt   func(childComplexity int) int
 	}
 
 	AppNotification struct {
@@ -282,6 +284,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 	_ = ec
 	switch typeName + "." + field {
 
+	case "AgentTask.completedAt":
+		if e.complexity.AgentTask.CompletedAt == nil {
+			break
+		}
+
+		return e.complexity.AgentTask.CompletedAt(childComplexity), true
+
 	case "AgentTask.createdAt":
 		if e.complexity.AgentTask.CreatedAt == nil {
 			break
@@ -309,6 +318,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.AgentTask.Name(childComplexity), true
+
+	case "AgentTask.output":
+		if e.complexity.AgentTask.Output == nil {
+			break
+		}
+
+		return e.complexity.AgentTask.Output(childComplexity), true
 
 	case "AgentTask.plan":
 		if e.complexity.AgentTask.Plan == nil {
@@ -2185,6 +2201,47 @@ func (ec *executionContext) fieldContext_AgentTask_updatedAt(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _AgentTask_completedAt(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentTask_completedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.CompletedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalODateTime2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentTask_completedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _AgentTask_endedAt(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_AgentTask_endedAt(ctx, field)
 	if err != nil {
@@ -2221,6 +2278,47 @@ func (ec *executionContext) fieldContext_AgentTask_endedAt(_ context.Context, fi
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentTask_output(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentTask_output(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Output, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentTask_output(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6214,8 +6312,12 @@ func (ec *executionContext) fieldContext_Query_getAgentTasks(_ context.Context, 
 				return ec.fieldContext_AgentTask_createdAt(ctx, field)
 			case "updatedAt":
 				return ec.fieldContext_AgentTask_updatedAt(ctx, field)
+			case "completedAt":
+				return ec.fieldContext_AgentTask_completedAt(ctx, field)
 			case "endedAt":
 				return ec.fieldContext_AgentTask_endedAt(ctx, field)
+			case "output":
+				return ec.fieldContext_AgentTask_output(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentTask", field.Name)
 		},
@@ -9535,8 +9637,12 @@ func (ec *executionContext) _AgentTask(ctx context.Context, sel ast.SelectionSet
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "completedAt":
+			out.Values[i] = ec._AgentTask_completedAt(ctx, field, obj)
 		case "endedAt":
 			out.Values[i] = ec._AgentTask_endedAt(ctx, field, obj)
+		case "output":
+			out.Values[i] = ec._AgentTask_output(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
