@@ -1,4 +1,4 @@
-import { createRootRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createRootRoute, Outlet } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
@@ -33,10 +33,6 @@ function RootComponent() {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [open])
-
-  if (!isCompleted) {
-    throw redirect({ to: '/onboarding' })
-  }
 
   return (
     <div className="flex flex-col h-screen w-screen text-foreground pt-8">
