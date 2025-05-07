@@ -123,7 +123,7 @@ export const Omnibar = () => {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            transition={{ type: 'spring', damping: 25, stiffness: 280 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-sm pointer-events-auto"
             onClick={closeOmnibar}
           >
@@ -131,7 +131,7 @@ export const Omnibar = () => {
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 280 }}
               className="w-full max-w-xl px-4"
               onClick={(e) => e.stopPropagation()}
             >
@@ -143,7 +143,7 @@ export const Omnibar = () => {
                     'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
                   )}
                   transition={{
-                    layout: { type: 'spring', damping: 20, stiffness: 300 }
+                    layout: { type: 'spring', damping: 25, stiffness: 280 }
                   }}
                 >
                   <div className="flex items-center gap-3">

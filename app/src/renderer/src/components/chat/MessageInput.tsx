@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
-import { StopCircleIcon } from 'lucide-react'
+import { ArrowBigUp, X } from 'lucide-react'
 import { Textarea } from '../ui/textarea'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '../../lib/utils'
 
 type MessageInputProps = {
   onSend: (text: string) => void
@@ -14,7 +15,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   const [text, setText] = useState('')
 
   const handleSend = () => {
-    if (!text.trim()) return
+    if (!text.trim() || isWaitingTwinResponse) return
     onSend(text)
     setText('')
   }
@@ -29,16 +30,14 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   return (
     <motion.div
       layoutId="message-input-container"
-      className="rounded-t-lg border border-border border-b-0 relative bottom-[1px] p-4 w-full"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      className={cn(
+        'flex flex-col gap-3 rounded-t-lg border border-border bg-background/90 p-4 shadow-xl w-full'
+      )}
       transition={{
-        layout: { type: 'spring', damping: 25, stiffness: 200, mass: 0.8 },
-        opacity: { duration: 0.2 }
+        layout: { type: 'spring', damping: 25, stiffness: 280 }
       }}
     >
-      <div className="flex gap-3 items-center flex-1">
+      <div className="flex items-center gap-3 w-full">
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -46,12 +45,13 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           rows={3}
           autoFocus
           placeholder="Type a message..."
-          className="flex-1 resize-none"
+          className="flex-1 resize-none bg-transparent text-foreground placeholder-muted-foreground outline-none"
         />
         <SendButton
           onSend={handleSend}
           isWaitingTwinResponse={isWaitingTwinResponse}
           onStop={onStop}
+          text={text}
         />
       </div>
     </motion.div>
@@ -61,17 +61,59 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
 function SendButton({
   onSend,
   onStop,
-  isWaitingTwinResponse
+  isWaitingTwinResponse,
+  text
 }: {
   isWaitingTwinResponse: boolean
   onSend: () => void
   onStop?: () => void
+  text: string
 }) {
-  return isWaitingTwinResponse ? (
-    <Button onClick={onStop && onStop}>
-      <StopCircleIcon className="w-4 h-4" />
+  const [prevWaitingState, setPrevWaitingState] = useState(false)
+
+  useEffect(() => {
+    if (!isWaitingTwinResponse && prevWaitingState) {
+      setPrevWaitingState(isWaitingTwinResponse)
+    }
+  }, [isWaitingTwinResponse, prevWaitingState])
+
+  const handleStop = () => {
+    onStop?.()
+  }
+
+  return (
+    <Button
+      size="icon"
+      variant={isWaitingTwinResponse ? 'destructive' : 'default'}
+      className="rounded-full transition-all duration-200 ease-in-out relative"
+      onClick={isWaitingTwinResponse ? handleStop : onSend}
+      disabled={!isWaitingTwinResponse && !text.trim()}
+    >
+      <AnimatePresence mode="wait">
+        {isWaitingTwinResponse ? (
+          <motion.div
+            key="stop"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <X className="w-4 h-4" />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="send"
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -20, opacity: 0 }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
+            className="absolute inset-0 flex items-center justify-center"
+          >
+            <ArrowBigUp className="w-4 h-4" />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Button>
-  ) : (
-    <Button onClick={onSend}>Send</Button>
   )
 }
