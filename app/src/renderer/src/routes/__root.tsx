@@ -53,9 +53,7 @@ function RootComponent() {
         <motion.div className="flex-1 flex flex-col overflow-hidden">
           <motion.div className="flex-1 flex overflow-hidden relative">
             <Outlet />
-            <motion.div className="fixed inset-0 z-50 pointer-events-none">
-              <Omnibar />
-            </motion.div>
+            <Omnibar />
           </motion.div>
         </motion.div>
         <UpdateNotification />
