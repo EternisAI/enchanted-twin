@@ -1,30 +1,32 @@
 package whatsapp
 
 import (
+	"context"
+	"fmt"
 	"sync"
+	"time"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
-// QRCodeEvent represents a QR code event from WhatsApp
 type QRCodeEvent struct {
-	Event string // "code" or other status
-	Code  string // The QR code data for scanning
+	Event string
+	Code  string
 }
 
-// Global QR channel for WhatsApp authentication
 var (
 	QRChan     chan QRCodeEvent
 	QRChanOnce sync.Once
 
-	// For storing latest event
 	latestQREvent     *QRCodeEvent
 	latestQREventLock sync.RWMutex
 
-	// Connect channel
 	ConnectChan     chan struct{}
 	ConnectChanOnce sync.Once
 )
 
-// GetQRChannel returns the singleton QR channel instance
 func GetQRChannel() chan QRCodeEvent {
 	QRChanOnce.Do(func() {
 		QRChan = make(chan QRCodeEvent, 100)
@@ -32,21 +34,18 @@ func GetQRChannel() chan QRCodeEvent {
 	return QRChan
 }
 
-// GetLatestQREvent returns the latest QR code event
 func GetLatestQREvent() *QRCodeEvent {
 	latestQREventLock.RLock()
 	defer latestQREventLock.RUnlock()
 	return latestQREvent
 }
 
-// SetLatestQREvent updates the latest QR code event
 func SetLatestQREvent(evt QRCodeEvent) {
 	latestQREventLock.Lock()
 	defer latestQREventLock.Unlock()
 	latestQREvent = &evt
 }
 
-// GetConnectChannel returns the channel for connection signals
 func GetConnectChannel() chan struct{} {
 	ConnectChanOnce.Do(func() {
 		ConnectChan = make(chan struct{}, 1)
@@ -54,7 +53,52 @@ func GetConnectChannel() chan struct{} {
 	return ConnectChan
 }
 
-// TriggerConnect sends a signal to start connection
 func TriggerConnect() {
 	GetConnectChannel() <- struct{}{}
+}
+
+func EventHandler(memoryStorage memory.Storage) func(interface{}) {
+	return func(evt interface{}) {
+		switch v := evt.(type) {
+		case *events.Message:
+			message := v.Message.GetConversation()
+			if message == "" {
+				if v.Message.GetImageMessage() != nil {
+					message = "[IMAGE]"
+				} else if v.Message.GetVideoMessage() != nil {
+					message = "[VIDEO]"
+				} else if v.Message.GetAudioMessage() != nil {
+					message = "[AUDIO]"
+				} else if v.Message.GetDocumentMessage() != nil {
+					message = "[DOCUMENT]"
+				} else if v.Message.GetStickerMessage() != nil {
+					message = "[STICKER]"
+				}
+			}
+
+			if message == "" {
+				fmt.Println("Received a message with empty content")
+				return
+			}
+
+			fmt.Println("Received a message:", message)
+
+			fromName := v.Info.PushName
+			if fromName == "" {
+				fromName = v.Info.Sender.User
+			}
+
+			toName := v.Info.Chat.User
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
+			if err != nil {
+				fmt.Println("Error processing WhatsApp message:", err)
+			} else {
+				fmt.Println("WhatsApp message stored successfully")
+			}
+		}
+	}
 }
