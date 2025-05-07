@@ -32,6 +32,9 @@ require (
 )
 
 require (
+	github.com/ebitengine/purego v0.8.0 // indirect
+	github.com/gen2brain/go-fitz v1.24.14 // indirect
+	github.com/jupiterrider/ffi v0.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect

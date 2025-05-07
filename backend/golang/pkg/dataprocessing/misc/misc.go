@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gen2brain/go-fitz"
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -47,8 +48,9 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 	if len(content) >= 4 {
 		firstFourBytes := content[:4]
 
+		// PDF files are now handled separately
 		if strings.HasPrefix(firstFourBytes, "%PDF") {
-			return false, nil
+			return true, nil
 		}
 
 		if strings.HasPrefix(firstFourBytes, "PK\x03\x04") {
@@ -188,6 +190,27 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 	return true, nil
 }
 
+// ExtractTextFromPDF extracts text content from a PDF file
+func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
+	doc, err := fitz.New(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
+	}
+	defer doc.Close()
+
+	var textBuilder strings.Builder
+	for n := 0; n < doc.NumPage(); n++ {
+		text, err := doc.Text(n)
+		if err != nil {
+			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", n, filePath, err)
+		}
+		textBuilder.WriteString(text)
+		textBuilder.WriteString("\n\n")
+	}
+
+	return textBuilder.String(), nil
+}
+
 // ExtractContentTags uses a language model to extract relevant tags from the content.
 func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
 	contentSample := content
@@ -240,7 +263,7 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		return nil, fmt.Errorf("failed to get file info for %s: %w", filePath, err)
 	}
 
-	const maxFileSize = 5 * 1024 * 1024
+	const maxFileSize = 10 * 1024 * 1024
 	if fileInfo.Size() > maxFileSize {
 		return nil, fmt.Errorf("file %s is too large (%d bytes), maximum size is %d bytes", filePath, fileInfo.Size(), maxFileSize)
 	}
@@ -248,42 +271,64 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	timestamp := fileInfo.ModTime()
 	fileName := fileInfo.Name()
 
-	scanner := bufio.NewScanner(file)
-	var content strings.Builder
+	isPdf := strings.ToLower(filepath.Ext(fileName)) == ".pdf"
 
-	firstLine := true
-	for scanner.Scan() {
-		if !firstLine {
-			content.WriteString("\n")
+	var textContent string
+
+	if isPdf {
+
+		extractedText, err := s.ExtractTextFromPDF(filePath)
+		if err != nil {
+			return nil, err
 		}
-		content.WriteString(scanner.Text())
-		firstLine = false
+		textContent = extractedText
+	} else {
+
+		scanner := bufio.NewScanner(file)
+		var content strings.Builder
+
+		firstLine := true
+		for scanner.Scan() {
+			if !firstLine {
+				content.WriteString("\n")
+			}
+			content.WriteString(scanner.Text())
+			firstLine = false
+		}
+
+		if err := scanner.Err(); err != nil {
+			return nil, fmt.Errorf("error reading file %s: %w", filePath, err)
+		}
+
+		textContent = content.String()
+
+		if !isPdf {
+			isHumanReadable, err := s.IsHumanReadableContent(context.Background(), textContent)
+			if err != nil {
+				return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
+			}
+
+			fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
+
+			if !isHumanReadable {
+				return nil, fmt.Errorf("file %s does not contain human-readable content", filePath)
+			}
+		}
 	}
-
-	isHumanReadable, err := s.IsHumanReadableContent(context.Background(), content.String())
-	if err != nil {
-		return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
-	}
-
-	fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
-
-	if !isHumanReadable {
-		return nil, fmt.Errorf("file %s does not contain human-readable content", filePath)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("error reading file %s: %w", filePath, err)
-	}
-
-	textContent := content.String()
 
 	if len(textContent) == 0 {
 		emptyRecord := types.Record{
 			Data: map[string]interface{}{
 				"content":  "",
 				"filename": fileName,
-				"type":     "text",
-				"path":     filePath,
+				"type": func() string {
+					if isPdf {
+						return "pdf"
+					} else {
+						return "text"
+					}
+				}(),
+				"path": filePath,
 			},
 			Timestamp: timestamp,
 			Source:    s.Name(),
@@ -309,8 +354,15 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 			Data: map[string]interface{}{
 				"content":  chunk,
 				"filename": fileName,
-				"chunk":    i / s.chunkSize,
-				"tags":     tags,
+				"type": func() string {
+					if isPdf {
+						return "pdf"
+					} else {
+						return "text"
+					}
+				}(),
+				"chunk": i / s.chunkSize,
+				"tags":  tags,
 			},
 			Timestamp: timestamp,
 			Source:    s.Name(),
