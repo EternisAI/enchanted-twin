@@ -212,7 +212,7 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	return documents, nil
 }
 
-// ProcessNewMessage processes a new WhatsApp message and stores it in memory
+// ProcessNewMessage processes a new WhatsApp message and stores it in memory.
 func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) error {
 	if message == "" {
 		return fmt.Errorf("empty message content")

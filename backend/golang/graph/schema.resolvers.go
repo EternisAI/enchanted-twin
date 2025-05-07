@@ -12,15 +12,16 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.

@@ -6,9 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"go.mau.fi/whatsmeow/types/events"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
-	"go.mau.fi/whatsmeow/types/events"
 )
 
 type QRCodeEvent struct {

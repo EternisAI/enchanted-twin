@@ -25,6 +25,9 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -38,7 +41,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
-
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
@@ -46,11 +48,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-
-	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/store/sqlstore"
-	waLog "go.mau.fi/whatsmeow/util/log"
-
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
@@ -116,7 +113,8 @@ func main() {
 	// Move WhatsApp NATS code here after nc is initialized
 	go func() {
 		for evt := range whatsappQRChan {
-			if evt.Event == "code" {
+			switch evt.Event {
+			case "code":
 				qrCode := evt.Code
 				currentWhatsAppQRCode = &qrCode
 				whatsAppConnected = false
@@ -136,7 +134,7 @@ func main() {
 				} else {
 					fmt.Println("Failed to marshal WhatsApp QR code data", "error", err)
 				}
-			} else if evt.Event == "success" {
+			case "success":
 				whatsAppConnected = true
 				currentWhatsAppQRCode = nil
 				fmt.Println("WhatsApp connection successful")
@@ -543,7 +541,8 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 			logger.Error("Error connecting to WhatsApp", slog.Any("error", err))
 		}
 		for evt := range qrChan {
-			if evt.Event == "code" {
+			switch evt.Event {
+			case "code":
 				qrEvent := whatsapp.QRCodeEvent{
 					Event: evt.Event,
 					Code:  evt.Code,
@@ -556,7 +555,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 					logger.Warn("Warning: QR channel buffer full, dropping event")
 				}
 				logger.Info("Received new WhatsApp QR code", "qr_code", evt.Code)
-			} else if evt.Event == "success" {
+			case "success":
 				qrEvent := whatsapp.QRCodeEvent{
 					Event: "success",
 					Code:  "",
@@ -564,7 +563,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 				whatsapp.SetLatestQREvent(qrEvent)
 				whatsapp.GetQRChannel() <- qrEvent
 				logger.Info("WhatsApp connection successful")
-			} else {
+			default:
 				logger.Info("Login event", "event", evt.Event)
 			}
 		}
