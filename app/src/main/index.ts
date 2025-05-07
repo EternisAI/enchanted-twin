@@ -2,14 +2,15 @@ import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session 
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { spawn, ChildProcess } from 'child_process'
-import log from 'electron-log/main'
+import { spawn, ChildProcess, exec, execSync } from 'child_process'
+import log, { error } from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import http from 'http'
 import { URL } from 'url'
+import { platform } from 'os'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
@@ -29,6 +30,7 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
+let screenpipeProcess: ChildProcess | null = null
 
 let updateDownloaded = false
 
@@ -133,7 +135,7 @@ function openOAuthWindow(authUrl: string, redirectUri?: string) {
           }
         })
 
-        app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+        app.on('certificate-error', (event, webContents, _url, _error, _certificate, callback) => {
           if (webContents.id === authWindow.webContents.id) {
             log.info('[OAuth] Handling certificate error for auth window')
             event.preventDefault()
@@ -443,6 +445,7 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
+
 app.whenReady().then(async () => {
   const splash = createSplashWindow()
 
@@ -472,8 +475,77 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
+  const isWindows = platform() === 'win32'
+  const checkCommand = isWindows ? 'where screenpipe' : 'which screenpipe'
+  let isScreenpipeInstalled = false
+  try {
+    execSync(checkCommand)
+    isScreenpipeInstalled = true
+    log.info('Screenpipe already installed')
+  } catch (error) {
+    log.error(`Failed to check for screenpipe: ${error}`)
+  }
+
+  if (!isScreenpipeInstalled) {
+    const installCommand = isWindows
+      ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
+      : 'curl -fsSL get.screenpi.pe/cli | sh'
+    try {
+      execSync(installCommand)
+      log.info('Screenpipe installed successfully')
+      isScreenpipeInstalled = true
+    } catch (error) {
+      log.error(`Failed to install screenpipe: ${error}`)
+    }
+  }
+
+  if (isScreenpipeInstalled) {
+    const homeDir = process.env.HOME || process.env.USERPROFILE
+    log.info(`Screenpipe running from ${homeDir}`)
+    try {
+      const screenpipeBinaryPath = isWindows
+        ? `${homeDir}\\screenpipe\\bin\\screenpipe.exe`
+        : `${homeDir}/.local/bin/screenpipe`
+
+      screenpipeProcess = spawn(screenpipeBinaryPath, [], {
+        stdio: 'pipe',
+        env: process.env
+      })
+      log.info(`Screenpipe process spawned with PID: ${screenpipeProcess?.pid}`)
+      if (screenpipeProcess) {
+        screenpipeProcess.stdout?.on('data', (data) => {
+          log.info('Screenpipe stdout:', data.toString())
+        })
+
+        screenpipeProcess.stderr?.on('data', (data) => {
+          log.error('Screenpipe stderr:', data.toString())
+        })
+
+        screenpipeProcess.on('spawn', () => {
+          log.info('Screenpipe process spawned with PID:', screenpipeProcess?.pid)
+        })
+
+        screenpipeProcess.on('exit', (code) => {
+          log.info('Screenpipe process exited with code:', code)
+          screenpipeProcess = null
+        })
+
+        screenpipeProcess.on('error', (err) => {
+          log.error('Screenpipe process error:', err)
+          screenpipeProcess = null
+        })
+      }
+    } catch (error) {
+      log.error('Error starting screenpipe:', error)
+      createErrorWindow(
+        `Error starting screenpipe: ${error instanceof Error ? error.message : 'Unknown error'}`
+      )
+    }
+  }
+
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {
+
     if (!existsSync(goBinaryPath)) {
       log.error(`Go binary not found at: ${goBinaryPath}`)
       createErrorWindow(`Go binary not found at: ${goBinaryPath}`)
