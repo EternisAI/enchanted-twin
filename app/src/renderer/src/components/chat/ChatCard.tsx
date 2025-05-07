@@ -48,12 +48,12 @@ export function ChatCard({ chat, isActive }: ChatCardProps) {
       to="/chat/$chatId"
       params={{ chatId: chat.id }}
       className={cn(
-        'group flex flex-col gap-2 p-4 rounded-lg border border-border hover:border-primary/50 transition-colors',
+        'group flex flex-col gap-2 p-4 rounded-lg border border-border hover:shadow-xl transition-all hover:bg-white dark:hover:bg-black overflow-visible',
         isActive && 'border-primary bg-primary/5'
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-lg font-semibold hover:text-primary transition-colors">
+        <span className="text-base font-semibold hover:text-primary transition-colors">
           {chat.name || 'Untitled Chat'}
         </span>
         <AlertDialog>

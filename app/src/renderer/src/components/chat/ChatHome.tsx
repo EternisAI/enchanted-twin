@@ -45,7 +45,7 @@ export default function ChatHome() {
         // Refetch all chats
         await client.cache.evict({ fieldName: 'getChats' })
         await router.invalidate({
-          filter: (match) => match.routeId === '/chat'
+          filter: (match) => match.routeId === '/chat/$chatId'
         })
 
         await sendMessage({ variables: { chatId: newChatId, text } })

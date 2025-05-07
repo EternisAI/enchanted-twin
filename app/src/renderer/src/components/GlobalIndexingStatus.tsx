@@ -33,7 +33,7 @@ export function GlobalIndexingStatus() {
               className="!bg-transparent h-8 px-3 text-xs font-medium backdrop-blur-md hover:bg-transparent transition-all duration-300"
               onClick={handleClick}
             >
-              <Settings className="h-4 w-4" />
+              <Settings className="h-4 w-4" /> Settings
             </Button>
           </TooltipTrigger>
           <TooltipContent>

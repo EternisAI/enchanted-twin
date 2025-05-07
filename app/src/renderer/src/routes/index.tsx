@@ -12,6 +12,8 @@ import { GetProfileDocument } from '@renderer/graphql/generated/graphql'
 import { Input } from '@renderer/components/ui/input'
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { Card } from '@renderer/components/ui/card'
+import { motion } from 'framer-motion'
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -64,12 +66,22 @@ function IndexComponent() {
   const twinName = profile?.profile?.name || 'Your Twin'
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex flex-col items-center p-6 border-b border-border">
-        <div className="w-full max-w-4xl">
-          <div className="flex flex-col items-center gap-4">
+    <motion.div className="flex flex-col h-full w-full items-center gap-8">
+      <motion.div className="w-full max-w-4xl">
+        <motion.div
+          layout
+          transition={{
+            layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+          }}
+        >
+          <Card className="flex flex-col items-center p-6 gap-4">
             {isEditingName ? (
-              <div className="flex items-center gap-2">
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="flex items-center gap-2"
+              >
                 <Input
                   value={editedName}
                   onChange={(e) => setEditedName(e.target.value)}
@@ -78,10 +90,10 @@ function IndexComponent() {
                   autoFocus
                   className="!text-3xl font-bold text-center"
                 />
-              </div>
+              </motion.div>
             ) : (
               <h1
-                className="text-3xl font-bold text-center cursor-pointer hover:text-gray-600 transition-colors"
+                className="text-3xl font-bold text-center cursor-pointer hover:text-gray-600 transition-all"
                 onClick={() => {
                   setEditedName(twinName)
                   setIsEditingName(true)
@@ -93,18 +105,21 @@ function IndexComponent() {
             <div className="w-full max-w-lg">
               <ContextCard />
             </div>
-          </div>
-        </div>
-      </div>
+            <Button className="" onClick={openOmnibar}>
+              <Plus className="w-4 h-4" />
+              New chat
+              <span className="text-xs">CMD+K</span>
+            </Button>
+          </Card>
+        </motion.div>
+      </motion.div>
 
-      <div className="flex flex-col p-6 flex-1 overflow-hidden gap-4 w-full">
-        <div className="flex w-full items-center justify-between mb-6">
-          <Button className="w-full" variant="outline" onClick={openOmnibar}>
-            <Plus className="w-4 h-4" />
-            New topic
-          </Button>
-        </div>
-
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col flex-1 gap-4 w-full max-w-4xl"
+      >
         {!success && (
           <div className="w-full flex justify-center items-center py-10">
             <div className="p-4 m-4 w-xl border border-red-300 bg-red-50 text-red-700 rounded-md">
@@ -116,7 +131,7 @@ function IndexComponent() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 overflow-y-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
           {chats.map((chat) => (
             <ChatCard
               key={chat.id}
@@ -125,8 +140,8 @@ function IndexComponent() {
             />
           ))}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 

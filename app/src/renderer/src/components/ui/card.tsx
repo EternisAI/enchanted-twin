@@ -1,11 +1,14 @@
-import * as React from 'react'
-
+import { motion, HTMLMotionProps } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
 
-function Card({ className, ...props }: React.ComponentProps<'div'>) {
+function Card({ className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <div
+    <motion.div
       data-slot="card"
+      layout
+      transition={{
+        layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+      }}
       className={cn(
         'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
         className
@@ -15,10 +18,11 @@ function Card({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
+function CardHeader({ className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <div
+    <motion.div
       data-slot="card-header"
+      layout
       className={cn(
         '@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-1.5 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6',
         className
@@ -28,44 +32,48 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+function CardTitle({ className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <div
+    <motion.div
       data-slot="card-title"
+      layout
       className={cn('leading-none font-semibold', className)}
       {...props}
     />
   )
 }
 
-function CardDescription({ className, ...props }: React.ComponentProps<'div'>) {
+function CardDescription({ className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <div
+    <motion.div
       data-slot="card-description"
+      layout
       className={cn('text-muted-foreground text-sm', className)}
       {...props}
     />
   )
 }
 
-function CardAction({ className, ...props }: React.ComponentProps<'div'>) {
+function CardAction({ className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <div
+    <motion.div
       data-slot="card-action"
+      layout
       className={cn('col-start-2 row-span-2 row-start-1 self-start justify-self-end', className)}
       {...props}
     />
   )
 }
 
-function CardContent({ className, ...props }: React.ComponentProps<'div'>) {
-  return <div data-slot="card-content" className={cn('px-6', className)} {...props} />
+function CardContent({ className, ...props }: HTMLMotionProps<'div'>) {
+  return <motion.div data-slot="card-content" layout className={cn('px-6', className)} {...props} />
 }
 
-function CardFooter({ className, ...props }: React.ComponentProps<'div'>) {
+function CardFooter({ className, ...props }: HTMLMotionProps<'div'>) {
   return (
-    <div
+    <motion.div
       data-slot="card-footer"
+      layout
       className={cn('flex items-center px-6 [.border-t]:pt-6', className)}
       {...props}
     />
