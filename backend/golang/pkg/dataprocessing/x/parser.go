@@ -8,7 +8,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
-func parseTwitterFile(content []byte, fileType string, userId string) ([]types.Record, error) {
+func parseTwitterFile(content []byte, fileType string) ([]types.Record, error) {
 	contentStr := string(content)
 
 	var arrayRegex *regexp.Regexp
@@ -32,17 +32,17 @@ func parseTwitterFile(content []byte, fileType string, userId string) ([]types.R
 
 	switch fileType {
 	case TypeLike:
-		return parseLikesAlternative(arrayContent, userId)
+		return parseLikesAlternative(arrayContent)
 	case TypeTweet:
-		return parseTweets(arrayContent, userId)
+		return parseTweets(arrayContent)
 	case TypeDirectMessage:
-		return parseDirectMessages(arrayContent, userId)
+		return parseDirectMessages(arrayContent)
 	default:
 		return nil, fmt.Errorf("unsupported file type: %s", fileType)
 	}
 }
 
-func parseTweets(arrayContent string, userId string) ([]types.Record, error) {
+func parseTweets(arrayContent string) ([]types.Record, error) {
 	var tweets []Tweet
 	if err := json.Unmarshal([]byte(arrayContent), &tweets); err != nil {
 		return nil, fmt.Errorf("failed to parse tweets: %v", err)
@@ -65,7 +65,6 @@ func parseTweets(arrayContent string, userId string) ([]types.Record, error) {
 			"retweetCount":  tweet.Tweet.RetweetCount,
 			"favoriteCount": tweet.Tweet.FavoriteCount,
 			"lang":          tweet.Tweet.Lang,
-			"userId":        userId,
 		}
 
 		record := types.Record{
@@ -84,7 +83,7 @@ func parseTweets(arrayContent string, userId string) ([]types.Record, error) {
 	return records, nil
 }
 
-func parseDirectMessages(arrayContent string, userId string) ([]types.Record, error) {
+func parseDirectMessages(arrayContent string) ([]types.Record, error) {
 	var records []types.Record
 
 	convRegex := regexp.MustCompile(`\{\s*"?dmConversation"?\s*:\s*\{`)
@@ -177,15 +176,12 @@ func parseDirectMessages(arrayContent string, userId string) ([]types.Record, er
 				continue
 			}
 
-			myMessage := senderId == userId
-
 			data := map[string]interface{}{
 				"type":           "directMessage",
 				"conversationId": conversationId,
 				"text":           text,
 				"senderId":       senderId,
 				"recipientId":    recipientId,
-				"myMessage":      myMessage,
 			}
 
 			record := types.Record{

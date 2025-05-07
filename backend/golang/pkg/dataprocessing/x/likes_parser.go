@@ -8,7 +8,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
-func parseLikesAlternative(arrayContent string, userName string) ([]types.Record, error) {
+func parseLikesAlternative(arrayContent string) ([]types.Record, error) {
 	var records []types.Record
 	now := time.Now()
 
@@ -56,7 +56,6 @@ func parseLikesAlternative(arrayContent string, userName string) ([]types.Record
 			"tweetId":     tweetID,
 			"fullText":    fullText,
 			"expandedUrl": expandedURL,
-			"userName":    userName,
 		}
 
 		record := types.Record{

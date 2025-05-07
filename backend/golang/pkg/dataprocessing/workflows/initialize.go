@@ -19,6 +19,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -96,7 +97,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	indexingState = model.IndexingStateDownloadingModel
 	w.publishIndexingStatus(ctx, indexingState, []*model.DataSource{}, 0, 0, nil)
 
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_COMPLETIONS_MODEL).
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, w.Config.CompletionsModel).
 		Get(ctx, nil)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
@@ -106,7 +107,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to download Ollama model")
 	}
 
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_EMBEDDING_MODEL).Get(ctx, nil)
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, w.Config.EmbeddingsModel).Get(ctx, nil)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
 		errMsg := err.Error()
@@ -260,7 +261,8 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 		input.SourcePath,
 		outputPath,
 		input.Username,
-		"",
+		w.OpenAIService,
+		w.Config.CompletionsModel,
 	)
 	if err != nil {
 		w.Logger.Error(
@@ -290,7 +292,7 @@ type IndexDataActivityResponse struct {
 	DataSourcesResponse []*model.DataSource `json:"dataSources"`
 }
 
-func publishIndexingStatus2(
+func publishIndexingStatus(
 	w *DataProcessingWorkflows,
 	dataSources []*model.DataSource,
 	state model.IndexingState,
@@ -372,7 +374,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				}
 
 				dataSourcesResponse[i].IndexProgress = int32(percentage)
-				publishIndexingStatus2(w, dataSourcesResponse, input.IndexingState, nil)
+				publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
 			}
 		}()
 
@@ -452,6 +454,20 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
+		case "misc":
+			documents, err := misc.ToDocuments(records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Documents", "misc", len(documents))
+			err = w.Memory.Store(ctx, documents, progressChan)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+			w.Logger.Info("Indexed documents", "documents", len(documents))
+			dataSourcesResponse[i].IsIndexed = true
+		default:
+			w.Logger.Error("Unsupported data source", "dataSource", dataSourceDB.Name)
 		}
 	}
 	go func() {

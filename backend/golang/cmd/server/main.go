@@ -377,12 +377,13 @@ func bootstrapTemporalWorker(
 	})
 
 	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
-		Logger:       input.logger,
-		Config:       input.envs,
-		Store:        input.store,
-		Nc:           input.nc,
-		OllamaClient: input.ollamaClient,
-		Memory:       input.memory,
+		Logger:        input.logger,
+		Config:        input.envs,
+		Store:         input.store,
+		Nc:            input.nc,
+		OllamaClient:  input.ollamaClient,
+		Memory:        input.memory,
+		OpenAIService: input.aiCompletionsService,
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
