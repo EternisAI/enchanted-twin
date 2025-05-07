@@ -190,13 +190,13 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 	return true, nil
 }
 
-// ExtractTextFromPDF extracts text content from a PDF file
+// ExtractTextFromPDF extracts text content from a PDF file.
 func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
 	doc, err := fitz.New(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
 	}
-	defer doc.Close()
+	defer doc.Close() //nolint:errcheck
 
 	var textBuilder strings.Builder
 	for n := 0; n < doc.NumPage(); n++ {
@@ -276,14 +276,12 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	var textContent string
 
 	if isPdf {
-
 		extractedText, err := s.ExtractTextFromPDF(filePath)
 		if err != nil {
 			return nil, err
 		}
 		textContent = extractedText
 	} else {
-
 		scanner := bufio.NewScanner(file)
 		var content strings.Builder
 
