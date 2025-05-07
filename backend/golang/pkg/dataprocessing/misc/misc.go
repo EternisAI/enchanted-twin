@@ -44,21 +44,79 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 		return true, nil
 	}
 
+	if len(content) >= 4 {
+		firstFourBytes := content[:4]
+
+		if strings.HasPrefix(firstFourBytes, "%PDF") {
+			return false, nil
+		}
+
+		if strings.HasPrefix(firstFourBytes, "PK\x03\x04") {
+			return false, nil
+		}
+
+		if strings.HasPrefix(firstFourBytes, "\x89PNG") {
+			return false, nil
+		}
+
+		if strings.HasPrefix(firstFourBytes, "GIF8") {
+			return false, nil
+		}
+
+		if strings.HasPrefix(firstFourBytes, "\xff\xd8") {
+			return false, nil
+		}
+	}
+
+	var sampleContent string
+	if len(content) > 3000 {
+		beginning := content[:1000]
+		middle := content[len(content)/2-500 : len(content)/2+500]
+		end := content[len(content)-1000:]
+		sampleContent = beginning + middle + end
+	} else {
+		sampleContent = content
+	}
+
 	var (
 		totalChars        = 0
 		printableChars    = 0
 		wordChars         = 0
 		replacementChars  = 0
-		consecutiveSpaces = 0
 		maxWordLength     = 0
 		currentWordLength = 0
+		zeroBytes         = 0
+		highBitChars      = 0
+		controlChars      = 0
+		spaces            = 0
+		punctuation       = 0
 	)
 
-	for _, r := range content {
+	for _, r := range sampleContent {
 		totalChars++
+
+		if r == 0 {
+			zeroBytes++
+		}
 
 		if r == '\uFFFD' {
 			replacementChars++
+		}
+
+		if (r < 32 && r != '\n' && r != '\r' && r != '\t') || (r >= 127 && r < 160) {
+			controlChars++
+		}
+
+		if r > 127 {
+			highBitChars++
+		}
+
+		if r == ' ' {
+			spaces++
+		}
+
+		if strings.ContainsRune(",.;:!?-\"'()[]{}", r) {
+			punctuation++
 		}
 
 		if r >= 32 && r <= 126 {
@@ -73,21 +131,11 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 				}
 				currentWordLength = 0
 			}
-
-			if r == ' ' {
-				consecutiveSpaces++
-			} else {
-				consecutiveSpaces = 0
-			}
 		} else if r != '\n' && r != '\r' && r != '\t' {
 			if currentWordLength > maxWordLength {
 				maxWordLength = currentWordLength
 			}
 			currentWordLength = 0
-		}
-
-		if totalChars >= 1000 {
-			break
 		}
 	}
 
@@ -95,11 +143,29 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 		maxWordLength = currentWordLength
 	}
 
+	if totalChars == 0 {
+		return false, nil
+	}
+
 	replacementRatio := float64(replacementChars) / float64(totalChars)
 	printableRatio := float64(printableChars) / float64(totalChars)
 	wordCharRatio := float64(wordChars) / float64(totalChars)
+	zeroByteRatio := float64(zeroBytes) / float64(totalChars)
+	controlCharRatio := float64(controlChars) / float64(totalChars)
+
+	if zeroByteRatio > 0.01 {
+		return false, nil
+	}
 
 	if replacementRatio > 0.05 {
+		return false, nil
+	}
+
+	if controlCharRatio > 0.1 {
+		return false, nil
+	}
+
+	if float64(highBitChars)/float64(totalChars) > 0.2 && printableRatio < 0.5 {
 		return false, nil
 	}
 
@@ -108,6 +174,10 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 	}
 
 	if wordCharRatio < 0.2 {
+		return false, nil
+	}
+
+	if totalChars > 100 && spaces == 0 && punctuation == 0 {
 		return false, nil
 	}
 
