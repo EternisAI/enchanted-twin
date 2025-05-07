@@ -101,6 +101,7 @@ query GetAgentTasks {
     updatedAt
     completedAt
     endedAt
+    output
   }
 }
 

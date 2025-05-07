@@ -7,7 +7,7 @@ export const Route = createFileRoute('/tasks')({
 
 export default function Tasks() {
   return (
-    <div className="p-6 flex flex-col gap-6 max-w-4xl mx-auto">
+    <div className="p-6 flex flex-col gap-6 w-full md:w-4xl mx-auto">
       <h2 className="text-4xl mb-6">Agent Tasks</h2>
       <AgentTasks />
     </div>
