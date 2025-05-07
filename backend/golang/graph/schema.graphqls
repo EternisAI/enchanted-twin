@@ -96,6 +96,8 @@ type Query {
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
+  # WhatsApp status and QR code
+  getWhatsAppStatus: WhatsAppStatus!
 }
 
 type Mutation {
@@ -116,6 +118,8 @@ type Mutation {
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
   removeMCPServer(id: String!): Boolean!
+  # WhatsApp integration
+  startWhatsAppConnection: Boolean!
 }
 
 type Subscription {
@@ -125,6 +129,8 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
+  # WhatsApp QR code updates
+  whatsAppQRCodeUpdated: WhatsAppQRCodeUpdate!
 }
 
 type DataSource {
@@ -218,4 +224,19 @@ type AppNotification {
   createdAt: DateTime!
   image: String
   link: String
+}
+
+# WhatsApp integration
+type WhatsAppStatus {
+  isConnected: Boolean!
+  qrCodeData: String
+  statusMessage: String!
+}
+
+# WhatsApp QR code update for subscription
+type WhatsAppQRCodeUpdate {
+  qrCodeData: String
+  event: String!
+  timestamp: DateTime!
+  isConnected: Boolean!
 }

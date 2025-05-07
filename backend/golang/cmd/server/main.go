@@ -44,9 +44,118 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	"go.mau.fi/whatsmeow/types/events"
+	waLog "go.mau.fi/whatsmeow/util/log"
 )
 
+func eventHandler(evt interface{}) {
+	switch v := evt.(type) {
+	case *events.Message:
+		fmt.Println("Received a message!", v.Message.GetConversation())
+	}
+}
+
+func whatsappMain() {
+	dbLog := waLog.Stdout("Database", "DEBUG", true)
+	container, err := sqlstore.New("sqlite3", "file:examplestore.db?_foreign_keys=on", dbLog)
+	if err != nil {
+		panic(err)
+	}
+	deviceStore, err := container.GetFirstDevice()
+	if err != nil {
+		panic(err)
+	}
+	clientLog := waLog.Stdout("Client", "DEBUG", true)
+	client := whatsmeow.NewClient(deviceStore, clientLog)
+	client.AddEventHandler(eventHandler)
+
+	fmt.Println("Waiting for WhatsApp connection signal...")
+	connectChan := whatsapp.GetConnectChannel()
+	<-connectChan
+	fmt.Println("Received signal to start WhatsApp connection")
+
+	if client.Store.ID == nil {
+		qrChan, _ := client.GetQRChannel(context.Background())
+		err = client.Connect()
+		if err != nil {
+			fmt.Println("Error connecting to WhatsApp", err)
+		}
+		for evt := range qrChan {
+			if evt.Event == "code" {
+				qrEvent := whatsapp.QRCodeEvent{
+					Event: evt.Event,
+					Code:  evt.Code,
+				}
+				whatsapp.SetLatestQREvent(qrEvent)
+				whatsappQRChan := whatsapp.GetQRChannel()
+				select {
+				case whatsappQRChan <- qrEvent:
+				default:
+					fmt.Println("Warning: QR channel buffer full, dropping event")
+				}
+				fmt.Println("QR code:", evt.Code)
+				fmt.Println("Received new WhatsApp QR code")
+			} else if evt.Event == "success" {
+				qrEvent := whatsapp.QRCodeEvent{
+					Event: "success",
+					Code:  "",
+				}
+				whatsapp.SetLatestQREvent(qrEvent)
+				whatsapp.GetQRChannel() <- qrEvent
+				fmt.Println("Login successful!")
+				fmt.Println("WhatsApp connection successful")
+			} else {
+				fmt.Println("Login event:", evt.Event)
+			}
+		}
+	} else {
+		err = client.Connect()
+		if err != nil {
+			fmt.Println("Error connecting to WhatsApp", err)
+		} else {
+			qrEvent := whatsapp.QRCodeEvent{
+				Event: "success",
+				Code:  "",
+			}
+			whatsapp.SetLatestQREvent(qrEvent)
+			whatsapp.GetQRChannel() <- qrEvent
+			fmt.Println("Already logged in, reusing session")
+		}
+	}
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	<-c
+
+	client.Disconnect()
+}
+
 func main() {
+	whatsappQRChan := whatsapp.GetQRChannel()
+	var currentWhatsAppQRCode *string
+	whatsAppConnected := false
+
+	go whatsappMain()
+
+	go func() {
+		for evt := range whatsappQRChan {
+			if evt.Event == "code" {
+				qrCode := evt.Code
+				currentWhatsAppQRCode = &qrCode
+				whatsAppConnected = false
+				fmt.Println("Received new WhatsApp QR code")
+			} else if evt.Event == "success" {
+				whatsAppConnected = true
+				currentWhatsAppQRCode = nil
+				fmt.Println("WhatsApp connection successful")
+			}
+		}
+	}()
+
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
@@ -68,7 +177,6 @@ func main() {
 		}
 	}
 
-	// Start PostgreSQL
 	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -78,15 +186,12 @@ func main() {
 		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
 	}
 
-	// Set up cleanup on shutdown
 	defer func() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		// Stop the container
 		if err := postgresService.Stop(shutdownCtx); err != nil {
 			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
 		}
-		// Remove the container to ensure clean state for next startup
 		if err := postgresService.Remove(shutdownCtx); err != nil {
 			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
 		}
@@ -118,12 +223,10 @@ func main() {
 
 	logger.Info("SQLite database initialized")
 
-	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	// Ensure enchanted_twin database exists
 	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
 		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
 		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
@@ -158,14 +261,11 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
-	// Initialize MCP Service
 	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
 	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
 
-	// Initialize global tool registry
 	toolRegistry := tools.NewRegistry()
 
-	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
 		toolRegistry,
 		logger,
@@ -176,7 +276,6 @@ func main() {
 		envs.TelegramChatServer,
 	)
 
-	// Create TwinChat service with minimal dependencies
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
@@ -186,12 +285,10 @@ func main() {
 		envs.CompletionsModel,
 	)
 
-	// Register tools from the TwinChat service
 	providerTools := agent.RegisterToolProviders(toolRegistry, logger, twinChatService)
 	logger.Info("Standard tools registered", "count", len(standardTools))
 	logger.Info("Provider tools registered", "count", len(providerTools))
 
-	// Register MCP tools
 	mcpTools, err := mcpService.GetInternalTools(context.Background())
 	if err == nil {
 		registeredMCPTools := agent.RegisterMCPTools(toolRegistry, mcpTools)
@@ -200,15 +297,6 @@ func main() {
 		logger.Warn("Failed to get MCP tools", "error", err)
 	}
 
-	logger.Info(
-		"Tool registry initialized with all tools",
-		"count",
-		len(toolRegistry.List()),
-		"names",
-		toolRegistry.List(),
-	)
-
-	// Initialize and start the temporal worker
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
 			logger:               logger,
@@ -245,7 +333,6 @@ func main() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
-		// Create a context that respects application shutdown
 		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer appCancel()
 
@@ -275,18 +362,19 @@ func main() {
 	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:          logger,
-		temporalClient:  temporalClient,
-		port:            envs.GraphqlPort,
-		twinChatService: *twinChatService,
-		natsClient:      nc,
-		store:           store,
-		aiService:       aiCompletionsService,
-		mcpService:      mcpService,
-		telegramService: telegramService,
+		logger:            logger,
+		temporalClient:    temporalClient,
+		port:              envs.GraphqlPort,
+		twinChatService:   *twinChatService,
+		natsClient:        nc,
+		store:             store,
+		aiService:         aiCompletionsService,
+		mcpService:        mcpService,
+		telegramService:   telegramService,
+		whatsAppQRCode:    currentWhatsAppQRCode,
+		whatsAppConnected: whatsAppConnected,
 	})
 
-	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
 		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
@@ -299,7 +387,6 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
 }
@@ -308,10 +395,8 @@ func bootstrapPostgres(
 	ctx context.Context,
 	logger *log.Logger,
 ) (*bootstrap.PostgresService, error) {
-	// Get default options
 	options := bootstrap.DefaultPostgresOptions()
 
-	// Create and start PostgreSQL service
 	postgresService, err := bootstrap.NewPostgresService(logger, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
@@ -374,16 +459,13 @@ func bootstrapTemporalWorker(
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
-	// Register auth activities
 	authActivities := auth.NewOAuthActivities(input.store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
-	// Register the planned agent v2 workflow
 	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.registry)
 	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
 	input.logger.Info("Registered planned agent workflow", "tools", input.registry.List())
 
-	// Start the worker
 	err := w.Start()
 	if err != nil {
 		input.logger.Error("Error starting worker", slog.Any("error", err))
@@ -404,6 +486,8 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	whatsAppQRCode         *string
+	whatsAppConnected      bool
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -424,6 +508,8 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		WhatsAppQRCode:         input.whatsAppQRCode,
+		WhatsAppConnected:      input.whatsAppConnected,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

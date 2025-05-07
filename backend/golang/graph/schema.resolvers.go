@@ -12,15 +12,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -307,6 +307,22 @@ func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool
 	return true, nil
 }
 
+// StartWhatsAppConnection is the resolver for the startWhatsAppConnection field.
+func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, error) {
+	connectChan := whatsapp.GetConnectChannel()
+	select {
+	case connectChan <- struct{}{}:
+		r.Logger.Info("Triggered WhatsApp connection start")
+		return true, nil
+	default:
+		go func() {
+			connectChan <- struct{}{}
+		}()
+		r.Logger.Info("Triggered WhatsApp connection start (async)")
+		return true, nil
+	}
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -398,6 +414,27 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 		}
 	}
 	return toolsDefinitions, nil
+}
+
+// GetWhatsAppStatus is the resolver for the getWhatsAppStatus field.
+func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppStatus, error) {
+	isConnected := r.WhatsAppConnected
+	qrCodeData := r.WhatsAppQRCode
+
+	statusMessage := "WhatsApp is not connected."
+	if isConnected {
+		statusMessage = "WhatsApp is connected and ready."
+	} else if qrCodeData != nil {
+		statusMessage = "Scan the QR code to connect WhatsApp."
+	} else {
+		statusMessage = "Start WhatsApp connection to get a QR code."
+	}
+
+	return &model.WhatsAppStatus{
+		IsConnected:   isConnected,
+		QRCodeData:    qrCodeData,
+		StatusMessage: statusMessage,
+	}, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.
@@ -639,6 +676,76 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string)
 	}()
 
 	return ch, nil
+}
+
+// WhatsAppQRCodeUpdated is the resolver for the whatsAppQRCodeUpdated field.
+func (r *subscriptionResolver) WhatsAppQRCodeUpdated(ctx context.Context) (<-chan *model.WhatsAppQRCodeUpdate, error) {
+	// Create a channel to send updates to the client
+	updateChan := make(chan *model.WhatsAppQRCodeUpdate, 10)
+
+	// Create a goroutine to listen for QR code updates
+	go func() {
+		defer close(updateChan)
+
+		// Get the WhatsApp QR channel
+		qrChan := whatsapp.GetQRChannel()
+
+		// Send the latest event immediately if available (for late subscribers)
+		latestEvent := whatsapp.GetLatestQREvent()
+		if latestEvent != nil {
+			update := &model.WhatsAppQRCodeUpdate{
+				Event:       latestEvent.Event,
+				Timestamp:   time.Now().Format(time.RFC3339),
+				IsConnected: latestEvent.Event == "success",
+			}
+
+			if latestEvent.Event == "code" {
+				update.QRCodeData = &latestEvent.Code
+			}
+
+			select {
+			case updateChan <- update:
+				// Successfully sent
+			case <-ctx.Done():
+				return
+			}
+		}
+
+		// Listen for updates until context is canceled
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case evt, ok := <-qrChan:
+				if !ok {
+					// Channel closed
+					return
+				}
+
+				// Create update object
+				update := &model.WhatsAppQRCodeUpdate{
+					Event:       evt.Event,
+					Timestamp:   time.Now().Format(time.RFC3339),
+					IsConnected: evt.Event == "success",
+				}
+
+				// Only include QR code if event is 'code'
+				if evt.Event == "code" {
+					update.QRCodeData = &evt.Code
+				}
+
+				// Send update to client
+				select {
+				case updateChan <- update:
+					// Successfully sent
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return updateChan, nil
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
