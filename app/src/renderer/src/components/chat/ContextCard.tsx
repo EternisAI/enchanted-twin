@@ -55,6 +55,7 @@ export function ContextCard() {
       handleSubmit(e as unknown as React.FormEvent)
     }
     if (e.key === 'Escape') {
+      e.preventDefault()
       handleCancel()
     }
   }

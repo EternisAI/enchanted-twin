@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Button } from '../ui/button'
 import { StopCircleIcon } from 'lucide-react'
 import { Textarea } from '../ui/textarea'
+import { motion } from 'framer-motion'
 
 type MessageInputProps = {
   onSend: (text: string) => void
@@ -26,7 +27,17 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   }
 
   return (
-    <div className="rounded-t-lg border border-border border-b-0 relative bottom-[1px] p-4 w-full">
+    <motion.div
+      layoutId="message-input-container"
+      className="rounded-t-lg border border-border border-b-0 relative bottom-[1px] p-4 w-full"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{
+        layout: { type: 'spring', damping: 25, stiffness: 200, mass: 0.8 },
+        opacity: { duration: 0.2 }
+      }}
+    >
       <div className="flex gap-3 items-center flex-1">
         <Textarea
           value={text}
@@ -43,7 +54,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           onStop={onStop}
         />
       </div>
-    </div>
+    </motion.div>
   )
 }
 

@@ -12,6 +12,7 @@ import { ContextCard } from './ContextCard'
 import { useState } from 'react'
 import { Input } from '@renderer/components/ui/input'
 import { toast } from 'sonner'
+import { motion } from 'framer-motion'
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -90,14 +91,7 @@ export default function ChatHome() {
   const twinName = profile?.profile?.name || 'Your Twin'
 
   return (
-    <div className="flex flex-col items-center h-full w-full">
-      <style>
-        {`
-          :root {
-            --direction: -1;
-          }
-        `}
-      </style>
+    <motion.div layout="position" className="flex flex-col items-center h-full w-full">
       <div className="flex flex-col flex-1 w-full max-w-4xl justify-between">
         <div className="flex flex-col items-center overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent gap-12">
           <div className="py-8 w-full flex flex-col items-center gap-4">
@@ -132,6 +126,6 @@ export default function ChatHome() {
           <MessageInput isWaitingTwinResponse={false} onSend={handleStartChat} />
         </div>
       </div>
-    </div>
+    </motion.div>
   )
 }

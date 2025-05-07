@@ -13,9 +13,9 @@ import { client } from '@renderer/graphql/lib'
 import { useRouter } from '@tanstack/react-router'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import FocusLock from 'react-focus-lock'
+
 export const Omnibar = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
-  //   const [isThinking, setIsThinking] = useState(false)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
   const navigate = useNavigate()
@@ -47,10 +47,6 @@ export const Omnibar = () => {
       }
     }
   }, [query])
-
-  //   useEffect(() => {
-  //     setIsThinking(debouncedQuery.length > 0 && filteredChats.length > 0)
-  //   }, [debouncedQuery, filteredChats.length])
 
   const handleCreateChat = useCallback(async () => {
     if (!query.trim()) return
@@ -121,13 +117,14 @@ export const Omnibar = () => {
 
   return (
     <FocusLock disabled={!isOpen} returnFocus>
-      <AnimatePresence>
+      <AnimatePresence mode="sync">
         {isOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-sm"
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-sm pointer-events-auto"
             onClick={closeOmnibar}
           >
             <motion.div
@@ -138,15 +135,18 @@ export const Omnibar = () => {
               className="w-full max-w-xl px-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <form onSubmit={handleSubmit}>
+              <motion.form onSubmit={handleSubmit}>
                 <motion.div
+                  layoutId="message-input-container"
                   className={cn(
                     'flex flex-col gap-3 rounded-lg border border-border bg-background/90 p-4 shadow-xl',
                     'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
                   )}
+                  transition={{
+                    layout: { type: 'spring', damping: 20, stiffness: 300 }
+                  }}
                 >
                   <div className="flex items-center gap-3">
-                    {/* <TwinAvatar size={40} state={isThinking ? 'thinking' : 'idle'} /> */}
                     <input
                       type="text"
                       value={query}
@@ -176,12 +176,17 @@ export const Omnibar = () => {
                         initial={{ height: 0, opacity: 0 }}
                         animate={{ height: 'auto', opacity: 1 }}
                         exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeInOut' }}
+                        transition={{
+                          duration: 0.2,
+                          ease: 'easeInOut',
+                          layout: { type: 'spring', damping: 20, stiffness: 300 },
+                          staggerChildren: 0.1
+                        }}
                         className="rounded-lg border border-border bg-background/90 overflow-hidden"
                       >
                         <div className="py-1">
                           {filteredChats.map((chat, index) => (
-                            <button
+                            <motion.button
                               key={chat.id}
                               type="button"
                               onClick={() => {
@@ -193,10 +198,11 @@ export const Omnibar = () => {
                                 'hover:bg-muted/80',
                                 selectedIndex === index && 'bg-primary/10 text-primary'
                               )}
+                              layoutId={`chat-${chat.id}`}
                             >
                               <span className="truncate">{chat.name}</span>
                               <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            </button>
+                            </motion.button>
                           ))}
                           {debouncedQuery.trim() && (
                             <button
@@ -218,7 +224,7 @@ export const Omnibar = () => {
                     )}
                   </AnimatePresence>
                 </motion.div>
-              </form>
+              </motion.form>
             </motion.div>
           </motion.div>
         )}

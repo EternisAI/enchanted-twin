@@ -8,6 +8,7 @@ import UpdateNotification from '@renderer/components/UpdateNotification'
 import { useSettingsStore } from '@renderer/lib/stores/settings'
 import { useEffect } from 'react'
 import { SettingsDialog } from '@renderer/components/settings/SettingsDialog'
+import { LayoutGroup, motion } from 'framer-motion'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -35,25 +36,32 @@ function RootComponent() {
   }, [open])
 
   return (
-    <div className="flex flex-col h-screen w-screen text-foreground pt-8">
-      <AdminKeyboardShortcuts />
-      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
-        {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
-      </div>
-      <Omnibar />
-      {isCompleted && (
-        <div className="fixed top-0 right-0 z-50 h-8 no-drag">
-          <GlobalIndexingStatus />
-        </div>
-      )}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 flex overflow-hidden">
-          <Outlet />
-        </div>
-      </div>
-      <UpdateNotification />
-      <SettingsDialog />
-    </div>
+    <LayoutGroup>
+      <motion.div
+        className="flex flex-col h-screen w-screen text-foreground pt-8"
+        layout="position"
+      >
+        <AdminKeyboardShortcuts />
+        <motion.div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
+          {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
+        </motion.div>
+        {isCompleted && (
+          <div className="fixed top-0 right-0 z-50 h-8 no-drag">
+            <GlobalIndexingStatus />
+          </div>
+        )}
+        <motion.div className="flex-1 flex flex-col overflow-hidden">
+          <motion.div className="flex-1 flex overflow-hidden relative">
+            <Outlet />
+            <motion.div className="fixed inset-0 z-50 pointer-events-none">
+              <Omnibar />
+            </motion.div>
+          </motion.div>
+        </motion.div>
+        <UpdateNotification />
+        <SettingsDialog />
+      </motion.div>
+    </LayoutGroup>
   )
 }
 

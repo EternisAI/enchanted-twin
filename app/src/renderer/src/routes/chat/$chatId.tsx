@@ -5,7 +5,6 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { GetChatDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from '@renderer/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
-import { useEffect } from 'react'
 
 interface ChatSearchParams {
   initialMessage?: string
@@ -63,16 +62,16 @@ function ChatRouteComponent() {
   const { initialMessage } = Route.useSearch()
   const navigate = useNavigate()
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        navigate({ to: '/' })
-      }
-    }
+  // useEffect(() => {
+  //   const handleKeyDown = (e: KeyboardEvent) => {
+  //     if (e.key === 'Escape') {
+  //       navigate({ to: '/' })
+  //     }
+  //   }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate])
+  //   window.addEventListener('keydown', handleKeyDown)
+  //   return () => window.removeEventListener('keydown', handleKeyDown)
+  // }, [navigate])
 
   //   if (loading) return <div className="p-4">Loading chat...</div>
   if (!data) return <div className="p-4">Invalid chat ID.</div>
