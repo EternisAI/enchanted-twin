@@ -159,8 +159,10 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
+	rootClient := root.NewRootClient(temporalClient, logger)
+
 	// Ensure the root workflow is running
-	if err := root.EnsureRunRootWorkflow(context.Background(), temporalClient, logger); err != nil {
+	if err := rootClient.EnsureRunRootWorkflow(context.Background()); err != nil {
 		logger.Error("Failed to ensure root workflow is running", "error", err)
 		logger.Error("Child workflows may not be able to start")
 	}
@@ -227,6 +229,7 @@ func main() {
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
 			registry:             toolRegistry,
+			rootClient:           rootClient,
 		},
 	)
 	if err != nil {
@@ -291,6 +294,7 @@ func main() {
 		aiService:       aiCompletionsService,
 		mcpService:      mcpService,
 		telegramService: telegramService,
+		rootClient:      rootClient,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -362,6 +366,7 @@ type bootstrapTemporalWorkerInput struct {
 	memory               memory.Storage
 	registry             tools.ToolRegistry
 	aiCompletionsService *ai.Service
+	rootClient           *root.RootClient
 }
 
 func bootstrapTemporalWorker(
@@ -382,7 +387,7 @@ func bootstrapTemporalWorker(
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
 	// Root workflow
-	root.RegisterWorkflowsAndActivities(&w, input.logger)
+	input.rootClient.RegisterWorkflowsAndActivities(&w)
 
 	// Register auth activities
 	authActivities := auth.NewOAuthActivities(input.store)
@@ -414,6 +419,7 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	rootClient             *root.RootClient
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -434,7 +440,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
-		RootClient:             root.NewRootClient(input.temporalClient, input.logger),
+		RootClient:             input.rootClient, // root.NewRootClient(input.temporalClient, input.logger),
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

@@ -22,7 +22,8 @@ const (
 
 // Command names.
 const (
-	CmdStartChildWorkflow = "start_child_workflow" // Start a child workflow"
+	CmdStartChildWorkflow     = "start_child_workflow"     // Start a child workflow
+	CmdTerminateChildWorkflow = "terminate_child_workflow" // Terminate a running child workflow
 )
 
 // Command argument keys.
@@ -30,6 +31,8 @@ const (
 	ArgWorkflowName = "child_name" // Workflow to launch
 	ArgWorkflowArgs = "child_args" // JSON string of plannedv2.PlanInput
 	ArgTaskID       = "task_id"    // Optional user-friendly ID for the task
+	ArgRunID        = "run_id"     // Temporal run ID to terminate
+	ArgReason       = "reason"     // Reason for termination
 )
 
 // Command structure for signals.
@@ -53,21 +56,21 @@ type ChildRunInfo struct {
 	WorkflowID string    `json:"workflow_id"` // Child workflow ID
 	TaskID     string    `json:"task_id"`     // User-provided ID (optional)
 	CreatedAt  time.Time `json:"start_time"`
-	// Status field can be added later when lifecycle management is implemented
+	EndedAt    time.Time `json:"ended_at,omitempty"` // Optional end time
 }
 
 // RootState holds the persistent workflow state.
 type RootState struct {
 	// Tracks active planned agent runs (key: RunID)
-	ActiveTasks map[string]*ChildRunInfo `json:"active_runs"`
-	// Tracks processed command IDs for idempotency
+	Tasks map[string]*ChildRunInfo `json:"active_runs"`
+	// Tracks processed command IDs for idempotency (key: CmdID)
 	ProcessedCommands map[string]CommandStatus `json:"processed_commands"`
 }
 
 // Helper to create initial state.
 func NewRootState() *RootState {
 	return &RootState{
-		ActiveTasks:       make(map[string]*ChildRunInfo),
+		Tasks:             make(map[string]*ChildRunInfo),
 		ProcessedCommands: make(map[string]CommandStatus),
 	}
 }

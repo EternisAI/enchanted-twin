@@ -301,22 +301,37 @@ func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID str
 
 // DeleteAgentTask is the resolver for the deleteAgentTask field.
 func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool, error) {
-	// Create a Temporal client to interact with the workflow
-	c := r.TemporalClient
+	runID := id
 
-	// Try to terminate the workflow by ID
-	err := c.TerminateWorkflow(ctx, id, "", "Deleted via GraphQL API")
-	if err != nil {
-		r.Logger.Error("Failed to terminate workflow", "error", err, "workflowID", id)
-		return false, fmt.Errorf("failed to delete agent task: %w", err)
+	// Use the RootClient to properly terminate the workflow and update state
+	if r.RootClient != nil {
+		// Call our new method that handles both termination and state cleanup
+		cmdID, err := r.RootClient.TerminateChildWorkflow(ctx, runID, "Deleted via GraphQL API")
+		if err != nil {
+			r.Logger.Error("Failed to terminate workflow", "error", err, "runID", runID)
+			return false, fmt.Errorf("failed to delete agent task: %w", err)
+		}
+
+		r.Logger.Info("Successfully terminated workflow", "workflowID", id, "commandID", cmdID)
+		return true, nil
+	} else {
+		// Fallback to direct Temporal client if RootClient is not available
+		r.Logger.Warn("RootClient not available, falling back to direct termination", "workflowID", id)
+
+		// Create a Temporal client to interact with the workflow
+		c := r.TemporalClient
+
+		// Try to terminate the workflow by ID
+		err := c.TerminateWorkflow(ctx, id, "", "Deleted via GraphQL API")
+		if err != nil {
+			r.Logger.Error("Failed to terminate workflow", "error", err, "workflowID", id)
+			return false, fmt.Errorf("failed to delete agent task: %w", err)
+		}
+
+		r.Logger.Info("Successfully terminated workflow but state may not be updated in root workflow",
+			"workflowID", id)
+		return true, nil
 	}
-
-	// We also need to update the state in the root workflow by sending a signal
-	// This is a workaround until we implement proper cleanup in the root workflow
-	// For now, we'll just consider the task deleted if we can terminate it
-
-	r.Logger.Info("Successfully terminated workflow", "workflowID", id)
-	return true, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -421,15 +436,17 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to list active runs: %w", err)
 	}
+	r.Logger.Debug("total runs", "count", len(runs))
 
 	tasks := make([]*model.AgentTask, 0, len(runs))
 	for _, run := range runs {
 		// TODO: below as func GetState() to plannedv2 or baseagent
+		r.Logger.Debug("querying workflow", "workflow_id", run.WorkflowID, "run_id", run.RunID)
 		queryRes, err := tc.QueryWorkflow(
 			ctx,
 			run.WorkflowID,
 			run.RunID,
-			"get_state", // TODO: use planed.QueryGetState
+			planned.QueryGetState,
 		)
 		if err != nil {
 			r.Logger.Warn("failed to query workflow", "error", err)
@@ -441,16 +458,30 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			continue
 		}
 
-		updatedAt := state.History[len(state.History)-1].Timestamp
+		updatedAt := run.CreatedAt
+		if len(state.History) > 0 {
+			updatedAt = state.History[len(state.History)-1].Timestamp
+		}
+
+		endedAt := state.CompletedAt
+		completedAt := state.CompletedAt
+		if !run.EndedAt.IsZero() {
+			endedAt = run.EndedAt
+		}
 
 		tasks = append(tasks, &model.AgentTask{
-			ID:        run.RunID,
-			Name:      state.Name,
-			Schedule:  state.Schedule,
-			Plan:      &state.Plan,
-			CreatedAt: run.CreatedAt.String(),
-			UpdatedAt: updatedAt.String(),
+			ID:          run.RunID,
+			Name:        state.Name,
+			Schedule:    state.Schedule,
+			Plan:        &state.Plan,
+			CreatedAt:   run.CreatedAt.String(),
+			UpdatedAt:   updatedAt.String(),
+			EndedAt:     helpers.TimeToStringPtr(endedAt),
+			CompletedAt: helpers.TimeToStringPtr(completedAt),
+			Output:      &state.Output,
 		})
+
+		r.Logger.Debug("returning to FE", "tasks", tasks[len(tasks)-1])
 	}
 
 	return tasks, nil
