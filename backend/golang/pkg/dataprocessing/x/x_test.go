@@ -41,7 +41,7 @@ func TestProcessLikeFile(t *testing.T) {
 	}
 
 	source := New(tempDir)
-	records, err := source.ProcessFile(likePath, "testuser")
+	records, err := source.ProcessFile(likePath)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestProcessTweetFile(t *testing.T) {
 	}
 
 	source := New(tempDir)
-	records, err := source.ProcessFile(tweetPath, "testuser")
+	records, err := source.ProcessFile(tweetPath)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
 	}
@@ -290,7 +290,7 @@ func TestProcessDirectMessageFile(t *testing.T) {
 	}
 
 	source := New(tempDir)
-	records, err := source.ProcessFile(dmPath, "14101591")
+	records, err := source.ProcessFile(dmPath)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
 	}
@@ -542,7 +542,7 @@ func TestProcessDirectory(t *testing.T) {
 	}
 
 	source := New(tempDir)
-	records, err := source.ProcessDirectory("testuser", "testapikey")
+	records, err := source.ProcessDirectory("testuser")
 	if err != nil {
 		t.Fatalf("ProcessDirectory failed: %v", err)
 	}
