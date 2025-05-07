@@ -25,6 +25,7 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	tdlibclient "github.com/zelenin/go-tdlib/client"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -69,6 +70,22 @@ func main() {
 	envs, _ := config.LoadConfig(true)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
+
+	// Initialize TDLib Telegram client if credentials are provided
+	var tdlib *tdlibclient.Client
+	if envs.TelegramTDLibAPIID != 0 && envs.TelegramTDLibAPIHash != "" {
+		var err error
+		tdlib, err = bootstrapTelegramTDLib(logger, envs.TelegramTDLibAPIID, envs.TelegramTDLibAPIHash)
+		if err != nil {
+			logger.Warn("Failed to initialize TDLib Telegram client", "error", err)
+		} else {
+			logger.Info("TDLib Telegram client initialized successfully")
+			// Ensure we close the connection when the app exits
+			defer tdlib.Close()
+		}
+	} else {
+		logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_API_ID and TELEGRAM_TDLIB_API_HASH environment variables. You can obtain these from https://my.telegram.org/apps")
+	}
 
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
@@ -324,6 +341,7 @@ func main() {
 		telegramService:   telegramService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
+		tdlibClient:       tdlib,
 	})
 
 	go func() {
@@ -439,6 +457,7 @@ type graphqlServerInput struct {
 	telegramService        *telegram.TelegramService
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
+	tdlibClient            *tdlibclient.Client
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -590,4 +609,58 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 	<-c
 
 	client.Disconnect()
+}
+
+func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*tdlibclient.Client, error) {
+	logger.Info("Initializing TDLib Telegram client")
+
+	// Setup TDLib parameters
+	tdlibParameters := &tdlibclient.SetTdlibParametersRequest{
+		UseTestDc:           false,
+		DatabaseDirectory:   "./tdlib-db",
+		FilesDirectory:      "./tdlib-files",
+		UseFileDatabase:     true,
+		UseChatInfoDatabase: true,
+		UseMessageDatabase:  true,
+		UseSecretChats:      false,
+		ApiId:               int32(apiID),
+		ApiHash:             apiHash,
+		SystemLanguageCode:  "en",
+		DeviceModel:         "Server",
+		SystemVersion:       "1.0.0",
+		ApplicationVersion:  "0.1.0",
+	}
+
+	// Create authorizer
+	authorizer := tdlibclient.ClientAuthorizer(tdlibParameters)
+
+	// Start CLI interactor in a separate goroutine
+	go tdlibclient.CliInteractor(authorizer)
+
+	// Set log verbosity level
+	_, err := tdlibclient.SetLogVerbosityLevel(&tdlibclient.SetLogVerbosityLevelRequest{
+		NewVerbosityLevel: 1,
+	})
+	if err != nil {
+		logger.Error("SetLogVerbosityLevel error", "error", err)
+		return nil, errors.Wrap(err, "SetLogVerbosityLevel error")
+	}
+
+	// Create new client
+	tdlibClient, err := tdlibclient.NewClient(authorizer)
+	if err != nil {
+		logger.Error("NewClient error", "error", err)
+		return nil, errors.Wrap(err, "NewClient error")
+	}
+
+	// Fetch client info
+	me, err := tdlibClient.GetMe()
+	if err != nil {
+		logger.Error("GetMe error", "error", err)
+		return nil, errors.Wrap(err, "GetMe error")
+	}
+
+	logger.Info("Logged in to Telegram", "first_name", me.FirstName, "last_name", me.LastName)
+
+	return tdlibClient, nil
 }

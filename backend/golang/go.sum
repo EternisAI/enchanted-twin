@@ -467,6 +467,8 @@ github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 github.com/zeebo/errs v1.4.0 h1:XNdoD/RRMKP7HD0UhJnIzUy74ISdGGxURlYG8HSWSfM=
 github.com/zeebo/errs v1.4.0/go.mod h1:sgbWHsvVuTPHcqJJGQ1WhI5KbWlHYz+2+2C/LSEtCw4=
+github.com/zelenin/go-tdlib v0.7.6 h1:ts5iumjADPH669/Gjlyr9dkygkeRa4O5lGNTNv+5azI=
+github.com/zelenin/go-tdlib v0.7.6/go.mod h1:yqNbNZenZtXPKgf9hDuyZbsRz7qlxOxdfKOc+sAxxIE=
 go.mau.fi/libsignal v0.1.2 h1:Vs16DXWxSKyzVtI+EEXLCSy5pVWzzCzp/2eqFGvLyP0=
 go.mau.fi/libsignal v0.1.2/go.mod h1:JpnLSSJptn/s1sv7I56uEMywvz8x4YzxeF5OzdPb6PE=
 go.mau.fi/util v0.8.6 h1:AEK13rfgtiZJL2YsNK+W4ihhYCuukcRom8WPP/w/L54=
