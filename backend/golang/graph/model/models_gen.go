@@ -15,6 +15,7 @@ type AgentTask struct {
 	Plan      *string `json:"plan,omitempty"`
 	CreatedAt string  `json:"createdAt"`
 	UpdatedAt string  `json:"updatedAt"`
+	EndedAt   *string `json:"endedAt,omitempty"`
 }
 
 type AppNotification struct {

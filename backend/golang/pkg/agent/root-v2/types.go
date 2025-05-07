@@ -56,13 +56,13 @@ type ChildRunInfo struct {
 	WorkflowID string    `json:"workflow_id"` // Child workflow ID
 	TaskID     string    `json:"task_id"`     // User-provided ID (optional)
 	CreatedAt  time.Time `json:"start_time"`
-	// Status field can be added later when lifecycle management is implemented
+	EndedAt    time.Time `json:"ended_at,omitempty"` // Optional end time
 }
 
 // RootState holds the persistent workflow state.
 type RootState struct {
 	// Tracks active planned agent runs (key: RunID)
-	ActiveTasks map[string]*ChildRunInfo `json:"active_runs"`
+	Tasks map[string]*ChildRunInfo `json:"active_runs"`
 	// Tracks processed command IDs for idempotency (key: CmdID)
 	ProcessedCommands map[string]CommandStatus `json:"processed_commands"`
 }
@@ -70,7 +70,7 @@ type RootState struct {
 // Helper to create initial state.
 func NewRootState() *RootState {
 	return &RootState{
-		ActiveTasks:       make(map[string]*ChildRunInfo),
+		Tasks:       make(map[string]*ChildRunInfo),
 		ProcessedCommands: make(map[string]CommandStatus),
 	}
 }

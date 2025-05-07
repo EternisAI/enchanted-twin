@@ -29,8 +29,8 @@ func RootWorkflow(ctx workflow.Context, prevState *RootState) error {
 	// --- Setup Query Handlers ---
 	err := workflow.SetQueryHandler(ctx, QueryListWorkflows, func() (map[string]*ChildRunInfo, error) {
 		// Return a copy
-		runsCopy := make(map[string]*ChildRunInfo, len(state.ActiveTasks))
-		maps.Copy(runsCopy, state.ActiveTasks)
+		runsCopy := make(map[string]*ChildRunInfo, len(state.Tasks))
+		maps.Copy(runsCopy, state.Tasks)
 		return runsCopy, nil
 	})
 	if err != nil {
@@ -170,7 +170,7 @@ func handleStartChildWorkflow(ctx workflow.Context, state *RootState, args map[s
 	logger.Info("Child workflow started", "ChildWorkflowID", childExecution.ID, "RunID", runID)
 
 	// --- Update State ---
-	state.ActiveTasks[runID] = &ChildRunInfo{
+	state.Tasks[runID] = &ChildRunInfo{
 		RunID:      runID,
 		WorkflowID: childExecution.ID,
 		TaskID:     taskID, // Store the user-provided task ID
@@ -202,7 +202,7 @@ func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args m
 		reason = "Terminated by RootWorkflow command"
 	}
 
-	task, found := state.ActiveTasks[runID]
+	task, found := state.Tasks[runID]
 	if !found {
 		logger.Warn("Attempted to terminate task not found in state", "RunID", runID)
 		return runID, nil
@@ -212,9 +212,29 @@ func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args m
 	logger.Info("Attempting to terminate child workflow", "WorkflowID", task.WorkflowID, "RunID", runID, "Reason", reason)
 
 	// TODO: could keep the child future in state and try terminate with future.Cancel(ctx)
-	// but this may or may not work across different incarnations/across ContinueAsNew boundaries
+	// but this would not work across different incarnations/across ContinueAsNew boundaries
 
-	// childWorkflowHandle := workflow.GetExternalWorkflowHandle(ctx, task.WorkflowID, task.RunID)
+	ao := workflow.ActivityOptions{
+		StartToCloseTimeout: 30 * time.Second,
+	}
+	activityCtx := workflow.WithActivityOptions(ctx, ao)
+
+	terminateParams := TerminateWorkflowInput{
+		WorkflowID: task.WorkflowID,
+		RunID:      task.RunID,
+		Reason:     reason,
+	}
+
+	var rootActivities *RootActivities
+	err := workflow.ExecuteActivity(activityCtx, rootActivities.TerminateWorkflowActivity, terminateParams).Get(activityCtx, nil)
+	if err != nil {
+		logger.Error("Termination activity failed", "ChildWorkflowID", task.WorkflowID, "ChildRunID", task.RunID, "error", err)
+		return runID, fmt.Errorf("termination activity for %s (RunID: %s) failed: %w", task.WorkflowID, task.RunID, err)
+	}
+
+	logger.Info("Termination activity completed for child workflow", "ChildWorkflowID", task.WorkflowID, "ChildRunID", task.RunID)
+
+	state.Tasks[runID].EndedAt = workflow.Now(ctx)
 
 	return runID, nil
 }

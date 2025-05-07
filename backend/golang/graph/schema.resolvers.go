@@ -12,16 +12,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -444,6 +443,16 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			updatedAt = state.History[len(state.History)-1].Timestamp
 		}
 
+		endedAt := state.CompletedAt
+		if !run.EndedAt.IsZero() {
+			endedAt = run.EndedAt
+		}
+		var endedAtStrP *string
+		if !endedAt.IsZero() {
+			endedAtStr := endedAt.String()
+			endedAtStrP = &endedAtStr
+		}
+
 		tasks = append(tasks, &model.AgentTask{
 			ID:        run.RunID,
 			Name:      state.Name,
@@ -451,6 +460,7 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			Plan:      &state.Plan,
 			CreatedAt: run.CreatedAt.String(),
 			UpdatedAt: updatedAt.String(),
+			EndedAt:   endedAtStrP,
 		})
 	}
 
@@ -744,10 +754,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }
