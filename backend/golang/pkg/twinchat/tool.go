@@ -93,12 +93,8 @@ func (t *ChatMessageTool) Execute(
 			chatID = chat.ID
 		}
 	} else {
-		// Neither chat_id nor chat_name provided, create a new chat using message as name
-		chat, err := t.storage.CreateChat(ctx, message)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create chat: %w", err)
-		}
-		chatID = chat.ID
+		// Neither chat_id nor chat_name provided, return an error
+		return nil, fmt.Errorf("either `chat_id` or `chat_name` must be provided to create a chat")
 	}
 
 	// Always use "assistant" role since only agents can use this tool
