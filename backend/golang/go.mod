@@ -26,6 +26,7 @@ require (
 	github.com/slack-go/slack v0.16.0
 	github.com/temporalio/ui-server/v2 v2.37.0
 	github.com/vektah/gqlparser/v2 v2.5.23
+	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-131.0
 	google.golang.org/grpc v1.72.0
@@ -34,9 +35,13 @@ require (
 require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
+	github.com/petermattis/goid v0.0.0-20250319124200-ccd6737f222a // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
+	go.mau.fi/libsignal v0.1.2 // indirect
+	go.mau.fi/util v0.8.6 // indirect
 	golang.org/x/net v0.39.0 // indirect
 )
 
