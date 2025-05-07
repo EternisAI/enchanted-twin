@@ -40,6 +40,7 @@ require (
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
+	github.com/zelenin/go-tdlib v0.7.6 // indirect
 	go.mau.fi/libsignal v0.1.2 // indirect
 	go.mau.fi/util v0.8.6 // indirect
 	golang.org/x/net v0.39.0 // indirect
