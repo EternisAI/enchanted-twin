@@ -36,7 +36,6 @@ func TimeToStringPtr(t time.Time, fs ...string) *string {
 	if !t.IsZero() {
 		res := t.Format(f)
 		out = &res
-
 	}
 	return out
 }
