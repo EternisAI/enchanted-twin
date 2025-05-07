@@ -1,6 +1,9 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { Button } from '../../ui/button'
+import { Camera, Mic, Monitor, CheckCircle2, XCircle, AlertCircle, HelpCircle } from 'lucide-react'
+import { cn } from '@renderer/lib/utils'
+import { Card } from '@renderer/components/ui/card'
 
 type MediaType = 'camera' | 'microphone' | 'screen'
 type MediaStatus =
@@ -13,22 +16,59 @@ type MediaStatus =
 
 const types: MediaType[] = ['camera', 'microphone', 'screen']
 
-interface RowProps {
+const typeIcons = {
+  camera: Camera,
+  microphone: Mic,
+  screen: Monitor
+}
+
+const statusConfig = {
+  loading: {
+    icon: HelpCircle,
+    color: 'text-muted-foreground',
+    label: 'Loading'
+  },
+  granted: {
+    icon: CheckCircle2,
+    color: 'text-green-500',
+    label: 'Granted'
+  },
+  'not-determined': {
+    icon: HelpCircle,
+    color: 'text-muted-foreground',
+    label: 'Not determined'
+  },
+  denied: {
+    icon: XCircle,
+    color: 'text-red-500',
+    label: 'Denied'
+  },
+  restricted: {
+    icon: AlertCircle,
+    color: 'text-yellow-500',
+    label: 'Restricted'
+  },
+  unavailable: {
+    icon: XCircle,
+    color: 'text-red-500',
+    label: 'Unavailable'
+  }
+}
+
+interface StatusCardProps {
   type: MediaType
   status: string
   queryAllMediaStatus(): void
 }
 
-function StatusRow({ type, status, queryAllMediaStatus }: RowProps) {
-  const formattedStatus =
-    {
-      loading: 'Loading',
-      granted: 'Granted',
-      'not-determined': 'Not determined',
-      denied: 'Denied',
-      restricted: 'Restricted',
-      unavailable: 'Unavailable'
-    }[status] || status
+function StatusCard({ type, status, queryAllMediaStatus }: StatusCardProps) {
+  const TypeIcon = typeIcons[type]
+  const statusInfo = statusConfig[status as keyof typeof statusConfig] || {
+    icon: HelpCircle,
+    color: 'text-muted-foreground',
+    label: status
+  }
+  const StatusIcon = statusInfo.icon
 
   const requestAccess = async () => {
     await window.api.requestMediaAccess(type)
@@ -36,24 +76,21 @@ function StatusRow({ type, status, queryAllMediaStatus }: RowProps) {
   }
 
   return (
-    <div className="grid grid-cols-3 items-center">
-      <span className="capitalize">{type}</span>
-      <span className="text-center">{formattedStatus}</span>
-
-      <div className="flex justify-end">
-        {status === 'not-determined' && (
-          <Button className="w-fit" size="sm" onClick={requestAccess}>
-            Request
-          </Button>
-        )}
-
-        {(status === 'denied' || status === 'restricted' || status === 'granted') && (
-          <Button className="w-fit" size="sm" onClick={requestAccess}>
-            Open {type} settings
-          </Button>
-        )}
+    <Card className="p-4 min-w-[200px] flex flex-col items-center gap-3">
+      <div className="flex flex-col items-center gap-2">
+        <TypeIcon className="h-8 w-8 text-muted-foreground" />
+        <span className="capitalize font-medium">{type}</span>
       </div>
-    </div>
+
+      <div className="flex items-center gap-2">
+        <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
+        <span className={cn('text-sm', statusInfo.color)}>{statusInfo.label}</span>
+      </div>
+
+      <Button variant="outline" className="w-full" size="sm" onClick={requestAccess}>
+        {status === 'not-determined' ? 'Request' : 'Settings'}
+      </Button>
+    </Card>
   )
 }
 
@@ -76,9 +113,9 @@ export default function MediaStatus() {
   }, [])
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex gap-4">
       {types.map((type) => (
-        <StatusRow
+        <StatusCard
           key={type}
           type={type}
           status={status[type]}

@@ -6,9 +6,9 @@ import MediaStatus from './MediaStatus'
 
 export default function PermissionsCard() {
   return (
-    <Card className="flex flex-col gap-4 p-6">
-      <h3 className="text-xl font-semibold mb-2">Permissions</h3>
-      <div className="flex flex-col gap-6">
+    <Card className="p-6">
+      <h3 className="text-xl font-semibold mb-4">Permissions</h3>
+      <div className="flex flex-wrap gap-4 w-full">
         <MediaStatus />
         <NotificationStatusCard />
       </div>

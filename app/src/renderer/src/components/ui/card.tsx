@@ -1,14 +1,10 @@
 import { motion, HTMLMotionProps } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
 
-function Card({ className, ...props }: HTMLMotionProps<'div'>) {
+function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <motion.div
+    <div
       data-slot="card"
-      layout
-      transition={{
-        layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
-      }}
       className={cn(
         'bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm',
         className
