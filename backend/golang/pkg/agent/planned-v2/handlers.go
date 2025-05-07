@@ -2,6 +2,7 @@ package plannedv2
 
 import (
 	"fmt"
+	"time"
 
 	"go.temporal.io/sdk/workflow"
 
@@ -76,7 +77,7 @@ func registerSignals(ctx workflow.Context, state *PlanState) error {
 			var signal any
 			stopChan.Receive(ctx, &signal)
 			// Set the state to complete
-			state.Complete = true
+			state.CompletedAt = time.Now()
 			state.Output = "Execution stopped by signal"
 			// Add to history
 			state.History = append(state.History, HistoryEntry{

@@ -96,6 +96,7 @@ type Query {
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
+  getAgentTasks: [AgentTask!]!
 }
 
 type Mutation {
@@ -115,7 +116,7 @@ type Mutation {
   deleteDataSource(id: ID!): Boolean!
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
-  removeMCPServer(id: String!): Boolean!
+  deleteAgentTask(id: ID!): Boolean!
 }
 
 type Subscription {
@@ -218,4 +219,16 @@ type AppNotification {
   createdAt: DateTime!
   image: String
   link: String
+}
+
+type AgentTask {
+  id: ID!
+  name: String!
+  schedule: String!
+  plan: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  completedAt: DateTime
+  endedAt: DateTime
+  output: String
 }

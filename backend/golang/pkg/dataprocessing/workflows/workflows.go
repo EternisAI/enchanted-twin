@@ -7,17 +7,19 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type DataProcessingWorkflows struct {
-	Logger       *log.Logger
-	Config       *config.Config
-	Store        *db.Store
-	Nc           *nats.Conn
-	OllamaClient *ollamaapi.Client
-	Memory       memory.Storage
+	Logger        *log.Logger
+	Config        *config.Config
+	Store         *db.Store
+	Nc            *nats.Conn
+	OllamaClient  *ollamaapi.Client
+	Memory        memory.Storage
+	OpenAIService *ai.Service
 }
 
 func (workflows *DataProcessingWorkflows) RegisterWorkflowsAndActivities(worker *worker.Worker) {
