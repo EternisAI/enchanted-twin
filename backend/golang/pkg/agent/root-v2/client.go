@@ -133,3 +133,44 @@ func (rc *RootClient) GetCommandStatus(ctx context.Context, commandID string) (C
 	rc.logger.Debug("Successfully retrieved command status", "CmdID", commandID, "Status", status.Status)
 	return status, nil
 }
+
+// TerminateChildWorkflow signals the RootWorkflow to terminate a running child workflow.
+// It returns the command ID used for the signal, which can be used with GetCommandStatus.
+func (rc *RootClient) TerminateChildWorkflow(ctx context.Context, runID string, reason string) (string, error) {
+	cmdID := uuid.NewString() // Unique ID for this command
+
+	commandArgs := map[string]any{
+		ArgRunID:  runID,
+		ArgReason: reason,
+	}
+
+	command := Command{
+		Cmd:   CmdTerminateChildWorkflow,
+		Args:  commandArgs,
+		CmdID: cmdID,
+	}
+
+	rc.logger.Info("Signaling RootWorkflow terminate child",
+		"Command", command.Cmd,
+		"CmdID", cmdID,
+		"RunID", runID,
+	)
+
+	err := rc.temporalClient.SignalWorkflow(
+		ctx,
+		RootWorkflowID, // Target the specific Root Workflow ID
+		"",             // Target the latest run
+		SignalCommand,  // The signal channel name
+		command,        // The command payload
+	)
+	if err != nil {
+		rc.logger.Error("Failed to signal RootWorkflow for termination",
+			"error", err,
+			"CmdID", cmdID,
+			"RunID", runID)
+		return "", fmt.Errorf("failed to signal RootWorkflow for termination of %s: %w",
+			runID, err)
+	}
+
+	return cmdID, nil
+}

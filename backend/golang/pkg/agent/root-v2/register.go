@@ -4,23 +4,37 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/charmbracelet/log" // Or your preferred logger
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
 )
 
-func RegisterWorkflowsAndActivities(w *worker.Worker, logger *log.Logger) {
+func (rc *RootClient) RegisterWorkflowsAndActivities(w *worker.Worker) {
+	c := rc.temporalClient
+	logger := rc.logger
+
 	logger.Info("Registering root workflow")
 
 	// Register the workflows
-	(*w).RegisterWorkflow(RootWorkflow)
+	(*w).RegisterWorkflowWithOptions(
+		RootWorkflow,
+		workflow.RegisterOptions{
+			Name: RootWorkflowID,
+		},
+	)
+
+	rootActivities := NewRootActivities(c, logger)
+	(*w).RegisterActivity(rootActivities.TerminateWorkflowActivity)
 }
 
 // EnsureRunRootWorkflow checks if the root workflow is running and starts it if not.
 // It's designed to be idempotent.
-func EnsureRunRootWorkflow(ctx context.Context, c client.Client, logger *log.Logger) error {
+func (rc *RootClient) EnsureRunRootWorkflow(ctx context.Context) error {
+	c := rc.temporalClient
+	logger := rc.logger
+
 	workflowID := RootWorkflowID
 	taskQueue := RootTaskQueue
 

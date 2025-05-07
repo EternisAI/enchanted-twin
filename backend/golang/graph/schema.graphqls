@@ -228,4 +228,7 @@ type AgentTask {
   plan: String
   createdAt: DateTime!
   updatedAt: DateTime!
+  completedAt: DateTime
+  endedAt: DateTime
+  output: String
 }

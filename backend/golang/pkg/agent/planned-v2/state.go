@@ -1,6 +1,8 @@
 package plannedv2
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/openai/openai-go"
@@ -31,8 +33,11 @@ type PlanState struct {
 	// Current execution progress
 	CurrentStep int `json:"current_step"`
 
+	// Execution metadata
+	StartedAt time.Time `json:"started_at"`
+
 	// Flag indicating if execution is complete
-	Complete bool `json:"complete"`
+	CompletedAt time.Time `json:"completed_at"`
 
 	// Final output when plan is complete
 	Output string `json:"output"`
@@ -54,7 +59,8 @@ type PlanState struct {
 
 	// Typed history entries (for structured logging and UI)
 	// NOTE: currently this mostly duplicates the Messages field
-	// it may be useful for future UI or logging needs
+	// except it tracks the type of each entry (thought, action, etc.)
+	// and the timestamp of each entry. (used for `UpdatedAt`)
 	History []HistoryEntry `json:"history"`
 
 	// Available tools for the agent
@@ -62,9 +68,6 @@ type PlanState struct {
 
 	// Image URLs generated (if any)
 	ImageURLs []string `json:"image_urls"`
-
-	// Execution metadata
-	StartTime time.Time `json:"start_time"`
 }
 
 // HistoryEntry represents a single entry in the agent's execution history.
@@ -113,6 +116,36 @@ type PlanInput struct {
 
 	// System prompt to use (optional)
 	SystemPrompt string `json:"system_prompt,omitempty"`
+}
+
+// UnmarshalJSON custom unmarshaler for PlanState.
+func (ps *PlanState) UnmarshalJSON(data []byte) error {
+	// Alias type to avoid recursion during unmarshaling
+	type Alias PlanState
+	aux := &struct {
+		ToolResults []json.RawMessage `json:"tool_results"`
+		*Alias
+	}{
+		Alias: (*Alias)(ps),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return err
+	}
+
+	ps.ToolResults = make([]types.ToolResult, len(aux.ToolResults))
+	for i, rawMsg := range aux.ToolResults {
+		// Attempt to unmarshal into the most common concrete type
+		// In a real scenario with multiple concrete types, you might need
+		// a "type" field in the JSON to decide which struct to unmarshal into.
+		var structuredResult types.StructuredToolResult
+		if err := json.Unmarshal(rawMsg, &structuredResult); err == nil {
+			ps.ToolResults[i] = &structuredResult
+		} else {
+			return fmt.Errorf("failed to unmarshal tool_results[%d] into StructuredToolResult: %w. JSON: %s", i, err, string(rawMsg))
+		}
+	}
+	return nil
 }
 
 // ToolCallsFromOpenAI converts OpenAI tool calls to our custom format.

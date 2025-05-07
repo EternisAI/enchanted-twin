@@ -52,7 +52,6 @@ func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
 		Name:          input.Name,
 		Plan:          input.Plan,
 		CurrentStep:   0,
-		Complete:      false,
 		Schedule:      input.Schedule,
 		Messages:      []ai.Message{},
 		SelectedTools: input.ToolNames,
@@ -61,7 +60,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
 		History:       []HistoryEntry{},
 		Output:        "",
 		ImageURLs:     []string{},
-		StartTime:     workflow.Now(ctx),
+		StartedAt:     workflow.Now(ctx),
 	}
 
 	// Add system prompt
@@ -106,7 +105,7 @@ func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
 func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxSteps int) error {
 	logger := workflow.GetLogger(ctx)
 
-	userMessage := "Faithfully complete the task by following the plan\n"
+	userMessage := fmt.Sprintf("# Faithfully complete the task **%s** by following the plan\n", state.Name)
 	if state.Schedule != "" {
 		userMessage += fmt.Sprintf("## The plan is scheduled for: %s\n\n", state.Schedule)
 	}
@@ -118,7 +117,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 	)
 
 	// Main ReAct loop
-	for state.CurrentStep < maxSteps && !state.Complete {
+	for state.CurrentStep < maxSteps && state.CompletedAt.IsZero() {
 		// Update the system time in the first message
 		if err := updateSystemTime(ctx, state); err != nil {
 			logger.Warn("Failed to update system time", "error", err)
@@ -166,7 +165,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 				output, _ := params["output"].(string)
 				logger.Info("Plan execution complete with final response", "output", output)
 				state.Output = output
-				state.Complete = true
+				state.CompletedAt = workflow.Now(ctx)
 				break
 			}
 
@@ -223,7 +222,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 		}
 
 		// If we completed the plan, break out of the loop
-		if state.Complete {
+		if !state.CompletedAt.IsZero() {
 			break
 		}
 
@@ -233,7 +232,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 	}
 
 	// Check if we hit the max steps without completing
-	if state.CurrentStep >= maxSteps && !state.Complete {
+	if state.CurrentStep >= maxSteps && state.CompletedAt.IsZero() {
 		logger.Warn("Reached maximum number of steps without completing the plan")
 		state.History = append(state.History, HistoryEntry{
 			Type:      "system",
@@ -267,7 +266,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 			})
 		}
 
-		state.Complete = true
+		state.CompletedAt = workflow.Now(ctx)
 	}
 
 	return nil
@@ -283,7 +282,7 @@ func updateSystemTime(ctx workflow.Context, state *PlanState) error {
 		return fmt.Errorf("first message is not a system message")
 	}
 
-	now := time.Now().Format(time.RFC3339)
+	now := workflow.Now(ctx).Format(time.RFC3339)
 	timePattern := "Current System Time: "
 	timeStr := fmt.Sprintf("%s%s\n", timePattern, now)
 
