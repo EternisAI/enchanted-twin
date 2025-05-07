@@ -31,8 +31,7 @@ export default function AgentTasks() {
 
   return (
     <Card className="p-6 w-full">
-      <h3 className="text-xl font-semibold">Agent Tasks</h3>
-      <p className="text-sm text-muted-foreground">
+      <p className="text-md font-semibold">
         Manage the agent tasks that are running on the server.
       </p>
 
@@ -41,7 +40,7 @@ export default function AgentTasks() {
 
       <div className="flex flex-col gap-4">
         {agentTasks.length === 0 ? (
-          <p>No agent tasks found</p>
+          <p className="text-md text-muted-foreground">No agent tasks found</p>
         ) : (
           agentTasks.map((task) => (
             <AgentTaskRow
@@ -88,7 +87,7 @@ export function AgentTaskRow({ task, onDelete }: Props) {
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              <div className="flex items-center gap-2 bg-gray/50 p-2 rounded-md">
+              <div className="flex items-center gap-2 bg-popover p-2 rounded-md border shadow-md">
                 <p>Delete agent task</p>
               </div>
             </TooltipContent>

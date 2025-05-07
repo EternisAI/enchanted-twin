@@ -5,7 +5,6 @@ import { Monitor, Moon, Sun } from 'lucide-react'
 import { Card } from '@renderer/components/ui/card'
 import PermissionsCard from '@renderer/components/settings/permissions/PermissionsCard'
 import useAppVersion from '@renderer/hooks/useAppVersion'
-import AgentTasks from '@renderer/components/settings/permissions/AgentTasks'
 
 export const Route = createFileRoute('/settings')({
   component: Settings
@@ -16,10 +15,10 @@ function Settings() {
   const { version } = useAppVersion()
 
   return (
-    <div className="p-6 flex flex-col gap-6 w-full mx-auto">
+    <div className="p-6 flex flex-col gap-6 max-w-4xl mx-auto">
       <h2 className="text-4xl mb-6">Settings</h2>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card className="p-6 w-full">
           <h3 className="text-xl font-semibold">Appearance</h3>
           <p className="text-sm text-muted-foreground">
@@ -53,17 +52,13 @@ function Settings() {
           </div>
         </Card>
 
+        <PermissionsCard />
+
         <div>
           <Card className="p-6 w-full">
             <h3 className="text-xl font-semibold">Updates</h3>
             <p className="text-sm text-muted-foreground">Version {version}</p>
           </Card>
-        </div>
-
-        <PermissionsCard />
-
-        <div>
-          <AgentTasks />
         </div>
       </div>
     </div>
