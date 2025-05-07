@@ -84,7 +84,7 @@ func RootWorkflow(ctx workflow.Context, prevState *RootState) error {
 			case CmdStartChildWorkflow:
 				runID, cmdErr = handleStartChildWorkflow(ctx, state, cmd.Args)
 			case CmdTerminateChildWorkflow:
-				cmdErr = handleTerminateChildWorkflow(ctx, state, cmd.Args)
+				runID, cmdErr = handleTerminateChildWorkflow(ctx, state, cmd.Args)
 			default:
 				cmdErr = fmt.Errorf("unknown command type: %s", cmd.Cmd)
 			}
@@ -187,13 +187,13 @@ func handleStartChildWorkflow(ctx workflow.Context, state *RootState, args map[s
 }
 
 // handleTerminateChildWorkflow handles a request to terminate a running child workflow.
-func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args map[string]any) error {
+func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args map[string]any) (string, error) {
 	logger := workflow.GetLogger(ctx)
 
 	// Get required arguments
 	runID, okRunID := args[ArgRunID].(string)
 	if !okRunID || runID == "" {
-		return fmt.Errorf("missing or invalid argument %s", ArgRunID)
+		return runID, fmt.Errorf("missing or invalid argument %s", ArgRunID)
 	}
 
 	// Reason is optional but useful for logging
@@ -205,7 +205,7 @@ func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args m
 	task, found := state.ActiveTasks[runID]
 	if !found {
 		logger.Warn("Attempted to terminate task not found in state", "RunID", runID)
-		return nil
+		return runID, nil
 	}
 
 	// Terminate the workflow
@@ -216,7 +216,7 @@ func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args m
 
 	// childWorkflowHandle := workflow.GetExternalWorkflowHandle(ctx, task.WorkflowID, task.RunID)
 
-	return nil
+	return runID, nil
 }
 
 // --- Helper Functions ---

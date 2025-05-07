@@ -289,7 +289,7 @@ func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool
 		// Call our new method that handles both termination and state cleanup
 		cmdID, err := r.RootClient.TerminateChildWorkflow(ctx, runID, "Deleted via GraphQL API")
 		if err != nil {
-			r.Logger.Error("Failed to terminate workflow", "error", err, "workflowID", id)
+			r.Logger.Error("Failed to terminate workflow", "error", err, "runID", runID)
 			return false, fmt.Errorf("failed to delete agent task: %w", err)
 		}
 
