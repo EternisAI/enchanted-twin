@@ -17,6 +17,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(true)
+  const [error, setError] = useState<string>('')
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
     if (initialMessage && chat.messages.length === 0) {
@@ -91,21 +92,14 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
       upsertMessage(msg)
       setIsWaitingTwinResponse(true)
       setShowSuggestions(false)
+      setError('')
     },
     (msg) => {
-      upsertMessage(msg)
+      console.error('SendMessage error', msg)
+      setError(msg.text ?? 'Error sending message')
       setIsWaitingTwinResponse(false)
     }
   )
-
-  // useMessageSubscription(chat.id, (msg) => {
-  //   if (msg.role === Role.User) {
-  //     return
-  //   }
-  //   upsertMessage(msg)
-  //   setIsWaitingTwinResponse(false)
-  //   setShowSuggestions(true)
-  // })
 
   useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete, imageUrls) => {
     const existingMessage = messages.find((m) => m.id === messageId)
@@ -153,8 +147,13 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     <div className="flex flex-col h-full w-full">
       <div className="flex-1 overflow-y-auto p-6">
         <div className="flex flex-col items-center">
-          <div className="flex flex-col max-w-4xl w-full">
+          <div className="flex flex-col max-w-4xl w-full gap-4">
             <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
+            {error && (
+              <div className="py-2 px-4 rounded-md border border-red-500 bg-red-500/10 text-red-500">
+                Error: {error}
+              </div>
+            )}
             <div ref={bottomRef} />
           </div>
         </div>
