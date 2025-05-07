@@ -176,7 +176,7 @@ export default function MCPServerItem({ server, onConnect }: MCPServerItemProps)
 
   return (
     <Card className="p-4 w-[350px] max-w-full">
-      <div className="font-semibold text-lg flex items-center justify-between">
+      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
         <div className="flex items-center gap-2">
           {PROVIDER_ICON_MAP[server.type]}
           {server.name}
