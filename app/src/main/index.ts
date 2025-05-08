@@ -490,19 +490,23 @@ function startScreenpipe() {
   }
 }
 
-function installScreenpipe(): boolean {
+function installAndStartScreenpipe(): Promise<void> {
   const isWindows = platform() === 'win32'
   const installCommand = isWindows
     ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
     : 'curl -fsSL get.screenpi.pe/cli | sh'
-  try {
-    execSync(installCommand)
-    log.info('Screenpipe installed successfully')
-    return true
-  } catch (error) {
-    log.error(`Failed to install screenpipe: ${error}`)
-    return false
-  }
+  return new Promise((resolve, reject) => {
+    exec(installCommand, (err, stdout, stderr) => {
+      if (err && stderr) {
+        log.error(`Failed to install screenpipe: ${err} ${stderr}`)
+        reject(new Error(`Failed to install screenpipe: ${err} ${stderr}`))
+      } else {
+        log.info('Screenpipe installed successfully')
+        startScreenpipe()
+        resolve()
+      }
+    })
+  })
 }
 
 function isScreenpipeInstalled(): boolean {
@@ -551,14 +555,9 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  let screenPipeReady = false
   if (!isScreenpipeInstalled()) {
-    screenPipeReady = installScreenpipe()
-  } else {
-    screenPipeReady = true
-  }
-
-  if (!isScreenpipeRunning() && screenPipeReady) {
+    installAndStartScreenpipe()
+  } else if (!isScreenpipeRunning()) {
     startScreenpipe()
   }
 
