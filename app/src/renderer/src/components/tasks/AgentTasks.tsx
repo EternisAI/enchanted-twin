@@ -17,7 +17,6 @@ export default function AgentTasks() {
   const { data, loading } = useQuery(GetAgentTasksDocument, {
     fetchPolicy: 'network-only'
   })
-
   const [deleteAgentTask] = useMutation(DeleteAgentTaskDocument, {
     onCompleted: () => {
       toast.success('Agent task deleted')
@@ -27,7 +26,7 @@ export default function AgentTasks() {
     }
   })
 
-  const agentTasks = (data?.getAgentTasks || []).sort(
+  const agentTasks = [...(data?.getAgentTasks || [])].sort(
     (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
   )
   // data?.getAgentTasks.filter((task) => {
