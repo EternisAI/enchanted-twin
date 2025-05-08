@@ -43,6 +43,12 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to enable WAL mode: %w", err)
 	}
 
+	// Enable enforcement of foreign key constraints
+	_, err = db.ExecContext(ctx, "PRAGMA foreign_keys=ON;")
+	if err != nil {
+		return nil, fmt.Errorf("failed to enable foreign key constraints: %w", err)
+	}
+
 	// Create user_profiles table if it doesn't exist
 	_, err = db.ExecContext(ctx, `
 		CREATE TABLE IF NOT EXISTS user_profiles (
