@@ -31,6 +31,28 @@ func (r *Repository) GetChat(ctx context.Context, id string) (model.Chat, error)
 	return chat, nil
 }
 
+// GetChatByName retrieves a chat by its name. If multiple chats have the same name,
+// returns the most recently created one.
+func (r *Repository) GetChatByName(ctx context.Context, name string) (model.Chat, error) {
+	query := "SELECT id, name, created_at FROM chats WHERE name = ? ORDER BY created_at DESC LIMIT 1"
+
+	var chatDB ChatDB
+	err := r.db.GetContext(ctx, &chatDB, query, name)
+	if err != nil {
+		r.logger.Error("Failed to get chat by name", "name", name, "error", err)
+		return model.Chat{}, fmt.Errorf("chat with name '%s' not found: %w", name, err)
+	}
+
+	chat := chatDB.ToModel()
+	messages, err := r.GetMessagesByChatId(ctx, chat.ID)
+	if err != nil {
+		return model.Chat{}, fmt.Errorf("failed to get messages: %w", err)
+	}
+	chat.Messages = messages
+
+	return chat, nil
+}
+
 func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	query := "SELECT id, name, created_at FROM chats ORDER BY created_at DESC"
 

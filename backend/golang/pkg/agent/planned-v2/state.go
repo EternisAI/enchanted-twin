@@ -135,17 +135,66 @@ func (ps *PlanState) UnmarshalJSON(data []byte) error {
 
 	ps.ToolResults = make([]types.ToolResult, len(aux.ToolResults))
 	for i, rawMsg := range aux.ToolResults {
-		// Attempt to unmarshal into the most common concrete type
-		// In a real scenario with multiple concrete types, you might need
-		// a "type" field in the JSON to decide which struct to unmarshal into.
-		var structuredResult types.StructuredToolResult
-		if err := json.Unmarshal(rawMsg, &structuredResult); err == nil {
-			ps.ToolResults[i] = &structuredResult
-		} else {
-			return fmt.Errorf("failed to unmarshal tool_results[%d] into StructuredToolResult: %w. JSON: %s", i, err, string(rawMsg))
+		// Use our robust helper function to create a structured result
+		result, err := createStructuredToolResult(rawMsg)
+		if err != nil {
+			return fmt.Errorf("failed to create structured tool result for index %d: %w", i, err)
 		}
+		ps.ToolResults[i] = result
 	}
 	return nil
+}
+
+// This function is robust to different JSON formats that might come from different tool implementations.
+func createStructuredToolResult(rawMsg json.RawMessage) (*types.StructuredToolResult, error) {
+	// First, attempt to unmarshal to see what type of structure it has
+	var rawData map[string]interface{}
+	if err := json.Unmarshal(rawMsg, &rawData); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal into map: %w. JSON: %s", err, string(rawMsg))
+	}
+
+	// Create a structured result regardless of the input format
+	structuredResult := &types.StructuredToolResult{
+		ToolParams: make(map[string]interface{}),
+		Output:     make(map[string]interface{}),
+	}
+
+	// Try to populate from the raw data
+	if toolName, ok := rawData["tool"].(string); ok {
+		structuredResult.ToolName = toolName
+	}
+
+	// Handle params field
+	if params, ok := rawData["params"].(map[string]interface{}); ok {
+		structuredResult.ToolParams = params
+	}
+
+	// Handle content in different formats
+	if content, ok := rawData["content"].(string); ok {
+		structuredResult.Output["content"] = content
+	} else if data, ok := rawData["data"].(map[string]interface{}); ok {
+		structuredResult.Output = data
+		// Make sure there's a content field
+		if _, hasContent := data["content"]; !hasContent {
+			if dataStr, err := json.Marshal(data); err == nil {
+				structuredResult.Output["content"] = string(dataStr)
+			}
+		}
+	} else if output, ok := rawData["output"].(map[string]interface{}); ok {
+		structuredResult.Output = output
+	} else {
+		// As a fallback, include the entire raw data as content
+		if dataStr, err := json.Marshal(rawData); err == nil {
+			structuredResult.Output["content"] = string(dataStr)
+		}
+	}
+
+	// Handle error field
+	if errorMsg, ok := rawData["error"].(string); ok {
+		structuredResult.ToolError = errorMsg
+	}
+
+	return structuredResult, nil
 }
 
 // ToolCallsFromOpenAI converts OpenAI tool calls to our custom format.
