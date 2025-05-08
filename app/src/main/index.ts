@@ -474,7 +474,6 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  // Start screenpipe if needed
   await installAndStartScreenpipe()
 
   // Only start the Go server in production environment
