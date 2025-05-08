@@ -14,11 +14,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// DefaultMaxSteps is the default number of iterations for ReAct loop.
-const DefaultMaxSteps = 100
-
 // Constants for workflow operations.
 const (
+	DefaultMaxSteps                    = 500
 	DefaultActivityStartToCloseTimeout = 5 * time.Minute
 	DefaultSystemPrompt                = "You are a helpful digital twin assistant that follows a plan. " +
 		"Your task is to execute this plan step by step, use tools when needed, " +
@@ -26,17 +24,18 @@ const (
 )
 
 // PlannedAgentWorkflow is the main workflow for executing an agent plan.
-func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
+func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) (string, error) {
 	// Configure workflow
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: DefaultActivityStartToCloseTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			MaximumAttempts: 3,
+			// TODO: add NonRetryableErrorTypes
 		},
 	})
 
 	if input.Plan == "" {
-		return fmt.Errorf("plan is required but was empty")
+		return "", fmt.Errorf("plan is required but was empty")
 	}
 
 	// Set default model if not provided
@@ -45,14 +44,16 @@ func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
 	}
 
 	// Set default max steps if not provided
-	input.MaxSteps = DefaultMaxSteps
+	if input.MaxSteps <= 0 {
+		input.MaxSteps = DefaultMaxSteps
+	}
 
 	// Create initial state
 	state := PlanState{
-		Name:          input.Name,
-		Plan:          input.Plan,
-		CurrentStep:   0,
-		Schedule:      input.Schedule,
+		Name:        input.Name,
+		Plan:        input.Plan,
+		CurrentStep: 0,
+		// Schedule:      input.Schedule, // Schedule is handled by the parent
 		Messages:      []ai.Message{},
 		SelectedTools: input.ToolNames,
 		ToolCalls:     []ToolCall{},
@@ -82,23 +83,28 @@ func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
 	// Register queries
 	if err := registerQueries(ctx, &state); err != nil {
 		state.Error = fmt.Sprintf("failed to register queries: %v", err)
-		return fmt.Errorf("failed to register queries: %w", err)
+		return "", fmt.Errorf("failed to register queries: %w", err)
 	}
 
 	// Register signals
 	if err := registerSignals(ctx, &state); err != nil {
 		state.Error = fmt.Sprintf("failed to register signals: %v", err)
-		return fmt.Errorf("failed to register signals: %w", err)
+		return "", fmt.Errorf("failed to register signals: %w", err)
 	}
 
 	// Execute the plan
 	err := executeReActLoop(ctx, &state, input.Model, input.MaxSteps)
 	if err != nil {
-		state.Error = fmt.Sprintf("execution failed: %v", err)
-		return fmt.Errorf("execution failed: %w", err)
+		if state.Error == "" {
+			state.Error = fmt.Sprintf("execution failed: %v", err)
+		}
+		if state.Output == "" {
+			state.Output = state.Error
+		}
+		return state.Output, fmt.Errorf("execution failed: %w", err)
 	}
 
-	return nil
+	return state.Output, nil
 }
 
 // executeReActLoop implements the ReAct loop for executing the plan.
@@ -106,9 +112,9 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 	logger := workflow.GetLogger(ctx)
 
 	userMessage := fmt.Sprintf("# Faithfully complete the task **%s** by following the plan\n", state.Name)
-	if state.Schedule != "" {
-		userMessage += fmt.Sprintf("## The plan is scheduled for: %s\n\n", state.Schedule)
-	}
+	// if state.Schedule != "" {
+	// 	userMessage += fmt.Sprintf("## The plan is scheduled for: %s\n\n", state.Schedule)
+	// }
 	userMessage += fmt.Sprintf("## Plan: %s\n\n", state.Plan)
 	// Prompt the agent to start executing the plan
 	state.Messages = append(
@@ -152,7 +158,8 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 		// Process each tool call
 		for _, toolCall := range toolCalls {
 			// Check if this is a final response
-			if toolCall.Function.Name == "final_response" {
+			toolFnName := toolCall.Function.Name
+			if toolFnName == "final_response" || toolFnName == "complete_workflow" {
 				// Parse arguments
 				var params map[string]any
 				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &params); err != nil {
@@ -189,7 +196,7 @@ func executeReActLoop(ctx workflow.Context, state *PlanState, model string, maxS
 				// Add error message as a tool result
 				errorResult := &types.StructuredToolResult{
 					ToolName:   toolCall.Function.Name,
-					ToolParams: make(map[string]interface{}),
+					ToolParams: make(map[string]any),
 					Output:     map[string]any{"content": errorMsg},
 					ToolError:  err.Error(),
 				}

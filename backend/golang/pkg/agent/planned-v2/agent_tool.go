@@ -119,11 +119,12 @@ func (t *ExecutePlanTool) Execute(
 	if scheduleArg, ok := args["schedule"].(string); ok {
 		schedule = scheduleArg
 	}
+	_ = schedule // TODO: Implement schedule handling
 
 	// --- 2. Prepare Input for the Child Workflow (PlannedAgentWorkflow) ---
 	planInput := PlanInput{
-		Name:      name,
-		Schedule:  schedule,
+		Name: name,
+		// Schedule:  schedule,
 		Plan:      plan,
 		ToolNames: toolNames,
 		Model:     t.model,

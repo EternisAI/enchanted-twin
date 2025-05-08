@@ -27,7 +27,8 @@ type PlanState struct {
 	// The plan text that the agent should follow
 	Plan string `json:"plan"`
 
-	// RRULE-formatted schedule (optional)
+	// TODO: Schedule will be handled by the parent workflow
+	// RRULE-formatted schedule (optional) -- handled by the parent
 	Schedule string `json:"schedule,omitempty"`
 
 	// Current execution progress
@@ -100,7 +101,7 @@ type PlanInput struct {
 	Name string `json:"name"`
 
 	// RRULE-formatted schedule (optional)
-	Schedule string `json:"schedule,omitempty"`
+	// Schedule string `json:"schedule,omitempty"`
 
 	// The plan text that the agent should follow
 	Plan string `json:"plan"`
