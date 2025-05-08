@@ -44,7 +44,7 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 						"type":        "string",
 						"description": "Name of the chat to send the message to. If chat not found by name, a new chat with this name will be created. Either chat_id or chat_name must be provided.",
 					},
-					"text": map[string]any{
+					"chat_text": map[string]any{
 						"type":        "string",
 						"description": "The text of the message to send to the chat.",
 					},
@@ -67,9 +67,9 @@ func (t *ChatMessageTool) Execute(
 	ctx context.Context,
 	args map[string]any,
 ) (types.ToolResult, error) {
-	message, ok := args["text"].(string)
+	message, ok := args["chat_text"].(string)
 	if !ok || message == "" {
-		return nil, fmt.Errorf("message `text` is required")
+		return nil, fmt.Errorf("`chat_text` parameter is required")
 	}
 
 	var chatID string
