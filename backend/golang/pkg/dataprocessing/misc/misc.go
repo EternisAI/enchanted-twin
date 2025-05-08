@@ -196,7 +196,11 @@ func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Printf("failed to close PDF file %s: %v\n", filePath, err)
+		}
+	}()
 
 	var textBuilder strings.Builder
 	totalPage := r.NumPage()
