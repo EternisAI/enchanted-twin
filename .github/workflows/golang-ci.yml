@@ -24,7 +24,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          go-version-file: backend/golang/go.mod
           # module & build caches are auto-enabled in v5
 
       # cache Go build objects and golangci-lint analysis
