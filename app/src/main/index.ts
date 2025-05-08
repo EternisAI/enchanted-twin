@@ -2,18 +2,19 @@ import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session 
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-import { spawn, ChildProcess, exec, execSync } from 'child_process'
-import log, { error } from 'electron-log/main'
+import { spawn, ChildProcess } from 'child_process'
+import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
 import fs from 'fs'
 import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import http from 'http'
 import { URL } from 'url'
-import { homedir, platform } from 'os'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
+import { registerScreenpipeIpc, installAndStartScreenpipe, cleanupScreenpipe } from './screenpipe'
+import { registerAccessibilityIpc } from './accessibilityPermissions'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
@@ -30,7 +31,6 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
-let screenpipeProcess: ChildProcess | null = null
 
 let updateDownloaded = false
 
@@ -445,87 +445,6 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
-function startScreenpipe() {
-  const isWindows = platform() === 'win32'
-  const homeDir = homedir()
-  log.info(`Screenpipe running from ${homeDir}`)
-  try {
-    const screenpipeBinaryPath = isWindows
-      ? path.join(homeDir, 'screenpipe', 'bin', 'screenpipe.exe')
-      : path.join(homeDir, '.local', 'bin', 'screenpipe')
-    const screenpipeArgs = [`--disable-audio`]
-    screenpipeProcess = spawn(screenpipeBinaryPath, screenpipeArgs, {
-      stdio: 'pipe',
-      env: process.env
-    })
-    log.info(`Screenpipe process spawned with PID: ${screenpipeProcess?.pid}`)
-    if (screenpipeProcess) {
-      screenpipeProcess.stdout?.on('data', (data) => {
-        log.info('Screenpipe stdout:', data.toString())
-      })
-
-      screenpipeProcess.stderr?.on('data', (data) => {
-        log.error('Screenpipe stderr:', data.toString())
-      })
-
-      screenpipeProcess.on('spawn', () => {
-        log.info('Screenpipe process spawned with PID:', screenpipeProcess?.pid)
-      })
-
-      screenpipeProcess.on('exit', (code) => {
-        log.info('Screenpipe process exited with code:', code)
-        screenpipeProcess = null
-      })
-
-      screenpipeProcess.on('error', (err) => {
-        log.error('Screenpipe process error:', err)
-        screenpipeProcess = null
-      })
-    }
-  } catch (error) {
-    log.error('Error starting screenpipe:', error)
-    createErrorWindow(
-      `Error starting screenpipe: ${error instanceof Error ? error.message : 'Unknown error'}`
-    )
-  }
-}
-
-function installAndStartScreenpipe(): Promise<void> {
-  const isWindows = platform() === 'win32'
-  const installCommand = isWindows
-    ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
-    : 'curl -fsSL get.screenpi.pe/cli | sh'
-  return new Promise((resolve, reject) => {
-    exec(installCommand, (err, stdout, stderr) => {
-      if (err && stderr) {
-        log.error(`Failed to install screenpipe: ${err} ${stderr}`)
-        reject(new Error(`Failed to install screenpipe: ${err} ${stderr}`))
-      } else {
-        log.info('Screenpipe installed successfully')
-        startScreenpipe()
-        resolve()
-      }
-    })
-  })
-}
-
-function isScreenpipeInstalled(): boolean {
-  const isWindows = platform() === 'win32'
-  const checkCommand = isWindows ? 'where screenpipe' : 'which screenpipe'
-  try {
-    execSync(checkCommand)
-    log.info('Screenpipe already installed')
-    return true
-  } catch (error) {
-    log.error(`Failed to check for screenpipe: ${error}`)
-    return false
-  }
-}
-
-function isScreenpipeRunning(): boolean {
-  return screenpipeProcess !== null
-}
-
 app.whenReady().then(async () => {
   const splash = createSplashWindow()
 
@@ -555,11 +474,8 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  if (!isScreenpipeInstalled()) {
-    installAndStartScreenpipe()
-  } else if (!isScreenpipeRunning()) {
-    startScreenpipe()
-  }
+  // Start screenpipe if needed
+  await installAndStartScreenpipe()
 
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {
@@ -629,6 +545,8 @@ app.whenReady().then(async () => {
   registerNotificationIpc(mainWindow)
   registerMediaPermissionHandlers(session.defaultSession)
   registerPermissionIpc()
+  registerScreenpipeIpc()
+  registerAccessibilityIpc()
 
   splash.destroy()
 
@@ -837,4 +755,6 @@ app.on('will-quit', () => {
     oauthServer.close()
     oauthServer = null
   }
+
+  cleanupScreenpipe()
 })
