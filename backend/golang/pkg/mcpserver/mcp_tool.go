@@ -87,7 +87,6 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 		params = openai.FunctionParameters{}
 	}
 
-	
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
