@@ -19,8 +19,8 @@ const DefaultMaxSteps = 100
 
 // Constants for workflow operations.
 const (
-	DefaultExecutionTimeout = 30 * time.Second
-	DefaultSystemPrompt     = "You are a helpful digital twin assistant that follows a plan. " +
+	DefaultActivityStartToCloseTimeout = 5 * time.Minute
+	DefaultSystemPrompt                = "You are a helpful digital twin assistant that follows a plan. " +
 		"Your task is to execute this plan step by step, use tools when needed, " +
 		"and provide a clear final answer."
 )
@@ -29,7 +29,7 @@ const (
 func PlannedAgentWorkflow(ctx workflow.Context, input PlanInput) error {
 	// Configure workflow
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: DefaultExecutionTimeout,
+		StartToCloseTimeout: DefaultActivityStartToCloseTimeout,
 		RetryPolicy: &temporal.RetryPolicy{
 			MaximumAttempts: 3,
 		},
