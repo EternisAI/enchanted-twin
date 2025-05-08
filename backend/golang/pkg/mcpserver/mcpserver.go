@@ -348,8 +348,8 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
 	if s.registry == nil {
 		return
 	}
-
-	tools, err := client.ListTools(ctx, nil)
+	cursor := ""
+	tools, err := client.ListTools(ctx, &cursor)
 	if err != nil {
 		log.Warn("Error getting tools from MCP client", "error", err)
 		return
