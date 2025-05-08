@@ -445,6 +445,82 @@ function createWindow(): BrowserWindow {
   return mainWindow
 }
 
+function startScreenpipe() {
+  const isWindows = platform() === 'win32'
+  const homeDir = process.env.HOME || process.env.USERPROFILE
+  log.info(`Screenpipe running from ${homeDir}`)
+  try {
+    const screenpipeBinaryPath = isWindows
+      ? `${homeDir}\\screenpipe\\bin\\screenpipe.exe`
+      : `${homeDir}/.local/bin/screenpipe`
+    const screenpipeArgs = [`--disable-audio`]
+    screenpipeProcess = spawn(screenpipeBinaryPath, screenpipeArgs, {
+      stdio: 'pipe',
+      env: process.env
+    })
+    log.info(`Screenpipe process spawned with PID: ${screenpipeProcess?.pid}`)
+    if (screenpipeProcess) {
+      screenpipeProcess.stdout?.on('data', (data) => {
+        log.info('Screenpipe stdout:', data.toString())
+      })
+
+      screenpipeProcess.stderr?.on('data', (data) => {
+        log.error('Screenpipe stderr:', data.toString())
+      })
+
+      screenpipeProcess.on('spawn', () => {
+        log.info('Screenpipe process spawned with PID:', screenpipeProcess?.pid)
+      })
+
+      screenpipeProcess.on('exit', (code) => {
+        log.info('Screenpipe process exited with code:', code)
+        screenpipeProcess = null
+      })
+
+      screenpipeProcess.on('error', (err) => {
+        log.error('Screenpipe process error:', err)
+        screenpipeProcess = null
+      })
+    }
+  } catch (error) {
+    log.error('Error starting screenpipe:', error)
+    createErrorWindow(
+      `Error starting screenpipe: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
+  }
+}
+
+function installScreenpipe(): boolean {
+  const isWindows = platform() === 'win32'
+  const installCommand = isWindows
+    ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
+    : 'curl -fsSL get.screenpi.pe/cli | sh'
+  try {
+    execSync(installCommand)
+    log.info('Screenpipe installed successfully')
+    return true
+  } catch (error) {
+    log.error(`Failed to install screenpipe: ${error}`)
+    return false
+  }
+}
+
+function isScreenpipeInstalled(): boolean {
+  const isWindows = platform() === 'win32'
+  const checkCommand = isWindows ? 'where screenpipe' : 'which screenpipe'
+  try {
+    execSync(checkCommand)
+    log.info('Screenpipe already installed')
+    return true
+  } catch (error) {
+    log.error(`Failed to check for screenpipe: ${error}`)
+    return false
+  }
+}
+
+function isScreenpipeRunning(): boolean {
+  return screenpipeProcess !== null
+}
 
 app.whenReady().then(async () => {
   const splash = createSplashWindow()
@@ -475,77 +551,19 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  const isWindows = platform() === 'win32'
-  const checkCommand = isWindows ? 'where screenpipe' : 'which screenpipe'
-  let isScreenpipeInstalled = false
-  try {
-    execSync(checkCommand)
-    isScreenpipeInstalled = true
-    log.info('Screenpipe already installed')
-  } catch (error) {
-    log.error(`Failed to check for screenpipe: ${error}`)
+  let screenPipeReady = false
+  if (!isScreenpipeInstalled()) {
+    screenPipeReady = installScreenpipe()
+  } else {
+    screenPipeReady = true
   }
 
-  if (!isScreenpipeInstalled) {
-    const installCommand = isWindows
-      ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
-      : 'curl -fsSL get.screenpi.pe/cli | sh'
-    try {
-      execSync(installCommand)
-      log.info('Screenpipe installed successfully')
-      isScreenpipeInstalled = true
-    } catch (error) {
-      log.error(`Failed to install screenpipe: ${error}`)
-    }
-  }
-
-  if (isScreenpipeInstalled) {
-    const homeDir = process.env.HOME || process.env.USERPROFILE
-    log.info(`Screenpipe running from ${homeDir}`)
-    try {
-      const screenpipeBinaryPath = isWindows
-        ? `${homeDir}\\screenpipe\\bin\\screenpipe.exe`
-        : `${homeDir}/.local/bin/screenpipe`
-
-      screenpipeProcess = spawn(screenpipeBinaryPath, [], {
-        stdio: 'pipe',
-        env: process.env
-      })
-      log.info(`Screenpipe process spawned with PID: ${screenpipeProcess?.pid}`)
-      if (screenpipeProcess) {
-        screenpipeProcess.stdout?.on('data', (data) => {
-          log.info('Screenpipe stdout:', data.toString())
-        })
-
-        screenpipeProcess.stderr?.on('data', (data) => {
-          log.error('Screenpipe stderr:', data.toString())
-        })
-
-        screenpipeProcess.on('spawn', () => {
-          log.info('Screenpipe process spawned with PID:', screenpipeProcess?.pid)
-        })
-
-        screenpipeProcess.on('exit', (code) => {
-          log.info('Screenpipe process exited with code:', code)
-          screenpipeProcess = null
-        })
-
-        screenpipeProcess.on('error', (err) => {
-          log.error('Screenpipe process error:', err)
-          screenpipeProcess = null
-        })
-      }
-    } catch (error) {
-      log.error('Error starting screenpipe:', error)
-      createErrorWindow(
-        `Error starting screenpipe: ${error instanceof Error ? error.message : 'Unknown error'}`
-      )
-    }
+  if (!isScreenpipeRunning() && screenPipeReady) {
+    startScreenpipe()
   }
 
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {
-
     if (!existsSync(goBinaryPath)) {
       log.error(`Go binary not found at: ${goBinaryPath}`)
       createErrorWindow(`Go binary not found at: ${goBinaryPath}`)
