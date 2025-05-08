@@ -20,11 +20,7 @@ export default function ConnectMCPServerButton({ onSuccess }: { onSuccess: () =>
               Custom MCP
             </div>
             <div className="flex flex-col gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                // onClick={() => handleEnableToolsToggle(!showEnvInputs)}
-              >
+              <Button variant="outline" size="sm">
                 Connect
               </Button>
             </div>
