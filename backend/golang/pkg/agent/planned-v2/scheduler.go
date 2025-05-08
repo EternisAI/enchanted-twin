@@ -14,7 +14,8 @@ import (
 // Constants for scheduler workflow.
 const (
 	ScheduledPlanWorkflowName = "ScheduledPlanWorkflow"
-	DefaultMaxScheduledRuns   = 1000 // Safety limit
+	DefaultMaxScheduledRuns   = 1000                  // Safety limit
+	QueryGetSchedulerState    = "get_scheduler_state" // Query for scheduler state
 )
 
 // ScheduledPlanInput is the input for the scheduler workflow.
@@ -55,46 +56,57 @@ type SchedulerState struct {
 	Error string `json:"error,omitempty"`
 }
 
-// QueryGetSchedulerState is the query name for getting the scheduler state.
-const QueryGetSchedulerState = "get_scheduler_state"
-
 // ScheduledPlanWorkflow is a workflow that schedules and launches PlanExecutionWorkflow
 // based on an iCalendar RRULE schedule.
-func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error {
+func ScheduledPlanWorkflow(ctx workflow.Context, input interface{}) error {
+	// Handle both fresh starts and ContinueAsNew cases
+	var state SchedulerState
+
+	switch v := input.(type) {
+	case ScheduledPlanInput:
+		// Fresh start with just input
+		state = SchedulerState{
+			Input:         v,
+			StartedAt:     workflow.Now(ctx),
+			CompletedRuns: 0,
+			ChildRunIDs:   []string{},
+		}
+	case SchedulerState:
+		// Continuing with full state from previous run
+		state = v
+		// Update the timestamp since this is a new run
+		state.StartedAt = workflow.Now(ctx)
+	default:
+		return fmt.Errorf("unexpected input type: %T", input)
+	}
 	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting ScheduledPlanWorkflow",
+	logger.Info("Starting/Continuing ScheduledPlanWorkflow",
 		"WorkflowID", workflow.GetInfo(ctx).WorkflowExecution.ID,
-		"TaskName", input.Name,
-		"Schedule", input.Schedule)
+		"TaskName", state.Input.Name,
+		"Schedule", state.Input.Schedule,
+		"CompletedRuns", state.CompletedRuns,
+		"IsContinuation", state.CompletedRuns > 0)
 
 	// Validate required inputs
-	if input.Schedule == "" {
+	if state.Input.Schedule == "" {
 		return fmt.Errorf("schedule is required but was empty")
 	}
 
-	if input.Plan == "" {
+	if state.Input.Plan == "" {
 		return fmt.Errorf("plan is required but was empty")
 	}
 
 	// Apply defaults
-	if input.Model == "" {
-		input.Model = "gpt-4o" // Default model
+	if state.Input.Model == "" {
+		state.Input.Model = "gpt-4o" // Default model
 	}
 
-	if input.MaxSteps <= 0 {
-		input.MaxSteps = DefaultMaxSteps
+	if state.Input.MaxSteps <= 0 {
+		state.Input.MaxSteps = DefaultMaxSteps
 	}
 
-	if input.MaxRuns <= 0 {
-		input.MaxRuns = DefaultMaxScheduledRuns // Use a reasonable default to prevent infinite loops
-	}
-
-	// Initialize state
-	state := SchedulerState{
-		Input:         input,
-		StartedAt:     workflow.Now(ctx),
-		CompletedRuns: 0,
-		ChildRunIDs:   []string{},
+	if state.Input.MaxRuns <= 0 {
+		state.Input.MaxRuns = DefaultMaxScheduledRuns // Use a reasonable default to prevent infinite loops
 	}
 
 	// Register query handlers
@@ -106,7 +118,7 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 	}
 
 	// Parse the initial schedule
-	rruleSet, err := parseSchedule(input.Schedule)
+	rruleSet, err := parseSchedule(state.Input.Schedule)
 	if err != nil {
 		state.Error = fmt.Sprintf("failed to parse schedule: %v", err)
 		logger.Error("Failed to parse schedule", "error", err)
@@ -114,7 +126,7 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 	}
 
 	// Main scheduling loop
-	for state.CompletedRuns < input.MaxRuns {
+	for state.CompletedRuns < state.Input.MaxRuns {
 		// Calculate the next occurrence
 		now := workflow.Now(ctx)
 		nextTimes := rruleSet.Between(now, now.Add(365*24*time.Hour), true)
@@ -143,19 +155,19 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 
 		// Prepare input for the child workflow
 		childInput := PlanInput{
-			Name:         fmt.Sprintf("%s (Run %d)", input.Name, state.CompletedRuns+1),
-			Plan:         input.Plan,
-			ToolNames:    input.ToolNames,
-			Model:        input.Model,
-			MaxSteps:     input.MaxSteps,
-			Origin:       input.Origin,
-			SystemPrompt: input.SystemPrompt,
+			Name:         fmt.Sprintf("%s (Run %d)", state.Input.Name, state.CompletedRuns+1),
+			Plan:         state.Input.Plan,
+			ToolNames:    state.Input.ToolNames,
+			Model:        state.Input.Model,
+			MaxSteps:     state.Input.MaxSteps,
+			Origin:       state.Input.Origin,
+			SystemPrompt: state.Input.SystemPrompt,
 		}
 
 		// Set options for the child workflow
 		childWorkflowID := fmt.Sprintf("%s_%s_%d",
 			workflow.GetInfo(ctx).WorkflowExecution.ID,
-			strings.ReplaceAll(input.Name, " ", "_"),
+			strings.ReplaceAll(state.Input.Name, " ", "_"),
 			state.CompletedRuns+1)
 
 		childOpts := workflow.ChildWorkflowOptions{
@@ -164,8 +176,8 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 		}
 
 		// Add timeout if specified
-		if input.RunTimeout > 0 {
-			childOpts.WorkflowRunTimeout = input.RunTimeout
+		if state.Input.RunTimeout > 0 {
+			childOpts.WorkflowRunTimeout = state.Input.RunTimeout
 		}
 
 		// Create child workflow context
@@ -189,7 +201,7 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 		state.ChildRunIDs = append(state.ChildRunIDs, childExecution.RunID)
 
 		// If configured to wait for child completion, do so
-		if input.WaitForRuns {
+		if state.Input.WaitForRuns {
 			var result string
 			if err := childFuture.Get(ctx, &result); err != nil {
 				logger.Error("Child workflow execution failed", "RunID", childExecution.RunID, "error", err)
@@ -203,8 +215,8 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 		state.CompletedRuns++
 
 		// Check if we should continue
-		if state.CompletedRuns >= input.MaxRuns {
-			logger.Info("Reached maximum number of runs", "maxRuns", input.MaxRuns)
+		if state.CompletedRuns >= state.Input.MaxRuns {
+			logger.Info("Reached maximum number of runs", "maxRuns", state.Input.MaxRuns)
 			break
 		}
 
@@ -222,7 +234,8 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 					"RemainingCount", len(state.ChildRunIDs))
 			}
 
-			return workflow.NewContinueAsNewError(ctx, ScheduledPlanWorkflow, state.Input)
+			// Pass the entire state to ContinueAsNew, not just the input
+			return workflow.NewContinueAsNewError(ctx, ScheduledPlanWorkflow, state)
 		}
 	}
 

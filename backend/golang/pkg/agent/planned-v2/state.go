@@ -64,9 +64,6 @@ type PlanState struct {
 	// and the timestamp of each entry. (used for `UpdatedAt`)
 	History []HistoryEntry `json:"history"`
 
-	// Available tools for the agent
-	// Tools []types.ToolDef `json:"tools"`
-
 	// Image URLs generated (if any)
 	ImageURLs []string `json:"image_urls"`
 }
