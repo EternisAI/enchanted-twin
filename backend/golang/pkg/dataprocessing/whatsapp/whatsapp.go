@@ -242,3 +242,71 @@ func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, messag
 
 	return nil
 }
+
+// ProcessNewContact stores a WhatsApp contact in memory.
+func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) error {
+	if contactName == "" || contactID == "" {
+		return fmt.Errorf("empty contact information")
+	}
+
+	timestamp := time.Now()
+
+	document := memory.TextDocument{
+		ID:        fmt.Sprintf("whatsapp-contact-%d", time.Now().UnixNano()),
+		Content:   contactName,
+		Timestamp: &timestamp,
+		Tags:      []string{"whatsapp", "contact"},
+		Metadata: map[string]string{
+			"contact_id": contactID,
+			"name":       contactName,
+			"type":       "contact",
+			"platform":   "whatsapp",
+		},
+	}
+
+	progressChan := make(chan memory.ProgressUpdate, 1)
+
+	err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+	if err != nil {
+		return fmt.Errorf("failed to store WhatsApp contact: %w", err)
+	}
+
+	return nil
+}
+
+// ProcessHistoricalMessage processes a historical WhatsApp message and stores it in memory.
+func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) error {
+	if message == "" {
+		return fmt.Errorf("empty message content")
+	}
+
+	var timestamp time.Time
+	if timestampPtr != 0 {
+		timestamp = time.Unix(int64(timestampPtr), 0)
+	} else {
+		timestamp = time.Now()
+	}
+
+	document := memory.TextDocument{
+		ID:        fmt.Sprintf("whatsapp-history-%d", time.Now().UnixNano()),
+		Content:   message,
+		Timestamp: &timestamp,
+		Tags:      []string{"whatsapp", "message", "historical"},
+		Metadata: map[string]string{
+			"from":     fromName,
+			"to":       toName,
+			"type":     "message",
+			"platform": "whatsapp",
+			"source":   "history_sync",
+		},
+	}
+
+	progressChan := make(chan memory.ProgressUpdate, 1)
+
+	err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+	if err != nil {
+		return fmt.Errorf("failed to store historical WhatsApp message: %w", err)
+	}
+
+	return nil
+}

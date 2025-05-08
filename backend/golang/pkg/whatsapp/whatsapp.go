@@ -65,21 +65,69 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 		case *events.HistorySync:
 			fmt.Println("History sync event received")
 
-			fmt.Println("-------------------------------- pushnames")
-			fmt.Println(v.Data.Pushnames)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
 
-			fmt.Println("-------------------------------- conversations")
+			for _, pushname := range v.Data.Pushnames {
+				fmt.Println("pushname", *pushname.ID)
+				fmt.Println("pushname", *pushname.Pushname)
+				if pushname.ID != nil && pushname.Pushname != nil {
+					err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
+					if err != nil {
+						fmt.Println("Error processing WhatsApp contact:", err)
+					} else {
+						fmt.Println("WhatsApp contact stored successfully:", *pushname.Pushname)
+					}
+				}
+			}
 
 			for _, conversation := range v.Data.Conversations {
-				fmt.Println("id", *conversation.ID)
-
-				for _, message := range conversation.Messages {
-					fmt.Println(*message.GetMessage().MessageTimestamp)
-					fmt.Println(message.GetMessage().UserReceipt)
-					fmt.Println(*message.GetMessage().Key.FromMe)
-					fmt.Println(message.Message.Message.GetConversation())
+				if conversation.ID == nil {
+					continue
 				}
 
+				chatID := *conversation.ID
+
+				for _, messageInfo := range conversation.Messages {
+					message := messageInfo.GetMessage()
+					if message == nil || message.Key == nil || message.Key.FromMe == nil {
+						continue
+					}
+
+					var content string
+					if msg := message.Message.GetConversation(); msg != "" {
+						content = msg
+					} else {
+						continue
+					}
+
+					fromName := ""
+					toName := chatID
+
+					if *message.Key.FromMe {
+						fromName = "me"
+					} else {
+						fromName = chatID
+					}
+
+					fmt.Println("message", content)
+					fmt.Println("fromName", fromName)
+					fmt.Println("toName", toName)
+					fmt.Println("timestamp", *message.MessageTimestamp)
+					err := dataprocessing_whatsapp.ProcessHistoricalMessage(
+						ctx,
+						memoryStorage,
+						content,
+						fromName,
+						toName,
+						*message.MessageTimestamp,
+					)
+					if err != nil {
+						fmt.Println("Error processing historical WhatsApp message:", err)
+					} else {
+						fmt.Println("Historical WhatsApp message stored successfully")
+					}
+				}
 			}
 
 		case *events.Message:
