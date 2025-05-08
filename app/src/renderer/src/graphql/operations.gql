@@ -105,6 +105,13 @@ query GetAgentTasks {
   }
 }
 
+query GetTools {
+  getTools {
+    name
+    description
+  }
+}
+
 mutation CreateChat($name: String!) {
   createChat(name: $name) {
     id
@@ -224,4 +231,12 @@ mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
 
 mutation DeleteAgentTask($id: ID!) {
   deleteAgentTask(id: $id)
+}
+
+mutation ConnectMCPServer($input: ConnectMCPServerInput!) {
+  connectMCPServer(input: $input)
+}
+
+mutation RemoveMCPServer($id: String!) {
+  removeMCPServer(id: $id)
 }
