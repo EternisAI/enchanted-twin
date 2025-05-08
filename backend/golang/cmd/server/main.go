@@ -6,10 +6,13 @@ import (
 	stderrs "errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -389,8 +392,21 @@ func main() {
 		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
-			logger.Error("HTTP server error", slog.Any("error", err))
-			panic(errors.Wrap(err, "Unable to start server"))
+			if strings.Contains(err.Error(), "address already in use") {
+				logger.Warn("GraphQL HTTP server port already in use, trying alternative port")
+				altPort := strconv.Itoa(3001 + rand.Intn(100)) // Random port between 3001-3100
+				logger.Info("Trying alternative port for GraphQL HTTP server", "address", "http://localhost:"+altPort)
+				err = http.ListenAndServe(":"+altPort, router)
+				if err != nil {
+					logger.Error("HTTP server error on alternative port", slog.Any("error", err))
+					logger.Warn("Continuing without GraphQL HTTP server")
+					return
+				}
+			} else {
+				logger.Error("HTTP server error", slog.Any("error", err))
+				logger.Warn("Continuing without GraphQL HTTP server")
+				return
+			}
 		}
 	}()
 
