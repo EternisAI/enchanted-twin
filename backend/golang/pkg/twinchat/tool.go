@@ -69,7 +69,7 @@ func (t *ChatMessageTool) Execute(
 ) (types.ToolResult, error) {
 	message, ok := args["chat_text"].(string)
 	if !ok || message == "" {
-		return nil, fmt.Errorf("`text` parameter is required")
+		return nil, fmt.Errorf("`chat_text` parameter is required")
 	}
 
 	var chatID string
