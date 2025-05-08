@@ -37,6 +37,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/petermattis/goid v0.0.0-20250319124200-ccd6737f222a // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
+	github.com/samber/lo v1.50.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/zeebo/errs v1.4.0 // indirect

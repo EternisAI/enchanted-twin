@@ -3,6 +3,7 @@ package whatsapp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
+	"github.com/samber/lo"
 )
 
 type QRCodeEvent struct {
@@ -26,6 +28,10 @@ var (
 
 	ConnectChan     chan struct{}
 	ConnectChanOnce sync.Once
+
+	// Store contacts at package level to persist between events
+	allContacts     []WhatsappContact
+	allContactsLock sync.RWMutex
 )
 
 func GetQRChannel() chan QRCodeEvent {
@@ -58,19 +64,65 @@ func TriggerConnect() {
 	GetConnectChannel() <- struct{}{}
 }
 
+// normalizeJID extracts the phone number part from a JID to make matching more reliable
+func normalizeJID(jid string) string {
+	// Remove any suffix like @s.whatsapp.net
+	if idx := strings.Index(jid, "@"); idx > 0 {
+		return jid[:idx]
+	}
+	return jid
+}
+
+type WhatsappContact struct {
+	Jid  string
+	Name string
+}
+
+func addContact(jid, name string) {
+	allContactsLock.Lock()
+	defer allContactsLock.Unlock()
+
+	exists := lo.ContainsBy(allContacts, func(c WhatsappContact) bool {
+		return c.Jid == jid
+	})
+
+	if !exists {
+		allContacts = append(allContacts, WhatsappContact{
+			Jid:  jid,
+			Name: name,
+		})
+		fmt.Printf("Added contact to persistent store: %s - %s\n", jid, name)
+	}
+}
+
+func findContactByJID(jid string) (WhatsappContact, bool) {
+	allContactsLock.RLock()
+	defer allContactsLock.RUnlock()
+
+	contact, found := lo.Find(allContacts, func(c WhatsappContact) bool {
+		return c.Jid == jid
+	})
+
+	if found {
+		return contact, true
+	}
+
+	normJID := normalizeJID(jid)
+	return lo.Find(allContacts, func(c WhatsappContact) bool {
+		return normalizeJID(c.Jid) == normJID
+	})
+}
+
 func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
 
 		case *events.HistorySync:
-			fmt.Println("History sync event received")
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			for _, pushname := range v.Data.Pushnames {
-				fmt.Println("pushname", *pushname.ID)
-				fmt.Println("pushname", *pushname.Pushname)
 				if pushname.ID != nil && pushname.Pushname != nil {
 					err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
 					if err != nil {
@@ -78,6 +130,8 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 					} else {
 						fmt.Println("WhatsApp contact stored successfully:", *pushname.Pushname)
 					}
+
+					addContact(*pushname.ID, *pushname.Pushname)
 				}
 			}
 
@@ -89,6 +143,24 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 				chatID := *conversation.ID
 
 				for _, messageInfo := range conversation.Messages {
+					userReceipts := messageInfo.GetMessage().UserReceipt
+					contacts := []string{}
+
+					for _, userReceipt := range userReceipts {
+						if userReceipt.UserJID == nil {
+							continue
+						}
+
+						userJID := *userReceipt.UserJID
+
+						contact, ok := findContactByJID(userJID)
+						if ok {
+							contacts = append(contacts, contact.Name)
+						} else {
+							contacts = append(contacts, normalizeJID(userJID))
+						}
+					}
+
 					message := messageInfo.GetMessage()
 					if message == nil || message.Key == nil || message.Key.FromMe == nil {
 						continue
@@ -106,14 +178,14 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 
 					if *message.Key.FromMe {
 						fromName = "me"
-					} else {
-						fromName = chatID
+						if len(contacts) > 0 {
+							toName = contacts[0]
+						}
+					} else if len(contacts) > 0 {
+						fromName = contacts[0]
+						toName = "me"
 					}
 
-					fmt.Println("message", content)
-					fmt.Println("fromName", fromName)
-					fmt.Println("toName", toName)
-					fmt.Println("timestamp", *message.MessageTimestamp)
 					err := dataprocessing_whatsapp.ProcessHistoricalMessage(
 						ctx,
 						memoryStorage,
@@ -153,9 +225,21 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 
 			fmt.Println("Received a message:", message)
 
+			// Store sender's contact info if available
+			if v.Info.Sender.User != "" && v.Info.PushName != "" {
+				senderJID := v.Info.Sender.String()
+				addContact(senderJID, v.Info.PushName)
+			}
+
 			fromName := v.Info.PushName
 			if fromName == "" {
-				fromName = v.Info.Sender.User
+				// Try to find contact in our persistent store
+				contact, found := findContactByJID(v.Info.Sender.String())
+				if found {
+					fromName = contact.Name
+				} else {
+					fromName = v.Info.Sender.User
+				}
 			}
 
 			toName := v.Info.Chat.User
@@ -169,6 +253,11 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 			} else {
 				fmt.Println("WhatsApp message stored successfully")
 			}
+
+		// Add default case for debugging
+		default:
+			// Log the event type for debugging
+			fmt.Printf("Received unhandled event of type: %T\n", evt)
 		}
 	}
 }
