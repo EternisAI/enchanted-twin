@@ -30,7 +30,6 @@ var (
 	ConnectChan     chan struct{}
 	ConnectChanOnce sync.Once
 
-	// Store contacts at package level to persist between events
 	allContacts     []WhatsappContact
 	allContactsLock sync.RWMutex
 )
@@ -65,9 +64,7 @@ func TriggerConnect() {
 	GetConnectChannel() <- struct{}{}
 }
 
-// normalizeJID extracts the phone number part from a JID to make matching more reliable
 func normalizeJID(jid string) string {
-	// Remove any suffix like @s.whatsapp.net
 	if idx := strings.Index(jid, "@"); idx > 0 {
 		return jid[:idx]
 	}

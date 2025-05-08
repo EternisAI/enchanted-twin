@@ -419,8 +419,25 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 
 // GetWhatsAppStatus is the resolver for the getWhatsAppStatus field.
 func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppStatus, error) {
+	// Get the latest QR event to ensure we have the most up-to-date information
+	latestQREvent := whatsapp.GetLatestQREvent()
+
 	isConnected := r.WhatsAppConnected
-	qrCodeData := r.WhatsAppQRCode
+	var qrCodeData *string
+
+	// If we have a latest QR event, use its data
+	if latestQREvent != nil {
+		if latestQREvent.Event == "success" {
+			isConnected = true
+			qrCodeData = nil
+		} else if latestQREvent.Event == "code" {
+			isConnected = false
+			qrCodeData = &latestQREvent.Code
+		}
+	} else {
+		// Fallback to resolver's stored values
+		qrCodeData = r.WhatsAppQRCode
+	}
 
 	statusMessage := ""
 	if isConnected {

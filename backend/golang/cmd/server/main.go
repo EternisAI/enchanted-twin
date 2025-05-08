@@ -208,6 +208,10 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create memory"))
 	}
 
+	// Automatically trigger WhatsApp connection at startup
+	logger.Info("Triggering WhatsApp connection at startup")
+	whatsapp.TriggerConnect()
+
 	go bootstrapWhatsAppClient(mem, logger)
 
 	temporalClient, err := bootstrapTemporalServer(logger, envs)
