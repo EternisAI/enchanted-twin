@@ -43,7 +43,7 @@ func StartEmbeddedNATSServer(logger *log.Logger) (*server.Server, error) {
 
 	go s.Start()
 
-	if !s.ReadyForConnections(5 * time.Second) {
+	if !s.ReadyForConnections(30 * time.Second) {
 		return nil, errors.New("NATS server not ready in time")
 	}
 

@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
@@ -100,81 +101,94 @@ func main() {
 	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
+	var postgresService *bootstrap.PostgresService
 	postgresService, err := bootstrapPostgres(postgresCtx, logger)
 	if err != nil {
-		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
+		logger.Warn("Failed to start PostgreSQL, continuing without it", "error", err)
 	}
 
 	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := postgresService.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
-		}
-		if err := postgresService.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
-		}
-	}()
-
-	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start nats server"))
-	}
-	defer natsServer.Shutdown()
-	logger.Info("NATS server started")
-
-	nc, err := bootstrap.NewNatsClient()
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to create nats client"))
-	}
-	logger.Info("NATS client started")
-
-	// Move WhatsApp NATS code here after nc is initialized
-	go func() {
-		for evt := range whatsappQRChan {
-			if evt.Event == "code" {
-				qrCode := evt.Code
-				currentWhatsAppQRCode = &qrCode
-				whatsAppConnected = false
-				fmt.Println("Received new WhatsApp QR code, length:", len(qrCode))
-
-				// Publish QR code event to NATS for subscriptions
-				qrCodeUpdate := map[string]interface{}{
-					"event":        "code",
-					"qr_code_data": qrCode,
-					"is_connected": false,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(qrCodeUpdate)
-				if err == nil {
-					nc.Publish("whatsapp.qr_code", jsonData)
-					fmt.Println("Published WhatsApp QR code to NATS")
-				} else {
-					fmt.Println("Failed to marshal WhatsApp QR code data", "error", err)
-				}
-			} else if evt.Event == "success" {
-				whatsAppConnected = true
-				currentWhatsAppQRCode = nil
-				fmt.Println("WhatsApp connection successful")
-
-				// Publish success event to NATS for subscriptions
-				successUpdate := map[string]interface{}{
-					"event":        "success",
-					"qr_code_data": nil,
-					"is_connected": true,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(successUpdate)
-				if err == nil {
-					nc.Publish("whatsapp.qr_code", jsonData)
-					logger.Info("Published WhatsApp connection success to NATS")
-				} else {
-					logger.Error("Failed to marshal WhatsApp success data", "error", err)
-				}
+		if postgresService != nil {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			if err := postgresService.Stop(shutdownCtx); err != nil {
+				logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
+			}
+			if err := postgresService.Remove(shutdownCtx); err != nil {
+				logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
 			}
 		}
 	}()
+
+	var natsServer *server.Server
+	natsServer, err = bootstrap.StartEmbeddedNATSServer(logger)
+	if err != nil {
+		logger.Warn("Failed to start NATS server, continuing without it", "error", err)
+	} else {
+		defer natsServer.Shutdown()
+		logger.Info("NATS server started")
+	}
+	var nc *nats.Conn
+	if natsServer != nil {
+		nc, err = bootstrap.NewNatsClient()
+		if err != nil {
+			logger.Warn("Failed to create NATS client, continuing without it", "error", err)
+		} else {
+			logger.Info("NATS client started")
+		}
+	} else {
+		logger.Warn("Skipping NATS client initialization as NATS server is not available")
+	}
+
+	// Move WhatsApp NATS code here after nc is initialized
+	if nc != nil {
+		go func() {
+			for evt := range whatsappQRChan {
+				if evt.Event == "code" {
+					qrCode := evt.Code
+					currentWhatsAppQRCode = &qrCode
+					whatsAppConnected = false
+					logger.Info("Received new WhatsApp QR code", "length", len(qrCode))
+
+					// Publish QR code event to NATS for subscriptions
+					qrCodeUpdate := map[string]interface{}{
+						"event":        "code",
+						"qr_code_data": qrCode,
+						"is_connected": false,
+						"timestamp":    time.Now().Format(time.RFC3339),
+					}
+					jsonData, err := json.Marshal(qrCodeUpdate)
+					if err == nil {
+						nc.Publish("whatsapp.qr_code", jsonData)
+						logger.Info("Published WhatsApp QR code to NATS")
+					} else {
+						logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
+					}
+				} else if evt.Event == "success" {
+					whatsAppConnected = true
+					currentWhatsAppQRCode = nil
+					logger.Info("WhatsApp connection successful")
+
+					// Publish success event to NATS for subscriptions
+					successUpdate := map[string]interface{}{
+						"event":        "success",
+						"qr_code_data": nil,
+						"is_connected": true,
+						"timestamp":    time.Now().Format(time.RFC3339),
+					}
+					jsonData, err := json.Marshal(successUpdate)
+					if err == nil {
+						nc.Publish("whatsapp.qr_code", jsonData)
+						logger.Info("Published WhatsApp connection success to NATS")
+					} else {
+						logger.Error("Failed to marshal WhatsApp success data", "error", err)
+					}
+				}
+			}
+		}()
+	} else {
+		logger.Warn("Skipping WhatsApp QR code handling as NATS client is not available")
+	}
 
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
@@ -193,40 +207,61 @@ func main() {
 	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
-		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
-	}
-
 	dbName := "enchanted_twin"
-	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", "error", err)
-		panic(errors.Wrap(err, "Unable to ensure database exists"))
+	
+	if postgresService != nil {
+		if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
+			logger.Warn("Failed waiting for PostgreSQL to be ready", "error", err)
+		} else {
+			if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
+				logger.Warn("Failed to ensure database exists", "error", err)
+			} else {
+				logger.Info(
+					"PostgreSQL listening at",
+					"connection",
+					postgresService.GetConnectionString(dbName),
+				)
+			}
+		}
+	} else {
+		logger.Warn("PostgreSQL service not available, continuing without it")
 	}
-	logger.Info(
-		"PostgreSQL listening at",
-		"connection",
-		postgresService.GetConnectionString(dbName),
-	)
-	recreateMemDb := false
-	mem, err := embeddingsmemory.NewEmbeddingsMemory(
-		&embeddingsmemory.Config{
-			Logger:              logger,
-			PgString:            postgresService.GetConnectionString(dbName),
-			AI:                  aiEmbeddingsService,
-			Recreate:            recreateMemDb,
-			EmbeddingsModelName: envs.EmbeddingsModel,
-		},
-	)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to create memory"))
+	var mem memory.Storage
+	if postgresService != nil {
+		logger.Info(
+			"PostgreSQL listening at",
+			"connection",
+			postgresService.GetConnectionString(dbName),
+		)
+		
+		recreateMemDb := false
+		var memErr error
+		mem, memErr = embeddingsmemory.NewEmbeddingsMemory(
+			&embeddingsmemory.Config{
+				Logger:              logger,
+				PgString:            postgresService.GetConnectionString(dbName),
+				AI:                  aiEmbeddingsService,
+				Recreate:            recreateMemDb,
+				EmbeddingsModelName: envs.EmbeddingsModel,
+			},
+		)
+		if memErr != nil {
+			logger.Warn("Unable to create memory, continuing without it", "error", memErr)
+		}
+	} else {
+		logger.Warn("Skipping memory initialization as PostgreSQL is not available")
 	}
 
-	go bootstrapWhatsAppClient(mem, logger)
+	if mem != nil {
+		go bootstrapWhatsAppClient(mem, logger)
+	} else {
+		logger.Warn("Skipping WhatsApp client initialization as memory is not available")
+	}
 
-	temporalClient, err := bootstrapTemporalServer(logger, envs)
+	var temporalClient client.Client
+	temporalClient, err = bootstrapTemporalServer(logger, envs)
 	if err != nil {
-		panic(errors.Wrap(err, "Unable to start temporal server"))
+		logger.Warn("Failed to start Temporal server, continuing without it", "error", err)
 	}
 
 	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
@@ -265,23 +300,29 @@ func main() {
 		logger.Warn("Failed to get MCP tools", "error", err)
 	}
 
-	temporalWorker, err := bootstrapTemporalWorker(
-		&bootstrapTemporalWorkerInput{
-			logger:               logger,
-			temporalClient:       temporalClient,
-			envs:                 envs,
-			store:                store,
-			nc:                   nc,
-			ollamaClient:         ollamaClient,
-			memory:               mem,
-			aiCompletionsService: aiCompletionsService,
-			registry:             toolRegistry,
-		},
-	)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to start temporal worker"))
+	var temporalWorker worker.Worker
+	if temporalClient != nil && mem != nil {
+		temporalWorker, err = bootstrapTemporalWorker(
+			&bootstrapTemporalWorkerInput{
+				logger:               logger,
+				temporalClient:       temporalClient,
+				envs:                 envs,
+				store:                store,
+				nc:                   nc,
+				ollamaClient:         ollamaClient,
+				memory:               mem,
+				aiCompletionsService: aiCompletionsService,
+				registry:             toolRegistry,
+			},
+		)
+		if err != nil {
+			logger.Warn("Failed to start Temporal worker, continuing without it", "error", err)
+		} else {
+			defer temporalWorker.Stop()
+		}
+	} else {
+		logger.Warn("Skipping Temporal worker initialization as dependencies are not available")
 	}
-	defer temporalWorker.Stop()
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -614,11 +655,34 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*tdlibclient.Client, error) {
 	logger.Info("Initializing TDLib Telegram client")
 
+	// Create directories if they don't exist
+	dbDir := "./tdlib-db"
+	filesDir := "./tdlib-files"
+	
+	os.MkdirAll(dbDir, 0755)
+	os.MkdirAll(filesDir, 0755)
+	
+	_, err := os.Stat(dbDir + "/db.sqlite")
+	if os.IsNotExist(err) {
+		logger.Info("No existing authentication data found")
+		logger.Info("Will perform fresh authentication with phone number: +33616874598")
+	} else {
+		logger.Info("Found existing authentication data - will try to reuse it")
+	}
+
+	_, err = tdlibclient.SetLogVerbosityLevel(&tdlibclient.SetLogVerbosityLevelRequest{
+		NewVerbosityLevel: 2, // Reduced verbosity for cleaner logs
+	})
+	if err != nil {
+		logger.Error("SetLogVerbosityLevel error", "error", err)
+		return nil, errors.Wrap(err, "SetLogVerbosityLevel error")
+	}
+
 	// Setup TDLib parameters
 	tdlibParameters := &tdlibclient.SetTdlibParametersRequest{
 		UseTestDc:           false,
-		DatabaseDirectory:   "./tdlib-db",
-		FilesDirectory:      "./tdlib-files",
+		DatabaseDirectory:   dbDir,
+		FilesDirectory:      filesDir,
 		UseFileDatabase:     true,
 		UseChatInfoDatabase: true,
 		UseMessageDatabase:  true,
@@ -634,33 +698,54 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 	// Create authorizer
 	authorizer := tdlibclient.ClientAuthorizer(tdlibParameters)
 
-	// Start CLI interactor in a separate goroutine
-	go tdlibclient.CliInteractor(authorizer)
+	authChan := make(chan bool, 1)
+	go func() {
+		logger.Info("Starting CLI interactor for Telegram authentication")
+		logger.Info("When prompted, enter phone number: 33616874598 (without the + sign)")
+		logger.Info("Then enter the verification code sent to your Telegram app")
+		tdlibclient.CliInteractor(authorizer)
+		authChan <- true
+	}()
 
-	// Set log verbosity level
-	_, err := tdlibclient.SetLogVerbosityLevel(&tdlibclient.SetLogVerbosityLevelRequest{
-		NewVerbosityLevel: 1,
-	})
-	if err != nil {
-		logger.Error("SetLogVerbosityLevel error", "error", err)
-		return nil, errors.Wrap(err, "SetLogVerbosityLevel error")
+	// Create new client with a timeout
+	logger.Info("Creating new TDLib client - this may take a moment...")
+	
+	// Create a channel for client creation result
+	clientCh := make(chan struct {
+		client *tdlibclient.Client
+		err    error
+	}, 1)
+	
+	go func() {
+		client, err := tdlibclient.NewClient(authorizer)
+		clientCh <- struct {
+			client *tdlibclient.Client
+			err    error
+		}{client, err}
+	}()
+	
+	var client *tdlibclient.Client
+	select {
+	case result := <-clientCh:
+		if result.err != nil {
+			logger.Error("NewClient error", "error", result.err)
+			return nil, errors.Wrap(result.err, "NewClient error")
+		}
+		client = result.client
+	case <-time.After(120 * time.Second): // Increase timeout to 2 minutes
+		logger.Error("Client creation timed out")
+		return nil, errors.New("client creation timed out")
+	}
+	
+	logger.Info("TDLib client created successfully")
+
+	me, getMeErr := client.GetMe()
+	if getMeErr != nil {
+		logger.Warn("GetMe error - authentication may be incomplete", "error", getMeErr)
+		logger.Info("Check the CLI for authentication prompts")
+	} else {
+		logger.Info("Logged in to Telegram", "first_name", me.FirstName, "last_name", me.LastName)
 	}
 
-	// Create new client
-	tdlibClient, err := tdlibclient.NewClient(authorizer)
-	if err != nil {
-		logger.Error("NewClient error", "error", err)
-		return nil, errors.Wrap(err, "NewClient error")
-	}
-
-	// Fetch client info
-	me, err := tdlibClient.GetMe()
-	if err != nil {
-		logger.Error("GetMe error", "error", err)
-		return nil, errors.Wrap(err, "GetMe error")
-	}
-
-	logger.Info("Logged in to Telegram", "first_name", me.FirstName, "last_name", me.LastName)
-
-	return tdlibClient, nil
+	return client, nil
 }
