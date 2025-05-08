@@ -298,24 +298,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 }
 
 func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
-	err := s.repo.DeleteMCPServer(ctx, id)
-	if err != nil {
-		return err
-	}
-
-	// Remove the server from the connected servers
-	for i, connectedServer := range s.connectedServers {
-		if connectedServer.ID == id {
-			if i < len(s.connectedServers)-1 {
-				s.connectedServers = append(s.connectedServers[:i], s.connectedServers[i+1:]...)
-			} else {
-				s.connectedServers = s.connectedServers[:i]
-			}
-			break
-		}
-	}
-
-	return nil
+	return s.repo.DeleteMCPServer(ctx, id)
 }
 
 func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
