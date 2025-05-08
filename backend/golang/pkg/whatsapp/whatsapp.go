@@ -61,6 +61,27 @@ func TriggerConnect() {
 func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
+
+		case *events.HistorySync:
+			fmt.Println("History sync event received")
+
+			fmt.Println("-------------------------------- pushnames")
+			fmt.Println(v.Data.Pushnames)
+
+			fmt.Println("-------------------------------- conversations")
+
+			for _, conversation := range v.Data.Conversations {
+				fmt.Println("id", *conversation.ID)
+
+				for _, message := range conversation.Messages {
+					fmt.Println(*message.GetMessage().MessageTimestamp)
+					fmt.Println(message.GetMessage().UserReceipt)
+					fmt.Println(*message.GetMessage().Key.FromMe)
+					fmt.Println(message.Message.Message.GetConversation())
+				}
+
+			}
+
 		case *events.Message:
 			message := v.Message.GetConversation()
 			if message == "" {
