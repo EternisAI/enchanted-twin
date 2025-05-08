@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from '@apollo/client'
-import { formatDistanceToNow } from 'date-fns'
 import { Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -18,6 +17,7 @@ export default function AgentTasks() {
   const { data, loading } = useQuery(GetAgentTasksDocument, {
     fetchPolicy: 'network-only'
   })
+
   const [deleteAgentTask] = useMutation(DeleteAgentTaskDocument, {
     onCompleted: () => {
       toast.success('Agent task deleted')
@@ -27,7 +27,9 @@ export default function AgentTasks() {
     }
   })
 
-  const agentTasks = data?.getAgentTasks || []
+  const agentTasks = (data?.getAgentTasks || []).sort(
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+  )
   // data?.getAgentTasks.filter((task) => {
   //   if (!task.endedAt) return true
   //   return new Date(task.endedAt) > new Date()
@@ -36,7 +38,7 @@ export default function AgentTasks() {
   console.log(data?.getAgentTasks, agentTasks)
 
   return (
-    <Card className="p-6 w-full">
+    <Card className="p-6 w-full overflow-y-auto">
       <p className="text-md font-semibold">
         Manage the agent tasks that are running on the server.
       </p>
@@ -44,7 +46,7 @@ export default function AgentTasks() {
       {loading && <div className="py-4 text-center">Loading agent tasks...</div>}
       {/* {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>} */}
 
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 pb-6">
         {agentTasks.length === 0 ? (
           <p className="text-md text-muted-foreground">No agent tasks found</p>
         ) : (
@@ -77,7 +79,7 @@ function AgentTaskRow({ task, onDelete }: Props) {
             <p className="text-lg font-medium">{task.name}</p>
             {humanSchedule && <Badge variant="outline">Runs {humanSchedule}</Badge>}
           </div>
-          {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>}
+          {/* {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>} */}
         </div>
 
         {onDelete && (
@@ -98,22 +100,6 @@ function AgentTaskRow({ task, onDelete }: Props) {
               </div>
             </TooltipContent>
           </Tooltip>
-        )}
-      </div>
-
-      <div className="flex gap-4 text-xs text-muted-foreground">
-        {task.createdAt && <span>Created {formatDistanceToNow(new Date(task.createdAt))} ago</span>}
-        {task.updatedAt && <span>Updated {formatDistanceToNow(new Date(task.updatedAt))} ago</span>}
-        {task.endedAt && <span>Ended {formatDistanceToNow(new Date(task.endedAt))} ago</span>}
-        {task.completedAt && (
-          <span>Completed {formatDistanceToNow(new Date(task.completedAt))} ago</span>
-        )}
-      </div>
-      <div className="flex flex-col gap-2 text-xs text-muted-foreground">
-        {task.output && (
-          <div>
-            <strong>Agent Output:</strong> {task.output}
-          </div>
         )}
       </div>
     </div>
