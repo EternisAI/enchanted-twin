@@ -167,12 +167,11 @@ func main() {
 		logger.Error("Child workflows may not be able to start")
 	}
 
-	// Initialize MCP Service
-	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
-	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store)
-
-	// Initialize global tool registry
 	toolRegistry := tools.NewRegistry()
+
+	// Initialize MCP Service with tool registry
+	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
+	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store, toolRegistry)
 
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
@@ -200,11 +199,10 @@ func main() {
 	logger.Info("Standard tools registered", "count", len(standardTools))
 	logger.Info("Provider tools registered", "count", len(providerTools))
 
-	// Register MCP tools
+	// MCP tools are automatically registered by the MCP service
 	mcpTools, err := mcpService.GetInternalTools(context.Background())
 	if err == nil {
-		registeredMCPTools := agent.RegisterMCPTools(toolRegistry, mcpTools)
-		logger.Info("MCP tools registered", "count", len(registeredMCPTools))
+		logger.Info("MCP tools available", "count", len(mcpTools))
 	} else {
 		logger.Warn("Failed to get MCP tools", "error", err)
 	}

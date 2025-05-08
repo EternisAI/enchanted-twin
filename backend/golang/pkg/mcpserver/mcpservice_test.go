@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	db "github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 )
@@ -22,7 +23,8 @@ func TestMCPService_GetTools(t *testing.T) {
 	}
 
 	repo := repository.NewRepository(logger, db.DB())
-	s := NewService(ctx, *repo, db)
+	toolRegistry := tools.NewRegistry()
+	s := NewService(ctx, *repo, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
@@ -77,7 +79,8 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	}
 
 	repo := repository.NewRepository(logger, db.DB())
-	s := NewService(ctx, *repo, db)
+	toolRegistry := tools.NewRegistry()
+	s := NewService(ctx, *repo, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
