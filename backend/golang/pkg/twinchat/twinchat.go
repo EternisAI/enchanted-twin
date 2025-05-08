@@ -68,7 +68,8 @@ func (s *Service) Execute(
 
 	// Get the tool list from the registry
 	toolsList := []tools.Tool{}
-	for _, name := range s.toolRegistry.List() {
+	// TODO: move immediate workflow tools to separate registry
+	for _, name := range s.toolRegistry.Excluding("sleep", "sleep_until").List() {
 		if tool, exists := s.toolRegistry.Get(name); exists {
 			toolsList = append(toolsList, tool)
 		}
