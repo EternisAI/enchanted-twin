@@ -110,7 +110,6 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	// Move WhatsApp NATS code here after nc is initialized
 	go func() {
 		for evt := range whatsappQRChan {
 			switch evt.Event {
@@ -118,9 +117,8 @@ func main() {
 				qrCode := evt.Code
 				currentWhatsAppQRCode = &qrCode
 				whatsAppConnected = false
-				fmt.Println("Received new WhatsApp QR code, length:", len(qrCode))
+				logger.Info("Received new WhatsApp QR code, length:", "length", len(qrCode))
 
-				// Publish QR code event to NATS for subscriptions
 				qrCodeUpdate := map[string]interface{}{
 					"event":        "code",
 					"qr_code_data": qrCode,
@@ -141,9 +139,8 @@ func main() {
 			case "success":
 				whatsAppConnected = true
 				currentWhatsAppQRCode = nil
-				fmt.Println("WhatsApp connection successful")
+				logger.Info("WhatsApp connection successful")
 
-				// Publish success event to NATS for subscriptions
 				successUpdate := map[string]interface{}{
 					"event":        "success",
 					"qr_code_data": nil,
@@ -456,7 +453,6 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Debug:            false,
 	}).Handler)
 
-	// Create resolver with pointers to whatsApp fields so they stay updated
 	resolver := &graph.Resolver{
 		Logger:                 input.logger,
 		TemporalClient:         input.temporalClient,
@@ -535,7 +531,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 	}
 	clientLog := waLog.Stdout("Client", "DEBUG", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
-	client.AddEventHandler(whatsapp.EventHandler(memoryStorage))
+	client.AddEventHandler(whatsapp.EventHandler(memoryStorage, logger))
 
 	logger.Info("Waiting for WhatsApp connection signal...")
 	connectChan := whatsapp.GetConnectChannel()

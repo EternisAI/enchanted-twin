@@ -11,6 +11,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
+	"github.com/charmbracelet/log"
 	"github.com/samber/lo"
 )
 
@@ -113,22 +114,22 @@ func findContactByJID(jid string) (WhatsappContact, bool) {
 	})
 }
 
-func EventHandler(memoryStorage memory.Storage) func(interface{}) {
+func EventHandler(memoryStorage memory.Storage, logger *log.Logger) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
 
 		case *events.HistorySync:
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
 					err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
 					if err != nil {
-						fmt.Println("Error processing WhatsApp contact:", err)
+						logger.Error("Error processing WhatsApp contact", "error", err)
 					} else {
-						fmt.Println("WhatsApp contact stored successfully:", *pushname.Pushname)
+						logger.Info("WhatsApp contact stored successfully", "pushname", *pushname.Pushname)
 					}
 
 					addContact(*pushname.ID, *pushname.Pushname)
@@ -195,9 +196,9 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 						*message.MessageTimestamp,
 					)
 					if err != nil {
-						fmt.Println("Error processing historical WhatsApp message:", err)
+						logger.Error("Error processing historical WhatsApp message", "error", err)
 					} else {
-						fmt.Println("Historical WhatsApp message stored successfully")
+						logger.Info("Historical WhatsApp message stored successfully")
 					}
 				}
 			}
@@ -219,13 +220,10 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 			}
 
 			if message == "" {
-				fmt.Println("Received a message with empty content")
+				logger.Info("Received a message with empty content")
 				return
 			}
 
-			fmt.Println("Received a message:", message)
-
-			// Store sender's contact info if available
 			if v.Info.Sender.User != "" && v.Info.PushName != "" {
 				senderJID := v.Info.Sender.String()
 				addContact(senderJID, v.Info.PushName)
@@ -233,7 +231,7 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 
 			fromName := v.Info.PushName
 			if fromName == "" {
-				// Try to find contact in our persistent store
+
 				contact, found := findContactByJID(v.Info.Sender.String())
 				if found {
 					fromName = contact.Name
@@ -249,15 +247,13 @@ func EventHandler(memoryStorage memory.Storage) func(interface{}) {
 
 			err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
 			if err != nil {
-				fmt.Println("Error processing WhatsApp message:", err)
+				logger.Error("Error processing WhatsApp message", "error", err)
 			} else {
-				fmt.Println("WhatsApp message stored successfully")
+				logger.Info("WhatsApp message stored successfully")
 			}
 
-		// Add default case for debugging
 		default:
-			// Log the event type for debugging
-			fmt.Printf("Received unhandled event of type: %T\n", evt)
+			logger.Info("Received unhandled event", "event", evt)
 		}
 	}
 }
