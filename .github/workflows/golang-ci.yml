@@ -41,7 +41,7 @@ jobs:
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.1
-          working-directory: .
+          working-directory: backend/golang
           args: --timeout=4m --new-from-rev="$GITHUB_BASE_REF"
 
       - name: Build
