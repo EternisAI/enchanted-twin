@@ -9,9 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/ledongthuc/pdf"
 	"github.com/openai/openai-go"
-	"github.com/unidoc/unipdf/v3/extractor"
-	"github.com/unidoc/unipdf/v3/model"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -193,45 +192,28 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 
 // ExtractTextFromPDF extracts text content from a PDF file.
 func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
-	f, err := os.Open(filePath)
+	f, r, err := pdf.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
 	}
 	defer f.Close()
 
-	pdfReader, err := model.NewPdfReader(f)
-	if err != nil {
-		return "", fmt.Errorf("failed to create PDF reader for %s: %w", filePath, err)
-	}
-
-	numPages, err := pdfReader.GetNumPages()
-	if err != nil {
-		return "", fmt.Errorf("failed to get number of pages for %s: %w", filePath, err)
-	}
-
 	var textBuilder strings.Builder
+	totalPage := r.NumPage()
 
-	for i := 1; i <= numPages; i++ {
-		page, err := pdfReader.GetPage(i)
-		if err != nil {
-			return "", fmt.Errorf("failed to get page %d from PDF file %s: %w", i, filePath, err)
+	for pageIndex := 1; pageIndex <= totalPage; pageIndex++ {
+		p := r.Page(pageIndex)
+		if p.V.IsNull() {
+			continue
 		}
 
-		ex, err := extractor.New(page)
+		text, err := p.GetPlainText(nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to create text extractor for page %d of PDF file %s: %w", i, filePath, err)
+			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", pageIndex, filePath, err)
 		}
-
-		text, err := ex.ExtractText()
-		if err != nil {
-			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", i, filePath, err)
-		}
-
 		textBuilder.WriteString(text)
 		textBuilder.WriteString("\n\n")
 	}
-
-	fmt.Println("textBuilder.String()", textBuilder.String())
 
 	return textBuilder.String(), nil
 }
