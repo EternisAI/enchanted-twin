@@ -174,7 +174,7 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 		logger.Info("Starting child execution workflow", "childWorkflowID", childWorkflowID)
 
 		// Execute the child workflow
-		childFuture := workflow.ExecuteChildWorkflow(childCtx, WorkflowName, childInput)
+		childFuture := workflow.ExecuteChildWorkflow(childCtx, PlannedWorkflowName, childInput)
 
 		// Get the execution info without waiting for completion
 		var childExecution workflow.Execution
@@ -206,6 +206,23 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input ScheduledPlanInput) error
 		if state.CompletedRuns >= input.MaxRuns {
 			logger.Info("Reached maximum number of runs", "maxRuns", input.MaxRuns)
 			break
+		}
+
+		// Check history size and continue as new if needed
+		currentHistoryLength := workflow.GetInfo(ctx).GetCurrentHistoryLength()
+		if currentHistoryLength > 10000 { // Similar to RootWorkflow threshold
+			logger.Info("History length threshold reached, continuing as new workflow",
+				"HistoryLength", currentHistoryLength,
+				"CompletedRuns", state.CompletedRuns)
+
+			// Prune child run IDs to keep state small (only keep last 20)
+			if len(state.ChildRunIDs) > 20 {
+				state.ChildRunIDs = state.ChildRunIDs[len(state.ChildRunIDs)-20:]
+				logger.Info("Pruned child run IDs before ContinueAsNew",
+					"RemainingCount", len(state.ChildRunIDs))
+			}
+
+			return workflow.NewContinueAsNewError(ctx, ScheduledPlanWorkflow, state.Input)
 		}
 	}
 

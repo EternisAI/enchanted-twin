@@ -16,6 +16,8 @@ import (
 
 // Constants for workflow operations.
 const (
+	// PlannedWorkflowName is the name of the planned agent workflow.
+	PlannedWorkflowName                = "PlannedAgentWorkflow"
 	DefaultMaxSteps                    = 500
 	DefaultActivityStartToCloseTimeout = 5 * time.Minute
 	DefaultSystemPrompt                = "You are a helpful digital twin assistant that follows a plan. " +

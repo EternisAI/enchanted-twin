@@ -134,7 +134,7 @@ func (t *ExecutePlanTool) Execute(
 			MaxSteps:  t.maxSteps,
 			Origin:    args, // Pass original tool args for context within the child
 		}
-		workflowName = WorkflowName
+		workflowName = PlannedWorkflowName
 		workflowArgs = []any{planInput}
 	} else {
 		// If schedule is provided, run a scheduled plan
