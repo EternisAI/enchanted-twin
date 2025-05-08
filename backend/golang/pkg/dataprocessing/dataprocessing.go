@@ -15,9 +15,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/google_addresses"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -255,7 +257,7 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 	return tempDir, nil
 }
 
-func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (bool, error) {
+func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiService *ai.Service, completionsModel string) (bool, error) {
 	var records []types.Record
 	var err error
 
@@ -304,7 +306,7 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 			return false, fmt.Errorf("x requires a username")
 		}
 		source := x.New(inputPath)
-		records, err = source.ProcessDirectory(name, xApiKey)
+		records, err = source.ProcessDirectory(name)
 	case "whatsapp":
 		source := whatsapp.New()
 		records, err = source.ProcessFile(inputPath)
@@ -314,8 +316,11 @@ func ProcessSource(sourceType, inputPath, outputPath, name, xApiKey string) (boo
 	case "chatgpt":
 		source := chatgpt.New(inputPath)
 		records, err = source.ProcessDirectory(name)
+	case "misc":
+		source := misc.New(openAiService, completionsModel)
+		records, err = source.ProcessDirectory(inputPath)
 	default:
-		return false, fmt.Errorf("unsupported source type: %s", sourceType)
+		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
 
 	err = SaveRecords(records, outputPath)

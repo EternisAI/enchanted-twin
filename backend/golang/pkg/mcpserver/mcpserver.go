@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"slices"
 
+	"github.com/charmbracelet/log"
 	mcp "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 
@@ -30,14 +31,20 @@ type service struct {
 	store            *db.Store
 	repo             repository.Repository
 	connectedServers []*ConnectedMCPServer
+	registry         tools.ToolRegistry
 }
 
 // NewService creates a new MCPServerService.
-func NewService(ctx context.Context, repo repository.Repository, store *db.Store) MCPService {
-	service := &service{repo: repo, connectedServers: []*ConnectedMCPServer{}, store: store}
+func NewService(ctx context.Context, repo repository.Repository, store *db.Store, registry tools.ToolRegistry) MCPService {
+	service := &service{
+		repo:             repo,
+		connectedServers: []*ConnectedMCPServer{},
+		store:            store,
+		registry:         registry,
+	}
 	err := service.LoadMCP(ctx)
 	if err != nil {
-		fmt.Println("Error loading MCP servers", err)
+		log.Error("Error loading MCP servers", "error", err)
 	}
 	return service
 }
@@ -58,36 +65,35 @@ func (s *service) ConnectMCPServer(
 			return nil, err
 		}
 
+		var client MCPClient
+
 		switch input.Type {
 		case model.MCPServerTypeTwitter:
-			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-				ID: mcpServer.ID,
-				Client: &twitter.TwitterClient{
-					Store: s.store,
-				},
-			})
+			client = &twitter.TwitterClient{
+				Store: s.store,
+			}
 		case model.MCPServerTypeGoogle:
-			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-				ID: mcpServer.ID,
-				Client: &google.GoogleClient{
-					Store: s.store,
-				},
-			})
+			client = &google.GoogleClient{
+				Store: s.store,
+			}
 		case model.MCPServerTypeSLACk:
-			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-				ID: mcpServer.ID,
-				Client: &slack.SlackClient{
-					Store: s.store,
-				},
-			})
+			client = &slack.SlackClient{
+				Store: s.store,
+			}
 		case model.MCPServerTypeScreenpipe:
-			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-				ID:     mcpServer.ID,
-				Client: screenpipe.NewClient(),
-			})
+			client = screenpipe.NewClient()
 		default:
 			return nil, fmt.Errorf("unsupported server type")
 		}
+
+		s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+			ID:     mcpServer.ID,
+			Client: client,
+		})
+
+		// Register tools with the registry
+		s.registerMCPTools(ctx, client)
+
 		return mcpServer, nil
 	}
 
@@ -106,17 +112,24 @@ func (s *service) ConnectMCPServer(
 		return nil, err
 	}
 
-	client := mcp.NewClient(transport)
-	_, err = client.Initialize(ctx)
+	// Create the client using direct mcp.NewClient call to get Initialize method
+	mcpClient := mcp.NewClient(transport)
+	_, err = mcpClient.Initialize(ctx)
 	if err != nil {
-		fmt.Println("Error initializing mcp server", err)
+		log.Error("Error initializing mcp server", "error", err)
 		return nil, err
 	}
+
+	// Use the initialized client as an MCPClient interface
+	client := mcpClient
 
 	s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 		ID:     mcpServer.ID,
 		Client: client,
 	})
+
+	// Register tools with the registry
+	s.registerMCPTools(ctx, client)
 
 	return mcpServer, nil
 }
@@ -179,37 +192,37 @@ func (s *service) LoadMCP(ctx context.Context) error {
 	}
 
 	for _, server := range servers {
+		var client MCPClient
+
 		if server.Type != model.MCPServerTypeOther {
 			switch server.Type {
 			case model.MCPServerTypeTwitter:
-				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-					ID: server.ID,
-					Client: &twitter.TwitterClient{
-						Store: s.store,
-					},
-				})
+				client = &twitter.TwitterClient{
+					Store: s.store,
+				}
 			case model.MCPServerTypeGoogle:
-				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-					ID: server.ID,
-					Client: &google.GoogleClient{
-						Store: s.store,
-					},
-				})
+				client = &google.GoogleClient{
+					Store: s.store,
+				}
 			case model.MCPServerTypeSLACk:
-				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-					ID: server.ID,
-					Client: &slack.SlackClient{
-						Store: s.store,
-					},
-				})
+				client = &slack.SlackClient{
+					Store: s.store,
+				}
 			case model.MCPServerTypeScreenpipe:
-				s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
-					ID:     server.ID,
-					Client: screenpipe.NewClient(),
-				})
+				client = screenpipe.NewClient()
 			default:
 				// nothing to do
+				continue
 			}
+
+			s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
+				ID:     server.ID,
+				Client: client,
+			})
+
+			// Register tools with the registry
+			s.registerMCPTools(ctx, client)
+
 			continue
 		}
 
@@ -225,17 +238,24 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			return err
 		}
 
-		client := mcp.NewClient(transport)
-		_, err = client.Initialize(ctx)
+		// Create the client using direct mcp.NewClient call to get Initialize method
+		mcpClient := mcp.NewClient(transport)
+		_, err = mcpClient.Initialize(ctx)
 		if err != nil {
-			fmt.Printf("Error initializing mcp server: %s\n", server.Name)
+			log.Error("Error initializing mcp server", "server", server.Name)
 			continue
 		}
+
+		// Use the initialized client as an MCPClient interface
+		client = mcpClient
 
 		s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 			ID:     server.ID,
 			Client: client,
 		})
+
+		// Register tools with the registry
+		s.registerMCPTools(ctx, client)
 	}
 
 	return nil
@@ -250,7 +270,7 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 		for {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
-				fmt.Println("Error getting tools for client", connectedServer.ID, err)
+				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
 				continue
 			}
 
@@ -276,7 +296,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 		for {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
-				fmt.Println("Error getting tools for client", connectedServer.ID, err)
+				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
 				continue
 			}
 
@@ -299,6 +319,38 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 
 func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
 	return s.repo.DeleteMCPServer(ctx, id)
+}
+
+// GetRegistry returns the tool registry.
+func (s *service) GetRegistry() tools.ToolRegistry {
+	return s.registry
+}
+
+// registerMCPTools registers tools from an MCP client with the tool registry.
+func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
+	if s.registry == nil {
+		return
+	}
+
+	tools, err := client.ListTools(ctx, nil)
+	if err != nil {
+		log.Warn("Error getting tools from MCP client", "error", err)
+		return
+	}
+
+	if tools == nil || len(tools.Tools) == 0 {
+		return
+	}
+
+	for _, tool := range tools.Tools {
+		mcpTool := &MCPTool{
+			Client: client,
+			Tool:   tool,
+		}
+		if err := s.registry.Register(mcpTool); err != nil {
+			log.Warn("Error registering MCP tool", "tool", tool.Name, "error", err)
+		}
+	}
 }
 
 func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {

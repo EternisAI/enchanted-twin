@@ -11,7 +11,6 @@ import (
 func parseTwitterFileSimple(
 	content []byte,
 	fileType string,
-	userName string,
 ) ([]types.Record, error) {
 	contentStr := string(content)
 
@@ -35,17 +34,17 @@ func parseTwitterFileSimple(
 
 	switch fileType {
 	case TypeLike:
-		return parseLikesSimple(contentStr, userName)
+		return parseLikesSimple(contentStr)
 	case TypeTweet:
-		return parseTweets(contentStr, userName)
+		return parseTweets(contentStr)
 	case TypeDirectMessage:
-		return parseDirectMessages(contentStr, userName)
+		return parseDirectMessages(contentStr)
 	default:
 		return nil, fmt.Errorf("unsupported file type: %s", fileType)
 	}
 }
 
-func parseLikesSimple(content string, userName string) ([]types.Record, error) {
+func parseLikesSimple(content string) ([]types.Record, error) {
 	var records []types.Record
 
 	parts := strings.Split(strings.TrimSpace(content), "},")

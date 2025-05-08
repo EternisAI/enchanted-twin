@@ -30,8 +30,11 @@ func (t *FinalResponseTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
-			Name:        "complete_workflow",
-			Description: param.NewOpt("Complete the workflow and provide an optional response"),
+			Name: "complete_workflow",
+			Description: param.NewOpt("End the current workflow (plan) and provide an optional response. " +
+				"Use this tool ONLY when the **entire multi-step plan** has been successfully completed. " +
+				"Provide the final overall result of the whole plan in the 'output' parameter. " +
+				"Do NOT use this for intermediate steps or partial results."),
 			Parameters: map[string]any{
 				"type": "object",
 				"properties": map[string]any{

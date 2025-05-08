@@ -96,8 +96,8 @@ type Query {
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
-  # WhatsApp status and QR code
   getWhatsAppStatus: WhatsAppStatus!
+  getAgentTasks: [AgentTask!]!
 }
 
 type Mutation {
@@ -117,6 +117,7 @@ type Mutation {
   deleteDataSource(id: ID!): Boolean!
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
+  deleteAgentTask(id: ID!): Boolean!
   removeMCPServer(id: String!): Boolean!
   # WhatsApp integration
   startWhatsAppConnection: Boolean!
@@ -239,4 +240,16 @@ type WhatsAppQRCodeUpdate {
   event: String!
   timestamp: DateTime!
   isConnected: Boolean!
+}
+
+type AgentTask {
+  id: ID!
+  name: String!
+  schedule: String!
+  plan: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  completedAt: DateTime
+  endedAt: DateTime
+  output: String
 }
