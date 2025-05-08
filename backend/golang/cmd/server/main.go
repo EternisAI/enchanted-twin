@@ -169,6 +169,10 @@ func main() {
 
 	toolRegistry := tools.NewRegistry()
 
+	if err := toolRegistry.Register(memory.NewMemorySearchTool(logger, mem)); err != nil {
+		logger.Error("Failed to register memory search tool", "error", err)
+	}
+
 	// Initialize MCP Service with tool registry
 	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
 	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store, toolRegistry)
