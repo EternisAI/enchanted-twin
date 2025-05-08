@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"slices"
 
+	"github.com/charmbracelet/log"
 	mcp "github.com/metoro-io/mcp-golang"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 
@@ -43,7 +44,7 @@ func NewService(ctx context.Context, repo repository.Repository, store *db.Store
 	}
 	err := service.LoadMCP(ctx)
 	if err != nil {
-		fmt.Println("Error loading MCP servers", err)
+		log.Error("Error loading MCP servers", "error", err)
 	}
 	return service
 }
@@ -91,20 +92,7 @@ func (s *service) ConnectMCPServer(
 		})
 
 		// Register tools with the registry
-		if s.registry != nil {
-			tools, err := client.ListTools(ctx, nil)
-			if err == nil && tools != nil && len(tools.Tools) > 0 {
-				for _, tool := range tools.Tools {
-					mcpTool := &MCPTool{
-						Client: client,
-						Tool:   tool,
-					}
-					if err := s.registry.Register(mcpTool); err != nil {
-						fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
-					}
-				}
-			}
-		}
+		s.registerMCPTools(ctx, client)
 
 		return mcpServer, nil
 	}
@@ -128,7 +116,7 @@ func (s *service) ConnectMCPServer(
 	mcpClient := mcp.NewClient(transport)
 	_, err = mcpClient.Initialize(ctx)
 	if err != nil {
-		fmt.Println("Error initializing mcp server", err)
+		log.Error("Error initializing mcp server", "error", err)
 		return nil, err
 	}
 
@@ -141,20 +129,7 @@ func (s *service) ConnectMCPServer(
 	})
 
 	// Register tools with the registry
-	if s.registry != nil {
-		tools, err := client.ListTools(ctx, nil)
-		if err == nil && tools != nil && len(tools.Tools) > 0 {
-			for _, tool := range tools.Tools {
-				mcpTool := &MCPTool{
-					Client: client,
-					Tool:   tool,
-				}
-				if err := s.registry.Register(mcpTool); err != nil {
-					fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
-				}
-			}
-		}
-	}
+	s.registerMCPTools(ctx, client)
 
 	return mcpServer, nil
 }
@@ -246,20 +221,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			})
 
 			// Register tools with the registry
-			if s.registry != nil {
-				tools, err := client.ListTools(ctx, nil)
-				if err == nil && tools != nil && len(tools.Tools) > 0 {
-					for _, tool := range tools.Tools {
-						mcpTool := &MCPTool{
-							Client: client,
-							Tool:   tool,
-						}
-						if err := s.registry.Register(mcpTool); err != nil {
-							fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
-						}
-					}
-				}
-			}
+			s.registerMCPTools(ctx, client)
 
 			continue
 		}
@@ -280,7 +242,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		mcpClient := mcp.NewClient(transport)
 		_, err = mcpClient.Initialize(ctx)
 		if err != nil {
-			fmt.Printf("Error initializing mcp server: %s\n", server.Name)
+			log.Error("Error initializing mcp server", "server", server.Name)
 			continue
 		}
 
@@ -293,20 +255,7 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		})
 
 		// Register tools with the registry
-		if s.registry != nil {
-			tools, err := client.ListTools(ctx, nil)
-			if err == nil && tools != nil && len(tools.Tools) > 0 {
-				for _, tool := range tools.Tools {
-					mcpTool := &MCPTool{
-						Client: client,
-						Tool:   tool,
-					}
-					if err := s.registry.Register(mcpTool); err != nil {
-						fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
-					}
-				}
-			}
-		}
+		s.registerMCPTools(ctx, client)
 	}
 
 	return nil
@@ -321,7 +270,7 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 		for {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
-				fmt.Println("Error getting tools for client", connectedServer.ID, err)
+				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
 				continue
 			}
 
@@ -347,7 +296,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 		for {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
-				fmt.Println("Error getting tools for client", connectedServer.ID, err)
+				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
 				continue
 			}
 
@@ -375,6 +324,33 @@ func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
 // GetRegistry returns the tool registry.
 func (s *service) GetRegistry() tools.ToolRegistry {
 	return s.registry
+}
+
+// registerMCPTools registers tools from an MCP client with the tool registry.
+func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
+	if s.registry == nil {
+		return
+	}
+
+	tools, err := client.ListTools(ctx, nil)
+	if err != nil {
+		log.Warn("Error getting tools from MCP client", "error", err)
+		return
+	}
+
+	if tools == nil || len(tools.Tools) == 0 {
+		return
+	}
+
+	for _, tool := range tools.Tools {
+		mcpTool := &MCPTool{
+			Client: client,
+			Tool:   tool,
+		}
+		if err := s.registry.Register(mcpTool); err != nil {
+			log.Warn("Error registering MCP tool", "tool", tool.Name, "error", err)
+		}
+	}
 }
 
 func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
