@@ -119,17 +119,36 @@ func (t *ExecutePlanTool) Execute(
 	if scheduleArg, ok := args["schedule"].(string); ok {
 		schedule = scheduleArg
 	}
-	_ = schedule // TODO: Implement schedule handling
 
-	// --- 2. Prepare Input for the Child Workflow (PlannedAgentWorkflow) ---
-	planInput := PlanInput{
-		Name: name,
-		// Schedule:  schedule,
-		Plan:      plan,
-		ToolNames: toolNames,
-		Model:     t.model,
-		MaxSteps:  t.maxSteps,
-		Origin:    args, // Pass original tool args for context within the child
+	// --- 2. Prepare Input and Workflow Selection ---
+	var workflowName string
+	var workflowArgs []any
+
+	if schedule == "" {
+		// If no schedule, run a one-time plan execution
+		planInput := PlanInput{
+			Name:      name,
+			Plan:      plan,
+			ToolNames: toolNames,
+			Model:     t.model,
+			MaxSteps:  t.maxSteps,
+			Origin:    args, // Pass original tool args for context within the child
+		}
+		workflowName = WorkflowName
+		workflowArgs = []any{planInput}
+	} else {
+		// If schedule is provided, run a scheduled plan
+		scheduledInput := ScheduledPlanInput{
+			Name:      name,
+			Plan:      plan,
+			Schedule:  schedule,
+			ToolNames: toolNames,
+			Model:     t.model,
+			MaxSteps:  t.maxSteps,
+			Origin:    args,
+		}
+		workflowName = ScheduledPlanWorkflowName
+		workflowArgs = []any{scheduledInput}
 	}
 
 	// // Marshal PlanInput to JSON []byte for passing as a single arg
@@ -146,15 +165,11 @@ func (t *ExecutePlanTool) Execute(
 	cmdID := uuid.NewString()  // Generate unique command ID for idempotency
 	taskID := uuid.NewString() // Generate unique task ID for Temporal workflow ID
 
-	// Root workflow expects arguments for the child workflow as []any.
-	// Here, PlannedAgentWorkflow expects a single PlanInput argument.
-	// We marshal it to JSON bytes above.
-	childWorkflowArgs := []any{planInput}
-
+	// Command arguments for the Root workflow
 	commandArgs := map[string]any{
-		root.ArgWorkflowName: WorkflowName,      // Name of the child workflow *type*
-		root.ArgTaskID:       taskID,            // Use the generated UUID for Temporal tracking
-		root.ArgWorkflowArgs: childWorkflowArgs, // Pass the marshaled PlanInput bytes
+		root.ArgWorkflowName: workflowName, // Name of the selected child workflow *type*
+		root.ArgTaskID:       taskID,       // Use the generated UUID for Temporal tracking
+		root.ArgWorkflowArgs: workflowArgs, // Pass the appropriate input for the selected workflow
 	}
 
 	command := root.Command{
@@ -168,9 +183,10 @@ func (t *ExecutePlanTool) Execute(
 		"RootWorkflowID", root.RootWorkflowID,
 		"Command", command.Cmd,
 		"CmdID", command.CmdID,
-		"ChildWorkflowName", WorkflowName,
+		"ChildWorkflowName", workflowName,
 		"TaskID", taskID, // Log the generated Temporal task ID
 		"UserName", name, // Log the user-provided name
+		"Scheduled", schedule != "", // Log whether this is a scheduled plan
 	)
 
 	if err := t.temporalClient.SignalWorkflow(
@@ -189,7 +205,14 @@ func (t *ExecutePlanTool) Execute(
 	}
 
 	// --- 5. Return Success (Asynchronous) ---
-	successMsg := fmt.Sprintf("Successfully submitted task '%s' for execution. Check status with Command ID: %s. Internal Task ID: %s", name, cmdID, taskID)
+	var successMsg string
+	if schedule != "" {
+		successMsg = fmt.Sprintf("Successfully submitted task '%s' for scheduled execution (%s). Check status with Command ID: %s. Internal Task ID: %s",
+			name, schedule, cmdID, taskID)
+	} else {
+		successMsg = fmt.Sprintf("Successfully submitted task '%s' for execution. Check status with Command ID: %s. Internal Task ID: %s",
+			name, cmdID, taskID)
+	}
 	t.logger.Info(successMsg)
 
 	return &agenttypes.StructuredToolResult{
@@ -197,9 +220,11 @@ func (t *ExecutePlanTool) Execute(
 		ToolParams: args,
 		Output: map[string]any{
 			"content":    successMsg,
-			"command_id": cmdID,  // For querying command status
-			"task_id":    taskID, // The internal Temporal task ID
-			"name":       name,   // The user-provided name
+			"command_id": cmdID,          // For querying command status
+			"task_id":    taskID,         // The internal Temporal task ID
+			"name":       name,           // The user-provided name
+			"scheduled":  schedule != "", // Whether this is a scheduled plan
+			"schedule":   schedule,       // The schedule string if provided
 		},
 	}, nil
 }

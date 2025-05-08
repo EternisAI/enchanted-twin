@@ -37,6 +37,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
+	github.com/teambition/rrule-go v1.8.2 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
 )
