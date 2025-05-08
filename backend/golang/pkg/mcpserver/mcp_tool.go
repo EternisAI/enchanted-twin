@@ -84,7 +84,6 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 		fmt.Printf("Warning: tool.InputSchema for tool %s is not a map[string]any or is nil, type is %T\n", t.Tool.Name, t.Tool.InputSchema)
 	}
 
-
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
