@@ -53,11 +53,17 @@ func (e *ToolExecutor) Execute(ctx workflow.Context, toolCall ToolCall, state *P
 		return result, nil
 	}
 
+	// TODO: per tool activity retry policy
+
 	// Execute the tool activity
-	var result types.ToolResult
+	var result *types.StructuredToolResult
 	err := workflow.ExecuteActivity(ctx, e.executeToolActivity, toolName, params).Get(ctx, &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
+	}
+
+	if result == nil {
+		return nil, fmt.Errorf("activity for tool %s returned nil result", toolName)
 	}
 
 	// Store the result in the tool call
