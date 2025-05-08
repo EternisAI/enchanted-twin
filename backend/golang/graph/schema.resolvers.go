@@ -334,6 +334,14 @@ func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool
 	}
 }
 
+func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool, error) {
+	err := r.MCPService.RemoveMCPServer(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
