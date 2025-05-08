@@ -1,4 +1,4 @@
-package plannedv2
+package planned
 
 import (
 	"fmt"
@@ -58,27 +58,9 @@ type SchedulerState struct {
 
 // ScheduledPlanWorkflow is a workflow that schedules and launches PlanExecutionWorkflow
 // based on an iCalendar RRULE schedule.
-func ScheduledPlanWorkflow(ctx workflow.Context, input interface{}) error {
-	// Handle both fresh starts and ContinueAsNew cases
-	var state SchedulerState
-
-	switch v := input.(type) {
-	case ScheduledPlanInput:
-		// Fresh start with just input
-		state = SchedulerState{
-			Input:         v,
-			StartedAt:     workflow.Now(ctx),
-			CompletedRuns: 0,
-			ChildRunIDs:   []string{},
-		}
-	case SchedulerState:
-		// Continuing with full state from previous run
-		state = v
-		// Update the timestamp since this is a new run
-		state.StartedAt = workflow.Now(ctx)
-	default:
-		return fmt.Errorf("unexpected input type: %T", input)
-	}
+func ScheduledPlanWorkflow(ctx workflow.Context, state SchedulerState) error {
+	// Update the timestamp for this run
+	state.StartedAt = workflow.Now(ctx)
 	logger := workflow.GetLogger(ctx)
 	logger.Info("Starting/Continuing ScheduledPlanWorkflow",
 		"WorkflowID", workflow.GetInfo(ctx).WorkflowExecution.ID,
@@ -234,7 +216,7 @@ func ScheduledPlanWorkflow(ctx workflow.Context, input interface{}) error {
 					"RemainingCount", len(state.ChildRunIDs))
 			}
 
-			// Pass the entire state to ContinueAsNew, not just the input
+			// Pass the entire state
 			return workflow.NewContinueAsNewError(ctx, ScheduledPlanWorkflow, state)
 		}
 	}

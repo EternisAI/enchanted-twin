@@ -1,4 +1,4 @@
-package plannedv2
+package planned
 
 import (
 	"github.com/charmbracelet/log"

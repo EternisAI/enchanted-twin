@@ -1,9 +1,10 @@
-package plannedv2
+package planned
 
 import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -108,7 +109,11 @@ func (t *ExecutePlanTool) Execute(
 			if toolName, ok := toolRaw.(string); ok {
 				toolNameCut, found := strings.CutPrefix(toolName, "function.")
 				if found {
-					t.logger.Info("removed 'function.' prefix for tool", "tool_name", toolNameCut)
+					t.logger.Debug("removed 'function.' prefix for tool", "tool_name", toolNameCut)
+				}
+				toolNameCut, found = strings.CutPrefix(toolNameCut, "functions.")
+				if found {
+					t.logger.Debug("removed 'functions.' prefix for tool", "tool_name", toolNameCut)
 				}
 				toolNames = append(toolNames, toolNameCut)
 			}
@@ -147,8 +152,17 @@ func (t *ExecutePlanTool) Execute(
 			MaxSteps:  t.maxSteps,
 			Origin:    args,
 		}
+
+		// Create an initial state object to pass directly
+		initialState := SchedulerState{
+			Input:         scheduledInput,
+			StartedAt:     time.Time{}, // Will be set by workflow
+			CompletedRuns: 0,
+			ChildRunIDs:   []string{},
+		}
+
 		workflowName = ScheduledPlanWorkflowName
-		workflowArgs = []any{scheduledInput}
+		workflowArgs = []any{initialState}
 	}
 
 	// // Marshal PlanInput to JSON []byte for passing as a single arg
