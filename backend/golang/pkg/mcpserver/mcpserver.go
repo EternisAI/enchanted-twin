@@ -99,7 +99,9 @@ func (s *service) ConnectMCPServer(
 						Client: client,
 						Tool:   tool,
 					}
-					s.registry.Register(mcpTool)
+					if err := s.registry.Register(mcpTool); err != nil {
+						fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
+					}
 				}
 			}
 		}
@@ -147,7 +149,9 @@ func (s *service) ConnectMCPServer(
 					Client: client,
 					Tool:   tool,
 				}
-				s.registry.Register(mcpTool)
+				if err := s.registry.Register(mcpTool); err != nil {
+					fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
+				}
 			}
 		}
 	}
@@ -250,7 +254,9 @@ func (s *service) LoadMCP(ctx context.Context) error {
 							Client: client,
 							Tool:   tool,
 						}
-						s.registry.Register(mcpTool)
+						if err := s.registry.Register(mcpTool); err != nil {
+							fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
+						}
 					}
 				}
 			}
@@ -295,7 +301,9 @@ func (s *service) LoadMCP(ctx context.Context) error {
 						Client: client,
 						Tool:   tool,
 					}
-					s.registry.Register(mcpTool)
+					if err := s.registry.Register(mcpTool); err != nil {
+						fmt.Printf("Error registering MCP tool %s: %v\n", tool.Name, err)
+					}
 				}
 			}
 		}

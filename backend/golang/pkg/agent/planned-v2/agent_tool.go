@@ -3,6 +3,7 @@ package plannedv2
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -105,7 +106,11 @@ func (t *ExecutePlanTool) Execute(
 	if toolsArg, ok := args["tools"].([]any); ok {
 		for _, toolRaw := range toolsArg {
 			if toolName, ok := toolRaw.(string); ok {
-				toolNames = append(toolNames, toolName)
+				toolNameCut, found := strings.CutPrefix(toolName, "function.")
+				if found {
+					t.logger.Info("removed 'function.' prefix for tool", "tool_name", toolNameCut)
+				}
+				toolNames = append(toolNames, toolNameCut)
 			}
 		}
 	}
