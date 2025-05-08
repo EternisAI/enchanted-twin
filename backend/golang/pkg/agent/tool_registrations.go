@@ -115,18 +115,3 @@ func RegisterToolProviders(
 
 	return registeredTools
 }
-
-// RegisterMCPTools registers MCP tools with the registry.
-// This function takes a slice of MCP tools and registers them.
-// Returns the list of successfully registered tools.
-func RegisterMCPTools(registry tools.ToolRegistry, mcpTools []tools.Tool) []tools.Tool {
-	registeredTools := []tools.Tool{}
-
-	for _, tool := range mcpTools {
-		if err := registry.Register(tool); err == nil {
-			registeredTools = append(registeredTools, tool)
-		}
-	}
-
-	return registeredTools
-}

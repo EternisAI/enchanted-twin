@@ -82,7 +82,7 @@ func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (t
 	logger.Info("Executing tool call", "id", toolCall.ID, "tool", toolCall.Function.Name)
 
 	// Parse arguments if not already parsed
-	var params map[string]interface{}
+	var params map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &params); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
@@ -131,10 +131,13 @@ func executeAction(ctx workflow.Context, toolCall ToolCall, state *PlanState) (t
 
 	// Execute the tool activity
 	var activities *AgentActivities
-	var result types.ToolResult
+	var result *types.StructuredToolResult
 	err := workflow.ExecuteActivity(ctx, activities.ExecuteToolActivity, toolName, params).Get(ctx, &result)
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute tool %s: %w", toolName, err)
+	}
+	if result == nil {
+		return nil, fmt.Errorf("activity for tool %s returned nil result", toolName)
 	}
 
 	// Store the result in the tool call
