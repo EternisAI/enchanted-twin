@@ -6,7 +6,6 @@ require (
 	github.com/99designs/gqlgen v0.17.70
 	github.com/charmbracelet/log v0.4.1
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
-	github.com/gen2brain/go-fitz v1.24.14
 	github.com/go-chi/chi v1.5.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
@@ -26,6 +25,7 @@ require (
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/slack-go/slack v0.16.0
 	github.com/temporalio/ui-server/v2 v2.37.0
+	github.com/unidoc/unipdf/v3 v3.69.0
 	github.com/vektah/gqlparser/v2 v2.5.23
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-131.0
@@ -33,14 +33,19 @@ require (
 )
 
 require (
-	github.com/ebitengine/purego v0.8.0 // indirect
-	github.com/jupiterrider/ffi v0.2.0 // indirect
+	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
+	github.com/unidoc/freetype v0.2.3 // indirect
+	github.com/unidoc/pkcs7 v0.2.0 // indirect
+	github.com/unidoc/timestamp v0.0.0-20200412005513-91597fd3793a // indirect
+	github.com/unidoc/unitype v0.5.1 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
+	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/net v0.39.0 // indirect
+	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da // indirect
 )
 
 require (

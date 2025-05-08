@@ -9,8 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gen2brain/go-fitz"
 	"github.com/openai/openai-go"
+	"github.com/unidoc/unipdf/v3/extractor"
+	"github.com/unidoc/unipdf/v3/model"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -192,21 +193,45 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 
 // ExtractTextFromPDF extracts text content from a PDF file.
 func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
-	doc, err := fitz.New(filePath)
+	f, err := os.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
 	}
-	defer doc.Close() //nolint:errcheck
+	defer f.Close()
+
+	pdfReader, err := model.NewPdfReader(f)
+	if err != nil {
+		return "", fmt.Errorf("failed to create PDF reader for %s: %w", filePath, err)
+	}
+
+	numPages, err := pdfReader.GetNumPages()
+	if err != nil {
+		return "", fmt.Errorf("failed to get number of pages for %s: %w", filePath, err)
+	}
 
 	var textBuilder strings.Builder
-	for n := 0; n < doc.NumPage(); n++ {
-		text, err := doc.Text(n)
+
+	for i := 1; i <= numPages; i++ {
+		page, err := pdfReader.GetPage(i)
 		if err != nil {
-			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", n, filePath, err)
+			return "", fmt.Errorf("failed to get page %d from PDF file %s: %w", i, filePath, err)
 		}
+
+		ex, err := extractor.New(page)
+		if err != nil {
+			return "", fmt.Errorf("failed to create text extractor for page %d of PDF file %s: %w", i, filePath, err)
+		}
+
+		text, err := ex.ExtractText()
+		if err != nil {
+			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", i, filePath, err)
+		}
+
 		textBuilder.WriteString(text)
 		textBuilder.WriteString("\n\n")
 	}
+
+	fmt.Println("textBuilder.String()", textBuilder.String())
 
 	return textBuilder.String(), nil
 }
