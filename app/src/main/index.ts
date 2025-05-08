@@ -10,7 +10,7 @@ import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import http from 'http'
 import { URL } from 'url'
-import { platform } from 'os'
+import { homedir, platform } from 'os'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
@@ -447,12 +447,12 @@ function createWindow(): BrowserWindow {
 
 function startScreenpipe() {
   const isWindows = platform() === 'win32'
-  const homeDir = process.env.HOME || process.env.USERPROFILE
+  const homeDir = homedir()
   log.info(`Screenpipe running from ${homeDir}`)
   try {
     const screenpipeBinaryPath = isWindows
-      ? `${homeDir}\\screenpipe\\bin\\screenpipe.exe`
-      : `${homeDir}/.local/bin/screenpipe`
+      ? path.join(homeDir, 'screenpipe', 'bin', 'screenpipe.exe')
+      : path.join(homeDir, '.local', 'bin', 'screenpipe')
     const screenpipeArgs = [`--disable-audio`]
     screenpipeProcess = spawn(screenpipeBinaryPath, screenpipeArgs, {
       stdio: 'pipe',
