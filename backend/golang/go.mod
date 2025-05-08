@@ -6,13 +6,13 @@ require (
 	github.com/99designs/gqlgen v0.17.70
 	github.com/charmbracelet/log v0.4.1
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
-	github.com/gen2brain/go-fitz v1.24.14
 	github.com/go-chi/chi v1.5.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
+	github.com/ledongthuc/pdf v0.0.0-20250506095652-e05c805a4c1f
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.27
 	github.com/metoro-io/mcp-golang v0.9.0
@@ -33,8 +33,6 @@ require (
 )
 
 require (
-	github.com/ebitengine/purego v0.8.0 // indirect
-	github.com/jupiterrider/ffi v0.2.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
