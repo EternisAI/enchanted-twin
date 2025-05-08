@@ -2,6 +2,7 @@ package agent
 
 import (
 	"github.com/charmbracelet/log"
+	"go.mau.fi/whatsmeow"
 	"go.temporal.io/sdk/client"
 
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
@@ -126,6 +127,30 @@ func RegisterMCPTools(registry tools.ToolRegistry, mcpTools []tools.Tool) []tool
 		if err := registry.Register(tool); err == nil {
 			registeredTools = append(registeredTools, tool)
 		}
+	}
+
+	return registeredTools
+}
+
+// RegisterWhatsAppTool registers the WhatsApp messaging tool with the registry.
+// Returns the registered tool if successful.
+func RegisterWhatsAppTool(
+	registry tools.ToolRegistry,
+	logger *log.Logger,
+	client *whatsmeow.Client,
+) []tools.Tool {
+	registeredTools := []tools.Tool{}
+
+	if client != nil {
+		whatsappTool := tools.NewWhatsAppTool(logger, client)
+		if err := registry.Register(whatsappTool); err == nil {
+			registeredTools = append(registeredTools, whatsappTool)
+			logger.Info("WhatsApp tool registered successfully")
+		} else {
+			logger.Warn("Failed to register WhatsApp tool", "error", err)
+		}
+	} else {
+		logger.Warn("WhatsApp client is nil, not registering WhatsApp tool")
 	}
 
 	return registeredTools

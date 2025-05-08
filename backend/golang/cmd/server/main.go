@@ -58,6 +58,7 @@ func main() {
 	whatsappQRChan := whatsapp.GetQRChannel()
 	var currentWhatsAppQRCode *string
 	whatsAppConnected := false
+	var whatsappClient *whatsmeow.Client
 
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
@@ -211,11 +212,13 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create memory"))
 	}
 
-	// Automatically trigger WhatsApp connection at startup
-	logger.Info("Triggering WhatsApp connection at startup")
 	whatsapp.TriggerConnect()
 
-	go bootstrapWhatsAppClient(mem, logger)
+	whatsappClientChan := make(chan *whatsmeow.Client)
+	go func() {
+		client := bootstrapWhatsAppClient(mem, logger)
+		whatsappClientChan <- client
+	}()
 
 	temporalClient, err := bootstrapTemporalServer(logger, envs)
 	if err != nil {
@@ -236,6 +239,17 @@ func main() {
 		envs.CompletionsModel,
 		envs.TelegramChatServer,
 	)
+
+	select {
+	case whatsappClient = <-whatsappClientChan:
+
+		if whatsappClient != nil {
+			whatsappTools := agent.RegisterWhatsAppTool(toolRegistry, logger, whatsappClient)
+			logger.Info("WhatsApp tools registered", "count", len(whatsappTools))
+		}
+	case <-time.After(1 * time.Second):
+		logger.Warn("Timed out waiting for WhatsApp client, continuing without WhatsApp tool")
+	}
 
 	twinChatService := twinchat.NewService(
 		logger,
@@ -526,7 +540,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
+func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *whatsmeow.Client {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
 	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
@@ -607,9 +621,12 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 		}
 	}
 
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
-	<-c
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		<-c
+		client.Disconnect()
+	}()
 
-	client.Disconnect()
+	return client
 }
