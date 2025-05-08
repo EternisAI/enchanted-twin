@@ -2,7 +2,7 @@ APP_DIR = app
 BACKEND_DIR = backend/golang
 RESOURCES_DIR = $(APP_DIR)/resources
 
-BUILD_TARGETS = mac-silicon windows linux
+BUILD_TARGETS = mac-silicon linux
 
 BINARY_mac-silicon = enchanted-twin-darwin-arm64
 BINARY_windows = enchanted-twin-windows-amd64.exe
