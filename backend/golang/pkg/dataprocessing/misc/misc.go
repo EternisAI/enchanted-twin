@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/gen2brain/go-fitz"
+	"github.com/ledongthuc/pdf"
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -192,17 +192,28 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 
 // ExtractTextFromPDF extracts text content from a PDF file.
 func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
-	doc, err := fitz.New(filePath)
+	f, r, err := pdf.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
 	}
-	defer doc.Close() //nolint:errcheck
+	defer func() {
+		if err := f.Close(); err != nil {
+			fmt.Printf("failed to close PDF file %s: %v\n", filePath, err)
+		}
+	}()
 
 	var textBuilder strings.Builder
-	for n := 0; n < doc.NumPage(); n++ {
-		text, err := doc.Text(n)
+	totalPage := r.NumPage()
+
+	for pageIndex := 1; pageIndex <= totalPage; pageIndex++ {
+		p := r.Page(pageIndex)
+		if p.V.IsNull() {
+			continue
+		}
+
+		text, err := p.GetPlainText(nil)
 		if err != nil {
-			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", n, filePath, err)
+			return "", fmt.Errorf("failed to extract text from page %d of PDF file %s: %w", pageIndex, filePath, err)
 		}
 		textBuilder.WriteString(text)
 		textBuilder.WriteString("\n\n")

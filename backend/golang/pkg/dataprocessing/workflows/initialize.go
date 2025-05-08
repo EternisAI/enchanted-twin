@@ -97,7 +97,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	indexingState = model.IndexingStateDownloadingModel
 	w.publishIndexingStatus(ctx, indexingState, []*model.DataSource{}, 0, 0, nil)
 
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, w.Config.CompletionsModel).
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_COMPLETIONS_MODEL).
 		Get(ctx, nil)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
@@ -107,7 +107,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to download Ollama model")
 	}
 
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, w.Config.EmbeddingsModel).Get(ctx, nil)
+	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_EMBEDDING_MODEL).Get(ctx, nil)
 	if err != nil {
 		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
 		errMsg := err.Error()
