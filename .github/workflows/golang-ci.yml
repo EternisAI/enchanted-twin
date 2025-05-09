@@ -42,7 +42,7 @@ jobs:
         with:
           version: v2.1
           working-directory: backend/golang
-          args: --timeout=4m --new-from-rev="$GITHUB_BASE_REF"
+          args: --timeout=10m --new-from-rev="$GITHUB_BASE_REF"
 
       - name: Build
         run: go build ./...
