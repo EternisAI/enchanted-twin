@@ -211,7 +211,7 @@ func main() {
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	dbName := "enchanted_twin"
-	
+
 	if postgresService != nil {
 		if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
 			logger.Warn("Failed waiting for PostgreSQL to be ready", "error", err)
@@ -236,7 +236,7 @@ func main() {
 			"connection",
 			postgresService.GetConnectionString(dbName),
 		)
-		
+
 		recreateMemDb := false
 		var memErr error
 		mem, memErr = embeddingsmemory.NewEmbeddingsMemory(
@@ -674,10 +674,10 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 	// Create directories if they don't exist
 	dbDir := "./tdlib-db"
 	filesDir := "./tdlib-files"
-	
-	os.MkdirAll(dbDir, 0755)
-	os.MkdirAll(filesDir, 0755)
-	
+
+	os.MkdirAll(dbDir, 0o755)
+	os.MkdirAll(filesDir, 0o755)
+
 	_, err := os.Stat(dbDir + "/db.sqlite")
 	if os.IsNotExist(err) {
 		logger.Info("No existing authentication data found")
@@ -725,13 +725,13 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 
 	// Create new client with a timeout
 	logger.Info("Creating new TDLib client - this may take a moment...")
-	
+
 	// Create a channel for client creation result
 	clientCh := make(chan struct {
 		client *tdlibclient.Client
 		err    error
 	}, 1)
-	
+
 	go func() {
 		client, err := tdlibclient.NewClient(authorizer)
 		clientCh <- struct {
@@ -739,7 +739,7 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 			err    error
 		}{client, err}
 	}()
-	
+
 	var client *tdlibclient.Client
 	select {
 	case result := <-clientCh:
@@ -752,7 +752,7 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		logger.Error("Client creation timed out")
 		return nil, errors.New("client creation timed out")
 	}
-	
+
 	logger.Info("TDLib client created successfully")
 
 	me, getMeErr := client.GetMe()
@@ -761,6 +761,29 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		logger.Info("Check the CLI for authentication prompts")
 	} else {
 		logger.Info("Logged in to Telegram", "first_name", me.FirstName, "last_name", me.LastName)
+	}
+
+	chats, err := client.GetChats(&tdlibclient.GetChatsRequest{
+		Limit: 100,
+	})
+	if err != nil {
+		logger.Error("GetChats error", "error", err)
+		return nil, errors.Wrap(err, "GetChats error")
+	}
+
+	logger.Info("Chats", "chats", chats)
+	logger.Info("Chats", "chats", chats.TotalCount)
+
+	for i := int32(0); i < chats.TotalCount; i++ {
+		message, err := client.GetMessage(&tdlibclient.GetMessageRequest{
+			ChatId:    chats.ChatIds[i],
+			MessageId: 1,
+		})
+		if err != nil {
+			logger.Error("GetMessage error", "error", err)
+		}
+
+		logger.Info("Message", "message", message)
 	}
 
 	return client, nil
