@@ -27,7 +27,7 @@ export default function ConnectMCPServerButton({ onSuccess }: { onSuccess: () =>
           </div>
         </Card>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
         <DialogHeader>
           <DialogTitle>Connect Custom MCP Server</DialogTitle>
         </DialogHeader>
