@@ -11,9 +11,9 @@ import (
 // Kokoro is specific TTS model
 // https://github.com/remsky/Kokoro-FastAPI
 type Kokoro struct {
-	Endpoint string // http://localhost:8880/v1/audio/speech
-	Model    string // "kokoro"
-	Voice    string // "af_heart"
+	Endpoint string
+	Model    string
+	Voice    string
 }
 
 func (k Kokoro) Stream(ctx context.Context, text string) (io.ReadCloser, error) {
