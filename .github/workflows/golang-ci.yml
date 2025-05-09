@@ -1,4 +1,4 @@
-name: Go Build and Test
+name: Go CI
 
 on:
   push:
@@ -6,44 +6,38 @@ on:
   pull_request:
     branches: [main, master]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint:
-    name: Lint
+  ci:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/golang
+
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - uses: actions/setup-go@v5
         with:
           go-version-file: backend/golang/go.mod
+          cache-dependency-path: backend/golang/go.sum
 
-      - name: Run golangci-lint
+      - name: Lint only the diff
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.1
-          args: --timeout=10m
           working-directory: backend/golang
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.24"
-
-      - name: Install dependencies
-        run: |
-          cd backend/golang
-          go mod tidy
+          args: --timeout=10m --new-from-rev=origin/${{ github.event.pull_request.base.ref }}
 
       - name: Build
         run: |
-          cd backend/golang
-          go build || make build
+          make build
 
       - name: Test
         run: |
-          cd backend/golang
           make test

@@ -12,6 +12,7 @@ require (
 	github.com/jaytaylor/html2text v0.0.0-20230321000545-74c2419ad056
 	github.com/jmoiron/sqlx v1.4.0
 	github.com/joho/godotenv v1.5.1
+	github.com/ledongthuc/pdf v0.0.0-20250506095652-e05c805a4c1f
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.27
 	github.com/metoro-io/mcp-golang v0.9.0

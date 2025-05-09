@@ -38,11 +38,15 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 				"properties": map[string]any{
 					"chat_id": map[string]any{
 						"type":        "string",
-						"description": "ID of the chat to send the message to (eg. \"chatId:2f0b10c4-7de1-43a1-85b5-ceafbab9d271\")",
+						"description": "ID of the chat to send the message to (eg. \"chatId:2f0b10c4-7de1-43a1-85b5-ceafbab9d271\"). Either chat_id or chat_name must be provided.",
 					},
-					"message": map[string]any{
+					"chat_name": map[string]any{
 						"type":        "string",
-						"description": "The message text to send",
+						"description": "Name of the chat to send the message to. If chat not found by name, a new chat with this name will be created. Either chat_id or chat_name must be provided.",
+					},
+					"chat_text": map[string]any{
+						"type":        "string",
+						"description": "The text of the message to send to the chat.",
 					},
 					"image_urls": map[string]any{
 						"type":        "array",
@@ -52,7 +56,7 @@ func (t *ChatMessageTool) Definition() openai.ChatCompletionToolParam {
 						},
 					},
 				},
-				"required": []string{"chat_id", "message"},
+				"required": []string{"text"},
 			},
 		},
 	}
@@ -63,15 +67,34 @@ func (t *ChatMessageTool) Execute(
 	ctx context.Context,
 	args map[string]any,
 ) (types.ToolResult, error) {
-	// Validate required parameters
-	chatID, ok := args["chat_id"].(string)
-	if !ok || chatID == "" {
-		return nil, fmt.Errorf("chat_id is required")
+	message, ok := args["chat_text"].(string)
+	if !ok || message == "" {
+		return nil, fmt.Errorf("`chat_text` parameter is required")
 	}
 
-	message, ok := args["message"].(string)
-	if !ok || message == "" {
-		return nil, fmt.Errorf("message is required")
+	var chatID string
+	var err error
+
+	// Check if chat_id is provided
+	if chatIDValue, ok := args["chat_id"].(string); ok && chatIDValue != "" {
+		chatID = chatIDValue
+	} else if chatNameValue, ok := args["chat_name"].(string); ok && chatNameValue != "" {
+		// Try to find existing chat by name
+		chat, err := t.storage.GetChatByName(ctx, chatNameValue)
+		if err == nil {
+			// Chat found by name
+			chatID = chat.ID
+		} else {
+			// Create new chat with the provided name
+			chat, err := t.storage.CreateChat(ctx, chatNameValue)
+			if err != nil {
+				return nil, fmt.Errorf("failed to create chat with name %s: %w", chatNameValue, err)
+			}
+			chatID = chat.ID
+		}
+	} else {
+		// Neither chat_id nor chat_name provided, return an error
+		return nil, fmt.Errorf("either `chat_id` or `chat_name` must be provided to create a chat")
 	}
 
 	// Always use "assistant" role since only agents can use this tool

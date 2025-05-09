@@ -1,15 +1,31 @@
-import { useQuery } from '@apollo/client'
-import { GetMcpServersDocument } from '@renderer/graphql/generated/graphql'
+import { useMutation, useQuery } from '@apollo/client'
+import {
+  GetMcpServersDocument,
+  GetToolsDocument,
+  RemoveMcpServerDocument
+} from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { Card } from '../ui/card'
 import { Plug } from 'lucide-react'
+import { toast } from 'sonner'
+import ConnectMCPServerButton from './MCPConnectServerButton'
 
 export default function MCPPanel({ header = true }: { header?: boolean }) {
+  const { data: toolsData } = useQuery(GetToolsDocument)
   const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
+  const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
+    onCompleted: () => {
+      toast.success('MCP server removed')
+      refetch()
+    },
+    onError: () => {
+      toast.error('Failed to remove MCP server')
+    }
+  })
 
   const mcpServers = data?.getMCPServers || []
 
-  console.log('mcpServers', mcpServers)
+  console.log('toolsData', toolsData)
 
   if (loading) return <div className="py-4 text-center">Loading MCP servers...</div>
   if (error)
@@ -32,14 +48,22 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
       )}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
         {mcpServers.map((server) => (
-          <MCPServerItem key={server.id} server={server} onConnect={refetch} />
+          <MCPServerItem
+            key={server.id}
+            server={server}
+            onConnect={refetch}
+            onRemove={() => deleteMcpServer({ variables: { id: server.id } })}
+          />
         ))}
+        <ConnectMCPServerButton onSuccess={refetch} />
         {mcpServers.length === 0 && (
           <div className="text-center text-muted-foreground py-8 border rounded-lg">
             No MCP servers configured
           </div>
         )}
       </div>
+
+      <div className="py-4 flex justify-center"></div>
     </Card>
   )
 }

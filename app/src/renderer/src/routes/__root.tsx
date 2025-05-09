@@ -15,7 +15,6 @@ function DevBadge() {
 }
 
 function RootComponent() {
-  const { isCompleted } = useOnboardingStore()
   useOsNotifications()
   const { open } = useSettingsStore()
 
@@ -45,11 +44,9 @@ function RootComponent() {
         <motion.div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
           {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
         </motion.div>
-        {isCompleted && (
-          <div className="fixed top-0 right-0 z-50 h-8 no-drag">
-            <GlobalIndexingStatus />
-          </div>
-        )}
+        <div className="fixed top-0 right-0 z-50 h-8 no-drag">
+          <GlobalIndexingStatus />
+        </div>
         <motion.div className="flex-1 flex flex-col overflow-hidden">
           <motion.div className="flex-1 flex overflow-hidden relative">
             <Outlet />

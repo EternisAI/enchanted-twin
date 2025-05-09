@@ -68,7 +68,8 @@ func (s *Service) Execute(
 
 	// Get the tool list from the registry
 	toolsList := []tools.Tool{}
-	for _, name := range s.toolRegistry.List() {
+	// TODO: move immediate workflow tools to separate registry
+	for _, name := range s.toolRegistry.Excluding("sleep", "sleep_until").List() {
 		if tool, exists := s.toolRegistry.Get(name); exists {
 			toolsList = append(toolsList, tool)
 		}
@@ -102,7 +103,7 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
-	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level."
+	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists."
 	now := time.Now().Format(time.RFC3339)
 	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now)
 

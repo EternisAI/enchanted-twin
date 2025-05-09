@@ -106,7 +106,7 @@ func (s *PlannedAgentTestSuite) TestBasicPlanExecution() {
 	// Verify state
 	s.NotEmpty(state.History)
 	s.Equal(input.Plan, state.Plan)
-	s.True(state.Complete)
+	s.False(state.CompletedAt.IsZero())
 	s.Equal("I've completed the plan successfully!", state.Output)
 }
 
@@ -182,7 +182,7 @@ func (s *PlannedAgentTestSuite) TestSleepTool() {
 	s.NoError(queryResult.Get(&state))
 
 	// Verify state
-	s.True(state.Complete)
+	s.False(state.CompletedAt.IsZero())
 	s.Equal("I've completed the task after waiting.", state.Output)
 
 	// Verify history contains sleep entry
