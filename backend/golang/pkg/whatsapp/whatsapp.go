@@ -242,6 +242,42 @@ func findContactByJID(jid string) (WhatsappContact, bool) {
 	})
 }
 
+func formatSyncStatusMessage(contacts, messages int) string {
+	if contacts == 0 && messages == 0 {
+		return "Starting sync"
+	} else if contacts == 0 {
+		return fmt.Sprintf("Starting sync of %d messages", messages)
+	} else if messages == 0 {
+		return fmt.Sprintf("Starting sync of %d contacts", contacts)
+	}
+	return fmt.Sprintf("Starting sync of %d contacts and %d messages", contacts, messages)
+}
+
+func formatProgressStatusMessage(processed, totalContacts int) string {
+	if totalContacts == 0 {
+		return fmt.Sprintf("Processing data (%d items)", processed)
+	}
+	return fmt.Sprintf("Processed %d/%d contacts", processed, totalContacts)
+}
+
+func formatDetailedProgressMessage(totalContacts, processedMessages, totalMessages int) string {
+	var parts []string
+
+	if totalContacts > 0 {
+		parts = append(parts, fmt.Sprintf("Processed %d/%d contacts", totalContacts, totalContacts))
+	}
+
+	if totalMessages > 0 {
+		parts = append(parts, fmt.Sprintf("%d/%d messages", processedMessages, totalMessages))
+	}
+
+	if len(parts) == 0 {
+		return "Processing data"
+	}
+
+	return strings.Join(parts, " and ")
+}
+
 func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
@@ -261,7 +297,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				IsSyncing:         true,
 				ProcessedItems:    0,
 				TotalItems:        totalItems,
-				StatusMessage:     fmt.Sprintf("Starting sync of %d contacts and %d messages", totalContacts, totalMessages),
+				StatusMessage:     formatSyncStatusMessage(totalContacts, totalMessages),
 				EstimatedTimeLeft: "Calculating...",
 			})
 			err := PublishSyncStatus(nc, logger)
@@ -293,7 +329,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						IsSyncing:      true,
 						ProcessedItems: processedItems,
 						TotalItems:     totalItems,
-						StatusMessage:  fmt.Sprintf("Processed %d/%d contacts", processedItems, totalContacts),
+						StatusMessage:  formatProgressStatusMessage(processedItems, totalContacts),
 					})
 					err := PublishSyncStatus(nc, logger)
 					if err != nil {
@@ -378,9 +414,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 							IsSyncing:      true,
 							ProcessedItems: processedItems,
 							TotalItems:     totalItems,
-							StatusMessage: fmt.Sprintf("Processed %d/%d contacts and %d/%d messages",
-								totalContacts, totalContacts,
-								processedItems-totalContacts, totalMessages),
+							StatusMessage:  formatDetailedProgressMessage(totalContacts, processedItems-totalContacts, totalMessages),
 						})
 						err := PublishSyncStatus(nc, logger)
 						if err != nil {
