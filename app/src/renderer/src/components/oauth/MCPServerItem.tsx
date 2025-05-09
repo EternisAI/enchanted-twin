@@ -149,7 +149,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Check className="w-4 h-4 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1" />
+                    <Check className="w-6 h-6 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p>Connected</p>
