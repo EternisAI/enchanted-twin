@@ -46,10 +46,8 @@ jobs:
 
       - name: Build
         run: |
-          cd backend/golang
           make build
 
       - name: Test
         run: |
-          cd backend/golang
           make test
