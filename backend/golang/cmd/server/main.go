@@ -146,9 +146,14 @@ func main() {
 				currentWhatsAppQRCode = nil
 				logger.Info("WhatsApp connection successful")
 
-				// Send initial sync status
 				whatsapp.StartSync()
-				whatsapp.UpdateSyncStatus(true, 0, 0, "Waiting for history sync to begin")
+				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
 				whatsapp.PublishSyncStatus(nc, logger)
 
 				successUpdate := map[string]interface{}{
@@ -619,9 +624,14 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 				whatsapp.GetQRChannel() <- qrEvent
 				logger.Info("WhatsApp connection successful")
 
-				// Send initial sync status
 				whatsapp.StartSync()
-				whatsapp.UpdateSyncStatus(true, 0, 0, "Waiting for history sync to begin")
+				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
 				whatsapp.PublishSyncStatus(nc, logger)
 
 				jid := types.JID{
@@ -654,9 +664,14 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 			whatsapp.GetQRChannel() <- qrEvent
 			logger.Info("Already logged in, reusing session")
 
-			// Send initial sync status for existing sessions
 			whatsapp.StartSync()
-			whatsapp.UpdateSyncStatus(true, 0, 0, "Waiting for history sync to begin")
+			whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+				IsSyncing:      true,
+				IsCompleted:    false,
+				ProcessedItems: 0,
+				TotalItems:     0,
+				StatusMessage:  "Waiting for history sync to begin",
+			})
 			whatsapp.PublishSyncStatus(nc, logger)
 		}
 	}

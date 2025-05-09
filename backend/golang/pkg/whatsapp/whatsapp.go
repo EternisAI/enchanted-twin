@@ -23,7 +23,6 @@ type QRCodeEvent struct {
 }
 
 type SyncStatus struct {
-	IsActive          bool
 	Progress          float64
 	TotalItems        int
 	ProcessedItems    int
@@ -31,6 +30,8 @@ type SyncStatus struct {
 	LastUpdateTime    time.Time
 	StatusMessage     string
 	EstimatedTimeLeft string
+	IsSyncing         bool
+	IsCompleted       bool
 }
 
 var (
@@ -80,67 +81,60 @@ func TriggerConnect() {
 	GetConnectChannel() <- struct{}{}
 }
 
-// GetSyncStatus returns a copy of the current sync status
 func GetSyncStatus() SyncStatus {
 	syncStatusLock.RLock()
 	defer syncStatusLock.RUnlock()
 	return syncStatus
 }
 
-// UpdateSyncStatus updates the sync status and calculates progress
-func UpdateSyncStatus(isActive bool, processed, total int, statusMessage string) {
+func UpdateSyncStatus(newStatus SyncStatus) {
 	syncStatusLock.Lock()
 	defer syncStatusLock.Unlock()
 
-	syncStatus.IsActive = isActive
-	syncStatus.ProcessedItems = processed
-	syncStatus.TotalItems = total
-	syncStatus.StatusMessage = statusMessage
-	syncStatus.LastUpdateTime = time.Now()
+	newStatus.LastUpdateTime = time.Now()
 
-	if total > 0 {
-		syncStatus.Progress = float64(processed) / float64(total) * 100
+	if newStatus.TotalItems > 0 {
+		newStatus.Progress = float64(newStatus.ProcessedItems) / float64(newStatus.TotalItems) * 100
 
-		// Calculate estimated time left if we have enough data
-		if processed > 0 && syncStatus.StartTime.Unix() > 0 {
-			elapsedTime := time.Since(syncStatus.StartTime)
-			itemsPerSecond := float64(processed) / elapsedTime.Seconds()
+		if newStatus.ProcessedItems > 0 && newStatus.StartTime.Unix() > 0 {
+			elapsedTime := time.Since(newStatus.StartTime)
+			itemsPerSecond := float64(newStatus.ProcessedItems) / elapsedTime.Seconds()
 			if itemsPerSecond > 0 {
-				remainingItems := total - processed
+				remainingItems := newStatus.TotalItems - newStatus.ProcessedItems
 				remainingSeconds := float64(remainingItems) / itemsPerSecond
 				remainingDuration := time.Duration(remainingSeconds) * time.Second
 
 				if remainingDuration > 1*time.Hour {
-					syncStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f hours", remainingDuration.Hours())
+					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f hours", remainingDuration.Hours())
 				} else if remainingDuration > 1*time.Minute {
-					syncStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f minutes", remainingDuration.Minutes())
+					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f minutes", remainingDuration.Minutes())
 				} else {
-					syncStatus.EstimatedTimeLeft = fmt.Sprintf("~%.0f seconds", remainingDuration.Seconds())
+					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.0f seconds", remainingDuration.Seconds())
 				}
 			}
 		}
 	}
 
-	// If we're just starting the sync
-	if isActive && processed == 0 && total > 0 && syncStatus.StartTime.IsZero() {
-		syncStatus.StartTime = time.Now()
+	if newStatus.IsSyncing && newStatus.ProcessedItems == 0 && newStatus.TotalItems > 0 && newStatus.StartTime.IsZero() {
+		newStatus.StartTime = time.Now()
 	}
 
-	// If we're finishing the sync
-	if processed >= total && total > 0 {
-		syncStatus.IsActive = false
-		syncStatus.Progress = 100
-		syncStatus.EstimatedTimeLeft = "Complete"
+	if newStatus.ProcessedItems >= newStatus.TotalItems && newStatus.TotalItems > 0 {
+		newStatus.IsSyncing = false
+		newStatus.IsCompleted = true
+		newStatus.Progress = 100
+		newStatus.EstimatedTimeLeft = "Complete"
 	}
+
+	syncStatus = newStatus
 }
 
-// StartSync initializes a new sync process
 func StartSync() {
 	syncStatusLock.Lock()
 	defer syncStatusLock.Unlock()
 
 	syncStatus = SyncStatus{
-		IsActive:          true,
+		IsSyncing:         true,
 		Progress:          0,
 		ProcessedItems:    0,
 		TotalItems:        0,
@@ -151,28 +145,21 @@ func StartSync() {
 	}
 }
 
-// PublishSyncStatus publishes the current sync status to NATS
 func PublishSyncStatus(nc *nats.Conn, logger *log.Logger) error {
 	status := GetSyncStatus()
 
 	type syncStatusPublish struct {
-		IsSyncing         bool    `json:"IsSyncing"`
-		IsActive          bool    `json:"isActive"`
-		Progress          float64 `json:"progress"`
-		TotalItems        int     `json:"totalItems"`
-		ProcessedItems    int     `json:"processedItems"`
-		StatusMessage     string  `json:"statusMessage"`
-		EstimatedTimeLeft string  `json:"estimatedTimeLeft"`
+		IsSyncing     bool    `json:"isSyncing"`
+		IsCompleted   bool    `json:"isCompleted"`
+		StatusMessage string  `json:"statusMessage"`
+		Error         *string `json:"error"`
 	}
 
 	publishData := syncStatusPublish{
-		IsSyncing:         true,
-		IsActive:          status.IsActive,
-		Progress:          status.Progress,
-		TotalItems:        status.TotalItems,
-		ProcessedItems:    status.ProcessedItems,
-		StatusMessage:     status.StatusMessage,
-		EstimatedTimeLeft: status.EstimatedTimeLeft,
+		IsSyncing:     status.IsSyncing,
+		IsCompleted:   status.IsCompleted,
+		StatusMessage: status.StatusMessage,
+		Error:         nil,
 	}
 
 	data, err := json.Marshal(publishData)
@@ -188,26 +175,22 @@ func PublishSyncStatus(nc *nats.Conn, logger *log.Logger) error {
 	}
 
 	logger.Debug("Published WhatsApp sync status",
-		"active", status.IsActive,
-		"progress", status.Progress,
-		"processed", status.ProcessedItems,
-		"total", status.TotalItems)
+		"syncing", status.IsSyncing,
+		"completed", status.IsCompleted,
+		"message", status.StatusMessage)
 
 	return nil
 }
 
-// IsSyncComplete returns true if the sync process has completed successfully
 func IsSyncComplete() bool {
 	status := GetSyncStatus()
-	return !status.IsActive && status.TotalItems > 0 && status.ProcessedItems >= status.TotalItems
+	return !status.IsSyncing && status.TotalItems > 0 && status.ProcessedItems >= status.TotalItems
 }
 
-// IsSyncInProgress returns true if the sync is currently active
 func IsSyncInProgress() bool {
-	return GetSyncStatus().IsActive
+	return GetSyncStatus().IsSyncing
 }
 
-// GetSyncProgress returns the current sync progress as a percentage (0-100)
 func GetSyncProgress() float64 {
 	return GetSyncStatus().Progress
 }
@@ -267,7 +250,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			StartSync()
 			logger.Info("Received WhatsApp history sync", "contacts", len(v.Data.Pushnames))
 
-			// Count total items to process for progress tracking
 			totalContacts := len(v.Data.Pushnames)
 			totalMessages := 0
 			for _, conversation := range v.Data.Conversations {
@@ -275,7 +257,14 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 			totalItems := totalContacts + totalMessages
 
-			UpdateSyncStatus(true, 0, totalItems, fmt.Sprintf("Starting sync of %d contacts and %d messages", totalContacts, totalMessages))
+			UpdateSyncStatus(SyncStatus{
+				IsCompleted:       false,
+				IsSyncing:         true,
+				ProcessedItems:    0,
+				TotalItems:        totalItems,
+				StatusMessage:     fmt.Sprintf("Starting sync of %d contacts and %d messages", totalContacts, totalMessages),
+				EstimatedTimeLeft: "Calculating...",
+			})
 			PublishSyncStatus(nc, logger)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
@@ -297,7 +286,13 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 				processedItems++
 				if processedItems%10 == 0 || processedItems == len(v.Data.Pushnames) {
-					UpdateSyncStatus(true, processedItems, totalItems, fmt.Sprintf("Processed %d/%d contacts", processedItems, totalContacts))
+					UpdateSyncStatus(SyncStatus{
+						IsCompleted:    false,
+						IsSyncing:      true,
+						ProcessedItems: processedItems,
+						TotalItems:     totalItems,
+						StatusMessage:  fmt.Sprintf("Processed %d/%d contacts", processedItems, totalContacts),
+					})
 					PublishSyncStatus(nc, logger)
 				}
 			}
@@ -373,10 +368,15 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					processedConversationMessages++
 
 					if processedItems%20 == 0 || processedItems == totalItems {
-						UpdateSyncStatus(true, processedItems, totalItems,
-							fmt.Sprintf("Processed %d/%d contacts and %d/%d messages",
+						UpdateSyncStatus(SyncStatus{
+							IsCompleted:    false,
+							IsSyncing:      true,
+							ProcessedItems: processedItems,
+							TotalItems:     totalItems,
+							StatusMessage: fmt.Sprintf("Processed %d/%d contacts and %d/%d messages",
 								totalContacts, totalContacts,
-								processedItems-totalContacts, totalMessages))
+								processedItems-totalContacts, totalMessages),
+						})
 						PublishSyncStatus(nc, logger)
 					}
 				}
@@ -386,8 +386,13 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					"messages", processedConversationMessages)
 			}
 
-			// Mark sync as complete
-			UpdateSyncStatus(false, totalItems, totalItems, "WhatsApp history sync completed")
+			UpdateSyncStatus(SyncStatus{
+				IsCompleted:    true,
+				IsSyncing:      false,
+				ProcessedItems: processedItems,
+				TotalItems:     totalItems,
+				StatusMessage:  "WhatsApp history sync completed",
+			})
 			PublishSyncStatus(nc, logger)
 			logger.Info("WhatsApp history sync completed", "total_processed", processedItems)
 
