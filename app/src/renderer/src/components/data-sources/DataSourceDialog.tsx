@@ -1,4 +1,4 @@
-import { Clock, ExternalLink } from 'lucide-react'
+import { Clock, ExternalLink, FileUp, Settings } from 'lucide-react'
 import { Button } from '../ui/button'
 import {
   DialogContent,
@@ -8,23 +8,34 @@ import {
   DialogTitle
 } from '../ui/dialog'
 import { Dialog } from '../ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs'
 import { DataSource, PendingDataSource } from './types'
 import { truncatePath } from './utils'
 import { EXPORT_INSTRUCTIONS } from './export-instructions'
+import { ReactNode, useState } from 'react'
 
 export const DataSourceDialog = ({
   selectedSource,
   onClose,
   pendingDataSources,
   onFileSelect,
-  onAddSource
+  onAddSource,
+  customComponent
 }: {
   selectedSource: DataSource | null
   onClose: () => void
   pendingDataSources: Record<string, PendingDataSource>
   onFileSelect: () => void
   onAddSource: () => void
+  customComponent?: {
+    name: string
+    component: ReactNode
+  }
 }) => {
+  const [activeTab, setActiveTab] = useState<string>(
+    customComponent ? customComponent.name : 'file'
+  )
+
   if (!selectedSource) return null
 
   return (
@@ -37,60 +48,105 @@ export const DataSourceDialog = ({
             {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-8">
-          <div className="space-y-4 py-4">
-            <div className="rounded-lg">
-              <ol className="space-y-4 flex flex-col gap-3">
-                {EXPORT_INSTRUCTIONS[selectedSource.name]?.steps.map((step, index) => (
-                  <li key={index} className="flex gap-3">
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-accent flex items-center justify-center text-primary font-medium text-sm">
-                      {index + 1}
-                    </div>
-                    <div className="flex-1">
-                      <p className="text-sm">{step}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              {EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
-                <Button variant="link" className="mt-4 p-0 h-auto text-primary" asChild>
-                  <a
-                    href={EXPORT_INSTRUCTIONS[selectedSource.name].link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Open {selectedSource.name} Export Page <ExternalLink className="h-4 w-4" />
-                  </a>
-                </Button>
-              )}
-            </div>
-          </div>
 
-          <div className="flex flex-col gap-2 bg-card p-4 rounded-lg dark text-white dark:bg-muted dark:text-muted-foreground">
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2">
-                <div
-                  className="flex-1 h-9 px-3 py-1 flex flex-col justify-center rounded-md border bg-background text-sm"
-                  onClick={onFileSelect}
-                >
-                  {pendingDataSources[selectedSource.name]?.path
-                    ? truncatePath(pendingDataSources[selectedSource.name]?.path)
-                    : selectedSource.fileRequirement}
-                </div>
-                <Button onClick={onFileSelect}>Browse</Button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className={`grid ${customComponent ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
+            <TabsTrigger value="file" className="flex py-2 items-center gap-2">
+              <FileUp className="h-4 w-4" />
+              File Upload
+            </TabsTrigger>
+
+            {customComponent && (
+              <TabsTrigger value={customComponent.name} className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                {customComponent.name}
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <TabsContent value="file">
+            <StandardFileUpload
+              selectedSource={selectedSource}
+              pendingDataSources={pendingDataSources}
+              onFileSelect={onFileSelect}
+            />
+          </TabsContent>
+
+          {customComponent && (
+            <TabsContent value="QR Code">{customComponent.component}</TabsContent>
+          )}
+        </Tabs>
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={onAddSource} disabled={!pendingDataSources[selectedSource.name]}>
+          <Button
+            onClick={onAddSource}
+            disabled={!pendingDataSources[selectedSource.name] && activeTab === 'file'}
+          >
             Add Source
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  )
+}
+
+const StandardFileUpload = ({
+  selectedSource,
+  pendingDataSources,
+  onFileSelect
+}: {
+  selectedSource: DataSource
+  pendingDataSources: Record<string, PendingDataSource>
+  onFileSelect: () => void
+}) => {
+  return (
+    <div className="space-y-8">
+      <div className="space-y-4 py-4">
+        <div className="rounded-lg">
+          <ol className="space-y-4 flex flex-col gap-3">
+            {EXPORT_INSTRUCTIONS[selectedSource.name]?.steps.map((step, index) => (
+              <li key={index} className="flex gap-3">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-accent flex items-center justify-center text-primary font-medium text-sm">
+                  {index + 1}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm">{step}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
+            <Button variant="link" className="mt-4 p-0 h-auto text-primary" asChild>
+              <a
+                href={EXPORT_INSTRUCTIONS[selectedSource.name].link}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open {selectedSource.name} Export Page <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-2 bg-card p-4 rounded-lg dark text-white dark:bg-muted dark:text-muted-foreground">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <div
+              className="flex-1 h-9 px-3 py-1 flex flex-col justify-center rounded-md border bg-background text-sm"
+              onClick={onFileSelect}
+            >
+              {pendingDataSources[selectedSource.name]?.path
+                ? truncatePath(pendingDataSources[selectedSource.name]?.path)
+                : selectedSource.fileRequirement}
+            </div>
+            <Button onClick={onFileSelect}>Browse</Button>
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }

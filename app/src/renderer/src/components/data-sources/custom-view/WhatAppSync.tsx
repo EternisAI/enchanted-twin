@@ -3,16 +3,16 @@ import QRCode from 'react-qr-code'
 import { Loader2, PhoneOff, Smartphone } from 'lucide-react'
 import { useMutation, useQuery, useSubscription } from '@apollo/client'
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
-import { Button } from '../ui/button'
-import WhatsAppIcon from '../../assets/icons/whatsapp'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card'
+import { Button } from '../../ui/button'
+import WhatsAppIcon from '../../../assets/icons/whatsapp'
 import {
   GetWhatsAppStatusDocument,
   StartWhatsAppConnectionDocument,
   WhatsAppSyncStatusDocument
 } from '@renderer/graphql/generated/graphql'
 
-export default function WhatsApp() {
+export default function WhatsAppSync() {
   const { data, loading, error, refetch } = useQuery(GetWhatsAppStatusDocument, {
     pollInterval: 15000
   })
@@ -125,13 +125,9 @@ export default function WhatsApp() {
   }
 
   return (
-    <Card>
+    <div>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <WhatsAppIcon className="h-5 w-5 text-green-500" />
-          WhatsApp
-        </CardTitle>
-        <CardDescription>Connect your WhatsApp account</CardDescription>
+        <CardDescription className="text-center">Connect your WhatsApp account</CardDescription>
       </CardHeader>
       <CardContent>
         {isConnected ? (
@@ -173,6 +169,6 @@ export default function WhatsApp() {
           </div>
         )}
       </CardContent>
-    </Card>
+    </div>
   )
 }

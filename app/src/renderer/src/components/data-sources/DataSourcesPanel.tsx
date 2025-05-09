@@ -30,7 +30,7 @@ import OpenAI from '@renderer/assets/icons/openai'
 import { format } from 'date-fns'
 import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Tooltip, TooltipProvider } from '@radix-ui/react-tooltip'
-import WhatsApp from './WhatApp'
+import WhatsAppSync from './custom-view/WhatAppSync'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -70,7 +70,11 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     selectType: 'files',
     fileRequirement: 'Select WhatsApp SQLITE file',
     icon: <WhatsAppIcon className="h-4 w-4" />,
-    fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }]
+    fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }],
+    customView: {
+      name: 'QR Code',
+      component: <WhatsAppSync />
+    }
   },
   {
     name: 'Telegram',
@@ -570,10 +574,8 @@ export function DataSourcesPanel({
         pendingDataSources={pendingDataSources}
         onFileSelect={handleFileSelect}
         onAddSource={handleAddSource}
+        customComponent={selectedSource?.customView ? selectedSource.customView : undefined}
       />
-      <div className="grid grid-cols-1 gap-4">
-        <WhatsApp />
-      </div>
     </Card>
   )
 }
