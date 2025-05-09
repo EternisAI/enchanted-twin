@@ -16,7 +16,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
     onCompleted: () => {
       setName('')
       setCommand('')
-      setArgumentsList([''])
+      setArgumentsString('')
       setEnvVars([{ key: '', value: '' }])
       setPastedText('')
       toast.success('MCP server connected')
@@ -32,7 +32,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
 
   const [name, setName] = useState('')
   const [command, setCommand] = useState('')
-  const [argumentsList, setArgumentsList] = useState<string[]>([''])
+  const [argumentsString, setArgumentsString] = useState('')
   const [envVars, setEnvVars] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }])
   const [pastedText, setPastedText] = useState('')
 
@@ -42,7 +42,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         input: {
           name,
           command,
-          args: argumentsList,
+          args: argumentsString.split(' ').filter((arg) => arg.trim() !== ''),
           envs: envVars.filter((env) => env.key.trim() !== ''),
           type: McpServerType.Other
         }
@@ -65,7 +65,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
 
       setName(firstName)
       setCommand(command)
-      setArgumentsList(args)
+      setArgumentsString(Array.isArray(args) ? args.join(' ') : '')
       setEnvVars(Object.entries(env).map(([key, value]) => ({ key, value: value as string })))
       setPastedText('')
       toast.success(`Prefilled with server "${firstName}"`)
@@ -120,11 +120,9 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         </div>
         <div className="flex flex-col gap-2">
           <Input
-            value={argumentsList.join(' ')}
+            value={argumentsString}
             placeholder="Enter arguments separated by spaces"
-            onChange={(e) => {
-              setArgumentsList(e.target.value.split(' ').filter((arg) => arg.trim() !== ''))
-            }}
+            onChange={(e) => setArgumentsString(e.target.value)}
           />
         </div>
       </div>

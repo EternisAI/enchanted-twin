@@ -1,3 +1,4 @@
+// Owner: august@eternis.ai
 package main
 
 import (
@@ -28,6 +29,7 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
+	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
@@ -43,6 +45,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -154,14 +157,25 @@ func main() {
 		panic(errors.Wrap(err, "Unable to create memory"))
 	}
 
+	ttsSvc, err := bootstrapTTS(logger)
+	if err != nil {
+		logger.Error("TTS bootstrap failed", "error", err)
+		panic(errors.Wrap(err, "TTS bootstrap failed"))
+	}
+	go func() {
+		if err := ttsSvc.Start(context.Background()); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("TTS service stopped unexpectedly", "error", err)
+			panic(errors.Wrap(err, "TTS service stopped unexpectedly"))
+		}
+	}()
+
 	temporalClient, err := bootstrapTemporalServer(logger, envs)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
-	rootClient := root.NewRootClient(temporalClient, logger)
-
 	// Ensure the root workflow is running
+	rootClient := root.NewRootClient(temporalClient, logger)
 	if err := rootClient.EnsureRunRootWorkflow(context.Background()); err != nil {
 		logger.Error("Failed to ensure root workflow is running", "error", err)
 		logger.Error("Child workflows may not be able to start")
@@ -369,6 +383,36 @@ type bootstrapTemporalWorkerInput struct {
 	registry             tools.ToolRegistry
 	aiCompletionsService *ai.Service
 	rootClient           *root.RootClient
+}
+
+func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
+	const (
+		hostPort = 45000
+		image    = "ghcr.io/remsky/kokoro-fastapi-cpu"
+	)
+
+	dockerSvc, err := docker.NewService(docker.ContainerOptions{
+		ImageName: image,
+		ImageTag:  "latest",
+		Ports:     map[string]string{fmt.Sprint(hostPort): "8880"},
+		Detached:  true,
+	}, logger)
+	if err != nil {
+		logger.Error("docker service init", "error", err)
+		return nil, errors.Wrap(err, "docker service init")
+	}
+	if err := dockerSvc.RunContainer(context.Background()); err != nil {
+		logger.Error("docker run", "error", err)
+		return nil, errors.Wrap(err, "docker run")
+	}
+
+	engine := tts.Kokoro{
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", hostPort),
+		Model:    "kokoro",
+		Voice:    "af_bella+af_heart",
+	}
+	svc := tts.New(":8080", engine, *logger)
+	return svc, nil
 }
 
 func bootstrapTemporalWorker(

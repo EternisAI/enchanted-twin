@@ -234,7 +234,7 @@ func handleTerminateChildWorkflow(ctx workflow.Context, state *RootState, args m
 
 	logger.Info("Termination activity completed for child workflow", "ChildWorkflowID", task.WorkflowID, "ChildRunID", task.RunID)
 
-	state.Tasks[runID].EndedAt = workflow.Now(ctx)
+	state.Tasks[runID].TerminatedAt = workflow.Now(ctx)
 
 	return runID, nil
 }
