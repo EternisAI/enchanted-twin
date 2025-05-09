@@ -67,7 +67,7 @@ Below is a diagram that describes the main data-flows in the application.
 config:
   layout: dagre
   look: handDrawn
-  theme: dark
+  theme: light
 ---
 flowchart TD
     App([Electron app])
@@ -114,7 +114,7 @@ flowchart TD
 config:
   layout: dagre
   look: handDrawn
-  theme: dark
+  theme: light
 ---
 flowchart
     subgraph "Base (ingested facts)"
