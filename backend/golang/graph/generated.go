@@ -52,15 +52,15 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	AgentTask struct {
-		CompletedAt func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		EndedAt     func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Name        func(childComplexity int) int
-		Output      func(childComplexity int) int
-		Plan        func(childComplexity int) int
-		Schedule    func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
+		CompletedAt  func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Output       func(childComplexity int) int
+		Plan         func(childComplexity int) int
+		Schedule     func(childComplexity int) int
+		TerminatedAt func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
 	}
 
 	AppNotification struct {
@@ -300,13 +300,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.AgentTask.CreatedAt(childComplexity), true
 
-	case "AgentTask.endedAt":
-		if e.complexity.AgentTask.EndedAt == nil {
-			break
-		}
-
-		return e.complexity.AgentTask.EndedAt(childComplexity), true
-
 	case "AgentTask.id":
 		if e.complexity.AgentTask.ID == nil {
 			break
@@ -341,6 +334,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.AgentTask.Schedule(childComplexity), true
+
+	case "AgentTask.terminatedAt":
+		if e.complexity.AgentTask.TerminatedAt == nil {
+			break
+		}
+
+		return e.complexity.AgentTask.TerminatedAt(childComplexity), true
 
 	case "AgentTask.updatedAt":
 		if e.complexity.AgentTask.UpdatedAt == nil {
@@ -2279,8 +2279,8 @@ func (ec *executionContext) fieldContext_AgentTask_completedAt(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _AgentTask_endedAt(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_AgentTask_endedAt(ctx, field)
+func (ec *executionContext) _AgentTask_terminatedAt(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentTask_terminatedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -2293,7 +2293,7 @@ func (ec *executionContext) _AgentTask_endedAt(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.EndedAt, nil
+		return obj.TerminatedAt, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2307,7 +2307,7 @@ func (ec *executionContext) _AgentTask_endedAt(ctx context.Context, field graphq
 	return ec.marshalODateTime2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_AgentTask_endedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AgentTask_terminatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "AgentTask",
 		Field:      field,
@@ -6406,8 +6406,8 @@ func (ec *executionContext) fieldContext_Query_getAgentTasks(_ context.Context, 
 				return ec.fieldContext_AgentTask_updatedAt(ctx, field)
 			case "completedAt":
 				return ec.fieldContext_AgentTask_completedAt(ctx, field)
-			case "endedAt":
-				return ec.fieldContext_AgentTask_endedAt(ctx, field)
+			case "terminatedAt":
+				return ec.fieldContext_AgentTask_terminatedAt(ctx, field)
 			case "output":
 				return ec.fieldContext_AgentTask_output(ctx, field)
 			}
@@ -9731,8 +9731,8 @@ func (ec *executionContext) _AgentTask(ctx context.Context, sel ast.SelectionSet
 			}
 		case "completedAt":
 			out.Values[i] = ec._AgentTask_completedAt(ctx, field, obj)
-		case "endedAt":
-			out.Values[i] = ec._AgentTask_endedAt(ctx, field, obj)
+		case "terminatedAt":
+			out.Values[i] = ec._AgentTask_terminatedAt(ctx, field, obj)
 		case "output":
 			out.Values[i] = ec._AgentTask_output(ctx, field, obj)
 		default:

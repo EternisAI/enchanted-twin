@@ -247,7 +247,7 @@ func (r *mutationResolver) StartIndexing(ctx context.Context) (bool, error) {
 		ctx,
 		options,
 		"InitializeWorkflow",
-		map[string]interface{}{},
+		map[string]any{},
 	)
 	if err != nil {
 		return false, fmt.Errorf("error executing workflow: %v", err)
@@ -334,6 +334,7 @@ func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool
 	}
 }
 
+// RemoveMCPServer is the resolver for the removeMCPServer field.
 func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool, error) {
 	err := r.MCPService.RemoveMCPServer(ctx, id)
 	if err != nil {
@@ -448,48 +449,119 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 
 	tasks := make([]*model.AgentTask, 0, len(runs))
 	for _, run := range runs {
-		// TODO: below as func GetState() to plannedv2 or baseagent
 		r.Logger.Debug("querying workflow", "workflow_id", run.WorkflowID, "run_id", run.RunID)
+
+		// First try to query as a regular planned workflow
 		queryRes, err := tc.QueryWorkflow(
 			ctx,
 			run.WorkflowID,
 			run.RunID,
 			planned.QueryGetState,
 		)
-		if err != nil {
-			r.Logger.Warn("failed to query workflow", "error", err)
+
+		if err == nil {
+			// This is a regular PlannedAgentWorkflow
+			var planState planned.PlanState
+			if err := queryRes.Get(&planState); err != nil {
+				r.Logger.Warn("failed to get plan workflow state", "error", err)
+				continue
+			}
+
+			updatedAt := run.CreatedAt
+			if len(planState.History) > 0 {
+				updatedAt = planState.History[len(planState.History)-1].Timestamp
+			}
+
+			// Use the earliest non-zero completion time between the workflow's completed time
+			// and the run's completed time from root workflow tracking
+			completedAt := time.Time{}
+			if !planState.CompletedAt.IsZero() {
+				completedAt = planState.CompletedAt
+			}
+			if !run.CompletedAt.IsZero() {
+				if completedAt.IsZero() || run.CompletedAt.Before(completedAt) {
+					completedAt = run.CompletedAt
+				}
+			}
+
+			tasks = append(tasks, &model.AgentTask{
+				ID:           run.RunID,
+				Name:         planState.Name,
+				Schedule:     planState.Schedule,
+				Plan:         &planState.Plan,
+				CreatedAt:    run.CreatedAt.String(),
+				UpdatedAt:    updatedAt.String(),
+				TerminatedAt: helpers.TimeToStringPtr(run.TerminatedAt),
+				CompletedAt:  helpers.TimeToStringPtr(completedAt),
+				Output:       &planState.Output,
+			})
+
+			r.Logger.Debug("returning standard workflow to FE", "task", tasks[len(tasks)-1])
 			continue
 		}
-		var state planned.PlanState
-		if err := queryRes.Get(&state); err != nil {
-			r.Logger.Warn("failed to get workflow state", "error", err)
+
+		// If we're here, it might be a scheduled workflow, try that query instead
+		queryRes, err = tc.QueryWorkflow(
+			ctx,
+			run.WorkflowID,
+			run.RunID,
+			planned.QueryGetSchedulerState,
+		)
+
+		if err == nil {
+			// This is a ScheduledPlanWorkflow
+			var schedulerState planned.SchedulerState
+			if err := queryRes.Get(&schedulerState); err != nil {
+				r.Logger.Warn("failed to get scheduler workflow state", "error", err)
+				continue
+			}
+
+			// For scheduled workflows, we use:
+			// - NextRunTime for UpdatedAt
+			// - Apply same "smallest non-zero time" logic for CompletedAt
+			// - No EndedAt because the scheduler is still running
+			updatedAt := schedulerState.LastRunTime
+			if updatedAt.IsZero() {
+				updatedAt = run.CreatedAt
+			}
+
+			// Use the earliest non-zero completion time between the scheduler's last run time
+			// and the run's completed time from root workflow tracking
+			completedAt := time.Time{}
+			if !schedulerState.LastRunTime.IsZero() {
+				completedAt = schedulerState.LastRunTime
+			}
+			if !run.CompletedAt.IsZero() {
+				if completedAt.IsZero() || run.CompletedAt.Before(completedAt) {
+					completedAt = run.CompletedAt
+				}
+			}
+
+			// Create output containing completion info
+			output := fmt.Sprintf("Completed %d runs of scheduled plan. Next run at: %s",
+				schedulerState.CompletedRuns,
+				schedulerState.NextRunTime.Format(time.RFC3339))
+
+			// For scheduled workflows, we expose the RRULE schedule
+			tasks = append(tasks, &model.AgentTask{
+				ID:           run.RunID,
+				Name:         schedulerState.Input.Name,
+				Schedule:     schedulerState.Input.Schedule,
+				Plan:         &schedulerState.Input.Plan,
+				CreatedAt:    run.CreatedAt.String(),
+				UpdatedAt:    updatedAt.String(),
+				TerminatedAt: helpers.TimeToStringPtr(run.TerminatedAt),
+				CompletedAt:  helpers.TimeToStringPtr(completedAt),
+				Output:       &output,
+			})
+
+			r.Logger.Debug("returning scheduled workflow to FE", "task", tasks[len(tasks)-1])
 			continue
 		}
 
-		updatedAt := run.CreatedAt
-		if len(state.History) > 0 {
-			updatedAt = state.History[len(state.History)-1].Timestamp
-		}
-
-		endedAt := state.CompletedAt
-		completedAt := state.CompletedAt
-		if !run.EndedAt.IsZero() {
-			endedAt = run.EndedAt
-		}
-
-		tasks = append(tasks, &model.AgentTask{
-			ID:          run.RunID,
-			Name:        state.Name,
-			Schedule:    state.Schedule,
-			Plan:        &state.Plan,
-			CreatedAt:   run.CreatedAt.String(),
-			UpdatedAt:   updatedAt.String(),
-			EndedAt:     helpers.TimeToStringPtr(endedAt),
-			CompletedAt: helpers.TimeToStringPtr(completedAt),
-			Output:      &state.Output,
-		})
-
-		r.Logger.Debug("returning to FE", "tasks", tasks[len(tasks)-1])
+		r.Logger.Warn("workflow is neither a standard nor scheduled workflow",
+			"workflow_id", run.WorkflowID,
+			"run_id", run.RunID)
 	}
 
 	return tasks, nil
