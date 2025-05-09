@@ -1,7 +1,16 @@
 import { useState, useCallback, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Input } from '@renderer/components/ui/input'
-import { Send, AudioLines, Calendar, Search, GraduationCap, PenTool, Brain } from 'lucide-react'
+import {
+  Send,
+  AudioLines,
+  Calendar,
+  Search,
+  GraduationCap,
+  PenTool,
+  Brain,
+  MessageCircle
+} from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
 import { GetProfileDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
@@ -47,6 +56,12 @@ export function Header() {
 
   // Dummy suggestions for AI agent use cases
   const dummySuggestions = [
+    {
+      id: 'dummy0',
+      name: 'I notice you seem stressed. Would you like to talk about it?',
+      icon: MessageCircle,
+      emphasized: true
+    },
     { id: 'dummy1', name: 'Help me plan my day and set priorities', icon: Calendar },
     { id: 'dummy2', name: 'Research and summarize a topic for me', icon: Search },
     { id: 'dummy3', name: 'Help me learn a new skill or concept', icon: GraduationCap },
@@ -309,6 +324,7 @@ export function Header() {
                 <>
                   {suggestions.map((chat, index) => {
                     const Icon = 'icon' in chat ? chat.icon : Brain
+                    const isEmphasized = 'emphasized' in chat && chat.emphasized
                     return (
                       <motion.button
                         key={chat.id}
@@ -327,11 +343,25 @@ export function Header() {
                         className={cn(
                           'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
                           'hover:bg-muted/80',
-                          selectedIndex === index && 'bg-primary/10 text-primary'
+                          selectedIndex === index && 'bg-primary/10 text-primary',
+                          isEmphasized &&
+                            'relative before:absolute before:inset-0 before:rounded-md before:bg-emerald-50/50'
                         )}
                       >
-                        <Icon className="h-4 w-4 text-muted-foreground" />
-                        <span className="truncate">{chat.name}</span>
+                        <Icon
+                          className={cn(
+                            'h-4 w-4 relative z-10',
+                            isEmphasized ? 'text-emerald-600' : 'text-muted-foreground'
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            'truncate relative z-10',
+                            isEmphasized && 'text-emerald-700 font-medium'
+                          )}
+                        >
+                          {chat.name}
+                        </span>
                       </motion.button>
                     )
                   })}
