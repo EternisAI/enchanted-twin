@@ -9,7 +9,7 @@ import {
   GraduationCap,
   PenTool,
   Brain,
-  MessageCircle
+  MessageCircleMore
 } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
@@ -59,7 +59,7 @@ export function Header() {
     {
       id: 'dummy0',
       name: 'I notice you seem stressed. Would you like to talk about it?',
-      icon: MessageCircle,
+      icon: MessageCircleMore,
       emphasized: true
     },
     { id: 'dummy1', name: 'Help me plan my day and set priorities', icon: Calendar },
@@ -250,42 +250,72 @@ export function Header() {
         }}
         className="relative w-full"
       >
-        <form onSubmit={handleSubmit} className="relative w-full space-y-6">
-          <div className="flex items-center gap-2 p-1">
-            <Input
-              type="text"
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value)
-              }}
-              placeholder="Start a new chat..."
-              className="flex-1 p-4 h-fit shadow-sm"
-            />
-            <div className="p-1">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="outline" type="button" className="rounded-full w-12 h-12">
-                      <AudioLines className="h-9 w-9" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p>Start voice chat</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+        <form onSubmit={handleSubmit} className="relative w-full">
+          <div className="flex items-center gap-6 p-1">
+            <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                }}
+                placeholder="Start a new chat..."
+                className="flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4 h-fit outline-none focus:outline-none"
+              />
+              <div className="flex items-center gap-1 pr-2">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" type="button" size="icon" className="h-10 w-10">
+                        <AudioLines className="h-5 w-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Start voice chat</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {query.trim() && (
+                  <Button variant="ghost" type="submit" size="icon" className="h-10 w-10">
+                    <Send className="h-5 w-5" />
+                  </Button>
+                )}
+              </div>
             </div>
-            {query.trim() && (
-              <button type="submit" className="rounded-full p-2 text-primary hover:bg-muted">
-                <Send className="h-5 w-5" />
-              </button>
-            )}
           </div>
-          <div className="bg-background/90 backdrop-blur-sm">
-            <ScrollArea className="h-[280px]">
-              {debouncedQuery ? (
-                <>
-                  {filteredChats.map((chat, index) => (
+        </form>
+        <div className="h-4" />
+        <div className="bg-background/90 backdrop-blur-sm">
+          <ScrollArea className="h-[280px]">
+            {debouncedQuery ? (
+              <>
+                {filteredChats.map((chat, index) => (
+                  <motion.button
+                    key={chat.id}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2, delay: index * 0.05 }}
+                    type="button"
+                    onClick={() => {
+                      navigate({ to: `/chat/${chat.id}` })
+                      setQuery('')
+                    }}
+                    className={cn(
+                      'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
+                      'hover:bg-muted/80',
+                      selectedIndex === index && 'bg-primary/10 text-primary'
+                    )}
+                  >
+                    <span className="truncate">{chat.name}</span>
+                  </motion.button>
+                ))}
+              </>
+            ) : (
+              <>
+                {suggestions.map((chat, index) => {
+                  const Icon = 'icon' in chat ? chat.icon : Brain
+                  const isEmphasized = 'emphasized' in chat && chat.emphasized
+                  return (
                     <motion.button
                       key={chat.id}
                       initial={{ opacity: 0, y: 4 }}
@@ -293,83 +323,41 @@ export function Header() {
                       transition={{ duration: 0.2, delay: index * 0.05 }}
                       type="button"
                       onClick={() => {
-                        navigate({ to: `/chat/${chat.id}` })
-                        setQuery('')
+                        if (chat.id.startsWith('dummy')) {
+                          handleSuggestionClick(chat)
+                        } else {
+                          navigate({ to: `/chat/${chat.id}` })
+                          setQuery('')
+                        }
                       }}
                       className={cn(
                         'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
                         'hover:bg-muted/80',
-                        selectedIndex === index && 'bg-primary/10 text-primary'
+                        selectedIndex === index && 'bg-primary/10 text-primary',
+                        isEmphasized && 'relative before:absolute before:inset-0 before:rounded-md'
                       )}
                     >
-                      <span className="truncate">{chat.name}</span>
-                    </motion.button>
-                  ))}
-                  <motion.button
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: filteredChats.length * 0.05 }}
-                    type="button"
-                    onClick={handleCreateChat}
-                    className={cn(
-                      'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
-                      'hover:bg-muted/80',
-                      selectedIndex === filteredChats.length && 'bg-primary/10 text-primary'
-                    )}
-                  >
-                    <span>New chat: &quot;{debouncedQuery}&quot;</span>
-                  </motion.button>
-                </>
-              ) : (
-                <>
-                  {suggestions.map((chat, index) => {
-                    const Icon = 'icon' in chat ? chat.icon : Brain
-                    const isEmphasized = 'emphasized' in chat && chat.emphasized
-                    return (
-                      <motion.button
-                        key={chat.id}
-                        initial={{ opacity: 0, y: 4 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.2, delay: index * 0.05 }}
-                        type="button"
-                        onClick={() => {
-                          if (chat.id.startsWith('dummy')) {
-                            handleSuggestionClick(chat)
-                          } else {
-                            navigate({ to: `/chat/${chat.id}` })
-                            setQuery('')
-                          }
-                        }}
+                      <Icon
                         className={cn(
-                          'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                          'hover:bg-muted/80',
-                          selectedIndex === index && 'bg-primary/10 text-primary',
-                          isEmphasized &&
-                            'relative before:absolute before:inset-0 before:rounded-md before:bg-emerald-50/50'
+                          'h-4 w-4 relative z-10',
+                          isEmphasized ? 'text-emerald-600' : 'text-muted-foreground'
+                        )}
+                      />
+                      <span
+                        className={cn(
+                          'truncate relative z-10',
+                          isEmphasized && 'text-emerald-700 font-medium'
                         )}
                       >
-                        <Icon
-                          className={cn(
-                            'h-4 w-4 relative z-10',
-                            isEmphasized ? 'text-emerald-600' : 'text-muted-foreground'
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            'truncate relative z-10',
-                            isEmphasized && 'text-emerald-700 font-medium'
-                          )}
-                        >
-                          {chat.name}
-                        </span>
-                      </motion.button>
-                    )
-                  })}
-                </>
-              )}
-            </ScrollArea>
-          </div>
-        </form>
+                        {chat.name}
+                      </span>
+                    </motion.button>
+                  )
+                })}
+              </>
+            )}
+          </ScrollArea>
+        </div>
       </motion.div>
     </motion.div>
   )
