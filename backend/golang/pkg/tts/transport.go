@@ -112,7 +112,6 @@ func (s *Service) handleWS(w http.ResponseWriter, r *http.Request) {
 
 	for {
 		if _, _, err := ws.ReadMessage(); err != nil {
-			s.logger.Error("failed to read message", "error", err)
 			break
 		}
 	}
@@ -142,10 +141,7 @@ func (s *Service) pipe(ctx context.Context, dc *webrtc.DataChannel, text string)
 		}
 	}
 
-	err = dc.SendText("EOS")
-	if err != nil {
-		s.logger.Error("failed to send eos", "error", err)
-	}
+	_ = dc.SendText("EOS")
 	err = dc.Close()
 	if err != nil {
 		s.logger.Error("failed to close data channel", "error", err)
