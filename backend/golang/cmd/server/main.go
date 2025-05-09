@@ -1,3 +1,4 @@
+// Owner: august@eternis.ai
 package main
 
 import (
