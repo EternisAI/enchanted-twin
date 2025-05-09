@@ -1,14 +1,15 @@
 import { useEffect } from 'react'
 import QRCode from 'react-qr-code'
 import { Loader2, PhoneOff, Smartphone } from 'lucide-react'
-import { useMutation, useQuery } from '@apollo/client'
+import { useMutation, useQuery, useSubscription } from '@apollo/client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import WhatsAppIcon from '../../assets/icons/whatsapp'
 import {
   GetWhatsAppStatusDocument,
-  StartWhatsAppConnectionDocument
+  StartWhatsAppConnectionDocument,
+  WhatsAppSyncStatusDocument
 } from '@renderer/graphql/generated/graphql'
 
 export default function WhatsApp() {
@@ -24,9 +25,16 @@ export default function WhatsApp() {
     }
   )
 
+  const { data: syncData } = useSubscription(WhatsAppSyncStatusDocument)
+
   const qrCodeData = data?.getWhatsAppStatus?.qrCodeData
   const isConnected = data?.getWhatsAppStatus?.isConnected
   const statusMessage = data?.getWhatsAppStatus?.statusMessage || ''
+
+  const isSyncing = syncData?.whatsAppSyncStatus?.isSyncing || false
+  const syncCompleted = syncData?.whatsAppSyncStatus?.isCompleted || false
+  const syncError = syncData?.whatsAppSyncStatus?.error
+  const syncStatusMessage = syncData?.whatsAppSyncStatus?.statusMessage || ''
 
   useEffect(() => {
     refetch()
@@ -77,6 +85,45 @@ export default function WhatsApp() {
     )
   }
 
+  const renderSyncStatus = () => {
+    if (!isConnected) return null
+
+    if (syncError) {
+      return (
+        <div className="mt-4 p-3 bg-destructive/10 rounded-md">
+          <p className="text-sm text-destructive">Sync error: {syncError}</p>
+        </div>
+      )
+    }
+
+    if (isSyncing) {
+      return (
+        <div className="mt-4 flex flex-col gap-2">
+          <div className="flex flex-col mb-2">
+            <span className="text-sm">Syncing messages...</span>
+            <span className="text-sm text-muted-foreground">{syncStatusMessage}</span>
+          </div>
+          <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-green-500 transition-all duration-300"
+              style={{ width: syncCompleted ? '100%' : '75%' }}
+            />
+          </div>
+        </div>
+      )
+    }
+
+    if (syncCompleted) {
+      return (
+        <div className="mt-4 p-3 bg-green-500/10 rounded-md">
+          <p className="text-sm text-green-500">Sync completed successfully</p>
+        </div>
+      )
+    }
+
+    return null
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -94,6 +141,7 @@ export default function WhatsApp() {
               <span className="text-lg font-medium">Connected</span>
             </div>
             <p className="text-muted-foreground text-center">{statusMessage}</p>
+            {renderSyncStatus()}
           </div>
         ) : (
           <div className="flex flex-col items-center">
