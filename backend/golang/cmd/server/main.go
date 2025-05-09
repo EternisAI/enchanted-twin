@@ -146,6 +146,11 @@ func main() {
 				currentWhatsAppQRCode = nil
 				logger.Info("WhatsApp connection successful")
 
+				// Send initial sync status
+				whatsapp.StartSync()
+				whatsapp.UpdateSyncStatus(true, 0, 0, "Waiting for history sync to begin")
+				whatsapp.PublishSyncStatus(nc, logger)
+
 				successUpdate := map[string]interface{}{
 					"event":        "success",
 					"qr_code_data": nil,
@@ -217,7 +222,7 @@ func main() {
 
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
-		client := bootstrapWhatsAppClient(mem, logger)
+		client := bootstrapWhatsAppClient(mem, logger, nc)
 		whatsappClientChan <- client
 	}()
 
@@ -565,7 +570,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *whatsmeow.Client {
+func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
 	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
@@ -577,7 +582,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *
 	}
 	clientLog := waLog.Stdout("Client", "DEBUG", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
-	client.AddEventHandler(whatsapp.EventHandler(memoryStorage, logger))
+	client.AddEventHandler(whatsapp.EventHandler(memoryStorage, logger, nc))
 
 	logger.Info("Waiting for WhatsApp connection signal...")
 	connectChan := whatsapp.GetConnectChannel()
@@ -614,6 +619,11 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *
 				whatsapp.GetQRChannel() <- qrEvent
 				logger.Info("WhatsApp connection successful")
 
+				// Send initial sync status
+				whatsapp.StartSync()
+				whatsapp.UpdateSyncStatus(true, 0, 0, "Waiting for history sync to begin")
+				whatsapp.PublishSyncStatus(nc, logger)
+
 				jid := types.JID{
 					User:   "33687866890",
 					Server: "s.whatsapp.net",
@@ -643,6 +653,11 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *
 			whatsapp.SetLatestQREvent(qrEvent)
 			whatsapp.GetQRChannel() <- qrEvent
 			logger.Info("Already logged in, reusing session")
+
+			// Send initial sync status for existing sessions
+			whatsapp.StartSync()
+			whatsapp.UpdateSyncStatus(true, 0, 0, "Waiting for history sync to begin")
+			whatsapp.PublishSyncStatus(nc, logger)
 		}
 	}
 

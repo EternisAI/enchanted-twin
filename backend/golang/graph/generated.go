@@ -192,13 +192,13 @@ type ComplexityRoot struct {
 	}
 
 	Subscription struct {
-		IndexingStatus        func(childComplexity int) int
-		MessageAdded          func(childComplexity int, chatID string) int
-		MessageStream         func(childComplexity int, chatID string) int
-		NotificationAdded     func(childComplexity int) int
-		TelegramMessageAdded  func(childComplexity int, chatUUID string) int
-		ToolCallUpdated       func(childComplexity int, chatID string) int
-		WhatsAppQRCodeUpdated func(childComplexity int) int
+		IndexingStatus       func(childComplexity int) int
+		MessageAdded         func(childComplexity int, chatID string) int
+		MessageStream        func(childComplexity int, chatID string) int
+		NotificationAdded    func(childComplexity int) int
+		TelegramMessageAdded func(childComplexity int, chatUUID string) int
+		ToolCallUpdated      func(childComplexity int, chatID string) int
+		WhatsAppSyncStatus   func(childComplexity int) int
 	}
 
 	Tool struct {
@@ -236,6 +236,13 @@ type ComplexityRoot struct {
 	WhatsAppStatus struct {
 		IsConnected   func(childComplexity int) int
 		QRCodeData    func(childComplexity int) int
+		StatusMessage func(childComplexity int) int
+	}
+
+	WhatsAppSyncStatus struct {
+		Error         func(childComplexity int) int
+		IsCompleted   func(childComplexity int) int
+		IsSyncing     func(childComplexity int) int
 		StatusMessage func(childComplexity int) int
 	}
 }
@@ -279,7 +286,7 @@ type SubscriptionResolver interface {
 	NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error)
 	TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error)
 	MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error)
-	WhatsAppQRCodeUpdated(ctx context.Context) (<-chan *model.WhatsAppQRCodeUpdate, error)
+	WhatsAppSyncStatus(ctx context.Context) (<-chan *model.WhatsAppSyncStatus, error)
 }
 type UserProfileResolver interface {
 	IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error)
@@ -1107,12 +1114,12 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Subscription.ToolCallUpdated(childComplexity, args["chatId"].(string)), true
 
-	case "Subscription.whatsAppQRCodeUpdated":
-		if e.complexity.Subscription.WhatsAppQRCodeUpdated == nil {
+	case "Subscription.whatsAppSyncStatus":
+		if e.complexity.Subscription.WhatsAppSyncStatus == nil {
 			break
 		}
 
-		return e.complexity.Subscription.WhatsAppQRCodeUpdated(childComplexity), true
+		return e.complexity.Subscription.WhatsAppSyncStatus(childComplexity), true
 
 	case "Tool.description":
 		if e.complexity.Tool.Description == nil {
@@ -1253,6 +1260,34 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.WhatsAppStatus.StatusMessage(childComplexity), true
+
+	case "WhatsAppSyncStatus.error":
+		if e.complexity.WhatsAppSyncStatus.Error == nil {
+			break
+		}
+
+		return e.complexity.WhatsAppSyncStatus.Error(childComplexity), true
+
+	case "WhatsAppSyncStatus.isCompleted":
+		if e.complexity.WhatsAppSyncStatus.IsCompleted == nil {
+			break
+		}
+
+		return e.complexity.WhatsAppSyncStatus.IsCompleted(childComplexity), true
+
+	case "WhatsAppSyncStatus.isSyncing":
+		if e.complexity.WhatsAppSyncStatus.IsSyncing == nil {
+			break
+		}
+
+		return e.complexity.WhatsAppSyncStatus.IsSyncing(childComplexity), true
+
+	case "WhatsAppSyncStatus.statusMessage":
+		if e.complexity.WhatsAppSyncStatus.StatusMessage == nil {
+			break
+		}
+
+		return e.complexity.WhatsAppSyncStatus.StatusMessage(childComplexity), true
 
 	}
 	return 0, false
@@ -7205,8 +7240,8 @@ func (ec *executionContext) fieldContext_Subscription_messageStream(ctx context.
 	return fc, nil
 }
 
-func (ec *executionContext) _Subscription_whatsAppQRCodeUpdated(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
-	fc, err := ec.fieldContext_Subscription_whatsAppQRCodeUpdated(ctx, field)
+func (ec *executionContext) _Subscription_whatsAppSyncStatus(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_whatsAppSyncStatus(ctx, field)
 	if err != nil {
 		return nil
 	}
@@ -7219,7 +7254,7 @@ func (ec *executionContext) _Subscription_whatsAppQRCodeUpdated(ctx context.Cont
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Subscription().WhatsAppQRCodeUpdated(rctx)
+		return ec.resolvers.Subscription().WhatsAppSyncStatus(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -7233,7 +7268,7 @@ func (ec *executionContext) _Subscription_whatsAppQRCodeUpdated(ctx context.Cont
 	}
 	return func(ctx context.Context) graphql.Marshaler {
 		select {
-		case res, ok := <-resTmp.(<-chan *model.WhatsAppQRCodeUpdate):
+		case res, ok := <-resTmp.(<-chan *model.WhatsAppSyncStatus):
 			if !ok {
 				return nil
 			}
@@ -7241,7 +7276,7 @@ func (ec *executionContext) _Subscription_whatsAppQRCodeUpdated(ctx context.Cont
 				w.Write([]byte{'{'})
 				graphql.MarshalString(field.Alias).MarshalGQL(w)
 				w.Write([]byte{':'})
-				ec.marshalNWhatsAppQRCodeUpdate2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐWhatsAppQRCodeUpdate(ctx, field.Selections, res).MarshalGQL(w)
+				ec.marshalNWhatsAppSyncStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐWhatsAppSyncStatus(ctx, field.Selections, res).MarshalGQL(w)
 				w.Write([]byte{'}'})
 			})
 		case <-ctx.Done():
@@ -7250,7 +7285,7 @@ func (ec *executionContext) _Subscription_whatsAppQRCodeUpdated(ctx context.Cont
 	}
 }
 
-func (ec *executionContext) fieldContext_Subscription_whatsAppQRCodeUpdated(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Subscription_whatsAppSyncStatus(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Subscription",
 		Field:      field,
@@ -7258,16 +7293,16 @@ func (ec *executionContext) fieldContext_Subscription_whatsAppQRCodeUpdated(_ co
 		IsResolver: true,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
-			case "qrCodeData":
-				return ec.fieldContext_WhatsAppQRCodeUpdate_qrCodeData(ctx, field)
-			case "event":
-				return ec.fieldContext_WhatsAppQRCodeUpdate_event(ctx, field)
-			case "timestamp":
-				return ec.fieldContext_WhatsAppQRCodeUpdate_timestamp(ctx, field)
-			case "isConnected":
-				return ec.fieldContext_WhatsAppQRCodeUpdate_isConnected(ctx, field)
+			case "isSyncing":
+				return ec.fieldContext_WhatsAppSyncStatus_isSyncing(ctx, field)
+			case "isCompleted":
+				return ec.fieldContext_WhatsAppSyncStatus_isCompleted(ctx, field)
+			case "error":
+				return ec.fieldContext_WhatsAppSyncStatus_error(ctx, field)
+			case "statusMessage":
+				return ec.fieldContext_WhatsAppSyncStatus_statusMessage(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type WhatsAppQRCodeUpdate", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type WhatsAppSyncStatus", field.Name)
 		},
 	}
 	return fc, nil
@@ -8154,6 +8189,176 @@ func (ec *executionContext) _WhatsAppStatus_statusMessage(ctx context.Context, f
 func (ec *executionContext) fieldContext_WhatsAppStatus_statusMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "WhatsAppStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WhatsAppSyncStatus_isSyncing(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppSyncStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WhatsAppSyncStatus_isSyncing(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsSyncing, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WhatsAppSyncStatus_isSyncing(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WhatsAppSyncStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WhatsAppSyncStatus_isCompleted(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppSyncStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WhatsAppSyncStatus_isCompleted(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsCompleted, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WhatsAppSyncStatus_isCompleted(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WhatsAppSyncStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WhatsAppSyncStatus_error(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppSyncStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WhatsAppSyncStatus_error(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Error, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WhatsAppSyncStatus_error(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WhatsAppSyncStatus",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _WhatsAppSyncStatus_statusMessage(ctx context.Context, field graphql.CollectedField, obj *model.WhatsAppSyncStatus) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_WhatsAppSyncStatus_statusMessage(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.StatusMessage, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_WhatsAppSyncStatus_statusMessage(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "WhatsAppSyncStatus",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
@@ -11472,8 +11677,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_telegramMessageAdded(ctx, fields[0])
 	case "messageStream":
 		return ec._Subscription_messageStream(ctx, fields[0])
-	case "whatsAppQRCodeUpdated":
-		return ec._Subscription_whatsAppQRCodeUpdated(ctx, fields[0])
+	case "whatsAppSyncStatus":
+		return ec._Subscription_whatsAppSyncStatus(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -11801,6 +12006,54 @@ func (ec *executionContext) _WhatsAppStatus(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var whatsAppSyncStatusImplementors = []string{"WhatsAppSyncStatus"}
+
+func (ec *executionContext) _WhatsAppSyncStatus(ctx context.Context, sel ast.SelectionSet, obj *model.WhatsAppSyncStatus) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, whatsAppSyncStatusImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("WhatsAppSyncStatus")
+		case "isSyncing":
+			out.Values[i] = ec._WhatsAppSyncStatus_isSyncing(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isCompleted":
+			out.Values[i] = ec._WhatsAppSyncStatus_isCompleted(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "error":
+			out.Values[i] = ec._WhatsAppSyncStatus_error(ctx, field, obj)
+		case "statusMessage":
+			out.Values[i] = ec._WhatsAppSyncStatus_statusMessage(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -12887,20 +13140,6 @@ func (ec *executionContext) marshalNUserProfile2ᚖgithubᚗcomᚋEternisAIᚋen
 	return ec._UserProfile(ctx, sel, v)
 }
 
-func (ec *executionContext) marshalNWhatsAppQRCodeUpdate2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐWhatsAppQRCodeUpdate(ctx context.Context, sel ast.SelectionSet, v model.WhatsAppQRCodeUpdate) graphql.Marshaler {
-	return ec._WhatsAppQRCodeUpdate(ctx, sel, &v)
-}
-
-func (ec *executionContext) marshalNWhatsAppQRCodeUpdate2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐWhatsAppQRCodeUpdate(ctx context.Context, sel ast.SelectionSet, v *model.WhatsAppQRCodeUpdate) graphql.Marshaler {
-	if v == nil {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
-		}
-		return graphql.Null
-	}
-	return ec._WhatsAppQRCodeUpdate(ctx, sel, v)
-}
-
 func (ec *executionContext) marshalNWhatsAppStatus2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐWhatsAppStatus(ctx context.Context, sel ast.SelectionSet, v model.WhatsAppStatus) graphql.Marshaler {
 	return ec._WhatsAppStatus(ctx, sel, &v)
 }
@@ -12913,6 +13152,20 @@ func (ec *executionContext) marshalNWhatsAppStatus2ᚖgithubᚗcomᚋEternisAI�
 		return graphql.Null
 	}
 	return ec._WhatsAppStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNWhatsAppSyncStatus2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐWhatsAppSyncStatus(ctx context.Context, sel ast.SelectionSet, v model.WhatsAppSyncStatus) graphql.Marshaler {
+	return ec._WhatsAppSyncStatus(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNWhatsAppSyncStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐWhatsAppSyncStatus(ctx context.Context, sel ast.SelectionSet, v *model.WhatsAppSyncStatus) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._WhatsAppSyncStatus(ctx, sel, v)
 }
 
 func (ec *executionContext) marshalN__Directive2githubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐDirective(ctx context.Context, sel ast.SelectionSet, v introspection.Directive) graphql.Marshaler {

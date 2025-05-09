@@ -119,7 +119,6 @@ type Mutation {
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
   deleteAgentTask(id: ID!): Boolean!
   removeMCPServer(id: String!): Boolean!
-  # WhatsApp integration
   startWhatsAppConnection: Boolean!
 }
 
@@ -130,8 +129,14 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
-  # WhatsApp QR code updates
-  whatsAppQRCodeUpdated: WhatsAppQRCodeUpdate!
+  whatsAppSyncStatus: WhatsAppSyncStatus!
+}
+
+type WhatsAppSyncStatus {
+  isSyncing: Boolean!
+  isCompleted: Boolean!
+  error: String
+  statusMessage: String
 }
 
 type DataSource {
