@@ -56,7 +56,7 @@ For the GraphQL interface between Electron and Go, keep it minimal to reduce com
 
 ### Temporal
 
-I recommend that we don't use `go.temporal.io` workflows at this point.
+I recommend that we don't use `go.temporal.io` workflows at this point. We have a database and NATS. This should cover our needs.
 
 ## Data flow
 
@@ -80,7 +80,7 @@ flowchart TD
     end
 
     subgraph Backend
-        Agent
+        Agent[Twin tasks]
         Chat[Twin chat]
         subgraph Support
             LLM[AI]
