@@ -180,7 +180,6 @@ Right now.
     - `bin`
     - `types/types.go`
     - `internal/service/docker/service.go`
-    - `dataimport/gmail/output/failed_emails.mbox`
     - Move utility functions under `pkg/helpers` that are used 0-1 times to the package where they are used.
       - [A little copying is better than a little dependency](https://go-proverbs.github.io/).
       - Let's discuss if there are utility functions that are used > 1 times...
