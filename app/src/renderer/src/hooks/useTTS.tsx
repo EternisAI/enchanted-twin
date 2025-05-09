@@ -1,4 +1,3 @@
-// src/renderer/hooks/useTTS.ts
 import { createContext, useContext } from 'react'
 import { TTSAPI } from '@renderer/lib/ttsProvider'
 
