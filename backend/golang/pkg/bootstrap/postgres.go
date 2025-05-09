@@ -225,8 +225,6 @@ func (s *PostgresService) EnsureDatabase(ctx context.Context, dbName string) err
 		"-c", fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname = '%s'", dbName),
 	})
 
-	s.logger.Debug("Database exists", "output", output)
-
 	// If database doesn't exist (no rows), create it
 	if err == nil && !strings.Contains(output, "1 row") {
 		s.logger.Info("Database doesn't exist, creating it", slog.String("database", dbName))

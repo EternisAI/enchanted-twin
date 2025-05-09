@@ -230,6 +230,6 @@ type AgentTask {
   createdAt: DateTime!
   updatedAt: DateTime!
   completedAt: DateTime
-  endedAt: DateTime
+  terminatedAt: DateTime
   output: String
 }
