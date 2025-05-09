@@ -57,7 +57,7 @@ export function startScreenpipe(): void {
   }
 }
 
-export function installAndStartScreenpipe(): Promise<void> {
+export function installAndStartScreenpipe(): Promise<{ success: boolean; error?: string }> {
   const isWindows = platform() === 'win32'
   const installCommand = isWindows
     ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
@@ -65,13 +65,17 @@ export function installAndStartScreenpipe(): Promise<void> {
 
   return new Promise((resolve, reject) => {
     exec(installCommand, (err, stdout, stderr) => {
-      if (err && stderr) {
+      if (err || stderr) {
         log.error(`Failed to install screenpipe: ${err} ${stderr}`)
-        reject(new Error(`Failed to install screenpipe: ${err} ${stderr}`))
+        if (err) {
+          resolve({ success: false, error: `Failed to install screenpipe: ${err}` })
+        } else {
+          resolve({ success: false, error: `Failed to install screenpipe: ${stderr}` })
+        }
       } else {
-        log.info('Screenpipe installed successfully')
+        log.info('Screenpipe already installed')
         startScreenpipe()
-        resolve()
+        resolve({ success: true })
       }
     })
   })
