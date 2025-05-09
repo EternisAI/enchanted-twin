@@ -1,3 +1,4 @@
+// Owner: august@eternis.ai
 package main
 
 import (
@@ -155,6 +156,18 @@ func main() {
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create memory"))
 	}
+
+	ttsSvc, err := bootstrapTTS(logger)
+	if err != nil {
+		logger.Error("TTS bootstrap failed", "error", err)
+		panic(errors.Wrap(err, "TTS bootstrap failed"))
+	}
+	go func() {
+		if err := ttsSvc.Start(context.Background()); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Error("TTS service stopped unexpectedly", "error", err)
+			panic(errors.Wrap(err, "TTS service stopped unexpectedly"))
+		}
+	}()
 
 	temporalClient, err := bootstrapTemporalServer(logger, envs)
 	if err != nil {
@@ -376,35 +389,34 @@ type bootstrapTemporalWorkerInput struct {
 	rootClient           *root.RootClient
 }
 
-func bootstrapTTS(logger *log.Logger) *tts.Service {
-	port := 45000
-	dockerService, err := docker.NewService(docker.ContainerOptions{
-		ImageName: "ghcr.io/remsky/kokoro-fastapi-cpu",
+func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
+	const (
+		hostPort = 45000
+		image    = "ghcr.io/remsky/kokoro-fastapi-cpu"
+	)
+
+	dockerSvc, err := docker.NewService(docker.ContainerOptions{
+		ImageName: image,
 		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprintf("%d", port): "8880"},
+		Ports:     map[string]string{fmt.Sprint(hostPort): "8880"},
 		Detached:  true,
 	}, logger)
 	if err != nil {
-		logger.Error("Failed to create Docker service", "error", err)
-		panic(errors.Wrap(err, "Unable to create Docker service"))
+		logger.Error("docker service init", "error", err)
+		return nil, errors.Wrap(err, "docker service init")
 	}
-	err = dockerService.RunContainer(context.Background())
-	if err != nil {
-		logger.Error("Failed to start TTS service", "error", err)
-		panic(errors.Wrap(err, "Unable to start TTS service"))
+	if err := dockerSvc.RunContainer(context.Background()); err != nil {
+		logger.Error("docker run", "error", err)
+		return nil, errors.Wrap(err, "docker run")
 	}
+
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", port),
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", hostPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
 	svc := tts.New(":8080", engine, *logger)
-	err = svc.Start(context.Background())
-	if err != nil {
-		logger.Error("Failed to start TTS service", "error", err)
-		panic(errors.Wrap(err, "Unable to start TTS service"))
-	}
-	return svc
+	return svc, nil
 }
 
 func bootstrapTemporalWorker(

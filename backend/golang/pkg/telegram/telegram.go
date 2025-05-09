@@ -1,3 +1,4 @@
+// Owner: slimane@eternis.ai
 package telegram
 
 import (
