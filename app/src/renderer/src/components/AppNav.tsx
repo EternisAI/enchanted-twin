@@ -1,6 +1,6 @@
 import { cn } from '@renderer/lib/utils'
 import { Link, useRouterState } from '@tanstack/react-router'
-import { Home, MessageCircle, Settings, Shield } from 'lucide-react'
+import { Home, MessageCircle, Settings, Shield, ListTodo } from 'lucide-react'
 
 const LINKS = [
   {
@@ -12,6 +12,11 @@ const LINKS = [
     label: 'Chats',
     href: '/chat',
     icon: MessageCircle
+  },
+  {
+    label: 'Tasks',
+    href: '/tasks',
+    icon: ListTodo
   },
   {
     label: 'Settings',

@@ -11,8 +11,10 @@
 // Import Routes
 
 import { Route as rootRoute } from './routes/__root'
+import { Route as TasksImport } from './routes/tasks'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
+import { Route as McpImport } from './routes/mcp'
 import { Route as AdminImport } from './routes/admin'
 import { Route as ChatRouteImport } from './routes/chat/route'
 import { Route as IndexImport } from './routes/index'
@@ -20,6 +22,12 @@ import { Route as ChatIndexImport } from './routes/chat/index'
 import { Route as ChatChatIdImport } from './routes/chat/$chatId'
 
 // Create/Update Routes
+
+const TasksRoute = TasksImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => rootRoute,
+} as any)
 
 const SettingsRoute = SettingsImport.update({
   id: '/settings',
@@ -30,6 +38,12 @@ const SettingsRoute = SettingsImport.update({
 const OnboardingRoute = OnboardingImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const McpRoute = McpImport.update({
+  id: '/mcp',
+  path: '/mcp',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -88,6 +102,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminImport
       parentRoute: typeof rootRoute
     }
+    '/mcp': {
+      id: '/mcp'
+      path: '/mcp'
+      fullPath: '/mcp'
+      preLoaderRoute: typeof McpImport
+      parentRoute: typeof rootRoute
+    }
     '/onboarding': {
       id: '/onboarding'
       path: '/onboarding'
@@ -100,6 +121,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsImport
+      parentRoute: typeof rootRoute
+    }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksImport
       parentRoute: typeof rootRoute
     }
     '/chat/$chatId': {
@@ -139,8 +167,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/chat': typeof ChatRouteRouteWithChildren
   '/admin': typeof AdminRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/chat/': typeof ChatIndexRoute
 }
@@ -148,8 +178,10 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/chat': typeof ChatIndexRoute
 }
@@ -159,8 +191,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/chat': typeof ChatRouteRouteWithChildren
   '/admin': typeof AdminRoute
+  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
+  '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
   '/chat/': typeof ChatIndexRoute
 }
@@ -171,19 +205,31 @@ export interface FileRouteTypes {
     | '/'
     | '/chat'
     | '/admin'
+    | '/mcp'
     | '/onboarding'
     | '/settings'
+    | '/tasks'
     | '/chat/$chatId'
     | '/chat/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/onboarding' | '/settings' | '/chat/$chatId' | '/chat'
+  to:
+    | '/'
+    | '/admin'
+    | '/mcp'
+    | '/onboarding'
+    | '/settings'
+    | '/tasks'
+    | '/chat/$chatId'
+    | '/chat'
   id:
     | '__root__'
     | '/'
     | '/chat'
     | '/admin'
+    | '/mcp'
     | '/onboarding'
     | '/settings'
+    | '/tasks'
     | '/chat/$chatId'
     | '/chat/'
   fileRoutesById: FileRoutesById
@@ -193,16 +239,20 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ChatRouteRoute: typeof ChatRouteRouteWithChildren
   AdminRoute: typeof AdminRoute
+  McpRoute: typeof McpRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
+  TasksRoute: typeof TasksRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ChatRouteRoute: ChatRouteRouteWithChildren,
   AdminRoute: AdminRoute,
+  McpRoute: McpRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
+  TasksRoute: TasksRoute,
 }
 
 export const routeTree = rootRoute
@@ -218,8 +268,10 @@ export const routeTree = rootRoute
         "/",
         "/chat",
         "/admin",
+        "/mcp",
         "/onboarding",
-        "/settings"
+        "/settings",
+        "/tasks"
       ]
     },
     "/": {
@@ -235,11 +287,17 @@ export const routeTree = rootRoute
     "/admin": {
       "filePath": "admin.tsx"
     },
+    "/mcp": {
+      "filePath": "mcp.tsx"
+    },
     "/onboarding": {
       "filePath": "onboarding.tsx"
     },
     "/settings": {
       "filePath": "settings.tsx"
+    },
+    "/tasks": {
+      "filePath": "tasks.tsx"
     },
     "/chat/$chatId": {
       "filePath": "chat/$chatId.tsx",

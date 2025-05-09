@@ -47,7 +47,7 @@ func CreateStandardTools(
 
 	// Create PlannedAgentTool if temporal client is available
 	if temporalClient != nil && completionsModel != "" {
-		plannedAgentTool := plannedv2.NewPlannedAgentTool(logger, temporalClient, completionsModel)
+		plannedAgentTool := plannedv2.NewExecutePlanTool(logger, temporalClient, completionsModel)
 		standardTools = append(standardTools, plannedAgentTool)
 	}
 
@@ -111,21 +111,6 @@ func RegisterToolProviders(
 	}
 	if len(registeredTools) > 0 {
 		logger.Info("Registered tools from providers", "count", len(registeredTools))
-	}
-
-	return registeredTools
-}
-
-// RegisterMCPTools registers MCP tools with the registry.
-// This function takes a slice of MCP tools and registers them.
-// Returns the list of successfully registered tools.
-func RegisterMCPTools(registry tools.ToolRegistry, mcpTools []tools.Tool) []tools.Tool {
-	registeredTools := []tools.Tool{}
-
-	for _, tool := range mcpTools {
-		if err := registry.Register(tool); err == nil {
-			registeredTools = append(registeredTools, tool)
-		}
 	}
 
 	return registeredTools

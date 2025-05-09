@@ -17,6 +17,7 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -298,7 +299,41 @@ func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID str
 	return true, nil
 }
 
-// RemoveMCPServer is the resolver for the removeMCPServer field.
+// DeleteAgentTask is the resolver for the deleteAgentTask field.
+func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool, error) {
+	runID := id
+
+	// Use the RootClient to properly terminate the workflow and update state
+	if r.RootClient != nil {
+		// Call our new method that handles both termination and state cleanup
+		cmdID, err := r.RootClient.TerminateChildWorkflow(ctx, runID, "Deleted via GraphQL API")
+		if err != nil {
+			r.Logger.Error("Failed to terminate workflow", "error", err, "runID", runID)
+			return false, fmt.Errorf("failed to delete agent task: %w", err)
+		}
+
+		r.Logger.Info("Successfully terminated workflow", "workflowID", id, "commandID", cmdID)
+		return true, nil
+	} else {
+		// Fallback to direct Temporal client if RootClient is not available
+		r.Logger.Warn("RootClient not available, falling back to direct termination", "workflowID", id)
+
+		// Create a Temporal client to interact with the workflow
+		c := r.TemporalClient
+
+		// Try to terminate the workflow by ID
+		err := c.TerminateWorkflow(ctx, id, "", "Deleted via GraphQL API")
+		if err != nil {
+			r.Logger.Error("Failed to terminate workflow", "error", err, "workflowID", id)
+			return false, fmt.Errorf("failed to delete agent task: %w", err)
+		}
+
+		r.Logger.Info("Successfully terminated workflow but state may not be updated in root workflow",
+			"workflowID", id)
+		return true, nil
+	}
+}
+
 func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool, error) {
 	err := r.MCPService.RemoveMCPServer(ctx, id)
 	if err != nil {
@@ -398,6 +433,66 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 		}
 	}
 	return toolsDefinitions, nil
+}
+
+// GetAgentTasks is the resolver for the getAgentTasks field.
+func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, error) {
+	tc := r.TemporalClient
+	rc := r.RootClient
+
+	runs, err := rc.ListWorkflows(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list active runs: %w", err)
+	}
+	r.Logger.Debug("total runs", "count", len(runs))
+
+	tasks := make([]*model.AgentTask, 0, len(runs))
+	for _, run := range runs {
+		// TODO: below as func GetState() to plannedv2 or baseagent
+		r.Logger.Debug("querying workflow", "workflow_id", run.WorkflowID, "run_id", run.RunID)
+		queryRes, err := tc.QueryWorkflow(
+			ctx,
+			run.WorkflowID,
+			run.RunID,
+			planned.QueryGetState,
+		)
+		if err != nil {
+			r.Logger.Warn("failed to query workflow", "error", err)
+			continue
+		}
+		var state planned.PlanState
+		if err := queryRes.Get(&state); err != nil {
+			r.Logger.Warn("failed to get workflow state", "error", err)
+			continue
+		}
+
+		updatedAt := run.CreatedAt
+		if len(state.History) > 0 {
+			updatedAt = state.History[len(state.History)-1].Timestamp
+		}
+
+		endedAt := state.CompletedAt
+		completedAt := state.CompletedAt
+		if !run.EndedAt.IsZero() {
+			endedAt = run.EndedAt
+		}
+
+		tasks = append(tasks, &model.AgentTask{
+			ID:          run.RunID,
+			Name:        state.Name,
+			Schedule:    state.Schedule,
+			Plan:        &state.Plan,
+			CreatedAt:   run.CreatedAt.String(),
+			UpdatedAt:   updatedAt.String(),
+			EndedAt:     helpers.TimeToStringPtr(endedAt),
+			CompletedAt: helpers.TimeToStringPtr(completedAt),
+			Output:      &state.Output,
+		})
+
+		r.Logger.Debug("returning to FE", "tasks", tasks[len(tasks)-1])
+	}
+
+	return tasks, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.

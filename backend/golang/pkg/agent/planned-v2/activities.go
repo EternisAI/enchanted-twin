@@ -47,7 +47,7 @@ func (a *AgentActivities) LLMCompletionActivity(
 	if len(selectedTools) > 0 {
 		toolz = toolz.Selecting(selectedTools...)
 	}
-	toolz = toolz.Excluding("schedule_task")
+	toolz = toolz.Excluding("execute_plan", "schedule_task")
 
 	availableTools := toolz.Definitions()
 	for _, tool := range tools.WorkflowImmediateTools() {
