@@ -45,7 +45,9 @@ func (t *ExecutePlanTool) Definition() openai.ChatCompletionToolParam {
 		Function: openai.FunctionDefinitionParam{
 			Name: "execute_plan",
 			Description: param.NewOpt(
-				"Submits a multi-step plan to the system for autonomous execution. Optionally schedule the plan for repeated execution.",
+				"Submits a multi-step plan to the system for autonomous execution. " +
+					"Optionally schedule the plan for repeated execution. " +
+					"If specifying a schedule, do not include a step in the plan to repeat.",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
@@ -61,8 +63,10 @@ func (t *ExecutePlanTool) Definition() openai.ChatCompletionToolParam {
 					},
 					// --- Optional ---
 					"schedule": map[string]any{
-						"type":        "string",
-						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;INTERVAL=1;BYHOUR=9'). If provided, the plan will be scheduled.",
+						"type": "string",
+						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;INTERVAL=1;BYHOUR=9'). " +
+							"If provided, the plan will be scheduled to be executed by a child workflow. " +
+							"Do not add a plan step to repeat the plan, as this will be handled by the scheduler.",
 					},
 					"tools": map[string]any{
 						"type":        "array",

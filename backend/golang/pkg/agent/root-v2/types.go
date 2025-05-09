@@ -56,7 +56,7 @@ type ChildRunInfo struct {
 	WorkflowID   string    `json:"workflow_id"` // Child workflow ID
 	TaskID       string    `json:"task_id"`     // User-provided ID (optional)
 	CreatedAt    time.Time `json:"start_time"`
-	CompletedAt      time.Time `json:"ended_at,omitempty"`      // Optional end time
+	CompletedAt  time.Time `json:"ended_at,omitempty"`      // Optional end time
 	TerminatedAt time.Time `json:"terminated_at,omitempty"` // Optional termination time`
 }
 
