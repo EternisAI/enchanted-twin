@@ -21,9 +21,10 @@ import { useRouter } from '@tanstack/react-router'
 interface ChatCardProps {
   chat: Chat
   isActive?: boolean
+  hideTimestamp?: boolean
 }
 
-export function ChatCard({ chat, isActive }: ChatCardProps) {
+export function ChatCard({ chat, isActive, hideTimestamp }: ChatCardProps) {
   const router = useRouter()
   const [deleteChat] = useMutation(DeleteChatDocument, {
     refetchQueries: [GetChatsDocument],
@@ -37,11 +38,6 @@ export function ChatCard({ chat, isActive }: ChatCardProps) {
       })
     }
   })
-
-  const lastMessage = chat.messages[chat.messages.length - 1]
-  const lastMessageText = lastMessage?.text || 'No messages yet'
-  const truncatedText =
-    lastMessageText.length > 100 ? lastMessageText.substring(0, 100) + '...' : lastMessageText
 
   return (
     <Link
@@ -90,10 +86,11 @@ export function ChatCard({ chat, isActive }: ChatCardProps) {
           </AlertDialog>
         </div>
       </div>
-      <p className="text-sm text-muted-foreground line-clamp-2">{truncatedText}</p>
-      <div className="text-xs text-muted-foreground">
-        {lastMessage ? new Date(lastMessage.createdAt).toLocaleString() : 'No messages'}
-      </div>
+      {!hideTimestamp && (
+        <div className="text-xs text-muted-foreground">
+          {new Date(chat.createdAt).toLocaleString()}
+        </div>
+      )}
     </Link>
   )
 }

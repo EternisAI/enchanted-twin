@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowBigUp, X } from 'lucide-react'
-import { Textarea } from '../ui/textarea'
+import { ArrowBigUp, History, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
@@ -27,26 +26,45 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
     }
   }
 
+  const [isDeepMemory, setIsDeepMemory] = useState(false)
+
+  const toggleDeepMemory = () => {
+    setIsDeepMemory(!isDeepMemory)
+  }
+
   return (
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        'flex flex-col gap-3 rounded-t-lg border border-border bg-background/90 p-4 shadow-xl w-full'
+        'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-[0_4px_12px_rgba(0,0,0,0.1)] w-full'
       )}
       transition={{
         layout: { type: 'spring', damping: 25, stiffness: 280 }
       }}
     >
       <div className="flex items-center gap-3 w-full">
-        <Textarea
+        <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={3}
+          rows={1}
           autoFocus
           placeholder="Type a message..."
-          className="flex-1 resize-none bg-transparent text-foreground placeholder-muted-foreground outline-none"
+          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none"
         />
+      </div>
+      <div className="flex justify-between items-center gap-3">
+        <Button
+          onClick={toggleDeepMemory}
+          className={cn(
+            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
+            isDeepMemory ? 'text-orange-500 !bg-orange-50 ring-orange-200 ring-1' : ''
+          )}
+          variant="outline"
+        >
+          <History className="w-4 h-5" />
+          Deep Memory
+        </Button>
         <SendButton
           onSend={handleSend}
           isWaitingTwinResponse={isWaitingTwinResponse}

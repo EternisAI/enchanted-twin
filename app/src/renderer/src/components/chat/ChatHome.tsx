@@ -122,7 +122,7 @@ export default function ChatHome() {
             </div>
           </div>
         </div>
-        <div className="px-6 h-[130px] w-full flex flex-col justify-end">
+        <div className="fixed bottom-6 left-0 right-0 px-6 h-[130px] w-full flex flex-col justify-end">
           <MessageInput isWaitingTwinResponse={false} onSend={handleStartChat} />
         </div>
       </div>

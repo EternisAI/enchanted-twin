@@ -113,13 +113,9 @@ export function ContextCard() {
                     placeholder="Add context..."
                     onClick={() => !isEditing && setIsEditing(true)}
                     className={`w-full resize-none transition-all duration-200 rounded-lg ${
-                      !isEditing
-                        ? 'min-h-0 max-h-[150px] cursor-pointer hover:bg-muted/50 border-transparent'
-                        : 'max-h-[150px] h-fit'
+                      !isEditing ? 'min-h-0 max-h-[150px] border-transparent' : 'max-h-[150px]'
                     }`}
-                    style={{
-                      height: !isEditing ? 'auto' : '150px'
-                    }}
+                    style={{}}
                     autoFocus={isEditing}
                   />
                 </motion.div>

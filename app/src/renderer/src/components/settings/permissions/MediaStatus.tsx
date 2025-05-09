@@ -76,14 +76,14 @@ function StatusCard({ type, status, queryAllMediaStatus }: StatusCardProps) {
   }
 
   return (
-    <Card className="p-4 min-w-[200px] flex flex-col items-center gap-3">
+    <Card className="p-4 min-w-[200px] flex items-center gap-3 border-none">
       <div className="flex flex-col items-center gap-2">
-        <TypeIcon className="h-8 w-8 text-muted-foreground" />
+        <TypeIcon className="h-5 w-5 text-muted-foreground" />
         <span className="capitalize font-medium">{type}</span>
       </div>
 
       <div className="flex items-center gap-2">
-        <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
+        <StatusIcon strokeWidth={1} className={cn('h-5 w-5', statusInfo.color)} />
         <span className={cn('text-sm', statusInfo.color)}>{statusInfo.label}</span>
       </div>
 

@@ -13,6 +13,7 @@ import { client } from '@renderer/graphql/lib'
 import { useRouter } from '@tanstack/react-router'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import FocusLock from 'react-focus-lock'
+import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 
 export const Omnibar = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -25,6 +26,8 @@ export const Omnibar = () => {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
+
+  const { isCompleted } = useOnboardingStore()
 
   const { isOpen, query, setQuery, closeOmnibar } = useOmnibarStore()
 
@@ -91,6 +94,7 @@ export const Omnibar = () => {
   }
 
   useEffect(() => {
+    if (!isCompleted) return
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault()
@@ -139,7 +143,7 @@ export const Omnibar = () => {
                 <motion.div
                   layoutId="message-input-container"
                   className={cn(
-                    'flex flex-col gap-3 rounded-lg border border-border bg-background/90 p-4 shadow-xl',
+                    'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-2xl',
                     'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
                   )}
                   transition={{

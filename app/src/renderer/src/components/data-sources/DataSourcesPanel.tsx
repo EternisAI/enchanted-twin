@@ -137,7 +137,7 @@ const PendingDataSourceCard = ({
   if (!sourceDetails) return null
 
   return (
-    <div className="p-4 rounded-lg bg-card border h-full flex items-center justify-between gap-3">
+    <div className="p-4 rounded-lg h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         {sourceDetails.icon}
         <div>
@@ -182,7 +182,7 @@ const IndexedDataSourceCard = ({
     !source.isIndexed && (source.isProcessed ? (source.indexProgress ?? 0) > 0 : true)
 
   return (
-    <div className="p-4 rounded-lg bg-transparent border h-full flex items-center justify-between gap-3">
+    <div className="p-4 rounded-lg bg-transparent h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3 w-full">
         <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
         <div className="flex flex-col gap-0 justify-start w-full">
@@ -530,7 +530,7 @@ export function DataSourcesPanel({
           size="lg"
           onClick={handleStartIndexing}
           disabled={isIndexing || isProcessing || isNotStarted || !hasPendingDataSources}
-          className="w-full"
+          className="w-fit"
         >
           {isIndexing ? (
             <>

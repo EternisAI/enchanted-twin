@@ -48,7 +48,7 @@ function RootComponent() {
           <GlobalIndexingStatus />
         </div>
         <motion.div className="flex-1 flex flex-col overflow-hidden">
-          <motion.div className="flex-1 flex overflow-hidden relative">
+          <motion.div layout="position" className="flex-1 flex overflow-hidden relative">
             <Outlet />
             <Omnibar />
           </motion.div>

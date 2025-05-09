@@ -145,8 +145,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex-1 overflow-y-auto pt-14">
-        <div className="flex flex-col items-center p-6">
+      <div className="flex-1 overflow-y-auto pt-14 w-full">
+        <div className="flex flex-col items-center p-6 w-full">
           <div className="w-full">
             <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
             {error && (
@@ -158,7 +158,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
           </div>
         </div>
       </div>
-      <div className="flex flex-col px-6 py-4 pb-0 w-full items-center justify-center">
+      <div className="flex flex-col w-full items-center justify-center">
         <div className="w-full flex justify-center items-center relative">
           <ChatSuggestions
             chatId={chat.id}
@@ -167,7 +167,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
             toggleVisibility={() => setShowSuggestions(!showSuggestions)}
           />
         </div>
-        <div className="w-full flex justify-center items-center">
+        <div className="pb-4 w-full max-w-4xl flex justify-center items-center ">
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}

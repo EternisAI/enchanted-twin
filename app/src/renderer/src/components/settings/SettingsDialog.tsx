@@ -1,7 +1,6 @@
 import { Dialog, DialogContent } from '@renderer/components/ui/dialog'
-import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
-import { Monitor, Moon, Sun, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
+import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
@@ -10,10 +9,11 @@ import * as Tabs from '@radix-ui/react-tabs'
 import FocusLock from 'react-focus-lock'
 import PermissionsCard from './permissions/PermissionsCard'
 import Versions from '../Versions'
+import SystemTheme from './appearance/system-theme'
+import { ContinueSetupButton } from '../ContinueSetupButton'
 
 export function SettingsDialog() {
   const { isOpen, close, activeTab, setActiveTab } = useSettingsStore()
-  const { theme, setTheme } = useTheme()
 
   return (
     <Dialog open={isOpen} onOpenChange={close}>
@@ -26,7 +26,7 @@ export function SettingsDialog() {
               className="flex h-full w-full"
               orientation="vertical"
             >
-              <Tabs.List className="w-[240px] border-r bg-muted/50 p-4">
+              <Tabs.List className="w-[240px] bg-muted/50 p-4">
                 <Tabs.Trigger
                   value="connections"
                   className="flex items-center gap-2 w-full p-2 data-[state=active]:bg-accent rounded-md"
@@ -79,32 +79,7 @@ export function SettingsDialog() {
                       <p className="text-sm text-muted-foreground">
                         Customize how the app looks on your device.
                       </p>
-                      <div className="flex items-center gap-2 mt-4">
-                        <Button
-                          variant={theme === 'light' ? 'default' : 'outline'}
-                          className="flex-1"
-                          onClick={() => setTheme('light')}
-                        >
-                          <Sun className="mr-2" />
-                          Light
-                        </Button>
-                        <Button
-                          variant={theme === 'dark' ? 'default' : 'outline'}
-                          className="flex-1"
-                          onClick={() => setTheme('dark')}
-                        >
-                          <Moon className="mr-2" />
-                          Dark
-                        </Button>
-                        <Button
-                          variant={theme === 'system' ? 'default' : 'outline'}
-                          className="flex-1"
-                          onClick={() => setTheme('system')}
-                        >
-                          <Monitor className="mr-2" />
-                          System
-                        </Button>
-                      </div>
+                      <SystemTheme />
                     </div>
                   </ScrollArea>
                 </Tabs.Content>
@@ -133,21 +108,13 @@ export function SettingsDialog() {
                   </ScrollArea>
                 </Tabs.Content>
                 <Tabs.Content value="import-data" className="absolute inset-0">
-                  <ScrollArea className="h-full">
-                    <div className="p-8 flex flex-col gap-4">
-                      <DataSourcesPanel showStatus={true} />
-                    </div>
+                  <ScrollArea className="h-full w-full items-center p-8 flex flex-col gap-4">
+                    <DataSourcesPanel showStatus={true} />
                   </ScrollArea>
                 </Tabs.Content>
-                <Tabs.Content value="updates" className="absolute inset-0">
+                <Tabs.Content value="updates" className="absolute inset-0 p-4">
                   <ScrollArea className="h-full">
-                    <div className="p-8 flex flex-col gap-4">
-                      <h3 className="text-xl font-semibold">Updates</h3>
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Check for updates and manage your app&apos;s notifications.
-                      </p>
-                      <Versions />
-                    </div>
+                    <Versions />
                   </ScrollArea>
                 </Tabs.Content>
                 <Tabs.Content value="advanced" className="absolute inset-0">
@@ -179,6 +146,7 @@ export function SettingsDialog() {
                         >
                           Delete App Data
                         </Button>
+                        <ContinueSetupButton />
                       </div>
                     </div>
                   </ScrollArea>
