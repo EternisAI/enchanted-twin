@@ -4,7 +4,7 @@
 
 Discuss code organization and software engineering on the `#engineering` Slack channel.
 
-We're using Go: [read Rob's proverbs](https://go-proverbs.github.io/).
+We're using Go: let's read and embrace [Rob's proverbs](https://go-proverbs.github.io/). We may not agree with everything that's considered idiomatic Go, but embracing it reduces friction.
 
 ## Package guide
 
@@ -54,10 +54,6 @@ For the GraphQL interface between Electron and Go, keep it minimal to reduce com
 - Use Goroutines for concurrency, but avoid creating Goroutines that persist beyond the function's execution whenever possible. Bugs in background or long-running tasks are difficult to diagnose and debug.
   - Instead, centralize the creation of all Goroutines that must perform background tasks (timers, imports, etc.) in the `main` function. This approach makes it easier to monitor and control these tasks.
 
-### Temporal
-
-I recommend that we don't use `go.temporal.io` workflows at this point. We have a database and NATS. This should cover our needs.
-
 ## Data flow
 
 Below is a diagram that describes the main data-flows in the application. 
@@ -77,29 +73,30 @@ flowchart TD
       Fetching[Data processing]
       DataDerivation[Data derivation]
       ScreenPipe([ScreenPipe])
+      OAuth -- Provides Tokens --> Fetching
+      Fetching -- Base Data --> DataDerivation
+      DataDerivation -- Derived Data --> Fetching
     end
 
     subgraph Backend
-        Agent[Twin tasks]
+        Tasks[Twin tasks]
         Chat[Twin chat]
         subgraph Support
-            LLM[AI]
-            Augmentation[Memory]
+            Agent
+            AI[AI]
+            Memory[Memory]
             MCP[MCP Server]
+            Agent -- Use --> AI
+            Agent -- Use --> MCP
+            Agent -- Use --> Memory
         end
+        Chat <-- Request --> Support
+        Tasks <-- Request --> Support
     end
-
+    
     App -- Authorize --> OAuth
     App -- Request --> Chat
-    App -.-|Subscription| Agent
-
-    Chat <-- Request --> Support
-    Agent <-- Request --> Support
-
-    OAuth -- Provides Tokens --> Fetching
-
-    Fetching -- Base Data --> DataDerivation
-    DataDerivation -- Derived Data --> Fetching
+    App -.-|Subscription| Tasks
 ```
 
 - Rectangles correspond to Go components (packages).
@@ -190,5 +187,5 @@ Right now.
 Soon.
 
 - Move code under `db` to the relevant package.
-- Let `agent/memory` graduate to a top-level package.
+- Let `Tasks/memory` graduate to a top-level package.
 - ...
