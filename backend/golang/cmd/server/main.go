@@ -161,9 +161,8 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
-	rootClient := root.NewRootClient(temporalClient, logger)
-
 	// Ensure the root workflow is running
+	rootClient := root.NewRootClient(temporalClient, logger)
 	if err := rootClient.EnsureRunRootWorkflow(context.Background()); err != nil {
 		logger.Error("Failed to ensure root workflow is running", "error", err)
 		logger.Error("Child workflows may not be able to start")
