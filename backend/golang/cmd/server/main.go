@@ -43,6 +43,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -299,6 +300,10 @@ func main() {
 		rootClient:      rootClient,
 	})
 
+	go func() {
+		bootstrapTTS(logger)
+	}()
+
 	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
 		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
@@ -369,6 +374,21 @@ type bootstrapTemporalWorkerInput struct {
 	registry             tools.ToolRegistry
 	aiCompletionsService *ai.Service
 	rootClient           *root.RootClient
+}
+
+func bootstrapTTS(logger *log.Logger) *tts.Service {
+	engine := tts.Kokoro{
+		Endpoint: "http://localhost:8880/v1/audio/speech",
+		Model:    "kokoro",
+		Voice:    "af_bella+af_heart",
+	}
+	svc := tts.New(":8080", engine, *logger)
+	err := svc.Start(context.Background())
+	if err != nil {
+		logger.Error("Failed to start TTS service", "error", err)
+		panic(errors.Wrap(err, "Unable to start TTS service"))
+	}
+	return svc
 }
 
 func bootstrapTemporalWorker(
