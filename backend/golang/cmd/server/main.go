@@ -28,6 +28,7 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
+	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
@@ -377,13 +378,28 @@ type bootstrapTemporalWorkerInput struct {
 }
 
 func bootstrapTTS(logger *log.Logger) *tts.Service {
+	dockerService, err := docker.NewService(docker.ContainerOptions{
+		ImageName: "ghcr.io/remsky/kokoro-fastapi-cpu",
+		ImageTag:  "latest",
+		Ports:     map[string]string{"8880": "8880"},
+		Detached:  true,
+	}, logger)
+	if err != nil {
+		logger.Error("Failed to create Docker service", "error", err)
+		panic(errors.Wrap(err, "Unable to create Docker service"))
+	}
+	err = dockerService.RunContainer(context.Background())
+	if err != nil {
+		logger.Error("Failed to start TTS service", "error", err)
+		panic(errors.Wrap(err, "Unable to start TTS service"))
+	}
 	engine := tts.Kokoro{
 		Endpoint: "http://localhost:8880/v1/audio/speech",
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
 	svc := tts.New(":8080", engine, *logger)
-	err := svc.Start(context.Background())
+	err = svc.Start(context.Background())
 	if err != nil {
 		logger.Error("Failed to start TTS service", "error", err)
 		panic(errors.Wrap(err, "Unable to start TTS service"))
