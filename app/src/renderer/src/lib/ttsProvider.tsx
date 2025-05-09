@@ -1,6 +1,21 @@
-import { useCallback, useRef } from 'react'
+import { TTSContext } from '@renderer/hooks/useTTS'
+import { ReactNode, useCallback, useMemo, useRef, useState } from 'react'
 
-export function useTTS(wsURL = 'ws://localhost:8080/ws') {
+export interface TTSAPI {
+  speak: (text: string) => Promise<void>
+  stop: () => void
+  isSpeaking: boolean
+}
+
+export function TTSProvider({
+  children,
+  wsURL = 'ws://localhost:8080/ws'
+}: {
+  children: ReactNode
+  wsURL?: string
+}) {
+  const [isSpeaking, setIsSpeaking] = useState(false)
+
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
@@ -11,6 +26,7 @@ export function useTTS(wsURL = 'ws://localhost:8080/ws') {
       el.autoplay = true
       el.controls = false
       el.style.display = 'none'
+      el.addEventListener('ended', () => setIsSpeaking(false))
       document.body.appendChild(el)
       audioRef.current = el
     }
@@ -36,6 +52,8 @@ export function useTTS(wsURL = 'ws://localhost:8080/ws') {
       audioRef.current.pause()
       audioRef.current.src = ''
     }
+
+    setIsSpeaking(false)
   }, [])
 
   const speak = useCallback(
@@ -45,10 +63,12 @@ export function useTTS(wsURL = 'ws://localhost:8080/ws') {
 
       const ws = new WebSocket(wsURL)
       const pc = new RTCPeerConnection()
-      pc.createDataChannel('audio')
+      pc.createDataChannel('audio') // keep your original approach
+
       wsRef.current = ws
       pcRef.current = pc
 
+      /* MediaSource & audio element */
       const mediaSource = new MediaSource()
       const audio = ensureAudio()
       audio.src = URL.createObjectURL(mediaSource)
@@ -75,6 +95,8 @@ export function useTTS(wsURL = 'ws://localhost:8080/ws') {
       }
 
       ws.onopen = async () => {
+        setIsSpeaking(true)
+
         const offer = await pc.createOffer()
         await pc.setLocalDescription(offer)
         await waitIceComplete(pc)
@@ -91,14 +113,13 @@ export function useTTS(wsURL = 'ws://localhost:8080/ws') {
         await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(data as string)))
       }
 
-      ws.onerror = (err) => {
-        console.error(err)
-        stop()
-      }
+      ws.onerror = () => stop()
       ws.onclose = stop
     },
     [wsURL, stop]
   )
 
-  return { speak, stop }
+  const api = useMemo<TTSAPI>(() => ({ speak, stop, isSpeaking }), [speak, stop, isSpeaking])
+
+  return <TTSContext.Provider value={api}>{children}</TTSContext.Provider>
 }
