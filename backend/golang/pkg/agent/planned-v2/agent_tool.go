@@ -1,9 +1,10 @@
-package plannedv2
+package planned
 
 import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -44,7 +45,9 @@ func (t *ExecutePlanTool) Definition() openai.ChatCompletionToolParam {
 		Function: openai.FunctionDefinitionParam{
 			Name: "execute_plan",
 			Description: param.NewOpt(
-				"Submits a multi-step plan to the system for autonomous execution. Optionally schedule the plan for repeated execution.",
+				"Submits a multi-step plan to the system for autonomous execution. " +
+					"Optionally schedule the plan for repeated execution. " +
+					"If specifying a schedule, do not include a step in the plan to repeat.",
 			),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
@@ -60,8 +63,10 @@ func (t *ExecutePlanTool) Definition() openai.ChatCompletionToolParam {
 					},
 					// --- Optional ---
 					"schedule": map[string]any{
-						"type":        "string",
-						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;INTERVAL=1;BYHOUR=9'). If provided, the plan will be scheduled.",
+						"type": "string",
+						"description": "Optional iCalendar RRULE formatted schedule string (e.g., 'FREQ=DAILY;INTERVAL=1;BYHOUR=9'). " +
+							"If provided, the plan will be scheduled to be executed by a child workflow. " +
+							"Do not add a plan step to repeat the plan, as this will be handled by the scheduler.",
 					},
 					"tools": map[string]any{
 						"type":        "array",
@@ -108,7 +113,11 @@ func (t *ExecutePlanTool) Execute(
 			if toolName, ok := toolRaw.(string); ok {
 				toolNameCut, found := strings.CutPrefix(toolName, "function.")
 				if found {
-					t.logger.Info("removed 'function.' prefix for tool", "tool_name", toolNameCut)
+					t.logger.Debug("removed 'function.' prefix for tool", "tool_name", toolNameCut)
+				}
+				toolNameCut, found = strings.CutPrefix(toolNameCut, "functions.")
+				if found {
+					t.logger.Debug("removed 'functions.' prefix for tool", "tool_name", toolNameCut)
 				}
 				toolNames = append(toolNames, toolNameCut)
 			}
@@ -120,15 +129,44 @@ func (t *ExecutePlanTool) Execute(
 		schedule = scheduleArg
 	}
 
-	// --- 2. Prepare Input for the Child Workflow (PlannedAgentWorkflow) ---
-	planInput := PlanInput{
-		Name:      name,
-		Schedule:  schedule,
-		Plan:      plan,
-		ToolNames: toolNames,
-		Model:     t.model,
-		MaxSteps:  t.maxSteps,
-		Origin:    args, // Pass original tool args for context within the child
+	// --- 2. Prepare Input and Workflow Selection ---
+	var workflowName string
+	var workflowArgs []any
+
+	if schedule == "" {
+		// If no schedule, run a one-time plan execution
+		planInput := PlanInput{
+			Name:      name,
+			Plan:      plan,
+			ToolNames: toolNames,
+			Model:     t.model,
+			MaxSteps:  t.maxSteps,
+			Origin:    args, // Pass original tool args for context within the child
+		}
+		workflowName = PlannedWorkflowName
+		workflowArgs = []any{planInput}
+	} else {
+		// If schedule is provided, run a scheduled plan
+		scheduledInput := ScheduledPlanInput{
+			Name:      name,
+			Plan:      plan,
+			Schedule:  schedule,
+			ToolNames: toolNames,
+			Model:     t.model,
+			MaxSteps:  t.maxSteps,
+			Origin:    args,
+		}
+
+		// Create an initial state object to pass directly
+		initialState := SchedulerState{
+			Input:         scheduledInput,
+			StartedAt:     time.Time{}, // Will be set by workflow
+			CompletedRuns: 0,
+			ChildRunIDs:   []string{},
+		}
+
+		workflowName = ScheduledPlanWorkflowName
+		workflowArgs = []any{initialState}
 	}
 
 	// // Marshal PlanInput to JSON []byte for passing as a single arg
@@ -145,15 +183,11 @@ func (t *ExecutePlanTool) Execute(
 	cmdID := uuid.NewString()  // Generate unique command ID for idempotency
 	taskID := uuid.NewString() // Generate unique task ID for Temporal workflow ID
 
-	// Root workflow expects arguments for the child workflow as []any.
-	// Here, PlannedAgentWorkflow expects a single PlanInput argument.
-	// We marshal it to JSON bytes above.
-	childWorkflowArgs := []any{planInput}
-
+	// Command arguments for the Root workflow
 	commandArgs := map[string]any{
-		root.ArgWorkflowName: WorkflowName,      // Name of the child workflow *type*
-		root.ArgTaskID:       taskID,            // Use the generated UUID for Temporal tracking
-		root.ArgWorkflowArgs: childWorkflowArgs, // Pass the marshaled PlanInput bytes
+		root.ArgWorkflowName: workflowName, // Name of the selected child workflow *type*
+		root.ArgTaskID:       taskID,       // Use the generated UUID for Temporal tracking
+		root.ArgWorkflowArgs: workflowArgs, // Pass the appropriate input for the selected workflow
 	}
 
 	command := root.Command{
@@ -167,9 +201,10 @@ func (t *ExecutePlanTool) Execute(
 		"RootWorkflowID", root.RootWorkflowID,
 		"Command", command.Cmd,
 		"CmdID", command.CmdID,
-		"ChildWorkflowName", WorkflowName,
+		"ChildWorkflowName", workflowName,
 		"TaskID", taskID, // Log the generated Temporal task ID
 		"UserName", name, // Log the user-provided name
+		"Scheduled", schedule != "", // Log whether this is a scheduled plan
 	)
 
 	if err := t.temporalClient.SignalWorkflow(
@@ -188,7 +223,14 @@ func (t *ExecutePlanTool) Execute(
 	}
 
 	// --- 5. Return Success (Asynchronous) ---
-	successMsg := fmt.Sprintf("Successfully submitted task '%s' for execution. Check status with Command ID: %s. Internal Task ID: %s", name, cmdID, taskID)
+	var successMsg string
+	if schedule != "" {
+		successMsg = fmt.Sprintf("Successfully submitted task '%s' for scheduled execution (%s). Check status with Command ID: %s. Internal Task ID: %s",
+			name, schedule, cmdID, taskID)
+	} else {
+		successMsg = fmt.Sprintf("Successfully submitted task '%s' for execution. Check status with Command ID: %s. Internal Task ID: %s",
+			name, cmdID, taskID)
+	}
 	t.logger.Info(successMsg)
 
 	return &agenttypes.StructuredToolResult{
@@ -196,9 +238,11 @@ func (t *ExecutePlanTool) Execute(
 		ToolParams: args,
 		Output: map[string]any{
 			"content":    successMsg,
-			"command_id": cmdID,  // For querying command status
-			"task_id":    taskID, // The internal Temporal task ID
-			"name":       name,   // The user-provided name
+			"command_id": cmdID,          // For querying command status
+			"task_id":    taskID,         // The internal Temporal task ID
+			"name":       name,           // The user-provided name
+			"scheduled":  schedule != "", // Whether this is a scheduled plan
+			"schedule":   schedule,       // The schedule string if provided
 		},
 	}, nil
 }

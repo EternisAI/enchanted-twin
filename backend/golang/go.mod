@@ -25,6 +25,7 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/slack-go/slack v0.16.0
+	github.com/teambition/rrule-go v1.8.2
 	github.com/temporalio/ui-server/v2 v2.37.0
 	github.com/vektah/gqlparser/v2 v2.5.23
 	go.temporal.io/sdk v1.34.0
