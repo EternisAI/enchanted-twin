@@ -12,6 +12,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -19,9 +23,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -462,10 +463,11 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 
 	// If we have a latest QR event, use its data
 	if latestQREvent != nil {
-		if latestQREvent.Event == "success" {
+		switch latestQREvent.Event {
+		case "success":
 			isConnected = true
 			qrCodeData = nil
-		} else if latestQREvent.Event == "code" {
+		case "code":
 			isConnected = false
 			qrCodeData = &latestQREvent.Code
 		}

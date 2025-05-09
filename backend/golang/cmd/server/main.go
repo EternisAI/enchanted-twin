@@ -26,13 +26,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
@@ -154,7 +151,7 @@ func main() {
 					TotalItems:     0,
 					StatusMessage:  "Waiting for history sync to begin",
 				})
-				whatsapp.PublishSyncStatus(nc, logger)
+				whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
 
 				successUpdate := map[string]interface{}{
 					"event":        "success",
@@ -632,21 +629,11 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 					TotalItems:     0,
 					StatusMessage:  "Waiting for history sync to begin",
 				})
-				whatsapp.PublishSyncStatus(nc, logger)
-
-				jid := types.JID{
-					User:   "33687866890",
-					Server: "s.whatsapp.net",
-				}
-				msg := &waE2E.Message{
-					Conversation: proto.String("Hello from WhatsMeow!"),
-				}
-				resp, err := client.SendMessage(context.Background(), jid, msg)
+				err = whatsapp.PublishSyncStatus(nc, logger)
 				if err != nil {
-					logger.Error("Error sending message", slog.Any("error", err))
-				} else {
-					logger.Info("Message sent", "response", resp)
+					logger.Error("Error publishing sync status", slog.Any("error", err))
 				}
+
 			default:
 				logger.Info("Login event", "event", evt.Event)
 			}
@@ -672,7 +659,10 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 				TotalItems:     0,
 				StatusMessage:  "Waiting for history sync to begin",
 			})
-			whatsapp.PublishSyncStatus(nc, logger)
+			err = whatsapp.PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", slog.Any("error", err))
+			}
 		}
 	}
 

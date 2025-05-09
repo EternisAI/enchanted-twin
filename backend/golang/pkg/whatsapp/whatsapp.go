@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/log"
+	"github.com/nats-io/nats.go"
+	"github.com/samber/lo"
 	"go.mau.fi/whatsmeow/types/events"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
-	"github.com/charmbracelet/log"
-	"github.com/nats-io/nats.go"
-	"github.com/samber/lo"
 )
 
 type QRCodeEvent struct {
@@ -245,7 +245,6 @@ func findContactByJID(jid string) (WhatsappContact, bool) {
 func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
-
 		case *events.HistorySync:
 			StartSync()
 			logger.Info("Received WhatsApp history sync", "contacts", len(v.Data.Pushnames))
@@ -265,7 +264,10 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				StatusMessage:     fmt.Sprintf("Starting sync of %d contacts and %d messages", totalContacts, totalMessages),
 				EstimatedTimeLeft: "Calculating...",
 			})
-			PublishSyncStatus(nc, logger)
+			err := PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", "error", err)
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
@@ -293,7 +295,10 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						TotalItems:     totalItems,
 						StatusMessage:  fmt.Sprintf("Processed %d/%d contacts", processedItems, totalContacts),
 					})
-					PublishSyncStatus(nc, logger)
+					err := PublishSyncStatus(nc, logger)
+					if err != nil {
+						logger.Error("Error publishing sync status", "error", err)
+					}
 				}
 			}
 
@@ -377,7 +382,10 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 								totalContacts, totalContacts,
 								processedItems-totalContacts, totalMessages),
 						})
-						PublishSyncStatus(nc, logger)
+						err := PublishSyncStatus(nc, logger)
+						if err != nil {
+							logger.Error("Error publishing sync status", "error", err)
+						}
 					}
 				}
 
@@ -393,7 +401,10 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				TotalItems:     totalItems,
 				StatusMessage:  "WhatsApp history sync completed",
 			})
-			PublishSyncStatus(nc, logger)
+			err = PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", "error", err)
+			}
 			logger.Info("WhatsApp history sync completed", "total_processed", processedItems)
 
 		case *events.Message:
@@ -425,7 +436,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 			fromName := v.Info.PushName
 			if fromName == "" {
-
 				contact, found := findContactByJID(v.Info.Sender.String())
 				if found {
 					fromName = contact.Name
