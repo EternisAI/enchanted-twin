@@ -764,7 +764,7 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 	}
 
 	chats, err := client.GetChats(&tdlibclient.GetChatsRequest{
-		Limit: 100,
+		Limit: 500,
 	})
 	if err != nil {
 		logger.Error("GetChats error", "error", err)
@@ -774,16 +774,17 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 	logger.Info("Chats", "chats", chats)
 	logger.Info("Chats", "chats", chats.TotalCount)
 
-	for i := int32(0); i < chats.TotalCount; i++ {
-		message, err := client.GetMessage(&tdlibclient.GetMessageRequest{
-			ChatId:    chats.ChatIds[i],
-			MessageId: 1,
-		})
-		if err != nil {
-			logger.Error("GetMessage error", "error", err)
-		}
-
-		logger.Info("Message", "message", message)
+	chatHistory, err := client.GetChatHistory(&tdlibclient.GetChatHistoryRequest{
+		ChatId: chats.ChatIds[200],
+		Limit:  10,
+	})
+	if err != nil {
+		logger.Error("GetMessage error", "error", err)
+	}
+	logger.Info("Chat history", "total count", chatHistory.TotalCount)
+	logger.Info("Chat history", "chat history", chatHistory)
+	for i := range chatHistory.TotalCount {
+		logger.Info("Message", "message content", chatHistory.Messages[i].Content)
 	}
 
 	return client, nil
