@@ -182,6 +182,13 @@ type WhatsAppStatus struct {
 	StatusMessage string  `json:"statusMessage"`
 }
 
+type WhatsAppSyncStatus struct {
+	IsSyncing     bool    `json:"isSyncing"`
+	IsCompleted   bool    `json:"isCompleted"`
+	Error         *string `json:"error,omitempty"`
+	StatusMessage *string `json:"statusMessage,omitempty"`
+}
+
 type IndexingState string
 
 const (

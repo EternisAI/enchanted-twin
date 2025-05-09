@@ -12,6 +12,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -19,9 +23,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -462,10 +463,11 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 
 	// If we have a latest QR event, use its data
 	if latestQREvent != nil {
-		if latestQREvent.Event == "success" {
+		switch latestQREvent.Event {
+		case "success":
 			isConnected = true
 			qrCodeData = nil
-		} else if latestQREvent.Event == "code" {
+		case "code":
 			isConnected = false
 			qrCodeData = &latestQREvent.Code
 		}
@@ -791,122 +793,74 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string)
 	return ch, nil
 }
 
-// WhatsAppQRCodeUpdated is the resolver for the whatsAppQRCodeUpdated field.
-func (r *subscriptionResolver) WhatsAppQRCodeUpdated(ctx context.Context) (<-chan *model.WhatsAppQRCodeUpdate, error) {
-	// Create a channel to send updates to the client
-	updateChan := make(chan *model.WhatsAppQRCodeUpdate, 10)
+// WhatsAppSyncStatus is the resolver for the whatsAppSyncStatus field.
+func (r *subscriptionResolver) WhatsAppSyncStatus(ctx context.Context) (<-chan *model.WhatsAppSyncStatus, error) {
+	whatsappSyncStatus := make(chan *model.WhatsAppSyncStatus, 10)
+	subject := "whatsapp.sync.status"
 
-	if r.Nc == nil {
-		return nil, errors.New("NATS connection is not initialized")
-	}
+	r.Logger.Info("Setting up WhatsApp sync status subscription", "subject", subject)
 
-	subject := "whatsapp.qr_code"
-	r.Logger.Info("Subscribing to WhatsApp QR code updates", "subject", subject)
-
-	// Subscribe to the NATS subject for QR code updates
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
 		if msg == nil || len(msg.Data) == 0 {
-			r.Logger.Error("Received nil or empty NATS message")
+			r.Logger.Error("Received nil or empty WhatsApp sync status message")
 			return
 		}
 
-		r.Logger.Info("Received WhatsApp QR code update from NATS", "data_length", len(msg.Data))
+		r.Logger.Debug("Received WhatsApp sync status update", "data", string(msg.Data))
 
-		// Parse the message data
-		var eventData map[string]interface{}
-		if err := json.Unmarshal(msg.Data, &eventData); err != nil {
-			r.Logger.Error("Failed to unmarshal WhatsApp QR code update", "error", err)
+		var status model.WhatsAppSyncStatus
+		if err := json.Unmarshal(msg.Data, &status); err != nil {
+			r.Logger.Error("Failed to unmarshal WhatsApp sync status", "error", err, "data", string(msg.Data))
 			return
 		}
 
-		event, ok := eventData["event"].(string)
-		if !ok {
-			r.Logger.Error("Event is not a string")
-			return
-		}
+		r.Logger.Info("Processed WhatsApp sync status",
+			"isSyncing", status.IsSyncing,
+			"isCompleted", status.IsCompleted,
+			"statusMessage", status.StatusMessage)
 
-		timestamp, ok := eventData["timestamp"].(string)
-		if !ok {
-			r.Logger.Error("Timestamp is not a string")
-			return
-		}
-
-		isConnected, ok := eventData["is_connected"].(bool)
-		if !ok {
-			r.Logger.Error("Is connected is not a boolean")
-			return
-		}
-
-		// Create update object
-		update := &model.WhatsAppQRCodeUpdate{
-			Event:       event,
-			Timestamp:   timestamp,
-			IsConnected: isConnected,
-		}
-
-		// Only include QR code if event is 'code' and qr_code_data exists
-		if update.Event == "code" && eventData["qr_code_data"] != nil {
-			qrCode, ok := eventData["qr_code_data"].(string)
-			if !ok {
-				r.Logger.Error("QR code data is not a string")
-				return
-			}
-			update.QRCodeData = &qrCode
-			r.Logger.Info("QR code included in update", "qr_length", len(qrCode))
-		}
-
-		// Send update to client
 		select {
-		case updateChan <- update:
-			r.Logger.Info("Sent WhatsApp QR code update to GraphQL client", "event", update.Event)
+		case whatsappSyncStatus <- &status:
+			r.Logger.Debug("Sent WhatsApp sync status to client")
 		case <-ctx.Done():
-			r.Logger.Warn("Context done while sending QR update")
+			r.Logger.Info("Context canceled while sending WhatsApp sync status")
 			return
 		default:
-			r.Logger.Warn("Channel buffer full, couldn't send QR update")
+			r.Logger.Warn("WhatsApp sync status channel is full, dropping message")
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to subscribe to NATS subject: %w", err)
+		r.Logger.Error("Failed to subscribe to WhatsApp sync status", "error", err)
+		return nil, err
 	}
 
-	// Also send the current state immediately if available
-	if r.WhatsAppConnected || r.WhatsAppQRCode != nil {
-		event := "unknown"
-		if r.WhatsAppConnected {
-			event = "success"
-		} else if r.WhatsAppQRCode != nil {
-			event = "code"
-		}
-
-		update := &model.WhatsAppQRCodeUpdate{
-			Event:       event,
-			Timestamp:   time.Now().Format(time.RFC3339),
-			IsConnected: r.WhatsAppConnected,
-			QRCodeData:  r.WhatsAppQRCode,
-		}
-
-		go func(update *model.WhatsAppQRCodeUpdate) {
-			select {
-			case updateChan <- update:
-				r.Logger.Info("Sent initial WhatsApp state to client", "event", update.Event)
-			case <-time.After(1 * time.Second):
-				r.Logger.Warn("Timeout sending initial WhatsApp state")
-			}
-		}(update)
+	initialStatus := &model.WhatsAppSyncStatus{
+		IsSyncing:   false,
+		IsCompleted: false,
 	}
 
-	// Clean up when context is done
+	statusMessage := "Waiting for WhatsApp sync updates..."
+	initialStatus.StatusMessage = &statusMessage
+
 	go func() {
-		<-ctx.Done()
-		if err := sub.Unsubscribe(); err != nil {
-			r.Logger.Error("Error unsubscribing from NATS", "error", err)
+		select {
+		case whatsappSyncStatus <- initialStatus:
+			r.Logger.Info("Sent initial WhatsApp sync status to client")
+		case <-time.After(1 * time.Second):
+			r.Logger.Warn("Timeout sending initial WhatsApp sync status")
 		}
-		close(updateChan)
-		r.Logger.Info("WhatsApp QR code subscription ended")
 	}()
 
-	return updateChan, nil
+	go func() {
+		<-ctx.Done()
+		r.Logger.Info("Unsubscribing from WhatsApp sync status")
+		if err := sub.Unsubscribe(); err != nil {
+			r.Logger.Error("Error unsubscribing from WhatsApp sync status", "error", err)
+		}
+		close(whatsappSyncStatus)
+	}()
+
+	return whatsappSyncStatus, nil
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
@@ -955,8 +909,10 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type chatResolver struct{ *Resolver }
-type mutationResolver struct{ *Resolver }
-type queryResolver struct{ *Resolver }
-type subscriptionResolver struct{ *Resolver }
-type userProfileResolver struct{ *Resolver }
+type (
+	chatResolver         struct{ *Resolver }
+	mutationResolver     struct{ *Resolver }
+	queryResolver        struct{ *Resolver }
+	subscriptionResolver struct{ *Resolver }
+	userProfileResolver  struct{ *Resolver }
+)

@@ -2,22 +2,36 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/charmbracelet/log"
+	"github.com/nats-io/nats.go"
+	"github.com/samber/lo"
 	"go.mau.fi/whatsmeow/types/events"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
-	"github.com/charmbracelet/log"
-	"github.com/samber/lo"
 )
 
 type QRCodeEvent struct {
 	Event string
 	Code  string
+}
+
+type SyncStatus struct {
+	Progress          float64
+	TotalItems        int
+	ProcessedItems    int
+	StartTime         time.Time
+	LastUpdateTime    time.Time
+	StatusMessage     string
+	EstimatedTimeLeft string
+	IsSyncing         bool
+	IsCompleted       bool
 }
 
 var (
@@ -32,6 +46,9 @@ var (
 
 	allContacts     []WhatsappContact
 	allContactsLock sync.RWMutex
+
+	syncStatus     SyncStatus
+	syncStatusLock sync.RWMutex
 )
 
 func GetQRChannel() chan QRCodeEvent {
@@ -62,6 +79,120 @@ func GetConnectChannel() chan struct{} {
 
 func TriggerConnect() {
 	GetConnectChannel() <- struct{}{}
+}
+
+func GetSyncStatus() SyncStatus {
+	syncStatusLock.RLock()
+	defer syncStatusLock.RUnlock()
+	return syncStatus
+}
+
+func UpdateSyncStatus(newStatus SyncStatus) {
+	syncStatusLock.Lock()
+	defer syncStatusLock.Unlock()
+
+	newStatus.LastUpdateTime = time.Now()
+
+	if newStatus.TotalItems > 0 {
+		newStatus.Progress = float64(newStatus.ProcessedItems) / float64(newStatus.TotalItems) * 100
+
+		if newStatus.ProcessedItems > 0 && newStatus.StartTime.Unix() > 0 {
+			elapsedTime := time.Since(newStatus.StartTime)
+			itemsPerSecond := float64(newStatus.ProcessedItems) / elapsedTime.Seconds()
+			if itemsPerSecond > 0 {
+				remainingItems := newStatus.TotalItems - newStatus.ProcessedItems
+				remainingSeconds := float64(remainingItems) / itemsPerSecond
+				remainingDuration := time.Duration(remainingSeconds) * time.Second
+
+				if remainingDuration > 1*time.Hour {
+					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f hours", remainingDuration.Hours())
+				} else if remainingDuration > 1*time.Minute {
+					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.1f minutes", remainingDuration.Minutes())
+				} else {
+					newStatus.EstimatedTimeLeft = fmt.Sprintf("~%.0f seconds", remainingDuration.Seconds())
+				}
+			}
+		}
+	}
+
+	if newStatus.IsSyncing && newStatus.ProcessedItems == 0 && newStatus.TotalItems > 0 && newStatus.StartTime.IsZero() {
+		newStatus.StartTime = time.Now()
+	}
+
+	if newStatus.ProcessedItems >= newStatus.TotalItems && newStatus.TotalItems > 0 {
+		newStatus.IsSyncing = false
+		newStatus.IsCompleted = true
+		newStatus.Progress = 100
+		newStatus.EstimatedTimeLeft = "Complete"
+	}
+
+	syncStatus = newStatus
+}
+
+func StartSync() {
+	syncStatusLock.Lock()
+	defer syncStatusLock.Unlock()
+
+	syncStatus = SyncStatus{
+		IsSyncing:         true,
+		Progress:          0,
+		ProcessedItems:    0,
+		TotalItems:        0,
+		StartTime:         time.Now(),
+		LastUpdateTime:    time.Now(),
+		StatusMessage:     "Preparing to sync WhatsApp history...",
+		EstimatedTimeLeft: "Calculating...",
+	}
+}
+
+func PublishSyncStatus(nc *nats.Conn, logger *log.Logger) error {
+	status := GetSyncStatus()
+
+	type syncStatusPublish struct {
+		IsSyncing     bool    `json:"isSyncing"`
+		IsCompleted   bool    `json:"isCompleted"`
+		StatusMessage string  `json:"statusMessage"`
+		Error         *string `json:"error"`
+	}
+
+	publishData := syncStatusPublish{
+		IsSyncing:     status.IsSyncing,
+		IsCompleted:   status.IsCompleted,
+		StatusMessage: status.StatusMessage,
+		Error:         nil,
+	}
+
+	data, err := json.Marshal(publishData)
+	if err != nil {
+		logger.Error("Failed to marshal WhatsApp sync status", "error", err)
+		return err
+	}
+
+	err = nc.Publish("whatsapp.sync.status", data)
+	if err != nil {
+		logger.Error("Failed to publish WhatsApp sync status", "error", err)
+		return err
+	}
+
+	logger.Debug("Published WhatsApp sync status",
+		"syncing", status.IsSyncing,
+		"completed", status.IsCompleted,
+		"message", status.StatusMessage)
+
+	return nil
+}
+
+func IsSyncComplete() bool {
+	status := GetSyncStatus()
+	return !status.IsSyncing && status.TotalItems > 0 && status.ProcessedItems >= status.TotalItems
+}
+
+func IsSyncInProgress() bool {
+	return GetSyncStatus().IsSyncing
+}
+
+func GetSyncProgress() float64 {
+	return GetSyncStatus().Progress
 }
 
 func normalizeJID(jid string) string {
@@ -111,14 +242,37 @@ func findContactByJID(jid string) (WhatsappContact, bool) {
 	})
 }
 
-func EventHandler(memoryStorage memory.Storage, logger *log.Logger) func(interface{}) {
+func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
-
 		case *events.HistorySync:
+			StartSync()
+			logger.Info("Received WhatsApp history sync", "contacts", len(v.Data.Pushnames))
+
+			totalContacts := len(v.Data.Pushnames)
+			totalMessages := 0
+			for _, conversation := range v.Data.Conversations {
+				totalMessages += len(conversation.Messages)
+			}
+			totalItems := totalContacts + totalMessages
+
+			UpdateSyncStatus(SyncStatus{
+				IsCompleted:       false,
+				IsSyncing:         true,
+				ProcessedItems:    0,
+				TotalItems:        totalItems,
+				StatusMessage:     fmt.Sprintf("Starting sync of %d contacts and %d messages", totalContacts, totalMessages),
+				EstimatedTimeLeft: "Calculating...",
+			})
+			err := PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", "error", err)
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
+
+			processedItems := 0
 
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
@@ -131,6 +285,21 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger) func(interfa
 
 					addContact(*pushname.ID, *pushname.Pushname)
 				}
+
+				processedItems++
+				if processedItems%10 == 0 || processedItems == len(v.Data.Pushnames) {
+					UpdateSyncStatus(SyncStatus{
+						IsCompleted:    false,
+						IsSyncing:      true,
+						ProcessedItems: processedItems,
+						TotalItems:     totalItems,
+						StatusMessage:  fmt.Sprintf("Processed %d/%d contacts", processedItems, totalContacts),
+					})
+					err := PublishSyncStatus(nc, logger)
+					if err != nil {
+						logger.Error("Error publishing sync status", "error", err)
+					}
+				}
 			}
 
 			for _, conversation := range v.Data.Conversations {
@@ -139,6 +308,8 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger) func(interfa
 				}
 
 				chatID := *conversation.ID
+
+				processedConversationMessages := 0
 
 				for _, messageInfo := range conversation.Messages {
 					userReceipts := messageInfo.GetMessage().UserReceipt
@@ -197,10 +368,47 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger) func(interfa
 					} else {
 						logger.Info("Historical WhatsApp message stored successfully")
 					}
+
+					processedItems++
+					processedConversationMessages++
+
+					if processedItems%20 == 0 || processedItems == totalItems {
+						UpdateSyncStatus(SyncStatus{
+							IsCompleted:    false,
+							IsSyncing:      true,
+							ProcessedItems: processedItems,
+							TotalItems:     totalItems,
+							StatusMessage: fmt.Sprintf("Processed %d/%d contacts and %d/%d messages",
+								totalContacts, totalContacts,
+								processedItems-totalContacts, totalMessages),
+						})
+						err := PublishSyncStatus(nc, logger)
+						if err != nil {
+							logger.Error("Error publishing sync status", "error", err)
+						}
+					}
 				}
+
+				logger.Info("Finished processing conversation",
+					"chat_id", chatID,
+					"messages", processedConversationMessages)
 			}
 
+			UpdateSyncStatus(SyncStatus{
+				IsCompleted:    true,
+				IsSyncing:      false,
+				ProcessedItems: processedItems,
+				TotalItems:     totalItems,
+				StatusMessage:  "WhatsApp history sync completed",
+			})
+			err = PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", "error", err)
+			}
+			logger.Info("WhatsApp history sync completed", "total_processed", processedItems)
+
 		case *events.Message:
+
 			message := v.Message.GetConversation()
 			if message == "" {
 				if v.Message.GetImageMessage() != nil {
@@ -228,7 +436,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger) func(interfa
 
 			fromName := v.Info.PushName
 			if fromName == "" {
-
 				contact, found := findContactByJID(v.Info.Sender.String())
 				if found {
 					fromName = contact.Name

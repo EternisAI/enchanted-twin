@@ -26,13 +26,10 @@ import (
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"go.mau.fi/whatsmeow"
-	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	"go.mau.fi/whatsmeow/types"
 	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
-	"google.golang.org/protobuf/proto"
 
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
@@ -146,6 +143,16 @@ func main() {
 				currentWhatsAppQRCode = nil
 				logger.Info("WhatsApp connection successful")
 
+				whatsapp.StartSync()
+				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
+				whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
+
 				successUpdate := map[string]interface{}{
 					"event":        "success",
 					"qr_code_data": nil,
@@ -217,7 +224,7 @@ func main() {
 
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
-		client := bootstrapWhatsAppClient(mem, logger)
+		client := bootstrapWhatsAppClient(mem, logger, nc)
 		whatsappClientChan <- client
 	}()
 
@@ -565,7 +572,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *whatsmeow.Client {
+func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
 	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
@@ -577,7 +584,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *
 	}
 	clientLog := waLog.Stdout("Client", "DEBUG", true)
 	client := whatsmeow.NewClient(deviceStore, clientLog)
-	client.AddEventHandler(whatsapp.EventHandler(memoryStorage, logger))
+	client.AddEventHandler(whatsapp.EventHandler(memoryStorage, logger, nc))
 
 	logger.Info("Waiting for WhatsApp connection signal...")
 	connectChan := whatsapp.GetConnectChannel()
@@ -614,19 +621,19 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *
 				whatsapp.GetQRChannel() <- qrEvent
 				logger.Info("WhatsApp connection successful")
 
-				jid := types.JID{
-					User:   "33687866890",
-					Server: "s.whatsapp.net",
-				}
-				msg := &waE2E.Message{
-					Conversation: proto.String("Hello from WhatsMeow!"),
-				}
-				resp, err := client.SendMessage(context.Background(), jid, msg)
+				whatsapp.StartSync()
+				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
+				err = whatsapp.PublishSyncStatus(nc, logger)
 				if err != nil {
-					logger.Error("Error sending message", slog.Any("error", err))
-				} else {
-					logger.Info("Message sent", "response", resp)
+					logger.Error("Error publishing sync status", slog.Any("error", err))
 				}
+
 			default:
 				logger.Info("Login event", "event", evt.Event)
 			}
@@ -643,6 +650,19 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) *
 			whatsapp.SetLatestQREvent(qrEvent)
 			whatsapp.GetQRChannel() <- qrEvent
 			logger.Info("Already logged in, reusing session")
+
+			whatsapp.StartSync()
+			whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+				IsSyncing:      true,
+				IsCompleted:    false,
+				ProcessedItems: 0,
+				TotalItems:     0,
+				StatusMessage:  "Waiting for history sync to begin",
+			})
+			err = whatsapp.PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", slog.Any("error", err))
+			}
 		}
 	}
 
