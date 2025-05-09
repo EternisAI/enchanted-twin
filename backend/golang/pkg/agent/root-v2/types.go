@@ -52,11 +52,12 @@ type CommandStatus struct {
 
 // ChildRunInfo stores basic info about an active child workflow.
 type ChildRunInfo struct {
-	RunID      string    `json:"run_id"`      // Temporal's Run ID
-	WorkflowID string    `json:"workflow_id"` // Child workflow ID
-	TaskID     string    `json:"task_id"`     // User-provided ID (optional)
-	CreatedAt  time.Time `json:"start_time"`
-	EndedAt    time.Time `json:"ended_at,omitempty"` // Optional end time
+	RunID        string    `json:"run_id"`      // Temporal's Run ID
+	WorkflowID   string    `json:"workflow_id"` // Child workflow ID
+	TaskID       string    `json:"task_id"`     // User-provided ID (optional)
+	CreatedAt    time.Time `json:"start_time"`
+	CompletedAt      time.Time `json:"ended_at,omitempty"`      // Optional end time
+	TerminatedAt time.Time `json:"terminated_at,omitempty"` // Optional termination time`
 }
 
 // RootState holds the persistent workflow state.
