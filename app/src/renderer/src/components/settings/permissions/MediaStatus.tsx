@@ -24,7 +24,7 @@ function StatusRow({ type, status, queryAllMediaStatus }: RowProps) {
     {
       loading: 'Loading',
       granted: 'Granted',
-      'not-determined': 'Not determined',
+      'not-determined': 'No permission',
       denied: 'Denied',
       restricted: 'Restricted',
       unavailable: 'Unavailable'
@@ -43,7 +43,7 @@ function StatusRow({ type, status, queryAllMediaStatus }: RowProps) {
       <div className="flex justify-end">
         {status === 'not-determined' && (
           <Button className="w-fit" size="sm" onClick={requestAccess}>
-            Request
+            Request Permission
           </Button>
         )}
 

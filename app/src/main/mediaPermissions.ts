@@ -30,7 +30,7 @@ export function queryMediaStatus(type: MediaType): string {
 }
 
 export async function requestMediaAccess(type: MediaType): Promise<string> {
-  if (process.platform !== 'darwin') return 'unavailable'
+  if (process.platform !== 'darwin' && process.platform !== 'win32') return 'unavailable'
 
   // screen permission can't be requested via askForMediaAccess so we just open settings
   if (type === 'screen') {

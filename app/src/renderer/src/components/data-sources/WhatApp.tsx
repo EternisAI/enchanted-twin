@@ -1,19 +1,20 @@
 import { useEffect } from 'react'
 import QRCode from 'react-qr-code'
 import { Loader2, PhoneOff, Smartphone } from 'lucide-react'
-import { useMutation, useQuery, useSubscription } from '@apollo/client'
+import { useMutation, useQuery } from '@apollo/client'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { Button } from '../ui/button'
 import WhatsAppIcon from '../../assets/icons/whatsapp'
 import {
   GetWhatsAppStatusDocument,
-  StartWhatsAppConnectionDocument,
-  WhatsAppQrCodeUpdatedDocument
+  StartWhatsAppConnectionDocument
 } from '@renderer/graphql/generated/graphql'
 
 export default function WhatsApp() {
-  const { data, loading, error, refetch } = useQuery(GetWhatsAppStatusDocument)
+  const { data, loading, error, refetch } = useQuery(GetWhatsAppStatusDocument, {
+    pollInterval: 15000
+  })
   const [startConnection, { loading: startingConnection }] = useMutation(
     StartWhatsAppConnectionDocument,
     {
@@ -23,26 +24,9 @@ export default function WhatsApp() {
     }
   )
 
-  const { data: subscriptionData } = useSubscription(WhatsAppQrCodeUpdatedDocument, {
-    onData: ({ data }) => {
-      if (data?.data?.whatsAppQRCodeUpdated?.isConnected) {
-        refetch()
-      }
-    }
-  })
-
-  const qrCodeData =
-    subscriptionData?.whatsAppQRCodeUpdated?.qrCodeData || data?.getWhatsAppStatus?.qrCodeData
-  const isConnected =
-    subscriptionData?.whatsAppQRCodeUpdated?.isConnected || data?.getWhatsAppStatus?.isConnected
+  const qrCodeData = data?.getWhatsAppStatus?.qrCodeData
+  const isConnected = data?.getWhatsAppStatus?.isConnected
   const statusMessage = data?.getWhatsAppStatus?.statusMessage || ''
-
-  console.log(
-    'qrCode',
-    qrCodeData,
-    subscriptionData?.whatsAppQRCodeUpdated?.qrCodeData,
-    data?.getWhatsAppStatus.qrCodeData
-  )
 
   useEffect(() => {
     refetch()

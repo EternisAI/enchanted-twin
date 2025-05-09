@@ -252,12 +252,3 @@ query GetWhatsAppStatus {
 mutation StartWhatsAppConnection {
   startWhatsAppConnection
 }
-
-subscription WhatsAppQRCodeUpdated {
-  whatsAppQRCodeUpdated {
-    qrCodeData
-    event
-    timestamp
-    isConnected
-  }
-}
