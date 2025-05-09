@@ -45,10 +45,9 @@ jobs:
           args: --timeout=10m --new-from-rev="$GITHUB_BASE_REF"
 
       - name: Build
-        run: run: |
+        run: |
           cd backend/golang
           make build
-
 
       - name: Test
         run: |
