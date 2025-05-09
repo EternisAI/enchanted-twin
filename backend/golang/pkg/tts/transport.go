@@ -4,43 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/charmbracelet/log"
-	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v4"
 )
-
-type Service struct {
-	addr     string
-	provider TTSProvider
-	upgrader websocket.Upgrader
-	logger   log.Logger
-}
-
-func New(addr string, p TTSProvider, logger log.Logger) *Service {
-	return &Service{
-		addr:     addr,
-		provider: p,
-		logger:   logger,
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(*http.Request) bool { return true },
-		},
-	}
-}
-
-func (s *Service) Start(ctx context.Context) error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/ws", s.handleWS)
-
-	srv := &http.Server{Addr: s.addr, Handler: mux}
-
-	go func() {
-		<-ctx.Done()
-		_ = srv.Shutdown(context.Background())
-	}()
-
-	s.logger.Info("Started TTS service on", "host", "ws://localhost"+s.addr+"/ws")
-	return srv.ListenAndServe()
-}
 
 type offerMsg struct {
 	SDP  string `json:"sdp"`
