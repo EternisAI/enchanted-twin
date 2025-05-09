@@ -113,8 +113,6 @@ flowchart TD
 ---
 config:
   layout: dagre
-  look: handDrawn
-  theme: light
 ---
 flowchart
     subgraph "Base (ingested facts)"
@@ -140,8 +138,6 @@ flowchart
 ---
 config:
   layout: dagre
-  look: handDrawn
-  theme: dark
 ---
 flowchart
     subgraph "Derived (from User and Base)"
