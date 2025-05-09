@@ -709,6 +709,20 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		DeviceModel:         "Server",
 		SystemVersion:       "1.0.0",
 		ApplicationVersion:  "0.1.0",
+		EnableStorageOptimizer: true,
+		IgnoreFileNames:        false,
+	}
+	
+	_, proxyErr := tdlibclient.AddProxy(&tdlibclient.AddProxyRequest{
+		Server:   "proxy.digitalresistance.dog",
+		Port:     443,
+		Enable:   true,
+		Type:     &tdlibclient.ProxyTypeMtproto{},
+	})
+	if proxyErr != nil {
+		logger.Warn("Failed to set proxy, continuing without it", "error", proxyErr)
+	} else {
+		logger.Info("Added MTProto proxy to help with connectivity")
 	}
 
 	// Create authorizer
