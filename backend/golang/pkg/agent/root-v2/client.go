@@ -40,14 +40,14 @@ func (rc *RootClient) ListWorkflows(ctx context.Context) (map[string]*ChildRunIn
 		return nil, fmt.Errorf("failed to query %s: %w", QueryListWorkflows, err)
 	}
 
-	var activeRuns map[string]*ChildRunInfo
-	if err := resp.Get(&activeRuns); err != nil {
+	var runs map[string]*ChildRunInfo
+	if err := resp.Get(&runs); err != nil {
 		rc.logger.Error("Failed to decode active runs from query result", "error", err)
 		return nil, fmt.Errorf("failed to decode query result for %s: %w", QueryListWorkflows, err)
 	}
 
-	rc.logger.Debug("Successfully retrieved active runs", "count", len(activeRuns))
-	return activeRuns, nil
+	rc.logger.Debug("Successfully retrieved active runs", "count", len(runs))
+	return runs, nil
 }
 
 // StartChildWorkflow signals the RootWorkflow to start a new child workflow.
