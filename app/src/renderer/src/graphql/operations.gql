@@ -240,3 +240,24 @@ mutation ConnectMCPServer($input: ConnectMCPServerInput!) {
 mutation RemoveMCPServer($id: String!) {
   removeMCPServer(id: $id)
 }
+
+query GetWhatsAppStatus {
+  getWhatsAppStatus {
+    isConnected
+    qrCodeData
+    statusMessage
+  }
+}
+
+mutation StartWhatsAppConnection {
+  startWhatsAppConnection
+}
+
+subscription WhatsAppQRCodeUpdated {
+  whatsAppQRCodeUpdated {
+    qrCodeData
+    event
+    timestamp
+    isConnected
+  }
+}

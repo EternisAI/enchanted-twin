@@ -48,6 +48,7 @@
     "graphql-ws": "^6.0.4",
     "lucide-react": "^0.488.0",
     "react-markdown": "^10.1.0",
+    "react-qr-code": "^2.0.15",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "rrule": "^2.8.1",

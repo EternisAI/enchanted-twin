@@ -30,6 +30,7 @@ import OpenAI from '@renderer/assets/icons/openai'
 import { format } from 'date-fns'
 import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Tooltip, TooltipProvider } from '@radix-ui/react-tooltip'
+import WhatsApp from './WhatApp'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -570,6 +571,9 @@ export function DataSourcesPanel({
         onFileSelect={handleFileSelect}
         onAddSource={handleAddSource}
       />
+      <div className="grid grid-cols-1 gap-4">
+        <WhatsApp />
+      </div>
     </Card>
   )
 }
