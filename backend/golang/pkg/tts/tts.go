@@ -7,10 +7,10 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/EternisAI/enchanted-twin/pkg/tts/internal/model"
 	"github.com/charmbracelet/log"
-
 	"github.com/gorilla/websocket"
+
+	"github.com/EternisAI/enchanted-twin/pkg/tts/internal/model"
 )
 
 // TTSProvider is responsible for providing a stream of audio from a given text.
