@@ -8,7 +8,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/tts/internal/model"
 )
 
-// Kokoro is specific TTS model
+// Kokoro TTS model
 // https://github.com/remsky/Kokoro-FastAPI
 type Kokoro struct {
 	Endpoint string
