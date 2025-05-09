@@ -33,7 +33,6 @@ func (s *Service) Start(ctx context.Context) error {
 
 	srv := &http.Server{Addr: s.addr, Handler: mux}
 
-	// graceful shutdown
 	go func() {
 		<-ctx.Done()
 		_ = srv.Shutdown(context.Background())
@@ -54,7 +53,12 @@ func (s *Service) handleWS(w http.ResponseWriter, r *http.Request) {
 		s.logger.Error("failed to upgrade to websocket", "error", err)
 		return
 	}
-	defer ws.Close()
+	defer func() {
+		err := ws.Close()
+		if err != nil {
+			s.logger.Error("failed to close websocket", "error", err)
+		}
+	}()
 
 	var msg offerMsg
 	if err = ws.ReadJSON(&msg); err != nil {
@@ -62,23 +66,53 @@ func (s *Service) handleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	pc, _ := webrtc.NewPeerConnection(webrtc.Configuration{})
-	defer pc.Close()
+	pc, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		s.logger.Error("failed to create peer connection", "error", err)
+		return
+	}
+	defer func() {
+		err := pc.Close()
+		if err != nil {
+			s.logger.Error("failed to close peer connection", "error", err)
+		}
+	}()
 
-	dc, _ := pc.CreateDataChannel("audio", nil)
+	dc, err := pc.CreateDataChannel("audio", nil)
+	if err != nil {
+		s.logger.Error("failed to create data channel", "error", err)
+		return
+	}
 
-	_ = pc.SetRemoteDescription(
+	err = pc.SetRemoteDescription(
 		webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: msg.SDP},
 	)
-	answer, _ := pc.CreateAnswer(nil)
-	_ = pc.SetLocalDescription(answer)
+	if err != nil {
+		s.logger.Error("failed to set remote description", "error", err)
+		return
+	}
+	answer, err := pc.CreateAnswer(nil)
+	if err != nil {
+		s.logger.Error("failed to create answer", "error", err)
+		return
+	}
+	err = pc.SetLocalDescription(answer)
+	if err != nil {
+		s.logger.Error("failed to set local description", "error", err)
+		return
+	}
 	<-webrtc.GatheringCompletePromise(pc)
-	_ = ws.WriteJSON(pc.LocalDescription())
+	err = ws.WriteJSON(pc.LocalDescription())
+	if err != nil {
+		s.logger.Error("failed to write json", "error", err)
+		return
+	}
 
 	dc.OnOpen(func() { go s.pipe(r.Context(), dc, msg.Text) })
 
 	for {
 		if _, _, err := ws.ReadMessage(); err != nil {
+			s.logger.Error("failed to read message", "error", err)
 			break
 		}
 	}
@@ -87,9 +121,15 @@ func (s *Service) handleWS(w http.ResponseWriter, r *http.Request) {
 func (s *Service) pipe(ctx context.Context, dc *webrtc.DataChannel, text string) {
 	rc, err := s.provider.Stream(ctx, text)
 	if err != nil {
+		_ = dc.Close()
 		return
 	}
-	defer rc.Close()
+	defer func() {
+		err := rc.Close()
+		if err != nil {
+			s.logger.Error("failed to close reader", "error", err)
+		}
+	}()
 
 	buf := make([]byte, 4096)
 	for {
@@ -100,5 +140,14 @@ func (s *Service) pipe(ctx context.Context, dc *webrtc.DataChannel, text string)
 		if err != nil {
 			break
 		}
+	}
+
+	err = dc.SendText("EOS")
+	if err != nil {
+		s.logger.Error("failed to send eos", "error", err)
+	}
+	err = dc.Close()
+	if err != nil {
+		s.logger.Error("failed to close data channel", "error", err)
 	}
 }
