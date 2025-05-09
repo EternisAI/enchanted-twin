@@ -377,10 +377,11 @@ type bootstrapTemporalWorkerInput struct {
 }
 
 func bootstrapTTS(logger *log.Logger) *tts.Service {
+	port := 45000
 	dockerService, err := docker.NewService(docker.ContainerOptions{
 		ImageName: "ghcr.io/remsky/kokoro-fastapi-cpu",
 		ImageTag:  "latest",
-		Ports:     map[string]string{"8880": "8880"},
+		Ports:     map[string]string{fmt.Sprintf("%d", port): "8880"},
 		Detached:  true,
 	}, logger)
 	if err != nil {
@@ -393,7 +394,7 @@ func bootstrapTTS(logger *log.Logger) *tts.Service {
 		panic(errors.Wrap(err, "Unable to start TTS service"))
 	}
 	engine := tts.Kokoro{
-		Endpoint: "http://localhost:8880/v1/audio/speech",
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", port),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
