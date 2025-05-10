@@ -83,6 +83,7 @@ type TelegramService struct {
 	LastMessages     []Message
 	NatsClient       *nats.Conn
 	ChatServerUrl    string
+	ToolsRegistry    *tools.ToolMapRegistry
 }
 
 type TelegramServiceInput struct {
@@ -96,6 +97,7 @@ type TelegramServiceInput struct {
 	AuthStorage      *db.Store
 	NatsClient       *nats.Conn
 	ChatServerUrl    string
+	ToolsRegistry    *tools.ToolMapRegistry
 }
 
 func NewTelegramService(input TelegramServiceInput) *TelegramService {
@@ -111,6 +113,7 @@ func NewTelegramService(input TelegramServiceInput) *TelegramService {
 		LastMessages:     []Message{},
 		NatsClient:       input.NatsClient,
 		ChatServerUrl:    input.ChatServerUrl,
+		ToolsRegistry:    input.ToolsRegistry,
 	}
 }
 
@@ -235,8 +238,6 @@ func (s *TelegramService) CreateChat(
 	chatID string,
 	chatUUID string,
 ) (string, error) {
-	fmt.Println("chatID", chatID)
-	fmt.Println("chatUUID", chatUUID)
 	err := s.Store.SetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID), chatID)
 	if err != nil {
 		return "", err
@@ -282,18 +283,17 @@ func (s *TelegramService) Execute(
 ) (agent.AgentResponse, error) {
 	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, nil, nil)
 
-	twitterReverseChronTimelineTool := tools.NewTwitterTool(*s.Store)
-	tools := []tools.Tool{
-		&tools.ImageTool{},
-		memory.NewMemorySearchTool(s.Logger, s.Memory),
-		tools.NewTelegramTool(s.Logger, s.Token, s.Store, s.ChatServerUrl),
-		twitterReverseChronTimelineTool,
+	toolsList := []tools.Tool{}
+	for _, name := range s.ToolsRegistry.Excluding("sleep", "sleep_until").List() {
+		if tool, exists := s.ToolsRegistry.Get(name); exists {
+			toolsList = append(toolsList, tool)
+		}
 	}
 
 	origin := map[string]any{
 		"source": "telegram",
 	}
-	response, err := newAgent.Execute(ctx, origin, messageHistory, tools)
+	response, err := newAgent.Execute(ctx, origin, messageHistory, toolsList)
 	if err != nil {
 		return agent.AgentResponse{}, err
 	}
