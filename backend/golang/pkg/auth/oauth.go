@@ -1,3 +1,4 @@
+// Owner: johan@eternis.ai
 package auth
 
 import (

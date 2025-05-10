@@ -8,11 +8,11 @@
 - Node.js
 - Docker
 
-## setup
+## Setup
 
-### Ollama
+### Prerequisites
 
-You must have Ollama installed \*_and running_ on your system and running.
+> You must have **Ollama** and **Docker** installed \*_and running_ on your system and running.
 
 ### Frontend
 

@@ -1,4 +1,4 @@
-// ai/stream.go
+// Owner: august@eternis.ai
 package ai
 
 import (
