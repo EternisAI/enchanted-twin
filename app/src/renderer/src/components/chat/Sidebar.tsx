@@ -19,7 +19,8 @@ import {
   SettingsIcon,
   SearchIcon,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  CheckSquare
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -63,21 +64,6 @@ const groupChatsByTime = (chats: Chat[]) => {
   return groups
 }
 
-// Animation variants for chat groups
-const groupVariants = {
-  initial: { opacity: 0, y: 10 },
-  animate: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.3, ease: 'easeOut' }
-  },
-  exit: {
-    opacity: 0,
-    y: -10,
-    transition: { duration: 0.2, ease: 'easeIn' }
-  }
-}
-
 export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
@@ -89,30 +75,29 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
     navigate({ to: '/', search: { focusInput: 'true' } })
   }
 
+  const handleNavigateTasks = () => {
+    navigate({ to: '/tasks' })
+  }
+
   const chatsToDisplay = showAllChats ? chats : chats.slice(0, 5)
   const groupedChats = groupChatsByTime(chatsToDisplay)
 
   const renderGroup = (title: string, groupChats: Chat[]) => {
     if (groupChats.length === 0) return null
     return (
-      <motion.div
-        key={title}
-        className="mb-6"
-        variants={groupVariants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-      >
+      <motion.div key={title} className="mb-6">
         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-1">
           {title}
         </h3>
-        {groupChats.map((chat) => (
-          <SidebarItem
-            key={chat.id}
-            chat={chat}
-            isActive={location.pathname === `/chat/${chat.id}`}
-          />
-        ))}
+        <AnimatePresence initial={false} mode="popLayout">
+          {groupChats.map((chat) => (
+            <SidebarItem
+              key={chat.id}
+              chat={chat}
+              isActive={location.pathname === `/chat/${chat.id}`}
+            />
+          ))}
+        </AnimatePresence>
       </motion.div>
     )
   }
@@ -156,21 +141,33 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         </div>
 
         <Button
-          variant="secondary"
-          className="w-full justify-between px-2 h-9"
+          variant="outline"
+          className="w-full justify-between px-2 h-9 mb-1 group"
           onClick={handleNewChat}
         >
           <div className="flex items-center gap-2">
             <Plus className="w-3 h-3" />
             <span className="text-sm">New chat</span>
           </div>
-          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+          <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
             <kbd className="rounded bg-muted px-1.5 py-0.5">⌘ N</kbd>
             {/* TODO: show control for windows */}
           </div>
         </Button>
 
+        <Button
+          variant="outline"
+          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
+          onClick={handleNavigateTasks}
+        >
+          <CheckSquare className="w-4 h-4 mr-2 text-muted-foreground" />
+          <span className="text-sm">Tasks</span>
+        </Button>
+
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
+          <h2 className="text-lg font-semibold text-muted-foreground tracking-tight mb-3 px-1">
+            History
+          </h2>
           <AnimatePresence initial={false} mode="popLayout">
             {Object.entries(groupedChats).map(([title, groupChats]) =>
               renderGroup(title, groupChats)
@@ -178,7 +175,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           </AnimatePresence>
 
           {chats.length > 5 && (
-            <motion.div layout>
+            <motion.div>
               <Button
                 variant="ghost"
                 className="w-full justify-center text-xs text-muted-foreground hover:text-foreground h-8 mt-2 mb-1"
@@ -232,7 +229,8 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   })
 
   return (
-    <div
+    <motion.div
+      key={chat.id}
       className={cn('flex items-center gap-2 justify-between rounded-md group text-sm', {
         'bg-primary/10 text-primary': isActive,
         'hover:bg-accent text-foreground': !isActive
@@ -282,6 +280,6 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           </AlertDialogContent>
         </AlertDialog>
       }
-    </div>
+    </motion.div>
   )
 }

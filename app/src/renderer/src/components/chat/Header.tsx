@@ -220,19 +220,9 @@ export function Header() {
 
   return (
     <motion.div
-      initial={{
-        opacity: 0,
-        scale: 0.9
-      }}
-      animate={{
-        opacity: 1,
-        scale: 1
-      }}
-      transition={{
-        type: 'spring',
-        stiffness: 100,
-        damping: 15
-      }}
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 120, damping: 20 }}
       className="flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto px-4"
     >
       <div className="flex flex-col items-center gap-4 w-full">
@@ -309,10 +299,13 @@ export function Header() {
         <AnimatePresence mode="wait">
           <motion.div
             initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
+            animate={{ opacity: 1, height: 296 }}
             exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.15 }}
-            className="relative w-full"
+            transition={{
+              opacity: { duration: 0.15 },
+              height: { duration: 0.2, ease: 'easeOut' }
+            }}
+            className="relative w-full overflow-hidden"
           >
             <div className="h-4" />
             <div className="bg-background/90 backdrop-blur-sm">
