@@ -22,7 +22,7 @@ func init() {
 	case "windows":
 		dockerCommand = "docker" // Rely on PATH for Windows
 	default: // darwin (macOS), linux, etc.
-		dockerCommand = "/usr/local/bin/docker" // Assume standard location for Unix-like systems
+		dockerCommand = "docker" // Assume standard location for Unix-like systems
 	}
 }
 
