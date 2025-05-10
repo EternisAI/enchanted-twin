@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -18,11 +17,24 @@ import (
 var dockerCommand string
 
 func init() {
-	switch runtime.GOOS {
-	case "windows":
-		dockerCommand = "docker" // Rely on PATH for Windows
-	default: // darwin (macOS), linux, etc.
-		dockerCommand = "docker" // Assume standard location for Unix-like systems
+	path, err := exec.LookPath("docker")
+	if err != nil {
+		commonPaths := []string{
+			"/usr/local/bin/docker",
+			"/usr/bin/docker",
+			filepath.Join(os.Getenv("HOME"), ".local/bin/docker"),
+		}
+		for _, p := range commonPaths {
+			if _, err := os.Stat(p); err == nil {
+				path = p
+				break
+			}
+		}
+	}
+	if path != "" {
+		dockerCommand = path
+	} else {
+		dockerCommand = "docker"
 	}
 }
 
