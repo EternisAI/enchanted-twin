@@ -109,7 +109,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         <h3 className="text-xs font-medium text-muted-foreground uppercase mt-4 pt-4 px-1">
           {title}
         </h3>
-        <AnimatePresence initial={false} mode="sync">
+        <AnimatePresence mode="sync">
           {groupChats.map((chat) => (
             <SidebarItem
               key={chat.id}
@@ -185,9 +185,6 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         </Button>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
-          <h2 className="text-lg font-semibold text-muted-foreground tracking-tight mb-3 px-1">
-            History
-          </h2>
           <AnimatePresence initial={false} mode="popLayout">
             {Object.entries(groupedChats).map(([title, groupChats]) =>
               renderGroup(title, groupChats)

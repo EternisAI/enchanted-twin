@@ -15,7 +15,7 @@ import { formatRRuleToText } from '@renderer/lib/utils'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
 export default function AgentTasks() {
-  const { data, loading } = useQuery(GetAgentTasksDocument, {
+  const { data, loading, error } = useQuery(GetAgentTasksDocument, {
     fetchPolicy: 'network-only'
   })
   const [deleteAgentTask] = useMutation(DeleteAgentTaskDocument, {
@@ -36,7 +36,7 @@ export default function AgentTasks() {
   return (
     <Card className="p-6 w-full overflow-y-auto">
       {loading && <div className="py-4 text-center">Loading tasks...</div>}
-      {/* {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>} */}
+      {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
       <div className="flex flex-col gap-4 pb-6">
         {agentTasks.length === 0 ? (

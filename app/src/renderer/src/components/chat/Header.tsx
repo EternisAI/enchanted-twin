@@ -393,17 +393,22 @@ export function Header() {
                             'hover:bg-muted/80',
                             selectedIndex === index && 'bg-primary/10 text-primary',
                             isEmphasized &&
-                              'relative before:absolute before:inset-0 before:rounded-md'
+                              'relative before:absolute before:inset-0 before:rounded-'
                           )}
                         >
                           <Icon
                             className={cn(
                               'h-4 w-4 relative z-10',
-                              isEmphasized ? 'text-primary' : 'text-muted-foreground'
+                              isEmphasized
+                                ? 'text-indigo-800 dark:text-indigo-400'
+                                : 'text-muted-foreground'
                             )}
                           />
                           <span
-                            className={cn('truncate relative z-10', isEmphasized && 'font-medium')}
+                            className={cn(
+                              'truncate relative z-10',
+                              isEmphasized && 'font-medium text-indigo-800 dark:text-indigo-200'
+                            )}
                           >
                             {chat.name}
                           </span>
