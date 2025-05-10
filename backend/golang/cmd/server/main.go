@@ -763,38 +763,13 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		logger.Info("Logged in to Telegram", "first_name", me.FirstName, "last_name", me.LastName)
 	}
 
-	chats, err := client.GetChats(&tdlibclient.GetChatsRequest{
-		Limit: 500,
-	})
-	if err != nil {
-		logger.Error("GetChats error", "error", err)
-		return nil, errors.Wrap(err, "GetChats error")
+	// Fetch historical messages from all chats
+	logger.Info("Fetching historical messages from all chats...")
+	if err := FetchHistoricalMessages(client, logger, 50); err != nil {
+		logger.Warn("Failed to fetch historical messages", "error", err)
 	}
 
-	logger.Info("Chats", "chats", chats)
-	logger.Info("Chats", "chats", chats.TotalCount)
-
-	// time.Sleep(30 * time.Second)
-
-	chatHistory, err := client.GetChatHistory(&tdlibclient.GetChatHistoryRequest{
-		ChatId: chats.ChatIds[0],
-		Limit:  10,
-	})
-	if err != nil {
-		logger.Error("GetMessage error", "error", err)
-	}
-	logger.Info("Chat history", "total count", chatHistory.TotalCount)
-	logger.Info("Chat history", "chat history", chatHistory)
-
-	for i, message := range chatHistory.Messages {
-		logger.Info("Message", "message content", chatHistory.Messages[i].Content)
-		if messageText, ok := message.Content.(*tdlibclient.MessageText); ok {
-			logger.Info("Message text:", "text", messageText.Text.Text)
-		} else {
-			logger.Info("Other message type:", "type", fmt.Sprintf("%T", message.Content))
-		}
-	}
-
+	// Start listening for updates
 	go handleTDLibUpdates(client, logger)
 
 	return client, nil
@@ -827,4 +802,120 @@ func handleTDLibUpdates(client *tdlibclient.Client, logger *log.Logger) {
 			logger.Info("Message sent successfully", "message_id", updateType.Message.Id)
 		}
 	}
+}
+
+// FetchHistoricalMessages retrieves historical messages from all chats
+func FetchHistoricalMessages(client *tdlibclient.Client, logger *log.Logger, limit int) error {
+	// Get all chats
+	chats, err := client.GetChats(&tdlibclient.GetChatsRequest{
+		Limit: 100, // Get up to 100 chats
+	})
+	if err != nil {
+		logger.Error("Failed to get chats", "error", err)
+		return err
+	}
+
+	logger.Info("Found chats", "count", len(chats.ChatIds))
+
+	// Get history for each chat
+	for _, chatID := range chats.ChatIds {
+		// Get chat info
+		chat, err := client.GetChat(&tdlibclient.GetChatRequest{
+			ChatId: chatID,
+		})
+		if err != nil {
+			logger.Error("Failed to get chat info", "chat_id", chatID, "error", err)
+			continue
+		}
+
+		logger.Info("Getting history for chat", "chat_id", chatID, "title", chat.Title)
+
+		// Use multiple requests to build complete history
+		var allMessages []*tdlibclient.Message
+		var oldestMessageID int64 = 0
+		var iterations int = 0
+		var batchSize int32 = 20 // Fetch 20 messages at a time to avoid rate limits
+
+		// Keep fetching messages until we have enough or there are no more
+		for len(allMessages) < limit && iterations < 3 { // Limit to 3 iterations to avoid excessive API calls
+			iterations++
+
+			// Request parameters - for first request, use 0 to get most recent messages
+			historyRequest := &tdlibclient.GetChatHistoryRequest{
+				ChatId:        chatID,
+				Limit:         batchSize,
+				OnlyLocal:     false,
+				FromMessageId: oldestMessageID,
+			}
+
+			// If this isn't the first batch, we need to get messages older than our oldest
+			if oldestMessageID != 0 {
+				historyRequest.Offset = -1 // Use negative offset to get messages before this ID
+			}
+
+			// Make the request
+			chatHistory, err := client.GetChatHistory(historyRequest)
+			if err != nil {
+				logger.Error("Failed to get chat history batch", "chat_id", chatID, "iteration", iterations, "error", err)
+				break
+			}
+
+			// If we got no messages or got fewer than requested, we've reached the end
+			if len(chatHistory.Messages) == 0 {
+				logger.Info("No more messages to fetch", "chat_id", chatID, "iteration", iterations)
+				break
+			}
+
+			logger.Info("Retrieved message batch", "chat_id", chatID, "batch", iterations, "count", len(chatHistory.Messages))
+
+			// Add messages to our collection and track the oldest message ID
+			for _, msg := range chatHistory.Messages {
+				if msg != nil {
+					allMessages = append(allMessages, msg)
+
+					// Update the oldest message ID for next iteration
+					if oldestMessageID == 0 || msg.Id < oldestMessageID {
+						oldestMessageID = msg.Id
+					}
+				}
+			}
+
+			// Avoid rate limiting
+			time.Sleep(300 * time.Millisecond)
+		}
+
+		logger.Info("Total messages retrieved", "chat_id", chatID, "count", len(allMessages))
+
+		// Process all collected messages
+		for i, message := range allMessages {
+			if message == nil {
+				continue
+			}
+
+			// Log message ID and date
+			logger.Info("Message",
+				"index", i,
+				"message_id", message.Id,
+				"date", time.Unix(int64(message.Date), 0).Format(time.RFC3339),
+			)
+
+			// Process message content based on type
+			if messageText, ok := message.Content.(*tdlibclient.MessageText); ok {
+				logger.Info("Message text",
+					"message_id", message.Id,
+					"text", messageText.Text.Text,
+				)
+			} else {
+				logger.Info("Other message type",
+					"message_id", message.Id,
+					"type", fmt.Sprintf("%T", message.Content),
+				)
+			}
+		}
+
+		// Add a small delay between chats to avoid rate limiting
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	return nil
 }
