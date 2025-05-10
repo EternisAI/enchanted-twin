@@ -206,6 +206,18 @@ func (s *TelegramService) Start(ctx context.Context) error {
 							s.Logger.Error("Failed to create chat", "error", err)
 							continue
 						}
+
+						_, err = helpers.PostMessage(
+							ctx,
+							uuid,
+							"Hey we connected!",
+							s.ChatServerUrl,
+						)
+						if err != nil {
+							s.Logger.Error("Failed to post message", "error", err)
+							continue
+						}
+
 					}
 
 					if s.NatsClient != nil {
@@ -747,14 +759,17 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
+					s.Logger.Info("telegramenabled", "Received data", "response", response)
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
+						s.Logger.Info("telegramenabled", "Received nil text message")
 						exitErr = ErrSubscriptionNilTextMessage
 						return
 					}
 
+					s.Logger.Info("telegramenabled", "Getting telegram enabled")
 					telegramEnabled, err := helpers.GetTelegramEnabled(ctx, s.Store)
 					if err != nil {
-						s.Logger.Info("Error getting telegram enabled", "error", err)
+						s.Logger.Info("telegramenabled", "Error getting telegram enabled", "error", err)
 					}
 					if telegramEnabled != "true" {
 						err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
