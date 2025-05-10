@@ -19,6 +19,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -30,6 +31,7 @@ type Service struct {
 	logger           *log.Logger
 	completionsModel string
 	toolRegistry     *tools.ToolMapRegistry
+	userStorage      *db.Store
 }
 
 func NewService(
@@ -38,6 +40,7 @@ func NewService(
 	storage Storage,
 	nc *nats.Conn,
 	registry *tools.ToolMapRegistry,
+	userStorage *db.Store,
 	completionsModel string,
 ) *Service {
 	return &Service{
@@ -47,6 +50,7 @@ func NewService(
 		nc:               nc,
 		completionsModel: completionsModel,
 		toolRegistry:     registry,
+		userStorage:      userStorage,
 	}
 }
 
@@ -107,6 +111,18 @@ func (s *Service) SendMessage(
 	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists."
 	now := time.Now().Format(time.RFC3339)
 	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now)
+
+	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if userProfile.Name != nil {
+		systemPrompt += fmt.Sprintf("User name: %s. ", *userProfile.Name)
+	}
+	if userProfile.Bio != nil {
+		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
+	}
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
