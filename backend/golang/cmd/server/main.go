@@ -76,19 +76,19 @@ func main() {
 	logger.Info("Using database path", "path", envs.DBPath)
 
 	// Initialize TDLib Telegram client if credentials are provided
-	var tdlib *tdlibclient.Client
-	if envs.TelegramTDLibAPIID != 0 && envs.TelegramTDLibAPIHash != "" {
-		var err error
-		tdlib, err = bootstrapTelegramTDLib(logger, envs.TelegramTDLibAPIID, envs.TelegramTDLibAPIHash)
+	var tdlibClient *telegram.TDLibClient
+	if envs.TelegramTDLibServiceURL != "" {
+		tdlibClient = telegram.NewTDLibClient(logger, envs.TelegramTDLibServiceURL)
+		err := tdlibClient.CheckHealth(context.Background())
 		if err != nil {
-			logger.Warn("Failed to initialize TDLib Telegram client", "error", err)
+			logger.Warn("TDLib service is not healthy", "error", err)
+			logger.Info("Will continue without TDLib integration")
+			tdlibClient = nil
 		} else {
-			logger.Info("TDLib Telegram client initialized successfully")
-			// Ensure we close the connection when the app exits
-			defer tdlib.Close()
+			logger.Info("TDLib service is healthy")
 		}
 	} else {
-		logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_API_ID and TELEGRAM_TDLIB_API_HASH environment variables. You can obtain these from https://my.telegram.org/apps")
+		logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_SERVICE_URL environment variable.")
 	}
 
 	var ollamaClient *ollamaapi.Client
@@ -385,7 +385,7 @@ func main() {
 		telegramService:   telegramService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
-		tdlibClient:       tdlib,
+		tdlibClient:       tdlibClient,
 	})
 
 	go func() {
@@ -514,7 +514,7 @@ type graphqlServerInput struct {
 	telegramService        *telegram.TelegramService
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
-	tdlibClient            *tdlibclient.Client
+	tdlibClient            *telegram.TDLibClient
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {

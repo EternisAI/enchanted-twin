@@ -23,7 +23,8 @@ type Config struct {
 	TelegramToken        string
 	TelegramChatServer   string
 	TelegramTDLibAPIID   int32
-	TelegramTDLibAPIHash string
+	TelegramTDLibAPIHash  string
+	TelegramTDLibServiceURL string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -50,19 +51,20 @@ func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 
 	conf := &Config{
-		OpenAIAPIKey:         getEnv("OPENAI_API_KEY", "", printEnv),
-		GraphqlPort:          getEnv("GRAPHQL_PORT", "3000", printEnv),
-		OpenAIBaseURL:        getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
-		CompletionsModel:     getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
-		EmbeddingsAPIURL:     getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
-		EmbeddingsModel:      getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
-		EmbeddingsAPIKey:     getEnv("EMBEDDINGS_API_KEY", "", printEnv),
-		DBPath:               getEnv("DB_PATH", "./store.db", printEnv),
-		AppDataPath:          getEnv("APP_DATA_PATH", "./output", printEnv),
-		OllamaBaseURL:        getEnv("OLLAMA_BASE_URL", "", printEnv),
-		TelegramToken:        getEnv("TELEGRAM_TOKEN", "", printEnv),
-		TelegramChatServer:   getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
-		TelegramTDLibAPIHash: getEnv("TELEGRAM_TDLIB_API_HASH", "", printEnv),
+		OpenAIAPIKey:            getEnv("OPENAI_API_KEY", "", printEnv),
+		GraphqlPort:             getEnv("GRAPHQL_PORT", "3000", printEnv),
+		OpenAIBaseURL:           getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsModel:        getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
+		EmbeddingsAPIURL:        getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
+		EmbeddingsModel:         getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
+		EmbeddingsAPIKey:        getEnv("EMBEDDINGS_API_KEY", "", printEnv),
+		DBPath:                  getEnv("DB_PATH", "./store.db", printEnv),
+		AppDataPath:             getEnv("APP_DATA_PATH", "./output", printEnv),
+		OllamaBaseURL:           getEnv("OLLAMA_BASE_URL", "", printEnv),
+		TelegramToken:           getEnv("TELEGRAM_TOKEN", "", printEnv),
+		TelegramChatServer:      getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
+		TelegramTDLibAPIHash:    getEnv("TELEGRAM_TDLIB_API_HASH", "", printEnv),
+		TelegramTDLibServiceURL: getEnv("TELEGRAM_TDLIB_SERVICE_URL", "", printEnv),
 	}
 
 	// Parse TDLib API ID as integer

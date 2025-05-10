@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  tdlib:
+    build:
+      context: .
+      dockerfile: tdlib.Dockerfile
+    container_name: enchanted-twin-tdlib
+    volumes:
+      - tdlib-data:/tdlib/db
+      - tdlib-files:/tdlib/files
+    environment:
+      - TELEGRAM_TDLIB_API_ID=${TELEGRAM_TDLIB_API_ID}
+      - TELEGRAM_TDLIB_API_HASH=${TELEGRAM_TDLIB_API_HASH}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "test", "-d", "/tdlib/db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - enchanted-twin-network
+
+  tdlib-service:
+    build:
+      context: .
+      dockerfile: tdlib_service.Dockerfile
+    container_name: enchanted-twin-tdlib-service
+    depends_on:
+      - tdlib
+    ports:
+      - "9090:9090"
+    environment:
+      - TELEGRAM_TDLIB_API_ID=${TELEGRAM_TDLIB_API_ID}
+      - TELEGRAM_TDLIB_API_HASH=${TELEGRAM_TDLIB_API_HASH}
+      - TDLIB_HOST=tdlib
+    restart: unless-stopped
+    networks:
+      - enchanted-twin-network
+
+networks:
+  enchanted-twin-network:
+    driver: bridge
+
+volumes:
+  tdlib-data:
+  tdlib-files:
