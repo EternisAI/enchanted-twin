@@ -806,9 +806,8 @@ func handleTDLibUpdates(client *tdlibclient.Client, logger *log.Logger) {
 
 // FetchHistoricalMessages retrieves historical messages from all chats
 func FetchHistoricalMessages(client *tdlibclient.Client, logger *log.Logger, limit int) error {
-	// Get all chats
 	chats, err := client.GetChats(&tdlibclient.GetChatsRequest{
-		Limit: 100, // Get up to 100 chats
+		Limit: 500,
 	})
 	if err != nil {
 		logger.Error("Failed to get chats", "error", err)
@@ -817,7 +816,6 @@ func FetchHistoricalMessages(client *tdlibclient.Client, logger *log.Logger, lim
 
 	logger.Info("Found chats", "count", len(chats.ChatIds))
 
-	// Get history for each chat
 	for _, chatID := range chats.ChatIds {
 		// Get chat info
 		chat, err := client.GetChat(&tdlibclient.GetChatRequest{
@@ -830,17 +828,14 @@ func FetchHistoricalMessages(client *tdlibclient.Client, logger *log.Logger, lim
 
 		logger.Info("Getting history for chat", "chat_id", chatID, "title", chat.Title)
 
-		// Use multiple requests to build complete history
 		var allMessages []*tdlibclient.Message
 		var oldestMessageID int64 = 0
 		var iterations int = 0
-		var batchSize int32 = 20 // Fetch 20 messages at a time to avoid rate limits
+		var batchSize int32 = 20
 
-		// Keep fetching messages until we have enough or there are no more
-		for len(allMessages) < limit && iterations < 3 { // Limit to 3 iterations to avoid excessive API calls
+		for len(allMessages) < limit && iterations < 3 {
 			iterations++
 
-			// Request parameters - for first request, use 0 to get most recent messages
 			historyRequest := &tdlibclient.GetChatHistoryRequest{
 				ChatId:        chatID,
 				Limit:         batchSize,
@@ -848,32 +843,25 @@ func FetchHistoricalMessages(client *tdlibclient.Client, logger *log.Logger, lim
 				FromMessageId: oldestMessageID,
 			}
 
-			// If this isn't the first batch, we need to get messages older than our oldest
 			if oldestMessageID != 0 {
-				historyRequest.Offset = -1 // Use negative offset to get messages before this ID
+				historyRequest.Offset = -1
 			}
 
-			// Make the request
 			chatHistory, err := client.GetChatHistory(historyRequest)
 			if err != nil {
 				logger.Error("Failed to get chat history batch", "chat_id", chatID, "iteration", iterations, "error", err)
 				break
 			}
 
-			// If we got no messages or got fewer than requested, we've reached the end
 			if len(chatHistory.Messages) == 0 {
 				logger.Info("No more messages to fetch", "chat_id", chatID, "iteration", iterations)
 				break
 			}
 
-			logger.Info("Retrieved message batch", "chat_id", chatID, "batch", iterations, "count", len(chatHistory.Messages))
-
-			// Add messages to our collection and track the oldest message ID
 			for _, msg := range chatHistory.Messages {
 				if msg != nil {
 					allMessages = append(allMessages, msg)
 
-					// Update the oldest message ID for next iteration
 					if oldestMessageID == 0 || msg.Id < oldestMessageID {
 						oldestMessageID = msg.Id
 					}
@@ -886,34 +874,19 @@ func FetchHistoricalMessages(client *tdlibclient.Client, logger *log.Logger, lim
 
 		logger.Info("Total messages retrieved", "chat_id", chatID, "count", len(allMessages))
 
-		// Process all collected messages
-		for i, message := range allMessages {
+		for _, message := range allMessages {
 			if message == nil {
 				continue
 			}
 
-			// Log message ID and date
-			logger.Info("Message",
-				"index", i,
-				"message_id", message.Id,
-				"date", time.Unix(int64(message.Date), 0).Format(time.RFC3339),
-			)
-
-			// Process message content based on type
-			if messageText, ok := message.Content.(*tdlibclient.MessageText); ok {
-				logger.Info("Message text",
-					"message_id", message.Id,
-					"text", messageText.Text.Text,
-				)
-			} else {
-				logger.Info("Other message type",
-					"message_id", message.Id,
-					"type", fmt.Sprintf("%T", message.Content),
-				)
-			}
+			// if messageText, ok := message.Content.(*tdlibclient.MessageText); ok {
+			// 	logger.Info("Message text",
+			// 		"message_id", message.Id,
+			// 		"text", messageText.Text.Text,
+			// 	)
+			// }
 		}
 
-		// Add a small delay between chats to avoid rate limiting
 		time.Sleep(500 * time.Millisecond)
 	}
 
