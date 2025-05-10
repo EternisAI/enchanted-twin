@@ -10,18 +10,20 @@ import (
 )
 
 type Config struct {
-	OpenAIAPIKey       string
-	GraphqlPort        string
-	OpenAIBaseURL      string
-	CompletionsModel   string
-	EmbeddingsAPIURL   string
-	EmbeddingsModel    string
-	EmbeddingsAPIKey   string
-	DBPath             string
-	AppDataPath        string
-	OllamaBaseURL      string
-	TelegramToken      string
-	TelegramChatServer string
+	OpenAIAPIKey                     string
+	GraphqlPort                      string
+	OpenAIBaseURL                    string
+	CompletionsModel                 string
+	EmbeddingsAPIURL                 string
+	EmbeddingsModel                  string
+	EmbeddingsAPIKey                 string
+	DBPath                           string
+	AppDataPath                      string
+	OllamaBaseURL                    string
+	TelegramToken                    string
+	TelegramChatServer               string
+	TinfoilCompletionsEnclaveAndRepo string
+	UseTinfoilTEE                    bool
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -48,18 +50,20 @@ func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 
 	conf := &Config{
-		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", "", printEnv),
-		GraphqlPort:        getEnv("GRAPHQL_PORT", "3000", printEnv),
-		OpenAIBaseURL:      getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
-		CompletionsModel:   getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
-		EmbeddingsAPIURL:   getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
-		EmbeddingsModel:    getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
-		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
-		DBPath:             getEnv("DB_PATH", "./store.db", printEnv),
-		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
-		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
-		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
-		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
+		OpenAIAPIKey:                     getEnv("OPENAI_API_KEY", "", printEnv),
+		GraphqlPort:                      getEnv("GRAPHQL_PORT", "3000", printEnv),
+		OpenAIBaseURL:                    getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsModel:                 getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
+		EmbeddingsAPIURL:                 getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
+		EmbeddingsModel:                  getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
+		EmbeddingsAPIKey:                 getEnv("EMBEDDINGS_API_KEY", "", printEnv),
+		DBPath:                           getEnv("DB_PATH", "./store.db", printEnv),
+		AppDataPath:                      getEnv("APP_DATA_PATH", "./output", printEnv),
+		OllamaBaseURL:                    getEnv("OLLAMA_BASE_URL", "", printEnv),
+		TelegramToken:                    getEnv("TELEGRAM_TOKEN", "", printEnv),
+		TelegramChatServer:               getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
+		TinfoilCompletionsEnclaveAndRepo: getEnv("TINFOIL_COMPLETIONS_ENCLAVE_AND_REPO", "", printEnv),
+		UseTinfoilTEE:                    getEnv("USE_TINFOIL_TEE", "false", printEnv) == "true",
 	}
 	return conf, nil
 }

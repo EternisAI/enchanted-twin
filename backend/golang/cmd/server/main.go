@@ -123,8 +123,16 @@ func main() {
 	logger.Info("SQLite database initialized")
 
 	// Initialize the AI service singleton
-	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	aiCompletionsService, err := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL, envs.TinfoilCompletionsEnclaveAndRepo, envs.UseTinfoilTEE)
+	if err != nil {
+		logger.Error("Unable to create OpenAI service", "error", err)
+		panic(errors.Wrap(err, "Unable to create OpenAI service"))
+	}
+	aiEmbeddingsService, err := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL, envs.TinfoilCompletionsEnclaveAndRepo, envs.UseTinfoilTEE)
+	if err != nil {
+		logger.Error("Unable to create OpenAI embeddings service", "error", err)
+		panic(errors.Wrap(err, "Unable to create OpenAI embeddings service"))
+	}
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
