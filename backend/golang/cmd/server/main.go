@@ -75,7 +75,6 @@ func main() {
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 
-	// Initialize TDLib Telegram client if credentials are provided
 	var tdlib *tdlibclient.Client
 	if envs.TelegramTDLibAPIID != 0 && envs.TelegramTDLibAPIHash != "" {
 		var err error
@@ -84,7 +83,7 @@ func main() {
 			logger.Warn("Failed to initialize TDLib Telegram client", "error", err)
 		} else {
 			logger.Info("TDLib Telegram client initialized successfully")
-			// Ensure we close the connection when the app exits
+
 			defer tdlib.Close()
 		}
 	} else {
@@ -671,7 +670,6 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*tdlibclient.Client, error) {
 	logger.Info("Initializing TDLib Telegram client")
 
-	// Create directories if they don't exist
 	dbDir := "./tdlib-db"
 	filesDir := "./tdlib-files"
 
@@ -687,14 +685,13 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 	}
 
 	_, err = tdlibclient.SetLogVerbosityLevel(&tdlibclient.SetLogVerbosityLevelRequest{
-		NewVerbosityLevel: 2, // Reduced verbosity for cleaner logs
+		NewVerbosityLevel: 2,
 	})
 	if err != nil {
 		logger.Error("SetLogVerbosityLevel error", "error", err)
 		return nil, errors.Wrap(err, "SetLogVerbosityLevel error")
 	}
 
-	// Setup TDLib parameters
 	tdlibParameters := &tdlibclient.SetTdlibParametersRequest{
 		UseTestDc:           false,
 		DatabaseDirectory:   dbDir,
@@ -711,7 +708,6 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		ApplicationVersion:  "0.1.0",
 	}
 
-	// Create authorizer
 	authorizer := tdlibclient.ClientAuthorizer(tdlibParameters)
 
 	authChan := make(chan bool, 1)
@@ -723,10 +719,8 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		authChan <- true
 	}()
 
-	// Create new client with a timeout
 	logger.Info("Creating new TDLib client - this may take a moment...")
 
-	// Create a channel for client creation result
 	clientCh := make(chan struct {
 		client *tdlibclient.Client
 		err    error
@@ -748,7 +742,7 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 			return nil, errors.Wrap(result.err, "NewClient error")
 		}
 		client = result.client
-	case <-time.After(120 * time.Second): // Increase timeout to 2 minutes
+	case <-time.After(120 * time.Second):
 		logger.Error("Client creation timed out")
 		return nil, errors.New("client creation timed out")
 	}
@@ -763,13 +757,11 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		logger.Info("Logged in to Telegram", "first_name", me.FirstName, "last_name", me.LastName)
 	}
 
-	// Fetch historical messages from all chats
 	logger.Info("Fetching historical messages from all chats...")
 	if err := FetchHistoricalMessages(client, logger, 50); err != nil {
 		logger.Warn("Failed to fetch historical messages", "error", err)
 	}
 
-	// Start listening for updates
 	go handleTDLibUpdates(client, logger)
 
 	return client, nil
@@ -784,13 +776,11 @@ func handleTDLibUpdates(client *tdlibclient.Client, logger *log.Logger) {
 			continue
 		}
 
-		// Process different update types
 		switch updateType := update.(type) {
 		case *tdlibclient.UpdateNewMessage:
 			message := updateType.Message
 			logger.Info("New message received", "message_id", message.Id)
 
-			// Handle different message content types
 			if messageText, ok := message.Content.(*tdlibclient.MessageText); ok {
 				logger.Info("Text message", "text", messageText.Text.Text)
 			}
@@ -817,7 +807,7 @@ func FetchHistoricalMessages(client *tdlibclient.Client, logger *log.Logger, lim
 	logger.Info("Found chats", "count", len(chats.ChatIds))
 
 	for _, chatID := range chats.ChatIds {
-		// Get chat info
+
 		chat, err := client.GetChat(&tdlibclient.GetChatRequest{
 			ChatId: chatID,
 		})
