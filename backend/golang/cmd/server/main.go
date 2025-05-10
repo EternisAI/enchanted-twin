@@ -774,8 +774,10 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 	logger.Info("Chats", "chats", chats)
 	logger.Info("Chats", "chats", chats.TotalCount)
 
+	// time.Sleep(30 * time.Second)
+
 	chatHistory, err := client.GetChatHistory(&tdlibclient.GetChatHistoryRequest{
-		ChatId: chats.ChatIds[200],
+		ChatId: chats.ChatIds[0],
 		Limit:  10,
 	})
 	if err != nil {
@@ -783,9 +785,64 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 	}
 	logger.Info("Chat history", "total count", chatHistory.TotalCount)
 	logger.Info("Chat history", "chat history", chatHistory)
-	for i := range chatHistory.TotalCount {
+
+	for i, message := range chatHistory.Messages {
 		logger.Info("Message", "message content", chatHistory.Messages[i].Content)
+		if messageText, ok := message.Content.(*tdlibclient.MessageText); ok {
+			logger.Info("Message text:", "text", messageText.Text.Text)
+		} else {
+			logger.Info("Other message type:", "type", fmt.Sprintf("%T", message.Content))
+		}
 	}
 
+	go handleTDLibUpdates(client, logger)
+
 	return client, nil
+}
+
+func handleTDLibUpdates(client *tdlibclient.Client, logger *log.Logger) {
+	listener := client.GetListener()
+	defer listener.Close()
+
+	for update := range listener.Updates {
+		if update == nil {
+			continue
+		}
+
+		// Process different update types
+		switch updateType := update.(type) {
+		case *tdlibclient.UpdateNewMessage:
+			message := updateType.Message
+			logger.Info("New message received", "message_id", message.Id)
+
+			// Handle different message content types
+			if messageText, ok := message.Content.(*tdlibclient.MessageText); ok {
+				logger.Info("Text message", "text", messageText.Text.Text)
+			}
+
+		case *tdlibclient.UpdateChatLastMessage:
+			logger.Info("Chat last message updated", "chat_id", updateType.ChatId)
+
+			// Check if LastMessage is nil before accessing its fields
+			if updateType.LastMessage != nil {
+				message, err := client.GetMessage(&tdlibclient.GetMessageRequest{
+					ChatId:    updateType.ChatId,
+					MessageId: updateType.LastMessage.Id,
+				})
+				if err != nil {
+					logger.Error("Error getting message", "error", err)
+				} else {
+					logger.Info("Message", "message", message)
+				}
+			} else {
+				logger.Info("Last message is nil")
+			}
+
+		case *tdlibclient.UpdateMessageContent:
+			logger.Info("Message content updated", "message_id", updateType.MessageId)
+
+		case *tdlibclient.UpdateMessageSendSucceeded:
+			logger.Info("Message sent successfully", "message_id", updateType.Message.Id)
+		}
+	}
 }
