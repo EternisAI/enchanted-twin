@@ -109,7 +109,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         <h3 className="text-xs font-medium text-muted-foreground uppercase mt-4 pt-4 px-1">
           {title}
         </h3>
-        <AnimatePresence mode="sync">
+        <AnimatePresence initial={false} mode="sync">
           {groupChats.map((chat) => (
             <SidebarItem
               key={chat.id}
@@ -251,6 +251,9 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   return (
     <motion.div
       key={chat.id}
+      initial="visible"
+      animate="visible"
+      exit="exit"
       variants={{
         hidden: {
           opacity: 0
