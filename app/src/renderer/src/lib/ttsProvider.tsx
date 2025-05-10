@@ -9,7 +9,7 @@ export interface TTSAPI {
 
 export function TTSProvider({
   children,
-  wsURL = 'ws://localhost:8080/ws'
+  wsURL = 'ws://localhost:45001/ws'
 }: {
   children: ReactNode
   wsURL?: string
@@ -19,13 +19,18 @@ export function TTSProvider({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const pcRef = useRef<RTCPeerConnection | null>(null)
-
   const mediaSourceRef = useRef<MediaSource | null>(null)
   const sourceBufferRef = useRef<SourceBuffer | null>(null)
   const audioQueueRef = useRef<Uint8Array[]>([])
   const eosReceivedRef = useRef<boolean>(false)
+  const isStoppingRef = useRef<boolean>(false) // Flag to prevent multiple stop calls
 
   const stop = useCallback(() => {
+    if (isStoppingRef.current) return // Exit if stop is already in progress
+    isStoppingRef.current = true
+
+    console.log('[TTS] stop() called')
+
     wsRef.current?.close()
     wsRef.current = null
 
@@ -35,6 +40,12 @@ export function TTSProvider({
     if (audioRef.current) {
       audioRef.current.pause()
       audioRef.current.src = ''
+      audioRef.current.load()
+      audioRef.current.removeEventListener('error', audioErrorListener)
+      if (audioRef.current.parentNode) {
+        audioRef.current.parentNode.removeChild(audioRef.current)
+      }
+      audioRef.current = null
     }
 
     mediaSourceRef.current = null
@@ -43,6 +54,7 @@ export function TTSProvider({
     eosReceivedRef.current = false
 
     setIsSpeaking(false)
+    isStoppingRef.current = false
   }, [])
 
   const ensureAudio = useCallback(() => {
@@ -51,7 +63,6 @@ export function TTSProvider({
       el.autoplay = true
       el.controls = false
       el.style.display = 'none'
-
       el.addEventListener('ended', () => {
         stop()
       })
@@ -113,11 +124,23 @@ export function TTSProvider({
     }
   }, [stop, trySignalEndOfStream])
 
+  const audioErrorListener = useCallback(
+    (e: Event) => {
+      console.error('[TTS] Audio error:', e)
+      stop()
+    },
+    [stop]
+  )
+
   const speak = useCallback(
     async (text: string) => {
-      if (!text.trim()) return
+      if (!text.trim()) {
+        console.warn('[TTS] speak() called with empty text')
+        return
+      }
 
       if (wsRef.current || pcRef.current || isSpeaking) {
+        console.log('[TTS] Cleaning up previous connection before speaking')
         stop()
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
@@ -126,9 +149,11 @@ export function TTSProvider({
       audioQueueRef.current = []
 
       const audio = ensureAudio()
+      audio.addEventListener('error', audioErrorListener)
+
       const ws = new WebSocket(wsURL)
       const pc = new RTCPeerConnection()
-      pc.createDataChannel('audio', { ordered: true }) // Create data channel, dc variable removed as unused
+      pc.createDataChannel('audio', { ordered: true })
 
       wsRef.current = ws
       pcRef.current = pc
@@ -137,29 +162,27 @@ export function TTSProvider({
       mediaSourceRef.current = mediaSource
 
       mediaSource.addEventListener('sourceopen', () => {
-        if (mediaSourceRef.current !== mediaSource) {
-          return
-        }
+        if (mediaSourceRef.current !== mediaSource) return
         try {
           sourceBufferRef.current = mediaSource.addSourceBuffer('audio/mpeg')
-
           sourceBufferRef.current.addEventListener('updateend', pump)
           sourceBufferRef.current.addEventListener('error', (ev) => {
-            console.error('SourceBuffer error:', ev)
+            console.error('[TTS] SourceBuffer error:', ev)
             stop()
           })
           pump()
         } catch (e) {
-          console.error("Error in MediaSource 'sourceopen' (addSourceBuffer):", e)
+          console.error("[TTS] Error in MediaSource 'sourceopen':", e)
           stop()
         }
       })
 
       mediaSource.addEventListener('sourceended', () => {
-        // Logic for source ended if needed
+        console.log('[TTS] MediaSource sourceended')
       })
 
       mediaSource.addEventListener('sourceclose', () => {
+        console.log('[TTS] MediaSource sourceclose')
         if (wsRef.current || pcRef.current) {
           stop()
         }
@@ -168,14 +191,21 @@ export function TTSProvider({
       audio.src = URL.createObjectURL(mediaSource)
 
       pc.ondatachannel = ({ channel }) => {
+        console.log('[TTS] Data channel created')
         channel.binaryType = 'arraybuffer'
+
+        channel.onopen = () => console.log('[TTS] Data channel open')
+        channel.onclose = () => console.log('[TTS] Data channel closed') // No stop()
+        channel.onerror = (e) => {
+          console.error('[TTS] Data channel error:', e)
+          stop()
+        }
 
         channel.onmessage = async ({ data }) => {
           if (typeof data === 'string' && data === 'EOS') {
+            console.log('[TTS] Received EOS')
             eosReceivedRef.current = true
-            if (audioQueueRef.current.length === 0) {
-              trySignalEndOfStream()
-            }
+            if (audioQueueRef.current.length === 0) trySignalEndOfStream()
             return
           }
 
@@ -184,77 +214,57 @@ export function TTSProvider({
               ? new Uint8Array(data)
               : new Uint8Array(await (data as Blob).arrayBuffer())
           audioQueueRef.current.push(chunk)
+          console.log('[TTS] Received chunk, queue:', audioQueueRef.current.length)
 
           if (
             sourceBufferRef.current &&
             !sourceBufferRef.current.updating &&
-            mediaSourceRef.current &&
-            mediaSourceRef.current.readyState === 'open'
+            mediaSourceRef.current?.readyState === 'open'
           ) {
             pump()
           }
         }
-
-        channel.onclose = () => {
-          stop()
-        }
-        channel.onerror = (e) => {
-          console.error('DataChannel error:', e)
-          stop()
-        }
       }
 
       ws.onopen = async () => {
+        console.log('[TTS] WebSocket opened')
         setIsSpeaking(true)
         try {
           const offer = await pc.createOffer()
           await pc.setLocalDescription(offer)
           await waitIceComplete(pc)
-
-          ws.send(
-            JSON.stringify({
-              sdp: pc.localDescription!.sdp,
-              text
-            })
-          )
+          ws.send(JSON.stringify({ sdp: pc.localDescription!.sdp, text }))
+          console.log('[TTS] Sent SDP offer')
         } catch (error) {
-          console.error('Error during WebRTC offer creation/sending:', error)
+          console.error('[TTS] Error in offer creation:', error)
           stop()
         }
       }
 
       ws.onmessage = async ({ data }) => {
+        console.log('[TTS] Received SDP answer')
         try {
-          await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(data as string)))
+          await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(data)))
+          console.log('[TTS] Set remote description')
         } catch (error) {
-          console.error('Error setting remote SDP description:', error)
+          console.error('[TTS] Error setting remote description:', error)
           stop()
         }
       }
 
       ws.onerror = (e) => {
-        console.error('WebSocket error:', e)
+        console.error('[TTS] WebSocket error:', e)
         stop()
       }
-      ws.onclose = () => {
-        stop()
-      }
+      ws.onclose = (e) => console.log('[TTS] WebSocket closed', e) // No stop()
     },
-    [wsURL, stop, ensureAudio, pump, trySignalEndOfStream, isSpeaking]
+    [wsURL, stop, ensureAudio, pump, trySignalEndOfStream, isSpeaking, audioErrorListener]
   )
 
   const api = useMemo<TTSAPI>(() => ({ speak, stop, isSpeaking }), [speak, stop, isSpeaking])
 
   useEffect(() => {
-    const currentAudioRef = audioRef.current
     return () => {
-      if (currentAudioRef) {
-        currentAudioRef.pause()
-        currentAudioRef.src = ''
-        if (currentAudioRef.parentNode) {
-          currentAudioRef.parentNode.removeChild(currentAudioRef)
-        }
-      }
       stop()
     }
   }, [stop])
