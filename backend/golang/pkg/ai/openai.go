@@ -4,7 +4,6 @@ package ai
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/openai/openai-go"
@@ -39,35 +38,6 @@ func NewOpenAIService(apiKey string, baseUrl string, enclaveAndRepo string, useT
 		)
 		if err != nil {
 			return nil, err
-		}
-		completion, err := client.Client.Chat.Completions.New(
-			context.Background(),
-			openai.ChatCompletionNewParams{
-				Model: "llama3-3-70b",
-				Messages: []openai.ChatCompletionMessageParamUnion{
-					openai.UserMessage("Hello!"),
-				},
-			},
-		)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(completion.Choices[0].Message.Content)
-
-		stream := client.Chat.Completions.NewStreaming(
-			context.Background(),
-			openai.ChatCompletionNewParams{
-				Model: "llama3-3-70b",
-				Messages: []openai.ChatCompletionMessageParamUnion{
-					openai.UserMessage("Hello!"),
-				},
-			},
-		)
-		for stream.Next() {
-			chunk := stream.Current()
-			fmt.Println(chunk)
-
 		}
 		return &Service{
 			client: client.Client,
