@@ -9,7 +9,7 @@ export interface TTSAPI {
 
 export function TTSProvider({
   children,
-  wsURL = 'ws://localhost:8080/ws'
+  wsURL = 'ws://localhost:45001/ws'
 }: {
   children: ReactNode
   wsURL?: string
@@ -26,6 +26,7 @@ export function TTSProvider({
   const eosReceivedRef = useRef<boolean>(false)
 
   const stop = useCallback(() => {
+    console.log('[TTS] stop() called')
     wsRef.current?.close()
     wsRef.current = null
 
@@ -115,9 +116,13 @@ export function TTSProvider({
 
   const speak = useCallback(
     async (text: string) => {
-      if (!text.trim()) return
+      if (!text.trim()) {
+        console.warn('[TTS] speak() called with empty text')
+        return
+      }
 
       if (wsRef.current || pcRef.current || isSpeaking) {
+        console.log('[TTS] Cleaning up previous connection before speaking')
         stop()
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
@@ -145,21 +150,22 @@ export function TTSProvider({
 
           sourceBufferRef.current.addEventListener('updateend', pump)
           sourceBufferRef.current.addEventListener('error', (ev) => {
-            console.error('SourceBuffer error:', ev)
+            console.error('[TTS] SourceBuffer error:', ev)
             stop()
           })
           pump()
         } catch (e) {
-          console.error("Error in MediaSource 'sourceopen' (addSourceBuffer):", e)
+          console.error("[TTS] Error in MediaSource 'sourceopen' (addSourceBuffer):", e)
           stop()
         }
       })
 
       mediaSource.addEventListener('sourceended', () => {
-        // Logic for source ended if needed
+        console.log('[TTS] MediaSource sourceended')
       })
 
       mediaSource.addEventListener('sourceclose', () => {
+        console.log('[TTS] MediaSource sourceclose')
         if (wsRef.current || pcRef.current) {
           stop()
         }
@@ -168,10 +174,24 @@ export function TTSProvider({
       audio.src = URL.createObjectURL(mediaSource)
 
       pc.ondatachannel = ({ channel }) => {
+        console.log('[TTS] Data channel created')
         channel.binaryType = 'arraybuffer'
+
+        channel.onopen = () => {
+          console.log('[TTS] Data channel open')
+        }
+        channel.onclose = () => {
+          console.log('[TTS] Data channel closed')
+          stop()
+        }
+        channel.onerror = (e) => {
+          console.error('[TTS] Data channel error:', e)
+          stop()
+        }
 
         channel.onmessage = async ({ data }) => {
           if (typeof data === 'string' && data === 'EOS') {
+            console.log('[TTS] Received EOS (end of stream)')
             eosReceivedRef.current = true
             if (audioQueueRef.current.length === 0) {
               trySignalEndOfStream()
@@ -184,6 +204,7 @@ export function TTSProvider({
               ? new Uint8Array(data)
               : new Uint8Array(await (data as Blob).arrayBuffer())
           audioQueueRef.current.push(chunk)
+          console.log('[TTS] Received audio chunk, queue length:', audioQueueRef.current.length)
 
           if (
             sourceBufferRef.current &&
@@ -194,17 +215,10 @@ export function TTSProvider({
             pump()
           }
         }
-
-        channel.onclose = () => {
-          stop()
-        }
-        channel.onerror = (e) => {
-          console.error('DataChannel error:', e)
-          stop()
-        }
       }
 
       ws.onopen = async () => {
+        console.log('[TTS] WebSocket opened')
         setIsSpeaking(true)
         try {
           const offer = await pc.createOffer()
@@ -217,26 +231,30 @@ export function TTSProvider({
               text
             })
           )
+          console.log('[TTS] Sent SDP offer and text to backend')
         } catch (error) {
-          console.error('Error during WebRTC offer creation/sending:', error)
+          console.error('[TTS] Error during WebRTC offer creation/sending:', error)
           stop()
         }
       }
 
       ws.onmessage = async ({ data }) => {
+        console.log('[TTS] WebSocket received message (SDP answer)')
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(JSON.parse(data as string)))
+          console.log('[TTS] Set remote SDP description')
         } catch (error) {
-          console.error('Error setting remote SDP description:', error)
+          console.error('[TTS] Error setting remote SDP description:', error)
           stop()
         }
       }
 
       ws.onerror = (e) => {
-        console.error('WebSocket error:', e)
+        console.error('[TTS] WebSocket error:', e)
         stop()
       }
-      ws.onclose = () => {
+      ws.onclose = (e) => {
+        console.log('[TTS] WebSocket closed', e)
         stop()
       }
     },

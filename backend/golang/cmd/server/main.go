@@ -209,6 +209,7 @@ func main() {
 		chatStorage,
 		nc,
 		toolRegistry,
+		store,
 		envs.CompletionsModel,
 	)
 
@@ -387,14 +388,14 @@ type bootstrapTemporalWorkerInput struct {
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		hostPort = 45000
-		image    = "ghcr.io/remsky/kokoro-fastapi-cpu"
+		kokoroPort = 45000
+		image      = "ghcr.io/remsky/kokoro-fastapi-cpu"
 	)
 
 	dockerSvc, err := docker.NewService(docker.ContainerOptions{
 		ImageName: image,
 		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprint(hostPort): "8880"},
+		Ports:     map[string]string{fmt.Sprint(kokoroPort): "8880"},
 		Detached:  true,
 	}, logger)
 	if err != nil {
@@ -407,11 +408,11 @@ func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	}
 
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", hostPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
-	svc := tts.New(":8080", engine, *logger)
+	svc := tts.New(":45001", engine, *logger)
 	return svc, nil
 }
 
