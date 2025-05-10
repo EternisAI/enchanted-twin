@@ -820,24 +820,6 @@ func handleTDLibUpdates(client *tdlibclient.Client, logger *log.Logger) {
 				logger.Info("Text message", "text", messageText.Text.Text)
 			}
 
-		case *tdlibclient.UpdateChatLastMessage:
-			logger.Info("Chat last message updated", "chat_id", updateType.ChatId)
-
-			// Check if LastMessage is nil before accessing its fields
-			if updateType.LastMessage != nil {
-				message, err := client.GetMessage(&tdlibclient.GetMessageRequest{
-					ChatId:    updateType.ChatId,
-					MessageId: updateType.LastMessage.Id,
-				})
-				if err != nil {
-					logger.Error("Error getting message", "error", err)
-				} else {
-					logger.Info("Message", "message", message)
-				}
-			} else {
-				logger.Info("Last message is nil")
-			}
-
 		case *tdlibclient.UpdateMessageContent:
 			logger.Info("Message content updated", "message_id", updateType.MessageId)
 
