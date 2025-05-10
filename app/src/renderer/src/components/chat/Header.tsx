@@ -310,7 +310,7 @@ export function Header() {
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>
-                          <p>Start voice chat</p>
+                          <p>Voice chat (coming soon)</p>
                         </TooltipContent>
                       </Tooltip>
                     </TooltipProvider>
