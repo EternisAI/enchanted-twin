@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowBigUp, History, X } from 'lucide-react'
+import { ArrowBigUp, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
@@ -26,11 +26,11 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
     }
   }
 
-  const [isDeepMemory, setIsDeepMemory] = useState(false)
+  // const [isDeepMemory, setIsDeepMemory] = useState(false)
 
-  const toggleDeepMemory = () => {
-    setIsDeepMemory(!isDeepMemory)
-  }
+  // const toggleDeepMemory = () => {
+  //   setIsDeepMemory(!isDeepMemory)
+  // }
 
   return (
     <motion.div
@@ -53,8 +53,8 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none"
         />
       </div>
-      <div className="flex justify-between items-center gap-3">
-        <Button
+      <div className="flex justify-end items-center gap-3">
+        {/* <Button
           onClick={toggleDeepMemory}
           className={cn(
             'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
@@ -64,7 +64,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
         >
           <History className="w-4 h-5" />
           Deep Memory
-        </Button>
+        </Button> */}
         <SendButton
           onSend={handleSend}
           isWaitingTwinResponse={isWaitingTwinResponse}

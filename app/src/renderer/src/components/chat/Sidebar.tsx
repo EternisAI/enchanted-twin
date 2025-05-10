@@ -85,11 +85,31 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const renderGroup = (title: string, groupChats: Chat[]) => {
     if (groupChats.length === 0) return null
     return (
-      <motion.div key={title} className="mb-6">
-        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-1">
+      <motion.div
+        key={title}
+        className="mb-6"
+        initial="hidden"
+        animate="visible"
+        exit="exit"
+        variants={{
+          visible: {
+            transition: {
+              staggerChildren: 0.1,
+              delayChildren: 0.01
+            }
+          },
+          exit: {
+            transition: {
+              staggerChildren: 0.02,
+              staggerDirection: -1
+            }
+          }
+        }}
+      >
+        <h3 className="text-xs font-medium text-muted-foreground uppercase mt-4 pt-4 px-1">
           {title}
         </h3>
-        <AnimatePresence initial={false} mode="popLayout">
+        <AnimatePresence mode="sync">
           {groupChats.map((chat) => (
             <SidebarItem
               key={chat.id}
@@ -231,7 +251,26 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   return (
     <motion.div
       key={chat.id}
-      className={cn('flex items-center gap-2 justify-between rounded-md group text-sm', {
+      variants={{
+        hidden: {
+          opacity: 0
+        },
+        visible: {
+          opacity: 1,
+          transition: {
+            duration: 1,
+            ease: [0.2, 0.65, 0.4, 0.9]
+          }
+        },
+        exit: {
+          opacity: 0,
+          transition: {
+            duration: 0.25,
+            ease: [0.4, 0, 0.6, 0]
+          }
+        }
+      }}
+      className={cn('flex items-center h-fit gap-2 justify-between rounded-md group text-sm', {
         'bg-primary/10 text-primary': isActive,
         'hover:bg-accent text-foreground': !isActive
       })}

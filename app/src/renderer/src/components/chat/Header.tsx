@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import { Input } from '@renderer/components/ui/input'
+import { Textarea } from '@renderer/components/ui/textarea'
 import {
   Send,
   AudioLines,
@@ -9,7 +10,8 @@ import {
   GraduationCap,
   PenTool,
   Brain,
-  MessageCircle
+  MessageCircle,
+  Telescope
 } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
@@ -55,7 +57,7 @@ export function Header() {
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
   const [updateProfile] = useMutation(UPDATE_PROFILE)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const chats = chatsData?.getChats || []
   const filteredChats = chats.filter((chat) =>
@@ -69,6 +71,7 @@ export function Header() {
       icon: MessageCircle,
       emphasized: true
     },
+    { id: 'dummya', name: "Let's get to know each other", icon: Telescope },
     { id: 'dummy1', name: 'Help me plan my day and set priorities', icon: Calendar },
     { id: 'dummy2', name: 'Research and summarize a topic for me', icon: Search },
     { id: 'dummy3', name: 'Help me learn a new skill or concept', icon: GraduationCap },
@@ -88,7 +91,7 @@ export function Header() {
 
   useEffect(() => {
     if (searchParams && searchParams.focusInput === 'true') {
-      inputRef.current?.focus()
+      textareaRef.current?.focus()
       const currentPath = router.state.location.pathname
       const existingSearchParams = { ...router.state.location.search }
       delete (existingSearchParams as IndexRouteSearch).focusInput
@@ -101,6 +104,19 @@ export function Header() {
       })
     }
   }, [searchParams, navigate, router.state.location.pathname, router.state.location.search])
+
+  const adjustTextareaHeight = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      const scrollHeight = textareaRef.current.scrollHeight
+      const maxHeight = 240
+      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+    }
+  }
+
+  useEffect(() => {
+    adjustTextareaHeight()
+  }, [query])
 
   const handleNameUpdate = async () => {
     if (!editedName.trim()) {
@@ -125,7 +141,7 @@ export function Header() {
     }
   }
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const handleNameEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       handleNameUpdate()
     } else if (e.key === 'Escape') {
@@ -162,7 +178,7 @@ export function Header() {
     }
   }, [query, navigate, createChat, sendMessage, router])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
     if (query.trim()) {
       if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
@@ -175,7 +191,7 @@ export function Header() {
   }
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleArrowKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
         setSelectedIndex((prev) => Math.min(prev + 1, suggestions.length - 1))
@@ -186,8 +202,8 @@ export function Header() {
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleArrowKeyDown)
+    return () => window.removeEventListener('keydown', handleArrowKeyDown)
   }, [selectedIndex, suggestions])
 
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
@@ -237,7 +253,7 @@ export function Header() {
             <Input
               value={editedName}
               onChange={(e) => setEditedName(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onKeyDown={handleNameEditKeyDown}
               onBlur={handleNameUpdate}
               autoFocus
               className="!text-2xl font-bold text-center"
@@ -262,39 +278,58 @@ export function Header() {
 
       <div className="relative w-full">
         <form onSubmit={handleSubmit} className="relative w-full">
-          <motion.div layout className="flex items-center gap-6 p-1">
-            <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border">
-              <input
-                ref={inputRef}
-                type="text"
+          <div className="flex items-center gap-6 p-1">
+            <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border px-2">
+              <Textarea
+                ref={textareaRef}
                 value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value)
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    handleSubmit(e)
+                  }
                 }}
                 placeholder="Start a new chat..."
-                className="flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-4 h-fit outline-none focus:outline-none"
+                className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
+                rows={1}
               />
-              <div className="flex items-center gap-1 pr-2">
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" type="button" size="icon" className="h-10 w-10">
-                        <AudioLines className="h-5 w-5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>Start voice chat</p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-                {query.trim() && (
-                  <Button variant="ghost" type="submit" size="icon" className="h-10 w-10">
-                    <Send className="h-5 w-5" />
-                  </Button>
-                )}
+              <div className="flex items-center self-end gap-1 pb-2">
+                <LayoutGroup id="chat-input-buttons">
+                  <motion.div layout>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" type="button" size="icon" className="h-10 w-10">
+                            <AudioLines className="h-5 w-5" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Start voice chat</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </motion.div>
+                  <AnimatePresence mode="wait">
+                    {debouncedQuery.trim() && (
+                      <motion.div
+                        layout
+                        key="send-button"
+                        initial={{ opacity: 0, scale: 0.7 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.7, transition: { duration: 0.1 } }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                      >
+                        <Button variant="ghost" type="submit" size="icon" className="h-10 w-10">
+                          <Send className="h-5 w-5" />
+                        </Button>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </LayoutGroup>
               </div>
             </div>
-          </motion.div>
+          </div>
         </form>
         <AnimatePresence mode="wait">
           <motion.div

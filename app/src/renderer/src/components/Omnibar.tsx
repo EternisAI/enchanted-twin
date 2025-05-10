@@ -117,7 +117,7 @@ export const Omnibar = () => {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, selectedIndex, filteredChats, navigate, closeOmnibar])
+  }, [isOpen, selectedIndex, filteredChats, navigate, closeOmnibar, isCompleted])
 
   return (
     <FocusLock disabled={!isOpen} returnFocus>
@@ -186,7 +186,7 @@ export const Omnibar = () => {
                           layout: { type: 'spring', damping: 20, stiffness: 300 },
                           staggerChildren: 0.1
                         }}
-                        className="rounded-lg border border-border bg-background/90 overflow-hidden"
+                        className="rounded-lg overflow-hidden"
                       >
                         <div className="py-1">
                           {filteredChats.map((chat, index) => (
@@ -200,7 +200,7 @@ export const Omnibar = () => {
                               className={cn(
                                 'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
                                 'hover:bg-muted/80',
-                                selectedIndex === index && 'bg-primary/10 text-primary'
+                                selectedIndex === index && 'bg-primary/10 text-primary rounded-md'
                               )}
                               layoutId={`chat-${chat.id}`}
                             >
@@ -216,7 +216,7 @@ export const Omnibar = () => {
                                 'flex w-full items-center justify-between px-3 py-2 text-left text-sm',
                                 'hover:bg-muted/80',
                                 selectedIndex === filteredChats.length &&
-                                  'bg-primary/10 text-primary'
+                                  'bg-primary/10 text-primary rounded-md'
                               )}
                             >
                               <span>New chat: &quot;{debouncedQuery}&quot;</span>
