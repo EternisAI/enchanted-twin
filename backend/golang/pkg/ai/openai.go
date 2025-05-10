@@ -29,8 +29,6 @@ func NewOpenAIService(apiKey string, baseUrl string, enclaveAndRepo string, useT
 
 	if useTinfoilTEE {
 		enclaveAndRepoParts := strings.Split(enclaveAndRepo, ",")
-		fmt.Println("enclave", enclaveAndRepoParts[0])
-		fmt.Println("repo", enclaveAndRepoParts[1])
 		if len(enclaveAndRepoParts) != 2 {
 			return nil, errors.New("enclaveAndRepo must be in the format <enclave>,<repo>")
 		}
@@ -83,7 +81,6 @@ func NewOpenAIService(apiKey string, baseUrl string, enclaveAndRepo string, useT
 }
 
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
-	fmt.Println("model_here", params.Model)
 	completion, err := s.client.Chat.Completions.New(ctx, params)
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
@@ -92,7 +89,6 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 }
 
 func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
-	fmt.Println("model_here", model)
 	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
 		Model:    model,
@@ -102,7 +98,6 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 
 // CompletionsWithMessages executes a completion using our internal message format.
 func (s *Service) CompletionsWithMessages(ctx context.Context, messages []Message, tools []openai.ChatCompletionToolParam, model string) (Message, error) {
-	fmt.Println("model_here_with_message", model)
 	// Convert our messages to OpenAI format
 	openaiMessages := ToOpenAIMessages(messages)
 

@@ -3,7 +3,6 @@ package ai
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/openai/openai-go"
 )
@@ -25,7 +24,6 @@ func (s *Service) CompletionsStream(
 	tools []openai.ChatCompletionToolParam,
 	model string,
 ) Stream {
-	fmt.Println("completions stream model", model)
 	contentCh := make(chan StreamDelta, 64)
 	toolCh := make(chan openai.ChatCompletionMessageToolCall, 8)
 	errCh := make(chan error, 1)
