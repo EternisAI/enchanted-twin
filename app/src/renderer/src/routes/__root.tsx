@@ -66,14 +66,21 @@ function RootComponent() {
         </div>
 
         {!sidebarOpen && (
-          <Button
-            onClick={() => setSidebarOpen(true)}
-            variant="ghost"
-            size="icon"
-            className="absolute top-2 left-3 z-[60] text-muted-foreground hover:text-foreground"
+          <motion.div
+            className="absolute top-11 left-3 z-[60] "
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5 }}
           >
-            <PanelLeftOpen className="w-5 h-5" />
-          </Button>
+            <Button
+              onClick={() => setSidebarOpen(true)}
+              variant="ghost"
+              size="icon"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <PanelLeftOpen className="w-5 h-5" />
+            </Button>
+          </motion.div>
         )}
 
         <div className="flex flex-1 overflow-hidden mt-0">
