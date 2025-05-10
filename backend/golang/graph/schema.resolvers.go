@@ -687,34 +687,6 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
 	notificationChan := make(chan *model.AppNotification, 10)
 
-	go func() {
-		defer close(notificationChan)
-
-		// Create 3 notifications with 5 second delay between each
-		for i := 1; i <= 3; i++ {
-			select {
-			case <-ctx.Done():
-				r.Logger.Info("Context canceled while sending notifications")
-				return
-			case <-time.After(5 * time.Second):
-				notification := &model.AppNotification{
-					ID:        fmt.Sprintf("notification-%d", i),
-					Title:     fmt.Sprintf("Notification %d", i),
-					Message:   fmt.Sprintf("This is notification number %d", i),
-					CreatedAt: time.Now().Format(time.RFC3339),
-				}
-
-				select {
-				case notificationChan <- notification:
-					r.Logger.Info("Sent notification", "id", notification.ID)
-				case <-ctx.Done():
-					r.Logger.Info("Context canceled while sending notification", "id", notification.ID)
-					return
-				}
-			}
-		}
-	}()
-
 	return notificationChan, nil
 }
 
