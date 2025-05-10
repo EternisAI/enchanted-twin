@@ -482,8 +482,6 @@ app.whenReady().then(async () => {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
-      //@TODO: we should await this process to be fully started or have a initialize screen to show in the meantime while it's starting
-
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
           ...process.env,
