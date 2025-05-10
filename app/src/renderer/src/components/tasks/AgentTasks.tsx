@@ -35,7 +35,7 @@ export default function AgentTasks() {
 
   return (
     <Card className="p-6 w-full overflow-y-auto">
-      {loading && <div className="py-4 text-center">Loading agent tasks...</div>}
+      {loading && <div className="py-4 text-center">Loading tasks...</div>}
       {/* {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>} */}
 
       <div className="flex flex-col gap-4 pb-6">
@@ -72,7 +72,7 @@ function EmptyTasksState() {
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 gap-4">
       <div className="text-center max-w-md mb-12 flex flex-col gap-2">
-        <h3 className="text-xl font-medium mb-8">No agent tasks yet</h3>
+        <h3 className="text-xl font-medium mb-8">No tasks yet</h3>
         <p className="text-muted-foreground">
           Create an agent task to automate recurring activities
         </p>

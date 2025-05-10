@@ -14,11 +14,13 @@ import { useRouter } from '@tanstack/react-router'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import FocusLock from 'react-focus-lock'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { Textarea } from '@renderer/components/ui/textarea'
 
 export const Omnibar = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const debounceTimeout = useRef<NodeJS.Timeout | null>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const navigate = useNavigate()
   const router = useRouter()
   const [createChat] = useMutation(CreateChatDocument)
@@ -50,6 +52,27 @@ export const Omnibar = () => {
       }
     }
   }, [query])
+
+  const adjustTextareaHeight = () => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      const scrollHeight = textareaRef.current.scrollHeight
+      const maxHeight = 240
+      textareaRef.current.style.height = `${Math.min(scrollHeight, maxHeight)}px`
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      adjustTextareaHeight()
+    }
+  }, [query, isOpen])
+
+  useEffect(() => {
+    if (isOpen && textareaRef.current) {
+      textareaRef.current.focus()
+    }
+  }, [isOpen])
 
   const handleCreateChat = useCallback(async () => {
     if (!query.trim()) return
@@ -150,27 +173,39 @@ export const Omnibar = () => {
                     layout: { type: 'spring', damping: 25, stiffness: 280 }
                   }}
                 >
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="text"
+                  <div className="flex items-start gap-3">
+                    <Textarea
+                      ref={textareaRef}
                       value={query}
                       onChange={(e) => {
                         setQuery(e.target.value)
                         setSelectedIndex(0)
                       }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSubmit(e as React.FormEvent)
+                        }
+                      }}
                       placeholder="What would you like to discuss?"
-                      className="flex-1 bg-transparent text-foreground placeholder-muted-foreground outline-none"
-                      autoFocus
+                      className="flex-1 !text-base bg-transparent text-foreground placeholder-muted-foreground outline-none resize-none overflow-y-hidden min-h-0 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 p-0"
+                      rows={1}
                     />
-                    {debouncedQuery.trim() && filteredChats.length === 0 && (
-                      <button
-                        type="button"
-                        onClick={handleCreateChat}
-                        className="rounded-full p-1 text-primary hover:bg-muted"
-                      >
-                        <Send className="h-5 w-5" />
-                      </button>
-                    )}
+                    <AnimatePresence mode="wait">
+                      {debouncedQuery.trim() && filteredChats.length === 0 && (
+                        <motion.button
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          transition={{ type: 'spring', damping: 25, stiffness: 280 }}
+                          type="button"
+                          onClick={handleCreateChat}
+                          className="rounded-full p-1 text-primary hover:bg-muted self-end"
+                        >
+                          <Send className="h-5 w-5" />
+                        </motion.button>
+                      )}
+                    </AnimatePresence>
                   </div>
 
                   <AnimatePresence mode="wait">
