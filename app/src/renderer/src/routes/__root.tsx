@@ -67,7 +67,7 @@ function RootComponent() {
 
         {!sidebarOpen && (
           <motion.div
-            className="absolute top-11 left-3 z-[60] "
+            className="absolute top-11 left-3 z-[60]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}

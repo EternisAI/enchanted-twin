@@ -15,6 +15,7 @@ import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import FocusLock from 'react-focus-lock'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { Textarea } from '@renderer/components/ui/textarea'
+import { SendButton } from './chat/MessageInput'
 
 export const Omnibar = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -151,7 +152,7 @@ export const Omnibar = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-card/50 backdrop-blur-sm pointer-events-auto"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-card pointer-events-auto"
             onClick={closeOmnibar}
           >
             <motion.div
@@ -193,17 +194,19 @@ export const Omnibar = () => {
                     />
                     <AnimatePresence mode="wait">
                       {debouncedQuery.trim() && filteredChats.length === 0 && (
-                        <motion.button
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          animate={{ opacity: 1, scale: 1 }}
-                          exit={{ opacity: 0, scale: 0.95 }}
-                          transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-                          type="button"
-                          onClick={handleCreateChat}
-                          className="rounded-full p-1 text-primary hover:bg-muted self-end"
+                        <motion.div
+                          layout="position"
+                          className="self-center"
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
                         >
-                          <Send className="h-5 w-5" />
-                        </motion.button>
+                          <SendButton
+                            onSend={handleCreateChat}
+                            isWaitingTwinResponse={false}
+                            text={query}
+                          />
+                        </motion.div>
                       )}
                     </AnimatePresence>
                   </div>

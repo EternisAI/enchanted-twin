@@ -106,18 +106,14 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           }
         }}
       >
-        <h3 className="text-xs font-medium text-muted-foreground uppercase mt-4 pt-4 px-1">
-          {title}
-        </h3>
-        <AnimatePresence mode="sync">
-          {groupChats.map((chat) => (
-            <SidebarItem
-              key={chat.id}
-              chat={chat}
-              isActive={location.pathname === `/chat/${chat.id}`}
-            />
-          ))}
-        </AnimatePresence>
+        <h3 className="text-xs font-medium text-muted-foreground uppercase px-1 ">{title}</h3>
+        {groupChats.map((chat) => (
+          <SidebarItem
+            key={chat.id}
+            chat={chat}
+            isActive={location.pathname === `/chat/${chat.id}`}
+          />
+        ))}
       </motion.div>
     )
   }
@@ -186,9 +182,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
           <AnimatePresence initial={false} mode="popLayout">
-            {Object.entries(groupedChats).map(([title, groupChats]) =>
-              renderGroup(title, groupChats)
-            )}
+            <motion.div className="flex flex-col gap-2">
+              {Object.entries(groupedChats).map(([title, groupChats]) =>
+                renderGroup(title, groupChats)
+              )}
+            </motion.div>
           </AnimatePresence>
 
           {chats.length > 5 && (
@@ -215,7 +213,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         <div className="pt-2 border-t border-border/50 shrink-0">
           <Button
             variant="ghost"
-            className="w-full justify-start px-2 text-muted-foreground hover:text-foreground h-9"
+            className="w-full justify-start px-2 text-secondary-foreground hover:text-foreground h-9"
             onClick={openSettings}
           >
             <SettingsIcon className="w-4 h-4 mr-2" />

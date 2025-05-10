@@ -76,16 +76,18 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   )
 }
 
-function SendButton({
+export function SendButton({
   onSend,
   onStop,
   isWaitingTwinResponse,
-  text
+  text,
+  className
 }: {
   isWaitingTwinResponse: boolean
   onSend: () => void
   onStop?: () => void
   text: string
+  className?: string
 }) {
   const [prevWaitingState, setPrevWaitingState] = useState(false)
 
@@ -103,7 +105,7 @@ function SendButton({
     <Button
       size="icon"
       variant={isWaitingTwinResponse ? 'destructive' : 'default'}
-      className="rounded-full transition-all duration-200 ease-in-out relative"
+      className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
       onClick={isWaitingTwinResponse ? handleStop : onSend}
       disabled={!isWaitingTwinResponse && !text.trim()}
     >

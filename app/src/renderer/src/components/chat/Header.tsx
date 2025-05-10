@@ -3,7 +3,6 @@ import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
 import {
-  Send,
   AudioLines,
   Calendar,
   Search,
@@ -29,6 +28,7 @@ import { Button } from '../ui/button'
 import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '../ui/tooltip'
 import { useDebounce } from '@renderer/hooks/useDebounce'
 import { ScrollArea } from '../ui/scroll-area'
+import { SendButton } from './MessageInput'
 
 // Define expected search params type that matches routes/index.tsx
 interface IndexRouteSearch {
@@ -300,7 +300,12 @@ export function Header() {
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Button variant="ghost" type="button" size="icon" className="h-10 w-10">
+                          <Button
+                            variant="ghost"
+                            type="button"
+                            size="icon"
+                            className="h-10 w-10 rounded-full"
+                          >
                             <AudioLines className="h-5 w-5" />
                           </Button>
                         </TooltipTrigger>
@@ -310,22 +315,12 @@ export function Header() {
                       </Tooltip>
                     </TooltipProvider>
                   </motion.div>
-                  <AnimatePresence mode="wait">
-                    {debouncedQuery.trim() && (
-                      <motion.div
-                        layout
-                        key="send-button"
-                        initial={{ opacity: 0, scale: 0.7 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.7, transition: { duration: 0.1 } }}
-                        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-                      >
-                        <Button variant="ghost" type="submit" size="icon" className="h-10 w-10">
-                          <Send className="h-5 w-5" />
-                        </Button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                  <SendButton
+                    className="w-10 h-10"
+                    text={query}
+                    onSend={handleCreateChat}
+                    isWaitingTwinResponse={false}
+                  />
                 </LayoutGroup>
               </div>
             </div>
