@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 
 	"github.com/charmbracelet/log"
@@ -227,7 +228,11 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			continue
 		}
 
-		cmd := exec.Command(server.Command, server.Args...)
+		command := server.Command
+		if command == "docker" {
+			command = getDockerCommand()
+		}
+		cmd := exec.Command(command, server.Args...)
 
 		cmd.Env = os.Environ()
 		for _, env := range server.Envs {
@@ -389,4 +394,29 @@ func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
 	clientTransport := stdio.NewStdioServerTransportWithIO(stdout, stdin)
 
 	return clientTransport, nil
+}
+
+func getDockerCommand() string {
+	var dockerCommand string
+	path, err := exec.LookPath("docker")
+	if err != nil {
+		commonPaths := []string{
+			"/usr/local/bin/docker",
+			"/usr/bin/docker",
+			filepath.Join(os.Getenv("HOME"), ".local/bin/docker"),
+		}
+		for _, p := range commonPaths {
+			if _, err := os.Stat(p); err == nil {
+				path = p
+				break
+			}
+		}
+	}
+	if path != "" {
+		dockerCommand = path
+	} else {
+		dockerCommand = "docker"
+	}
+
+	return dockerCommand
 }
