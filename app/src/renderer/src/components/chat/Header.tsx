@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from 'react'
-import { motion } from 'framer-motion'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Input } from '@renderer/components/ui/input'
 import {
   Send,
@@ -9,23 +9,29 @@ import {
   GraduationCap,
   PenTool,
   Brain,
-  MessageCircleMore
+  MessageCircle
 } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
+import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
-import { GetProfileDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
-import { CreateChatDocument, SendMessageDocument } from '@renderer/graphql/generated/graphql'
+import {
+  GetProfileDocument,
+  GetChatsDocument,
+  CreateChatDocument,
+  SendMessageDocument
+} from '@renderer/graphql/generated/graphql'
 import { toast } from 'sonner'
 import { client } from '@renderer/graphql/lib'
-import { useRouter } from '@tanstack/react-router'
 import { ContextCard } from './ContextCard'
 import { cn } from '@renderer/lib/utils'
 import { Button } from '../ui/button'
-import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
-import { Tooltip } from '../ui/tooltip'
-import { TooltipProvider } from '../ui/tooltip'
+import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '../ui/tooltip'
 import { useDebounce } from '@renderer/hooks/useDebounce'
 import { ScrollArea } from '../ui/scroll-area'
+
+// Define expected search params type that matches routes/index.tsx
+interface IndexRouteSearch {
+  focusInput?: string
+}
 
 const UPDATE_PROFILE = gql`
   mutation UpdateProfile($input: UpdateProfileInput!) {
@@ -38,28 +44,29 @@ export function Header() {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
-  const [updateProfile] = useMutation(UPDATE_PROFILE)
-  const [isEditingName, setIsEditingName] = useState(false)
-  const [editedName, setEditedName] = useState('')
-  const [query, setQuery] = useState('')
-  const debouncedQuery = useDebounce(query, 300)
-  const [selectedIndex, setSelectedIndex] = useState(-1)
   const navigate = useNavigate()
   const router = useRouter()
+  const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
+  const [query, setQuery] = useState('')
+  const [editedName, setEditedName] = useState('')
+  const [isEditingName, setIsEditingName] = useState(false)
+  const [selectedIndex, setSelectedIndex] = useState(-1)
+  const debouncedQuery = useDebounce(query, 300)
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
+  const [updateProfile] = useMutation(UPDATE_PROFILE)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const chats = chatsData?.getChats || []
   const filteredChats = chats.filter((chat) =>
     chat.name.toLowerCase().includes(debouncedQuery.toLowerCase())
   )
 
-  // Dummy suggestions for AI agent use cases
   const dummySuggestions = [
     {
       id: 'dummy0',
       name: 'I notice you seem stressed. Would you like to talk about it?',
-      icon: MessageCircleMore,
+      icon: MessageCircle,
       emphasized: true
     },
     { id: 'dummy1', name: 'Help me plan my day and set priorities', icon: Calendar },
@@ -69,10 +76,8 @@ export function Header() {
     { id: 'dummy5', name: 'Help me make a decision', icon: Brain }
   ]
 
-  // Always show dummy suggestions when there's no query
   const suggestions = debouncedQuery ? filteredChats : dummySuggestions
 
-  // Reset selection when query changes
   useEffect(() => {
     if (!debouncedQuery) {
       setSelectedIndex(-1)
@@ -80,6 +85,22 @@ export function Header() {
       setSelectedIndex(0)
     }
   }, [debouncedQuery])
+
+  useEffect(() => {
+    if (searchParams && searchParams.focusInput === 'true') {
+      inputRef.current?.focus()
+      const currentPath = router.state.location.pathname
+      const existingSearchParams = { ...router.state.location.search }
+      delete (existingSearchParams as IndexRouteSearch).focusInput
+
+      navigate({
+        to: currentPath,
+        search: existingSearchParams,
+        replace: true,
+        resetScroll: false
+      })
+    }
+  }, [searchParams, navigate, router.state.location.pathname, router.state.location.search])
 
   const handleNameUpdate = async () => {
     if (!editedName.trim()) {
@@ -157,7 +178,7 @@ export function Header() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex((prev) => Math.min(prev + 1, filteredChats.length))
+        setSelectedIndex((prev) => Math.min(prev + 1, suggestions.length - 1))
       }
       if (e.key === 'ArrowUp') {
         e.preventDefault()
@@ -167,7 +188,7 @@ export function Header() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selectedIndex, filteredChats])
+  }, [selectedIndex, suggestions])
 
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
     try {
@@ -199,12 +220,25 @@ export function Header() {
 
   return (
     <motion.div
-      layout="position"
+      initial={{
+        opacity: 0,
+        scale: 0.9
+      }}
+      animate={{
+        opacity: 1,
+        scale: 1
+      }}
+      transition={{
+        type: 'spring',
+        stiffness: 100,
+        damping: 15
+      }}
       className="flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto px-4"
     >
       <div className="flex flex-col items-center gap-4 w-full">
         {isEditingName ? (
           <motion.div
+            layout
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
@@ -220,7 +254,8 @@ export function Header() {
             />
           </motion.div>
         ) : (
-          <h1
+          <motion.h1
+            layout
             className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
             onClick={() => {
               setEditedName(twinName)
@@ -228,32 +263,19 @@ export function Header() {
             }}
           >
             {twinName}
-          </h1>
+          </motion.h1>
         )}
-        {/* <SoundWaveContainer audioUrl="/path/to/your/audio/file.mp3" size={0.5} color="#4f46e5" /> */}
-        <ContextCard />
+        <motion.div layout>
+          <ContextCard />
+        </motion.div>
       </div>
 
-      <motion.div
-        initial={{
-          opacity: 0,
-          scale: 0.9
-        }}
-        animate={{
-          opacity: 1,
-          scale: 1
-        }}
-        transition={{
-          type: 'spring',
-          stiffness: 100,
-          damping: 15
-        }}
-        className="relative w-full"
-      >
+      <div className="relative w-full">
         <form onSubmit={handleSubmit} className="relative w-full">
-          <div className="flex items-center gap-6 p-1">
+          <motion.div layout className="flex items-center gap-6 p-1">
             <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border">
               <input
+                ref={inputRef}
                 type="text"
                 value={query}
                 onChange={(e) => {
@@ -282,83 +304,91 @@ export function Header() {
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         </form>
-        <div className="h-4" />
-        <div className="bg-background/90 backdrop-blur-sm">
-          <ScrollArea className="h-[280px]">
-            {debouncedQuery ? (
-              <>
-                {filteredChats.map((chat, index) => (
-                  <motion.button
-                    key={chat.id}
-                    initial={{ opacity: 0, y: 4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: index * 0.05 }}
-                    type="button"
-                    onClick={() => {
-                      navigate({ to: `/chat/${chat.id}` })
-                      setQuery('')
-                    }}
-                    className={cn(
-                      'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                      'hover:bg-muted/80',
-                      selectedIndex === index && 'bg-primary/10 text-primary'
-                    )}
-                  >
-                    <span className="truncate">{chat.name}</span>
-                  </motion.button>
-                ))}
-              </>
-            ) : (
-              <>
-                {suggestions.map((chat, index) => {
-                  const Icon = 'icon' in chat ? chat.icon : Brain
-                  const isEmphasized = 'emphasized' in chat && chat.emphasized
-                  return (
-                    <motion.button
-                      key={chat.id}
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2, delay: index * 0.05 }}
-                      type="button"
-                      onClick={() => {
-                        if (chat.id.startsWith('dummy')) {
-                          handleSuggestionClick(chat)
-                        } else {
+        <AnimatePresence mode="wait">
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.15 }}
+            className="relative w-full"
+          >
+            <div className="h-4" />
+            <div className="bg-background/90 backdrop-blur-sm">
+              <ScrollArea className="h-[280px]">
+                {debouncedQuery ? (
+                  <>
+                    {filteredChats.map((chat, index) => (
+                      <motion.button
+                        key={chat.id}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ duration: 0.15, delay: index * 0.03 }}
+                        type="button"
+                        onClick={() => {
                           navigate({ to: `/chat/${chat.id}` })
                           setQuery('')
-                        }
-                      }}
-                      className={cn(
-                        'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                        'hover:bg-muted/80',
-                        selectedIndex === index && 'bg-primary/10 text-primary',
-                        isEmphasized && 'relative before:absolute before:inset-0 before:rounded-md'
-                      )}
-                    >
-                      <Icon
+                        }}
                         className={cn(
-                          'h-4 w-4 relative z-10',
-                          isEmphasized ? 'text-emerald-600' : 'text-muted-foreground'
-                        )}
-                      />
-                      <span
-                        className={cn(
-                          'truncate relative z-10',
-                          isEmphasized && 'text-emerald-700 font-medium'
+                          'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
+                          'hover:bg-muted/80',
+                          selectedIndex === index && 'bg-primary/10 text-primary'
                         )}
                       >
-                        {chat.name}
-                      </span>
-                    </motion.button>
-                  )
-                })}
-              </>
-            )}
-          </ScrollArea>
-        </div>
-      </motion.div>
+                        <span className="truncate">{chat.name}</span>
+                      </motion.button>
+                    ))}
+                  </>
+                ) : (
+                  <>
+                    {suggestions.map((chat, index) => {
+                      const Icon = 'icon' in chat ? chat.icon : Brain
+                      const isEmphasized = 'emphasized' in chat && chat.emphasized
+                      return (
+                        <motion.button
+                          key={chat.id}
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          transition={{ duration: 0.15, delay: index * 0.03 }}
+                          type="button"
+                          onClick={() => {
+                            if (chat.id.startsWith('dummy')) {
+                              handleSuggestionClick(chat)
+                            } else {
+                              navigate({ to: `/chat/${chat.id}` })
+                              setQuery('')
+                            }
+                          }}
+                          className={cn(
+                            'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
+                            'hover:bg-muted/80',
+                            selectedIndex === index && 'bg-primary/10 text-primary',
+                            isEmphasized &&
+                              'relative before:absolute before:inset-0 before:rounded-md'
+                          )}
+                        >
+                          <Icon
+                            className={cn(
+                              'h-4 w-4 relative z-10',
+                              isEmphasized ? 'text-primary' : 'text-muted-foreground'
+                            )}
+                          />
+                          <span
+                            className={cn('truncate relative z-10', isEmphasized && 'font-medium')}
+                          >
+                            {chat.name}
+                          </span>
+                        </motion.button>
+                      )
+                    })}
+                  </>
+                )}
+              </ScrollArea>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
     </motion.div>
   )
 }

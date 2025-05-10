@@ -12,64 +12,201 @@ import {
   AlertDialogCancel
 } from '../ui/alert-dialog'
 import { Button } from '../ui/button'
-import { Plus, Trash2, ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Plus,
+  Trash2,
+  PanelLeftClose,
+  SettingsIcon,
+  SearchIcon,
+  ChevronDown,
+  ChevronUp
+} from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
 import { Omnibar } from '../Omnibar'
+import { isToday, isYesterday, isWithinInterval, subDays } from 'date-fns'
+import { useSettingsStore } from '@renderer/lib/stores/settings'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
-export function Sidebar({ chats }: { chats: Chat[] }) {
+interface SidebarProps {
+  chats: Chat[]
+  setSidebarOpen: (open: boolean) => void
+}
+
+const groupChatsByTime = (chats: Chat[]) => {
+  const now = new Date()
+  const groups: { [key: string]: Chat[] } = {
+    Today: [],
+    Yesterday: [],
+    'Previous 7 Days': [],
+    'Previous 30 Days': [],
+    Older: []
+  }
+
+  chats.forEach((chat) => {
+    const chatDate = new Date(chat.createdAt)
+    if (isToday(chatDate)) {
+      groups.Today.push(chat)
+    } else if (isYesterday(chatDate)) {
+      groups.Yesterday.push(chat)
+    } else if (isWithinInterval(chatDate, { start: subDays(now, 7), end: now })) {
+      groups['Previous 7 Days'].push(chat)
+    } else if (isWithinInterval(chatDate, { start: subDays(now, 30), end: now })) {
+      groups['Previous 30 Days'].push(chat)
+    } else {
+      groups.Older.push(chat)
+    }
+  })
+  return groups
+}
+
+// Animation variants for chat groups
+const groupVariants = {
+  initial: { opacity: 0, y: 10 },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.3, ease: 'easeOut' }
+  },
+  exit: {
+    opacity: 0,
+    y: -10,
+    transition: { duration: 0.2, ease: 'easeIn' }
+  }
+}
+
+export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const { location } = useRouterState()
+  const navigate = useNavigate()
+  const { open: openSettings } = useSettingsStore()
   const { openOmnibar } = useOmnibarStore()
-  const [isCollapsed, setIsCollapsed] = useState(false)
+  const [showAllChats, setShowAllChats] = useState(false)
+
+  const handleNewChat = () => {
+    navigate({ to: '/', search: { focusInput: 'true' } })
+  }
+
+  const chatsToDisplay = showAllChats ? chats : chats.slice(0, 5)
+  const groupedChats = groupChatsByTime(chatsToDisplay)
+
+  const renderGroup = (title: string, groupChats: Chat[]) => {
+    if (groupChats.length === 0) return null
+    return (
+      <motion.div
+        key={title}
+        className="mb-6"
+        variants={groupVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+      >
+        <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 px-1">
+          {title}
+        </h3>
+        {groupChats.map((chat) => (
+          <SidebarItem
+            key={chat.id}
+            chat={chat}
+            isActive={location.pathname === `/chat/${chat.id}`}
+          />
+        ))}
+      </motion.div>
+    )
+  }
 
   return (
     <>
-      <aside
-        className={cn(
-          'flex flex-col bg-muted/50 p-4 rounded-lg h-full gap-4 transition-all duration-300',
-          isCollapsed ? 'w-16' : 'w-64'
-        )}
-      >
-        <div className="flex items-center justify-between mb-4">
-          {!isCollapsed && <h2 className="text-4xl text-foreground">Chats</h2>}
+      <aside className="flex flex-col bg-muted/50 p-4 rounded-lg h-full gap-2 w-64">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSidebarOpen(false)}
+              className="text-muted-foreground hover:text-foreground h-7 w-7"
+            >
+              <PanelLeftClose className="w-4 h-4" />
+            </Button>
+          </div>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={openOmnibar}
+                  className="text-muted-foreground hover:text-foreground h-7 w-7"
+                >
+                  <SearchIcon className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" align="center">
+                <div className="flex items-center gap-2">
+                  <span>Search</span>
+                  <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                    ⌘ K
+                  </kbd>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        <Button
+          variant="secondary"
+          className="w-full justify-between px-2 h-9"
+          onClick={handleNewChat}
+        >
+          <div className="flex items-center gap-2">
+            <Plus className="w-3 h-3" />
+            <span className="text-sm">New chat</span>
+          </div>
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <kbd className="rounded bg-muted px-1.5 py-0.5">⌘ N</kbd>
+            {/* TODO: show control for windows */}
+          </div>
+        </Button>
+
+        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
+          <AnimatePresence initial={false} mode="popLayout">
+            {Object.entries(groupedChats).map(([title, groupChats]) =>
+              renderGroup(title, groupChats)
+            )}
+          </AnimatePresence>
+
+          {chats.length > 5 && (
+            <motion.div layout>
+              <Button
+                variant="ghost"
+                className="w-full justify-center text-xs text-muted-foreground hover:text-foreground h-8 mt-2 mb-1"
+                onClick={() => setShowAllChats(!showAllChats)}
+              >
+                {showAllChats ? (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5 mr-1" /> Show less
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5 mr-1" /> Show more ({chats.length - 5} more)
+                  </>
+                )}
+              </Button>
+            </motion.div>
+          )}
+        </div>
+
+        <div className="pt-2 border-t border-border/50 shrink-0">
           <Button
             variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="ml-auto"
+            className="w-full justify-start px-2 text-muted-foreground hover:text-foreground h-9"
+            onClick={openSettings}
           >
-            {isCollapsed ? (
-              <ChevronRight className="h-4 w-4" />
-            ) : (
-              <ChevronLeft className="h-4 w-4" />
-            )}
+            <SettingsIcon className="w-4 h-4 mr-2" />
+            <span className="text-sm">Settings</span>
           </Button>
-        </div>
-        {!isCollapsed && (
-          <Button variant="outline" className="w-full justify-between px-2" onClick={openOmnibar}>
-            <div className="flex items-center gap-2">
-              <Plus className="w-3 h-3" />
-              <span>New chat</span>
-            </div>
-            <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-              <kbd className="rounded bg-muted px-2 py-1">⌘ K</kbd>
-            </div>
-          </Button>
-        )}
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
-          {chats.map((chat: Chat) => {
-            const isActive = location.pathname === `/chat/${chat.id}`
-            return (
-              <SidebarItem
-                key={chat.id}
-                chat={chat}
-                isActive={isActive}
-                isCollapsed={isCollapsed}
-              />
-            )
-          })}
         </div>
       </aside>
       <Omnibar />
@@ -77,15 +214,7 @@ export function Sidebar({ chats }: { chats: Chat[] }) {
   )
 }
 
-function SidebarItem({
-  chat,
-  isActive,
-  isCollapsed
-}: {
-  chat: Chat
-  isActive: boolean
-  isCollapsed: boolean
-}) {
+function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   const navigate = useNavigate()
   const router = useRouter()
   const [deleteChat] = useMutation(DeleteChatDocument, {
@@ -95,10 +224,7 @@ function SidebarItem({
     },
     onCompleted: async () => {
       await client.cache.evict({ fieldName: 'getChats' })
-      await router.invalidate({
-        filter: (match) => match.routeId === '/chat/$chatId'
-      })
-
+      await router.invalidate()
       if (isActive) {
         navigate({ to: '/' })
       }
@@ -107,9 +233,9 @@ function SidebarItem({
 
   return (
     <div
-      className={cn('flex items-center gap-2 justify-between rounded-md group', {
-        'bg-primary/10': isActive,
-        'hover:bg-accent': !isActive
+      className={cn('flex items-center gap-2 justify-between rounded-md group text-sm', {
+        'bg-primary/10 text-primary': isActive,
+        'hover:bg-accent text-foreground': !isActive
       })}
     >
       <Link
@@ -117,22 +243,22 @@ function SidebarItem({
         disabled={isActive}
         to="/chat/$chatId"
         params={{ chatId: chat.id }}
-        className={cn('block px-3 py-2 text-sm font-medium flex-1 truncate', {
-          'text-primary': isActive,
-          'text-muted-foreground': !isActive
+        className={cn('block px-2 py-1.5 flex-1 truncate', {
+          'text-primary font-medium': isActive,
+          'text-foreground': !isActive
         })}
       >
-        {isCollapsed ? chat.name?.[0] || 'U' : chat.name || 'Untitled Chat'}
+        {chat.name || 'Untitled Chat'}
       </Link>
-      {!isCollapsed && (
+      {
         <AlertDialog>
           <AlertDialogTrigger asChild>
             <Button
               variant="ghost"
               size="icon"
-              className="ml-2 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
+              className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
             >
-              <Trash2 className="w-4 h-4 text-destructive" />
+              <Trash2 className="w-3.5 h-3.5 text-destructive" />
             </Button>
           </AlertDialogTrigger>
           <AlertDialogContent>
@@ -155,7 +281,7 @@ function SidebarItem({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-      )}
+      }
     </div>
   )
 }
