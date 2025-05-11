@@ -699,8 +699,9 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	if err != nil {
 		return nil, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
+	fmt.Println("Telegram message added", "chat_id", chatID)
 
-	messages := make(chan *model.Message, 100) // Add buffer to prevent blocking
+	messages := make(chan *model.Message, 100)
 
 	subject := fmt.Sprintf("telegram.chat.%d", chatID)
 
@@ -716,7 +717,6 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 			return
 		}
 
-		// Convert Telegram message to GraphQL message model
 		text := telegramMessage.Text
 		message := &model.Message{
 			ID:          strconv.Itoa(telegramMessage.MessageID),

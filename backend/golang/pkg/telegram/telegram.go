@@ -213,12 +213,6 @@ func (s *TelegramService) Start(ctx context.Context) error {
 							continue
 						}
 
-						err = s.SendMessage(ctx, chatID, "Hey we connected!")
-						if err != nil {
-							s.Logger.Error("Failed to send message", "error", err)
-							continue
-						}
-
 					}
 
 					if s.NatsClient != nil {
@@ -771,18 +765,6 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						return
 					}
 
-					s.Logger.Info("telegramenabled", "Getting telegram enabled")
-					telegramEnabled, err := helpers.GetTelegramEnabled(ctx, s.Store)
-					if err != nil {
-						s.Logger.Info("telegramenabled", "Error getting telegram enabled", "error", err)
-					}
-					if telegramEnabled != "true" {
-						err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
-						if err != nil {
-							s.Logger.Error("Error setting telegram enabled", "error", err)
-						}
-					}
-
 					s.Logger.Info(
 						"Received message",
 						"message",
@@ -798,6 +780,20 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 					s.LastMessages = append(s.LastMessages, *newMessage)
+
+					if newMessage.Chat.ID != 0 {
+						fmt.Println("Setting telegram enabled to true")
+						telegramEnabled, err := helpers.GetTelegramEnabled(ctx, s.Store)
+						if err != nil {
+							s.Logger.Info("telegramenabled", "Error getting telegram enabled", "error", err)
+						}
+						if telegramEnabled != "true" {
+							err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
+							if err != nil {
+								s.Logger.Error("Error setting telegram enabled", "error", err)
+							}
+						}
+					}
 
 					agentResponse, err := s.Execute(
 						ctx,
