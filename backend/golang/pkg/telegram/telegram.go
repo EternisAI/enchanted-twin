@@ -205,14 +205,12 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 					chatID := update.Message.Chat.ID
 					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
-
 						s.Logger.Info("Creating chat", "chat_id", chatID, "uuid", uuid)
 						_, err := s.CreateChat(ctx, chatID, uuid)
 						if err != nil {
 							s.Logger.Error("Failed to create chat", "error", err)
 							continue
 						}
-
 					}
 
 					if s.NatsClient != nil {
