@@ -701,6 +701,7 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	}
 	fmt.Println("Telegram message added", "chat_id", chatID)
 
+
 	if chatID != 0 {
 		confirmText := fmt.Sprintf("Telegram connection established. Chat ID: %d", chatID)
 		confirmMsg := &model.Message{
@@ -719,6 +720,7 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 			r.Logger.Error("Failed to publish confirmation message", "error", err)
 		}
 	}
+
 
 	messages := make(chan *model.Message, 100)
 

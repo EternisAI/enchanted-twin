@@ -761,7 +761,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
+					s.Logger.Info("telegramenabled", "Received data", "response", response)
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
+						s.Logger.Info("telegramenabled", "Received nil text message")
 						exitErr = ErrSubscriptionNilTextMessage
 						return
 					}
