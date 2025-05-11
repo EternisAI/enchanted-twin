@@ -211,7 +211,11 @@ func (s *TelegramService) Start(ctx context.Context) error {
 							s.Logger.Error("Failed to create chat", "error", err)
 							continue
 						}
-						s.SendMessage(ctx, chatID, "Send any message to start the conversation")
+						err = s.SendMessage(ctx, chatID, "Send any message to start the conversation")
+						if err != nil {
+							s.Logger.Error("Failed to send message", "error", err)
+							continue
+						}
 					}
 
 					if s.NatsClient != nil {

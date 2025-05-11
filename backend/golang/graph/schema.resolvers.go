@@ -701,10 +701,7 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	}
 	fmt.Println("Telegram message added", "chat_id", chatID)
 
-	// When chatID is found, set telegramEnabled to true
 	if chatID != 0 {
-
-		// Send confirmation message back via the same channel
 		confirmText := fmt.Sprintf("Telegram connection established. Chat ID: %d", chatID)
 		confirmMsg := &model.Message{
 			ID:          uuid.New().String(),
@@ -716,9 +713,11 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 			ToolResults: []string{},
 		}
 
-		// Use NATS to publish the confirmation message
 		confirmData, _ := json.Marshal(confirmMsg)
-		r.Nc.Publish(fmt.Sprintf("telegram.chat.%d", chatID), confirmData)
+		err := r.Nc.Publish(fmt.Sprintf("telegram.chat.%d", chatID), confirmData)
+		if err != nil {
+			r.Logger.Error("Failed to publish confirmation message", "error", err)
+		}
 	}
 
 	messages := make(chan *model.Message, 100)
