@@ -213,6 +213,8 @@ func (s *TelegramService) Start(ctx context.Context) error {
 						}
 					}
 
+					s.SendMessage(ctx, chatID, "Send any message to start the conversation")
+
 					if s.NatsClient != nil {
 						subject := fmt.Sprintf("telegram.chat.%d", chatID)
 						messageBytes, err := json.Marshal(update.Message)
