@@ -287,7 +287,7 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 // SendTelegramMessage is the resolver for the sendTelegramMessage field.
 func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
 	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
-	if err != nil || chatID == "" {
+	if err != nil || chatID == 0 {
 		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
 
@@ -699,10 +699,11 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	if err != nil {
 		return nil, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
+	fmt.Println("Telegram message added", "chat_id", chatID)
 
-	messages := make(chan *model.Message, 100) // Add buffer to prevent blocking
+	messages := make(chan *model.Message, 100)
 
-	subject := fmt.Sprintf("telegram.chat.%s", chatID)
+	subject := fmt.Sprintf("telegram.chat.%d", chatID)
 
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
 		if msg == nil || msg.Data == nil {
@@ -716,7 +717,6 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 			return
 		}
 
-		// Convert Telegram message to GraphQL message model
 		text := telegramMessage.Text
 		message := &model.Message{
 			ID:          strconv.Itoa(telegramMessage.MessageID),
