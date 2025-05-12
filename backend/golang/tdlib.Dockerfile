@@ -1,62 +1,38 @@
-FROM ubuntu:22.04 AS builder
+FROM golang:1.21-alpine
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    gperf \
-    git \
-    zlib1g-dev \
-    libssl-dev \
-    pkg-config \
-    && rm -rf /var/lib/apt/lists/*
+# Install dependencies
+RUN apk add --no-cache ca-certificates tzdata
 
-# Clone TDLib with specific version tag for stability
-WORKDIR /src
-RUN git clone --depth 1 --branch v1.8.0 https://github.com/tdlib/td.git && \
-    cd td && \
-    mkdir build && \
-    cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr/local .. && \
-    cmake --build . --target install -j $(nproc) --config Release
+# Set up working directory
+WORKDIR /app
 
-# Create a smaller runtime image
-FROM ubuntu:22.04
+# Copy source code
+COPY cmd/telegram_api_service /app/cmd/telegram_api_service
+COPY pkg/telegram/api_client.go /app/pkg/telegram/api_client.go
+COPY go.mod go.sum /app/
 
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    libssl3 \
-    zlib1g \
-    ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy TDLib from builder
-COPY --from=builder /usr/local/lib/libtd* /usr/local/lib/
-COPY --from=builder /usr/local/include/td /usr/local/include/td
-
-# Update the dynamic linker run-time bindings
-RUN ldconfig
-
-# Create directories for TDLib data
-RUN mkdir -p /tdlib/db /tdlib/files
-VOLUME ["/tdlib/db", "/tdlib/files"]
+# Build the telegram API service
+RUN go build -o /app/telegram-api-service /app/cmd/telegram_api_service
 
 # Create a non-root user
-RUN groupadd -g 999 tdlib && \
-    useradd -r -u 1000 -g tdlib tdlib && \
-    chown -R tdlib:tdlib /tdlib
-USER tdlib
+RUN addgroup -g 1000 telegram && \
+    adduser -u 1000 -G telegram -s /bin/sh -D telegram && \
+    mkdir -p /data && \
+    chown -R telegram:telegram /data
+USER telegram
+
+# Create volume for persistent data
+VOLUME ["/data"]
 
 # Set environment variables
-ENV TELEGRAM_TDLIB_DB_DIR=/tdlib/db
-ENV TELEGRAM_TDLIB_FILES_DIR=/tdlib/files
+ENV TELEGRAM_DATA_DIR=/data
 
-# Expose port for tdlib service
+# Expose port for telegram API service
 EXPOSE 9090
 
 # Create a healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD [ "test", "-d", "/tdlib/db" ]
+    CMD wget -q --spider http://localhost:9090/health || exit 1
 
-# Keep container running
-CMD ["tail", "-f", "/dev/null"]
+# Run the service
+CMD ["/app/telegram-api-service"]

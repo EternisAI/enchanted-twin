@@ -1,41 +1,24 @@
-# Docker Compose configuration for TDLib services
+# Docker Compose configuration for Telegram API services
 
 services:
-  tdlib:
+  telegram-api:
     build:
       context: .
-      dockerfile: tdlib.Dockerfile
-    container_name: enchanted-twin-tdlib
+      dockerfile: tdlib_service.Dockerfile
+    container_name: enchanted-twin-telegram-api
     volumes:
-      - tdlib-data:/tdlib/db
-      - tdlib-files:/tdlib/files
+      - telegram-data:/data
     environment:
-      - TELEGRAM_TDLIB_API_ID=${TELEGRAM_TDLIB_API_ID}
-      - TELEGRAM_TDLIB_API_HASH=${TELEGRAM_TDLIB_API_HASH}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+    ports:
+      - "9090:9090"
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "test", "-d", "/tdlib/db"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 5s
-    networks:
-      - enchanted-twin-network
-
-  tdlib-service:
-    build:
-      context: .
-      dockerfile: tdlib_service.Dockerfile
-    container_name: enchanted-twin-tdlib-service
-    depends_on:
-      - tdlib
-    ports:
-      - "9090:9090"
-    environment:
-      - TELEGRAM_TDLIB_API_ID=${TELEGRAM_TDLIB_API_ID}
-      - TELEGRAM_TDLIB_API_HASH=${TELEGRAM_TDLIB_API_HASH}
-      - TDLIB_HOST=tdlib
-    restart: unless-stopped
     networks:
       - enchanted-twin-network
 
@@ -44,5 +27,4 @@ networks:
     driver: bridge
 
 volumes:
-  tdlib-data:
-  tdlib-files:
+  telegram-data:
