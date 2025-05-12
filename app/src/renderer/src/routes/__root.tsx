@@ -86,7 +86,7 @@ function RootComponent() {
                 </Button>
               </motion.div>
             )}
-            {sidebarOpen && (
+            {sidebarOpen && isCompleted && (
               <motion.div
                 key="sidebar"
                 initial={{ width: 0, opacity: 0, marginRight: 0 }}
