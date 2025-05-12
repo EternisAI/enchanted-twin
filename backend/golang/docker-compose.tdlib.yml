@@ -1,15 +1,20 @@
-# Docker Compose configuration for Telegram API services
+# Docker Compose configuration for TDLib services
 
 services:
-  telegram-api:
+  tdlib-service:
     build:
       context: .
-      dockerfile: tdlib_service.Dockerfile
-    container_name: enchanted-twin-telegram-api
+      dockerfile: tdlib.Dockerfile
+    container_name: enchanted-twin-tdlib-service
     volumes:
-      - telegram-data:/data
+      - tdlib-db:/tdlib/db
+      - tdlib-files:/tdlib/files
     environment:
-      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_TDLIB_API_ID=${TELEGRAM_TDLIB_API_ID}
+      - TELEGRAM_TDLIB_API_HASH=${TELEGRAM_TDLIB_API_HASH}
+      - TELEGRAM_TDLIB_DB_DIR=/tdlib/db
+      - TELEGRAM_TDLIB_FILES_DIR=/tdlib/files
+      - PORT=9090
     ports:
       - "9090:9090"
     restart: unless-stopped
@@ -27,4 +32,5 @@ networks:
     driver: bridge
 
 volumes:
-  telegram-data:
+  tdlib-db:
+  tdlib-files:
