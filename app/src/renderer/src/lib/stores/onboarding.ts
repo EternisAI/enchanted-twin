@@ -4,7 +4,8 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 export enum OnboardingStep {
   Welcome = 0,
   MCPServers = 1,
-  DataSources = 2
+  Permissions = 2,
+  DataSources = 3
   // Indexing = 3,
   // Finished = 3
 }
@@ -72,7 +73,7 @@ export const useOnboardingStore = create<OnboardingState>()(
     }),
     {
       name: 'onboarding-storage',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage)
     }
   )
