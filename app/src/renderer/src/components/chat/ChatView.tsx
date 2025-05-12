@@ -146,7 +146,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   return (
     <div className="flex flex-col h-full w-full">
       <div className="flex-1 overflow-y-auto pt-14 w-full">
-        <div className="flex flex-col items-center p-6 w-full">
+        <div className="flex flex-col items-center p-4 w-full">
           <div className="w-full">
             <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
             {error && (
@@ -158,7 +158,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
           </div>
         </div>
       </div>
-      <div className="flex flex-col w-full items-center justify-center">
+      <div className="flex flex-col w-full items-center justify-center px-2">
         <div className="w-full flex justify-center items-center relative">
           <ChatSuggestions
             chatId={chat.id}

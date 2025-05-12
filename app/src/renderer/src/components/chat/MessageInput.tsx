@@ -36,7 +36,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-[0_4px_12px_rgba(0,0,0,0.1)] w-full'
+        'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xl w-full'
       )}
       transition={{
         layout: { type: 'spring', damping: 25, stiffness: 280 }
