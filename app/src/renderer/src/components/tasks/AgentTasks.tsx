@@ -71,11 +71,10 @@ function EmptyTasksState() {
 
   return (
     <div className="flex flex-col items-center justify-center py-20 px-8 gap-4">
-      <div className="text-center max-w-md mb-12 flex flex-col gap-2">
-        <h3 className="text-xl font-medium mb-8">No tasks yet</h3>
-        <p className="text-muted-foreground">
-          Create an agent task to automate recurring activities
-        </p>
+      <div className="text-center max-w-md mb-12 flex flex-col gap-4">
+        <h3 className="text-xl font-medium mb-8 text-balance max-w-sm">
+          Create a task to automate recurring activities
+        </h3>
       </div>
 
       <div className="w-full max-w-lg">
