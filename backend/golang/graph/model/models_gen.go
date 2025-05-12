@@ -128,6 +128,7 @@ type Subscription struct {
 }
 
 type TelegramAuthParams struct {
+	Initialize  *bool   `json:"initialize,omitempty"`
 	PhoneNumber *string `json:"phoneNumber,omitempty"`
 	Password    *string `json:"password,omitempty"`
 	Code        *string `json:"code,omitempty"`

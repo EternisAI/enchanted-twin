@@ -9680,13 +9680,20 @@ func (ec *executionContext) unmarshalInputTelegramAuthParams(ctx context.Context
 		asMap[k] = v
 	}
 
-	fieldsInOrder := [...]string{"phoneNumber", "password", "code"}
+	fieldsInOrder := [...]string{"initialize", "phoneNumber", "password", "code"}
 	for _, k := range fieldsInOrder {
 		v, ok := asMap[k]
 		if !ok {
 			continue
 		}
 		switch k {
+		case "initialize":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("initialize"))
+			data, err := ec.unmarshalOBoolean2ᚖbool(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Initialize = data
 		case "phoneNumber":
 			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("phoneNumber"))
 			data, err := ec.unmarshalOString2ᚖstring(ctx, v)

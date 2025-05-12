@@ -78,19 +78,28 @@ func main() {
 	telegramAuthChan := make(chan telegram.TelegramAuthState, 1)
 
 	go func() {
-		var tdlib *tdlibclient.Client
-		if envs.TelegramTDLibAPIID != 0 && envs.TelegramTDLibAPIHash != "" {
-			var err error
-			tdlib, err = bootstrapTelegramTDLib(logger, envs.TelegramTDLibAPIID, envs.TelegramTDLibAPIHash, telegramAuthChan)
-			if err != nil {
-				logger.Warn("Failed to initialize TDLib Telegram client", "error", err)
-			} else {
-				logger.Info("TDLib Telegram client initialized successfully")
+		for {
+			state := <-telegramAuthChan
 
-				defer tdlib.Close()
+			if !state.Initialize {
+				time.Sleep(1 * time.Second)
+				continue
 			}
-		} else {
-			logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_API_ID and TELEGRAM_TDLIB_API_HASH environment variables. You can obtain these from https://my.telegram.org/apps")
+
+			var tdlib *tdlibclient.Client
+			if envs.TelegramTDLibAPIID != 0 && envs.TelegramTDLibAPIHash != "" {
+				var err error
+				tdlib, err = bootstrapTelegramTDLib(logger, envs.TelegramTDLibAPIID, envs.TelegramTDLibAPIHash, telegramAuthChan)
+				if err != nil {
+					logger.Warn("Failed to initialize TDLib Telegram client", "error", err)
+				} else {
+					logger.Info("TDLib Telegram client initialized successfully")
+
+					defer tdlib.Close()
+				}
+			} else {
+				logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_API_ID and TELEGRAM_TDLIB_API_HASH environment variables. You can obtain these from https://my.telegram.org/apps")
+			}
 		}
 	}()
 

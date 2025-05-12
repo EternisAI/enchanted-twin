@@ -842,6 +842,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 }
 
 type TelegramAuthState struct {
+	Initialize  bool
 	PhoneNumber string
 	Code        string
 	Password    string
