@@ -123,14 +123,28 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
       <aside className="flex flex-col bg-muted p-4 rounded-tr-lg h-full gap-2 w-64">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSidebarOpen(false)}
-              className="text-muted-foreground hover:text-foreground h-7 w-7"
-            >
-              <PanelLeftClose className="w-4 h-4" />
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setSidebarOpen(false)}
+                    className="text-muted-foreground hover:text-foreground h-7 w-7"
+                  >
+                    <PanelLeftClose className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom" align="center">
+                  <div className="flex items-center gap-2">
+                    <span>Close sidebar</span>
+                    <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                      ⌘ S
+                    </kbd>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <TooltipProvider>
             <Tooltip>
