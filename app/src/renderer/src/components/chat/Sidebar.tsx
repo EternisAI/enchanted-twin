@@ -106,7 +106,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           }
         }}
       >
-        <h3 className="text-xs font-medium text-muted-foreground uppercase px-1 ">{title}</h3>
+        <h3 className="text-xs font-medium text-muted-foreground uppercase p-2">{title}</h3>
         {groupChats.map((chat) => (
           <SidebarItem
             key={chat.id}
