@@ -62,8 +62,6 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
           </div>
         )}
       </div>
-
-      <div className="py-4 flex justify-center"></div>
     </Card>
   )
 }
