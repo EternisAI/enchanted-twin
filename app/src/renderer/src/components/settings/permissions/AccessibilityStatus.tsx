@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { DetailCard } from './DetailCard'
-import { Accessibility, CheckCircle2, XCircle, AlertCircle, HelpCircle } from 'lucide-react'
+import { CheckCircle2, XCircle, AlertCircle, HelpCircle, PersonStanding } from 'lucide-react'
 
 type AccessibilityStatusType = 'granted' | 'denied' | 'unavailable' | 'error' | 'loading'
 
@@ -82,7 +82,7 @@ export default function AccessibilityStatus() {
   return (
     <DetailCard
       title="Accessibility"
-      IconComponent={Accessibility}
+      IconComponent={PersonStanding}
       statusInfo={statusInfo}
       buttonLabel={buttonLabel}
       onButtonClick={handleButtonClick}
