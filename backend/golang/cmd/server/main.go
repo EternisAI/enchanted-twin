@@ -35,6 +35,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
 	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/root-v2"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -245,7 +246,7 @@ func main() {
 			ollamaClient:         ollamaClient,
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
-			registry:             toolRegistry,
+			toolsRegistry:        toolRegistry,
 			rootClient:           rootClient,
 		},
 	)
@@ -361,11 +362,7 @@ func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Cl
 	<-ready
 	logger.Info("Temporal server started")
 
-	temporalClient, err := bootstrap.CreateTemporalClient(
-		"localhost:7233",
-		bootstrap.TemporalNamespace,
-		"",
-	)
+	temporalClient, err := bootstrap.NewTemporalClient(logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
@@ -382,7 +379,7 @@ type bootstrapTemporalWorkerInput struct {
 	nc                   *nats.Conn
 	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
-	registry             tools.ToolRegistry
+	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
 	rootClient           *root.RootClient
 }
@@ -444,9 +441,13 @@ func bootstrapTemporalWorker(
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.registry)
+	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.toolsRegistry)
 	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
-	input.logger.Info("Registered planned agent workflow", "tools", input.registry.List())
+	input.logger.Info("Registered planned agent workflow", "tools", input.toolsRegistry.List())
+
+	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, nil, nil)
+	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel)
+	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
 	// Start the worker
 	err := w.Start()

@@ -72,28 +72,13 @@ func (s *Service) Execute(
 	)
 
 	// Get the tool list from the registry
-	toolsList := []tools.Tool{}
-	// TODO: move immediate workflow tools to separate registry
-	for _, name := range s.toolRegistry.Excluding("sleep", "sleep_until").List() {
-		if tool, exists := s.toolRegistry.Get(name); exists {
-			toolsList = append(toolsList, tool)
-		}
-	}
+	toolsList := s.toolRegistry.GetAll()
 
 	// TODO(cosmic): pass origin to agent
 	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta)
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Debug(
-		"Agent response",
-		"content",
-		response.Content,
-		"tool_calls",
-		len(response.ToolCalls),
-		"tool_results",
-		len(response.ToolResults),
-	)
 
 	return &response, nil
 }
@@ -108,7 +93,7 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
-	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists."
+	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. When user asks something to be done every minute, every hour, every day, every week, every month, every year, you should use the `schedule_task` tool and construct cron expression. "
 	now := time.Now().Format(time.RFC3339)
 	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now)
 
@@ -123,15 +108,13 @@ func (s *Service) SendMessage(
 	if userProfile.Bio != nil {
 		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
 	}
+	systemPrompt += fmt.Sprintf("Current date and time: %s.", time.Now().Format(time.RFC3339))
+	systemPrompt += fmt.Sprintf("Current Chat ID is %s.", chatID)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
 		openai.SystemMessage(systemPrompt),
-	)
-	messageHistory = append(
-		messageHistory,
-		openai.SystemMessage(fmt.Sprintf("Current date and time:%s  and timestamp:%d", time.Now().Format(time.RFC3339), time.Now().Unix())),
 	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
@@ -397,13 +380,13 @@ func (s *Service) GetChatSuggestions(
 		conversationContext += fmt.Sprintf("%s: %s\n\n", message.Role, *message.Text)
 	}
 
-	isntruction := fmt.Sprintf(
+	instruction := fmt.Sprintf(
 		"Generate 3 chat suggestions that user might ask for each of the category based on the chat history. Category names: Ask (should be questions about the content, should predict what user might wanna do next). Search (should be a plausible search based on the content). Research (should be a plausible research question based on the content).\n\n\nConversation history:\n%s",
 		conversationContext,
 	)
 
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(isntruction),
+		openai.UserMessage(instruction),
 	}
 
 	tool := openai.ChatCompletionToolParam{
@@ -460,25 +443,7 @@ func (s *Service) GetChatSuggestions(
 	return suggestionsList, nil
 }
 
-// Tools returns the tools provided by the TwinChat service.
 func (s *Service) Tools() []tools.Tool {
-	if s.storage == nil || s.nc == nil {
-		return []tools.Tool{}
-	}
-
-	// Create and return the ChatMessageTool
-	// Get the repository object from the storage
-	repo, ok := s.storage.(*repository.Repository)
-	if !ok {
-		s.logger.Error("Failed to cast storage to repository.Repository")
-		return []tools.Tool{}
-	}
-
-	chatMessageTool := &ChatMessageTool{
-		logger:  s.logger,
-		storage: *repo,
-		nc:      s.nc,
-	}
-
-	return []tools.Tool{chatMessageTool}
+	sendToChatTool := NewSendToChatTool(s.storage, s.nc)
+	return []tools.Tool{sendToChatTool}
 }
