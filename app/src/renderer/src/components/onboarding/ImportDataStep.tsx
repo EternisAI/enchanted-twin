@@ -6,8 +6,8 @@ import { Button } from '../ui/button'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { DataSourcesPanel } from '../DataSourcesPanel'
 import { GetDataSourcesDocument } from '@renderer/graphql/generated/graphql'
+import { DataSourcesPanel } from '../data-sources'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
