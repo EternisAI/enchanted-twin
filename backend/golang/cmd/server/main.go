@@ -693,7 +693,6 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string, tel
 	_, err := os.Stat(dbDir + "/db.sqlite")
 	if os.IsNotExist(err) {
 		logger.Info("No existing authentication data found")
-		logger.Info("Will perform fresh authentication with phone number: +33616874598")
 	} else {
 		logger.Info("Found existing authentication data - will try to reuse it")
 	}
@@ -725,10 +724,6 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string, tel
 	authorizer := tdlibclient.ClientAuthorizer(tdlibParameters)
 
 	go func() {
-		logger.Info("Starting CLI interactor for Telegram authentication")
-		logger.Info("When prompted, enter phone number: 33616874598 (without the + sign)")
-		logger.Info("Then enter the verification code sent to your Telegram app")
-
 		for {
 			select {
 			case state, _ := <-authorizer.State:
