@@ -5,12 +5,12 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
+	openai "github.com/openai/openai-go"
+	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
-	openai "github.com/openai/openai-go"
-	"go.temporal.io/sdk/worker"
 )
 
 type TaskSchedulerActivities struct {

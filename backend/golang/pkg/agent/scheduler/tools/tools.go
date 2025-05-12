@@ -36,8 +36,9 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		delay = delayValue
 	}
 
-	cron := ""
-	if cronValue, ok := inputs["cron"].(string); ok {
+	var cron string
+	cronValue, ok := inputs["cron"].(string)
+	if ok {
 		cron = cronValue
 	}
 
@@ -72,7 +73,6 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 			StartAt: time.Now(),
 		}
 		opts.RemainingActions = 1
-
 	} else {
 		// If cron string was given, schedule the task to be executed periodically
 		opts.Spec = client.ScheduleSpec{

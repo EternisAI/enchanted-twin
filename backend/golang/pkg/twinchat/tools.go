@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/packages/param"
 	"github.com/pkg/errors"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
 type chatStore interface {
