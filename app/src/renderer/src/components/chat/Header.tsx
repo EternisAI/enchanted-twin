@@ -7,9 +7,9 @@ import {
   Calendar,
   Search,
   GraduationCap,
-  PenTool,
+  // PenTool,
   Brain,
-  MessageCircle,
+  // MessageCircle,
   Telescope
 } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
@@ -65,18 +65,18 @@ export function Header() {
   )
 
   const dummySuggestions = [
-    {
-      id: 'dummy0',
-      name: 'I notice you seem stressed. Would you like to talk about it?',
-      icon: MessageCircle,
-      emphasized: true
-    },
+    // {
+    //   id: 'dummy0',
+    //   name: 'I notice you seem stressed. Would you like to talk about it?',
+    //   icon: MessageCircle,
+    //   emphasized: true
+    // },
     { id: 'dummya', name: "Let's get to know each other", icon: Telescope },
     { id: 'dummy1', name: 'Help me plan my day and set priorities', icon: Calendar },
     { id: 'dummy2', name: 'Research and summarize a topic for me', icon: Search },
-    { id: 'dummy3', name: 'Help me learn a new skill or concept', icon: GraduationCap },
-    { id: 'dummy4', name: 'Review and improve my writing', icon: PenTool },
-    { id: 'dummy5', name: 'Help me make a decision', icon: Brain }
+    { id: 'dummy3', name: 'Help me learn a new skill or concept', icon: GraduationCap }
+    // { id: 'dummy4', name: 'Review and improve my writing', icon: PenTool },
+    // { id: 'dummy5', name: 'Help me make a decision', icon: Brain }
   ]
 
   const suggestions = debouncedQuery ? filteredChats : dummySuggestions
