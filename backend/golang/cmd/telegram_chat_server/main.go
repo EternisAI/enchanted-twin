@@ -50,7 +50,6 @@ func main() {
 	}
 	logger.Info("NATS server started")
 
-	// Create NATS client
 	nc, err := bootstrap.NewNatsClient()
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to create nats client"))
@@ -85,8 +84,6 @@ func main() {
 		store:           store,
 		telegramService: telegramService,
 	})
-
-	// Start HTTP server in a goroutine so it doesn't block signal handling
 
 	logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+graphqlPort)
 	err = http.ListenAndServe(":"+graphqlPort, router)

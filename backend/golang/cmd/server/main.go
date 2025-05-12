@@ -209,6 +209,7 @@ func main() {
 		chatStorage,
 		nc,
 		toolRegistry,
+		store,
 		envs.CompletionsModel,
 	)
 
@@ -264,6 +265,7 @@ func main() {
 		AuthStorage:      store,
 		NatsClient:       nc,
 		ChatServerUrl:    envs.TelegramChatServer,
+		ToolsRegistry:    toolRegistry,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
@@ -271,7 +273,6 @@ func main() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
-		// Create a context that respects application shutdown
 		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer appCancel()
 
@@ -387,14 +388,15 @@ type bootstrapTemporalWorkerInput struct {
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		hostPort = 45000
-		image    = "ghcr.io/remsky/kokoro-fastapi-cpu"
+		kokoroDockerPort = 45000
+		ttsWsPort        = 45001
+		image            = "ghcr.io/remsky/kokoro-fastapi-cpu"
 	)
 
 	dockerSvc, err := docker.NewService(docker.ContainerOptions{
 		ImageName: image,
 		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprint(hostPort): "8880"},
+		Ports:     map[string]string{fmt.Sprint(kokoroDockerPort): "8880"},
 		Detached:  true,
 	}, logger)
 	if err != nil {
@@ -407,11 +409,11 @@ func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	}
 
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", hostPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroDockerPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
-	svc := tts.New(":8080", engine, *logger)
+	svc := tts.New(fmt.Sprintf(":%d", ttsWsPort), engine, *logger)
 	return svc, nil
 }
 

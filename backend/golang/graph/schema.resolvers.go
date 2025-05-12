@@ -287,7 +287,7 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 // SendTelegramMessage is the resolver for the sendTelegramMessage field.
 func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
 	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
-	if err != nil || chatID == "" {
+	if err != nil || chatID == 0 {
 		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
 
@@ -687,34 +687,6 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
 	notificationChan := make(chan *model.AppNotification, 10)
 
-	go func() {
-		defer close(notificationChan)
-
-		// Create 3 notifications with 5 second delay between each
-		for i := 1; i <= 3; i++ {
-			select {
-			case <-ctx.Done():
-				r.Logger.Info("Context canceled while sending notifications")
-				return
-			case <-time.After(5 * time.Second):
-				notification := &model.AppNotification{
-					ID:        fmt.Sprintf("notification-%d", i),
-					Title:     fmt.Sprintf("Notification %d", i),
-					Message:   fmt.Sprintf("This is notification number %d", i),
-					CreatedAt: time.Now().Format(time.RFC3339),
-				}
-
-				select {
-				case notificationChan <- notification:
-					r.Logger.Info("Sent notification", "id", notification.ID)
-				case <-ctx.Done():
-					r.Logger.Info("Context canceled while sending notification", "id", notification.ID)
-					return
-				}
-			}
-		}
-	}()
-
 	return notificationChan, nil
 }
 
@@ -727,10 +699,11 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	if err != nil {
 		return nil, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
+	fmt.Println("Telegram message added", "chat_id", chatID)
 
-	messages := make(chan *model.Message, 100) // Add buffer to prevent blocking
+	messages := make(chan *model.Message, 100)
 
-	subject := fmt.Sprintf("telegram.chat.%s", chatID)
+	subject := fmt.Sprintf("telegram.chat.%d", chatID)
 
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
 		if msg == nil || msg.Data == nil {
@@ -744,7 +717,6 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 			return
 		}
 
-		// Convert Telegram message to GraphQL message model
 		text := telegramMessage.Text
 		message := &model.Message{
 			ID:          strconv.Itoa(telegramMessage.MessageID),
