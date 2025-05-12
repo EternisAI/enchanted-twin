@@ -39,7 +39,6 @@ function RootComponent() {
       }
       if (e.key === 'Escape' && sidebarOpen) {
         e.preventDefault()
-        setSidebarOpen(false)
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
