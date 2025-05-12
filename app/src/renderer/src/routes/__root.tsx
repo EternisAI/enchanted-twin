@@ -14,6 +14,7 @@ import { PanelLeftOpen } from 'lucide-react'
 import { GetChatsDocument, Chat } from '@renderer/graphql/generated/graphql'
 import { useQuery } from '@apollo/client'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import {
   Tooltip,
   TooltipContent,
@@ -28,6 +29,7 @@ function DevBadge() {
 function RootComponent() {
   useOsNotifications()
   const { open } = useSettingsStore()
+  const omnibar = useOmnibarStore()
 
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const navigate = useNavigate()
@@ -51,7 +53,7 @@ function RootComponent() {
         e.preventDefault()
         navigate({ to: '/', search: { focusInput: 'true' } })
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 's' && isCompleted) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 's' && isCompleted && !omnibar.isOpen) {
         e.preventDefault()
         setSidebarOpen(!sidebarOpen)
       }
@@ -61,7 +63,7 @@ function RootComponent() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, sidebarOpen, navigate, isCompleted])
+  }, [open, sidebarOpen, navigate, isCompleted, omnibar.isOpen])
 
   return (
     <LayoutGroup>
@@ -125,18 +127,15 @@ function RootComponent() {
           </AnimatePresence>
           <motion.div
             className="flex-1 flex flex-col overflow-hidden"
-            layout="position"
+            layout
             transition={{ type: 'spring', stiffness: 300, damping: 30, duration: 0.2 }}
           >
-            <motion.div
-              layout="position"
-              className="flex-1 flex overflow-hidden relative justify-center"
-            >
+            <motion.div className="flex-1 flex overflow-hidden relative justify-center">
               <Outlet />
-              <Omnibar />
             </motion.div>
           </motion.div>
         </div>
+        <Omnibar />
         <UpdateNotification />
         <SettingsDialog />
       </motion.div>
