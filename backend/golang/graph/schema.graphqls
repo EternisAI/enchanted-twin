@@ -123,6 +123,7 @@ type Mutation {
 }
 
 input TelegramAuthParams {
+  initialize: Boolean
   phoneNumber: String
   password: String
   code: String
