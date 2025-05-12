@@ -202,7 +202,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
                   </>
                 ) : (
                   <>
-                    <ChevronDown className="w-3.5 h-3.5 mr-1" /> Show more ({chats.length - 5} more)
+                    <ChevronDown className="w-3.5 h-3.5 mr-1" /> Show more
                   </>
                 )}
               </Button>
