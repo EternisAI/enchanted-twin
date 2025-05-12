@@ -1,4 +1,4 @@
-FROM golang:1.21-alpine
+FROM golang:1.24-alpine
 
 # Install dependencies
 RUN apk add --no-cache ca-certificates tzdata
