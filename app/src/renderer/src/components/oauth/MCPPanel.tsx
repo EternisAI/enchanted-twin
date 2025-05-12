@@ -46,7 +46,7 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
           </p>
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {mcpServers.map((server) => (
           <MCPServerItem
             key={server.id}
@@ -62,8 +62,6 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
           </div>
         )}
       </div>
-
-      <div className="py-4 flex justify-center"></div>
     </Card>
   )
 }

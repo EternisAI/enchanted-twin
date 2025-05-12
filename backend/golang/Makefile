@@ -22,3 +22,6 @@ test:
 
 gqlgen:
 	go run github.com/99designs/gqlgen generate
+
+run-telegram-chat:
+	go run cmd/telegram_chat_server/main.go

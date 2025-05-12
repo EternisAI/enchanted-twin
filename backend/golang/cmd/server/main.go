@@ -271,10 +271,9 @@ func main() {
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
-		// Create a context that respects application shutdown
 		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer appCancel()
 
@@ -283,7 +282,6 @@ func main() {
 			case <-ticker.C:
 				chatUUID, err := telegramService.GetChatUUID(context.Background())
 				if err != nil {
-					logger.Error("Error getting chat UUID", slog.Any("error", err))
 					continue
 				}
 				err = telegramService.Subscribe(appCtx, chatUUID)
