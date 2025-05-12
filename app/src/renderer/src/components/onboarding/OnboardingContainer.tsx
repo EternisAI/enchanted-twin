@@ -6,7 +6,7 @@ import MCPServersStep from './MCPServersStep'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Brain } from '../graphics/brain'
 import { ImportAndIndexStep } from './ImportAndIndexStep'
-import { FinishedStep } from './FinishedStep'
+import PermissionsStep from './PermissionsStep'
 
 const OnboardingBackground = memo(function OnboardingBackground() {
   return (
@@ -44,8 +44,8 @@ export function OnboardingContainer() {
         return <MCPServersStep />
       // case OnboardingStep.Indexing:
       //   return <IndexingStep />
-      case OnboardingStep.Finished:
-        return <FinishedStep />
+      case OnboardingStep.Permissions:
+        return <PermissionsStep />
       default:
         return <WelcomeStep onContinue={nextStep} />
     }
