@@ -32,7 +32,6 @@ export function ImportAndIndexStep() {
     <OnboardingLayout
       title="Import Your Data"
       subtitle="Select the data sources you'd like to import. You can always add more later."
-      onClose={handleComplete}
     >
       <div className="flex flex-col gap-6">
         <DataSourcesPanel
