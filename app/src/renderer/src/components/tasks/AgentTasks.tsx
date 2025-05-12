@@ -34,7 +34,7 @@ export default function AgentTasks() {
   console.log(data?.getAgentTasks, agentTasks)
 
   return (
-    <Card className="p-6 w-full overflow-y-auto">
+    <Card className="p-4 w-full overflow-y-auto">
       {loading && <div className="py-4 text-center">Loading tasks...</div>}
       {error && <div className="p-4 text-center text-red-500">Error: {error.message}</div>}
 
