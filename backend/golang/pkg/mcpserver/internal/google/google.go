@@ -8,7 +8,7 @@ import (
 	mcp_golang "github.com/metoro-io/mcp-golang"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 type GoogleClient struct {
@@ -52,7 +52,7 @@ func (c *GoogleClient) CallTool(
 	// Convert generic arguments to the expected Go struct.
 	fmt.Println("Call tool GOOGLE", name, arguments)
 
-	bytes, err := helpers.ConvertToBytes(arguments)
+	bytes, err := utils.ConvertToBytes(arguments)
 	if err != nil {
 		return nil, err
 	}

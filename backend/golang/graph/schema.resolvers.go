@@ -47,8 +47,8 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 
 	switch result {
 	case "twitter":
-		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
-			Name:    "Twitter",
+		_, err = r.MCPService.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
+			Name:    model.MCPServerTypeTwitter.String(),
 			Command: "npx",
 			Args:    []string{},
 			Envs:    []*model.KeyValueInput{},
@@ -85,8 +85,8 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		}
 
 	case "google":
-		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
-			Name:    "Google",
+		_, err = r.MCPService.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
+			Name:    model.MCPServerTypeGoogle.String(),
 			Command: "npx",
 			Args:    []string{},
 			Envs:    []*model.KeyValueInput{},
@@ -141,8 +141,8 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		}
 
 	case "slack":
-		_, err = r.MCPService.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
-			Name:    "Slack",
+		_, err = r.MCPService.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
+			Name:    model.MCPServerTypeSLACk.String(),
 			Command: "npx",
 			Args:    []string{},
 			Envs:    []*model.KeyValueInput{},

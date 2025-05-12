@@ -15,7 +15,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -381,7 +381,7 @@ func getBody(p *gmail.MessagePart) (string, error) {
 func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType
 
-	searchEmailsSchema, err := helpers.ConverToInputSchema(SearchEmailsArguments{})
+	searchEmailsSchema, err := utils.ConverToInputSchema(SearchEmailsArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for search_emails: %w", err)
 	}
@@ -392,7 +392,7 @@ func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 		InputSchema: searchEmailsSchema,
 	})
 
-	sendEmailSchema, err := helpers.ConverToInputSchema(SendEmailArguments{})
+	sendEmailSchema, err := utils.ConverToInputSchema(SendEmailArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for send_email: %w", err)
 	}
@@ -403,7 +403,7 @@ func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 		InputSchema: sendEmailSchema,
 	})
 
-	emailByIdSchema, err := helpers.ConverToInputSchema(EmailByIdArguments{})
+	emailByIdSchema, err := utils.ConverToInputSchema(EmailByIdArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for email_by_id: %w", err)
 	}

@@ -5,26 +5,21 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/charmbracelet/log"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	db "github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 )
 
 func TestMCPService_GetTools(t *testing.T) {
 	ctx := context.Background()
 
-	logger := log.Default()
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
 		t.Fatalf("Failed to create db: %v", err)
 	}
 
-	repo := repository.NewRepository(logger, db.DB())
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, *repo, db, toolRegistry)
+	s := NewService(ctx, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
@@ -72,15 +67,13 @@ func TestMCPService_GetTools(t *testing.T) {
 func TestMCPService_ExecuteTool(t *testing.T) {
 	ctx := context.Background()
 
-	logger := log.Default()
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
 		t.Fatalf("Failed to create db: %v", err)
 	}
 
-	repo := repository.NewRepository(logger, db.DB())
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, *repo, db, toolRegistry)
+	s := NewService(ctx, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",

@@ -13,7 +13,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -409,7 +409,7 @@ func getDriveService(ctx context.Context, accessToken string) (*drive.Service, e
 func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType
 
-	searchFilesSchema, err := helpers.ConverToInputSchema(SearchFilesArguments{})
+	searchFilesSchema, err := utils.ConverToInputSchema(SearchFilesArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for search_drive_files: %w", err)
 	}
@@ -420,7 +420,7 @@ func GenerateGoogleDriveTools() ([]mcp_golang.ToolRetType, error) {
 		InputSchema: searchFilesSchema,
 	})
 
-	readFileSchema, err := helpers.ConverToInputSchema(ReadFileArguments{})
+	readFileSchema, err := utils.ConverToInputSchema(ReadFileArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for read_drive_file: %w", err)
 	}

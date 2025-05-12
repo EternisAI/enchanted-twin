@@ -176,6 +176,7 @@ enum MCPServerType {
   SLACK
   OTHER
   SCREENPIPE
+  PERPLEXITY
 }
 
 input ConnectMCPServerInput {
