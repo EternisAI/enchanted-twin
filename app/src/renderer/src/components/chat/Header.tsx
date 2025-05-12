@@ -181,11 +181,21 @@ export function Header() {
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
     if (query.trim()) {
-      if (filteredChats.length > 0 && selectedIndex < filteredChats.length) {
+      if (
+        debouncedQuery &&
+        filteredChats.length > 0 &&
+        selectedIndex < filteredChats.length &&
+        selectedIndex >= 0
+      ) {
         navigate({ to: `/chat/${filteredChats[selectedIndex].id}` })
         setQuery('')
       } else {
         handleCreateChat()
+      }
+    } else {
+      if (!debouncedQuery && selectedIndex >= 0 && selectedIndex < dummySuggestions.length) {
+        const selectedSuggestion = dummySuggestions[selectedIndex]
+        handleSuggestionClick(selectedSuggestion)
       }
     }
   }
