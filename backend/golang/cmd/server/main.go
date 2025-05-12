@@ -710,13 +710,54 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 
 	authorizer := tdlibclient.ClientAuthorizer(tdlibParameters)
 
-	authChan := make(chan bool, 1)
+	// authChan := make(chan bool, 1)
 	go func() {
 		logger.Info("Starting CLI interactor for Telegram authentication")
 		logger.Info("When prompted, enter phone number: 33616874598 (without the + sign)")
 		logger.Info("Then enter the verification code sent to your Telegram app")
-		tdlibclient.CliInteractor(authorizer)
-		authChan <- true
+		// tdlibclient.CliInteractor(authorizer)
+
+		for {
+			select {
+			case state, _ := <-authorizer.State:
+				logger.Info("Authorization state", "state", state)
+
+				if state == nil {
+					logger.Info("Authorization state is nil")
+					return
+				}
+
+				switch state.AuthorizationStateType() {
+				case tdlibclient.TypeAuthorizationStateWaitPhoneNumber:
+
+					logger.Info("Sending phone number")
+					authorizer.PhoneNumber <- "33616874598"
+
+				case tdlibclient.TypeAuthorizationStateWaitCode:
+					logger.Info("Waiting for code")
+					var code string
+
+					fmt.Println("Enter code: ")
+					fmt.Scanln(&code)
+
+					logger.Info("Sending code")
+					authorizer.Code <- code
+
+				case tdlibclient.TypeAuthorizationStateWaitPassword:
+					logger.Info("Waiting for password")
+					fmt.Println("Enter password: ")
+					var password string
+					fmt.Scanln(&password)
+
+					logger.Info("Sending password")
+					authorizer.Password <- password
+
+				case tdlibclient.TypeAuthorizationStateReady:
+					logger.Info("Authorization state ready")
+
+				}
+			}
+		}
 	}()
 
 	logger.Info("Creating new TDLib client - this may take a moment...")
