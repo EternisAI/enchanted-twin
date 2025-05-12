@@ -323,6 +323,21 @@ func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, e
 	}
 }
 
+// AuthenticateTelegram is the resolver for the authenticateTelegram field.
+func (r *mutationResolver) AuthenticateTelegram(ctx context.Context, input model.TelegramAuthParams) (bool, error) {
+	if r.TelegramAuthChan == nil {
+		return false, fmt.Errorf("Telegram channel not initialized")
+	}
+
+	r.TelegramAuthChan <- telegram.TelegramAuthState{
+		PhoneNumber: *input.PhoneNumber,
+		Code:        *input.Code,
+		Password:    *input.Password,
+	}
+
+	return true, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {

@@ -75,20 +75,24 @@ func main() {
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 
-	var tdlib *tdlibclient.Client
-	if envs.TelegramTDLibAPIID != 0 && envs.TelegramTDLibAPIHash != "" {
-		var err error
-		tdlib, err = bootstrapTelegramTDLib(logger, envs.TelegramTDLibAPIID, envs.TelegramTDLibAPIHash)
-		if err != nil {
-			logger.Warn("Failed to initialize TDLib Telegram client", "error", err)
-		} else {
-			logger.Info("TDLib Telegram client initialized successfully")
+	telegramAuthChan := make(chan telegram.TelegramAuthState, 1)
 
-			defer tdlib.Close()
+	go func() {
+		var tdlib *tdlibclient.Client
+		if envs.TelegramTDLibAPIID != 0 && envs.TelegramTDLibAPIHash != "" {
+			var err error
+			tdlib, err = bootstrapTelegramTDLib(logger, envs.TelegramTDLibAPIID, envs.TelegramTDLibAPIHash, telegramAuthChan)
+			if err != nil {
+				logger.Warn("Failed to initialize TDLib Telegram client", "error", err)
+			} else {
+				logger.Info("TDLib Telegram client initialized successfully")
+
+				defer tdlib.Close()
+			}
+		} else {
+			logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_API_ID and TELEGRAM_TDLIB_API_HASH environment variables. You can obtain these from https://my.telegram.org/apps")
 		}
-	} else {
-		logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_API_ID and TELEGRAM_TDLIB_API_HASH environment variables. You can obtain these from https://my.telegram.org/apps")
-	}
+	}()
 
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
@@ -384,7 +388,7 @@ func main() {
 		telegramService:   telegramService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
-		tdlibClient:       tdlib,
+		telegramAuthChan:  telegramAuthChan,
 	})
 
 	go func() {
@@ -513,7 +517,7 @@ type graphqlServerInput struct {
 	telegramService        *telegram.TelegramService
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
-	tdlibClient            *tdlibclient.Client
+	telegramAuthChan       chan telegram.TelegramAuthState
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -538,6 +542,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		TelegramService:        input.telegramService,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
+		TelegramAuthChan:       input.telegramAuthChan,
 	}
 
 	srv := handler.New(gqlSchema(resolver))
@@ -667,7 +672,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 	client.Disconnect()
 }
 
-func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*tdlibclient.Client, error) {
+func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string, telegramAuthChan chan telegram.TelegramAuthState) (*tdlibclient.Client, error) {
 	logger.Info("Initializing TDLib Telegram client")
 
 	dbDir := "./tdlib-db"
@@ -710,7 +715,6 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 
 	authorizer := tdlibclient.ClientAuthorizer(tdlibParameters)
 
-	// authChan := make(chan bool, 1)
 	go func() {
 		logger.Info("Starting CLI interactor for Telegram authentication")
 		logger.Info("When prompted, enter phone number: 33616874598 (without the + sign)")
@@ -728,28 +732,35 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 
 				switch state.AuthorizationStateType() {
 				case tdlibclient.TypeAuthorizationStateWaitPhoneNumber:
+					logger.Info("Waiting for phone number")
+					authMessage := <-telegramAuthChan
 
 					logger.Info("Sending phone number")
-					authorizer.PhoneNumber <- "33616874598"
+
+					if authMessage.PhoneNumber != "" {
+						authorizer.PhoneNumber <- authMessage.PhoneNumber
+					} else {
+						logger.Error("No phone number provided")
+					}
 
 				case tdlibclient.TypeAuthorizationStateWaitCode:
 					logger.Info("Waiting for code")
-					var code string
 
-					fmt.Println("Enter code: ")
-					fmt.Scanln(&code)
+					authMessage := <-telegramAuthChan
 
-					logger.Info("Sending code")
-					authorizer.Code <- code
+					if authMessage.Code != "" {
+						authorizer.Code <- authMessage.Code
+					} else {
+						logger.Error("No code provided")
+					}
 
 				case tdlibclient.TypeAuthorizationStateWaitPassword:
 					logger.Info("Waiting for password")
-					fmt.Println("Enter password: ")
-					var password string
-					fmt.Scanln(&password)
 
-					logger.Info("Sending password")
-					authorizer.Password <- password
+					authMessage := <-telegramAuthChan
+					if authMessage.Password != "" {
+						authorizer.Password <- authMessage.Password
+					}
 
 				case tdlibclient.TypeAuthorizationStateReady:
 					logger.Info("Authorization state ready")
