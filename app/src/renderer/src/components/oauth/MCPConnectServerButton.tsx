@@ -12,7 +12,7 @@ export default function ConnectMCPServerButton({ onSuccess }: { onSuccess: () =>
     <Dialog open={isConnectOpen} onOpenChange={setIsConnectOpen}>
       <DialogTrigger asChild>
         <Card className="p-4 w-[350px] max-w-full">
-          <div className="font-semibold text-lg flex items-center justify-between">
+          <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
             <div className="flex items-center gap-1">
               <Plus className="w-5 h-5" />
               Custom MCP
