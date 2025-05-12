@@ -715,7 +715,6 @@ func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*t
 		logger.Info("Starting CLI interactor for Telegram authentication")
 		logger.Info("When prompted, enter phone number: 33616874598 (without the + sign)")
 		logger.Info("Then enter the verification code sent to your Telegram app")
-		// tdlibclient.CliInteractor(authorizer)
 
 		for {
 			select {
