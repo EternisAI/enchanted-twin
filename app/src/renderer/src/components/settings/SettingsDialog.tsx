@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from '@renderer/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@renderer/components/ui/dialog'
 import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
@@ -9,7 +9,6 @@ import PermissionsCard from './permissions/PermissionsCard'
 import Versions from '../Versions'
 import SystemTheme from './appearance/system-theme'
 import AdminPanel from '../admin/AdminPanel'
-import { DialogTitle } from '@radix-ui/react-dialog'
 
 const settingsTabs = [
   {
