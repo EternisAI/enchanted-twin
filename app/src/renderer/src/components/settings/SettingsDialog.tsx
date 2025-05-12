@@ -9,6 +9,7 @@ import PermissionsCard from './permissions/PermissionsCard'
 import Versions from '../Versions'
 import SystemTheme from './appearance/system-theme'
 import AdminPanel from '../admin/AdminPanel'
+import { DialogTitle } from '@radix-ui/react-dialog'
 
 const settingsTabs = [
   {
@@ -104,7 +105,10 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={close}>
-      <DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0 z-[100]">
+      <DialogTitle asChild className="sr-only">
+        Settings
+      </DialogTitle>
+      <DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0">
         <div className="flex h-full w-full">
           <Tabs.Root
             value={activeTab}
@@ -130,7 +134,6 @@ export function SettingsDialog() {
                 <Tabs.Content
                   key={tab.value}
                   value={tab.value}
-                  forceMount
                   className="absolute inset-0 outline-none focus:ring-0 transition-opacity duration-300 ease-in-out data-[state=active]:opacity-100 data-[state=inactive]:opacity-0 data-[state=inactive]:pointer-events-none"
                 >
                   <ScrollArea className="h-full">
