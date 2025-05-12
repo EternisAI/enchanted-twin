@@ -213,11 +213,16 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         <div className="pt-2 border-t border-border/50 shrink-0">
           <Button
             variant="ghost"
-            className="w-full justify-start px-2 text-secondary-foreground hover:text-foreground h-9"
+            className="w-full justify-between px-2 text-secondary-foreground hover:text-foreground h-9 group"
             onClick={openSettings}
           >
-            <SettingsIcon className="w-4 h-4 mr-2" />
-            <span className="text-sm">Settings</span>
+            <div className="flex items-center gap-2">
+              <SettingsIcon className="w-4 h-4 mr-2" />
+              <span className="text-sm">Settings</span>
+            </div>
+            <div className="group-hover:opacity-100 transition-opacity opacity-0 flex items-center gap-2 text-[10px] text-muted-foreground">
+              <kbd className="rounded bg-muted px-1.5 py-0.5">⌘ ,</kbd>
+            </div>
           </Button>
         </div>
       </aside>
