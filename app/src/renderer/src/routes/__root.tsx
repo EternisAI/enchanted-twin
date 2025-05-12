@@ -103,7 +103,10 @@ function RootComponent() {
             layout="position"
             transition={{ type: 'spring', stiffness: 300, damping: 30, duration: 0.2 }}
           >
-            <motion.div layout="position" className="flex-1 flex overflow-hidden relative">
+            <motion.div
+              layout="position"
+              className="flex-1 flex overflow-hidden relative justify-center"
+            >
               <Outlet />
               <Omnibar />
             </motion.div>
