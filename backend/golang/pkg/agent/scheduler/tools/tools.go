@@ -46,9 +46,9 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		return nil, errors.New("name is required")
 	}
 
-	var chatID *string
-	if chatIDValue, ok := inputs["chat_id"].(string); ok {
-		chatID = &chatIDValue
+	chatID, ok := inputs["chat_id"].(string)
+	if !ok {
+		return nil, errors.New("chat_id is required")
 	}
 
 	id := fmt.Sprintf("scheduled-task-%s-%s", toSnake(name), uuid.New().String())

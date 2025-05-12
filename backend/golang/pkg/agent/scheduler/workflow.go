@@ -8,14 +8,14 @@ import (
 )
 
 type TaskScheduleWorkflowInput struct {
-	Task   string
-	Name   string
-	ChatID *string
+	Task   string `json:"task"`
+	Name   string `json:"name"`
+	ChatID string `json:"chat_id"`
 }
 
 type TaskScheduleWorkflowOutput struct {
-	Result   string
-	Progress string
+	Result   string `json:"result"`
+	Progress string `json:"progress"`
 }
 
 func TaskScheduleWorkflow(ctx workflow.Context, input *TaskScheduleWorkflowInput) (TaskScheduleWorkflowOutput, error) {

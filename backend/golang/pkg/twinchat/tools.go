@@ -40,22 +40,9 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 		return nil, errors.New("message is not a string")
 	}
 
-	chatExists := false
 	chatId, ok := inputs["chat_id"].(string)
-	if ok {
-		chatExists = true
-	}
-
-	if !chatExists {
-		chatName, ok := inputs["chat_name"].(string)
-		if !ok {
-			return nil, errors.New("chat_name is not a string")
-		}
-		chat, err := e.chatStorage.CreateChat(ctx, chatName)
-		if err != nil {
-			return nil, err
-		}
-		chatId = chat.ID
+	if !ok {
+		return nil, errors.New("chat_id is not a string")
 	}
 
 	dbMessage := repository.Message{
@@ -120,10 +107,6 @@ func (e *sendToChat) Definition() openai.ChatCompletionToolParam {
 						"type":        "string",
 						"description": "The ID of the chat to send the message to. No chat_id specified would send the message to a new chat.",
 					},
-					"chat_name": map[string]string{
-						"type":        "string",
-						"description": "The name of the chat to send the message to. No chat_name specified would send the message to a new chat.",
-					},
 					"image_urls": map[string]any{
 						"type":        "array",
 						"description": "Optional list of image URLs to include with the message",
@@ -132,7 +115,7 @@ func (e *sendToChat) Definition() openai.ChatCompletionToolParam {
 						},
 					},
 				},
-				"required": []string{"message", "chat_name"},
+				"required": []string{"message"},
 			},
 		},
 	}

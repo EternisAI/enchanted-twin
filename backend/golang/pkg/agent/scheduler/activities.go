@@ -39,7 +39,7 @@ func (s *TaskSchedulerActivities) RegisterWorkflowsAndActivities(worker worker.W
 type ExecuteTaskActivityInput struct {
 	Task           string
 	PreviousResult *string
-	ChatID         *string
+	ChatID         string
 }
 
 func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input ExecuteTaskActivityInput) (string, error) {
@@ -49,14 +49,15 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 		systemPrompt += fmt.Sprintf("\n\nPrevious result: %s.", *input.PreviousResult)
 	}
 
-	if input.ChatID != nil {
-		systemPrompt += fmt.Sprintf("\n\nChat ID: %s.", *input.ChatID)
-	}
+	systemPrompt += fmt.Sprintf("\n\nChat ID: %s.", input.ChatID)
+
+	fmt.Println("executeActivity systemPrompt", systemPrompt)
 
 	tools := s.ToolsRegistry.Excluding("schedule_task").GetAll()
 	for _, tool := range tools {
 		s.logger.Info("Tool", "name", tool.Definition().Function.Name, "description", tool.Definition().Function.Description)
 	}
+
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(systemPrompt),
 		openai.UserMessage(input.Task),
