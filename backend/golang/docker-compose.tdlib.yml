@@ -1,4 +1,4 @@
-version: '3.8'
+# Docker Compose configuration for TDLib services
 
 services:
   tdlib:
