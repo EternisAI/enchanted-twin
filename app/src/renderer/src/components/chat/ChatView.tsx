@@ -16,7 +16,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(true)
+  const [showSuggestions, setShowSuggestions] = useState(false)
   const [error, setError] = useState<string>('')
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
