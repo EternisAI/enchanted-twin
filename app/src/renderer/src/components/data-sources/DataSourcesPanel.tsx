@@ -29,8 +29,8 @@ import OpenAI from '@renderer/assets/icons/openai'
 import { format } from 'date-fns'
 import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Tooltip, TooltipProvider } from '@radix-ui/react-tooltip'
-import * as Dialog from '@radix-ui/react-dialog'
 import { DataSourceDialog } from './DataSourceDialog'
+import { Dialog, DialogContent } from '../ui/dialog'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -564,20 +564,17 @@ export function DataSourcesPanel({
         </div>
       )}
 
-      <Dialog.Root open={!!selectedSource} onOpenChange={() => setSelectedSource(null)}>
-        <Dialog.Portal>
-          <Dialog.Overlay className="fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
-          <Dialog.Content className="fixed left-[50%] top-[50%] z-[200] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-center data-[state=open]:slide-in-from-center sm:rounded-lg">
-            <DataSourceDialog
-              selectedSource={selectedSource}
-              onClose={() => setSelectedSource(null)}
-              pendingDataSources={pendingDataSources}
-              onFileSelect={handleFileSelect}
-              onAddSource={handleAddSource}
-            />
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
+      <Dialog open={!!selectedSource} onOpenChange={() => setSelectedSource(null)}>
+        <DialogContent className="fixed left-[50%] top-[50%] z-[200] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-center data-[state=open]:slide-in-from-center sm:rounded-lg">
+          <DataSourceDialog
+            selectedSource={selectedSource}
+            onClose={() => setSelectedSource(null)}
+            pendingDataSources={pendingDataSources}
+            onFileSelect={handleFileSelect}
+            onAddSource={handleAddSource}
+          />
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

@@ -1,14 +1,7 @@
 import { Plus } from 'lucide-react'
 import { Card } from '../ui/card'
 import { Button } from '../ui/button'
-import {
-  DialogHeader,
-  DialogTitle,
-  DialogContent,
-  Dialog,
-  DialogTrigger,
-  DialogPortal
-} from '../ui/dialog'
+import { DialogHeader, DialogTitle, DialogContent, Dialog, DialogTrigger } from '../ui/dialog'
 import MCPConnectionForm from './MCPConnectionForm'
 import { useState } from 'react'
 
@@ -32,19 +25,17 @@ export default function ConnectMCPServerButton({ onSuccess }: { onSuccess: () =>
           </div>
         </Card>
       </DialogTrigger>
-      <DialogPortal>
-        <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
-          <DialogHeader>
-            <DialogTitle>Connect Custom MCP Server</DialogTitle>
-          </DialogHeader>
-          <MCPConnectionForm
-            onSuccess={() => {
-              onSuccess()
-              setIsConnectOpen(false)
-            }}
-          />
-        </DialogContent>
-      </DialogPortal>
+      <DialogContent className="max-w-2xl overflow-y-auto max-h-[90vh]">
+        <DialogHeader>
+          <DialogTitle>Connect Custom MCP Server</DialogTitle>
+        </DialogHeader>
+        <MCPConnectionForm
+          onSuccess={() => {
+            onSuccess()
+            setIsConnectOpen(false)
+          }}
+        />
+      </DialogContent>
     </Dialog>
   )
 }
