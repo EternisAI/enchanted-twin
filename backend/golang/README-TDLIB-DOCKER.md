@@ -11,6 +11,16 @@ Instead of installing TDLib locally, this setup uses Docker to provide a contain
 3. Easier deployment and scaling
 4. Isolation of TDLib interactions from the main application
 5. Persistent storage for authentication data
+6. Memory-efficient build process using conditional compilation
+
+## Implementation Details
+
+The TDLib service is implemented with two different build variants:
+
+1. **Full TDLib Implementation** - Used when building without special tags
+2. **Mock TDLib Implementation** - Used when building with `-tags notdlib`
+
+The Docker setup uses the mock implementation by default to avoid memory-intensive compilation on resource-constrained systems like macOS. This approach provides the same API interface while significantly reducing build resource requirements.
 
 ## Prerequisites
 

@@ -1,58 +1,39 @@
-FROM ubuntu:22.04 as builder
+FROM golang:1.20-alpine AS builder
 
-# Install dependencies for building TDLib
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    gperf \
-    git \
-    zlib1g-dev \
-    libssl-dev \
-    pkg-config \
-    golang \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
-
-# Clone and build TDLib
-WORKDIR /src
-RUN git clone --depth 1 --branch v1.8.0 https://github.com/tdlib/td.git && \
-    cd td && \
-    mkdir build && \
-    cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr/local .. && \
-    cmake --build . --target install -j $(nproc) --config Release
-
-# Second stage for the final image
-FROM ubuntu:22.04
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    tzdata \
-    libssl3 \
-    zlib1g \
-    golang \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy TDLib from builder
-COPY --from=builder /usr/local/lib/libtd* /usr/local/lib/
-COPY --from=builder /usr/local/include/td /usr/local/include/td
-RUN ldconfig
+# Install build dependencies
+RUN apk add --no-cache git gcc musl-dev
 
 # Set up working directory
 WORKDIR /app
 
+# Copy go.mod and go.sum
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
 # Copy source code
 COPY cmd/tdlib_service /app/cmd/tdlib_service
 COPY pkg/telegram/tdlib_client.go /app/pkg/telegram/tdlib_client.go
-COPY go.mod go.sum /app/
 
-# Build the TDLib service
-RUN go build -o /app/tdlib-service /app/cmd/tdlib_service
+# Build a version that doesn't require TDLib
+RUN go build -tags notdlib -o /app/tdlib-service /app/cmd/tdlib_service
+
+# Final stage
+FROM alpine:3.18
+
+# Install runtime dependencies
+RUN apk add --no-cache ca-certificates tzdata curl
+
+# Set up working directory
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/tdlib-service /app/tdlib-service
 
 # Create a non-root user
-RUN groupadd -g 1000 telegram && \
-    useradd -u 1000 -g telegram -s /bin/bash -m telegram && \
+RUN addgroup -g 1000 telegram && \
+    adduser -u 1000 -G telegram -s /bin/sh -D telegram && \
     mkdir -p /tdlib/db /tdlib/files && \
     chown -R telegram:telegram /tdlib
 
