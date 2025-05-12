@@ -19,6 +19,7 @@
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
     "build:mac": "electron-vite build && electron-builder --mac --publish always",
+    "build-local:mac": "electron-vite build && electron-builder --mac",
     "build:linux": "electron-vite build && electron-builder --linux"
   },
   "dependencies": {
@@ -96,6 +97,7 @@
   },
   "build": {
     "productName": "Enchanted",
+    "appId": "com.eternis.enchanted",
     "extraResources": [
       {
         "from": "./resources",
@@ -118,7 +120,12 @@
       "hardenedRuntime": true,
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSCameraUsageDescription": "This app requires access to the camera.",
+        "NSMicrophoneUsageDescription": "This app requires access to the microphone.",
+        "NSDocumentsFolderUsageDescription": "This app requires access to the Documents folder."
+      }
     },
     "afterSign": "./build/notarize.js"
   }

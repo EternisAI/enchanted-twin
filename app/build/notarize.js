@@ -10,7 +10,7 @@ exports.default = async function notarizeApp(context) {
   return notarize({
     tool: 'notarytool',
     provider: 'api',
-    appBundleId: 'com.yourcompany.enchanted',
+    appBundleId: 'com.eternis.enchanted',
     appPath: `${appOutDir}/${appName}.app`,
     ascProvider: process.env.NOTARY_TEAM_ID,
     appleApiKey: './build/AuthKey.p8',
