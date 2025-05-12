@@ -56,8 +56,16 @@ const settingsTabs = [
     value: 'updates',
     label: 'Updates',
     icon: RefreshCcw,
-    content: <Versions />,
-    fullWidth: true
+    content: (
+      <>
+        <h3 className="text-xl font-semibold">Updates</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Check for updates and manage your app&apos;s version.
+        </p>
+        <Versions />
+      </>
+    ),
+    fullWidth: false
   },
   {
     value: 'appearance',
