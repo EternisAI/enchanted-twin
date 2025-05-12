@@ -137,6 +137,7 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		AddDataSource             func(childComplexity int, name string, path string) int
+		AuthenticateTelegram      func(childComplexity int, input model.TelegramAuthParams) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
 		CreateChat                func(childComplexity int, name string) int
@@ -244,6 +245,7 @@ type MutationResolver interface {
 	SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error)
 	RemoveMCPServer(ctx context.Context, id string) (bool, error)
 	StartWhatsAppConnection(ctx context.Context) (bool, error)
+	AuthenticateTelegram(ctx context.Context, input model.TelegramAuthParams) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -678,6 +680,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.AddDataSource(childComplexity, args["name"].(string), args["path"].(string)), true
+
+	case "Mutation.authenticateTelegram":
+		if e.complexity.Mutation.AuthenticateTelegram == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_authenticateTelegram_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.AuthenticateTelegram(childComplexity, args["input"].(model.TelegramAuthParams)), true
 
 	case "Mutation.completeOAuthFlow":
 		if e.complexity.Mutation.CompleteOAuthFlow == nil {
@@ -1166,6 +1180,7 @@ func (e *executableSchema) Exec(ctx context.Context) graphql.ResponseHandler {
 	inputUnmarshalMap := graphql.BuildUnmarshalerMap(
 		ec.unmarshalInputConnectMCPServerInput,
 		ec.unmarshalInputKeyValueInput,
+		ec.unmarshalInputTelegramAuthParams,
 		ec.unmarshalInputUpdateProfileInput,
 	)
 	first := true
@@ -1338,6 +1353,29 @@ func (ec *executionContext) field_Mutation_addDataSource_argsPath(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_authenticateTelegram_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_authenticateTelegram_argsInput(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["input"] = arg0
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_authenticateTelegram_argsInput(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.TelegramAuthParams, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+	if tmp, ok := rawArgs["input"]; ok {
+		return ec.unmarshalNTelegramAuthParams2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTelegramAuthParams(ctx, tmp)
+	}
+
+	var zeroVal model.TelegramAuthParams
 	return zeroVal, nil
 }
 
@@ -5139,6 +5177,61 @@ func (ec *executionContext) fieldContext_Mutation_startWhatsAppConnection(_ cont
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type Boolean does not have child fields")
 		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_authenticateTelegram(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_authenticateTelegram(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().AuthenticateTelegram(rctx, fc.Args["input"].(model.TelegramAuthParams))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_authenticateTelegram(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_authenticateTelegram_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
 	}
 	return fc, nil
 }
@@ -9580,6 +9673,47 @@ func (ec *executionContext) unmarshalInputKeyValueInput(ctx context.Context, obj
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputTelegramAuthParams(ctx context.Context, obj any) (model.TelegramAuthParams, error) {
+	var it model.TelegramAuthParams
+	asMap := map[string]any{}
+	for k, v := range obj.(map[string]any) {
+		asMap[k] = v
+	}
+
+	fieldsInOrder := [...]string{"phoneNumber", "password", "code"}
+	for _, k := range fieldsInOrder {
+		v, ok := asMap[k]
+		if !ok {
+			continue
+		}
+		switch k {
+		case "phoneNumber":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("phoneNumber"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.PhoneNumber = data
+		case "password":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Password = data
+		case "code":
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("code"))
+			data, err := ec.unmarshalOString2ᚖstring(ctx, v)
+			if err != nil {
+				return it, err
+			}
+			it.Code = data
+		}
+	}
+
+	return it, nil
+}
+
 func (ec *executionContext) unmarshalInputUpdateProfileInput(ctx context.Context, obj any) (model.UpdateProfileInput, error) {
 	var it model.UpdateProfileInput
 	asMap := map[string]any{}
@@ -10349,6 +10483,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "startWhatsAppConnection":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_startWhatsAppConnection(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "authenticateTelegram":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_authenticateTelegram(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -11980,6 +12121,11 @@ func (ec *executionContext) marshalNString2ᚕstringᚄ(ctx context.Context, sel
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNTelegramAuthParams2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTelegramAuthParams(ctx context.Context, v any) (model.TelegramAuthParams, error) {
+	res, err := ec.unmarshalInputTelegramAuthParams(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) marshalNTool2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Tool) graphql.Marshaler {

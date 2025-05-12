@@ -127,6 +127,12 @@ type Query struct {
 type Subscription struct {
 }
 
+type TelegramAuthParams struct {
+	PhoneNumber *string `json:"phoneNumber,omitempty"`
+	Password    *string `json:"password,omitempty"`
+	Code        *string `json:"code,omitempty"`
+}
+
 type Tool struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`

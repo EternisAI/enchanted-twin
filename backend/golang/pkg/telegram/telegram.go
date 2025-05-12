@@ -840,3 +840,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 		return err
 	}
 }
+
+type TelegramAuthState struct {
+	PhoneNumber string
+	Code        string
+	Password    string
+}

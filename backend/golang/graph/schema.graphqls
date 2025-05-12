@@ -118,8 +118,14 @@ type Mutation {
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
   removeMCPServer(id: String!): Boolean!
-  # WhatsApp integration
   startWhatsAppConnection: Boolean!
+  authenticateTelegram(input: TelegramAuthParams!): Boolean!
+}
+
+input TelegramAuthParams {
+  phoneNumber: String
+  password: String
+  code: String
 }
 
 type Subscription {
