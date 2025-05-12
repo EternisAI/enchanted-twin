@@ -3,7 +3,6 @@ import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generat
 import { Button } from './ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 import { useSettingsStore } from '@renderer/lib/stores/settings'
-import { Settings } from 'lucide-react'
 
 export function GlobalIndexingStatus() {
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
@@ -23,25 +22,7 @@ export function GlobalIndexingStatus() {
   }
 
   if (!isIndexing && !isProcessing && !isNotStarted && !hasUnprocessedSources) {
-    return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="!bg-transparent h-8 px-3 text-xs font-medium backdrop-blur-md hover:bg-transparent transition-all duration-300"
-              onClick={handleClick}
-            >
-              <Settings className="h-4 w-4" /> Settings
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>Open settings</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
-    )
+    return null
   }
 
   const getStatusText = () => {
