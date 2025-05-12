@@ -1,5 +1,4 @@
 import { Dialog, DialogContent } from '@renderer/components/ui/dialog'
-import { Button } from '@renderer/components/ui/button'
 import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
@@ -10,7 +9,7 @@ import FocusLock from 'react-focus-lock'
 import PermissionsCard from './permissions/PermissionsCard'
 import Versions from '../Versions'
 import SystemTheme from './appearance/system-theme'
-import { ContinueSetupButton } from '../ContinueSetupButton'
+import AdminPanel from '../admin/AdminPanel'
 
 export function SettingsDialog() {
   const { isOpen, close, activeTab, setActiveTab } = useSettingsStore()
@@ -124,29 +123,8 @@ export function SettingsDialog() {
                       <p className="text-sm text-muted-foreground">
                         Configure advanced application settings and preferences.
                       </p>
-                      <div className="mt-4 space-y-4">
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => window.api.openLogsFolder()}
-                        >
-                          Open Logs Folder
-                        </Button>
-                        <Button
-                          variant="outline"
-                          className="w-full justify-start"
-                          onClick={() => window.api.openAppDataFolder()}
-                        >
-                          Open Application Folder
-                        </Button>
-                        <Button
-                          variant="destructive"
-                          className="w-full justify-start"
-                          onClick={() => window.api.deleteAppData()}
-                        >
-                          Delete App Data
-                        </Button>
-                        <ContinueSetupButton />
+                      <div className="mt-4 space-y-4 max-w-md">
+                        <AdminPanel />
                       </div>
                     </div>
                   </ScrollArea>
