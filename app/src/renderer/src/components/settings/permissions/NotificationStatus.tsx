@@ -12,9 +12,9 @@ export default function NotificationStatusCard() {
 
     const fetchStatus = async () => {
       try {
-        const status: boolean = await window.api.getNotificationStatus()
+        const status = await window.api.getNotificationStatus()
         console.log('OS Status:', status)
-        setOsNotificationEnabled(status)
+        setOsNotificationEnabled(status === 'granted')
       } catch (error) {
         console.error('Failed to get OS status:', error)
         setOsNotificationEnabled(false)

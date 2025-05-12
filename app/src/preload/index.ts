@@ -36,18 +36,27 @@ const api = {
   openSettings: () => ipcRenderer.invoke('open-notification-settings'),
   queryMediaStatus: (type: MediaType) => ipcRenderer.invoke('permissions:get-status', type),
   requestMediaAccess: (type: MediaType) => ipcRenderer.invoke('permissions:request', type),
+  accessibility: {
+    getStatus: () => ipcRenderer.invoke('accessibility:get-status'),
+    request: () => ipcRenderer.invoke('accessibility:request')
+  },
   checkForUpdates: (silent: boolean = false) => ipcRenderer.invoke('check-for-updates', silent),
   onUpdateStatus: (callback: (status: string) => void) => {
-    const listener = (_: any, status: string) => callback(status)
+    const listener = (_: unknown, status: string) => callback(status)
     ipcRenderer.on('update-status', listener)
     return () => ipcRenderer.removeListener('update-status', listener)
   },
-  onUpdateProgress: (callback: (progress: any) => void) => {
-    const listener = (_: any, progress: any) => callback(progress)
+  onUpdateProgress: (callback: (progress: unknown) => void) => {
+    const listener = (_: unknown, progress: unknown) => callback(progress)
     ipcRenderer.on('update-progress', listener)
     return () => ipcRenderer.removeListener('update-progress', listener)
   },
-  getAppVersion: () => ipcRenderer.invoke('get-app-version')
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  screenpipe: {
+    getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
+    start: () => ipcRenderer.invoke('screenpipe:start'),
+    stop: () => ipcRenderer.invoke('screenpipe:stop')
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

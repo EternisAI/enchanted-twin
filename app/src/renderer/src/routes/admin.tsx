@@ -9,7 +9,9 @@ function AdminPage() {
   return (
     <div className="p-6 flex flex-col gap-6 max-w-2xl mx-auto">
       <h2 className="text-4xl mb-6">Admin</h2>
-      <AdminPanel />
+      <div className="flex flex-col gap-6">
+        <AdminPanel />
+      </div>
     </div>
   )
 }

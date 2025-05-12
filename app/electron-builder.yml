@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: app
+appId: com.eternis.enchanted
+productName: Enchanted
 directories:
   buildResources: build
 files:
