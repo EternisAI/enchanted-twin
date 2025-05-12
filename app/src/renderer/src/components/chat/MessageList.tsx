@@ -9,7 +9,7 @@ type MessageListProps = {
 
 export default function MessageList({ messages, isWaitingTwinResponse }: MessageListProps) {
   return (
-    <div className="flex flex-col gap-10">
+    <div className="flex flex-col gap-10 w-full">
       {messages.map((msg) =>
         msg.role === Role.User ? (
           <UserMessageBubble key={msg.id} message={msg} />
