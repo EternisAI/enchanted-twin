@@ -83,6 +83,12 @@ TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 make build-all
 ```
 
+Local build
+
+```sh
+NOTARY_TEAM_ID=JDDZ55DT74 NOTARY_API_ISSUER=899fdbc2-cee9-4aea-b78b-850333a61f19 NOTARY_API_KEY_ID=742ZY9FRN6 pnpm build-local:mac
+```
+
 ### Troubleshooting
 
 - If you see a Postgres error, try deleting application data in the app. If you can't start the UI, delete the enchanted user data folder in your system's `Application Support` or `%APPDATA%` directory.
