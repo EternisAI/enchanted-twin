@@ -273,7 +273,6 @@ func main() {
 		ticker := time.NewTicker(10 * time.Second)
 		defer ticker.Stop()
 
-		// Create a context that respects application shutdown
 		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer appCancel()
 

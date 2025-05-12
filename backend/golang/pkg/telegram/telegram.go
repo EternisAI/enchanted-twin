@@ -50,7 +50,7 @@ type User struct {
 }
 
 type Chat struct {
-	ID        string `json:"id"`
+	ID        int    `json:"id"`
 	Type      string `json:"type"`
 	Title     string `json:"title"`
 	Username  string `json:"username"`
@@ -124,6 +124,8 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 	lastUpdateID := 0
 
+	s.Logger.Info("Starting telegram service")
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -169,12 +171,14 @@ func (s *TelegramService) Start(ctx context.Context) error {
 				ErrorCode   int      `json:"error_code"`
 			}
 
+			s.Logger.Info("Received updates", "body", string(body))
 			if err := json.Unmarshal(body, &result); err != nil {
-				s.Logger.Error("Failed to decode response", "error", err, "body", string(body))
+				s.Logger.Error("Failed to decode response", "error", err)
 				time.Sleep(time.Second * 5)
 				continue
 			}
 
+			s.Logger.Error("Received updates", "result", result)
 			if !result.OK {
 				s.Logger.Error("Telegram API returned error",
 					"error_code", result.ErrorCode,
@@ -201,6 +205,7 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 					chatID := update.Message.Chat.ID
 					if _, err := fmt.Sscanf(update.Message.Text, "/start %s", &uuid); err == nil {
+						s.Logger.Info("Creating chat", "chat_id", chatID, "uuid", uuid)
 						_, err := s.CreateChat(ctx, chatID, uuid)
 						if err != nil {
 							s.Logger.Error("Failed to create chat", "error", err)
@@ -209,7 +214,7 @@ func (s *TelegramService) Start(ctx context.Context) error {
 					}
 
 					if s.NatsClient != nil {
-						subject := fmt.Sprintf("telegram.chat.%s", chatID)
+						subject := fmt.Sprintf("telegram.chat.%d", chatID)
 						messageBytes, err := json.Marshal(update.Message)
 						if err != nil {
 							s.Logger.Error("Failed to marshal message", "error", err)
@@ -235,24 +240,24 @@ func (s *TelegramService) Start(ctx context.Context) error {
 
 func (s *TelegramService) CreateChat(
 	ctx context.Context,
-	chatID string,
+	chatID int,
 	chatUUID string,
-) (string, error) {
-	err := s.Store.SetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID), chatID)
+) (int, error) {
+	err := s.Store.SetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID), strconv.Itoa(chatID))
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 	return chatID, nil
 }
 
-func (s *TelegramService) GetChatID(ctx context.Context) (string, error) {
+func (s *TelegramService) GetChatID(ctx context.Context) (int, error) {
 	chatUUID, err := s.Store.GetValue(ctx, types.TelegramChatUUIDKey)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 	chatID, err := s.GetChatIDFromChatUUID(ctx, chatUUID)
 	if err != nil {
-		return "", err
+		return 0, err
 	}
 	return chatID, nil
 }
@@ -260,10 +265,14 @@ func (s *TelegramService) GetChatID(ctx context.Context) (string, error) {
 func (s *TelegramService) GetChatIDFromChatUUID(
 	ctx context.Context,
 	chatUUID string,
-) (string, error) {
-	chatID, err := s.Store.GetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID))
+) (int, error) {
+	chatIDStr, err := s.Store.GetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID))
 	if err != nil {
-		return "", err
+		return 0, err
+	}
+	chatID, err := strconv.Atoi(chatIDStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid chat ID format: %w", err)
 	}
 	return chatID, nil
 }
@@ -398,15 +407,10 @@ func (s *TelegramService) TransformToOpenAIMessages(
 	return openAIMessages
 }
 
-func (s *TelegramService) SendMessage(ctx context.Context, chatID string, message string) error {
-	chatIDInt, err := strconv.Atoi(chatID)
-	if err != nil {
-		return fmt.Errorf("invalid chat ID format: %w", err)
-	}
-
+func (s *TelegramService) SendMessage(ctx context.Context, chatID int, message string) error {
 	url := fmt.Sprintf("%s/bot%s/sendMessage", types.TelegramAPIBase, s.Token)
 	body := map[string]any{
-		"chat_id":    chatIDInt,
+		"chat_id":    chatID,
 		"text":       message,
 		"parse_mode": "HTML",
 	}
@@ -483,7 +487,12 @@ func (s *TelegramService) transformWebSocketDataToMessage(ctx context.Context, d
 	}
 
 	chatInfo := Chat{
-		ID: chatUUID,
+		ID: 0,
+	}
+
+	chatIDInt, err := s.GetChatIDFromChatUUID(ctx, chatUUID)
+	if err == nil {
+		chatInfo.ID = chatIDInt
 	}
 
 	parsedTime, err := time.Parse(time.RFC3339, data.CreatedAt)
@@ -747,20 +756,11 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
+					s.Logger.Info("telegramenabled", "Received data", "response", response)
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
+						s.Logger.Info("telegramenabled", "Received nil text message")
 						exitErr = ErrSubscriptionNilTextMessage
 						return
-					}
-
-					telegramEnabled, err := helpers.GetTelegramEnabled(ctx, s.Store)
-					if err != nil {
-						s.Logger.Info("Error getting telegram enabled", "error", err)
-					}
-					if telegramEnabled != "true" {
-						err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
-						if err != nil {
-							s.Logger.Error("Error setting telegram enabled", "error", err)
-						}
 					}
 
 					s.Logger.Info(
@@ -778,6 +778,20 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 					s.LastMessages = append(s.LastMessages, *newMessage)
+
+					if newMessage.Chat.ID != 0 {
+						fmt.Println("Setting telegram enabled to true")
+						telegramEnabled, err := helpers.GetTelegramEnabled(ctx, s.Store)
+						if err != nil {
+							s.Logger.Info("telegramenabled", "Error getting telegram enabled", "error", err)
+						}
+						if telegramEnabled != "true" {
+							err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
+							if err != nil {
+								s.Logger.Error("Error setting telegram enabled", "error", err)
+							}
+						}
+					}
 
 					agentResponse, err := s.Execute(
 						ctx,
