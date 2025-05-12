@@ -7,7 +7,7 @@ export default function SystemTheme() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <Card className="flex items-center gap-2 mt-4 max-w-4xl">
+    <Card className="flex flex-row items-center gap-2 mt-4 max-w-4xl p-4">
       <Button
         variant={theme === 'light' ? 'default' : 'outline'}
         className="flex-1"
