@@ -28,7 +28,7 @@ export default function AccessibilityStatus() {
 
   const requestPermission = async () => {
     await window.api.accessibility.request()
-    // Add a small delay before re-checking as the OS might take time to update
+    // TODO: make this smarter, so we detect changes in the accessibility settings
     setTimeout(() => checkPermission(), 500)
   }
 
@@ -87,6 +87,7 @@ export default function AccessibilityStatus() {
       buttonLabel={buttonLabel}
       onButtonClick={handleButtonClick}
       isLoading={isLoading}
+      explanation="Required for global keyboard shortcuts and system-wide features."
     />
   )
 }
