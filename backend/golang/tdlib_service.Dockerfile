@@ -1,24 +1,18 @@
-FROM golang:1.24.2 AS builder
+FROM golang:1.21-bookworm AS builder
 
-# Install TDLib dependencies
+# Install TDLib from official repository
 RUN apt-get update && apt-get install -y \
-    build-essential \
-    cmake \
-    gperf \
-    git \
-    zlib1g-dev \
-    libssl-dev \
-    pkg-config \
+    wget \
+    gnupg \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Clone and build TDLib
-WORKDIR /src
-RUN git clone https://github.com/tdlib/td.git && \
-    cd td && \
-    mkdir build && \
-    cd build && \
-    cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX:PATH=/usr/local .. && \
-    cmake --build . --target install -j $(nproc)
+# Add TDLib repository and install pre-built package
+RUN wget -qO- https://td.telegram.org/debian/td-apt-key.asc | gpg --dearmor > /usr/share/keyrings/td-apt-key.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/td-apt-key.gpg] https://td.telegram.org/debian bookworm main" > /etc/apt/sources.list.d/td.list && \
+    apt-get update && \
+    apt-get install -y libtdjson1 libtdjson-dev && \
+    rm -rf /var/lib/apt/lists/*
 
 # Set up Go environment
 WORKDIR /app
@@ -30,29 +24,29 @@ COPY . .
 
 # Build the tdlib service
 RUN CGO_ENABLED=1 \
-    CGO_CFLAGS="-I/usr/local/include" \
-    CGO_LDFLAGS="-Wl,-rpath,/usr/local/lib -L/usr/local/lib -ltdjson" \
+    CGO_CFLAGS="-I/usr/include" \
+    CGO_LDFLAGS="-Wl,-rpath,/usr/lib -L/usr/lib -ltdjson" \
     go build -o /app/tdlib-service ./cmd/tdlib_service
 
 # Create a smaller runtime image
 FROM debian:bookworm-slim
 
-# Install runtime dependencies
+# Install TDLib from official repository
 RUN apt-get update && apt-get install -y \
-    libssl3 \
-    zlib1g \
+    wget \
+    gnupg \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy TDLib from builder
-COPY --from=builder /usr/local/lib/libtd* /usr/local/lib/
-COPY --from=builder /usr/local/include/td /usr/local/include/td
+# Add TDLib repository and install pre-built package
+RUN wget -qO- https://td.telegram.org/debian/td-apt-key.asc | gpg --dearmor > /usr/share/keyrings/td-apt-key.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/td-apt-key.gpg] https://td.telegram.org/debian bookworm main" > /etc/apt/sources.list.d/td.list && \
+    apt-get update && \
+    apt-get install -y libtdjson1 && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy the compiled binary
 COPY --from=builder /app/tdlib-service /usr/local/bin/tdlib-service
-
-# Update the dynamic linker run-time bindings
-RUN ldconfig
 
 # Create directories for TDLib data
 RUN mkdir -p /tdlib/db /tdlib/files
