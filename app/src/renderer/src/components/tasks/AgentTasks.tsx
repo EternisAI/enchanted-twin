@@ -2,7 +2,7 @@ import { useMutation, useQuery } from '@apollo/client'
 import { MessageCircle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip'
 import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
 import { Card } from '@renderer/components/ui/card'
@@ -121,23 +121,25 @@ function AgentTaskRow({ task, onDelete }: Props) {
         </div>
 
         {onDelete && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-destructive hover:bg-destructive/10"
-                onClick={() => onDelete(task.id)}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>
-              <div className="flex items-center gap-2 bg-popover p-2 rounded-md border shadow-md">
-                <p>Delete agent task</p>
-              </div>
-            </TooltipContent>
-          </Tooltip>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:bg-destructive/10"
+                  onClick={() => onDelete(task.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <div className="flex items-center gap-2 bg-popover p-2 rounded-md border shadow-md">
+                  <p>Delete agent task</p>
+                </div>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
       </div>
     </div>
