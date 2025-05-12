@@ -13,6 +13,7 @@ import { Button } from '@renderer/components/ui/button'
 import { PanelLeftOpen } from 'lucide-react'
 import { GetChatsDocument, Chat } from '@renderer/graphql/generated/graphql'
 import { useQuery } from '@apollo/client'
+import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -24,6 +25,7 @@ function RootComponent() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const navigate = useNavigate()
 
+  const { isCompleted } = useOnboardingStore()
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
@@ -65,26 +67,25 @@ function RootComponent() {
           <GlobalIndexingStatus />
         </div>
 
-        {!sidebarOpen && (
-          <motion.div
-            className="absolute top-11 left-3 z-[60]"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5 }}
-          >
-            <Button
-              onClick={() => setSidebarOpen(true)}
-              variant="ghost"
-              size="icon"
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <PanelLeftOpen className="w-5 h-5" />
-            </Button>
-          </motion.div>
-        )}
-
         <div className="flex flex-1 overflow-hidden mt-0">
           <AnimatePresence>
+            {!sidebarOpen && isCompleted && (
+              <motion.div
+                className="absolute top-11 left-3 z-[60]"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.5 }}
+              >
+                <Button
+                  onClick={() => setSidebarOpen(true)}
+                  variant="ghost"
+                  size="icon"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <PanelLeftOpen className="w-5 h-5" />
+                </Button>
+              </motion.div>
+            )}
             {sidebarOpen && (
               <motion.div
                 key="sidebar"
