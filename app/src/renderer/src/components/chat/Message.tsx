@@ -2,7 +2,7 @@ import { Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
 import { CheckCircle, ChevronRight, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
-import { TOOL_NAMES } from './config'
+import { extractReasoningAndReply, formatToolName } from './config'
 import { Badge } from '../ui/badge'
 import Markdown from './Markdown'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
@@ -13,26 +13,6 @@ const messageAnimation = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.3, ease: 'easeOut' }
-}
-
-function extractReasoningAndReply(raw: string): {
-  thinkingText: string | null
-  replyText: string
-} {
-  const thinkingTag = '<think>'
-  const thinkingEndTag = '</think>'
-
-  if (!raw.startsWith(thinkingTag)) return { thinkingText: null, replyText: raw }
-
-  const closingIndex = raw.indexOf(thinkingEndTag)
-  if (closingIndex !== -1) {
-    const thinking = raw.slice(thinkingTag.length, closingIndex).trim()
-    const rest = raw.slice(closingIndex + thinkingEndTag.length).trim()
-    return { thinkingText: thinking, replyText: rest }
-  } else {
-    const thinking = raw.slice(thinkingTag.length).trim()
-    return { thinkingText: thinking, replyText: '' }
-  }
 }
 
 export function UserMessageBubble({ message }: { message: Message }) {
@@ -113,8 +93,8 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
         <div className="flex flex-row items-center pt-2 gap-4 justify-between w-full">
           <div className="flex flex-wrap gap-4 items-center">
             {message.toolCalls.map((toolCall) => {
-              const toolNameInProgress = TOOL_NAMES[toolCall.name]?.inProgress || toolCall.name
-              const toolNameCompleted = TOOL_NAMES[toolCall.name]?.completed || toolCall.name
+              const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
+
               return (
                 <div
                   key={toolCall.id}
