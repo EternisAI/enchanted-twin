@@ -73,6 +73,8 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttype
 	}, nil
 }
 
+type EmptyParams struct{}
+
 func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	params := make(openai.FunctionParameters)
 

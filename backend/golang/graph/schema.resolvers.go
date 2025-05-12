@@ -701,6 +701,25 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	}
 	fmt.Println("Telegram message added", "chat_id", chatID)
 
+	if chatID != 0 {
+		confirmText := fmt.Sprintf("Telegram connection established. Chat ID: %d", chatID)
+		confirmMsg := &model.Message{
+			ID:          uuid.New().String(),
+			Text:        &confirmText,
+			CreatedAt:   time.Now().Format(time.RFC3339),
+			Role:        model.RoleAssistant,
+			ImageUrls:   []string{},
+			ToolCalls:   []*model.ToolCall{},
+			ToolResults: []string{},
+		}
+
+		confirmData, _ := json.Marshal(confirmMsg)
+		err := r.Nc.Publish(fmt.Sprintf("telegram.chat.%d", chatID), confirmData)
+		if err != nil {
+			r.Logger.Error("Failed to publish confirmation message", "error", err)
+		}
+	}
+
 	messages := make(chan *model.Message, 100)
 
 	subject := fmt.Sprintf("telegram.chat.%d", chatID)

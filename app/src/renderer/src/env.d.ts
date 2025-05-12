@@ -35,16 +35,26 @@ interface IApi {
   restartApp: () => void
   notify: (notification: AppNotification) => void
   onDeepLink: (cb: (url: string) => void) => void
-  getNotificationStatus: () => Promise<boolean>
-  openSettings: () => void
-  queryMediaStatus: (type: MediaType) => string
-  requestMediaAccess: (type: MediaType) => string
+  getNotificationStatus: () => Promise<string>
+  openSettings: () => Promise<void>
+  queryMediaStatus: (type: MediaType) => Promise<string>
+  requestMediaAccess: (type: MediaType) => Promise<string>
+  accessibility: {
+    getStatus: () => Promise<string>
+    request: () => Promise<string>
+  }
+  checkForUpdates: (silent?: boolean) => Promise<boolean>
   onUpdateStatus: (callback: (status: string) => void) => () => void
-  onUpdateProgress: (callback: (progressData: { percent: number }) => void) => () => void
+  onUpdateProgress: (callback: (progress: unknown) => void) => () => void
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
   restartApp: () => Promise<void>
   onOpenSettings: (callback: () => void) => void
+  screenpipe: {
+    getStatus: () => Promise<boolean>
+    start: () => Promise<boolean>
+    stop: () => Promise<boolean>
+  }
 }
 
 declare global {
