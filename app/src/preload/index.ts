@@ -52,6 +52,9 @@ const api = {
     return () => ipcRenderer.removeListener('update-progress', listener)
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onOpenSettings: (callback: () => void) => {
+    ipcRenderer.on('open-settings', callback)
+  },
   screenpipe: {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
     start: () => ipcRenderer.invoke('screenpipe:start'),
