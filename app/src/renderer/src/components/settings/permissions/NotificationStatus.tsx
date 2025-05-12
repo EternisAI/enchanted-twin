@@ -64,7 +64,7 @@ export default function NotificationStatusCard() {
   return (
     <Card className="p-4 min-w-[200px] flex flex-col items-center gap-3">
       <div className="flex flex-col items-center gap-2">
-        <Bell className="h-8 w-8 text-muted-foreground" />
+        <Bell className="h-5 w-5 text-muted-foreground" />
         <span className="font-medium">Notifications</span>
       </div>
 
