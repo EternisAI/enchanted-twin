@@ -61,9 +61,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
       className={cn(
         'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xl w-full'
       )}
-      transition={{
-        layout: { type: 'spring', damping: 25, stiffness: 280 }
-      }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       onClick={handleClickContainer}
     >
       <motion.div
