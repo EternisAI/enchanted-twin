@@ -120,7 +120,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 
   return (
     <>
-      <aside className="flex flex-col bg-muted/50 p-4 rounded-lg h-full gap-2 w-64">
+      <aside className="flex flex-col bg-muted p-4 rounded-tr-lg h-full gap-2 w-64">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <Button
