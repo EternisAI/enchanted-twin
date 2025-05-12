@@ -30,11 +30,7 @@ const settingsTabs = [
     value: 'import-data',
     label: 'Import Data',
     icon: Database,
-    content: (
-      <>
-        <DataSourcesPanel showStatus={true} />
-      </>
-    ),
+    content: <DataSourcesPanel showStatus={true} />,
     fullWidth: false
   },
   {
