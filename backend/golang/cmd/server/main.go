@@ -29,7 +29,6 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
-	tdlibclient "github.com/zelenin/go-tdlib/client"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -90,8 +89,6 @@ func main() {
 	} else {
 		logger.Info("TDLib Telegram integration not enabled. To enable, set TELEGRAM_TDLIB_SERVICE_URL environment variable.")
 	}
-
-	go bootstrapTelegramTDLib(logger, envs.TelegramTDLibAPIID, envs.TelegramTDLibAPIHash)
 
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
@@ -668,102 +665,4 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger) {
 	<-c
 
 	client.Disconnect()
-}
-
-func bootstrapTelegramTDLib(logger *log.Logger, apiID int32, apiHash string) (*tdlibclient.Client, error) {
-	logger.Info("Initializing TDLib Telegram client")
-
-	// Create directories if they don't exist
-	dbDir := "./tdlib-db"
-	filesDir := "./tdlib-files"
-
-	os.MkdirAll(dbDir, 0o755)
-	os.MkdirAll(filesDir, 0o755)
-
-	_, err := os.Stat(dbDir + "/db.sqlite")
-	if os.IsNotExist(err) {
-		logger.Info("No existing authentication data found")
-		logger.Info("Will perform fresh authentication with phone number: +33616874598")
-	} else {
-		logger.Info("Found existing authentication data - will try to reuse it")
-	}
-
-	_, err = tdlibclient.SetLogVerbosityLevel(&tdlibclient.SetLogVerbosityLevelRequest{
-		NewVerbosityLevel: 2, // Reduced verbosity for cleaner logs
-	})
-	if err != nil {
-		logger.Error("SetLogVerbosityLevel error", "error", err)
-		return nil, errors.Wrap(err, "SetLogVerbosityLevel error")
-	}
-
-	// Setup TDLib parameters
-	tdlibParameters := &tdlibclient.SetTdlibParametersRequest{
-		UseTestDc:           false,
-		DatabaseDirectory:   dbDir,
-		FilesDirectory:      filesDir,
-		UseFileDatabase:     true,
-		UseChatInfoDatabase: true,
-		UseMessageDatabase:  true,
-		UseSecretChats:      false,
-		ApiId:               int32(apiID),
-		ApiHash:             apiHash,
-		SystemLanguageCode:  "en",
-		DeviceModel:         "Server",
-		SystemVersion:       "1.0.0",
-		ApplicationVersion:  "0.1.0",
-	}
-
-	// Create authorizer
-	authorizer := tdlibclient.ClientAuthorizer(tdlibParameters)
-
-	authChan := make(chan bool, 1)
-	go func() {
-		logger.Info("Starting CLI interactor for Telegram authentication")
-		logger.Info("When prompted, enter phone number: 33616874598 (without the + sign)")
-		logger.Info("Then enter the verification code sent to your Telegram app")
-		tdlibclient.CliInteractor(authorizer)
-		authChan <- true
-	}()
-
-	// Create new client with a timeout
-	logger.Info("Creating new TDLib client - this may take a moment...")
-
-	// Create a channel for client creation result
-	clientCh := make(chan struct {
-		client *tdlibclient.Client
-		err    error
-	}, 1)
-
-	go func() {
-		client, err := tdlibclient.NewClient(authorizer)
-		clientCh <- struct {
-			client *tdlibclient.Client
-			err    error
-		}{client, err}
-	}()
-
-	var client *tdlibclient.Client
-	select {
-	case result := <-clientCh:
-		if result.err != nil {
-			logger.Error("NewClient error", "error", result.err)
-			return nil, errors.Wrap(result.err, "NewClient error")
-		}
-		client = result.client
-	case <-time.After(120 * time.Second): // Increase timeout to 2 minutes
-		logger.Error("Client creation timed out")
-		return nil, errors.New("client creation timed out")
-	}
-
-	logger.Info("TDLib client created successfully")
-
-	me, getMeErr := client.GetMe()
-	if getMeErr != nil {
-		logger.Warn("GetMe error - authentication may be incomplete", "error", getMeErr)
-		logger.Info("Check the CLI for authentication prompts")
-	} else {
-		logger.Info("Logged in to Telegram", "first_name", me.FirstName, "last_name", me.LastName)
-	}
-
-	return client, nil
 }
