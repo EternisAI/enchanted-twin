@@ -23,26 +23,6 @@ const (
 	DefaultPostgresPort = "5432"
 )
 
-type podmanPostgresAdapter struct {
-	manager *PostgresManager
-}
-
-func (a *podmanPostgresAdapter) Stop(ctx context.Context) error {
-	return a.manager.Stop(ctx)
-}
-
-func (a *podmanPostgresAdapter) Remove(ctx context.Context) error {
-	return a.manager.Remove(ctx)
-}
-
-func (a *podmanPostgresAdapter) WaitForReady(ctx context.Context, maxWaitTime time.Duration) error {
-	return a.manager.WaitForReady(ctx, maxWaitTime)
-}
-
-func (a *podmanPostgresAdapter) EnsureDatabase(ctx context.Context, dbName string) error {
-	return a.manager.EnsureDatabase(ctx, dbName)
-}
-
 // PostgresOptions represents configuration options for a PostgreSQL container.
 type PostgresOptions struct {
 	ImageURL      string // Image URL (default: "pgvector/pgvector:pg17")
