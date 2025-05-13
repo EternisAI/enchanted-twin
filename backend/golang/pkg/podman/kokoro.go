@@ -18,7 +18,7 @@ const (
 	DefaultKokoroContainerName = "kokoro-fastapi"
 
 	// DefaultKokoroPort is the default port the Kokoro API listens on.
-	DefaultKokoroPort = "8000"
+	DefaultKokoroPort = "8880"
 )
 
 // KokoroManager provides specialized functions for handling the Kokoro container.
