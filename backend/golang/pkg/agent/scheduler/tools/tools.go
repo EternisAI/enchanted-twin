@@ -58,7 +58,7 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		Action: &client.ScheduleWorkflowAction{
 			ID:        id,
 			Workflow:  "TaskScheduleWorkflow",
-			Args:      []any{map[string]any{"task": task, "name": name, "chat_id": chatID}},
+			Args:      []any{map[string]any{"task": task, "name": name, "chat_id": chatID, "delay": delay, "cron": cron}},
 			TaskQueue: "default",
 		},
 		Overlap: enums.SCHEDULE_OVERLAP_POLICY_SKIP,
@@ -107,7 +107,7 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 				"properties": map[string]any{
 					"name": map[string]string{
 						"type":        "string",
-						"description": "The name of the task, should be witty and short.",
+						"description": "The name of the task, should be witty and short. Use spaces to separate words.",
 					},
 					"task": map[string]string{
 						"type":        "string",

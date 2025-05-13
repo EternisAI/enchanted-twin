@@ -11,6 +11,8 @@ type TaskScheduleWorkflowInput struct {
 	Task   string `json:"task"`
 	Name   string `json:"name"`
 	ChatID string `json:"chat_id"`
+	Delay  int    `json:"delay"`
+	Cron   string `json:"cron"`
 }
 
 type TaskScheduleWorkflowOutput struct {

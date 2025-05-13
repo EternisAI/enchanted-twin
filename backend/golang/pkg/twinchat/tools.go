@@ -35,7 +35,6 @@ func NewSendToChatTool(chatStorage chatStore, nc *nats.Conn) *sendToChat {
 }
 
 func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
-	fmt.Println("Executing send_to_chat tool", "inputs", inputs)
 	message, ok := inputs["message"].(string)
 	if !ok {
 		return nil, errors.New("message is not a string")

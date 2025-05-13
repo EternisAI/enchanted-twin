@@ -19,6 +19,7 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -302,37 +303,18 @@ func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID str
 
 // DeleteAgentTask is the resolver for the deleteAgentTask field.
 func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool, error) {
-	runID := id
+	handle := r.TemporalClient.ScheduleClient().GetHandle(ctx, id)
 
-	// Use the RootClient to properly terminate the workflow and update state
-	if r.RootClient != nil {
-		// Call our new method that handles both termination and state cleanup
-		cmdID, err := r.RootClient.TerminateChildWorkflow(ctx, runID, "Deleted via GraphQL API")
-		if err != nil {
-			r.Logger.Error("Failed to terminate workflow", "error", err, "runID", runID)
-			return false, fmt.Errorf("failed to delete agent task: %w", err)
-		}
-
-		r.Logger.Info("Successfully terminated workflow", "workflowID", id, "commandID", cmdID)
-		return true, nil
-	} else {
-		// Fallback to direct Temporal client if RootClient is not available
-		r.Logger.Warn("RootClient not available, falling back to direct termination", "workflowID", id)
-
-		// Create a Temporal client to interact with the workflow
-		c := r.TemporalClient
-
-		// Try to terminate the workflow by ID
-		err := c.TerminateWorkflow(ctx, id, "", "Deleted via GraphQL API")
-		if err != nil {
-			r.Logger.Error("Failed to terminate workflow", "error", err, "workflowID", id)
-			return false, fmt.Errorf("failed to delete agent task: %w", err)
-		}
-
-		r.Logger.Info("Successfully terminated workflow but state may not be updated in root workflow",
-			"workflowID", id)
-		return true, nil
+	if handle == nil {
+		return false, fmt.Errorf("agent task not found")
 	}
+
+	err := handle.Delete(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // RemoveMCPServer is the resolver for the removeMCPServer field.
@@ -459,17 +441,15 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			continue
 		}
 
-		h := r.TemporalClient.ScheduleClient().GetHandle(ctx, schedule.ID)
-		desc, err := h.Describe(ctx)
+		handle := r.TemporalClient.ScheduleClient().GetHandle(ctx, schedule.ID)
+		desc, err := handle.Describe(ctx)
 		if err != nil {
 			return nil, err
 		}
+		createdAt := desc.Info.CreatedAt.Format(time.RFC3339)
+		updatedAt := desc.Info.LastUpdateAt.Format(time.RFC3339)
 
-		var wfArgsData struct {
-			ChatID string `json:"chat_id"`
-			Name   string `json:"name"`
-			Task   string `json:"task"`
-		}
+		var wfArgsData scheduler.TaskScheduleWorkflowInput
 		if wf, ok := desc.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
 			for i, arg := range wf.Args {
 				if payload, ok := arg.(*common.Payload); ok {
@@ -485,15 +465,27 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 		}
 
 		scheduleStr := ""
-		r.Logger.Info("schedule.Spec.CronExpressions", schedule.Spec.CronExpressions)
-		r.Logger.Info("schedule.Spec.Intervals", schedule.Spec.Intervals)
+		if wfArgsData.Delay > 0 {
+			nextActionTime := schedule.NextActionTimes[0]
+			now := time.Now()
+			nextExecutingIn := nextActionTime.Sub(now)
+			days := int(nextExecutingIn.Hours()) / 24
+			hours := int(nextExecutingIn.Hours()) % 24
+			minutes := int(nextExecutingIn.Minutes()) % 60
 
-		fmt.Println("schedule.Spec.CronExpressions", schedule.Spec.CronExpressions)
-		if len(schedule.Spec.CronExpressions) > 0 {
-			cronStr := schedule.Spec.CronExpressions[0]
-			fmt.Println("cronStr", cronStr)
+			switch {
+			case days > 0 && hours > 0:
+				scheduleStr += fmt.Sprintf("In %d Days %d Hours %d Minutes", days, hours, minutes)
+			case days > 0:
+				scheduleStr += fmt.Sprintf("In %d Days %d Minutes", days, minutes)
+			case hours > 0:
+				scheduleStr += fmt.Sprintf("In %d Hours %d Minutes", hours, minutes)
+			default:
+				scheduleStr += fmt.Sprintf("In %d Minutes", minutes)
+			}
+		} else {
 			exprDesc, _ := cron.NewDescriptor()
-			cronDesc, err := exprDesc.ToDescription(cronStr, cron.Locale_en)
+			cronDesc, err := exprDesc.ToDescription(wfArgsData.Cron, cron.Locale_en)
 			if err != nil {
 				r.Logger.Error("Failed to get cron description", "error", err)
 				continue
@@ -501,13 +493,6 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			fmt.Println("cronDesc", cronDesc)
 			scheduleStr = cronDesc
 		}
-		// intervalStr := ""
-		// if len(schedule.Spec.Intervals) > 0 {
-		// 	intervalStr = schedule.Spec.Intervals[0].Offset.String()
-		// }
-
-		createdAt := ""
-		updatedAt := ""
 
 		task := &model.AgentTask{
 			ID:           schedule.ID,

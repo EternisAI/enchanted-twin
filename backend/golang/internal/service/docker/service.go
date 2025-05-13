@@ -16,6 +16,12 @@ import (
 
 var dockerCommand string
 
+// package - podman
+// 1. Connect to the podman socket
+// 2. Download an image (progress progress). Srikar tried to run the app, it started downloading the Kokoro container image. Sometime timeout.
+// 2.1 If Kokoro is being downloaded the app should start
+// 3. Run a container
+
 func init() {
 	path, err := exec.LookPath("docker")
 	if err != nil {
