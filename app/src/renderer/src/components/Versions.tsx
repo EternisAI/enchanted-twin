@@ -8,7 +8,6 @@ function Versions(): React.JSX.Element {
 
   return (
     <Card className="p-6 w-full">
-      <h3 className="text-xl font-semibold">Updates</h3>
       <p className="text-base">Version {version}</p>
       <ul className="versions text-sm text-muted-foreground">
         <li className="electron-version">Electron v{versions.electron}</li>

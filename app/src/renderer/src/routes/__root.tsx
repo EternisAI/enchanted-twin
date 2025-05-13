@@ -14,6 +14,13 @@ import { PanelLeftOpen } from 'lucide-react'
 import { GetChatsDocument, Chat } from '@renderer/graphql/generated/graphql'
 import { useQuery } from '@apollo/client'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger
+} from '@renderer/components/ui/tooltip'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -22,6 +29,8 @@ function DevBadge() {
 function RootComponent() {
   useOsNotifications()
   const { open } = useSettingsStore()
+  const omnibar = useOmnibarStore()
+
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const navigate = useNavigate()
 
@@ -44,13 +53,17 @@ function RootComponent() {
         e.preventDefault()
         navigate({ to: '/', search: { focusInput: 'true' } })
       }
+      if ((e.metaKey || e.ctrlKey) && e.key === 's' && isCompleted && !omnibar.isOpen) {
+        e.preventDefault()
+        setSidebarOpen(!sidebarOpen)
+      }
     }
     window.addEventListener('keydown', handleKeyDown)
     window.api.onOpenSettings(open)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, sidebarOpen, navigate])
+  }, [open, sidebarOpen, navigate, isCompleted, omnibar.isOpen])
 
   return (
     <LayoutGroup>
@@ -75,14 +88,28 @@ function RootComponent() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}
               >
-                <Button
-                  onClick={() => setSidebarOpen(true)}
-                  variant="ghost"
-                  size="icon"
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <PanelLeftOpen className="w-5 h-5" />
-                </Button>
+                <TooltipProvider delayDuration={100}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => setSidebarOpen(true)}
+                        variant="ghost"
+                        size="icon"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <PanelLeftOpen className="w-5 h-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right" align="center">
+                      <div className="flex items-center gap-2">
+                        <span>Open sidebar</span>
+                        <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
+                          ⌘ S
+                        </kbd>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </motion.div>
             )}
             {sidebarOpen && isCompleted && (
@@ -100,18 +127,15 @@ function RootComponent() {
           </AnimatePresence>
           <motion.div
             className="flex-1 flex flex-col overflow-hidden"
-            layout="position"
+            layout
             transition={{ type: 'spring', stiffness: 300, damping: 30, duration: 0.2 }}
           >
-            <motion.div
-              layout="position"
-              className="flex-1 flex overflow-hidden relative justify-center"
-            >
+            <motion.div className="flex-1 flex overflow-hidden relative justify-center">
               <Outlet />
-              <Omnibar />
             </motion.div>
           </motion.div>
         </div>
+        <Omnibar />
         <UpdateNotification />
         <SettingsDialog />
       </motion.div>

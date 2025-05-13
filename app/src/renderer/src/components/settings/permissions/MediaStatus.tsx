@@ -29,6 +29,12 @@ const typeConfig: Record<MediaType, { icon: LucideIcon; title: string }> = {
   screen: { icon: Monitor, title: 'Screen Sharing' } // Changed title for clarity
 }
 
+const explanations: Record<MediaType, string> = {
+  camera: 'Capture your facial expressions. (coming soon)',
+  microphone: 'Speak with your Twin naturally. (coming soon)',
+  screen: 'Twin understands and remembers your activity.'
+}
+
 const getStatusConfig = (status: MediaStatusType) => {
   switch (status) {
     case 'loading':
@@ -125,11 +131,6 @@ export default function MediaStatus() {
     }
   }
 
-  const openSettings = () => {
-    // Assuming a generic settings opener. Adjust if media settings are separate.
-    window.api.openSettings()
-  }
-
   return (
     <>
       {types.map((type) => {
@@ -139,11 +140,7 @@ export default function MediaStatus() {
         const buttonLabel =
           currentStatus === 'not-determined' || currentStatus === 'denied' ? 'Request' : 'Settings'
         const handleButtonClick = () => {
-          if (currentStatus === 'not-determined' || currentStatus === 'denied') {
-            requestAccess(type)
-          } else {
-            openSettings()
-          }
+          requestAccess(type)
         }
 
         return (
@@ -155,6 +152,7 @@ export default function MediaStatus() {
             buttonLabel={buttonLabel}
             onButtonClick={handleButtonClick}
             isLoading={isLoading[type]}
+            explanation={explanations[type]}
           />
         )
       })}

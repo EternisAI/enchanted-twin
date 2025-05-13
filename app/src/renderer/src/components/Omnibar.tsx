@@ -170,9 +170,7 @@ export const Omnibar = () => {
                     'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-2xl',
                     'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
                   )}
-                  transition={{
-                    layout: { type: 'spring', damping: 25, stiffness: 280 }
-                  }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 >
                   <div className="flex items-start gap-3">
                     <Textarea
