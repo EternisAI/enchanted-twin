@@ -124,7 +124,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <TooltipProvider>
-              <Tooltip>
+              <Tooltip delayDuration={500}>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
@@ -147,7 +147,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
             </TooltipProvider>
           </div>
           <TooltipProvider>
-            <Tooltip>
+            <Tooltip delayDuration={500}>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
