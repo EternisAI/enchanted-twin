@@ -17,10 +17,8 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
-	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/google"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/perplexity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/screenpipe"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/slack"
@@ -36,7 +34,6 @@ type ConnectedMCPServer struct {
 type service struct {
 	store            *db.Store
 	repo             repository.Repository
-	config           *config.Config
 	connectedServers []*ConnectedMCPServer
 	registry         tools.ToolRegistry
 }
@@ -44,39 +41,15 @@ type service struct {
 // NewService creates a new MCPServerService.
 func NewService(ctx context.Context, store *db.Store, registry tools.ToolRegistry) MCPService {
 	repo := repository.NewRepository(log.Default(), store.DB())
-	loadedConfig, err := config.LoadConfig(false)
-	if err != nil {
-		log.Error("Error loading config", "error", err)
-	}
-
 	service := &service{
 		repo:             repo,
 		connectedServers: []*ConnectedMCPServer{},
 		store:            store,
 		registry:         registry,
-		config:           loadedConfig,
 	}
-	err = service.LoadMCP(ctx)
+	err := service.LoadMCP(ctx)
 	if err != nil {
 		log.Error("Error loading MCP servers", "error", err)
-	}
-
-	// Connect to Perplexity if the API key is set
-	if service.config.PerplexityAPIKey != "" {
-		server, err := service.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
-			Name:    model.MCPServerTypePerplexity.String(),
-			Type:    model.MCPServerTypePerplexity,
-			Command: "npx",
-			Args:    []string{},
-		})
-		if err != nil {
-			log.Error("Error connecting to Perplexity", "error", err)
-		}
-		if server != nil {
-			log.Info("Perplexity connected", "server", server.ID)
-		} else {
-			log.Error("Perplexity not connected", "error", err)
-		}
 	}
 
 	return service
@@ -124,13 +97,6 @@ func (s *service) ConnectMCPServer(
 			}
 		case model.MCPServerTypeScreenpipe:
 			client = screenpipe.NewClient()
-		case model.MCPServerTypePerplexity:
-			if s.config.PerplexityAPIKey != "" {
-				client = perplexity.NewClient(s.store, s.config.PerplexityAPIKey)
-			} else {
-				log.Error("Perplexity API key is not set")
-				return nil, fmt.Errorf("perplexity API key is not set")
-			}
 		default:
 			return nil, fmt.Errorf("unsupported server type")
 		}
@@ -285,13 +251,6 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				}
 			case model.MCPServerTypeScreenpipe:
 				client = screenpipe.NewClient()
-			case model.MCPServerTypePerplexity:
-				if s.config.PerplexityAPIKey != "" {
-					client = perplexity.NewClient(s.store, s.config.PerplexityAPIKey)
-				} else {
-					log.Error("Perplexity API key is not set")
-					continue
-				}
 			default:
 				// nothing to do
 				continue
