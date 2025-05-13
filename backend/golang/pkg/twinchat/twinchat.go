@@ -72,7 +72,7 @@ func (s *Service) Execute(
 	)
 
 	// Get the tool list from the registry
-	toolsList := s.toolRegistry.GetAll()
+	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
 
 	// TODO(cosmic): pass origin to agent
 	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta)
