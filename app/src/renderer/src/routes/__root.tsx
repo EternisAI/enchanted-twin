@@ -88,8 +88,8 @@ function RootComponent() {
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}
               >
-                <TooltipProvider delayDuration={100}>
-                  <Tooltip>
+                <TooltipProvider>
+                  <Tooltip delayDuration={500}>
                     <TooltipTrigger asChild>
                       <Button
                         onClick={() => setSidebarOpen(true)}
@@ -100,7 +100,7 @@ function RootComponent() {
                         <PanelLeftOpen className="w-5 h-5" />
                       </Button>
                     </TooltipTrigger>
-                    <TooltipContent side="right" align="center">
+                    <TooltipContent side="bottom" align="center">
                       <div className="flex items-center gap-2">
                         <span>Open sidebar</span>
                         <kbd className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground font-sans">
