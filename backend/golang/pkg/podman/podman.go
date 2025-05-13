@@ -42,6 +42,7 @@ type ContainerConfig struct {
 	Volumes      map[string]string // Volume mappings (host:container)
 	Environment  map[string]string // Environment variables
 	PullIfNeeded bool              // Pull image if it doesn't exist
+	ExtraArgs    []string          // Additional arguments to pass to the container
 }
 
 // DefaultManager is the standard implementation of PodmanManager
@@ -200,6 +201,11 @@ func (m *DefaultManager) RunContainer(ctx context.Context, config ContainerConfi
 		args = append(args, config.Command...)
 	}
 
+	// Add extra arguments if specified
+	if len(config.ExtraArgs) > 0 {
+		args = append(args, config.ExtraArgs...)
+	}
+
 	// Run the container
 	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
 	defer cancel()
@@ -225,4 +231,14 @@ func (m *DefaultManager) imageExists(ctx context.Context, imageURL string) (bool
 	cmd := exec.CommandContext(ctx, m.executable, "image", "exists", imageURL)
 	err := cmd.Run()
 	return err == nil, nil
+}
+
+// ExecCommand executes a command with the given arguments
+func (m *DefaultManager) ExecCommand(ctx context.Context, cmd string, args []string) (string, error) {
+	execCmd := exec.CommandContext(ctx, cmd, args...)
+	output, err := execCmd.CombinedOutput()
+	if err != nil {
+		return "", errors.Wrapf(err, "failed to execute command: %s", string(output))
+	}
+	return string(output), nil
 }

@@ -73,14 +73,14 @@ func main() {
 		}
 	}
 
-	// Start PostgreSQL
+	// Start PostgreSQL using Podman
 	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	postgresService, err := bootstrapPostgres(postgresCtx, logger)
+	postgresManager, err := bootstrapPostgresPodman(postgresCtx, logger)
 	if err != nil {
-		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
+		logger.Error("Failed to start PostgreSQL with Podman", "error", err)
+		panic(errors.Wrap(err, "Failed to start PostgreSQL with Podman"))
 	}
 
 	// Set up cleanup on shutdown
@@ -88,12 +88,12 @@ func main() {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		// Stop the container
-		if err := postgresService.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
+		if err := postgresManager.Stop(shutdownCtx); err != nil {
+			logger.Error("Error stopping PostgreSQL", "error", err)
 		}
 		// Remove the container to ensure clean state for next startup
-		if err := postgresService.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
+		if err := postgresManager.Remove(shutdownCtx); err != nil {
+			logger.Error("Error removing PostgreSQL container", "error", err)
 		}
 	}()
 
@@ -153,26 +153,35 @@ func main() {
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	// Ensure enchanted_twin database exists
-	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
+	if err := postgresManager.WaitForReady(postgresCtx, 30*time.Second); err != nil {
 		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
 		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
 	}
 
 	dbName := "enchanted_twin"
-	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
+	if err := postgresManager.EnsureDatabase(postgresCtx, dbName); err != nil {
 		logger.Error("Failed to ensure database exists", "error", err)
 		panic(errors.Wrap(err, "Unable to ensure database exists"))
 	}
+
+	connString := postgresManager.GetConnectionString(dbName)
 	logger.Info(
 		"PostgreSQL listening at",
 		"connection",
-		postgresService.GetConnectionString(dbName),
+		connString,
 	)
+
+	// Directly test database connection before proceeding (list tables)
+	logger.Info("Testing direct database connection (list tables)...")
+	if err := podman.TestDbConnection(context.Background(), connString, logger); err != nil {
+		logger.Warn("Database connection test failed", "error", err)
+	}
+
 	recreateMemDb := false
 	mem, err := embeddingsmemory.NewEmbeddingsMemory(
 		&embeddingsmemory.Config{
 			Logger:              logger,
-			PgString:            postgresService.GetConnectionString(dbName),
+			PgString:            connString,
 			AI:                  aiEmbeddingsService,
 			Recreate:            recreateMemDb,
 			EmbeddingsModelName: envs.EmbeddingsModel,
@@ -347,26 +356,32 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapPostgres(
-	ctx context.Context,
-	logger *log.Logger,
-) (*bootstrap.PostgresService, error) {
-	// Get default options
-	options := bootstrap.DefaultPostgresOptions()
+// PostgresProvider is an interface that abstracts different PostgreSQL providers
+type PostgresProvider interface {
+	Stop(ctx context.Context) error
+	Remove(ctx context.Context) error
+	WaitForReady(ctx context.Context, maxWaitTime time.Duration) error
+	EnsureDatabase(ctx context.Context, dbName string) error
+}
 
-	// Create and start PostgreSQL service
-	postgresService, err := bootstrap.NewPostgresService(logger, options)
+// podmanPostgresAdapter adapts PostgresManager to PostgresProvider
+
+// bootstrapPostgresPodman starts a PostgreSQL container using Podman
+func bootstrapPostgresPodman(ctx context.Context, logger *log.Logger) (*podman.PostgresManager, error) {
+	// Create options with default port
+	options := podman.DefaultPostgresOptions()
+	options.Port = "15432" // Use non-standard port to avoid conflicts
+
+	// Create and start PostgreSQL manager
+	postgresManager := podman.NewPostgresManager(logger, options)
+
+	logger.Info("Starting PostgreSQL container with Podman...")
+	_, err := postgresManager.StartPostgresContainer(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
+		return nil, fmt.Errorf("failed to start PostgreSQL container with Podman: %w", err)
 	}
 
-	logger.Info("Starting PostgreSQL service...")
-	err = postgresService.Start(ctx, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
-	}
-
-	return postgresService, nil
+	return postgresManager, nil
 }
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
