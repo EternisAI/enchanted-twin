@@ -349,7 +349,6 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
 }
@@ -362,15 +361,11 @@ type PostgresProvider interface {
 	EnsureDatabase(ctx context.Context, dbName string) error
 }
 
-// podmanPostgresAdapter adapts PostgresManager to PostgresProvider
-
 // bootstrapPostgresPodman starts a PostgreSQL container using Podman.
 func bootstrapPostgresPodman(ctx context.Context, logger *log.Logger) (*podman.PostgresManager, error) {
-	// Create options with default port
 	options := podman.DefaultPostgresOptions()
-	options.Port = "15432" // Use non-standard port to avoid conflicts
+	options.Port = "15432"
 
-	// Create and start PostgreSQL manager
 	postgresManager := podman.NewPostgresManager(logger, options)
 
 	logger.Info("Starting PostgreSQL container with Podman...")
@@ -411,7 +406,6 @@ type bootstrapTemporalWorkerInput struct {
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		// Port exposed on the host for the Kokoro API (must match bootstrapPodman)
 		kokoroPort = 8765
 		ttsWsPort  = 45001
 	)
