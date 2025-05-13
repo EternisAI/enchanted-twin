@@ -15,6 +15,7 @@ import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
 import { registerScreenpipeIpc, installAndStartScreenpipe, cleanupScreenpipe } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
+import { installPodman, startPodman, stopPodman } from './podman'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
@@ -474,6 +475,33 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
+  // Install and start Podman
+  try {
+    log.info('Checking and installing Podman if needed')
+    const podmanInstalled = await installPodman()
+    if (podmanInstalled) {
+      log.info('Starting Podman service')
+      await startPodman()
+
+      // Wait for Podman to fully start
+      log.info('Waiting for Podman to be ready...')
+      await new Promise((resolve) => setTimeout(resolve, 5000))
+
+      // Log Podman version
+      const podmanVersionProcess = spawn('podman', ['--version'])
+      podmanVersionProcess.stdout.on('data', (data) => {
+        log.info(`Podman version: ${data.toString().trim()}`)
+      })
+      podmanVersionProcess.stderr.on('data', (data) => {
+        log.error(`Podman version error: ${data.toString().trim()}`)
+      })
+    } else {
+      log.warn('Podman installation or initialization failed')
+    }
+  } catch (error) {
+    log.error('Error setting up Podman:', error)
+  }
+
   installAndStartScreenpipe().then((result) => {
     if (!result.success) {
       log.error(`Failed to install screenpipe: ${result.error}`)
@@ -812,6 +840,19 @@ app.on('will-quit', () => {
     oauthServer.close()
     oauthServer = null
   }
+
+  // Stop Podman service when app is quitting
+  stopPodman()
+    .then((success) => {
+      if (success) {
+        log.info('Podman service stopped successfully')
+      } else {
+        log.warn('Failed to stop Podman service')
+      }
+    })
+    .catch((err) => {
+      log.error('Error stopping Podman service:', err)
+    })
 
   cleanupScreenpipe()
 })
