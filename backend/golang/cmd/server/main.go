@@ -417,7 +417,7 @@ func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	)
 
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/api/v1/tts/generate", kokoroPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
