@@ -466,6 +466,9 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 
 		scheduleStr := ""
 		if wfArgsData.Delay > 0 {
+			if len(schedule.NextActionTimes) == 0 {
+				continue
+			}
 			nextActionTime := schedule.NextActionTimes[0]
 			now := time.Now()
 			nextExecutingIn := nextActionTime.Sub(now)

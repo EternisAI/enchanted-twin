@@ -53,8 +53,14 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	}
 
 	var imageURLs []string
-	if imageURLsRaw, ok := inputs["image_urls"].([]string); ok {
-		imageURLs = imageURLsRaw
+	if imageURLsRaw, ok := inputs["image_urls"]; ok {
+		if arr, ok := imageURLsRaw.([]any); ok {
+			for _, v := range arr {
+				if s, ok := v.(string); ok {
+					imageURLs = append(imageURLs, s)
+				}
+			}
+		}
 	}
 
 	if len(imageURLs) > 0 {
