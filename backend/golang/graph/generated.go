@@ -187,6 +187,12 @@ type ComplexityRoot struct {
 		GetOAuthStatus     func(childComplexity int) int
 		GetTools           func(childComplexity int) int
 		Profile            func(childComplexity int) int
+		SetupProgress      func(childComplexity int) int
+	}
+
+	SetupProgress struct {
+		Name     func(childComplexity int) int
+		Progress func(childComplexity int) int
 	}
 
 	Subscription struct {
@@ -194,6 +200,7 @@ type ComplexityRoot struct {
 		MessageAdded         func(childComplexity int, chatID string) int
 		MessageStream        func(childComplexity int, chatID string) int
 		NotificationAdded    func(childComplexity int) int
+		SetupProgress        func(childComplexity int) int
 		TelegramMessageAdded func(childComplexity int, chatUUID string) int
 		ToolCallUpdated      func(childComplexity int, chatID string) int
 	}
@@ -253,6 +260,7 @@ type QueryResolver interface {
 	GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error)
 	GetTools(ctx context.Context) ([]*model.Tool, error)
 	GetAgentTasks(ctx context.Context) ([]*model.AgentTask, error)
+	SetupProgress(ctx context.Context) ([]*model.SetupProgress, error)
 }
 type SubscriptionResolver interface {
 	MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error)
@@ -261,6 +269,7 @@ type SubscriptionResolver interface {
 	NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error)
 	TelegramMessageAdded(ctx context.Context, chatUUID string) (<-chan *model.Message, error)
 	MessageStream(ctx context.Context, chatID string) (<-chan *model.MessageStreamPayload, error)
+	SetupProgress(ctx context.Context) (<-chan *model.SetupProgress, error)
 }
 type UserProfileResolver interface {
 	IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error)
@@ -1012,6 +1021,27 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Query.Profile(childComplexity), true
 
+	case "Query.setupProgress":
+		if e.complexity.Query.SetupProgress == nil {
+			break
+		}
+
+		return e.complexity.Query.SetupProgress(childComplexity), true
+
+	case "SetupProgress.name":
+		if e.complexity.SetupProgress.Name == nil {
+			break
+		}
+
+		return e.complexity.SetupProgress.Name(childComplexity), true
+
+	case "SetupProgress.progress":
+		if e.complexity.SetupProgress.Progress == nil {
+			break
+		}
+
+		return e.complexity.SetupProgress.Progress(childComplexity), true
+
 	case "Subscription.indexingStatus":
 		if e.complexity.Subscription.IndexingStatus == nil {
 			break
@@ -1049,6 +1079,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Subscription.NotificationAdded(childComplexity), true
+
+	case "Subscription.setupProgress":
+		if e.complexity.Subscription.SetupProgress == nil {
+			break
+		}
+
+		return e.complexity.Subscription.SetupProgress(childComplexity), true
 
 	case "Subscription.telegramMessageAdded":
 		if e.complexity.Subscription.TelegramMessageAdded == nil {
@@ -6417,6 +6454,56 @@ func (ec *executionContext) fieldContext_Query_getAgentTasks(_ context.Context, 
 	return fc, nil
 }
 
+func (ec *executionContext) _Query_setupProgress(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Query_setupProgress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().SetupProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.SetupProgress)
+	fc.Result = res
+	return ec.marshalNSetupProgress2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐSetupProgressᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Query_setupProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_SetupProgress_name(ctx, field)
+			case "progress":
+				return ec.fieldContext_SetupProgress_progress(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SetupProgress", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query___type(ctx, field)
 	if err != nil {
@@ -6543,6 +6630,94 @@ func (ec *executionContext) fieldContext_Query___schema(_ context.Context, field
 				return ec.fieldContext___Schema_directives(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type __Schema", field.Name)
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SetupProgress_name(ctx context.Context, field graphql.CollectedField, obj *model.SetupProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SetupProgress_name(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Name, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SetupProgress_name(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SetupProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SetupProgress_progress(ctx context.Context, field graphql.CollectedField, obj *model.SetupProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SetupProgress_progress(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Progress, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(int32)
+	fc.Result = res
+	return ec.marshalNInt2int32(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SetupProgress_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SetupProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
 		},
 	}
 	return fc, nil
@@ -7016,6 +7191,70 @@ func (ec *executionContext) fieldContext_Subscription_messageStream(ctx context.
 	if fc.Args, err = ec.field_Subscription_messageStream_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Subscription_setupProgress(ctx context.Context, field graphql.CollectedField) (ret func(ctx context.Context) graphql.Marshaler) {
+	fc, err := ec.fieldContext_Subscription_setupProgress(ctx, field)
+	if err != nil {
+		return nil
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = nil
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Subscription().SetupProgress(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return nil
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return nil
+	}
+	return func(ctx context.Context) graphql.Marshaler {
+		select {
+		case res, ok := <-resTmp.(<-chan *model.SetupProgress):
+			if !ok {
+				return nil
+			}
+			return graphql.WriterFunc(func(w io.Writer) {
+				w.Write([]byte{'{'})
+				graphql.MarshalString(field.Alias).MarshalGQL(w)
+				w.Write([]byte{':'})
+				ec.marshalNSetupProgress2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐSetupProgress(ctx, field.Selections, res).MarshalGQL(w)
+				w.Write([]byte{'}'})
+			})
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+func (ec *executionContext) fieldContext_Subscription_setupProgress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Subscription",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_SetupProgress_name(ctx, field)
+			case "progress":
+				return ec.fieldContext_SetupProgress_progress(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type SetupProgress", field.Name)
+		},
 	}
 	return fc, nil
 }
@@ -10832,6 +11071,28 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			}
 
 			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
+		case "setupProgress":
+			field := field
+
+			innerFunc := func(ctx context.Context, fs *graphql.FieldSet) (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_setupProgress(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&fs.Invalids, 1)
+				}
+				return res
+			}
+
+			rrm := func(ctx context.Context) graphql.Marshaler {
+				return ec.OperationContext.RootResolverMiddleware(ctx,
+					func(ctx context.Context) graphql.Marshaler { return innerFunc(ctx, out) })
+			}
+
+			out.Concurrently(i, func(ctx context.Context) graphql.Marshaler { return rrm(innerCtx) })
 		case "__type":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___type(ctx, field)
@@ -10840,6 +11101,50 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Query___schema(ctx, field)
 			})
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
+var setupProgressImplementors = []string{"SetupProgress"}
+
+func (ec *executionContext) _SetupProgress(ctx context.Context, sel ast.SelectionSet, obj *model.SetupProgress) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, setupProgressImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("SetupProgress")
+		case "name":
+			out.Values[i] = ec._SetupProgress_name(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "progress":
+			out.Values[i] = ec._SetupProgress_progress(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -10888,6 +11193,8 @@ func (ec *executionContext) _Subscription(ctx context.Context, sel ast.Selection
 		return ec._Subscription_telegramMessageAdded(ctx, fields[0])
 	case "messageStream":
 		return ec._Subscription_messageStream(ctx, fields[0])
+	case "setupProgress":
+		return ec._Subscription_setupProgress(ctx, fields[0])
 	default:
 		panic("unknown field " + strconv.Quote(fields[0].Name))
 	}
@@ -12026,6 +12333,64 @@ func (ec *executionContext) unmarshalNRole2githubᚗcomᚋEternisAIᚋenchanted�
 
 func (ec *executionContext) marshalNRole2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐRole(ctx context.Context, sel ast.SelectionSet, v model.Role) graphql.Marshaler {
 	return v
+}
+
+func (ec *executionContext) marshalNSetupProgress2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐSetupProgress(ctx context.Context, sel ast.SelectionSet, v model.SetupProgress) graphql.Marshaler {
+	return ec._SetupProgress(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNSetupProgress2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐSetupProgressᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.SetupProgress) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNSetupProgress2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐSetupProgress(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNSetupProgress2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐSetupProgress(ctx context.Context, sel ast.SelectionSet, v *model.SetupProgress) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._SetupProgress(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {

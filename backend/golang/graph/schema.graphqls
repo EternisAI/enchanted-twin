@@ -97,6 +97,12 @@ type Query {
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
   getAgentTasks: [AgentTask!]!
+  setupProgress: [SetupProgress!]!
+}
+
+type SetupProgress {
+  name: String!
+  progress: Int!
 }
 
 type Mutation {
@@ -127,6 +133,7 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
+  setupProgress: SetupProgress!
 }
 
 type DataSource {

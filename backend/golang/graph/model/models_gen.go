@@ -136,6 +136,11 @@ type OAuthStatus struct {
 type Query struct {
 }
 
+type SetupProgress struct {
+	Name     string `json:"name"`
+	Progress int32  `json:"progress"`
+}
+
 type Subscription struct {
 }
 

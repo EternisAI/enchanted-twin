@@ -12,16 +12,15 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/google/uuid"
+	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -567,6 +566,11 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 	return tasks, nil
 }
 
+// SetupProgress is the resolver for the setupProgress field.
+func (r *queryResolver) SetupProgress(ctx context.Context) ([]*model.SetupProgress, error) {
+	panic(fmt.Errorf("not implemented: SetupProgress - setupProgress"))
+}
+
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)
@@ -799,6 +803,11 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string)
 	return ch, nil
 }
 
+// SetupProgress is the resolver for the setupProgress field.
+func (r *subscriptionResolver) SetupProgress(ctx context.Context) (<-chan *model.SetupProgress, error) {
+	panic(fmt.Errorf("not implemented: SetupProgress - setupProgress"))
+}
+
 // IndexingStatus is the resolver for the indexingStatus field.
 func (r *userProfileResolver) IndexingStatus(ctx context.Context, obj *model.UserProfile) (*model.IndexingStatus, error) {
 	workflowID := "index"
@@ -845,10 +854,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }
