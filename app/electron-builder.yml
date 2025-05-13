@@ -1,5 +1,5 @@
-appId: com.electron.app
-productName: app
+appId: com.eternis.enchanted
+productName: Enchanted
 directories:
   buildResources: build
 files:
@@ -26,6 +26,7 @@ mac:
     - NSScreenCaptureUsageDescription: Screen sharing to twin
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+    - NSSystemAlertUsageDescription: We need to send you notifications
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}

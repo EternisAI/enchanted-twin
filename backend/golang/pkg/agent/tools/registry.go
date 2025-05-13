@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -33,6 +32,8 @@ type ToolRegistry interface {
 
 	// Selecting returns a new registry with only the specified tools included.
 	Selecting(toolNames ...string) *ToolMapRegistry
+
+	GetAll() []Tool
 }
 
 // ToolMapRegistry manages the registration and retrieval of tools.
@@ -180,16 +181,10 @@ func (r *ToolMapRegistry) Selecting(toolNames ...string) *ToolMapRegistry {
 	return newRegistry
 }
 
-// Global is the default registry instance shared across the application.
-var (
-	Global   *ToolMapRegistry
-	initOnce sync.Once
-)
-
-// GetGlobal returns the global registry, creating it if needed.
-func GetGlobal(logger *log.Logger) *ToolMapRegistry {
-	initOnce.Do(func() {
-		Global = NewRegistry()
-	})
-	return Global
+func (r *ToolMapRegistry) GetAll() []Tool {
+	var tools []Tool
+	for _, tool := range r.tools {
+		tools = append(tools, tool)
+	}
+	return tools
 }
