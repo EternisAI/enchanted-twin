@@ -30,12 +30,10 @@ func TestDbConnection(ctx context.Context, connString string, logger *charmlog.L
 			if err == nil {
 				logger.Info("Direct database connection successful")
 
-				// Verify a trivial query works.
 				var result int
 				if err := db.QueryRow("SELECT 1").Scan(&result); err == nil && result == 1 {
 					logger.Info("Database query successful", "result", result)
 
-					// List tables in public schema.
 					listQuery := `SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name`
 					rows, qErr := db.Query(listQuery)
 					if qErr != nil {
