@@ -25,6 +25,7 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/sirupsen/logrus"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -43,6 +44,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/podman"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -120,6 +122,30 @@ func main() {
 	}()
 
 	logger.Info("SQLite database initialized")
+
+	// Bootstrap Podman and run Kokoro container
+	logger.Info("Initializing Podman and Kokoro container...")
+	containerID, err := bootstrapPodman()
+	if err != nil {
+		logger.Warn("Failed to initialize Podman and Kokoro container", "error", err)
+		logger.Info("Continuing without Kokoro container")
+	} else {
+		logger.Info("Kokoro container initialized successfully", "containerID", containerID)
+		// Ensure container cleanup on server shutdown
+		defer func() {
+			logger.Info("Cleaning up Kokoro containers...")
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			// Create a new Kokoro manager and clean up all containers
+			cleanupManager := podman.NewKokoroManager()
+			if err := cleanupManager.CleanupKokoroContainers(ctx); err != nil {
+				logger.Error("Failed to clean up Kokoro containers", "error", err)
+			} else {
+				logger.Info("All Kokoro containers cleaned up successfully")
+			}
+		}()
+	}
 
 	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
@@ -519,4 +545,107 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func bootstrapPodman() (string, error) {
+	log := logrus.WithField("component", "podman-bootstrap")
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+
+	// Create a new Kokoro manager
+	manager := podman.NewKokoroManager()
+
+	// Check if Podman is installed
+	installed, err := manager.VerifyPodmanInstalled(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to check if Podman is installed: %w", err)
+	}
+
+	if !installed {
+		log.Warn("Podman is not installed. Please install Podman to enable container features.")
+		return "", fmt.Errorf("podman is not installed")
+	}
+
+	// Check if Podman machine exists
+	machineExists, err := manager.VerifyPodmanMachineInstalled(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to check if Podman machine exists: %w", err)
+	}
+
+	if !machineExists {
+		log.Warn("Podman machine does not exist. Please initialize a Podman machine.")
+		return "", fmt.Errorf("podman machine does not exist")
+	}
+
+	// Check if Podman is running
+	running, err := manager.VerifyPodmanRunning(ctx)
+	if err != nil {
+		return "", fmt.Errorf("failed to check if Podman is running: %w", err)
+	}
+
+	if !running {
+		log.Warn("Podman machine is not running. Please start the Podman machine.")
+		return "", fmt.Errorf("podman machine is not running")
+	}
+
+	// Check if container already exists
+	const containerName = "kokoro-fastapi"
+	containerExists, containerId, err := manager.CheckContainerExists(ctx, containerName)
+	if err != nil {
+		log.Warn("Failed to check if container exists: ", err)
+	}
+
+	// If container exists, check if it's running or remove it
+	if containerExists {
+		log.Info("Container already exists with ID: ", containerId)
+
+		// Check if container is running
+		containerRunning, err := manager.IsContainerRunning(ctx, containerId)
+		if err != nil {
+			log.Warn("Failed to check if container is running: ", err)
+		}
+
+		if containerRunning {
+			log.Info("Container is already running, reusing it")
+			return containerId, nil
+		}
+
+		// Try to start the existing container
+		log.Info("Container exists but is not running, attempting to start it")
+		err = manager.StartContainer(ctx, containerId)
+		if err == nil {
+			log.Info("Successfully started existing container")
+			return containerId, nil
+		}
+
+		// If we couldn't start it, remove it and create a new one
+		log.Warn("Failed to start existing container, removing it: ", err)
+		err = manager.RemoveContainer(ctx, containerId)
+		if err != nil {
+			return "", fmt.Errorf("failed to remove existing container: %w", err)
+		}
+		log.Info("Removed existing container")
+	}
+
+	// Pull the Kokoro image (this will also verify registry access)
+	log.Info("Pulling the Kokoro image...")
+	if err := manager.PullKokoroImage(ctx); err != nil {
+		return "", fmt.Errorf("failed to pull Kokoro image: %w", err)
+	}
+
+	// Run the Kokoro container
+	log.Info("Starting the Kokoro container...")
+	// Use a different port to avoid conflicts with the API server
+	containerID, err := manager.RunKokoroContainer(ctx, "8765")
+	if err != nil {
+		return "", fmt.Errorf("failed to start Kokoro container: %w", err)
+	}
+
+	log.WithField("containerId", containerID).
+		WithField("port", "8765").
+		Info("Kokoro container started successfully")
+
+	return containerID, nil
 }
