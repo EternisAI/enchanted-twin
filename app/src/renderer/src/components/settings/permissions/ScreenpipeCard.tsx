@@ -1,7 +1,7 @@
 import { Card, CardContent, CardHeader } from '@renderer/components/ui/card'
+import { Play, StopCircle, AlertCircle, Download } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@renderer/components/ui/button'
-import { Play, StopCircle, AlertCircle } from 'lucide-react'
 import { Alert, AlertDescription } from '@renderer/components/ui/alert'
 
 type MediaStatusType =
@@ -12,20 +12,33 @@ type MediaStatusType =
   | 'unavailable'
   | 'loading'
 
+interface ScreenpipeStatus {
+  isRunning: boolean
+  isInstalled: boolean
+}
+
 export default function ScreenpipePanel() {
-  const [isRunning, setIsRunning] = useState(false)
+  const [status, setStatus] = useState<ScreenpipeStatus>({ isRunning: false, isInstalled: false })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<Record<string, MediaStatusType>>({
     screen: 'loading',
     microphone: 'loading',
     accessibility: 'loading'
   })
 
-  useEffect(() => {
-    const fetchStatus = async () => {
+  const fetchStatus = async () => {
+    try {
       const status = await window.api.screenpipe.getStatus()
-      setIsRunning(status)
+      setStatus(status)
+    } catch (err: unknown) {
+      setError(`Failed to fetch screenpipe status: ${err}`)
     }
+  }
+
+  useEffect(() => {
     fetchStatus()
+    const fetchStatusInterval = setInterval(fetchStatus, 5000)
 
     const checkPermissions = async () => {
       const screenStatus = await window.api.queryMediaStatus('screen')
@@ -40,17 +53,57 @@ export default function ScreenpipePanel() {
     }
     checkPermissions()
     const interval = setInterval(checkPermissions, 5000)
-    return () => clearInterval(interval)
+    return () => {
+      clearInterval(interval)
+      clearInterval(fetchStatusInterval)
+    }
   }, [])
 
+  const handleInstall = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const result = await window.api.screenpipe.install()
+      if (!result.success) {
+        setError(result.error || 'Failed to install Screenpipe')
+      } else {
+        await fetchStatus()
+      }
+    } catch (err: unknown) {
+      setError(`Failed to install Screenpipe: ${err}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleStart = async () => {
-    await window.api.screenpipe.start()
-    setIsRunning(true)
+    setIsLoading(true)
+    setError(null)
+    try {
+      const result = await window.api.screenpipe.start()
+      if (!result.success) {
+        setError(result.error || 'Failed to start Screenpipe')
+      } else {
+        await fetchStatus()
+      }
+    } catch (err: unknown) {
+      setError(`Failed to start Screenpipe: ${err}`)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleStop = async () => {
-    await window.api.screenpipe.stop()
-    setIsRunning(false)
+    setIsLoading(true)
+    setError(null)
+    try {
+      await window.api.screenpipe.stop()
+      await fetchStatus()
+    } catch (err: unknown) {
+      setError(`Failed to stop Screenpipe: ${err}`)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const hasAllPermissions = () => {
@@ -71,13 +124,19 @@ export default function ScreenpipePanel() {
         <span>Screenpipe</span>
         <span
           className={`text-sm font-medium px-2 py-1 rounded-full ${
-            isRunning ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            status.isRunning ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
           }`}
         >
-          {isRunning ? 'Running' : 'Stopped'}
+          {status.isRunning ? 'Running' : 'Stopped'}
         </span>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
+        {error && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
         {!hasAllPermissions() && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -88,29 +147,45 @@ export default function ScreenpipePanel() {
           </Alert>
         )}
         <p className="text-sm text-muted-foreground">
-          {isRunning
-            ? 'Screenpipe is currently active and streaming.'
-            : 'Screenpipe is not running. Start it to enable screen streaming.'}
+          {!status.isInstalled
+            ? 'Screenpipe needs to be installed first.'
+            : status.isRunning
+              ? 'Screenpipe is currently active and streaming.'
+              : 'Screenpipe is not running. Start it to enable screen streaming.'}
         </p>
         <div className="flex gap-2">
-          <Button
-            onClick={handleStart}
-            disabled={isRunning || !hasAllPermissions()}
-            variant="default"
-            className="flex items-center gap-1"
-          >
-            <Play className="w-4 h-4" />
-            Start
-          </Button>
-          <Button
-            onClick={handleStop}
-            disabled={!isRunning}
-            variant="destructive"
-            className="flex items-center gap-1"
-          >
-            <StopCircle className="w-4 h-4" />
-            Stop
-          </Button>
+          {!status.isInstalled ? (
+            <Button
+              onClick={handleInstall}
+              disabled={isLoading}
+              variant="default"
+              className="flex items-center gap-1"
+            >
+              <Download className="w-4 h-4" />
+              Install Screenpipe
+            </Button>
+          ) : (
+            <>
+              <Button
+                onClick={handleStart}
+                disabled={isLoading || status.isRunning || !hasAllPermissions()}
+                variant="default"
+                className="flex items-center gap-1"
+              >
+                <Play className="w-4 h-4" />
+                Start
+              </Button>
+              <Button
+                onClick={handleStop}
+                disabled={isLoading || !status.isRunning}
+                variant="destructive"
+                className="flex items-center gap-1"
+              >
+                <StopCircle className="w-4 h-4" />
+                Stop
+              </Button>
+            </>
+          )}
         </div>
       </CardContent>
     </Card>
