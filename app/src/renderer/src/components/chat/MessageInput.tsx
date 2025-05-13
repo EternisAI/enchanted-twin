@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
 import { ArrowBigUp, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -12,6 +12,7 @@ type MessageInputProps = {
 
 export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: MessageInputProps) {
   const [text, setText] = useState('')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
@@ -23,6 +24,28 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
+    }
+  }
+
+  // Adjust textarea height based on content
+  useLayoutEffect(() => {
+    const textarea = textareaRef.current
+    if (textarea) {
+      // Reset height to auto to get the correct scrollHeight
+      textarea.style.height = 'auto'
+      // Set the height to the scroll height, but respect max-height CSS
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+  }, [text]) // Re-run this effect when text changes
+
+  // TODO: this will be less relevant once we have actions in the input bar
+  const handleClickContainer = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (textareaRef.current) {
+      const target = e.target as Element
+      // Focus if the click is not on the textarea itself or within a button element
+      if (target !== textareaRef.current && !target.closest('button')) {
+        textareaRef.current.focus()
+      }
     }
   }
 
@@ -38,22 +61,27 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
       className={cn(
         'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xl w-full'
       )}
-      transition={{
-        layout: { type: 'spring', damping: 25, stiffness: 280 }
-      }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
+      onClick={handleClickContainer}
     >
-      <div className="flex items-center gap-3 w-full">
-        <textarea
+      <motion.div
+        layout="position"
+        className="flex items-center gap-3 w-full"
+        transition={{ layout: { duration: 0.2, ease: 'easeInOut' } }}
+      >
+        <motion.textarea
+          ref={textareaRef}
           value={text}
+          layout="position"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
           autoFocus
           placeholder="Type a message..."
-          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none"
+          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[15rem]"
         />
-      </div>
-      <div className="flex justify-end items-center gap-3">
+      </motion.div>
+      <motion.div layout="position" className="flex justify-end items-center gap-3">
         {/* <Button
           onClick={toggleDeepMemory}
           className={cn(
@@ -71,7 +99,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           onStop={onStop}
           text={text}
         />
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

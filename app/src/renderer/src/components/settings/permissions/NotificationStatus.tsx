@@ -55,6 +55,7 @@ export default function NotificationStatusCard() {
       buttonLabel="Settings"
       onButtonClick={openOsSettings}
       isLoading={isLoading}
+      explanation="Your Twin will send you important updates and alerts"
     />
   )
 }

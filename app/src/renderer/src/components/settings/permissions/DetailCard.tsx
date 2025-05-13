@@ -1,8 +1,23 @@
 'use client'
 import { Card } from '@renderer/components/ui/card'
 import { Button } from '@renderer/components/ui/button'
-import { LucideIcon } from 'lucide-react'
+import { LucideIcon, Settings } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+
+// Helper function to map status text color to background color
+const getStatusBgColor = (textColor: string): string => {
+  switch (textColor) {
+    case 'text-green-500':
+      return 'bg-green-100'
+    case 'text-red-500':
+      return 'bg-red-100'
+    case 'text-yellow-500':
+      return 'bg-yellow-100'
+    case 'text-muted-foreground':
+    default:
+      return 'bg-muted'
+  }
+}
 
 interface StatusInfo {
   icon: LucideIcon
@@ -17,6 +32,7 @@ interface DetailCardProps {
   buttonLabel: string
   onButtonClick: () => void
   isLoading: boolean
+  explanation?: string
 }
 
 export function DetailCard({
@@ -25,31 +41,42 @@ export function DetailCard({
   statusInfo,
   buttonLabel,
   onButtonClick,
-  isLoading
+  isLoading,
+  explanation
 }: DetailCardProps) {
-  const StatusIcon = statusInfo.icon
+  // const StatusIcon = statusInfo.icon // Remove unused variable
 
   return (
-    <Card className="p-4 min-w-[200px] flex flex-col items-center gap-3">
-      <div className="flex flex-col items-center gap-2">
-        <IconComponent className="h-5 w-5 text-muted-foreground" />
-        <span className="font-medium capitalize">{title}</span>
+    <Card className="p-4 flex-col gap-3 flex items-start justify-between w-full">
+      <div className="flex items-start gap-3 w-full">
+        <div
+          className={cn(
+            'h-8 w-8 rounded-full flex items-center justify-center flex-shrink-0',
+            getStatusBgColor(statusInfo.color)
+          )}
+        >
+          <IconComponent className={cn('h-5 w-5', statusInfo.color)} />
+        </div>
+        <div className="flex flex-col gap-1 w-full">
+          <div className="flex items-center justify-between gap-1">
+            <span className="font-medium capitalize pt-1">{title}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onButtonClick}
+              disabled={isLoading}
+              className="py-1 h-fit w-fit px-2"
+            >
+              {statusInfo.label === 'Granted' || statusInfo.label === 'Enabled' ? (
+                <Settings className="h-4 w-4" />
+              ) : (
+                buttonLabel
+              )}
+            </Button>
+          </div>
+          {explanation && <p className="text-xs text-muted-foreground mt-1">{explanation}</p>}
+        </div>
       </div>
-
-      <div className="flex items-center gap-2">
-        <StatusIcon className={cn('h-5 w-5', statusInfo.color)} />
-        <span className={cn('text-sm', statusInfo.color)}>{statusInfo.label}</span>
-      </div>
-
-      <Button
-        variant="outline"
-        className="w-full"
-        size="sm"
-        onClick={onButtonClick}
-        disabled={isLoading}
-      >
-        {buttonLabel}
-      </Button>
     </Card>
   )
 }
