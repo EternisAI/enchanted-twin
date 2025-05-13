@@ -11,8 +11,8 @@ export async function waitForBackend(port: number) {
 
 export function createErrorWindow(errorMessage: string) {
   const errorWindow = new BrowserWindow({
-    width: 500,
-    height: 300,
+    width: 800,
+    height: 600,
     resizable: false,
     minimizable: false,
     maximizable: false,

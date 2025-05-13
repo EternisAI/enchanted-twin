@@ -61,22 +61,27 @@ export function installAndStartScreenpipe(): Promise<{ success: boolean; error?:
   const isWindows = platform() === 'win32'
   const installCommand = isWindows
     ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
-    : 'curl -fsSL get.screenpi.pe/cli | sh'
+    : 'curl -A "ScreenpipeInstaller/1.0" -fsSL get.screenpi.pe/cli | zsh'
 
   return new Promise((resolve) => {
     exec(installCommand, (err, stdout, stderr) => {
-      if (err || stderr) {
-        log.error(`Failed to install screenpipe: ${err} ${stderr}`)
-        if (err) {
-          resolve({ success: false, error: `Failed to install screenpipe: ${err}` })
-        } else {
-          resolve({ success: false, error: `Failed to install screenpipe: ${stderr}` })
-        }
-      } else {
-        log.info('Screenpipe already installed')
-        startScreenpipe()
-        resolve({ success: true })
+      if (err) {
+        log.error(`Failed to install screenpipe: ${err}`)
+        resolve({ success: false, error: `Failed to install screenpipe: ${err.message}` })
+        return
       }
+
+      if (stderr) {
+        log.error(`Install stderr: ${stderr}`)
+      }
+
+      if (stdout) {
+        log.info(`Install stdout: ${stdout}`)
+      }
+
+      log.info('Screenpipe installation complete')
+      startScreenpipe()
+      resolve({ success: true })
     })
   })
 }
@@ -90,7 +95,7 @@ function isScreenpipeInstalled(): boolean {
     log.info('Screenpipe already installed')
     return true
   } catch (error) {
-    log.error(`Failed to check for screenpipe: ${error}`)
+    log.warn(`Screenpipe not found: ${error}`)
     return false
   }
 }
