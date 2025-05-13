@@ -63,7 +63,7 @@ export function installAndStartScreenpipe(): Promise<{ success: boolean; error?:
     ? 'powershell -Command "iwr get.screenpi.pe/cli.ps1 | iex"'
     : 'curl -fsSL get.screenpi.pe/cli | sh'
 
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve) => {
     exec(installCommand, (err, stdout, stderr) => {
       if (err || stderr) {
         log.error(`Failed to install screenpipe: ${err} ${stderr}`)
