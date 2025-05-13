@@ -350,9 +350,55 @@ function getPodmanInstallerPath(): string {
 }
 
 /**
+ * Sets memory allocation for a Podman machine
+ * @param memory Memory in MB to allocate
+ * @param machineName Name of the Podman machine (defaults to podman-machine-default)
+ * @returns Promise that resolves to true if setting memory succeeded
+ */
+export async function setPodmanMachineMemory(
+  memory: number = 4096,
+  machineName: string = 'podman-machine-default'
+): Promise<boolean> {
+  log.info(`Setting Podman machine ${machineName} memory to ${memory}MB`)
+
+  return new Promise((resolve) => {
+    const setMemoryProcess = spawn('podman', [
+      'machine',
+      'set',
+      '--memory',
+      memory.toString(),
+      machineName
+    ])
+
+    setMemoryProcess.stdout?.on('data', (data) => {
+      log.info(`Podman memory set stdout: ${data.toString().trim()}`)
+    })
+
+    setMemoryProcess.stderr?.on('data', (data) => {
+      log.error(`Podman memory set stderr: ${data.toString().trim()}`)
+    })
+
+    setMemoryProcess.on('close', (code) => {
+      const success = code === 0
+      log.info(`Podman machine memory set ${success ? 'succeeded' : 'failed'} with code ${code}`)
+      resolve(success)
+    })
+
+    setMemoryProcess.on('error', (err) => {
+      log.error(`Error setting Podman machine memory: ${err.message}`)
+      resolve(false)
+    })
+  })
+}
+
+/**
  * Starts the Podman service
  */
-export async function startPodman(): Promise<boolean> {
+export async function startPodman(
+  options: { setMemory?: boolean; memoryMB?: number } = {}
+): Promise<boolean> {
+  const { setMemory = false, memoryMB = 4096 } = options
+
   if (podmanProcess) {
     log.info('Podman is already running')
     return true
@@ -364,6 +410,16 @@ export async function startPodman(): Promise<boolean> {
     if (!isInstalled) {
       log.error('Cannot start Podman: Not installed')
       return false
+    }
+
+    // Set memory if requested
+    if (setMemory) {
+      const memorySet = await setPodmanMachineMemory(memoryMB)
+      if (!memorySet) {
+        log.warn(
+          `Failed to set Podman machine memory to ${memoryMB}MB, continuing with start anyway`
+        )
+      }
     }
 
     log.info('Starting Podman service')
@@ -455,7 +511,7 @@ export async function pullImage(
     timeout?: number
   } = {}
 ): Promise<boolean> {
-  const { retry = 3, retryDelay = 2000, timeout = 300000 } = options // Default 5 minute timeout
+  const { retry = 3, retryDelay = 2000, timeout = 300000 } = options
 
   log.info(
     `Pulling image: ${imageUrl} (retries: ${retry}, delay: ${retryDelay}ms, timeout: ${timeout}ms)`
@@ -683,10 +739,11 @@ export async function runPodmanDiagnostics(): Promise<{
 /**
  * Pulls an image using execSync for more direct control
  */
-export function pullImageSync(imageUrl: string): boolean {
+export function pullImageSync(imageUrl: string, timeoutMs: number = 600_000): boolean {
   try {
-    log.info(`Pulling image synchronously: ${imageUrl}`)
-    const result = execSync(`podman pull ${imageUrl}`, { timeout: 60000 }).toString().trim()
+    log.info(`Pulling image synchronously: ${imageUrl} (timeout: ${timeoutMs}ms)`)
+    const resultBuffer = execSync(`podman pull ${imageUrl}`, { timeout: timeoutMs })
+    const result = resultBuffer.toString().trim()
     log.info(`Pull result: ${result}`)
     return true
   } catch (error) {
