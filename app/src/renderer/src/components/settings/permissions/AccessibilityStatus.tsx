@@ -24,6 +24,8 @@ export default function AccessibilityStatus() {
 
   useEffect(() => {
     checkPermission()
+    const interval = setInterval(checkPermission, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   const requestPermission = async () => {

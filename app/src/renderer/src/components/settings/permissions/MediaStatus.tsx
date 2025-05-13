@@ -115,6 +115,11 @@ export default function MediaStatus() {
 
   useEffect(() => {
     queryAllMediaStatus()
+    const interval = setInterval(() => {
+      queryAllMediaStatus()
+    }, 5000)
+
+    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run only on mount
 
