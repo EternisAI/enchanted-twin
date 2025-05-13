@@ -52,7 +52,10 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
             key={server.id}
             server={server}
             onConnect={refetch}
-            onRemove={() => deleteMcpServer({ variables: { id: server.id } })}
+            onRemove={() => {
+              deleteMcpServer({ variables: { id: server.id } })
+              refetch()
+            }}
           />
         ))}
         <ConnectMCPServerButton onSuccess={refetch} />

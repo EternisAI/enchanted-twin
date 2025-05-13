@@ -6,6 +6,7 @@ import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graph
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
+import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 
 interface ChatViewProps {
   chat: Chat
@@ -100,6 +101,12 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
       setIsWaitingTwinResponse(false)
     }
   )
+
+  useMessageSubscription(chat.id, (message) => {
+    if (message.role !== Role.User) {
+      upsertMessage(message)
+    }
+  })
 
   useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete, imageUrls) => {
     const existingMessage = messages.find((m) => m.id === messageId)
