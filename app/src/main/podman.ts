@@ -1,7 +1,7 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess, spawn, execSync } from 'child_process'
 import log from 'electron-log/main'
 import { join } from 'path'
-import fs from 'fs'
+import * as fs from 'fs'
 import { is } from '@electron-toolkit/utils'
 
 let podmanProcess: ChildProcess | null = null
@@ -120,14 +120,43 @@ export async function initMachine(): Promise<boolean> {
   log.info('Initializing Podman machine')
 
   return new Promise((resolve) => {
-    const initProcess = spawn('podman', ['machine', 'init'])
+    const initProcess = spawn('podman', ['machine', 'init', '--now'])
+    const downloadRegex = /Copying blob .+? \[(.+?)\] (.+?) \/ (.+?) \| (.+?) MiB\/s/
+    let currentProgress = 0
 
     initProcess.stdout?.on('data', (data) => {
-      log.info(`Machine init stdout: ${data.toString().trim()}`)
+      const output = data.toString().trim()
+      log.info(`Machine init stdout: ${output}`)
     })
 
     initProcess.stderr?.on('data', (data) => {
-      log.error(`Machine init stderr: ${data.toString().trim()}`)
+      const output = data.toString().trim()
+      log.info(`Machine init stderr: ${output}`)
+
+      // Try to parse progress information
+      if (output.includes('Copying blob')) {
+        const match = output.match(downloadRegex)
+        if (match) {
+          const [, progressBar, current, total, speed] = match
+          log.info(`Download progress: ${progressBar} | ${current} of ${total} at ${speed}MB/s`)
+
+          // Extract percentage from progress bar if possible
+          if (progressBar.includes('%')) {
+            try {
+              const percentage = progressBar.match(/(\d+)%/)?.[1]
+              if (percentage) {
+                currentProgress = parseInt(percentage, 10)
+                log.info(`Download percentage: ${currentProgress}%`)
+
+                // Notify the renderer process of the progress if needed
+                // mainWindow?.webContents.send('podman-download-progress', currentProgress)
+              }
+            } catch {
+              // Ignore parsing errors
+            }
+          }
+        }
+      }
     })
 
     initProcess.on('close', (code) => {
@@ -458,4 +487,271 @@ export function stopPodman(): Promise<boolean> {
       resolve(false)
     })
   })
+}
+
+/**
+ * Pulls a Docker image using Podman
+ * @param imageUrl The full image URL to pull (e.g., 'docker.io/library/alpine:latest')
+ * @param options Additional options like retry, authenticated pulls, etc.
+ * @returns Promise that resolves to true if pull succeeded, false otherwise
+ */
+export async function pullImage(
+  imageUrl: string,
+  options: {
+    retry?: number
+    retryDelay?: number
+    timeout?: number
+  } = {}
+): Promise<boolean> {
+  const { retry = 3, retryDelay = 2000, timeout = 300000 } = options // Default 5 minute timeout
+
+  log.info(
+    `Pulling image: ${imageUrl} (retries: ${retry}, delay: ${retryDelay}ms, timeout: ${timeout}ms)`
+  )
+
+  // Check if the machine is running
+  const machineRunning = await isMachineRunning()
+  if (!machineRunning) {
+    log.error('Cannot pull image: Podman machine is not running')
+    return false
+  }
+
+  const pullImageWithRetry = async (attemptsLeft: number): Promise<boolean> => {
+    try {
+      const args = ['pull']
+
+      // Only use retry flags if they're applicable to this version of Podman
+      if (retry > 0) {
+        args.push('--retry', retry.toString())
+      }
+
+      if (retryDelay > 0) {
+        args.push('--retry-delay', `${Math.floor(retryDelay / 1000)}s`)
+      }
+
+      args.push(imageUrl)
+
+      log.info(`Running podman command: podman ${args.join(' ')}`)
+
+      return new Promise((resolve) => {
+        const pullProcess = spawn('podman', args)
+        let error = ''
+        let lastOutputTime = Date.now()
+        let timeoutId: NodeJS.Timeout | null = null
+
+        const checkProgress = () => {
+          const currentTime = Date.now()
+          if (currentTime - lastOutputTime > timeout) {
+            log.error(`Pull operation timed out after ${timeout}ms of inactivity`)
+            if (pullProcess && !pullProcess.killed) {
+              pullProcess.kill()
+            }
+            resolve(false)
+          }
+        }
+
+        // Set up interval to check for timeout
+        const intervalId = setInterval(checkProgress, 10000) // Check every 10 seconds
+
+        pullProcess.stdout?.on('data', (data) => {
+          const output = data.toString().trim()
+          log.info(`Pull stdout: ${output}`)
+          lastOutputTime = Date.now() // Reset timeout counter on output
+        })
+
+        pullProcess.stderr?.on('data', (data) => {
+          const output = data.toString().trim()
+          error += output
+          log.info(`Pull stderr: ${output}`) // Log as info to see progress, not just errors
+          lastOutputTime = Date.now() // Reset timeout counter on output
+        })
+
+        pullProcess.on('close', (code) => {
+          clearInterval(intervalId)
+          if (timeoutId) clearTimeout(timeoutId)
+
+          const success = code === 0
+          log.info(`Image pull ${success ? 'succeeded' : 'failed'} with code ${code}`)
+
+          if (
+            !success &&
+            attemptsLeft > 1 &&
+            (error.includes('connection refused') || error.includes('timeout'))
+          ) {
+            log.info(`Network issue detected. Retrying in ${retryDelay}ms...`)
+            setTimeout(() => {
+              resolve(pullImageWithRetry(attemptsLeft - 1))
+            }, retryDelay)
+          } else {
+            resolve(success)
+          }
+        })
+
+        pullProcess.on('error', (err) => {
+          clearInterval(intervalId)
+          if (timeoutId) clearTimeout(timeoutId)
+
+          log.error(`Pull error: ${err.message}`)
+
+          if (attemptsLeft > 1) {
+            log.info(`Error pulling image. Retrying in ${retryDelay}ms...`)
+            setTimeout(() => {
+              resolve(pullImageWithRetry(attemptsLeft - 1))
+            }, retryDelay)
+          } else {
+            resolve(false)
+          }
+        })
+
+        // Set overall timeout
+        timeoutId = setTimeout(() => {
+          log.error(`Pull operation exceeded maximum time of ${timeout}ms`)
+          clearInterval(intervalId)
+          if (pullProcess && !pullProcess.killed) {
+            pullProcess.kill()
+          }
+          resolve(false)
+        }, timeout)
+      })
+    } catch (error) {
+      log.error('Error executing podman pull:', error)
+      return false
+    }
+  }
+
+  // Start with the maximum number of retries
+  return pullImageWithRetry(retry)
+}
+
+/**
+ * Checks if a Podman machine is running
+ */
+export async function isMachineRunning(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const checkProcess = spawn('podman', ['machine', 'list', '--format', '{{.Running}}'])
+    let output = ''
+
+    checkProcess.stdout.on('data', (data) => {
+      output += data.toString().trim()
+    })
+
+    checkProcess.on('close', (code) => {
+      if (code === 0) {
+        // If output contains "true", at least one machine is running
+        resolve(output.includes('true'))
+      } else {
+        resolve(false)
+      }
+    })
+
+    checkProcess.on('error', () => {
+      resolve(false)
+    })
+  })
+}
+
+/**
+ * Runs a diagnostic check on Podman
+ * Returns information about the Podman environment
+ */
+export async function runPodmanDiagnostics(): Promise<{
+  success: boolean
+  info: Record<string, string>
+  existingImages: string[]
+}> {
+  const info: Record<string, string> = {}
+  const existingImages: string[] = []
+  let success = false
+
+  try {
+    // Check Podman version
+    try {
+      const version = execSync('podman --version').toString().trim()
+      info.version = version
+      log.info(`Podman version: ${version}`)
+    } catch (error) {
+      info.version = 'Error getting version'
+      log.error('Error getting Podman version', error)
+    }
+
+    // Check machine status
+    try {
+      const machineList = execSync('podman machine list --format json').toString().trim()
+      info.machineList = machineList
+      log.info(`Podman machine list: ${machineList}`)
+    } catch (error) {
+      info.machineList = 'Error getting machine list'
+      log.error('Error getting Podman machine list', error)
+    }
+
+    // Check if Podman can list images
+    try {
+      const images = execSync('podman image ls --format json').toString().trim()
+      info.imageList = images
+      log.info(`Podman image list: ${images}`)
+
+      try {
+        // Parse the JSON output if available
+        const parsedImages = JSON.parse(images)
+        if (Array.isArray(parsedImages)) {
+          for (const img of parsedImages) {
+            if (img.Names && Array.isArray(img.Names)) {
+              existingImages.push(...img.Names)
+            } else if (img.Repository) {
+              const tagName = img.Tag ? `${img.Repository}:${img.Tag}` : img.Repository
+              existingImages.push(tagName)
+            }
+          }
+        }
+      } catch (jsonError) {
+        log.warn('Error parsing image list JSON', jsonError)
+      }
+    } catch (error) {
+      info.imageList = 'Error listing images'
+      log.error('Error listing Podman images', error)
+    }
+
+    // Check network connectivity (can we ping a public DNS?)
+    try {
+      execSync('ping -c 1 8.8.8.8')
+      info.networkConnectivity = 'Network is reachable'
+      log.info('Network connectivity check passed')
+    } catch (error) {
+      info.networkConnectivity = 'Network unreachable'
+      log.error('Network connectivity check failed', error)
+    }
+
+    // Check if we can access registry
+    try {
+      const registryCheck = execSync('podman search alpine --limit 1').toString().trim()
+      info.registryAccess = 'Registry accessible'
+      log.info(`Registry access check: ${registryCheck}`)
+      success = true // If we can search the registry, basic connectivity is working
+    } catch (error) {
+      info.registryAccess = 'Registry unreachable'
+      log.error('Registry access check failed', error)
+    }
+
+    return { success, info, existingImages }
+  } catch (error) {
+    log.error('Error running Podman diagnostics', error)
+    return { success: false, info, existingImages }
+  }
+}
+
+/**
+ * Pulls an image using execSync for more direct control
+ */
+export function pullImageSync(imageUrl: string): boolean {
+  try {
+    log.info(`Pulling image synchronously: ${imageUrl}`)
+    const result = execSync(`podman pull ${imageUrl}`, { timeout: 60000 }).toString().trim()
+    log.info(`Pull result: ${result}`)
+    return true
+  } catch (error) {
+    log.error(
+      `Error pulling image synchronously: ${error instanceof Error ? error.message : String(error)}`
+    )
+    return false
+  }
 }

@@ -17,7 +17,6 @@ BUILD_CMD_mac-silicon = build:mac
 BUILD_CMD_windows = build:win
 BUILD_CMD_linux = build:linux
 
-# Podman installer URLs
 PODMAN_URL_mac-silicon = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-installer-$(PODMAN_VERSION)-darwin-arm64.pkg
 PODMAN_URL_mac-intel = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-installer-$(PODMAN_VERSION)-darwin-amd64.pkg
 PODMAN_URL_linux = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-v$(PODMAN_VERSION)-linux-amd64.rpm
@@ -46,7 +45,7 @@ build-all: $(addprefix build-,$(BUILD_TARGETS))
 
 .PHONY: $(addprefix build-,$(BUILD_TARGETS)) build-all $(addprefix download-podman-,$(BUILD_TARGETS))
 
-# Download Podman installers
+
 download-podman-mac-silicon:
 	mkdir -p $(RESOURCES_DIR)
 	curl -L $(PODMAN_URL_mac-silicon) -o $(RESOURCES_DIR)/$(PODMAN_INSTALLER_mac-silicon)
@@ -63,10 +62,5 @@ download-podman-windows:
 	mkdir -p $(RESOURCES_DIR)
 	curl -L $(PODMAN_URL_windows) -o $(RESOURCES_DIR)/$(PODMAN_INSTALLER_windows)
 
-# Download all Podman installers
-download-podman-all: download-podman-mac-silicon download-podman-mac-intel download-podman-linux download-podman-windows
 
-# Test Podman without building
-test-podman:
-	cd $(APP_DIR) && pnpm install
-	cd $(APP_DIR) && npx ts-node -r tsconfig-paths/register scripts/test-podman.ts
+download-podman-all: download-podman-mac-silicon download-podman-mac-intel download-podman-linux download-podman-windows

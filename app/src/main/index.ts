@@ -15,7 +15,16 @@ import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
 import { registerScreenpipeIpc, installAndStartScreenpipe, cleanupScreenpipe } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
-import { installPodman, startPodman, stopPodman } from './podman'
+import {
+  installPodman,
+  startPodman,
+  stopPodman,
+  machineExists,
+  pullImage,
+  isMachineRunning,
+  runPodmanDiagnostics,
+  pullImageSync
+} from './podman'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
@@ -484,17 +493,58 @@ app.whenReady().then(async () => {
       await startPodman()
 
       // Wait for Podman to fully start
-      log.info('Waiting for Podman to be ready...')
-      await new Promise((resolve) => setTimeout(resolve, 5000))
+      log.info('Waiting for Podman machine to be ready...')
+      let machineRunning = false
+      let attempts = 0
+      const maxAttempts = 30 // Try for 60 seconds total
 
-      // Log Podman version
-      const podmanVersionProcess = spawn('podman', ['--version'])
-      podmanVersionProcess.stdout.on('data', (data) => {
-        log.info(`Podman version: ${data.toString().trim()}`)
-      })
-      podmanVersionProcess.stderr.on('data', (data) => {
-        log.error(`Podman version error: ${data.toString().trim()}`)
-      })
+      while (!machineRunning && attempts < maxAttempts) {
+        machineRunning = await isMachineRunning()
+        if (!machineRunning) {
+          log.info(`Podman machine not ready yet, waiting... (${attempts + 1}/${maxAttempts})`)
+          await new Promise((resolve) => setTimeout(resolve, 2000)) // Wait 2 seconds between checks
+          attempts++
+        }
+      }
+
+      if (machineRunning) {
+        log.info('Podman machine is running!')
+
+        // Run Podman diagnostics to check the environment
+        log.info('Running Podman diagnostics...')
+        const diagnostics = await runPodmanDiagnostics()
+        log.info(`Podman diagnostics result: ${JSON.stringify(diagnostics, null, 2)}`)
+
+        if (diagnostics.success) {
+          log.info('Podman diagnostics passed, attempting to pull image')
+          // Try the synchronous pull approach
+          const smallImageResult = pullImageSync('docker.io/library/alpine:latest')
+
+          if (smallImageResult) {
+            log.info('Successfully pulled test image. Now trying the application image.')
+            const mainImageResult = pullImageSync('ghcr.io/remsky/kokoro-fastapi-cpu:latest')
+            log.info(`Main image pull ${mainImageResult ? 'succeeded' : 'failed'}`)
+
+            if (mainImageResult) {
+              // List the pulled image to verify
+              const imageListProcess = spawn('podman', [
+                'image',
+                'ls',
+                'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
+              ])
+              imageListProcess.stdout.on('data', (data) => {
+                log.info(`Image list: ${data.toString().trim()}`)
+              })
+            }
+          } else {
+            log.error('Failed to pull test image')
+          }
+        } else {
+          log.error('Podman diagnostics failed, skipping image pull')
+        }
+      } else {
+        log.error('Timed out waiting for Podman machine to start')
+      }
     } else {
       log.warn('Podman installation or initialization failed')
     }
@@ -580,6 +630,31 @@ app.whenReady().then(async () => {
   registerAccessibilityIpc()
 
   splash.destroy()
+
+  // Register Podman progress IPC handlers
+  ipcMain.on('get-podman-status', () => {
+    machineExists().then((exists) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('podman-status', { exists })
+      }
+    })
+  })
+
+  // Handler for pulling images
+  ipcMain.handle('pull-docker-image', async (_, imageUrl, options) => {
+    try {
+      // Set default image if none provided
+      if (!imageUrl) {
+        imageUrl = 'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
+      }
+
+      const success = await pullImage(imageUrl, options)
+      return { success }
+    } catch (error) {
+      log.error('Error handling pull-docker-image request:', error)
+      return { success: false, error: error instanceof Error ? error.message : String(error) }
+    }
+  })
 
   // Perform initial check after main window exists, wait a bit for autoUpdater setup
   setTimeout(() => {
