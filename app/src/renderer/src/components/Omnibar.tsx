@@ -152,7 +152,7 @@ export const Omnibar = () => {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-card pointer-events-auto max-h-[50vh]"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-card pointer-events-auto"
             onClick={closeOmnibar}
           >
             <motion.div
@@ -168,7 +168,8 @@ export const Omnibar = () => {
                   layoutId="message-input-container"
                   className={cn(
                     'flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-2xl',
-                    'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary'
+                    'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary',
+                    'max-h-[50vh]'
                   )}
                   transition={{ type: 'spring', stiffness: 300, damping: 30 }}
                 >
