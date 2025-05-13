@@ -153,7 +153,10 @@ export function SendButton({
             transition={{ duration: 0.4, ease: 'easeOut' }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <ArrowBigUp className="w-4 h-4" />
+            <ArrowBigUp
+              className="w-4 h-4"
+              fill={!isWaitingTwinResponse && !!text.trim() ? 'currentColor' : 'none'}
+            />
           </motion.div>
         )}
       </AnimatePresence>
