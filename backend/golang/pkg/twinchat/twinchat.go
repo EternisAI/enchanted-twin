@@ -94,8 +94,8 @@ func (s *Service) SendMessage(
 	}
 
 	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. When user asks something to be done every minute, every hour, every day, every week, every month, every year, you should use the `schedule_task` tool and construct cron expression. "
-	now := time.Now().Format(time.RFC3339)
-	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now)
+	now := time.Now()
+	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now.Format(time.RFC3339))
 
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	if err != nil {
@@ -250,7 +250,7 @@ func (s *Service) SendMessage(
 		ChatID:       chatID,
 		Text:         message,
 		Role:         model.RoleUser.String(),
-		CreatedAtStr: createdAt,
+		CreatedAtStr: now.Format(time.RFC3339Nano),
 	}
 
 	// Add to database
@@ -287,7 +287,7 @@ func (s *Service) SendMessage(
 		ChatID:       chatID,
 		Text:         response.Content,
 		Role:         model.RoleAssistant.String(),
-		CreatedAtStr: time.Now().Format(time.RFC3339),
+		CreatedAtStr: time.Now().Format(time.RFC3339Nano),
 	}
 	if len(response.ToolCalls) > 0 {
 		toolCalls := make([]model.ToolCall, 0)
