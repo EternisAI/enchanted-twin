@@ -155,13 +155,12 @@ func (m *DefaultManager) PullImage(ctx context.Context, imageURL string) error {
 // RunContainer runs a container from the specified image
 func (m *DefaultManager) RunContainer(ctx context.Context, config ContainerConfig) (string, error) {
 	if config.PullIfNeeded {
-		// Check if image exists
+
 		imageExists, err := m.imageExists(ctx, config.ImageURL)
 		if err != nil {
 			return "", errors.Wrap(err, "failed to check if image exists")
 		}
 
-		// Pull image if it doesn't exist
 		if !imageExists {
 			log.WithField("image", config.ImageURL).Info("Image not found, pulling")
 			if err := m.PullImage(ctx, config.ImageURL); err != nil {
@@ -170,43 +169,34 @@ func (m *DefaultManager) RunContainer(ctx context.Context, config ContainerConfi
 		}
 	}
 
-	// Build command arguments
 	args := []string{"run", "-d"}
 
-	// Add name if specified
 	if config.Name != "" {
 		args = append(args, "--name", config.Name)
 	}
 
-	// Add port mappings
 	for host, container := range config.Ports {
 		args = append(args, "-p", fmt.Sprintf("%s:%s", host, container))
 	}
 
-	// Add volume mappings
 	for host, container := range config.Volumes {
 		args = append(args, "-v", fmt.Sprintf("%s:%s", host, container))
 	}
 
-	// Add environment variables
 	for key, value := range config.Environment {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
 	}
 
-	// Add image
 	args = append(args, config.ImageURL)
 
-	// Add command if specified
 	if len(config.Command) > 0 {
 		args = append(args, config.Command...)
 	}
 
-	// Add extra arguments if specified
 	if len(config.ExtraArgs) > 0 {
 		args = append(args, config.ExtraArgs...)
 	}
 
-	// Run the container
 	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
 	defer cancel()
 

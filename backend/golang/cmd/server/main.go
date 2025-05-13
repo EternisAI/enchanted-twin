@@ -171,7 +171,6 @@ func main() {
 		connString,
 	)
 
-	// Directly test database connection before proceeding (list tables)
 	logger.Info("Testing direct database connection (list tables)...")
 	if err := podman.TestDbConnection(context.Background(), connString, logger); err != nil {
 		logger.Warn("Database connection test failed", "error", err)
@@ -565,14 +564,11 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 func bootstrapPodman() (string, error) {
 	log := logrus.WithField("component", "podman-bootstrap")
 
-	// Create a context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	// Create a new Kokoro manager
 	manager := podman.NewKokoroManager()
 
-	// Check if Podman is installed
 	installed, err := manager.VerifyPodmanInstalled(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to check if Podman is installed: %w", err)
@@ -583,7 +579,6 @@ func bootstrapPodman() (string, error) {
 		return "", fmt.Errorf("podman is not installed")
 	}
 
-	// Check if Podman machine exists
 	machineExists, err := manager.VerifyPodmanMachineInstalled(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to check if Podman machine exists: %w", err)
@@ -594,7 +589,6 @@ func bootstrapPodman() (string, error) {
 		return "", fmt.Errorf("podman machine does not exist")
 	}
 
-	// Check if Podman is running
 	running, err := manager.VerifyPodmanRunning(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to check if Podman is running: %w", err)
@@ -605,18 +599,15 @@ func bootstrapPodman() (string, error) {
 		return "", fmt.Errorf("podman machine is not running")
 	}
 
-	// Check if container already exists
 	const containerName = "kokoro-fastapi"
 	containerExists, containerId, err := manager.CheckContainerExists(ctx, containerName)
 	if err != nil {
 		log.Warn("Failed to check if container exists: ", err)
 	}
 
-	// If container exists, check if it's running or remove it
 	if containerExists {
 		log.Info("Container already exists with ID: ", containerId)
 
-		// Check if container is running
 		containerRunning, err := manager.IsContainerRunning(ctx, containerId)
 		if err != nil {
 			log.Warn("Failed to check if container is running: ", err)
@@ -627,7 +618,6 @@ func bootstrapPodman() (string, error) {
 			return containerId, nil
 		}
 
-		// Try to start the existing container
 		log.Info("Container exists but is not running, attempting to start it")
 		err = manager.StartContainer(ctx, containerId)
 		if err == nil {
@@ -635,7 +625,6 @@ func bootstrapPodman() (string, error) {
 			return containerId, nil
 		}
 
-		// If we couldn't start it, remove it and create a new one
 		log.Warn("Failed to start existing container, removing it: ", err)
 		err = manager.RemoveContainer(ctx, containerId)
 		if err != nil {
@@ -644,15 +633,12 @@ func bootstrapPodman() (string, error) {
 		log.Info("Removed existing container")
 	}
 
-	// Pull the Kokoro image (this will also verify registry access)
 	log.Info("Pulling the Kokoro image...")
 	if err := manager.PullKokoroImage(ctx); err != nil {
 		return "", fmt.Errorf("failed to pull Kokoro image: %w", err)
 	}
 
-	// Run the Kokoro container
 	log.Info("Starting the Kokoro container...")
-	// Use a different port to avoid conflicts with the API server
 	containerID, err := manager.RunKokoroContainer(ctx, "8765")
 	if err != nil {
 		return "", fmt.Errorf("failed to start Kokoro container: %w", err)
