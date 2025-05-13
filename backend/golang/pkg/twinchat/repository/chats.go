@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -135,7 +134,16 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 		}
 	}()
 
-	query := "SELECT id, name, created_at FROM chats ORDER BY created_at DESC"
+	const query = `
+	SELECT
+		c.id,
+		c.name,
+		c.created_at,
+		COALESCE(MAX(m.created_at), c.created_at) AS last_message_at
+	FROM   chats AS c
+	LEFT JOIN messages AS m ON m.chat_id = c.id
+	GROUP BY c.id
+	ORDER BY last_message_at DESC;`
 
 	var chatDBs []ChatDB
 	err = tx.SelectContext(ctx, &chatDBs, query)
@@ -148,13 +156,6 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 		chat := chatDB.ToModel()
 		chats[i] = &chat
 	}
-
-	// Sort chats by createdAt in descending order (newest first)
-	sort.Slice(chats, func(i, j int) bool {
-		timeI, _ := time.Parse(time.RFC3339, chats[i].CreatedAt)
-		timeJ, _ := time.Parse(time.RFC3339, chats[j].CreatedAt)
-		return timeI.After(timeJ)
-	})
 
 	// Commit the transaction
 	if err = tx.Commit(); err != nil {

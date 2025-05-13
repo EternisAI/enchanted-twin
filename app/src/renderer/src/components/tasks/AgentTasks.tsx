@@ -11,16 +11,16 @@ import {
   DeleteAgentTaskDocument,
   GetAgentTasksDocument
 } from '@renderer/graphql/generated/graphql'
-import { formatRRuleToText } from '@renderer/lib/utils'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
 export default function AgentTasks() {
-  const { data, loading, error } = useQuery(GetAgentTasksDocument, {
+  const { data, loading, error, refetch } = useQuery(GetAgentTasksDocument, {
     fetchPolicy: 'network-only'
   })
   const [deleteAgentTask] = useMutation(DeleteAgentTaskDocument, {
     onCompleted: () => {
       toast.success('Agent task deleted')
+      refetch()
     },
     onError: (error: Error) => {
       toast.error(`Error deleting agent task: ${error.message}`)
@@ -107,17 +107,15 @@ type Props = {
 }
 
 function AgentTaskRow({ task, onDelete }: Props) {
-  const humanSchedule = formatRRuleToText(task.schedule)
-
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-gray-300 p-4 w-full">
       <div className="flex justify-between items-start gap-4">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-4">
             <p className="text-lg font-medium">{task.name}</p>
-            {humanSchedule && <Badge variant="outline">Runs {humanSchedule}</Badge>}
+            <Badge variant="outline">{task.schedule}</Badge>
           </div>
-          {/* {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>} */}
+          {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>}
         </div>
 
         {onDelete && (

@@ -13,11 +13,13 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lnquy/cron"
 	nats "github.com/nats-io/nats.go"
+	"go.temporal.io/api/common/v1"
 	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -301,37 +303,18 @@ func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID str
 
 // DeleteAgentTask is the resolver for the deleteAgentTask field.
 func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool, error) {
-	runID := id
+	handle := r.TemporalClient.ScheduleClient().GetHandle(ctx, id)
 
-	// Use the RootClient to properly terminate the workflow and update state
-	if r.RootClient != nil {
-		// Call our new method that handles both termination and state cleanup
-		cmdID, err := r.RootClient.TerminateChildWorkflow(ctx, runID, "Deleted via GraphQL API")
-		if err != nil {
-			r.Logger.Error("Failed to terminate workflow", "error", err, "runID", runID)
-			return false, fmt.Errorf("failed to delete agent task: %w", err)
-		}
-
-		r.Logger.Info("Successfully terminated workflow", "workflowID", id, "commandID", cmdID)
-		return true, nil
-	} else {
-		// Fallback to direct Temporal client if RootClient is not available
-		r.Logger.Warn("RootClient not available, falling back to direct termination", "workflowID", id)
-
-		// Create a Temporal client to interact with the workflow
-		c := r.TemporalClient
-
-		// Try to terminate the workflow by ID
-		err := c.TerminateWorkflow(ctx, id, "", "Deleted via GraphQL API")
-		if err != nil {
-			r.Logger.Error("Failed to terminate workflow", "error", err, "workflowID", id)
-			return false, fmt.Errorf("failed to delete agent task: %w", err)
-		}
-
-		r.Logger.Info("Successfully terminated workflow but state may not be updated in root workflow",
-			"workflowID", id)
-		return true, nil
+	if handle == nil {
+		return false, fmt.Errorf("agent task not found")
 	}
+
+	err := handle.Delete(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // RemoveMCPServer is the resolver for the removeMCPServer field.
@@ -438,133 +421,95 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 
 // GetAgentTasks is the resolver for the getAgentTasks field.
 func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, error) {
-	tc := r.TemporalClient
-	rc := r.RootClient
-
-	runs, err := rc.ListWorkflows(ctx)
+	iterator, err := r.TemporalClient.ScheduleClient().List(ctx, client.ScheduleListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list active runs: %w", err)
+		return nil, err
 	}
-	r.Logger.Debug("total runs", "count", len(runs))
 
-	tasks := make([]*model.AgentTask, 0, len(runs))
-	for _, run := range runs {
-		r.Logger.Debug("querying workflow", "workflow_id", run.WorkflowID, "run_id", run.RunID)
+	agentTasks := make([]*model.AgentTask, 0)
+	for iterator.HasNext() {
+		schedule, err := iterator.Next()
+		if err != nil {
+			return nil, err
+		}
 
-		// First try to query as a regular planned workflow
-		queryRes, err := tc.QueryWorkflow(
-			ctx,
-			run.WorkflowID,
-			run.RunID,
-			planned.QueryGetState,
-		)
-
-		if err == nil {
-			// This is a regular PlannedAgentWorkflow
-			var planState planned.PlanState
-			if err := queryRes.Get(&planState); err != nil {
-				r.Logger.Warn("failed to get plan workflow state", "error", err)
-				continue
-			}
-
-			updatedAt := run.CreatedAt
-			if len(planState.History) > 0 {
-				updatedAt = planState.History[len(planState.History)-1].Timestamp
-			}
-
-			// Use the earliest non-zero completion time between the workflow's completed time
-			// and the run's completed time from root workflow tracking
-			completedAt := time.Time{}
-			if !planState.CompletedAt.IsZero() {
-				completedAt = planState.CompletedAt
-			}
-			if !run.CompletedAt.IsZero() {
-				if completedAt.IsZero() || run.CompletedAt.Before(completedAt) {
-					completedAt = run.CompletedAt
-				}
-			}
-
-			tasks = append(tasks, &model.AgentTask{
-				ID:           run.RunID,
-				Name:         planState.Name,
-				Schedule:     planState.Schedule,
-				Plan:         &planState.Plan,
-				CreatedAt:    run.CreatedAt.String(),
-				UpdatedAt:    updatedAt.String(),
-				TerminatedAt: helpers.TimeToStringPtr(run.TerminatedAt),
-				CompletedAt:  helpers.TimeToStringPtr(completedAt),
-				Output:       &planState.Output,
-			})
-
-			r.Logger.Debug("returning standard workflow to FE", "task", tasks[len(tasks)-1])
+		if schedule == nil {
 			continue
 		}
 
-		// If we're here, it might be a scheduled workflow, try that query instead
-		queryRes, err = tc.QueryWorkflow(
-			ctx,
-			run.WorkflowID,
-			run.RunID,
-			planned.QueryGetSchedulerState,
-		)
-
-		if err == nil {
-			// This is a ScheduledPlanWorkflow
-			var schedulerState planned.SchedulerState
-			if err := queryRes.Get(&schedulerState); err != nil {
-				r.Logger.Warn("failed to get scheduler workflow state", "error", err)
-				continue
-			}
-
-			// For scheduled workflows, we use:
-			// - NextRunTime for UpdatedAt
-			// - Apply same "smallest non-zero time" logic for CompletedAt
-			// - No EndedAt because the scheduler is still running
-			updatedAt := schedulerState.LastRunTime
-			if updatedAt.IsZero() {
-				updatedAt = run.CreatedAt
-			}
-
-			// Use the earliest non-zero completion time between the scheduler's last run time
-			// and the run's completed time from root workflow tracking
-			completedAt := time.Time{}
-			if !schedulerState.LastRunTime.IsZero() {
-				completedAt = schedulerState.LastRunTime
-			}
-			if !run.CompletedAt.IsZero() {
-				if completedAt.IsZero() || run.CompletedAt.Before(completedAt) {
-					completedAt = run.CompletedAt
-				}
-			}
-
-			// Create output containing completion info
-			output := fmt.Sprintf("Completed %d runs of scheduled plan. Next run at: %s",
-				schedulerState.CompletedRuns,
-				schedulerState.NextRunTime.Format(time.RFC3339))
-
-			// For scheduled workflows, we expose the RRULE schedule
-			tasks = append(tasks, &model.AgentTask{
-				ID:           run.RunID,
-				Name:         schedulerState.Input.Name,
-				Schedule:     schedulerState.Input.Schedule,
-				Plan:         &schedulerState.Input.Plan,
-				CreatedAt:    run.CreatedAt.String(),
-				UpdatedAt:    updatedAt.String(),
-				TerminatedAt: helpers.TimeToStringPtr(run.TerminatedAt),
-				CompletedAt:  helpers.TimeToStringPtr(completedAt),
-				Output:       &output,
-			})
-
-			r.Logger.Debug("returning scheduled workflow to FE", "task", tasks[len(tasks)-1])
+		if schedule.WorkflowType.Name != "TaskScheduleWorkflow" {
 			continue
 		}
 
-		r.Logger.Warn("workflow is neither a standard nor scheduled workflow",
-			"workflow_id", run.WorkflowID,
-			"run_id", run.RunID)
-	}
+		handle := r.TemporalClient.ScheduleClient().GetHandle(ctx, schedule.ID)
+		desc, err := handle.Describe(ctx)
+		if err != nil {
+			return nil, err
+		}
+		createdAt := desc.Info.CreatedAt.Format(time.RFC3339)
+		updatedAt := desc.Info.LastUpdateAt.Format(time.RFC3339)
 
-	return tasks, nil
+		var wfArgsData scheduler.TaskScheduleWorkflowInput
+		if wf, ok := desc.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
+			for i, arg := range wf.Args {
+				if payload, ok := arg.(*common.Payload); ok {
+					err := json.Unmarshal(payload.Data, &wfArgsData)
+					if err != nil {
+						fmt.Printf("json.Unmarshal error: %v\n", err)
+						return nil, err
+					}
+				} else {
+					r.Logger.Debug("wf.Args[%d] is NOT *common.Payload, type: %T\n", i, arg)
+				}
+			}
+		}
+
+		scheduleStr := ""
+		if wfArgsData.Delay > 0 {
+			if len(schedule.NextActionTimes) == 0 {
+				continue
+			}
+			nextActionTime := schedule.NextActionTimes[0]
+			now := time.Now()
+			nextExecutingIn := nextActionTime.Sub(now)
+			days := int(nextExecutingIn.Hours()) / 24
+			hours := int(nextExecutingIn.Hours()) % 24
+			minutes := int(nextExecutingIn.Minutes()) % 60
+
+			switch {
+			case days > 0 && hours > 0:
+				scheduleStr += fmt.Sprintf("In %d Days %d Hours %d Minutes", days, hours, minutes)
+			case days > 0:
+				scheduleStr += fmt.Sprintf("In %d Days %d Minutes", days, minutes)
+			case hours > 0:
+				scheduleStr += fmt.Sprintf("In %d Hours %d Minutes", hours, minutes)
+			default:
+				scheduleStr += fmt.Sprintf("In %d Minutes", minutes)
+			}
+		} else {
+			exprDesc, _ := cron.NewDescriptor()
+			cronDesc, err := exprDesc.ToDescription(wfArgsData.Cron, cron.Locale_en)
+			if err != nil {
+				r.Logger.Error("Failed to get cron description", "error", err)
+				continue
+			}
+			scheduleStr = cronDesc
+		}
+
+		task := &model.AgentTask{
+			ID:           schedule.ID,
+			Name:         wfArgsData.Name,
+			Schedule:     scheduleStr,
+			Plan:         helpers.Ptr(wfArgsData.Task),
+			CreatedAt:    createdAt,
+			UpdatedAt:    updatedAt,
+			CompletedAt:  nil,
+			TerminatedAt: nil,
+			Output:       nil,
+		}
+		agentTasks = append(agentTasks, task)
+	}
+	return agentTasks, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.

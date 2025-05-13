@@ -35,6 +35,7 @@ require (
 )
 
 require (
+	github.com/lnquy/cron v1.1.1 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
