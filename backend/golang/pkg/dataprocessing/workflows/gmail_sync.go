@@ -99,7 +99,7 @@ func (w *DataProcessingWorkflows) GmailSyncWorkflow(
 
 	lastRecord := response.Records[0]
 
-	w.Logger.Info("lastRecord", "value", lastRecord)
+	w.Logger.Debug("lastRecord", "value", lastRecord)
 
 	workflowResponse.LastRecordTimestamp = lastRecord.Timestamp
 	workflowResponse.Success = true

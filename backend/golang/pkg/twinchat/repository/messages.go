@@ -37,7 +37,9 @@ func (r *Repository) AddMessageToChat(ctx context.Context, message Message) (str
 		message.ID = uuid.New().String()
 	}
 
-	message.CreatedAtStr = time.Now().Format(time.RFC3339)
+	if message.CreatedAtStr == "" {
+		message.CreatedAtStr = time.Now().Format(time.RFC3339Nano)
+	}
 
 	// Insert the message within the transaction
 	_, err = tx.ExecContext(ctx, `

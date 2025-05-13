@@ -4,7 +4,7 @@ import (
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/client"
 
-	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -25,30 +25,18 @@ func CreateStandardTools(
 ) []tools.Tool {
 	standardTools := []tools.Tool{}
 
-	// Add workflow immediate tools
-	standardTools = append(standardTools, tools.WorkflowImmediateTools()...)
-
-	// Create basic tools
-	standardTools = append(standardTools, &tools.ImageTool{})
-
-	// Memory tools are now registered directly in main
-
 	// Create Telegram tool if token is available
 	if telegramToken != "" && store != nil {
 		telegramTool := tools.NewTelegramTool(logger, telegramToken, store, telegramChatServerUrl)
 		standardTools = append(standardTools, telegramTool)
 	}
 
-	// Create Twitter tool if store is available
-	if store != nil {
-		twitterTool := tools.NewTwitterTool(*store)
-		standardTools = append(standardTools, twitterTool)
-	}
-
-	// Create PlannedAgentTool if temporal client is available
 	if temporalClient != nil && completionsModel != "" {
-		plannedAgentTool := plannedv2.NewExecutePlanTool(logger, temporalClient, completionsModel)
-		standardTools = append(standardTools, plannedAgentTool)
+		scheduledTaskTool := &schedulerTools.ScheduleTask{
+			Logger:         logger,
+			TemporalClient: temporalClient,
+		}
+		standardTools = append(standardTools, scheduledTaskTool)
 	}
 
 	return standardTools
