@@ -11,44 +11,44 @@ import (
 )
 
 const (
-	// DefaultKokoroImage is the default Kokoro image URL
+	// DefaultKokoroImage is the default Kokoro image URL.
 	DefaultKokoroImage = "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
 
-	// DefaultKokoroContainerName is the default name for the Kokoro container
+	// DefaultKokoroContainerName is the default name for the Kokoro container.
 	DefaultKokoroContainerName = "kokoro-fastapi"
 
-	// DefaultKokoroPort is the default port the Kokoro API listens on
+	// DefaultKokoroPort is the default port the Kokoro API listens on.
 	DefaultKokoroPort = "8000"
 )
 
-// KokoroManager provides specialized functions for handling the Kokoro container
+// KokoroManager provides specialized functions for handling the Kokoro container.
 type KokoroManager struct {
 	podman PodmanManager
 }
 
-// NewKokoroManager creates a new KokoroManager
+// NewKokoroManager creates a new KokoroManager.
 func NewKokoroManager() *KokoroManager {
 	return &KokoroManager{
 		podman: NewManager(),
 	}
 }
 
-// VerifyPodmanInstalled checks if Podman is installed
+// VerifyPodmanInstalled checks if Podman is installed.
 func (k *KokoroManager) VerifyPodmanInstalled(ctx context.Context) (bool, error) {
 	return k.podman.IsInstalled(ctx)
 }
 
-// VerifyPodmanMachineInstalled checks if a Podman machine exists
+// VerifyPodmanMachineInstalled checks if a Podman machine exists.
 func (k *KokoroManager) VerifyPodmanMachineInstalled(ctx context.Context) (bool, error) {
 	return k.podman.IsMachineInstalled(ctx)
 }
 
-// VerifyPodmanRunning checks if a Podman machine is running
+// VerifyPodmanRunning checks if a Podman machine is running.
 func (k *KokoroManager) VerifyPodmanRunning(ctx context.Context) (bool, error) {
 	return k.podman.IsMachineRunning(ctx)
 }
 
-// PullKokoroImage pulls the Kokoro image
+// PullKokoroImage pulls the Kokoro image.
 func (k *KokoroManager) PullKokoroImage(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Minute) // Long timeout for big images
 	defer cancel()
@@ -57,9 +57,7 @@ func (k *KokoroManager) PullKokoroImage(ctx context.Context) error {
 	return k.podman.PullImage(ctx, DefaultKokoroImage)
 }
 
-// RunKokoroContainer runs the Kokoro container
-// hostPort is the port on the host to bind to (will map to port 8000 in the container)
-// Returns the container ID if successful
+// Returns the container ID if successful.
 func (k *KokoroManager) RunKokoroContainer(ctx context.Context, hostPort string) (string, error) {
 	// First check if Podman is running
 	running, err := k.VerifyPodmanRunning(ctx)
@@ -101,7 +99,7 @@ func (k *KokoroManager) RunKokoroContainer(ctx context.Context, hostPort string)
 	return containerID, nil
 }
 
-// isContainerRunning checks if a container is running
+// isContainerRunning checks if a container is running.
 func (k *KokoroManager) isContainerRunning(ctx context.Context, containerID string) bool {
 	m, ok := k.podman.(*DefaultManager)
 	if !ok {
@@ -124,7 +122,7 @@ func (k *KokoroManager) isContainerRunning(ctx context.Context, containerID stri
 	return strings.TrimSpace(string(output)) == "true"
 }
 
-// IsContainerRunning checks if a container is running (exported version)
+// IsContainerRunning checks if a container is running (exported version).
 func (k *KokoroManager) IsContainerRunning(ctx context.Context, containerID string) (bool, error) {
 	m, ok := k.podman.(*DefaultManager)
 	if !ok {
@@ -147,8 +145,7 @@ func (k *KokoroManager) IsContainerRunning(ctx context.Context, containerID stri
 	return strings.TrimSpace(string(output)) == "true", nil
 }
 
-// CheckContainerExists checks if a container with the given name exists
-// Returns: exists (bool), containerID (string), error
+// Returns: exists (bool), containerID (string), error.
 func (k *KokoroManager) CheckContainerExists(ctx context.Context, containerName string) (bool, string, error) {
 	m, ok := k.podman.(*DefaultManager)
 	if !ok {
@@ -172,7 +169,7 @@ func (k *KokoroManager) CheckContainerExists(ctx context.Context, containerName 
 	return containerID != "", containerID, nil
 }
 
-// StartContainer starts an existing container
+// StartContainer starts an existing container.
 func (k *KokoroManager) StartContainer(ctx context.Context, containerID string) error {
 	m, ok := k.podman.(*DefaultManager)
 	if !ok {
@@ -195,7 +192,7 @@ func (k *KokoroManager) StartContainer(ctx context.Context, containerID string) 
 	return nil
 }
 
-// RemoveContainer removes a container
+// RemoveContainer removes a container.
 func (k *KokoroManager) RemoveContainer(ctx context.Context, containerID string) error {
 	m, ok := k.podman.(*DefaultManager)
 	if !ok {
@@ -218,8 +215,7 @@ func (k *KokoroManager) RemoveContainer(ctx context.Context, containerID string)
 	return nil
 }
 
-// CleanupKokoroContainers finds and removes all Kokoro containers
-// This is useful for cleaning up when the application shuts down
+// This is useful for cleaning up when the application shuts down.
 func (k *KokoroManager) CleanupKokoroContainers(ctx context.Context) error {
 	m, ok := k.podman.(*DefaultManager)
 	if !ok {

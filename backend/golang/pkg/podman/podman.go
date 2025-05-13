@@ -14,7 +14,7 @@ import (
 
 var log = logrus.WithField("component", "podman")
 
-// PodmanManager handles interactions with the Podman container runtime
+// PodmanManager handles interactions with the Podman container runtime.
 type PodmanManager interface {
 	// IsInstalled checks if Podman is installed on the system
 	IsInstalled(ctx context.Context) (bool, error)
@@ -33,7 +33,7 @@ type PodmanManager interface {
 	RunContainer(ctx context.Context, containerConfig ContainerConfig) (string, error)
 }
 
-// ContainerConfig defines configuration for a container
+// ContainerConfig defines configuration for a container.
 type ContainerConfig struct {
 	ImageURL     string            // Image URL to run
 	Name         string            // Container name
@@ -45,7 +45,7 @@ type ContainerConfig struct {
 	ExtraArgs    []string          // Additional arguments to pass to the container
 }
 
-// DefaultManager is the standard implementation of PodmanManager
+// DefaultManager is the standard implementation of PodmanManager.
 type DefaultManager struct {
 	// The executable name to use
 	executable string
@@ -55,7 +55,7 @@ type DefaultManager struct {
 	defaultMachine string
 }
 
-// NewManager creates a new PodmanManager
+// NewManager creates a new PodmanManager.
 func NewManager() PodmanManager {
 	return &DefaultManager{
 		executable:     "podman",
@@ -64,7 +64,7 @@ func NewManager() PodmanManager {
 	}
 }
 
-// IsInstalled checks if Podman is installed
+// IsInstalled checks if Podman is installed.
 func (m *DefaultManager) IsInstalled(ctx context.Context) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
 	defer cancel()
@@ -78,7 +78,7 @@ func (m *DefaultManager) IsInstalled(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-// IsMachineInstalled checks if a Podman machine exists
+// IsMachineInstalled checks if a Podman machine exists.
 func (m *DefaultManager) IsMachineInstalled(ctx context.Context) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
 	defer cancel()
@@ -105,7 +105,7 @@ func (m *DefaultManager) IsMachineInstalled(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// IsMachineRunning checks if a Podman machine is running
+// IsMachineRunning checks if a Podman machine is running.
 func (m *DefaultManager) IsMachineRunning(ctx context.Context) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
 	defer cancel()
@@ -135,7 +135,7 @@ func (m *DefaultManager) IsMachineRunning(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// PullImage pulls the specified image
+// PullImage pulls the specified image.
 func (m *DefaultManager) PullImage(ctx context.Context, imageURL string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute) // Longer timeout for image pulls
 	defer cancel()
@@ -152,10 +152,9 @@ func (m *DefaultManager) PullImage(ctx context.Context, imageURL string) error {
 	return nil
 }
 
-// RunContainer runs a container from the specified image
+// RunContainer runs a container from the specified image.
 func (m *DefaultManager) RunContainer(ctx context.Context, config ContainerConfig) (string, error) {
 	if config.PullIfNeeded {
-
 		imageExists, err := m.imageExists(ctx, config.ImageURL)
 		if err != nil {
 			return "", errors.Wrap(err, "failed to check if image exists")
@@ -213,7 +212,7 @@ func (m *DefaultManager) RunContainer(ctx context.Context, config ContainerConfi
 	return containerID, nil
 }
 
-// imageExists checks if an image exists locally
+// imageExists checks if an image exists locally.
 func (m *DefaultManager) imageExists(ctx context.Context, imageURL string) (bool, error) {
 	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
 	defer cancel()
@@ -223,7 +222,7 @@ func (m *DefaultManager) imageExists(ctx context.Context, imageURL string) (bool
 	return err == nil, nil
 }
 
-// ExecCommand executes a command with the given arguments
+// ExecCommand executes a command with the given arguments.
 func (m *DefaultManager) ExecCommand(ctx context.Context, cmd string, args []string) (string, error) {
 	execCmd := exec.CommandContext(ctx, cmd, args...)
 	output, err := execCmd.CombinedOutput()
