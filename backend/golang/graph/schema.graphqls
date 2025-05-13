@@ -232,4 +232,6 @@ type AgentTask {
   completedAt: DateTime
   terminatedAt: DateTime
   output: String
+  upcomingRuns: [DateTime!]!
+  previousRuns: [DateTime!]!
 }

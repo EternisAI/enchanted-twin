@@ -40,18 +40,28 @@ const (
 	TemporalTaskQueue  = "default"
 )
 
-func NewTemporalClient(dbPath string) (client.Client, error) {
+func NewTemporalClient(logger *log.Logger) (client.Client, error) {
 	return CreateTemporalClient(
+		logger,
 		fmt.Sprintf("%s:%d", TemporalServerIP, TemporalServerPort),
 		TemporalNamespace,
 		"",
 	)
 }
 
-func CreateTemporalClient(address string, namespace string, apiKey string) (client.Client, error) {
+// Adapter lets you hand a charm-style logger to Temporal SDK.
+type Adapter struct{ L *log.Logger }
+
+func (a Adapter) Debug(msg string, keyvals ...any) { a.L.Debug(msg, keyvals...) }
+func (a Adapter) Info(msg string, keyvals ...any)  { a.L.Info(msg, keyvals...) }
+func (a Adapter) Warn(msg string, keyvals ...any)  { a.L.Warn(msg, keyvals...) }
+func (a Adapter) Error(msg string, keyvals ...any) { a.L.Error(msg, keyvals...) }
+
+func CreateTemporalClient(logger *log.Logger, address string, namespace string, apiKey string) (client.Client, error) {
 	clientOptions := client.Options{
 		HostPort:  address,
 		Namespace: namespace,
+		Logger:    &Adapter{L: logger},
 		ConnectionOptions: client.ConnectionOptions{
 			TLS: func() *tls.Config {
 				if apiKey != "" {
@@ -216,7 +226,7 @@ func CreateTemporalServer(logger *log.Logger, ready chan<- struct{}, dbPath stri
 	if err != nil {
 		log.Fatalf("unable to create authorizer: %s", err)
 	}
-	temporalLogger := temporallog.NewNoopLogger().With()
+	temporalLogger := temporallog.NewNoopLogger()
 	claimMapper, err := authorization.GetClaimMapperFromConfig(
 		&conf.Global.Authorization,
 		temporalLogger,

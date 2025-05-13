@@ -10,9 +10,10 @@ type JSONForSQLLite string
 
 // ChatDB is used for database operations with proper db field mapping.
 type ChatDB struct {
-	ID        string `db:"id"`
-	Name      string `db:"name"`
-	CreatedAt string `db:"created_at"` // Maps to the database column created_at
+	ID            string `db:"id"`
+	Name          string `db:"name"`
+	CreatedAt     string `db:"created_at"`
+	LastMessageAt string `db:"last_message_at"`
 }
 
 // ToModel converts a ChatDB to a model.Chat.
