@@ -22,8 +22,7 @@ import {
   machineExists,
   pullImage,
   isMachineRunning,
-  runPodmanDiagnostics,
-  pullImageSync
+  runPodmanDiagnostics
 } from './podman'
 
 const PATHNAME = 'input_data'
@@ -444,8 +443,6 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
   if (!IS_PRODUCTION && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -462,13 +459,11 @@ app.whenReady().then(async () => {
 
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
   const goBinaryPath = !IS_PRODUCTION
-    ? join(__dirname, '..', '..', 'resources', executable) // Path in development
-    : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
+    ? join(__dirname, '..', '..', 'resources', executable)
+    : join(process.resourcesPath, 'resources', executable)
 
-  // Set up auto-updater
   setupAutoUpdater()
 
-  // Create the database directory in user data path
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
 
@@ -484,7 +479,6 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  // Install and start Podman
   try {
     log.info('Checking and installing Podman if needed')
     const podmanInstalled = await installPodman()
@@ -492,11 +486,10 @@ app.whenReady().then(async () => {
       log.info('Starting Podman service')
       await startPodman()
 
-      // Wait for Podman to fully start
       log.info('Waiting for Podman machine to be ready...')
       let machineRunning = false
       let attempts = 0
-      const maxAttempts = 30 // Try for 60 seconds total
+      const maxAttempts = 30
 
       while (!machineRunning && attempts < maxAttempts) {
         machineRunning = await isMachineRunning()
@@ -510,32 +503,45 @@ app.whenReady().then(async () => {
       if (machineRunning) {
         log.info('Podman machine is running!')
 
-        // Run Podman diagnostics to check the environment
         log.info('Running Podman diagnostics...')
         const diagnostics = await runPodmanDiagnostics()
         log.info(`Podman diagnostics result: ${JSON.stringify(diagnostics, null, 2)}`)
 
         if (diagnostics.success) {
           log.info('Podman diagnostics passed, attempting to pull image')
-          // Try the synchronous pull approach
-          const smallImageResult = pullImageSync('docker.io/library/alpine:latest')
+          const smallImageResult = await pullImage('docker.io/library/alpine:latest', {
+            timeout: 300_000,
+            retry: 3,
+            retryDelay: 5_000
+          })
 
           if (smallImageResult) {
             log.info('Successfully pulled test image. Now trying the application image.')
-            const mainImageResult = pullImageSync('ghcr.io/remsky/kokoro-fastapi-cpu:latest')
-            log.info(`Main image pull ${mainImageResult ? 'succeeded' : 'failed'}`)
 
-            if (mainImageResult) {
-              // List the pulled image to verify
-              const imageListProcess = spawn('podman', [
-                'image',
-                'ls',
-                'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
-              ])
-              imageListProcess.stdout.on('data', (data) => {
-                log.info(`Image list: ${data.toString().trim()}`)
+            log.info('Starting background pull of main application image (kokoro)...')
+
+            pullImage('ghcr.io/remsky/kokoro-fastapi-cpu:latest', {
+              timeout: 1_800_000,
+              retry: 5,
+              retryDelay: 10_000
+            })
+              .then((success) => {
+                log.info(`Background main image pull ${success ? 'succeeded' : 'failed'}`)
+
+                if (success) {
+                  const imageListProcess = spawn('podman', [
+                    'image',
+                    'ls',
+                    'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
+                  ])
+                  imageListProcess.stdout.on('data', (data) => {
+                    log.info(`Image list: ${data.toString().trim()}`)
+                  })
+                }
               })
-            }
+              .catch((error) => {
+                log.error('Background image pull error:', error)
+              })
           } else {
             log.error('Failed to pull test image')
           }
@@ -640,10 +646,8 @@ app.whenReady().then(async () => {
     })
   })
 
-  // Handler for pulling images
   ipcMain.handle('pull-docker-image', async (_, imageUrl, options) => {
     try {
-      // Set default image if none provided
       if (!imageUrl) {
         imageUrl = 'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
       }
@@ -656,7 +660,6 @@ app.whenReady().then(async () => {
     }
   })
 
-  // Perform initial check after main window exists, wait a bit for autoUpdater setup
   setTimeout(() => {
     log.info('Performing initial silent update check.')
     checkForUpdates(true)
