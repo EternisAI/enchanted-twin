@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from '@renderer/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@renderer/components/ui/dialog'
 import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
@@ -30,11 +30,7 @@ const settingsTabs = [
     value: 'import-data',
     label: 'Import Data',
     icon: Database,
-    content: (
-      <>
-        <DataSourcesPanel showStatus={true} />
-      </>
-    ),
+    content: <DataSourcesPanel showStatus={true} />,
     fullWidth: false
   },
   {
@@ -56,8 +52,16 @@ const settingsTabs = [
     value: 'updates',
     label: 'Updates',
     icon: RefreshCcw,
-    content: <Versions />,
-    fullWidth: true
+    content: (
+      <>
+        <h3 className="text-xl font-semibold">Updates</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Check for updates and manage your app&apos;s version.
+        </p>
+        <Versions />
+      </>
+    ),
+    fullWidth: false
   },
   {
     value: 'appearance',
@@ -96,7 +100,10 @@ export function SettingsDialog() {
 
   return (
     <Dialog open={isOpen} onOpenChange={close}>
-      <DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0 z-[100]">
+      <DialogTitle asChild className="sr-only">
+        Settings
+      </DialogTitle>
+      <DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0">
         <div className="flex h-full w-full">
           <Tabs.Root
             value={activeTab}
@@ -122,7 +129,6 @@ export function SettingsDialog() {
                 <Tabs.Content
                   key={tab.value}
                   value={tab.value}
-                  forceMount
                   className="absolute inset-0 outline-none focus:ring-0 transition-opacity duration-300 ease-in-out data-[state=active]:opacity-100 data-[state=inactive]:opacity-0 data-[state=inactive]:pointer-events-none"
                 >
                   <ScrollArea className="h-full">

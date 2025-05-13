@@ -2,7 +2,7 @@ import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
 import { GetChatsDocument } from '@renderer/graphql/generated/graphql'
-import { motion, LayoutGroup } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { Header } from '@renderer/components/chat/Header'
 
 // Define expected search params for this route
@@ -14,39 +14,37 @@ function IndexComponent() {
   const { error, success } = Route.useLoaderData()
 
   return (
-    <LayoutGroup>
-      <motion.div className="flex-1 flex flex-col items-center justify-center p-6">
-        <motion.div className="w-full max-w-4xl">
-          <motion.div
-            layout
-            className="flex flex-col items-center gap-4"
-            transition={{
-              layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
-            }}
-          >
-            <Header />
-          </motion.div>
-        </motion.div>
-
+    <motion.div className="flex-1 flex flex-col items-center justify-center p-6">
+      <motion.div className="w-full max-w-4xl">
         <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="flex flex-col gap-4 w-full max-w-4xl items-center mt-8"
+          layout
+          className="flex flex-col items-center gap-4"
+          transition={{
+            layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
+          }}
         >
-          {!success && (
-            <div className="w-full flex justify-center items-center py-10">
-              <div className="p-4 m-4 w-xl border border-red-300 bg-red-50 text-red-700 rounded-md">
-                <h3 className="font-medium">Error loading chats</h3>
-                <p className="text-sm">
-                  {error instanceof Error ? error.message : 'An unexpected error occurred'}
-                </p>
-              </div>
-            </div>
-          )}
+          <Header />
         </motion.div>
       </motion.div>
-    </LayoutGroup>
+
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="flex flex-col gap-4 w-full max-w-4xl items-center mt-8"
+      >
+        {!success && (
+          <div className="w-full flex justify-center items-center py-10">
+            <div className="p-4 m-4 w-xl border border-red-300 bg-red-50 text-red-700 rounded-md">
+              <h3 className="font-medium">Error loading chats</h3>
+              <p className="text-sm">
+                {error instanceof Error ? error.message : 'An unexpected error occurred'}
+              </p>
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
   )
 }
 
