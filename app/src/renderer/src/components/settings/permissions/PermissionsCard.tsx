@@ -4,6 +4,7 @@ import { Card } from '@renderer/components/ui/card'
 import NotificationStatusCard from './NotificationStatus'
 import MediaStatus from './MediaStatus'
 import AccessibilityStatus from './AccessibilityStatus'
+import ScreenpipePanel from './ScreenpipeCard'
 
 export default function PermissionsCard() {
   return (
@@ -12,6 +13,7 @@ export default function PermissionsCard() {
         <MediaStatus />
         <AccessibilityStatus />
         <NotificationStatusCard />
+        <ScreenpipePanel />
       </div>
     </Card>
   )
