@@ -1,12 +1,10 @@
-import { createRootRoute, Outlet, useNavigate } from '@tanstack/react-router'
+import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
 import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { useOsNotifications } from '@renderer/hooks/useNotifications'
 import UpdateNotification from '@renderer/components/UpdateNotification'
-import { useSettingsStore } from '@renderer/lib/stores/settings'
 import { useEffect, useState } from 'react'
-import { SettingsDialog } from '@renderer/components/settings/SettingsDialog'
 import { LayoutGroup, motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from '@renderer/components/chat/Sidebar'
 import { Button } from '@renderer/components/ui/button'
@@ -28,11 +26,10 @@ function DevBadge() {
 
 function RootComponent() {
   useOsNotifications()
-  const { open } = useSettingsStore()
   const omnibar = useOmnibarStore()
-
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const navigate = useNavigate()
+  const { location } = useRouterState()
 
   const { isCompleted } = useOnboardingStore()
   const { data: chatsData } = useQuery(GetChatsDocument, {
@@ -44,26 +41,36 @@ function RootComponent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
-        open()
+        navigate({ to: '/settings' })
       }
-      if (e.key === 'Escape' && sidebarOpen) {
+      if (e.key === 'Escape' && sidebarOpen && location.pathname !== '/settings') {
         e.preventDefault()
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
         navigate({ to: '/', search: { focusInput: 'true' } })
       }
-      if ((e.metaKey || e.ctrlKey) && e.key === 's' && isCompleted && !omnibar.isOpen) {
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.key === 's' &&
+        isCompleted &&
+        !omnibar.isOpen &&
+        location.pathname !== '/settings'
+      ) {
         e.preventDefault()
         setSidebarOpen(!sidebarOpen)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    window.api.onOpenSettings(open)
+    window.api.onOpenSettings(() => navigate({ to: '/settings' }))
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [open, sidebarOpen, navigate, isCompleted, omnibar.isOpen])
+  }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname])
+
+  if (location.pathname === '/settings') {
+    return <Outlet />
+  }
 
   return (
     <LayoutGroup>
@@ -81,7 +88,7 @@ function RootComponent() {
 
         <div className="flex flex-1 overflow-hidden mt-0">
           <AnimatePresence>
-            {!sidebarOpen && isCompleted && (
+            {!sidebarOpen && isCompleted && location.pathname !== '/settings' && (
               <motion.div
                 className="absolute top-11 left-3 z-[60]"
                 initial={{ opacity: 0 }}
@@ -112,7 +119,7 @@ function RootComponent() {
                 </TooltipProvider>
               </motion.div>
             )}
-            {sidebarOpen && isCompleted && (
+            {sidebarOpen && isCompleted && location.pathname !== '/settings' && (
               <motion.div
                 key="sidebar"
                 initial={{ width: 0, opacity: 0, marginRight: 0 }}
@@ -137,7 +144,6 @@ function RootComponent() {
         </div>
         <Omnibar />
         <UpdateNotification />
-        <SettingsDialog />
       </motion.div>
     </LayoutGroup>
   )
