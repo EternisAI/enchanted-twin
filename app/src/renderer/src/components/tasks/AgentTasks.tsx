@@ -115,7 +115,7 @@ function AgentTaskRow({ task, onDelete }: Props) {
             <p className="text-lg font-medium">{task.name}</p>
             <Badge variant="outline">{task.schedule}</Badge>
           </div>
-          {/* {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>} */}
+          {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>}
         </div>
 
         {onDelete && (

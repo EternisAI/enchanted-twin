@@ -493,7 +493,6 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 				r.Logger.Error("Failed to get cron description", "error", err)
 				continue
 			}
-			fmt.Println("cronDesc", cronDesc)
 			scheduleStr = cronDesc
 		}
 

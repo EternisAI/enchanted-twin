@@ -33,8 +33,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
-	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/root-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -175,13 +173,6 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
-	// Ensure the root workflow is running
-	rootClient := root.NewRootClient(temporalClient, logger)
-	if err := rootClient.EnsureRunRootWorkflow(context.Background()); err != nil {
-		logger.Error("Failed to ensure root workflow is running", "error", err)
-		logger.Error("Child workflows may not be able to start")
-	}
-
 	toolRegistry := tools.NewRegistry()
 
 	if err := toolRegistry.Register(memory.NewMemorySearchTool(logger, mem)); err != nil {
@@ -247,7 +238,6 @@ func main() {
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
 			toolsRegistry:        toolRegistry,
-			rootClient:           rootClient,
 		},
 	)
 	if err != nil {
@@ -311,7 +301,6 @@ func main() {
 		aiService:       aiCompletionsService,
 		mcpService:      mcpService,
 		telegramService: telegramService,
-		rootClient:      rootClient,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -379,7 +368,6 @@ type bootstrapTemporalWorkerInput struct {
 	memory               memory.Storage
 	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
-	rootClient           *root.RootClient
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
@@ -431,18 +419,11 @@ func bootstrapTemporalWorker(
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
-	// Root workflow
-	input.rootClient.RegisterWorkflowsAndActivities(&w)
-
 	// Register auth activities
 	authActivities := auth.NewOAuthActivities(input.store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.toolsRegistry)
-	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
-	input.logger.Info("Registered planned agent workflow", "tools", input.toolsRegistry.List())
-
 	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, nil, nil)
 	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
@@ -468,7 +449,6 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
-	rootClient             *root.RootClient
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -489,7 +469,6 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
-		RootClient:             input.rootClient, // root.NewRootClient(input.temporalClient, input.logger),
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
