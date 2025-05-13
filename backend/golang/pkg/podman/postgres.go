@@ -13,13 +13,13 @@ import (
 )
 
 const (
-	// DefaultPostgresImage is the default PostgreSQL image URL
+	// DefaultPostgresImage is the default PostgreSQL image URL.
 	DefaultPostgresImage = "pgvector/pgvector:pg17"
 
-	// DefaultPostgresContainerName is the default name for the PostgreSQL container
+	// DefaultPostgresContainerName is the default name for the PostgreSQL container.
 	DefaultPostgresContainerName = "enchanted-twin-postgres-podman"
 
-	// DefaultPostgresPort is the default port PostgreSQL listens on
+	// DefaultPostgresPort is the default port PostgreSQL listens on.
 	DefaultPostgresPort = "5432"
 )
 
@@ -43,7 +43,7 @@ func (a *podmanPostgresAdapter) EnsureDatabase(ctx context.Context, dbName strin
 	return a.manager.EnsureDatabase(ctx, dbName)
 }
 
-// PostgresOptions represents configuration options for a PostgreSQL container
+// PostgresOptions represents configuration options for a PostgreSQL container.
 type PostgresOptions struct {
 	ImageURL      string // Image URL (default: "pgvector/pgvector:pg17")
 	ContainerName string // Container name (default: "enchanted-twin-postgres-podman")
@@ -54,7 +54,7 @@ type PostgresOptions struct {
 	Database      string // Default database to create (default: "postgres")
 }
 
-// DefaultPostgresOptions returns a PostgresOptions struct with default values
+// DefaultPostgresOptions returns a PostgresOptions struct with default values.
 func DefaultPostgresOptions() PostgresOptions {
 	// Use standard user config directory for data path
 	var baseDataDir string
@@ -86,14 +86,14 @@ func DefaultPostgresOptions() PostgresOptions {
 	}
 }
 
-// PostgresManager provides specialized functions for handling PostgreSQL containers
+// PostgresManager provides specialized functions for handling PostgreSQL containers.
 type PostgresManager struct {
 	podman  PodmanManager
 	options PostgresOptions
 	logger  *charmlog.Logger
 }
 
-// NewPostgresManager creates a new PostgresManager with the given options
+// NewPostgresManager creates a new PostgresManager with the given options.
 func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions) *PostgresManager {
 	// Merge with defaults for any unset fields
 	defaults := DefaultPostgresOptions()
@@ -127,8 +127,7 @@ func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions) *Postg
 	}
 }
 
-// StartPostgresContainer starts a PostgreSQL container
-// Returns: containerID string and error
+// Returns: containerID string and error.
 func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, error) {
 	// First check if Podman is running
 	running, err := p.podman.IsMachineRunning(ctx)
@@ -212,7 +211,7 @@ func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, e
 	return containerID, nil
 }
 
-// createInitScript creates an SQL init script that will run when the container starts
+// createInitScript creates an SQL init script that will run when the container starts.
 func createInitScript(path string, user string, dbName string) error {
 	script := fmt.Sprintf(`
 -- Make the user a superuser to avoid permission issues
@@ -234,7 +233,7 @@ GRANT ALL PRIVILEGES ON DATABASE %s TO %s;
 	return os.WriteFile(path, []byte(script), 0o644)
 }
 
-// setupPostgreSQL performs the necessary setup for PostgreSQL
+// setupPostgreSQL performs the necessary setup for PostgreSQL.
 func (p *PostgresManager) setupPostgreSQL(ctx context.Context) error {
 	// Wait for PostgreSQL to be ready first
 	if err := p.WaitForReady(ctx, 30*time.Second); err != nil {
@@ -296,7 +295,7 @@ func (p *PostgresManager) setupPostgreSQL(ctx context.Context) error {
 	return nil
 }
 
-// createDatabase creates the specified database and ensures it has proper permissions
+// createDatabase creates the specified database and ensures it has proper permissions.
 func (p *PostgresManager) createDatabase(ctx context.Context, dbName string) error {
 	p.logger.Info("Creating database", "database", dbName)
 
@@ -335,7 +334,7 @@ func (p *PostgresManager) createDatabase(ctx context.Context, dbName string) err
 	return nil
 }
 
-// EnsureDatabase ensures a database exists in PostgreSQL, creating it if it doesn't
+// EnsureDatabase ensures a database exists in PostgreSQL, creating it if it doesn't.
 func (p *PostgresManager) EnsureDatabase(ctx context.Context, dbName string) error {
 	p.logger.Info("Database should already be set up - verifying existence")
 
@@ -447,7 +446,7 @@ func (p *PostgresManager) WaitForReady(ctx context.Context, maxWaitTime time.Dur
 	return fmt.Errorf("timeout waiting for PostgreSQL to be ready after %d attempts", attemptCount)
 }
 
-// ExecuteSQLCommand executes a SQL command in the PostgreSQL container
+// ExecuteSQLCommand executes a SQL command in the PostgreSQL container.
 func (p *PostgresManager) ExecuteSQLCommand(ctx context.Context, command string) (string, error) {
 	m, ok := p.podman.(*DefaultManager)
 	if !ok {
@@ -478,7 +477,7 @@ func (p *PostgresManager) ExecuteSQLCommand(ctx context.Context, command string)
 	return output, nil
 }
 
-// configurePostgres configures PostgreSQL to accept external connections
+// configurePostgres configures PostgreSQL to accept external connections.
 func (p *PostgresManager) configurePostgres(ctx context.Context) {
 	p.logger.Info("Configuring PostgreSQL for external connections")
 
@@ -519,7 +518,7 @@ func (p *PostgresManager) configurePostgres(ctx context.Context) {
 	}
 }
 
-// GetConnectionString returns the connection string for PostgreSQL
+// GetConnectionString returns the connection string for PostgreSQL.
 func (p *PostgresManager) GetConnectionString(dbName string) string {
 	// If dbName is empty, use the default database
 	if dbName == "" {
@@ -530,7 +529,7 @@ func (p *PostgresManager) GetConnectionString(dbName string) string {
 		p.options.User, p.options.Password, p.options.Port, dbName)
 }
 
-// IsContainerRunning checks if a container is running
+// IsContainerRunning checks if a container is running.
 func (p *PostgresManager) IsContainerRunning(ctx context.Context, containerID string) (bool, error) {
 	m, ok := p.podman.(*DefaultManager)
 	if !ok {
@@ -551,7 +550,7 @@ func (p *PostgresManager) IsContainerRunning(ctx context.Context, containerID st
 	return strings.TrimSpace(output) == "true", nil
 }
 
-// CheckContainerExists checks if a container with the given name exists
+// CheckContainerExists checks if a container with the given name exists.
 func (p *PostgresManager) CheckContainerExists(ctx context.Context, containerName string) (bool, string, error) {
 	m, ok := p.podman.(*DefaultManager)
 	if !ok {
@@ -573,7 +572,7 @@ func (p *PostgresManager) CheckContainerExists(ctx context.Context, containerNam
 	return containerID != "", containerID, nil
 }
 
-// StartContainer starts an existing container
+// StartContainer starts an existing container.
 func (p *PostgresManager) StartContainer(ctx context.Context, containerID string) error {
 	m, ok := p.podman.(*DefaultManager)
 	if !ok {
@@ -594,7 +593,7 @@ func (p *PostgresManager) StartContainer(ctx context.Context, containerID string
 	return nil
 }
 
-// RemoveContainer removes a container
+// RemoveContainer removes a container.
 func (p *PostgresManager) RemoveContainer(ctx context.Context, containerID string) error {
 	m, ok := p.podman.(*DefaultManager)
 	if !ok {
@@ -615,7 +614,7 @@ func (p *PostgresManager) RemoveContainer(ctx context.Context, containerID strin
 	return nil
 }
 
-// Stop stops the container
+// Stop stops the container.
 func (p *PostgresManager) Stop(ctx context.Context) error {
 	m, ok := p.podman.(*DefaultManager)
 	if !ok {
@@ -646,7 +645,7 @@ func (p *PostgresManager) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Remove removes the container
+// Remove removes the container.
 func (p *PostgresManager) Remove(ctx context.Context) error {
 	// Check if container exists
 	exists, containerID, err := p.CheckContainerExists(ctx, p.options.ContainerName)
