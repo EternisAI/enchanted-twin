@@ -30,7 +30,6 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
-	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
@@ -355,7 +354,7 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-// PostgresProvider is an interface that abstracts different PostgreSQL providers
+// PostgresProvider is an interface that abstracts different PostgreSQL providers.
 type PostgresProvider interface {
 	Stop(ctx context.Context) error
 	Remove(ctx context.Context) error
@@ -365,7 +364,7 @@ type PostgresProvider interface {
 
 // podmanPostgresAdapter adapts PostgresManager to PostgresProvider
 
-// bootstrapPostgresPodman starts a PostgreSQL container using Podman
+// bootstrapPostgresPodman starts a PostgreSQL container using Podman.
 func bootstrapPostgresPodman(ctx context.Context, logger *log.Logger) (*podman.PostgresManager, error) {
 	// Create options with default port
 	options := podman.DefaultPostgresOptions()
@@ -412,28 +411,13 @@ type bootstrapTemporalWorkerInput struct {
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		kokoroDockerPort = 45000
-		ttsWsPort        = 45001
-		image            = "ghcr.io/remsky/kokoro-fastapi-cpu"
+		// Port exposed on the host for the Kokoro API (must match bootstrapPodman)
+		kokoroPort = 8765
+		ttsWsPort  = 45001
 	)
 
-	dockerSvc, err := docker.NewService(docker.ContainerOptions{
-		ImageName: image,
-		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprint(kokoroDockerPort): "8880"},
-		Detached:  true,
-	}, logger)
-	if err != nil {
-		logger.Error("docker service init", "error", err)
-		return nil, errors.Wrap(err, "docker service init")
-	}
-	if err := dockerSvc.RunContainer(context.Background()); err != nil {
-		logger.Error("docker run", "error", err)
-		return nil, errors.Wrap(err, "docker run")
-	}
-
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroDockerPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
