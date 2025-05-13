@@ -22,7 +22,7 @@ func TestDbConnection(ctx context.Context, connString string, logger *charmlog.L
 	for i := 0; i < maxAttempts; i++ {
 		db, err := sql.Open("postgres", connString)
 		if err == nil {
-			defer db.Close()
+			defer db.Close() //nolint:errcheck
 
 			pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			err = db.PingContext(pingCtx)
@@ -39,7 +39,7 @@ func TestDbConnection(ctx context.Context, connString string, logger *charmlog.L
 					if qErr != nil {
 						logger.Warn("Failed to list tables", "error", qErr)
 					} else {
-						defer rows.Close()
+						defer rows.Close() //nolint:errcheck
 						var tables []string
 						for rows.Next() {
 							var tbl string
