@@ -26,7 +26,7 @@ const types: MediaType[] = ['camera', 'microphone', 'screen']
 const typeConfig: Record<MediaType, { icon: LucideIcon; title: string }> = {
   camera: { icon: Camera, title: 'Camera' },
   microphone: { icon: Mic, title: 'Microphone' },
-  screen: { icon: Monitor, title: 'Screen Sharing' } // Changed title for clarity
+  screen: { icon: Monitor, title: 'Screen Recording' }
 }
 
 const explanations: Record<MediaType, string> = {
@@ -115,6 +115,11 @@ export default function MediaStatus() {
 
   useEffect(() => {
     queryAllMediaStatus()
+    const interval = setInterval(() => {
+      queryAllMediaStatus()
+    }, 5000)
+
+    return () => clearInterval(interval)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run only on mount
 

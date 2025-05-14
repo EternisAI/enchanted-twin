@@ -1,4 +1,3 @@
-import { Dialog, DialogContent, DialogTitle } from '@renderer/components/ui/dialog'
 import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
 import { DataSourcesPanel } from '@renderer/components/data-sources/DataSourcesPanel'
 import MCPPanel from '@renderer/components/oauth/MCPPanel'
@@ -95,59 +94,66 @@ const settingsTabs = [
   }
 ]
 
-export function SettingsDialog() {
-  const { isOpen, close, activeTab, setActiveTab } = useSettingsStore()
+// Renamed from SettingsDialog to SettingsPage
+// Removed Dialog, DialogTitle, DialogContent wrappers
+export function SettingsPage() {
+  const { activeTab, setActiveTab } = useSettingsStore() // Removed isOpen and close
 
   return (
-    <Dialog open={isOpen} onOpenChange={close}>
-      <DialogTitle asChild className="sr-only">
-        Settings
-      </DialogTitle>
-      <DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0">
-        <div className="flex h-full w-full">
-          <Tabs.Root
-            value={activeTab}
-            onValueChange={setActiveTab}
-            className="flex h-full w-full"
-            orientation="vertical"
-          >
-            <Tabs.List className="w-[240px] bg-muted/50 p-4 flex flex-col gap-1">
-              {settingsTabs.map((tab) => (
-                <Tabs.Trigger
-                  key={tab.value}
-                  value={tab.value}
-                  className="flex items-center gap-2 w-full p-2 data-[state=active]:bg-accent rounded-md justify-start text-sm"
-                >
-                  <tab.icon className="h-4 w-4" />
-                  {tab.label}
-                </Tabs.Trigger>
-              ))}
-            </Tabs.List>
+    // Removed Dialog and DialogContent, using a simple div for page structure.
+    // The overall page structure (like padding, max-width) will now be controlled
+    // by the route component (SettingsRouteComponent) and this component.
+    <div className="flex h-full w-full">
+      {' '}
+      {/* Was previously DialogContent className="!max-w-[95vw] w-full h-[90vh] p-0" */}
+      <Tabs.Root
+        value={activeTab}
+        onValueChange={setActiveTab}
+        className="flex h-full w-full" // Ensure this takes full height/width within its container
+        orientation="vertical"
+      >
+        {/* Tabs.List no longer needs a back button here, as it's in SettingsRouteComponent */}
+        <Tabs.List className="w-[240px] bg-muted/50 p-4 flex flex-col gap-1 border-r">
+          {' '}
+          {/* Added border-r for separation */}
+          {settingsTabs.map((tab) => (
+            <Tabs.Trigger
+              key={tab.value}
+              value={tab.value}
+              className="flex items-center gap-2 w-full p-2 data-[state=active]:bg-accent rounded-md justify-start text-sm"
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+            </Tabs.Trigger>
+          ))}
+        </Tabs.List>
 
-            <div className="flex-1 relative w-full">
-              {settingsTabs.map((tab) => (
-                <Tabs.Content
-                  key={tab.value}
-                  value={tab.value}
-                  className="absolute inset-0 outline-none focus:ring-0 transition-opacity duration-300 ease-in-out data-[state=active]:opacity-100 data-[state=inactive]:opacity-0 data-[state=inactive]:pointer-events-none"
+        <div className="flex-1 relative w-full">
+          {' '}
+          {/* Ensure this takes remaining width */}
+          {settingsTabs.map((tab) => (
+            <Tabs.Content
+              key={tab.value}
+              value={tab.value}
+              className="absolute inset-0 outline-none focus:ring-0 transition-opacity duration-300 ease-in-out data-[state=active]:opacity-100 data-[state=inactive]:opacity-0 data-[state=inactive]:pointer-events-none"
+            >
+              <ScrollArea className="h-full">
+                {' '}
+                {/* Ensure ScrollArea takes full height of its container */}
+                <div
+                  className={`p-8 ${tab.fullWidth ? '' : 'max-w-3xl mx-auto'}`} // Simplified layout, removed flex justify-center and min-h-full as ScrollArea handles height
                 >
-                  <ScrollArea className="h-full">
-                    <div
-                      className={`flex justify-center p-8 min-h-full ${tab.fullWidth ? 'items-start' : ''}`}
-                    >
-                      <div
-                        className={`flex flex-col gap-4 ${tab.fullWidth ? 'w-full' : 'w-full max-w-3xl'}`}
-                      >
-                        {tab.content}
-                      </div>
-                    </div>
-                  </ScrollArea>
-                </Tabs.Content>
-              ))}
-            </div>
-          </Tabs.Root>
+                  <div className={`flex flex-col gap-4 ${tab.fullWidth ? 'w-full' : 'w-full'}`}>
+                    {' '}
+                    {/* max-w-3xl is handled by parent now */}
+                    {tab.content}
+                  </div>
+                </div>
+              </ScrollArea>
+            </Tabs.Content>
+          ))}
         </div>
-      </DialogContent>
-    </Dialog>
+      </Tabs.Root>
+    </div>
   )
 }

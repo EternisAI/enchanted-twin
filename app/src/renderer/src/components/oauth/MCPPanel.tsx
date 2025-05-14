@@ -12,7 +12,9 @@ import ConnectMCPServerButton from './MCPConnectServerButton'
 
 export default function MCPPanel({ header = true }: { header?: boolean }) {
   const { data: toolsData } = useQuery(GetToolsDocument)
-  const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
+  const { data, loading, error, refetch } = useQuery(GetMcpServersDocument, {
+    fetchPolicy: 'network-only'
+  })
   const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
     onCompleted: () => {
       toast.success('MCP server removed')

@@ -13,7 +13,7 @@ import { URL } from 'url'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
-import { registerScreenpipeIpc, installAndStartScreenpipe, cleanupScreenpipe } from './screenpipe'
+import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
 
 const PATHNAME = 'input_data'
@@ -473,14 +473,6 @@ app.whenReady().then(async () => {
 
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
-
-  installAndStartScreenpipe().then((result) => {
-    if (!result.success) {
-      log.error(`Failed to install screenpipe: ${result.error}`)
-      createErrorWindow(`Failed to install screenpipe: ${result.error}`)
-      return
-    }
-  })
 
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {
