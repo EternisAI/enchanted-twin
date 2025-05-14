@@ -13,6 +13,7 @@ type TaskScheduleWorkflowInput struct {
 	ChatID string `json:"chat_id"`
 	Delay  int    `json:"delay"`
 	Cron   string `json:"cron"`
+	Notify bool   `json:"notify"`
 }
 
 type TaskScheduleWorkflowOutput struct {
@@ -50,6 +51,7 @@ func TaskScheduleWorkflow(ctx workflow.Context, input *TaskScheduleWorkflowInput
 		Task:           input.Task,
 		PreviousResult: lastWorkflowResult,
 		ChatID:         input.ChatID,
+		Notify:         input.Notify,
 	}
 	if err := workflow.ExecuteActivity(
 		ctx,

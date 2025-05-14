@@ -122,13 +122,15 @@ func (a *Agent) Execute(
 				a.logger.Error("Error unmarshalling tool call arguments", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments, "error", err)
 				return AgentResponse{}, err
 			}
-			args["origin"] = origin
 
 			toolResult, err := tool.Execute(ctx, args)
 			if err != nil {
 				a.logger.Error("Error executing tool", "name", toolCall.Function.Name, "args", args, "error", err)
 				return AgentResponse{}, err
 			}
+
+			// extracting image URLs from content
+			imageURLs = append(imageURLs, extractImageURLs(toolResult.Content())...)
 
 			// send message with isCompleted true
 			a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_content", toolResult.Content(), "tool_image_urls", toolResult.ImageURLs())

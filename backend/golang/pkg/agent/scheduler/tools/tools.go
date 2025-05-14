@@ -24,7 +24,6 @@ type ScheduleTask struct {
 }
 
 func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
-	e.Logger.Info("Executing schedule_task tool", "inputs", inputs)
 	task, ok := inputs["task"].(string)
 	if !ok {
 		return nil, errors.New("task is required")
@@ -58,7 +57,7 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		Action: &client.ScheduleWorkflowAction{
 			ID:        id,
 			Workflow:  "TaskScheduleWorkflow",
-			Args:      []any{map[string]any{"task": task, "name": name, "chat_id": chatID, "delay": delay, "cron": cron}},
+			Args:      []any{map[string]any{"task": task, "name": name, "chat_id": chatID, "delay": delay, "cron": cron, "notify": true}},
 			TaskQueue: "default",
 		},
 		Overlap: enums.SCHEDULE_OVERLAP_POLICY_SKIP,
@@ -107,11 +106,11 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 				"properties": map[string]any{
 					"name": map[string]string{
 						"type":        "string",
-						"description": "The name of the task, should be witty and short. Use spaces to separate words.",
+						"description": "The name of the task, should be witty and under 30 characters. Use spaces to separate words.",
 					},
 					"task": map[string]string{
 						"type":        "string",
-						"description": "The task that agent should execute. It should contain all information nescessary to accomplish the task. It should not include any cron or delay information.",
+						"description": "The task that agent should execute. It should contain all information nescessary to accomplish the task. It should not include cron, delay or name of your human.",
 					},
 					"delay": map[string]string{
 						"type":        "number",

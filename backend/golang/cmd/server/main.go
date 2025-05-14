@@ -33,6 +33,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -226,6 +227,8 @@ func main() {
 		toolRegistry.List(),
 	)
 
+	notificationsSvc := notifications.NewService(nc)
+
 	// Initialize and start the temporal worker
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
@@ -238,6 +241,7 @@ func main() {
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
 			toolsRegistry:        toolRegistry,
+			notifications:        notificationsSvc,
 		},
 	)
 	if err != nil {
@@ -368,6 +372,7 @@ type bootstrapTemporalWorkerInput struct {
 	memory               memory.Storage
 	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
+	notifications        *notifications.Service
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
@@ -425,7 +430,7 @@ func bootstrapTemporalWorker(
 
 	// Register the planned agent v2 workflow
 	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, nil, nil)
-	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel)
+	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
 	// Start the worker
