@@ -1,4 +1,4 @@
-package podman
+package container
 
 import (
 	"context"
