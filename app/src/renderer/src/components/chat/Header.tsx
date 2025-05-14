@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { motion, AnimatePresence, LayoutGroup } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { Input } from '@renderer/components/ui/input'
 import { Textarea } from '@renderer/components/ui/textarea'
 import {
@@ -286,7 +286,7 @@ export function Header() {
         </motion.div>
       </div>
 
-      <div className="relative w-full">
+      <motion.div layout className="relative w-full">
         <form onSubmit={handleSubmit} className="relative w-full">
           <div className="flex items-center gap-6 p-1">
             <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border px-2">
@@ -304,35 +304,33 @@ export function Header() {
                 className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
                 rows={1}
               />
-              <div className="flex items-center self-end gap-1 pb-2">
-                <LayoutGroup id="chat-input-buttons">
-                  <motion.div layout>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            type="button"
-                            size="icon"
-                            className="h-10 w-10 rounded-full"
-                          >
-                            <AudioLines className="h-5 w-5" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Voice chat (coming soon)</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </motion.div>
-                  <SendButton
-                    className="w-10 h-10"
-                    text={query}
-                    onSend={handleCreateChat}
-                    isWaitingTwinResponse={false}
-                  />
-                </LayoutGroup>
-              </div>
+              <motion.div className="flex items-center self-end gap-1 pb-2">
+                <motion.div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          type="button"
+                          size="icon"
+                          className="h-10 w-10 rounded-full"
+                        >
+                          <AudioLines className="h-5 w-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Voice chat (coming soon)</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </motion.div>
+                <SendButton
+                  className="w-10 h-10"
+                  text={query}
+                  onSend={handleCreateChat}
+                  isWaitingTwinResponse={false}
+                />
+              </motion.div>
             </div>
           </div>
         </form>
@@ -426,7 +424,7 @@ export function Header() {
             </div>
           </motion.div>
         </AnimatePresence>
-      </div>
+      </motion.div>
     </motion.div>
   )
 }

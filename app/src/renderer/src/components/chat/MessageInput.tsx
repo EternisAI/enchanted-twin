@@ -64,15 +64,10 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       onClick={handleClickContainer}
     >
-      <motion.div
-        layout="position"
-        className="flex items-center gap-3 w-full"
-        transition={{ layout: { duration: 0.2, ease: 'easeInOut' } }}
-      >
+      <div className="flex items-center gap-3 w-full">
         <motion.textarea
           ref={textareaRef}
           value={text}
-          layout="position"
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={1}
@@ -80,8 +75,8 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           placeholder="Type a message..."
           className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[15rem]"
         />
-      </motion.div>
-      <motion.div layout="position" className="flex justify-end items-center gap-3">
+      </div>
+      <div className="flex justify-end items-center gap-3">
         {/* <Button
           onClick={toggleDeepMemory}
           className={cn(
@@ -99,7 +94,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           onStop={onStop}
           text={text}
         />
-      </motion.div>
+      </div>
     </motion.div>
   )
 }
@@ -158,7 +153,10 @@ export function SendButton({
             transition={{ duration: 0.4, ease: 'easeOut' }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <ArrowBigUp className="w-4 h-4" />
+            <ArrowBigUp
+              className="w-4 h-4"
+              fill={!isWaitingTwinResponse && !!text.trim() ? 'currentColor' : 'none'}
+            />
           </motion.div>
         )}
       </AnimatePresence>

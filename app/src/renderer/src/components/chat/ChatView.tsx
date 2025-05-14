@@ -152,7 +152,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex-1 overflow-y-auto pt-14 w-full">
+      <div className="flex-1 overflow-y-auto w-full">
         <div className="flex flex-col items-center p-4 w-full">
           <div className="w-full">
             <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />

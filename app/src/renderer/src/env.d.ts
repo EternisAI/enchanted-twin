@@ -22,7 +22,9 @@ interface IApi {
   getPathForFile: (file: string) => string
   copyDroppedFiles: (paths: string[]) => Promise<string[]>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
-  selectFiles: (options?: { filters?: { name: string; extensions: string[] }[] }) => Promise<{ canceled: boolean; filePaths: string[] }>
+  selectFiles: (options?: {
+    filters?: { name: string; extensions: string[] }[]
+  }) => Promise<{ canceled: boolean; filePaths: string[] }>
   getNativeTheme: () => Promise<'light' | 'dark'>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
@@ -51,10 +53,21 @@ interface IApi {
   restartApp: () => Promise<void>
   onOpenSettings: (callback: () => void) => void
   screenpipe: {
-    getStatus: () => Promise<boolean>
-    start: () => Promise<boolean>
+    getStatus: () => Promise<ScreenpipeStatus>
+    install: () => Promise<ScreenpipeResult>
+    start: () => Promise<ScreenpipeResult>
     stop: () => Promise<boolean>
   }
+}
+
+interface ScreenpipeStatus {
+  isRunning: boolean
+  isInstalled: boolean
+}
+
+interface ScreenpipeResult {
+  success: boolean
+  error?: string
 }
 
 declare global {
