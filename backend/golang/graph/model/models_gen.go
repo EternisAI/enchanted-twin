@@ -9,15 +9,17 @@ import (
 )
 
 type AgentTask struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Schedule     string  `json:"schedule"`
-	Plan         *string `json:"plan,omitempty"`
-	CreatedAt    string  `json:"createdAt"`
-	UpdatedAt    string  `json:"updatedAt"`
-	CompletedAt  *string `json:"completedAt,omitempty"`
-	TerminatedAt *string `json:"terminatedAt,omitempty"`
-	Output       *string `json:"output,omitempty"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Schedule     string   `json:"schedule"`
+	Plan         *string  `json:"plan,omitempty"`
+	CreatedAt    string   `json:"createdAt"`
+	UpdatedAt    string   `json:"updatedAt"`
+	CompletedAt  *string  `json:"completedAt,omitempty"`
+	TerminatedAt *string  `json:"terminatedAt,omitempty"`
+	Output       *string  `json:"output,omitempty"`
+	UpcomingRuns []string `json:"upcomingRuns"`
+	PreviousRuns []string `json:"previousRuns"`
 }
 
 type AppNotification struct {
@@ -134,6 +136,11 @@ type OAuthStatus struct {
 }
 
 type Query struct {
+}
+
+type SetupProgress struct {
+	Name     string `json:"name"`
+	Progress int32  `json:"progress"`
 }
 
 type Subscription struct {

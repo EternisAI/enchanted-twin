@@ -264,3 +264,16 @@ func (m *DockerManager) ExecCommand(ctx context.Context, cmd string, args []stri
 	}
 	return string(output), nil
 }
+
+func (m *DockerManager) GetImageProgress(ctx context.Context, imageURL string) (int, error) {
+	// Simple implementation: if the image already exists locally, we assume the download is complete (100%).
+	// Otherwise, the image has not been downloaded yet, so report 0% progress.
+	exists, err := m.imageExists(ctx, imageURL)
+	if err != nil {
+		return 0, err
+	}
+	if exists {
+		return 100, nil
+	}
+	return 0, nil
+}

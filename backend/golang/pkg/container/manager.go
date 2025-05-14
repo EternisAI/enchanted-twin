@@ -46,6 +46,8 @@ type ContainerManager interface {
 	// Helper accessors
 	Executable() string
 	DefaultTimeout() time.Duration
+
+	GetImageProgress(ctx context.Context, imageURL string) (int, error)
 }
 
 // NewManager returns a ContainerManager backed by Podman or Docker depending on
@@ -58,4 +60,22 @@ func NewManager(containerRuntime string) ContainerManager {
 	default:
 		return newPodmanManager()
 	}
+}
+
+type ImageContainer struct {
+	ImageURL    string
+	ContainerID string
+	DefaultPort string
+}
+
+var KokoroContainer = ImageContainer{
+	ImageURL:    "ghcr.io/remsky/kokoro-fastapi-cpu:latest",
+	ContainerID: "kokoro-fastapi",
+	DefaultPort: "8880",
+}
+
+var PostgresContainer = ImageContainer{
+	ImageURL:    "pgvector/pgvector:pg17",
+	ContainerID: "enchanted-twin-postgres-pgvector",
+	DefaultPort: "5432",
 }

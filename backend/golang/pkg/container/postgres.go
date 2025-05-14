@@ -13,17 +13,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	// DefaultPostgresImage is the default PostgreSQL image URL.
-	DefaultPostgresImage = "pgvector/pgvector:pg17"
-
-	// DefaultPostgresContainerName is the default name for the PostgreSQL container.
-	DefaultPostgresContainerName = "enchanted-twin-postgres-podman"
-
-	// DefaultPostgresPort is the default port PostgreSQL listens on.
-	DefaultPostgresPort = "5432"
-)
-
 // PostgresOptions represents configuration options for a PostgreSQL container.
 type PostgresOptions struct {
 	ImageURL      string // Image URL (default: "pgvector/pgvector:pg17")
@@ -57,9 +46,9 @@ func DefaultPostgresOptions() PostgresOptions {
 	dataPath := filepath.Join(baseDataDir, "enchanted", "db", "postgres-podman-data")
 
 	return PostgresOptions{
-		ImageURL:      DefaultPostgresImage,
-		ContainerName: DefaultPostgresContainerName,
-		Port:          DefaultPostgresPort,
+		ImageURL:      PostgresContainer.ImageURL,
+		ContainerName: PostgresContainer.ContainerID,
+		Port:          PostgresContainer.DefaultPort,
 		DataPath:      dataPath,
 		User:          "postgres",
 		Password:      "postgres",
