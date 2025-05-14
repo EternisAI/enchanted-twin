@@ -9,14 +9,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
-
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
@@ -24,6 +19,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -317,6 +317,46 @@ func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool
 	return true, nil
 }
 
+// UpdateAgentTask sets the Notify flag for the given schedule.
+func (r *mutationResolver) UpdateAgentTask(
+	ctx context.Context,
+	id string,
+	notify bool,
+) (bool, error) {
+	h := r.TemporalClient.ScheduleClient().GetHandle(ctx, id)
+	err := h.Update(ctx, client.ScheduleUpdateOptions{
+		DoUpdate: func(in client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
+			sched := in.Description.Schedule
+			wfAct, ok := sched.Action.(*client.ScheduleWorkflowAction)
+			if !ok || len(wfAct.Args) == 0 {
+				return nil, fmt.Errorf("schedule %q has no workflow args", id)
+			}
+
+			pl, ok := wfAct.Args[0].(*common.Payload)
+			if !ok {
+				return nil, fmt.Errorf("first arg not *common.Payload")
+			}
+
+			var arg scheduler.TaskScheduleWorkflowInput
+			if err := json.Unmarshal(pl.Data, &arg); err != nil {
+				return nil, err
+			}
+			arg.Notify = notify
+
+			raw, err := json.Marshal(arg)
+			if err != nil {
+				return nil, err
+			}
+			pl.Data = raw
+			return &client.ScheduleUpdate{Schedule: &sched}, nil
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // RemoveMCPServer is the resolver for the removeMCPServer field.
 func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool, error) {
 	err := r.MCPService.RemoveMCPServer(ctx, id)
@@ -506,9 +546,13 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			CompletedAt:  nil,
 			TerminatedAt: nil,
 			Output:       nil,
+			Notify:       wfArgsData.Notify,
 		}
 		agentTasks = append(agentTasks, task)
 	}
+	sort.Slice(agentTasks, func(i, j int) bool {
+		return agentTasks[i].CreatedAt > agentTasks[j].CreatedAt
+	})
 	return agentTasks, nil
 }
 
@@ -631,6 +675,24 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 // NotificationAdded is the resolver for the notificationAdded field.
 func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
 	notificationChan := make(chan *model.AppNotification, 10)
+	subject := "notifications.app"
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var notification model.AppNotification
+		if err := json.Unmarshal(msg.Data, &notification); err != nil {
+			return
+		}
+		notificationChan <- &notification
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(notificationChan)
+	}()
 
 	return notificationChan, nil
 }
@@ -790,10 +852,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

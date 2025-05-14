@@ -1,8 +1,9 @@
-import { ipcMain, Notification, shell } from 'electron'
+import { ipcMain, Notification, shell, nativeImage } from 'electron'
 import { BrowserWindow } from 'electron'
 import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 import { existsSync } from 'fs'
 import { exec } from 'child_process'
+import fetch from 'node-fetch'
 
 export function notificationsSupported(): boolean {
   return Notification.isSupported()
@@ -34,19 +35,46 @@ function checkNotificationStatus(): Promise<boolean> {
   })
 }
 
+async function fetchNotificationIcon(iconUrl: string): Promise<Electron.NativeImage | undefined> {
+  try {
+    console.log('fetchNotificationIcon', iconUrl)
+    const res = await fetch(iconUrl)
+    if (res.ok) {
+      const arrayBuffer = await res.arrayBuffer()
+      const buffer = Buffer.from(arrayBuffer)
+      const img = nativeImage.createFromBuffer(buffer)
+      if (!img.isEmpty()) {
+        return img
+      }
+    }
+  } catch (err) {
+    console.error('Failed to fetch notification icon:', err)
+  }
+  return undefined
+}
+
 export async function showOsNotification(
   win: BrowserWindow,
   notification: AppNotification
 ): Promise<boolean> {
   if (!notificationsSupported()) return false
+  console.log('notificationsSupported')
   const notificationEnabled = await checkNotificationStatus()
+  console.log('notificationEnabled', notificationEnabled)
 
   if (!notificationEnabled) return false
+
+  let icon: string | Electron.NativeImage | undefined = notification.image ?? undefined
+
+  if (icon && typeof icon === 'string' && /^https?:\/\//.test(icon)) {
+    icon = await fetchNotificationIcon(icon)
+  }
+  console.log('new icon', icon)
 
   const toast = new Notification({
     title: notification.title,
     body: notification.message,
-    icon: notification.image ?? undefined,
+    icon,
     silent: false
   })
 
