@@ -57,6 +57,7 @@ const api = {
   },
   screenpipe: {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
+    install: () => ipcRenderer.invoke('screenpipe:install'),
     start: () => ipcRenderer.invoke('screenpipe:start'),
     stop: () => ipcRenderer.invoke('screenpipe:stop')
   }
