@@ -105,6 +105,10 @@ function isScreenpipeInstalled(): boolean {
   const checkCommand = isWindows ? 'where screenpipe' : 'which screenpipe'
 
   try {
+    const home = homedir()
+    const localBin = path.join(home, '.local', 'bin')
+    process.env.PATH = `${process.env.PATH}:${localBin}`
+    log.info('Application PATH', process.env.PATH)
     execSync(checkCommand)
     log.info('Screenpipe already installed')
     return true
