@@ -64,10 +64,9 @@ type PostgresManager struct {
 }
 
 // NewPostgresManager creates a new PostgresManager with the given options.
-func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions, containerRuntime string) *PostgresManager {
-	// Merge with defaults for any unset fields
+func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions, mgr ContainerManager) *PostgresManager {
+	// Apply defaults if not provided
 	defaults := DefaultPostgresOptions()
-
 	if options.ImageURL == "" {
 		options.ImageURL = defaults.ImageURL
 	}
@@ -91,7 +90,7 @@ func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions, contai
 	}
 
 	return &PostgresManager{
-		manager: NewManager(containerRuntime),
+		manager: mgr,
 		options: options,
 		logger:  logger,
 	}

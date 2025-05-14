@@ -62,6 +62,10 @@ func main() {
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 
+	// Shared container manager instance for the entire application so that we can
+	// track image-pull progress and reuse cached state across subsystems.
+	sharedContainerManager := container.NewManager(envs.ContainerRuntime)
+
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
 		baseURL, err := url.Parse(envs.OllamaBaseURL)
@@ -99,26 +103,31 @@ func main() {
 	logger.Info("SQLite database initialized")
 
 	logger.Info("Initializing container runtime and Kokoro container...")
-	containerID, err := bootstrapKokoro(envs)
-	if err != nil {
-		logger.Warn("Failed to initialize container runtime and Kokoro container", "error", err)
-		logger.Info("Continuing without Kokoro container")
-	} else {
-		logger.Info("Kokoro container initialized successfully", "containerID", containerID)
 
-		defer func() {
-			logger.Info("Cleaning up Kokoro containers...")
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+	var containerID string
+	go func() {
+		var err error
+		containerID, err = bootstrapKokoro(envs, sharedContainerManager)
+		if err != nil {
+			logger.Warn("Failed to initialize container runtime and Kokoro container", "error", err)
+			logger.Info("Continuing without Kokoro container")
+		} else {
+			logger.Info("Kokoro container initialized successfully", "containerID", containerID)
+		}
+	}()
 
-			cleanupManager := container.NewManager(envs.ContainerRuntime)
-			if err := cleanupManager.CleanupContainer(ctx, container.KokoroContainer.ContainerID); err != nil {
-				logger.Error("Failed to clean up Kokoro containers", "error", err)
-			} else {
-				logger.Info("All Kokoro containers cleaned up successfully")
-			}
-		}()
-	}
+	defer func() {
+		logger.Info("Cleaning up Kokoro containers...")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+
+		cleanupManager := sharedContainerManager
+		if err := cleanupManager.CleanupContainer(ctx, container.KokoroContainer.ContainerID); err != nil {
+			logger.Error("Failed to clean up Kokoro containers", "error", err)
+		} else {
+			logger.Info("All Kokoro containers cleaned up successfully")
+		}
+	}()
 
 	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
@@ -129,14 +138,14 @@ func main() {
 	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	postgresManager, err := bootstrapPostgres(postgresCtx, logger, envs)
+	postgresManager, err := bootstrapPostgres(postgresCtx, logger, sharedContainerManager)
 	if err != nil {
 		logger.Error("Failed to start PostgreSQL with container manager", "error", err)
 		panic(errors.Wrap(err, "Failed to start PostgreSQL with container manager"))
 	}
 
 	defer func() {
-		manager := container.NewManager(envs.ContainerRuntime)
+		manager := sharedContainerManager
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -332,7 +341,7 @@ func main() {
 		aiService:        aiCompletionsService,
 		mcpService:       mcpService,
 		telegramService:  telegramService,
-		containerManager: container.NewManager(envs.ContainerRuntime),
+		containerManager: sharedContainerManager,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -516,13 +525,11 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapKokoro(envs *config.Config) (string, error) {
+func bootstrapKokoro(envs *config.Config, manager container.ContainerManager) (string, error) {
 	log := logrus.WithField("component", "container-runtime-bootstrap")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-
-	manager := container.NewManager(envs.ContainerRuntime)
 
 	installed, err := manager.IsInstalled(ctx)
 	if err != nil {
@@ -589,9 +596,13 @@ func bootstrapKokoro(envs *config.Config) (string, error) {
 	}
 
 	log.Info("Pulling the Kokoro image...")
-	if err := manager.PullImage(ctx, container.KokoroContainer.ImageURL); err != nil {
+	ch, err := manager.PullImage(ctx, container.KokoroContainer.ImageURL)
+	if err != nil {
 		return "", fmt.Errorf("failed to pull Kokoro image: %w", err)
 	}
+	for range ch {
+	}
+	log.Info("Image downloaded, starting container...")
 
 	containerConfig := container.ContainerConfig{
 		ImageURL:     container.KokoroContainer.ImageURL,
@@ -614,11 +625,11 @@ func bootstrapKokoro(envs *config.Config) (string, error) {
 	return containerID, nil
 }
 
-func bootstrapPostgres(ctx context.Context, logger *log.Logger, envs *config.Config) (*container.PostgresManager, error) {
+func bootstrapPostgres(ctx context.Context, logger *log.Logger, sharedContainerManager container.ContainerManager) (*container.PostgresManager, error) {
 	options := container.DefaultPostgresOptions()
 	options.Port = "15432"
 
-	postgresManager := container.NewPostgresManager(logger, options, envs.ContainerRuntime)
+	postgresManager := container.NewPostgresManager(logger, options, sharedContainerManager)
 
 	logger.Info("Starting PostgreSQL container with container...")
 	_, err := postgresManager.StartPostgresContainer(ctx)
