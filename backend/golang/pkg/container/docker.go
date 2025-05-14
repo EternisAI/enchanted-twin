@@ -44,7 +44,7 @@ func newDockerManager() ContainerManager {
 // Ensure DockerManager satisfies ContainerManager at compile-time.
 var _ ContainerManager = (*DockerManager)(nil)
 
-// helper to wrap exec.CommandContext creation
+// helper to wrap exec.CommandContext creation.
 func (m *DockerManager) commandContext(ctx context.Context, args ...string) *exec.Cmd {
 	return exec.CommandContext(ctx, m.executable, args...)
 }
