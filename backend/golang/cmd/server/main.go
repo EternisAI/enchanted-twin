@@ -98,10 +98,10 @@ func main() {
 
 	logger.Info("SQLite database initialized")
 
-	logger.Info("Initializing Podman and Kokoro container...")
-	containerID, err := bootstrapKokoro()
+	logger.Info("Initializing container runtime and Kokoro container...")
+	containerID, err := bootstrapKokoro(envs)
 	if err != nil {
-		logger.Warn("Failed to initialize Podman and Kokoro container", "error", err)
+		logger.Warn("Failed to initialize container runtime and Kokoro container", "error", err)
 		logger.Info("Continuing without Kokoro container")
 	} else {
 		logger.Info("Kokoro container initialized successfully", "containerID", containerID)
@@ -111,7 +111,7 @@ func main() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			cleanupManager := container.NewManager()
+			cleanupManager := container.NewManager(envs.ContainerRuntime)
 			if err := cleanupManager.CleanupContainer(ctx, DefaultKokoroContainerName); err != nil {
 				logger.Error("Failed to clean up Kokoro containers", "error", err)
 			} else {
@@ -125,18 +125,18 @@ func main() {
 	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	// Start PostgreSQL using Podman
+	// Start PostgreSQL using container runtime
 	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	postgresManager, err := bootstrapPostgres(postgresCtx, logger)
+	postgresManager, err := bootstrapPostgres(postgresCtx, logger, envs)
 	if err != nil {
-		logger.Error("Failed to start PostgreSQL with Podman", "error", err)
-		panic(errors.Wrap(err, "Failed to start PostgreSQL with Podman"))
+		logger.Error("Failed to start PostgreSQL with container manager", "error", err)
+		panic(errors.Wrap(err, "Failed to start PostgreSQL with container manager"))
 	}
 
 	defer func() {
-		manager := container.NewManager()
+		manager := container.NewManager(envs.ContainerRuntime)
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
@@ -513,42 +513,42 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapKokoro() (string, error) {
-	log := logrus.WithField("component", "podman-bootstrap")
+func bootstrapKokoro(envs *config.Config) (string, error) {
+	log := logrus.WithField("component", "container-runtime-bootstrap")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	manager := container.NewManager()
+	manager := container.NewManager(envs.ContainerRuntime)
 
 	installed, err := manager.IsInstalled(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to check if Podman is installed: %w", err)
+		return "", fmt.Errorf("failed to check if container runtime is installed: %w", err)
 	}
 
 	if !installed {
-		log.Warn("Podman is not installed. Please install Podman to enable container features.")
-		return "", fmt.Errorf("podman is not installed")
+		log.Warn("Container runtime is not installed. Please install container runtime to enable container features.")
+		return "", fmt.Errorf("container runtime is not installed")
 	}
 
 	machineExists, err := manager.IsMachineInstalled(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to check if Podman machine exists: %w", err)
+		return "", fmt.Errorf("failed to check if container runtime machine exists: %w", err)
 	}
 
 	if !machineExists {
-		log.Warn("Podman machine does not exist. Please initialize a Podman machine.")
-		return "", fmt.Errorf("podman machine does not exist")
+		log.Warn("Container runtime machine does not exist. Please initialize a container runtime machine.")
+		return "", fmt.Errorf("container runtime machine does not exist")
 	}
 
 	running, err := manager.IsMachineRunning(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to check if Podman is running: %w", err)
+		return "", fmt.Errorf("failed to check if container runtime is running: %w", err)
 	}
 
 	if !running {
-		log.Warn("Podman machine is not running. Please start the Podman machine.")
-		return "", fmt.Errorf("podman machine is not running")
+		log.Warn("Container runtime machine is not running. Please start the container runtime machine.")
+		return "", fmt.Errorf("container runtime machine is not running")
 	}
 
 	const containerName = "kokoro-fastapi"
@@ -611,16 +611,16 @@ func bootstrapKokoro() (string, error) {
 	return containerID, nil
 }
 
-func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*container.PostgresManager, error) {
+func bootstrapPostgres(ctx context.Context, logger *log.Logger, envs *config.Config) (*container.PostgresManager, error) {
 	options := container.DefaultPostgresOptions()
 	options.Port = "15432"
 
-	postgresManager := container.NewPostgresManager(logger, options)
+	postgresManager := container.NewPostgresManager(logger, options, envs.ContainerRuntime)
 
 	logger.Info("Starting PostgreSQL container with container...")
 	_, err := postgresManager.StartPostgresContainer(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL container with Podman: %w", err)
+		return nil, fmt.Errorf("failed to start PostgreSQL container with container runtime: %w", err)
 	}
 
 	return postgresManager, nil
@@ -642,7 +642,7 @@ const (
 	DefaultPostgresImage = "pgvector/pgvector:pg17"
 
 	// DefaultPostgresContainerName is the default name for the PostgreSQL container.
-	DefaultPostgresContainerName = "enchanted-twin-postgres-podman"
+	DefaultPostgresContainerName = "enchanted-twin-postgres-container-runtime"
 
 	// DefaultPostgresPort is the default port PostgreSQL listens on.
 	DefaultPostgresPort = "5432"

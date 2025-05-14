@@ -69,13 +69,13 @@ func DefaultPostgresOptions() PostgresOptions {
 
 // PostgresManager provides specialized functions for handling PostgreSQL containers.
 type PostgresManager struct {
-	podman  PodmanManager
+	manager ContainerManager
 	options PostgresOptions
 	logger  *charmlog.Logger
 }
 
 // NewPostgresManager creates a new PostgresManager with the given options.
-func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions) *PostgresManager {
+func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions, containerRuntime string) *PostgresManager {
 	// Merge with defaults for any unset fields
 	defaults := DefaultPostgresOptions()
 
@@ -102,7 +102,7 @@ func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions) *Postg
 	}
 
 	return &PostgresManager{
-		podman:  NewManager(),
+		manager: NewManager(containerRuntime),
 		options: options,
 		logger:  logger,
 	}
@@ -110,7 +110,7 @@ func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions) *Postg
 
 // Returns: containerID string and error.
 func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, error) {
-	running, err := p.podman.IsMachineRunning(ctx)
+	running, err := p.manager.IsMachineRunning(ctx)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to verify if Podman is running")
 	}
@@ -123,7 +123,7 @@ func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, e
 		return "", errors.Wrap(err, "failed to create data directory")
 	}
 
-	containerExists, containerID, err := p.podman.CheckContainerExists(ctx, p.options.ContainerName)
+	containerExists, containerID, err := p.manager.CheckContainerExists(ctx, p.options.ContainerName)
 	if err != nil {
 		p.logger.Warn("Failed to check if container exists: ", err)
 	}
@@ -133,7 +133,7 @@ func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, e
 
 		// Force remove the existing container to ensure a clean state
 		p.logger.Info("Removing existing PostgreSQL container to ensure clean state")
-		err = p.podman.RemoveContainer(ctx, containerID)
+		err = p.manager.RemoveContainer(ctx, containerID)
 		if err != nil {
 			p.logger.Warn("Failed to remove existing container: ", err)
 		}
@@ -163,7 +163,7 @@ func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, e
 	}
 
 	p.logger.Info("Starting PostgreSQL container with standard configuration")
-	containerID, err = p.podman.RunContainer(ctx, containerConfig)
+	containerID, err = p.manager.RunContainer(ctx, containerConfig)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to run PostgreSQL container")
 	}
@@ -247,15 +247,10 @@ func (p *PostgresManager) SetupPostgreSQL(ctx context.Context) error {
 		"-c", "SELECT 1",
 	}
 
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return fmt.Errorf("invalid podman manager type")
-	}
-
-	testCtx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+	testCtx, cancel := context.WithTimeout(ctx, p.manager.DefaultTimeout())
 	defer cancel()
 
-	output, err = m.ExecCommand(testCtx, m.executable, testArgs)
+	output, err = p.manager.ExecCommand(testCtx, p.manager.Executable(), testArgs)
 	if err != nil {
 		p.logger.Error("Failed to verify database access", "error", err, "output", output)
 		return errors.Wrap(err, "failed to verify database access")
@@ -322,15 +317,10 @@ func (p *PostgresManager) EnsureDatabase(ctx context.Context, dbName string) err
 			"-c", "SELECT 1",
 		}
 
-		m, ok := p.podman.(*DefaultManager)
-		if !ok {
-			return fmt.Errorf("invalid podman manager type")
-		}
-
-		testCtx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+		testCtx, cancel := context.WithTimeout(ctx, p.manager.DefaultTimeout())
 		defer cancel()
 
-		output, err := m.ExecCommand(testCtx, m.executable, testArgs)
+		output, err := p.manager.ExecCommand(testCtx, p.manager.Executable(), testArgs)
 		if err != nil {
 			p.logger.Error("Database exists but cannot connect to it", "error", err)
 			// Attempt to recreate
@@ -350,12 +340,6 @@ func (p *PostgresManager) EnsureDatabase(ctx context.Context, dbName string) err
 func (p *PostgresManager) WaitForReady(ctx context.Context, maxWaitTime time.Duration) error {
 	p.logger.Info("Waiting for PostgreSQL to be ready")
 
-	// Get manager instance for executing commands
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return fmt.Errorf("invalid podman manager type")
-	}
-
 	// Set up timeout
 	timeout := time.Now().Add(maxWaitTime)
 	attemptCount := 0
@@ -370,7 +354,7 @@ func (p *PostgresManager) WaitForReady(ctx context.Context, maxWaitTime time.Dur
 				p.options.ContainerName,
 			}
 
-			logOutput, _ := m.ExecCommand(ctx, m.executable, logsCmd)
+			logOutput, _ := p.manager.ExecCommand(ctx, p.manager.Executable(), logsCmd)
 			p.logger.Debug("PostgreSQL logs", "logs", logOutput)
 		}
 
@@ -403,7 +387,7 @@ func (p *PostgresManager) WaitForReady(ctx context.Context, maxWaitTime time.Dur
 				"--format", "{{.State.Status}}",
 				p.options.ContainerName,
 			}
-			statusOutput, _ := m.ExecCommand(ctx, m.executable, statusCmd)
+			statusOutput, _ := p.manager.ExecCommand(ctx, p.manager.Executable(), statusCmd)
 			p.logger.Error("Container status", "status", statusOutput)
 
 			return fmt.Errorf("PostgreSQL not ready after %d attempts: latest container status: %s",
@@ -416,15 +400,10 @@ func (p *PostgresManager) WaitForReady(ctx context.Context, maxWaitTime time.Dur
 
 // ExecuteSQLCommand executes a SQL command in the PostgreSQL container.
 func (p *PostgresManager) ExecuteSQLCommand(ctx context.Context, command string) (string, error) {
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return "", fmt.Errorf("invalid podman manager type")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+	ctx, cancel := context.WithTimeout(ctx, p.manager.DefaultTimeout())
 	defer cancel()
 
-	cmd := m.executable
+	cmd := p.manager.Executable()
 	args := []string{
 		"exec",
 		p.options.ContainerName,
@@ -437,7 +416,7 @@ func (p *PostgresManager) ExecuteSQLCommand(ctx context.Context, command string)
 	execCmd := cmd + " " + strings.Join(args, " ")
 	p.logger.Debug("Executing command", "command", execCmd)
 
-	output, err := m.ExecCommand(ctx, cmd, args)
+	output, err := p.manager.ExecCommand(ctx, cmd, args)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to execute SQL command")
 	}

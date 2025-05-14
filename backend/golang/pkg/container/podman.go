@@ -14,45 +14,10 @@ import (
 
 var log = logrus.WithField("component", "podman")
 
-// PodmanManager handles interactions with the Podman container runtime.
-type PodmanManager interface {
-	// IsInstalled checks if Podman is installed on the system
-	IsInstalled(ctx context.Context) (bool, error)
-
-	// IsMachineInstalled checks if a Podman machine exists
-	IsMachineInstalled(ctx context.Context) (bool, error)
-
-	// IsMachineRunning checks if a Podman machine is running
-	IsMachineRunning(ctx context.Context) (bool, error)
-
-	// IsContainerRunning checks if a container is running
-	IsContainerRunning(ctx context.Context, containerID string) (bool, error)
-
-	// CheckContainerExists checks if a container exists
-	CheckContainerExists(ctx context.Context, containerName string) (bool, string, error)
-
-	// PullImage pulls the specified image
-	PullImage(ctx context.Context, imageURL string) error
-
-	// RunContainer runs a container from the specified image
-	// and returns the container ID if successful
-	RunContainer(ctx context.Context, containerConfig ContainerConfig) (string, error)
-
-	// StartContainer starts an existing container
-	StartContainer(ctx context.Context, containerID string) error
-
-	// RemoveContainer removes a container
-	RemoveContainer(ctx context.Context, containerID string) error
-
-	// StopContainer stops a container
-	StopContainer(ctx context.Context, containerID string) error
-
-	// CleanupContainer cleans up a container
-	CleanupContainer(ctx context.Context, containerName string) error
-
-	// ExecCommand executes a command with the given arguments
-	ExecCommand(ctx context.Context, cmd string, args []string) (string, error)
-}
+// DefaultManager implements the ContainerManager interface for the Podman
+// container runtime. The majority of the logic remains unchanged – only the
+// type name is updated to avoid confusion with the new generic
+// ContainerManager interface.
 
 // ContainerConfig defines configuration for a container.
 type ContainerConfig struct {
@@ -76,13 +41,28 @@ type DefaultManager struct {
 	defaultMachine string
 }
 
-// NewManager creates a new PodmanManager.
-func NewManager() PodmanManager {
+// newPodmanManager creates a ContainerManager backed by the Podman CLI. It is
+// used internally by NewManager() in manager.go when the CONTAINER_RUNTIME
+// environment variable is unset or set to "podman".
+func newPodmanManager() ContainerManager {
 	return &DefaultManager{
 		executable:     "podman",
 		defaultTimeout: 60 * time.Second,
 		defaultMachine: "podman-machine-default",
 	}
+}
+
+// Ensure DefaultManager satisfies ContainerManager at compile-time
+var _ ContainerManager = (*DefaultManager)(nil)
+
+// Executable returns the CLI executable used by this manager ("podman").
+func (m *DefaultManager) Executable() string {
+	return m.executable
+}
+
+// DefaultTimeout returns the default command timeout for this manager.
+func (m *DefaultManager) DefaultTimeout() time.Duration {
+	return m.defaultTimeout
 }
 
 // IsInstalled checks if Podman is installed.
