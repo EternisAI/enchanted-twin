@@ -72,30 +72,6 @@ func main() {
 		}
 	}
 
-	// Start PostgreSQL using Podman
-	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	postgresManager, err := bootstrapPostgresPodman(postgresCtx, logger)
-	if err != nil {
-		logger.Error("Failed to start PostgreSQL with Podman", "error", err)
-		panic(errors.Wrap(err, "Failed to start PostgreSQL with Podman"))
-	}
-
-	// Set up cleanup on shutdown
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		// Stop the container
-		if err := postgresManager.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", "error", err)
-		}
-		// Remove the container to ensure clean state for next startup
-		if err := postgresManager.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", "error", err)
-		}
-	}()
-
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start nats server"))
@@ -123,7 +99,7 @@ func main() {
 	logger.Info("SQLite database initialized")
 
 	logger.Info("Initializing Podman and Kokoro container...")
-	containerID, err := bootstrapPodman()
+	containerID, err := bootstrapKokoro()
 	if err != nil {
 		logger.Warn("Failed to initialize Podman and Kokoro container", "error", err)
 		logger.Info("Continuing without Kokoro container")
@@ -149,7 +125,31 @@ func main() {
 	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	// Ensure enchanted_twin database exists
+	// Start PostgreSQL using Podman
+	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	postgresManager, err := bootstrapPostgres(postgresCtx, logger)
+	if err != nil {
+		logger.Error("Failed to start PostgreSQL with Podman", "error", err)
+		panic(errors.Wrap(err, "Failed to start PostgreSQL with Podman"))
+	}
+
+	defer func() {
+		manager := podman.NewManager()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		options := podman.DefaultPostgresOptions()
+		if err := manager.StopContainer(shutdownCtx, options.ContainerName); err != nil {
+			logger.Error("Error stopping PostgreSQL", "error", err)
+		}
+
+		if err := manager.RemoveContainer(shutdownCtx, options.ContainerName); err != nil {
+			logger.Error("Error removing PostgreSQL container", "error", err)
+		}
+	}()
+
 	if err := postgresManager.WaitForReady(postgresCtx, 30*time.Second); err != nil {
 		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
 		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
@@ -168,7 +168,7 @@ func main() {
 		connString,
 	)
 
-	logger.Info("Testing direct database connection (list tables)...")
+	logger.Info("Testing direct database connection")
 	if err := podman.TestDbConnection(context.Background(), connString, logger); err != nil {
 		logger.Warn("Database connection test failed", "error", err)
 	}
@@ -351,30 +351,6 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-// PostgresProvider is an interface that abstracts different PostgreSQL providers.
-type PostgresProvider interface {
-	Stop(ctx context.Context) error
-	Remove(ctx context.Context) error
-	WaitForReady(ctx context.Context, maxWaitTime time.Duration) error
-	EnsureDatabase(ctx context.Context, dbName string) error
-}
-
-// bootstrapPostgresPodman starts a PostgreSQL container using Podman.
-func bootstrapPostgresPodman(ctx context.Context, logger *log.Logger) (*podman.PostgresManager, error) {
-	options := podman.DefaultPostgresOptions()
-	options.Port = "15432"
-
-	postgresManager := podman.NewPostgresManager(logger, options)
-
-	logger.Info("Starting PostgreSQL container with Podman...")
-	_, err := postgresManager.StartPostgresContainer(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL container with Podman: %w", err)
-	}
-
-	return postgresManager, nil
-}
-
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
@@ -537,7 +513,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapPodman() (string, error) {
+func bootstrapKokoro() (string, error) {
 	log := logrus.WithField("component", "podman-bootstrap")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
@@ -635,6 +611,21 @@ func bootstrapPodman() (string, error) {
 	return containerID, nil
 }
 
+func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*podman.PostgresManager, error) {
+	options := podman.DefaultPostgresOptions()
+	options.Port = "15432"
+
+	postgresManager := podman.NewPostgresManager(logger, options)
+
+	logger.Info("Starting PostgreSQL container with Podman...")
+	_, err := postgresManager.StartPostgresContainer(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to start PostgreSQL container with Podman: %w", err)
+	}
+
+	return postgresManager, nil
+}
+
 const (
 	// DefaultKokoroImage is the default Kokoro image URL.
 	DefaultKokoroImage = "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
@@ -644,4 +635,15 @@ const (
 
 	// DefaultKokoroPort is the default port the Kokoro API listens on.
 	DefaultKokoroPort = "8880"
+)
+
+const (
+	// DefaultPostgresImage is the default PostgreSQL image URL.
+	DefaultPostgresImage = "pgvector/pgvector:pg17"
+
+	// DefaultPostgresContainerName is the default name for the PostgreSQL container.
+	DefaultPostgresContainerName = "enchanted-twin-postgres-podman"
+
+	// DefaultPostgresPort is the default port PostgreSQL listens on.
+	DefaultPostgresPort = "5432"
 )
