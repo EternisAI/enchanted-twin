@@ -35,7 +35,10 @@ type ContainerManager interface {
 	IsMachineRunning(ctx context.Context) (bool, error)
 	IsContainerRunning(ctx context.Context, containerID string) (bool, error)
 	CheckContainerExists(ctx context.Context, containerName string) (bool, string, error)
-	PullImage(ctx context.Context, imageURL string) error
+	// PullImage starts downloading an image and returns a channel which emits the overall download
+	// progress in percent (0-100). The channel MUST be non-blocking for receivers that choose to
+	// ignore it. It is closed once the pull completes or fails.
+	PullImage(ctx context.Context, imageURL string) (<-chan int, error)
 	RunContainer(ctx context.Context, containerConfig ContainerConfig) (string, error)
 	StartContainer(ctx context.Context, containerID string) error
 	RemoveContainer(ctx context.Context, containerID string) error

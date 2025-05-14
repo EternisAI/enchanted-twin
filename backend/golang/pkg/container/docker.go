@@ -1,10 +1,14 @@
 package container
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"os/exec"
+	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,6 +26,9 @@ type DockerManager struct {
 	defaultTimeout time.Duration
 	// dummy field to keep structure similar; not used by Docker
 	defaultMachine string
+	// imageProgress caches the overall download percentage for images currently being pulled
+	imageProgress map[string]int
+	progressMu    sync.RWMutex
 }
 
 // newDockerManager is called from NewManager() when CONTAINER_RUNTIME=docker.
@@ -30,6 +37,7 @@ func newDockerManager() ContainerManager {
 		executable:     "docker",
 		defaultTimeout: 60 * time.Second,
 		defaultMachine: "docker-daemon", // placeholder – Docker has no machine concept
+		imageProgress:  make(map[string]int),
 	}
 }
 
@@ -108,18 +116,91 @@ func (m *DockerManager) CheckContainerExists(ctx context.Context, containerName 
 	return containerID != "", containerID, nil
 }
 
-func (m *DockerManager) PullImage(ctx context.Context, imageURL string) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
+// PullImage behaves like the Podman implementation: it starts the download and emits overall
+// progress (0-100) on the returned channel. If the image already exists locally, the channel
+// immediately receives 100 and is closed.
+func (m *DockerManager) PullImage(ctx context.Context, imageURL string) (<-chan int, error) {
+	progressCh := make(chan int, 1)
 
-	dockerLog.WithField("image", imageURL).Info("Pulling image")
-	args := []string{"pull", imageURL}
-	output, err := m.commandContext(ctx, args...).CombinedOutput()
+	// Check if already present
+	exists, err := m.imageExists(ctx, imageURL)
 	if err != nil {
-		dockerLog.WithError(err).WithField("output", string(output)).Error("Failed to pull image")
-		return errors.Wrapf(err, "failed to pull image: %s", string(output))
+		close(progressCh)
+		return progressCh, err
 	}
-	return nil
+	if exists {
+		progressCh <- 100
+		close(progressCh)
+		m.progressMu.Lock()
+		m.imageProgress[imageURL] = 100
+		m.progressMu.Unlock()
+		return progressCh, nil
+	}
+
+	go func() {
+		defer close(progressCh)
+
+		// Docker's CLI prints per-layer progress. We approximate overall progress by counting
+		// layers that reached 100 %.
+		cmd := m.commandContext(ctx, "pull", imageURL)
+
+		stdout, _ := cmd.StdoutPipe()
+		stderr, _ := cmd.StderrPipe()
+		if err := cmd.Start(); err != nil {
+			dockerLog.WithError(err).Error("Failed to start docker pull command")
+			return
+		}
+
+		scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+
+		// Heuristic: track amount of lines containing "Download complete" vs total distinct
+		// layers we have seen so far.
+		layerSet := make(map[string]struct{})
+		completed := make(map[string]struct{})
+
+		layerIDRe := regexp.MustCompile(`([a-f0-9]{12})`) // first column is layer id (12 chars)
+
+		sendProgress := func() {
+			total := len(layerSet)
+			if total == 0 {
+				return
+			}
+			comp := len(completed)
+			perc := int(float64(comp) / float64(total) * 100)
+			m.progressMu.Lock()
+			m.imageProgress[imageURL] = perc
+			m.progressMu.Unlock()
+			select {
+			case progressCh <- perc:
+			default:
+			}
+		}
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			idMatch := layerIDRe.FindString(line)
+			if idMatch != "" {
+				layerSet[idMatch] = struct{}{}
+				if strings.Contains(line, "Download complete") || strings.Contains(line, "Pull complete") {
+					completed[idMatch] = struct{}{}
+				}
+			}
+			sendProgress()
+		}
+
+		_ = cmd.Wait()
+
+		// ensure 100 at the end
+		m.progressMu.Lock()
+		m.imageProgress[imageURL] = 100
+		m.progressMu.Unlock()
+		select {
+		case progressCh <- 100:
+		default:
+		}
+	}()
+
+	return progressCh, nil
 }
 
 // imageExists checks if an image is available locally using "docker image inspect".
@@ -140,7 +221,8 @@ func (m *DockerManager) RunContainer(ctx context.Context, config ContainerConfig
 		}
 		if !exists {
 			dockerLog.WithField("image", config.ImageURL).Info("Image not found, pulling")
-			if err := m.PullImage(ctx, config.ImageURL); err != nil {
+			_, err := m.PullImage(ctx, config.ImageURL)
+			if err != nil {
 				return "", errors.Wrap(err, "failed to pull image")
 			}
 		}
@@ -266,8 +348,15 @@ func (m *DockerManager) ExecCommand(ctx context.Context, cmd string, args []stri
 }
 
 func (m *DockerManager) GetImageProgress(ctx context.Context, imageURL string) (int, error) {
-	// Simple implementation: if the image already exists locally, we assume the download is complete (100%).
-	// Otherwise, the image has not been downloaded yet, so report 0% progress.
+	// Return cached value if present.
+	m.progressMu.RLock()
+	if p, ok := m.imageProgress[imageURL]; ok {
+		m.progressMu.RUnlock()
+		return p, nil
+	}
+	m.progressMu.RUnlock()
+
+	// Fallback to existence heuristic.
 	exists, err := m.imageExists(ctx, imageURL)
 	if err != nil {
 		return 0, err

@@ -1,11 +1,16 @@
 package container
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os/exec"
+	"regexp"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -39,6 +44,9 @@ type DefaultManager struct {
 	defaultTimeout time.Duration
 	// The default machine name
 	defaultMachine string
+	// imageProgress stores the latest overall progress percentage for a given image URL.
+	imageProgress map[string]int
+	progressMu    sync.RWMutex
 }
 
 // newPodmanManager creates a ContainerManager backed by the Podman CLI. It is
@@ -49,6 +57,7 @@ func newPodmanManager() ContainerManager {
 		executable:     "podman",
 		defaultTimeout: 60 * time.Second,
 		defaultMachine: "podman-machine-default",
+		imageProgress:  make(map[string]int),
 	}
 }
 
@@ -172,21 +181,92 @@ func (m *DefaultManager) CheckContainerExists(ctx context.Context, containerName
 	return containerID != "", containerID, nil
 }
 
-// PullImage pulls the specified image.
-func (m *DefaultManager) PullImage(ctx context.Context, imageURL string) error {
-	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute) // Longer timeout for image pulls
-	defer cancel()
+// PullImage starts pulling an image and streams the overall progress percentage (0-100)
+// on a buffered channel. The returned channel is closed once the pull completes
+// (successfully or with an error). If callers are not interested in consumption,
+// the send operations are non-blocking to avoid goroutine leaks.
+func (m *DefaultManager) PullImage(ctx context.Context, imageURL string) (<-chan int, error) {
+	progressCh := make(chan int, 1) // small buffer so we never block
 
-	log.WithField("image", imageURL).Info("Pulling image")
-	cmd := exec.CommandContext(ctx, m.executable, "pull", imageURL)
-	output, err := cmd.CombinedOutput()
+	// If the image already exists locally signal immediate completion.
+	exists, err := m.imageExists(ctx, imageURL)
 	if err != nil {
-		log.WithError(err).WithField("output", string(output)).Error("Failed to pull image")
-		return errors.Wrapf(err, "failed to pull image: %s", string(output))
+		close(progressCh)
+		return progressCh, err
+	}
+	if exists {
+		// send 100% then close
+		progressCh <- 100
+		close(progressCh)
+		m.progressMu.Lock()
+		m.imageProgress[imageURL] = 100
+		m.progressMu.Unlock()
+		return progressCh, nil
 	}
 
-	log.WithField("image", imageURL).Info("Image pulled successfully")
-	return nil
+	// Run the pull in its own goroutine so the caller gets the channel immediately.
+	go func() {
+		defer func() {
+			// make sure channel is closed even on panic
+			if r := recover(); r != nil {
+				log.WithField("recover", r).Error("panic in PullImage goroutine")
+			}
+			close(progressCh)
+		}()
+
+		// Podman prints progress information to stderr in plain text. We start the
+		// command without a timeout here because the context provided by the caller
+		// already contains one (the caller can cancel at will).
+		cmd := exec.CommandContext(ctx, m.executable, "pull", imageURL)
+
+		stdoutPipe, _ := cmd.StdoutPipe()
+		stderrPipe, _ := cmd.StderrPipe()
+
+		if err := cmd.Start(); err != nil {
+			log.WithError(err).Error("Failed to start podman pull command")
+			return
+		}
+
+		// Combine both stdout & stderr so we parse all output.
+		scanner := bufio.NewScanner(io.MultiReader(stdoutPipe, stderrPipe))
+		percentRe := regexp.MustCompile(`(\d{1,3})%`)
+
+		for scanner.Scan() {
+			line := scanner.Text()
+			if matches := percentRe.FindStringSubmatch(line); matches != nil {
+				if p, perr := strconv.Atoi(matches[1]); perr == nil {
+					if p > 100 {
+						p = 100
+					}
+					// update internal cache
+					m.progressMu.Lock()
+					m.imageProgress[imageURL] = p
+					m.progressMu.Unlock()
+
+					// non-blocking send so we don't deadlock if nobody is listening
+					select {
+					case progressCh <- p:
+					default:
+					}
+				}
+			}
+		}
+
+		// Wait for command completion
+		_ = cmd.Wait()
+
+		// make sure we store 100% at the end
+		m.progressMu.Lock()
+		m.imageProgress[imageURL] = 100
+		m.progressMu.Unlock()
+
+		select {
+		case progressCh <- 100:
+		default:
+		}
+	}()
+
+	return progressCh, nil
 }
 
 // RunContainer runs a container from the specified image.
@@ -199,7 +279,8 @@ func (m *DefaultManager) RunContainer(ctx context.Context, config ContainerConfi
 
 		if !imageExists {
 			log.WithField("image", config.ImageURL).Info("Image not found, pulling")
-			if err := m.PullImage(ctx, config.ImageURL); err != nil {
+			_, err := m.PullImage(ctx, config.ImageURL)
+			if err != nil {
 				return "", errors.Wrap(err, "failed to pull image")
 			}
 		}
@@ -371,8 +452,15 @@ func (m *DefaultManager) ExecCommand(ctx context.Context, cmd string, args []str
 }
 
 func (m *DefaultManager) GetImageProgress(ctx context.Context, imageURL string) (int, error) {
-	// Similar heuristic to the Docker implementation: if the image exists locally, assume 100% downloaded.
-	// If not present, return 0%.
+	// First attempt to read cached progress from the pull goroutine.
+	m.progressMu.RLock()
+	if p, ok := m.imageProgress[imageURL]; ok {
+		m.progressMu.RUnlock()
+		return p, nil
+	}
+	m.progressMu.RUnlock()
+
+	// Fallback: image already exists (100) or not yet pulled (0).
 	exists, err := m.imageExists(ctx, imageURL)
 	if err != nil {
 		return 0, err
