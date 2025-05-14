@@ -122,7 +122,6 @@ func main() {
 
 	logger.Info("SQLite database initialized")
 
-	// Bootstrap Podman and run Kokoro container
 	logger.Info("Initializing Podman and Kokoro container...")
 	containerID, err := bootstrapPodman()
 	if err != nil {
@@ -130,15 +129,14 @@ func main() {
 		logger.Info("Continuing without Kokoro container")
 	} else {
 		logger.Info("Kokoro container initialized successfully", "containerID", containerID)
-		// Ensure container cleanup on server shutdown
+
 		defer func() {
 			logger.Info("Cleaning up Kokoro containers...")
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			// Create a new Kokoro manager and clean up all containers
-			cleanupManager := podman.NewKokoroManager()
-			if err := cleanupManager.CleanupKokoroContainers(ctx); err != nil {
+			cleanupManager := podman.NewManager()
+			if err := cleanupManager.CleanupContainer(ctx, DefaultKokoroContainerName); err != nil {
 				logger.Error("Failed to clean up Kokoro containers", "error", err)
 			} else {
 				logger.Info("All Kokoro containers cleaned up successfully")
@@ -545,9 +543,9 @@ func bootstrapPodman() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	manager := podman.NewKokoroManager()
+	manager := podman.NewManager()
 
-	installed, err := manager.VerifyPodmanInstalled(ctx)
+	installed, err := manager.IsInstalled(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to check if Podman is installed: %w", err)
 	}
@@ -557,7 +555,7 @@ func bootstrapPodman() (string, error) {
 		return "", fmt.Errorf("podman is not installed")
 	}
 
-	machineExists, err := manager.VerifyPodmanMachineInstalled(ctx)
+	machineExists, err := manager.IsMachineInstalled(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to check if Podman machine exists: %w", err)
 	}
@@ -567,7 +565,7 @@ func bootstrapPodman() (string, error) {
 		return "", fmt.Errorf("podman machine does not exist")
 	}
 
-	running, err := manager.VerifyPodmanRunning(ctx)
+	running, err := manager.IsMachineRunning(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to check if Podman is running: %w", err)
 	}
@@ -612,12 +610,20 @@ func bootstrapPodman() (string, error) {
 	}
 
 	log.Info("Pulling the Kokoro image...")
-	if err := manager.PullKokoroImage(ctx); err != nil {
+	if err := manager.PullImage(ctx, DefaultKokoroImage); err != nil {
 		return "", fmt.Errorf("failed to pull Kokoro image: %w", err)
 	}
 
+	containerConfig := podman.ContainerConfig{
+		ImageURL:     DefaultKokoroImage,
+		Name:         DefaultKokoroContainerName,
+		Ports:        map[string]string{DefaultKokoroPort: DefaultKokoroPort},
+		Environment:  map[string]string{},
+		PullIfNeeded: true,
+	}
+
 	log.Info("Starting the Kokoro container...")
-	containerID, err := manager.RunKokoroContainer(ctx, "8765")
+	containerID, err := manager.RunContainer(ctx, containerConfig)
 	if err != nil {
 		return "", fmt.Errorf("failed to start Kokoro container: %w", err)
 	}
@@ -628,3 +634,14 @@ func bootstrapPodman() (string, error) {
 
 	return containerID, nil
 }
+
+const (
+	// DefaultKokoroImage is the default Kokoro image URL.
+	DefaultKokoroImage = "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
+
+	// DefaultKokoroContainerName is the default name for the Kokoro container.
+	DefaultKokoroContainerName = "kokoro-fastapi"
+
+	// DefaultKokoroPort is the default port the Kokoro API listens on.
+	DefaultKokoroPort = "8880"
+)

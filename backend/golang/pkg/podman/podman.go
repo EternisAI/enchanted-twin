@@ -25,12 +25,30 @@ type PodmanManager interface {
 	// IsMachineRunning checks if a Podman machine is running
 	IsMachineRunning(ctx context.Context) (bool, error)
 
+	// IsContainerRunning checks if a container is running
+	IsContainerRunning(ctx context.Context, containerID string) (bool, error)
+
+	// CheckContainerExists checks if a container exists
+	CheckContainerExists(ctx context.Context, containerName string) (bool, string, error)
+
 	// PullImage pulls the specified image
 	PullImage(ctx context.Context, imageURL string) error
 
 	// RunContainer runs a container from the specified image
 	// and returns the container ID if successful
 	RunContainer(ctx context.Context, containerConfig ContainerConfig) (string, error)
+
+	// StartContainer starts an existing container
+	StartContainer(ctx context.Context, containerID string) error
+
+	// RemoveContainer removes a container
+	RemoveContainer(ctx context.Context, containerID string) error
+
+	// CleanupContainer cleans up a container
+	CleanupContainer(ctx context.Context, containerName string) error
+
+	// ExecCommand executes a command with the given arguments
+	ExecCommand(ctx context.Context, cmd string, args []string) (string, error)
 }
 
 // ContainerConfig defines configuration for a container.
@@ -135,6 +153,42 @@ func (m *DefaultManager) IsMachineRunning(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
+func (m *DefaultManager) IsContainerRunning(ctx context.Context, containerID string) (bool, error) {
+	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+	defer cancel()
+
+	cmd := m.executable
+	args := []string{"container", "inspect", containerID, "--format", "{{.State.Running}}"}
+
+	execCmd := exec.CommandContext(ctx, cmd, args...)
+	output, err := execCmd.Output()
+	if err != nil {
+		log.WithError(err).Debug("Failed to inspect container")
+		return false, err
+	}
+
+	return strings.TrimSpace(string(output)) == "true", nil
+}
+
+func (m *DefaultManager) CheckContainerExists(ctx context.Context, containerName string) (bool, string, error) {
+	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+
+	defer cancel()
+
+	cmd := m.executable
+	args := []string{"container", "ls", "-a", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}"}
+
+	execCmd := exec.CommandContext(ctx, cmd, args...)
+	output, err := execCmd.Output()
+	if err != nil {
+		log.WithError(err).Debug("Failed to list containers")
+		return false, "", err
+	}
+
+	containerID := strings.TrimSpace(string(output))
+	return containerID != "", containerID, nil
+}
+
 // PullImage pulls the specified image.
 func (m *DefaultManager) PullImage(ctx context.Context, imageURL string) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Minute) // Longer timeout for image pulls
@@ -210,6 +264,90 @@ func (m *DefaultManager) RunContainer(ctx context.Context, config ContainerConfi
 	containerID := strings.TrimSpace(string(output))
 	log.WithField("containerId", containerID).Info("Container started successfully")
 	return containerID, nil
+}
+
+// StartContainer starts an existing container.
+func (m *DefaultManager) StartContainer(ctx context.Context, containerID string) error {
+	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+	defer cancel()
+
+	cmd := m.executable
+	args := []string{"container", "start", containerID}
+
+	execCmd := exec.CommandContext(ctx, cmd, args...)
+	output, err := execCmd.CombinedOutput()
+	if err != nil {
+		log.WithError(err).WithField("output", string(output)).Debug("Failed to start container")
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	return nil
+}
+
+// RemoveContainer removes a container.
+func (m *DefaultManager) RemoveContainer(ctx context.Context, containerID string) error {
+	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+	defer cancel()
+
+	cmd := m.executable
+	args := []string{"container", "rm", "-f", containerID}
+
+	execCmd := exec.CommandContext(ctx, cmd, args...)
+	output, err := execCmd.CombinedOutput()
+	if err != nil {
+		log.WithError(err).WithField("output", string(output)).Debug("Failed to remove container")
+		return fmt.Errorf("failed to remove container: %w", err)
+	}
+
+	return nil
+}
+
+// This is useful for cleaning up when the application shuts down.
+func (m *DefaultManager) CleanupContainer(ctx context.Context, containerName string) error {
+	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+	defer cancel()
+
+	cmd := m.executable
+	args := []string{"container", "ls", "-a", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}"}
+
+	execCmd := exec.CommandContext(ctx, cmd, args...)
+	output, err := execCmd.Output()
+	if err != nil {
+		log.WithError(err).Debug("Failed to list  containers")
+		return fmt.Errorf("failed to list containers: %w", err)
+	}
+
+	containerIDs := strings.Split(strings.TrimSpace(string(output)), "\n")
+
+	if len(containerIDs) == 0 || (len(containerIDs) == 1 && containerIDs[0] == "") {
+		log.Debug("No containers found to clean up")
+		return nil
+	}
+
+	log.WithField("count", len(containerIDs)).
+		WithField("ids", containerIDs).
+		Info("Found containers to clean up")
+
+	for _, containerID := range containerIDs {
+		if containerID == "" {
+			continue
+		}
+
+		log.WithField("containerId", containerID).Info("Cleaning up container")
+
+		rmCmd := exec.CommandContext(ctx, cmd, "container", "rm", "-f", containerID)
+		rmOutput, err := rmCmd.CombinedOutput()
+		if err != nil {
+			log.WithError(err).
+				WithField("output", string(rmOutput)).
+				WithField("containerId", containerID).
+				Warn("Failed to remove container during cleanup")
+		} else {
+			log.WithField("containerId", containerID).Info("Successfully removed container")
+		}
+	}
+
+	return nil
 }
 
 // imageExists checks if an image exists locally.
