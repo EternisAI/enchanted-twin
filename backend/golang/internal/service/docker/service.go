@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -17,12 +16,31 @@ import (
 
 var dockerCommand string
 
+// package - podman
+// 1. Connect to the podman socket
+// 2. Download an image (progress progress). Srikar tried to run the app, it started downloading the Kokoro container image. Sometime timeout.
+// 2.1 If Kokoro is being downloaded the app should start
+// 3. Run a container
+
 func init() {
-	switch runtime.GOOS {
-	case "windows":
-		dockerCommand = "docker" // Rely on PATH for Windows
-	default: // darwin (macOS), linux, etc.
-		dockerCommand = "/usr/local/bin/docker" // Assume standard location for Unix-like systems
+	path, err := exec.LookPath("docker")
+	if err != nil {
+		commonPaths := []string{
+			"/usr/local/bin/docker",
+			"/usr/bin/docker",
+			filepath.Join(os.Getenv("HOME"), ".local/bin/docker"),
+		}
+		for _, p := range commonPaths {
+			if _, err := os.Stat(p); err == nil {
+				path = p
+				break
+			}
+		}
+	}
+	if path != "" {
+		dockerCommand = path
+	} else {
+		dockerCommand = "docker"
 	}
 }
 

@@ -118,6 +118,7 @@ type Mutation {
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
   deleteAgentTask(id: ID!): Boolean!
+  updateAgentTask(id: ID!, notify: Boolean!): Boolean!
   removeMCPServer(id: String!): Boolean!
   startWhatsAppConnection: Boolean!
 }
@@ -255,6 +256,9 @@ type AgentTask {
   createdAt: DateTime!
   updatedAt: DateTime!
   completedAt: DateTime
-  endedAt: DateTime
+  terminatedAt: DateTime
   output: String
+  upcomingRuns: [DateTime!]!
+  previousRuns: [DateTime!]!
+  notify: Boolean!
 }

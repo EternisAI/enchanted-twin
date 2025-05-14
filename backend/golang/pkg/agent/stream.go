@@ -41,6 +41,7 @@ func (a *Agent) ExecuteStream(
 	)
 
 	runTool := func(tc openai.ChatCompletionMessageToolCall) (types.ToolResult, error) {
+		a.logger.Debug("Pre tool callback", "tool_call", tc)
 		if a.PreToolCallback != nil {
 			a.PreToolCallback(tc)
 		}

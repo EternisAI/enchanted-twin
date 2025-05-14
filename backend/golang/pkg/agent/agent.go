@@ -1,9 +1,11 @@
+// Owner: august@eternis.ai
 package agent
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
@@ -50,6 +52,14 @@ type AgentResponse struct {
 	ImageURLs   []string
 }
 
+func (r AgentResponse) String() string {
+	imageURLS := strings.Join(r.ImageURLs, ",")
+	if len(imageURLS) > 0 {
+		return fmt.Sprintf("%s\nImages:%s", r.Content, imageURLS)
+	}
+	return r.Content
+}
+
 func (a *Agent) Execute(
 	ctx context.Context,
 	origin map[string]any,
@@ -94,14 +104,13 @@ func (a *Agent) Execute(
 		}
 
 		for _, toolCall := range completion.ToolCalls {
+			a.logger.Debug("Pre tool callback", "tool_call", toolCall)
 			if a.PreToolCallback != nil {
-				a.logger.Debug("Pre tool callback", "tool_call", toolCall)
 				a.PreToolCallback(toolCall)
 			}
 		}
-		// we send message with tool call
+
 		for _, toolCall := range completion.ToolCalls {
-			// we send message with tool call
 			tool, ok := toolsMap[toolCall.Function.Name]
 			if !ok {
 				return AgentResponse{}, fmt.Errorf("tool not found: %s", toolCall.Function.Name)
@@ -113,7 +122,6 @@ func (a *Agent) Execute(
 				a.logger.Error("Error unmarshalling tool call arguments", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments, "error", err)
 				return AgentResponse{}, err
 			}
-			args["origin"] = origin
 
 			toolResult, err := tool.Execute(ctx, args)
 			if err != nil {
@@ -121,15 +129,12 @@ func (a *Agent) Execute(
 				return AgentResponse{}, err
 			}
 
+			// extracting image URLs from content
+			imageURLs = append(imageURLs, extractImageURLs(toolResult.Content())...)
+
 			// send message with isCompleted true
+			a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_content", toolResult.Content(), "tool_image_urls", toolResult.ImageURLs())
 			if a.PostToolCallback != nil {
-				a.logger.Debug(
-					"Post tool callback",
-					"tool_call",
-					toolCall,
-					"tool_result",
-					toolResult,
-				)
 				a.PostToolCallback(toolCall, toolResult)
 			}
 

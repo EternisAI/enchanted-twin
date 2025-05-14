@@ -73,6 +73,8 @@ func (t *MCPTool) Execute(ctx context.Context, inputs map[string]any) (agenttype
 	}, nil
 }
 
+type EmptyParams struct{}
+
 func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 	params := make(openai.FunctionParameters)
 
@@ -80,6 +82,11 @@ func (t *MCPTool) Definition() openai.ChatCompletionToolParam {
 		maps.Copy(params, inputSchemaMap)
 	} else if t.Tool.InputSchema != nil {
 		fmt.Printf("Warning: tool.InputSchema for tool %s is not a map[string]any or is nil, type is %T\n", t.Tool.Name, t.Tool.InputSchema)
+	}
+
+	if len(params) == 1 && params["type"] == "object" {
+		fmt.Printf("Invalid tool input schema for tool %s\n", t.Tool.Name)
+		params = openai.FunctionParameters{}
 	}
 
 	return openai.ChatCompletionToolParam{

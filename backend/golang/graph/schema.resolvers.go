@@ -9,15 +9,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lnquy/cron"
 	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
 	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	planned "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
@@ -248,7 +251,7 @@ func (r *mutationResolver) StartIndexing(ctx context.Context) (bool, error) {
 		ctx,
 		options,
 		"InitializeWorkflow",
-		map[string]interface{}{},
+		map[string]any{},
 	)
 	if err != nil {
 		return false, fmt.Errorf("error executing workflow: %v", err)
@@ -288,7 +291,7 @@ func (r *mutationResolver) ConnectMCPServer(ctx context.Context, input model.Con
 // SendTelegramMessage is the resolver for the sendTelegramMessage field.
 func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error) {
 	chatID, err := r.TelegramService.GetChatIDFromChatUUID(ctx, chatUUID)
-	if err != nil || chatID == "" {
+	if err != nil || chatID == 0 {
 		return false, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
 
@@ -302,37 +305,58 @@ func (r *mutationResolver) SendTelegramMessage(ctx context.Context, chatUUID str
 
 // DeleteAgentTask is the resolver for the deleteAgentTask field.
 func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool, error) {
-	runID := id
+	handle := r.TemporalClient.ScheduleClient().GetHandle(ctx, id)
 
-	// Use the RootClient to properly terminate the workflow and update state
-	if r.RootClient != nil {
-		// Call our new method that handles both termination and state cleanup
-		cmdID, err := r.RootClient.TerminateChildWorkflow(ctx, runID, "Deleted via GraphQL API")
-		if err != nil {
-			r.Logger.Error("Failed to terminate workflow", "error", err, "runID", runID)
-			return false, fmt.Errorf("failed to delete agent task: %w", err)
-		}
-
-		r.Logger.Info("Successfully terminated workflow", "workflowID", id, "commandID", cmdID)
-		return true, nil
-	} else {
-		// Fallback to direct Temporal client if RootClient is not available
-		r.Logger.Warn("RootClient not available, falling back to direct termination", "workflowID", id)
-
-		// Create a Temporal client to interact with the workflow
-		c := r.TemporalClient
-
-		// Try to terminate the workflow by ID
-		err := c.TerminateWorkflow(ctx, id, "", "Deleted via GraphQL API")
-		if err != nil {
-			r.Logger.Error("Failed to terminate workflow", "error", err, "workflowID", id)
-			return false, fmt.Errorf("failed to delete agent task: %w", err)
-		}
-
-		r.Logger.Info("Successfully terminated workflow but state may not be updated in root workflow",
-			"workflowID", id)
-		return true, nil
+	if handle == nil {
+		return false, fmt.Errorf("agent task not found")
 	}
+
+	err := handle.Delete(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// UpdateAgentTask sets the Notify flag for the given schedule.
+func (r *mutationResolver) UpdateAgentTask(
+	ctx context.Context,
+	id string,
+	notify bool,
+) (bool, error) {
+	h := r.TemporalClient.ScheduleClient().GetHandle(ctx, id)
+	err := h.Update(ctx, client.ScheduleUpdateOptions{
+		DoUpdate: func(in client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
+			sched := in.Description.Schedule
+			wfAct, ok := sched.Action.(*client.ScheduleWorkflowAction)
+			if !ok || len(wfAct.Args) == 0 {
+				return nil, fmt.Errorf("schedule %q has no workflow args", id)
+			}
+
+			pl, ok := wfAct.Args[0].(*common.Payload)
+			if !ok {
+				return nil, fmt.Errorf("first arg not *common.Payload")
+			}
+
+			var arg scheduler.TaskScheduleWorkflowInput
+			if err := json.Unmarshal(pl.Data, &arg); err != nil {
+				return nil, err
+			}
+			arg.Notify = notify
+
+			raw, err := json.Marshal(arg)
+			if err != nil {
+				return nil, err
+			}
+			pl.Data = raw
+			return &client.ScheduleUpdate{Schedule: &sched}, nil
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // RemoveMCPServer is the resolver for the removeMCPServer field.
@@ -494,62 +518,99 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 
 // GetAgentTasks is the resolver for the getAgentTasks field.
 func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, error) {
-	tc := r.TemporalClient
-	rc := r.RootClient
-
-	runs, err := rc.ListWorkflows(ctx)
+	iterator, err := r.TemporalClient.ScheduleClient().List(ctx, client.ScheduleListOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to list active runs: %w", err)
+		return nil, err
 	}
-	r.Logger.Debug("total runs", "count", len(runs))
 
-	tasks := make([]*model.AgentTask, 0, len(runs))
-	for _, run := range runs {
-		// TODO: below as func GetState() to plannedv2 or baseagent
-		r.Logger.Debug("querying workflow", "workflow_id", run.WorkflowID, "run_id", run.RunID)
-		queryRes, err := tc.QueryWorkflow(
-			ctx,
-			run.WorkflowID,
-			run.RunID,
-			planned.QueryGetState,
-		)
+	agentTasks := make([]*model.AgentTask, 0)
+	for iterator.HasNext() {
+		schedule, err := iterator.Next()
 		if err != nil {
-			r.Logger.Warn("failed to query workflow", "error", err)
+			return nil, err
+		}
+
+		if schedule == nil {
 			continue
 		}
-		var state planned.PlanState
-		if err := queryRes.Get(&state); err != nil {
-			r.Logger.Warn("failed to get workflow state", "error", err)
+
+		if schedule.WorkflowType.Name != "TaskScheduleWorkflow" {
 			continue
 		}
 
-		updatedAt := run.CreatedAt
-		if len(state.History) > 0 {
-			updatedAt = state.History[len(state.History)-1].Timestamp
+		handle := r.TemporalClient.ScheduleClient().GetHandle(ctx, schedule.ID)
+		desc, err := handle.Describe(ctx)
+		if err != nil {
+			return nil, err
+		}
+		createdAt := desc.Info.CreatedAt.Format(time.RFC3339)
+		updatedAt := desc.Info.LastUpdateAt.Format(time.RFC3339)
+
+		var wfArgsData scheduler.TaskScheduleWorkflowInput
+		if wf, ok := desc.Schedule.Action.(*client.ScheduleWorkflowAction); ok {
+			for i, arg := range wf.Args {
+				if payload, ok := arg.(*common.Payload); ok {
+					err := json.Unmarshal(payload.Data, &wfArgsData)
+					if err != nil {
+						fmt.Printf("json.Unmarshal error: %v\n", err)
+						return nil, err
+					}
+				} else {
+					r.Logger.Debug("wf.Args[%d] is NOT *common.Payload, type: %T\n", i, arg)
+				}
+			}
 		}
 
-		endedAt := state.CompletedAt
-		completedAt := state.CompletedAt
-		if !run.EndedAt.IsZero() {
-			endedAt = run.EndedAt
+		scheduleStr := ""
+		if wfArgsData.Delay > 0 {
+			if len(schedule.NextActionTimes) == 0 {
+				continue
+			}
+			nextActionTime := schedule.NextActionTimes[0]
+			now := time.Now()
+			nextExecutingIn := nextActionTime.Sub(now)
+			days := int(nextExecutingIn.Hours()) / 24
+			hours := int(nextExecutingIn.Hours()) % 24
+			minutes := int(nextExecutingIn.Minutes()) % 60
+
+			switch {
+			case days > 0 && hours > 0:
+				scheduleStr += fmt.Sprintf("In %d Days %d Hours %d Minutes", days, hours, minutes)
+			case days > 0:
+				scheduleStr += fmt.Sprintf("In %d Days %d Minutes", days, minutes)
+			case hours > 0:
+				scheduleStr += fmt.Sprintf("In %d Hours %d Minutes", hours, minutes)
+			default:
+				scheduleStr += fmt.Sprintf("In %d Minutes", minutes)
+			}
+		} else {
+			exprDesc, _ := cron.NewDescriptor()
+			cronDesc, err := exprDesc.ToDescription(wfArgsData.Cron, cron.Locale_en)
+			if err != nil {
+				r.Logger.Error("Failed to get cron description", "error", err)
+				continue
+			}
+			scheduleStr = cronDesc
 		}
 
-		tasks = append(tasks, &model.AgentTask{
-			ID:          run.RunID,
-			Name:        state.Name,
-			Schedule:    state.Schedule,
-			Plan:        &state.Plan,
-			CreatedAt:   run.CreatedAt.String(),
-			UpdatedAt:   updatedAt.String(),
-			EndedAt:     helpers.TimeToStringPtr(endedAt),
-			CompletedAt: helpers.TimeToStringPtr(completedAt),
-			Output:      &state.Output,
-		})
-
-		r.Logger.Debug("returning to FE", "tasks", tasks[len(tasks)-1])
+		task := &model.AgentTask{
+			ID:           schedule.ID,
+			Name:         wfArgsData.Name,
+			Schedule:     scheduleStr,
+			Plan:         helpers.Ptr(wfArgsData.Task),
+			CreatedAt:    createdAt,
+			UpdatedAt:    updatedAt,
+			CompletedAt:  nil,
+			TerminatedAt: nil,
+			Output:       nil,
+			Notify:       wfArgsData.Notify,
+		}
+		agentTasks = append(agentTasks, task)
 	}
-
-	return tasks, nil
+	sort.Slice(agentTasks, func(i, j int) bool {
+		return agentTasks[i].ID > agentTasks[j].ID
+	})
+	return agentTasks, nil
 }
 
 // MessageAdded is the resolver for the messageAdded field.
@@ -671,33 +732,23 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 // NotificationAdded is the resolver for the notificationAdded field.
 func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
 	notificationChan := make(chan *model.AppNotification, 10)
+	subject := "notifications.app"
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var notification model.AppNotification
+		if err := json.Unmarshal(msg.Data, &notification); err != nil {
+			return
+		}
+		notificationChan <- &notification
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	go func() {
-		defer close(notificationChan)
-
-		// Create 3 notifications with 5 second delay between each
-		for i := 1; i <= 3; i++ {
-			select {
-			case <-ctx.Done():
-				r.Logger.Info("Context canceled while sending notifications")
-				return
-			case <-time.After(5 * time.Second):
-				notification := &model.AppNotification{
-					ID:        fmt.Sprintf("notification-%d", i),
-					Title:     fmt.Sprintf("Notification %d", i),
-					Message:   fmt.Sprintf("This is notification number %d", i),
-					CreatedAt: time.Now().Format(time.RFC3339),
-				}
-
-				select {
-				case notificationChan <- notification:
-					r.Logger.Info("Sent notification", "id", notification.ID)
-				case <-ctx.Done():
-					r.Logger.Info("Context canceled while sending notification", "id", notification.ID)
-					return
-				}
-			}
-		}
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(notificationChan)
 	}()
 
 	return notificationChan, nil
@@ -712,10 +763,30 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 	if err != nil {
 		return nil, fmt.Errorf("failed to get telegram chat ID: %w", err)
 	}
+	fmt.Println("Telegram message added", "chat_id", chatID)
 
-	messages := make(chan *model.Message, 100) // Add buffer to prevent blocking
+	if chatID != 0 {
+		confirmText := fmt.Sprintf("Telegram connection established. Chat ID: %d", chatID)
+		confirmMsg := &model.Message{
+			ID:          uuid.New().String(),
+			Text:        &confirmText,
+			CreatedAt:   time.Now().Format(time.RFC3339),
+			Role:        model.RoleAssistant,
+			ImageUrls:   []string{},
+			ToolCalls:   []*model.ToolCall{},
+			ToolResults: []string{},
+		}
 
-	subject := fmt.Sprintf("telegram.chat.%s", chatID)
+		confirmData, _ := json.Marshal(confirmMsg)
+		err := r.Nc.Publish(fmt.Sprintf("telegram.chat.%d", chatID), confirmData)
+		if err != nil {
+			r.Logger.Error("Failed to publish confirmation message", "error", err)
+		}
+	}
+
+	messages := make(chan *model.Message, 100)
+
+	subject := fmt.Sprintf("telegram.chat.%d", chatID)
 
 	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
 		if msg == nil || msg.Data == nil {
@@ -729,7 +800,6 @@ func (r *subscriptionResolver) TelegramMessageAdded(ctx context.Context, chatUUI
 			return
 		}
 
-		// Convert Telegram message to GraphQL message model
 		text := telegramMessage.Text
 		message := &model.Message{
 			ID:          strconv.Itoa(telegramMessage.MessageID),

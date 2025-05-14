@@ -12,7 +12,9 @@ import ConnectMCPServerButton from './MCPConnectServerButton'
 
 export default function MCPPanel({ header = true }: { header?: boolean }) {
   const { data: toolsData } = useQuery(GetToolsDocument)
-  const { data, loading, error, refetch } = useQuery(GetMcpServersDocument)
+  const { data, loading, error, refetch } = useQuery(GetMcpServersDocument, {
+    fetchPolicy: 'network-only'
+  })
   const [deleteMcpServer] = useMutation(RemoveMcpServerDocument, {
     onCompleted: () => {
       toast.success('MCP server removed')
@@ -46,13 +48,16 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
           </p>
         </div>
       )}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         {mcpServers.map((server) => (
           <MCPServerItem
             key={server.id}
             server={server}
             onConnect={refetch}
-            onRemove={() => deleteMcpServer({ variables: { id: server.id } })}
+            onRemove={() => {
+              deleteMcpServer({ variables: { id: server.id } })
+              refetch()
+            }}
           />
         ))}
         <ConnectMCPServerButton onSuccess={refetch} />
@@ -62,8 +67,6 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
           </div>
         )}
       </div>
-
-      <div className="py-4 flex justify-center"></div>
     </Card>
   )
 }

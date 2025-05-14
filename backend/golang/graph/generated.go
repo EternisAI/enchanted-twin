@@ -52,15 +52,18 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	AgentTask struct {
-		CompletedAt func(childComplexity int) int
-		CreatedAt   func(childComplexity int) int
-		EndedAt     func(childComplexity int) int
-		ID          func(childComplexity int) int
-		Name        func(childComplexity int) int
-		Output      func(childComplexity int) int
-		Plan        func(childComplexity int) int
-		Schedule    func(childComplexity int) int
-		UpdatedAt   func(childComplexity int) int
+		CompletedAt  func(childComplexity int) int
+		CreatedAt    func(childComplexity int) int
+		ID           func(childComplexity int) int
+		Name         func(childComplexity int) int
+		Notify       func(childComplexity int) int
+		Output       func(childComplexity int) int
+		Plan         func(childComplexity int) int
+		PreviousRuns func(childComplexity int) int
+		Schedule     func(childComplexity int) int
+		TerminatedAt func(childComplexity int) int
+		UpcomingRuns func(childComplexity int) int
+		UpdatedAt    func(childComplexity int) int
 	}
 
 	AppNotification struct {
@@ -162,6 +165,7 @@ type ComplexityRoot struct {
 		StartIndexing             func(childComplexity int) int
 		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
 		StartWhatsAppConnection   func(childComplexity int) int
+		UpdateAgentTask           func(childComplexity int, id string, notify bool) int
 		UpdateProfile             func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
@@ -264,6 +268,7 @@ type MutationResolver interface {
 	ConnectMCPServer(ctx context.Context, input model.ConnectMCPServerInput) (bool, error)
 	SendTelegramMessage(ctx context.Context, chatUUID string, text string) (bool, error)
 	DeleteAgentTask(ctx context.Context, id string) (bool, error)
+	UpdateAgentTask(ctx context.Context, id string, notify bool) (bool, error)
 	RemoveMCPServer(ctx context.Context, id string) (bool, error)
 	StartWhatsAppConnection(ctx context.Context) (bool, error)
 }
@@ -326,13 +331,6 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.AgentTask.CreatedAt(childComplexity), true
 
-	case "AgentTask.endedAt":
-		if e.complexity.AgentTask.EndedAt == nil {
-			break
-		}
-
-		return e.complexity.AgentTask.EndedAt(childComplexity), true
-
 	case "AgentTask.id":
 		if e.complexity.AgentTask.ID == nil {
 			break
@@ -346,6 +344,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.AgentTask.Name(childComplexity), true
+
+	case "AgentTask.notify":
+		if e.complexity.AgentTask.Notify == nil {
+			break
+		}
+
+		return e.complexity.AgentTask.Notify(childComplexity), true
 
 	case "AgentTask.output":
 		if e.complexity.AgentTask.Output == nil {
@@ -361,12 +366,33 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.AgentTask.Plan(childComplexity), true
 
+	case "AgentTask.previousRuns":
+		if e.complexity.AgentTask.PreviousRuns == nil {
+			break
+		}
+
+		return e.complexity.AgentTask.PreviousRuns(childComplexity), true
+
 	case "AgentTask.schedule":
 		if e.complexity.AgentTask.Schedule == nil {
 			break
 		}
 
 		return e.complexity.AgentTask.Schedule(childComplexity), true
+
+	case "AgentTask.terminatedAt":
+		if e.complexity.AgentTask.TerminatedAt == nil {
+			break
+		}
+
+		return e.complexity.AgentTask.TerminatedAt(childComplexity), true
+
+	case "AgentTask.upcomingRuns":
+		if e.complexity.AgentTask.UpcomingRuns == nil {
+			break
+		}
+
+		return e.complexity.AgentTask.UpcomingRuns(childComplexity), true
 
 	case "AgentTask.updatedAt":
 		if e.complexity.AgentTask.UpdatedAt == nil {
@@ -905,6 +931,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.StartWhatsAppConnection(childComplexity), true
+
+	case "Mutation.updateAgentTask":
+		if e.complexity.Mutation.UpdateAgentTask == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateAgentTask_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateAgentTask(childComplexity, args["id"].(string), args["notify"].(bool)), true
 
 	case "Mutation.updateProfile":
 		if e.complexity.Mutation.UpdateProfile == nil {
@@ -1776,6 +1814,47 @@ func (ec *executionContext) field_Mutation_startOAuthFlow_argsScope(
 	return zeroVal, nil
 }
 
+func (ec *executionContext) field_Mutation_updateAgentTask_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_updateAgentTask_argsID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["id"] = arg0
+	arg1, err := ec.field_Mutation_updateAgentTask_argsNotify(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["notify"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_updateAgentTask_argsID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+	if tmp, ok := rawArgs["id"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_updateAgentTask_argsNotify(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (bool, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("notify"))
+	if tmp, ok := rawArgs["notify"]; ok {
+		return ec.unmarshalNBoolean2bool(ctx, tmp)
+	}
+
+	var zeroVal bool
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_updateProfile_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
@@ -2403,8 +2482,8 @@ func (ec *executionContext) fieldContext_AgentTask_completedAt(_ context.Context
 	return fc, nil
 }
 
-func (ec *executionContext) _AgentTask_endedAt(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_AgentTask_endedAt(ctx, field)
+func (ec *executionContext) _AgentTask_terminatedAt(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentTask_terminatedAt(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -2417,7 +2496,7 @@ func (ec *executionContext) _AgentTask_endedAt(ctx context.Context, field graphq
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.EndedAt, nil
+		return obj.TerminatedAt, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2431,7 +2510,7 @@ func (ec *executionContext) _AgentTask_endedAt(ctx context.Context, field graphq
 	return ec.marshalODateTime2ᚖstring(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_AgentTask_endedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_AgentTask_terminatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "AgentTask",
 		Field:      field,
@@ -2480,6 +2559,138 @@ func (ec *executionContext) fieldContext_AgentTask_output(_ context.Context, fie
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentTask_upcomingRuns(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentTask_upcomingRuns(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpcomingRuns, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNDateTime2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentTask_upcomingRuns(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentTask_previousRuns(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentTask_previousRuns(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.PreviousRuns, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]string)
+	fc.Result = res
+	return ec.marshalNDateTime2ᚕstringᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentTask_previousRuns(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _AgentTask_notify(ctx context.Context, field graphql.CollectedField, obj *model.AgentTask) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_AgentTask_notify(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Notify, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_AgentTask_notify(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "AgentTask",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5639,6 +5850,61 @@ func (ec *executionContext) fieldContext_Mutation_deleteAgentTask(ctx context.Co
 	return fc, nil
 }
 
+func (ec *executionContext) _Mutation_updateAgentTask(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_updateAgentTask(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdateAgentTask(rctx, fc.Args["id"].(string), fc.Args["notify"].(bool))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateAgentTask(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateAgentTask_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Mutation_removeMCPServer(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Mutation_removeMCPServer(ctx, field)
 	if err != nil {
@@ -6626,10 +6892,16 @@ func (ec *executionContext) fieldContext_Query_getAgentTasks(_ context.Context, 
 				return ec.fieldContext_AgentTask_updatedAt(ctx, field)
 			case "completedAt":
 				return ec.fieldContext_AgentTask_completedAt(ctx, field)
-			case "endedAt":
-				return ec.fieldContext_AgentTask_endedAt(ctx, field)
+			case "terminatedAt":
+				return ec.fieldContext_AgentTask_terminatedAt(ctx, field)
 			case "output":
 				return ec.fieldContext_AgentTask_output(ctx, field)
+			case "upcomingRuns":
+				return ec.fieldContext_AgentTask_upcomingRuns(ctx, field)
+			case "previousRuns":
+				return ec.fieldContext_AgentTask_previousRuns(ctx, field)
+			case "notify":
+				return ec.fieldContext_AgentTask_notify(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type AgentTask", field.Name)
 		},
@@ -10491,10 +10763,25 @@ func (ec *executionContext) _AgentTask(ctx context.Context, sel ast.SelectionSet
 			}
 		case "completedAt":
 			out.Values[i] = ec._AgentTask_completedAt(ctx, field, obj)
-		case "endedAt":
-			out.Values[i] = ec._AgentTask_endedAt(ctx, field, obj)
+		case "terminatedAt":
+			out.Values[i] = ec._AgentTask_terminatedAt(ctx, field, obj)
 		case "output":
 			out.Values[i] = ec._AgentTask_output(ctx, field, obj)
+		case "upcomingRuns":
+			out.Values[i] = ec._AgentTask_upcomingRuns(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "previousRuns":
+			out.Values[i] = ec._AgentTask_previousRuns(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "notify":
+			out.Values[i] = ec._AgentTask_notify(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -11238,6 +11525,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "deleteAgentTask":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_deleteAgentTask(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateAgentTask":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateAgentTask(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -12679,6 +12973,36 @@ func (ec *executionContext) marshalNDateTime2string(ctx context.Context, sel ast
 		}
 	}
 	return res
+}
+
+func (ec *executionContext) unmarshalNDateTime2ᚕstringᚄ(ctx context.Context, v any) ([]string, error) {
+	var vSlice []any
+	vSlice = graphql.CoerceList(v)
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNDateTime2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalNDateTime2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNDateTime2string(ctx, sel, v[i])
+	}
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {

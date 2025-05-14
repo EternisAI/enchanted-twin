@@ -14,11 +14,8 @@ import { Route as rootRoute } from './routes/__root'
 import { Route as TasksImport } from './routes/tasks'
 import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
-import { Route as McpImport } from './routes/mcp'
 import { Route as AdminImport } from './routes/admin'
-import { Route as ChatRouteImport } from './routes/chat/route'
 import { Route as IndexImport } from './routes/index'
-import { Route as ChatIndexImport } from './routes/chat/index'
 import { Route as ChatChatIdImport } from './routes/chat/$chatId'
 
 // Create/Update Routes
@@ -41,21 +38,9 @@ const OnboardingRoute = OnboardingImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const McpRoute = McpImport.update({
-  id: '/mcp',
-  path: '/mcp',
-  getParentRoute: () => rootRoute,
-} as any)
-
 const AdminRoute = AdminImport.update({
   id: '/admin',
   path: '/admin',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const ChatRouteRoute = ChatRouteImport.update({
-  id: '/chat',
-  path: '/chat',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -65,16 +50,10 @@ const IndexRoute = IndexImport.update({
   getParentRoute: () => rootRoute,
 } as any)
 
-const ChatIndexRoute = ChatIndexImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ChatRouteRoute,
-} as any)
-
 const ChatChatIdRoute = ChatChatIdImport.update({
-  id: '/$chatId',
-  path: '/$chatId',
-  getParentRoute: () => ChatRouteRoute,
+  id: '/chat/$chatId',
+  path: '/chat/$chatId',
+  getParentRoute: () => rootRoute,
 } as any)
 
 // Populate the FileRoutesByPath interface
@@ -88,25 +67,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexImport
       parentRoute: typeof rootRoute
     }
-    '/chat': {
-      id: '/chat'
-      path: '/chat'
-      fullPath: '/chat'
-      preLoaderRoute: typeof ChatRouteImport
-      parentRoute: typeof rootRoute
-    }
     '/admin': {
       id: '/admin'
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminImport
-      parentRoute: typeof rootRoute
-    }
-    '/mcp': {
-      id: '/mcp'
-      path: '/mcp'
-      fullPath: '/mcp'
-      preLoaderRoute: typeof McpImport
       parentRoute: typeof rootRoute
     }
     '/onboarding': {
@@ -132,127 +97,82 @@ declare module '@tanstack/react-router' {
     }
     '/chat/$chatId': {
       id: '/chat/$chatId'
-      path: '/$chatId'
+      path: '/chat/$chatId'
       fullPath: '/chat/$chatId'
       preLoaderRoute: typeof ChatChatIdImport
-      parentRoute: typeof ChatRouteImport
-    }
-    '/chat/': {
-      id: '/chat/'
-      path: '/'
-      fullPath: '/chat/'
-      preLoaderRoute: typeof ChatIndexImport
-      parentRoute: typeof ChatRouteImport
+      parentRoute: typeof rootRoute
     }
   }
 }
 
 // Create and export the route tree
 
-interface ChatRouteRouteChildren {
-  ChatChatIdRoute: typeof ChatChatIdRoute
-  ChatIndexRoute: typeof ChatIndexRoute
-}
-
-const ChatRouteRouteChildren: ChatRouteRouteChildren = {
-  ChatChatIdRoute: ChatChatIdRoute,
-  ChatIndexRoute: ChatIndexRoute,
-}
-
-const ChatRouteRouteWithChildren = ChatRouteRoute._addFileChildren(
-  ChatRouteRouteChildren,
-)
-
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/chat': typeof ChatRouteRouteWithChildren
   '/admin': typeof AdminRoute
-  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
-  '/chat/': typeof ChatIndexRoute
 }
 
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
-  '/chat': typeof ChatIndexRoute
 }
 
 export interface FileRoutesById {
   __root__: typeof rootRoute
   '/': typeof IndexRoute
-  '/chat': typeof ChatRouteRouteWithChildren
   '/admin': typeof AdminRoute
-  '/mcp': typeof McpRoute
   '/onboarding': typeof OnboardingRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
-  '/chat/': typeof ChatIndexRoute
 }
 
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/chat'
     | '/admin'
-    | '/mcp'
     | '/onboarding'
     | '/settings'
     | '/tasks'
     | '/chat/$chatId'
-    | '/chat/'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/admin'
-    | '/mcp'
-    | '/onboarding'
-    | '/settings'
-    | '/tasks'
-    | '/chat/$chatId'
-    | '/chat'
+  to: '/' | '/admin' | '/onboarding' | '/settings' | '/tasks' | '/chat/$chatId'
   id:
     | '__root__'
     | '/'
-    | '/chat'
     | '/admin'
-    | '/mcp'
     | '/onboarding'
     | '/settings'
     | '/tasks'
     | '/chat/$chatId'
-    | '/chat/'
   fileRoutesById: FileRoutesById
 }
 
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  ChatRouteRoute: typeof ChatRouteRouteWithChildren
   AdminRoute: typeof AdminRoute
-  McpRoute: typeof McpRoute
   OnboardingRoute: typeof OnboardingRoute
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
+  ChatChatIdRoute: typeof ChatChatIdRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  ChatRouteRoute: ChatRouteRouteWithChildren,
   AdminRoute: AdminRoute,
-  McpRoute: McpRoute,
   OnboardingRoute: OnboardingRoute,
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
+  ChatChatIdRoute: ChatChatIdRoute,
 }
 
 export const routeTree = rootRoute
@@ -266,29 +186,18 @@ export const routeTree = rootRoute
       "filePath": "__root.tsx",
       "children": [
         "/",
-        "/chat",
         "/admin",
-        "/mcp",
         "/onboarding",
         "/settings",
-        "/tasks"
+        "/tasks",
+        "/chat/$chatId"
       ]
     },
     "/": {
       "filePath": "index.tsx"
     },
-    "/chat": {
-      "filePath": "chat/route.tsx",
-      "children": [
-        "/chat/$chatId",
-        "/chat/"
-      ]
-    },
     "/admin": {
       "filePath": "admin.tsx"
-    },
-    "/mcp": {
-      "filePath": "mcp.tsx"
     },
     "/onboarding": {
       "filePath": "onboarding.tsx"
@@ -300,12 +209,7 @@ export const routeTree = rootRoute
       "filePath": "tasks.tsx"
     },
     "/chat/$chatId": {
-      "filePath": "chat/$chatId.tsx",
-      "parent": "/chat"
-    },
-    "/chat/": {
-      "filePath": "chat/index.tsx",
-      "parent": "/chat"
+      "filePath": "chat/$chatId.tsx"
     }
   }
 }

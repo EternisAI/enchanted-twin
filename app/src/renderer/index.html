@@ -3,16 +3,30 @@
   <head>
     <meta charset="UTF-8" />
     <title>Digital Twin</title>
-    <!-- https://developer.mozilla.org/en-US/docs/Web/HTTP/CSP -->
-     <!-- for dev, use https://prod.spline.design, for production use local assets -->
+
+    <!-- CSP that covers dev + prod assets, TTS WS on :8080, Vite WS on :5173, backend on :3000 -->
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; connect-src 'self' http://localhost:3000 ws://localhost:3000 https://www.gstatic.com https://prod.spline.design; script-src 'self' 'unsafe-eval' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https: http:; "
+      content="
+        default-src 'self';
+        connect-src 'self'
+          http://localhost:45001 ws://localhost:45001
+          http://localhost:3000 ws://localhost:3000
+          ws://localhost:5173
+          https://www.gstatic.com
+          https://prod.spline.design;
+        media-src  'self' blob:;
+        img-src    'self' data: blob: https: http:;
+        script-src 'self' 'unsafe-eval' blob:;
+        style-src  'self' 'unsafe-inline' https://fonts.googleapis.com;
+        font-src   'self' https://fonts.gstatic.com;
+        worker-src 'self' blob:;
+      "
     />
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Sen&display=swap" rel="stylesheet" />
-    <!-- TODO: embed fonts -->
   </head>
 
   <body class="bg-background text-foreground h-screen w-screen flex flex-col">

@@ -24,6 +24,8 @@ import {
   AlertDialogFooter,
   AlertDialogCancel
 } from '../ui/alert-dialog'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
+import { Check, Trash2 } from 'lucide-react'
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
     provider: 'google',
@@ -58,6 +60,14 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   const [authStateId, setAuthStateId] = useState<string | null>(null)
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
+  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
+
+  const handleRemove = () => {
+    if (onRemove) {
+      onRemove()
+      setIsRemoveDialogOpen(false)
+    }
+  }
 
   async function handleOAuthFlow(
     serverType: string,
@@ -128,16 +138,62 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
 
   return (
     <Card className="p-4 w-[350px] max-w-full">
-      <div className="font-semibold text-lg flex items-center justify-between">
+      <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
         <div className="flex items-center gap-2">
           {PROVIDER_ICON_MAP[server.type]}
-          {server.name}
+          <span className="font-semibold text-lg">{server.name}</span>
         </div>
-        <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
           {server.connected ? (
-            <span className="text-xs bg-green-500/20 text-green-600 px-2 py-0.5 rounded-full font-medium">
-              Connected
-            </span>
+            <>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Check className="w-6 h-6 text-green-600 dark:text-green-400 bg-green-500/20 rounded-full p-1" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Connected</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {onRemove && (
+                <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
+                  <AlertDialogTrigger asChild>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full"
+                            onClick={() => setIsRemoveDialogOpen(true)}
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>Remove connection</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Remove server connection</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. It will permanently remove the server.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Do not delete</AlertDialogCancel>
+                      <Button variant="destructive" onClick={handleRemove}>
+                        Delete
+                      </Button>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+            </>
           ) : (
             <Button
               variant="outline"
@@ -146,34 +202,6 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
             >
               Connect
             </Button>
-          )}
-          {onRemove && server.connected && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  Remove
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Remove server connection</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. It will permanently remove the server.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Do not delete</AlertDialogCancel>
-                  <Button
-                    variant="destructive"
-                    onClick={() => {
-                      onRemove()
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
           )}
         </div>
       </div>

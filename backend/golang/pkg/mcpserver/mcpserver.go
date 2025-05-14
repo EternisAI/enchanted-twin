@@ -1,3 +1,4 @@
+// Owner: ankit@eternis.ai
 package mcpserver
 
 import (
@@ -5,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 
 	"github.com/charmbracelet/log"
@@ -226,7 +228,11 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			continue
 		}
 
-		cmd := exec.Command(server.Command, server.Args...)
+		command := server.Command
+		if command == "docker" {
+			command = getDockerCommand()
+		}
+		cmd := exec.Command(command, server.Args...)
 
 		cmd.Env = os.Environ()
 		for _, env := range server.Envs {
@@ -318,7 +324,24 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 }
 
 func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
-	return s.repo.DeleteMCPServer(ctx, id)
+	err := s.repo.DeleteMCPServer(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	// Remove the server from the connected servers
+	for i, connectedServer := range s.connectedServers {
+		if connectedServer.ID == id {
+			if i < len(s.connectedServers)-1 {
+				s.connectedServers = append(s.connectedServers[:i], s.connectedServers[i+1:]...)
+			} else {
+				s.connectedServers = s.connectedServers[:i]
+			}
+			break
+		}
+	}
+
+	return nil
 }
 
 // GetRegistry returns the tool registry.
@@ -331,8 +354,8 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
 	if s.registry == nil {
 		return
 	}
-
-	tools, err := client.ListTools(ctx, nil)
+	cursor := ""
+	tools, err := client.ListTools(ctx, &cursor)
 	if err != nil {
 		log.Warn("Error getting tools from MCP client", "error", err)
 		return
@@ -371,4 +394,29 @@ func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
 	clientTransport := stdio.NewStdioServerTransportWithIO(stdout, stdin)
 
 	return clientTransport, nil
+}
+
+func getDockerCommand() string {
+	var dockerCommand string
+	path, err := exec.LookPath("docker")
+	if err != nil {
+		commonPaths := []string{
+			"/usr/local/bin/docker",
+			"/usr/bin/docker",
+			filepath.Join(os.Getenv("HOME"), ".local/bin/docker"),
+		}
+		for _, p := range commonPaths {
+			if _, err := os.Stat(p); err == nil {
+				path = p
+				break
+			}
+		}
+	}
+	if path != "" {
+		dockerCommand = path
+	} else {
+		dockerCommand = "docker"
+	}
+
+	return dockerCommand
 }

@@ -11,6 +11,7 @@ import { ThemeProvider } from './lib/theme'
 import { Toaster } from 'sonner'
 
 import { createHashHistory } from '@tanstack/react-router'
+import { TTSProvider } from './lib/ttsProvider'
 
 const router = createRouter({
   routeTree,
@@ -35,10 +36,12 @@ const savedTheme = (() => {
 export default createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ThemeProvider defaultTheme={savedTheme}>
-      <ApolloClientProvider>
-        <RouterProvider router={router} />
-        <Toaster position="bottom-right" />
-      </ApolloClientProvider>
+      <TTSProvider>
+        <ApolloClientProvider>
+          <RouterProvider router={router} />
+          <Toaster position="bottom-right" />
+        </ApolloClientProvider>
+      </TTSProvider>
     </ThemeProvider>
   </StrictMode>
 )

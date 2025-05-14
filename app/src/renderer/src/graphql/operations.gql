@@ -100,8 +100,9 @@ query GetAgentTasks {
     createdAt
     updatedAt
     completedAt
-    endedAt
+    terminatedAt
     output
+    notify
   }
 }
 
@@ -239,6 +240,10 @@ mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
 
 mutation DeleteAgentTask($id: ID!) {
   deleteAgentTask(id: $id)
+}
+
+mutation UpdateAgentTask($id: ID!, $notify: Boolean!) {
+  updateAgentTask(id: $id, notify: $notify)
 }
 
 mutation ConnectMCPServer($input: ConnectMCPServerInput!) {

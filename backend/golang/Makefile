@@ -13,7 +13,6 @@ release:
 	GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
 	GOOS=darwin GOARCH=arm64 go build -o bin/enchanted-twin-darwin-arm64 cmd/server/main.go
 	GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
-	GOOS=windows GOARCH=amd64 go build -o bin/enchanted-twin-windows-amd64.exe cmd/server/main.go
 
 lint:
 	golangci-lint run
@@ -23,3 +22,6 @@ test:
 
 gqlgen:
 	go run github.com/99designs/gqlgen generate
+
+run-telegram-chat:
+	go run cmd/telegram_chat_server/main.go

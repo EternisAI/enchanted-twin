@@ -16,7 +16,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
     onCompleted: () => {
       setName('')
       setCommand('')
-      setArgumentsList([''])
+      setArgumentsString('')
       setEnvVars([{ key: '', value: '' }])
       setPastedText('')
       toast.success('MCP server connected')
@@ -32,7 +32,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
 
   const [name, setName] = useState('')
   const [command, setCommand] = useState('')
-  const [argumentsList, setArgumentsList] = useState<string[]>([''])
+  const [argumentsString, setArgumentsString] = useState('')
   const [envVars, setEnvVars] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }])
   const [pastedText, setPastedText] = useState('')
 
@@ -42,7 +42,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
         input: {
           name,
           command,
-          args: argumentsList,
+          args: argumentsString.split(' ').filter((arg) => arg.trim() !== ''),
           envs: envVars.filter((env) => env.key.trim() !== ''),
           type: McpServerType.Other
         }
@@ -65,7 +65,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
 
       setName(firstName)
       setCommand(command)
-      setArgumentsList(args)
+      setArgumentsString(Array.isArray(args) ? args.join(' ') : '')
       setEnvVars(Object.entries(env).map(([key, value]) => ({ key, value: value as string })))
       setPastedText('')
       toast.success(`Prefilled with server "${firstName}"`)
@@ -76,7 +76,7 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 ">
       <div className="flex flex-col gap-2">
         <label>Paste JSON Config</label>
         <Textarea
@@ -114,31 +114,16 @@ export default function MCPConnectionForm({ onSuccess }: MCPConnectionFormProps)
       <div className="space-y-2">
         <div className="flex justify-between items-center">
           <label>Arguments</label>
-          <Button variant="link" onClick={() => setArgumentsList([...argumentsList, ''])}>
+          {/* <Button variant="link" onClick={() => setArgumentsList([...argumentsList, ''])}>
             + Add Argument
-          </Button>
+          </Button> */}
         </div>
         <div className="flex flex-col gap-2">
-          {argumentsList.map((arg, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <Input
-                value={arg}
-                placeholder={`Argument ${idx + 1}`}
-                onChange={(e) => {
-                  const copy = [...argumentsList]
-                  copy[idx] = e.target.value
-                  setArgumentsList(copy)
-                }}
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setArgumentsList(argumentsList.filter((_, i) => i !== idx))}
-              >
-                <Trash2 className="w-4 h-4 text-red-500" />
-              </Button>
-            </div>
-          ))}
+          <Input
+            value={argumentsString}
+            placeholder="Enter arguments separated by spaces"
+            onChange={(e) => setArgumentsString(e.target.value)}
+          />
         </div>
       </div>
 

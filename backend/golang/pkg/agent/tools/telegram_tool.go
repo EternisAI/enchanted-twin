@@ -72,7 +72,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agent
 
 	fmt.Println("telegramEnabled", telegramEnabled)
 	if err2 != nil || telegramEnabled != "true" {
-		t.Logger.Error("telegram is not enabled", "error", err2)
+		t.Logger.Info("telegram is not enabled", "error", err2)
 
 		chatURL := helpers.GetChatURL(apptypes.TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
