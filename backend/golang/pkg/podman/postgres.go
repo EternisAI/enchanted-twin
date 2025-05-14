@@ -2,6 +2,7 @@ package podman
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -109,7 +110,6 @@ func NewPostgresManager(logger *charmlog.Logger, options PostgresOptions) *Postg
 
 // Returns: containerID string and error.
 func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, error) {
-	// First check if Podman is running
 	running, err := p.podman.IsMachineRunning(ctx)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to verify if Podman is running")
@@ -119,38 +119,32 @@ func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, e
 		return "", errors.New("podman machine is not running")
 	}
 
-	// Ensure data directory exists
 	if err := os.MkdirAll(p.options.DataPath, 0o755); err != nil {
 		return "", errors.Wrap(err, "failed to create data directory")
 	}
 
-	// Check if container already exists
-	containerExists, containerID, err := p.CheckContainerExists(ctx, p.options.ContainerName)
+	containerExists, containerID, err := p.podman.CheckContainerExists(ctx, p.options.ContainerName)
 	if err != nil {
 		p.logger.Warn("Failed to check if container exists: ", err)
 	}
 
-	// If container exists, check if it's running or remove it
 	if containerExists {
 		p.logger.Info("PostgreSQL container already exists with ID: ", containerID)
 
 		// Force remove the existing container to ensure a clean state
 		p.logger.Info("Removing existing PostgreSQL container to ensure clean state")
-		err = p.RemoveContainer(ctx, containerID)
+		err = p.podman.RemoveContainer(ctx, containerID)
 		if err != nil {
 			p.logger.Warn("Failed to remove existing container: ", err)
-			// Continue anyway - we'll try to start it fresh
 		}
 	}
 
-	// Set up a init script to create the database and proper permissions
 	initScriptPath := filepath.Join(p.options.DataPath, "init.sql")
-	err = createInitScript(initScriptPath, p.options.User, p.options.Database)
+	err = CreateInitScript(initScriptPath, p.options.User, p.options.Database)
 	if err != nil {
 		p.logger.Warn("Failed to create init script: ", err)
 	}
 
-	// Try simpler approach - using plain port mapping first
 	containerConfig := ContainerConfig{
 		ImageURL: p.options.ImageURL,
 		Name:     p.options.ContainerName,
@@ -162,29 +156,25 @@ func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, e
 		Environment: map[string]string{
 			"POSTGRES_PASSWORD":         p.options.Password,
 			"POSTGRES_USER":             p.options.User,
-			"POSTGRES_DB":               "postgres", // Using standard 'postgres' database
-			"POSTGRES_HOST_AUTH_METHOD": "trust",    // Allow all connections for testing
+			"POSTGRES_DB":               "postgres",
+			"POSTGRES_HOST_AUTH_METHOD": "trust",
 		},
 		PullIfNeeded: true,
-		// No special network configuration - just plain port mapping
 	}
 
-	// Run the container
 	p.logger.Info("Starting PostgreSQL container with standard configuration")
 	containerID, err = p.podman.RunContainer(ctx, containerConfig)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to run PostgreSQL container")
 	}
 
-	// Wait for PostgreSQL to start (longer wait to ensure init scripts run)
 	p.logger.Info("Waiting for PostgreSQL to initialize...")
 	time.Sleep(10 * time.Second)
 
-	// Ensure the database is properly set up
 	p.logger.Info("Setting up PostgreSQL for external access")
-	if err := p.setupPostgreSQL(ctx); err != nil {
+	if err := p.SetupPostgreSQL(ctx); err != nil {
 		p.logger.Error("Failed to set up PostgreSQL", "error", err)
-		return containerID, nil // Return the container ID anyway so it can be managed
+		return containerID, nil
 	}
 
 	p.logger.Info("PostgreSQL container started successfully", "containerId", containerID, "port", p.options.Port)
@@ -192,7 +182,7 @@ func (p *PostgresManager) StartPostgresContainer(ctx context.Context) (string, e
 }
 
 // createInitScript creates an SQL init script that will run when the container starts.
-func createInitScript(path string, user string, dbName string) error {
+func CreateInitScript(path string, user string, dbName string) error {
 	script := fmt.Sprintf(`
 -- Make the user a superuser to avoid permission issues
 ALTER USER %s WITH SUPERUSER;
@@ -214,7 +204,7 @@ GRANT ALL PRIVILEGES ON DATABASE %s TO %s;
 }
 
 // setupPostgreSQL performs the necessary setup for PostgreSQL.
-func (p *PostgresManager) setupPostgreSQL(ctx context.Context) error {
+func (p *PostgresManager) SetupPostgreSQL(ctx context.Context) error {
 	// Wait for PostgreSQL to be ready first
 	if err := p.WaitForReady(ctx, 30*time.Second); err != nil {
 		return errors.Wrap(err, "PostgreSQL failed to become ready")
@@ -318,13 +308,11 @@ func (p *PostgresManager) createDatabase(ctx context.Context, dbName string) err
 func (p *PostgresManager) EnsureDatabase(ctx context.Context, dbName string) error {
 	p.logger.Info("Database should already be set up - verifying existence")
 
-	// Check if database exists
 	output, err := p.ExecuteSQLCommand(ctx, fmt.Sprintf("SELECT 1 FROM pg_database WHERE datname = '%s'", dbName))
 
 	if err == nil && strings.Contains(output, "1 row") {
 		p.logger.Info("Database exists as expected", "database", dbName)
 
-		// Double-check we can actually connect to it
 		testArgs := []string{
 			"exec",
 			p.options.ContainerName,
@@ -509,133 +497,68 @@ func (p *PostgresManager) GetConnectionString(dbName string) string {
 		p.options.User, p.options.Password, p.options.Port, dbName)
 }
 
-// IsContainerRunning checks if a container is running.
-func (p *PostgresManager) IsContainerRunning(ctx context.Context, containerID string) (bool, error) {
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return false, fmt.Errorf("invalid podman manager type")
+// TestDbConnection tests connectivity to the given PostgreSQL connection string.
+// It lists tables in the connected database to verify read access and provides
+// diagnostic logging. It retries a few times with exponential back-off before
+// returning an error.
+func TestDbConnection(ctx context.Context, connString string, logger *charmlog.Logger) error {
+	logger.Info("Attempting direct database connection", "connectionString", connString)
+
+	const maxAttempts = 5
+	for i := 0; i < maxAttempts; i++ {
+		db, err := sql.Open("postgres", connString)
+		if err == nil {
+			defer db.Close() //nolint:errcheck
+
+			pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			err = db.PingContext(pingCtx)
+			cancel()
+			if err == nil {
+				logger.Info("Direct database connection successful")
+
+				var result int
+				if err := db.QueryRow("SELECT 1").Scan(&result); err == nil && result == 1 {
+					logger.Info("Database query successful", "result", result)
+
+					listQuery := `SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name`
+					rows, qErr := db.Query(listQuery)
+					if qErr != nil {
+						logger.Warn("Failed to list tables", "error", qErr)
+					} else {
+						defer rows.Close() //nolint:errcheck
+						var tables []string
+						for rows.Next() {
+							var tbl string
+							if rows.Scan(&tbl) == nil {
+								tables = append(tables, tbl)
+							}
+						}
+						if len(tables) == 0 {
+							logger.Info("No tables found in database (empty database)")
+						} else {
+							logger.Info("Tables in database", "count", len(tables), "tables", tables)
+						}
+					}
+					return nil
+				}
+			} else {
+				logger.Warn("Database ping failed", "error", err)
+				if strings.Contains(err.Error(), "does not exist") {
+					logger.Error("Database in connection string does not exist")
+				}
+			}
+		} else {
+			logger.Warn("Failed to open database connection", "error", err)
+		}
+
+		wait := time.Duration(1<<uint(i)) * time.Second
+		logger.Warn("Database connection attempt failed, retrying", "attempt", i+1, "max", maxAttempts, "wait", wait)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(wait):
+		}
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
-	defer cancel()
-
-	cmd := m.executable
-	args := []string{"container", "inspect", containerID, "--format", "{{.State.Running}}"}
-
-	output, err := m.ExecCommand(ctx, cmd, args)
-	if err != nil {
-		return false, errors.Wrap(err, "failed to inspect container")
-	}
-
-	return strings.TrimSpace(output) == "true", nil
-}
-
-// CheckContainerExists checks if a container with the given name exists.
-func (p *PostgresManager) CheckContainerExists(ctx context.Context, containerName string) (bool, string, error) {
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return false, "", fmt.Errorf("invalid podman manager type")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
-	defer cancel()
-
-	cmd := m.executable
-	args := []string{"container", "ls", "-a", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}"}
-
-	output, err := m.ExecCommand(ctx, cmd, args)
-	if err != nil {
-		return false, "", errors.Wrap(err, "failed to list containers")
-	}
-
-	containerID := strings.TrimSpace(output)
-	return containerID != "", containerID, nil
-}
-
-// StartContainer starts an existing container.
-func (p *PostgresManager) StartContainer(ctx context.Context, containerID string) error {
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return fmt.Errorf("invalid podman manager type")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
-	defer cancel()
-
-	cmd := m.executable
-	args := []string{"container", "start", containerID}
-
-	_, err := m.ExecCommand(ctx, cmd, args)
-	if err != nil {
-		return errors.Wrap(err, "failed to start container")
-	}
-
-	return nil
-}
-
-// RemoveContainer removes a container.
-func (p *PostgresManager) RemoveContainer(ctx context.Context, containerID string) error {
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return fmt.Errorf("invalid podman manager type")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
-	defer cancel()
-
-	cmd := m.executable
-	args := []string{"container", "rm", "-f", containerID}
-
-	_, err := m.ExecCommand(ctx, cmd, args)
-	if err != nil {
-		return errors.Wrap(err, "failed to remove container")
-	}
-
-	return nil
-}
-
-// Stop stops the container.
-func (p *PostgresManager) Stop(ctx context.Context) error {
-	m, ok := p.podman.(*DefaultManager)
-	if !ok {
-		return fmt.Errorf("invalid podman manager type")
-	}
-
-	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
-	defer cancel()
-
-	// Check if container exists
-	exists, containerID, err := p.CheckContainerExists(ctx, p.options.ContainerName)
-	if err != nil {
-		return errors.Wrap(err, "failed to check if container exists")
-	}
-
-	if !exists {
-		return nil // Container doesn't exist, nothing to stop
-	}
-
-	cmd := m.executable
-	args := []string{"container", "stop", containerID}
-
-	_, err = m.ExecCommand(ctx, cmd, args)
-	if err != nil {
-		return errors.Wrap(err, "failed to stop container")
-	}
-
-	return nil
-}
-
-// Remove removes the container.
-func (p *PostgresManager) Remove(ctx context.Context) error {
-	// Check if container exists
-	exists, containerID, err := p.CheckContainerExists(ctx, p.options.ContainerName)
-	if err != nil {
-		return errors.Wrap(err, "failed to check if container exists")
-	}
-
-	if !exists {
-		return nil // Container doesn't exist, nothing to remove
-	}
-
-	return p.RemoveContainer(ctx, containerID)
+	return fmt.Errorf("unable to connect to database after %d attempts", maxAttempts)
 }

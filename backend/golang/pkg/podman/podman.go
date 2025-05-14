@@ -44,6 +44,9 @@ type PodmanManager interface {
 	// RemoveContainer removes a container
 	RemoveContainer(ctx context.Context, containerID string) error
 
+	// StopContainer stops a container
+	StopContainer(ctx context.Context, containerID string) error
+
 	// CleanupContainer cleans up a container
 	CleanupContainer(ctx context.Context, containerName string) error
 
@@ -279,6 +282,23 @@ func (m *DefaultManager) StartContainer(ctx context.Context, containerID string)
 	if err != nil {
 		log.WithError(err).WithField("output", string(output)).Debug("Failed to start container")
 		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	return nil
+}
+
+func (m *DefaultManager) StopContainer(ctx context.Context, containerID string) error {
+	ctx, cancel := context.WithTimeout(ctx, m.defaultTimeout)
+	defer cancel()
+
+	cmd := m.executable
+	args := []string{"container", "stop", containerID}
+
+	execCmd := exec.CommandContext(ctx, cmd, args...)
+	output, err := execCmd.CombinedOutput()
+	if err != nil {
+		log.WithError(err).WithField("output", string(output)).Debug("Failed to stop container")
+		return fmt.Errorf("failed to stop container: %w", err)
 	}
 
 	return nil
