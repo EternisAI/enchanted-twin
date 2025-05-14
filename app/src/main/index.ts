@@ -13,7 +13,7 @@ import { URL } from 'url'
 import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
-import { registerScreenpipeIpc, installAndStartScreenpipe, cleanupScreenpipe } from './screenpipe'
+import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
 import {
   installPodman,
@@ -561,14 +561,6 @@ app.whenReady().then(async () => {
   } else {
     log.info('Running in development mode – skipping Podman setup (using Docker)')
   }
-
-  installAndStartScreenpipe().then((result) => {
-    if (!result.success) {
-      log.error(`Failed to install screenpipe: ${result.error}`)
-      createErrorWindow(`Failed to install screenpipe: ${result.error}`)
-      return
-    }
-  })
 
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {

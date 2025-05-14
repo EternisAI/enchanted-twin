@@ -26,7 +26,6 @@ import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
 import { Omnibar } from '../Omnibar'
 import { isToday, isYesterday, isWithinInterval, subDays } from 'date-fns'
-import { useSettingsStore } from '@renderer/lib/stores/settings'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { useState } from 'react'
@@ -67,7 +66,6 @@ const groupChatsByTime = (chats: Chat[]) => {
 export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
-  const { open: openSettings } = useSettingsStore()
   const { openOmnibar } = useOmnibarStore()
   const [showAllChats, setShowAllChats] = useState(false)
 
@@ -124,7 +122,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
             <TooltipProvider>
-              <Tooltip>
+              <Tooltip delayDuration={500}>
                 <TooltipTrigger asChild>
                   <Button
                     variant="ghost"
@@ -147,7 +145,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
             </TooltipProvider>
           </div>
           <TooltipProvider>
-            <Tooltip>
+            <Tooltip delayDuration={500}>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
@@ -228,7 +226,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           <Button
             variant="ghost"
             className="w-full justify-between px-2 text-secondary-foreground hover:text-foreground h-9 group"
-            onClick={openSettings}
+            onClick={() => navigate({ to: '/settings' })}
           >
             <div className="flex items-center gap-2">
               <SettingsIcon className="w-4 h-4 mr-2" />

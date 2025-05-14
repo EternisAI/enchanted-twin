@@ -27,6 +27,7 @@
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
     "@graphql-codegen/cli": "^5.0.5",
+    "@napi-rs/image": "^1.9.2",
     "@radix-ui/react-alert-dialog": "^1.1.7",
     "@radix-ui/react-collapsible": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.7",
@@ -123,7 +124,10 @@
       "extendInfo": {
         "NSCameraUsageDescription": "This app requires access to the camera.",
         "NSMicrophoneUsageDescription": "This app requires access to the microphone.",
-        "NSDocumentsFolderUsageDescription": "This app requires access to the Documents folder."
+        "NSDocumentsFolderUsageDescription": "This app requires access to the Documents folder.",
+        "NSScreenRecordingUsageDescription": "This app needs screen-recording permission so you can share your screen.",
+        "NSAccessibilityUsageDescription": "This app needs accessibility permissions to enhance user experience.",
+        "NSUserNotificationUsageDescription": "This app needs notification permissions to send you important updates and alerts."
       }
     },
     "afterSign": "./build/notarize.js"

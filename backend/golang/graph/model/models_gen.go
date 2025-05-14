@@ -20,6 +20,7 @@ type AgentTask struct {
 	Output       *string  `json:"output,omitempty"`
 	UpcomingRuns []string `json:"upcomingRuns"`
 	PreviousRuns []string `json:"previousRuns"`
+	Notify       bool     `json:"notify"`
 }
 
 type AppNotification struct {

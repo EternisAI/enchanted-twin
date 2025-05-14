@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -317,6 +318,42 @@ func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool
 	return true, nil
 }
 
+// UpdateAgentTask sets the Notify flag for the given schedule.
+func (r *mutationResolver) UpdateAgentTask(ctx context.Context, id string, notify bool) (bool, error) {
+	h := r.TemporalClient.ScheduleClient().GetHandle(ctx, id)
+	err := h.Update(ctx, client.ScheduleUpdateOptions{
+		DoUpdate: func(in client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {
+			sched := in.Description.Schedule
+			wfAct, ok := sched.Action.(*client.ScheduleWorkflowAction)
+			if !ok || len(wfAct.Args) == 0 {
+				return nil, fmt.Errorf("schedule %q has no workflow args", id)
+			}
+
+			pl, ok := wfAct.Args[0].(*common.Payload)
+			if !ok {
+				return nil, fmt.Errorf("first arg not *common.Payload")
+			}
+
+			var arg scheduler.TaskScheduleWorkflowInput
+			if err := json.Unmarshal(pl.Data, &arg); err != nil {
+				return nil, err
+			}
+			arg.Notify = notify
+
+			raw, err := json.Marshal(arg)
+			if err != nil {
+				return nil, err
+			}
+			pl.Data = raw
+			return &client.ScheduleUpdate{Schedule: &sched}, nil
+		},
+	})
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // RemoveMCPServer is the resolver for the removeMCPServer field.
 func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool, error) {
 	err := r.MCPService.RemoveMCPServer(ctx, id)
@@ -506,12 +543,17 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 			CompletedAt:  nil,
 			TerminatedAt: nil,
 			Output:       nil,
+			Notify:       wfArgsData.Notify,
 		}
 		agentTasks = append(agentTasks, task)
 	}
+	sort.Slice(agentTasks, func(i, j int) bool {
+		return agentTasks[i].ID > agentTasks[j].ID
+	})
 	return agentTasks, nil
 }
 
+// GetSetupProgress is the resolver for the getSetupProgress field.
 func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupProgress, error) {
 	// Use the injected container manager if available, otherwise create a new one
 	mgr := r.ContainerManager
@@ -659,6 +701,24 @@ func (r *subscriptionResolver) IndexingStatus(ctx context.Context) (<-chan *mode
 // NotificationAdded is the resolver for the notificationAdded field.
 func (r *subscriptionResolver) NotificationAdded(ctx context.Context) (<-chan *model.AppNotification, error) {
 	notificationChan := make(chan *model.AppNotification, 10)
+	subject := "notifications.app"
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		var notification model.AppNotification
+		if err := json.Unmarshal(msg.Data, &notification); err != nil {
+			return
+		}
+		notificationChan <- &notification
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		<-ctx.Done()
+		_ = sub.Unsubscribe()
+		close(notificationChan)
+	}()
 
 	return notificationChan, nil
 }
@@ -818,49 +878,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
-
-// !!! WARNING !!!
-// The code below was going to be deleted when updating resolvers. It has been copied here so you have
-// one last chance to move it out of harms way if you want. There are two reasons this happens:
-//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
-//    it when you're done.
-//  - You have helper methods in this file. Move them out to keep these resolver files clean.
-/*
-	func (r *queryResolver) SetupProgress(ctx context.Context) ([]*model.SetupProgress, error) {
-	// Use the injected container manager if available, otherwise create a new one
-	mgr := r.ContainerManager
-	if mgr == nil {
-		mgr = container.NewManager("") // falls back to default (Podman)
-	}
-
-	kokoroProgress, err := mgr.GetImageProgress(ctx, container.KokoroContainer.ImageURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Kokoro image progress: %w", err)
-	}
-
-	postgresProgress, err := mgr.GetImageProgress(ctx, container.PostgresContainer.ImageURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get Postgres image progress: %w", err)
-	}
-
-	results := []*model.SetupProgress{
-		{
-			Name:     "kokoro",
-			Progress: int32(kokoroProgress),
-		},
-		{
-			Name:     "postgres",
-			Progress: int32(postgresProgress),
-		},
-	}
-
-	return results, nil
-}
-*/
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }
