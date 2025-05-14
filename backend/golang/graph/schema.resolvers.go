@@ -551,7 +551,7 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 		agentTasks = append(agentTasks, task)
 	}
 	sort.Slice(agentTasks, func(i, j int) bool {
-		return agentTasks[i].CreatedAt > agentTasks[j].CreatedAt
+		return agentTasks[i].ID > agentTasks[j].ID
 	})
 	return agentTasks, nil
 }

@@ -39,8 +39,6 @@ export default function AgentTasks() {
   })
 
   const agentTasks = [...(data?.getAgentTasks || [])]
-    .filter((task) => !task.terminatedAt)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
 
   return (
     <Card className="p-4 w-full overflow-y-auto">

@@ -35,32 +35,39 @@ function checkNotificationStatus(): Promise<boolean> {
   })
 }
 
-async function fetchNotificationIcon(iconUrl: string): Promise<Electron.NativeImage | undefined> {
+async function fetchNotificationIcon(url: string): Promise<Electron.NativeImage | undefined> {
   try {
-    console.log('fetchNotificationIcon', iconUrl)
-    const res = await fetch(iconUrl)
-    if (res.ok) {
-      const arrayBuffer = await res.arrayBuffer()
-      const buffer = Buffer.from(arrayBuffer)
-      const img = nativeImage.createFromBuffer(buffer)
-      if (!img.isEmpty()) {
-        return img
-      }
+    if (!/^https?:\/\//i.test(url)) return
+
+    const res = await fetch(url, { redirect: 'follow' })
+    if (!res.ok) return
+
+    const buf = Buffer.from(await res.arrayBuffer())
+    const ctype = res.headers.get('content-type') ?? ''
+
+    // PNG / JPEG / ICO – handled by Electron
+    let img = nativeImage.createFromBuffer(buf)
+    if (!img.isEmpty()) return img
+
+    // WebP → PNG (lazy-load @napi-rs/image)
+    if (/image\/webp/i.test(ctype) || url.toLowerCase().endsWith('.webp')) {
+      const { Transformer } = await import('@napi-rs/image')
+      const pngBuf = await new Transformer(buf).png()
+      img = nativeImage.createFromBuffer(Buffer.from(pngBuf))
+      if (!img.isEmpty()) return img
     }
-  } catch (err) {
-    console.error('Failed to fetch notification icon:', err)
+  } catch (e) {
+    console.error('[icon] fetchNotificationIcon failed:', e)
   }
   return undefined
 }
 
-export async function showOsNotification(
+async function showOsNotification(
   win: BrowserWindow,
   notification: AppNotification
 ): Promise<boolean> {
   if (!notificationsSupported()) return false
-  console.log('notificationsSupported')
   const notificationEnabled = await checkNotificationStatus()
-  console.log('notificationEnabled', notificationEnabled)
 
   if (!notificationEnabled) return false
 
@@ -69,7 +76,6 @@ export async function showOsNotification(
   if (icon && typeof icon === 'string' && /^https?:\/\//.test(icon)) {
     icon = await fetchNotificationIcon(icon)
   }
-  console.log('new icon', icon)
 
   const toast = new Notification({
     title: notification.title,
