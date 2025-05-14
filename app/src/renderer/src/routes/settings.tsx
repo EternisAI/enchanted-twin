@@ -1,69 +1,27 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
-import { Monitor, Moon, Sun } from 'lucide-react'
-import { Card } from '@renderer/components/ui/card'
-import PermissionsCard from '@renderer/components/settings/permissions/PermissionsCard'
-import useAppVersion from '@renderer/hooks/useAppVersion'
-import ScreenpipePanel from '@renderer/components/settings/permissions/ScreenpipeCard'
+import { ArrowLeft } from 'lucide-react'
+import { SettingsPage } from '@renderer/components/settings/SettingsPage'
 
 export const Route = createFileRoute('/settings')({
-  component: Settings
+  component: SettingsRouteComponent
 })
 
-function Settings() {
-  const { theme, setTheme } = useTheme()
-  const { version } = useAppVersion()
-
+function SettingsRouteComponent() {
   return (
-    <div className="p-6 flex flex-col gap-6 w-full mx-auto">
-      <h2 className="text-4xl mb-6">Settings</h2>
-
-      <div className="grid grid-cols-2 gap-6">
-        <div className="flex flex-col gap-8">
-          <Card className="p-6 w-full">
-            <h3 className="text-xl font-semibold">Appearance</h3>
-            <p className="text-sm text-muted-foreground">
-              Customize how the app looks on your device.
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant={theme === 'light' ? 'default' : 'outline'}
-                className="flex-1"
-                onClick={() => setTheme('light')}
-              >
-                <Sun className="mr-2" />
-                Light
-              </Button>
-              <Button
-                variant={theme === 'dark' ? 'default' : 'outline'}
-                className="flex-1"
-                onClick={() => setTheme('dark')}
-              >
-                <Moon className="mr-2" />
-                Dark
-              </Button>
-              <Button
-                variant={theme === 'system' ? 'default' : 'outline'}
-                className="flex-1"
-                onClick={() => setTheme('system')}
-              >
-                <Monitor className="mr-2" />
-                System
-              </Button>
-            </div>
-          </Card>
-
-          <Card className="p-6 w-full">
-            <h3 className="text-xl font-semibold">Updates</h3>
-            <p className="text-sm text-muted-foreground">Version {version}</p>
-          </Card>
-
-          <ScreenpipePanel />
+    <div className="flex flex-col h-screen w-screen text-foreground pt-8 relative bg-background">
+      <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm drag">
+        Settings
+      </div>
+      <div className="flex-1 flex flex-col mt-8 overflow-hidden">
+        <div className="p-4 border-b no-drag">
+          <Button variant="ghost" onClick={() => window.history.back()} className="h-9 px-2">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
         </div>
-
-        <div>
-          <PermissionsCard />
+        <div className="flex-1 overflow-y-auto">
+          <SettingsPage />
         </div>
       </div>
     </div>

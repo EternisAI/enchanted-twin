@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@apollo/client'
-import { MessageCircle, Trash2 } from 'lucide-react'
+import { Bell, BellOff, MessageCircle, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@radix-ui/react-tooltip'
@@ -9,7 +9,8 @@ import { Card } from '@renderer/components/ui/card'
 import {
   AgentTask,
   DeleteAgentTaskDocument,
-  GetAgentTasksDocument
+  GetAgentTasksDocument,
+  UpdateAgentTaskDocument
 } from '@renderer/graphql/generated/graphql'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 
@@ -19,7 +20,7 @@ export default function AgentTasks() {
   })
   const [deleteAgentTask] = useMutation(DeleteAgentTaskDocument, {
     onCompleted: () => {
-      toast.success('Agent task deleted')
+      toast.success('Task deleted')
       refetch()
     },
     onError: (error: Error) => {
@@ -27,11 +28,17 @@ export default function AgentTasks() {
     }
   })
 
-  const agentTasks = [...(data?.getAgentTasks || [])]
-    .filter((task) => !task.terminatedAt)
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+  const [updateAgentTask] = useMutation(UpdateAgentTaskDocument, {
+    onCompleted: () => {
+      toast.success('Task updated')
+      refetch()
+    },
+    onError: (error: Error) => {
+      toast.error(`Error updating agent task: ${error.message}`)
+    }
+  })
 
-  console.log(data?.getAgentTasks, agentTasks)
+  const agentTasks = [...(data?.getAgentTasks || [])]
 
   return (
     <Card className="p-4 w-full overflow-y-auto">
@@ -47,6 +54,7 @@ export default function AgentTasks() {
               key={task.id}
               task={task}
               onDelete={(id) => deleteAgentTask({ variables: { id } })}
+              onUpdate={(id, notify) => updateAgentTask({ variables: { id, notify } })}
             />
           ))
         )}
@@ -102,11 +110,12 @@ function EmptyTasksState() {
 }
 
 type Props = {
-  task: AgentTask
+  task: Pick<AgentTask, 'id' | 'name' | 'schedule' | 'plan' | 'createdAt' | 'output' | 'notify'>
   onDelete?: (id: string) => void
+  onUpdate?: (id: string, notify: boolean) => void
 }
 
-function AgentTaskRow({ task, onDelete }: Props) {
+function AgentTaskRow({ task, onDelete, onUpdate }: Props) {
   return (
     <div className="flex flex-col gap-2 rounded-xl border border-gray-300 p-4 w-full">
       <div className="flex justify-between items-start gap-4">
@@ -118,27 +127,50 @@ function AgentTaskRow({ task, onDelete }: Props) {
           {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>}
         </div>
 
-        {onDelete && (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive hover:bg-destructive/10"
-                  onClick={() => onDelete(task.id)}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <div className="flex items-center gap-2 bg-popover p-2 rounded-md border shadow-md">
-                  <p>Delete agent task</p>
-                </div>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        )}
+        <div>
+          {onUpdate && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-black hover:bg-black/10"
+                    onClick={() => onUpdate(task.id, !task.notify)}
+                  >
+                    {task.notify ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="flex items-center gap-2 bg-popover p-2 rounded-md border shadow-md">
+                    <p>{task.notify ? 'Disable notifications' : 'Enable notifications'}</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+          {onDelete && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(task.id)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <div className="flex items-center gap-2 bg-popover p-2 rounded-md border shadow-md">
+                    <p>Delete task</p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
       </div>
     </div>
   )
