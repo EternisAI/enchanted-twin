@@ -40,7 +40,6 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/petermattis/goid v0.0.0-20250319124200-ccd6737f222a // indirect
-	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
 	github.com/pion/dtls/v3 v3.0.6 // indirect
 	github.com/pion/ice/v4 v4.0.10 // indirect
@@ -56,6 +55,7 @@ require (
 	github.com/pion/stun/v3 v3.0.0 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.0 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
 	github.com/wlynxg/anet v0.0.5 // indirect
