@@ -479,83 +479,87 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  try {
-    log.info('Checking and installing Podman if needed')
-    const podmanInstalled = await installPodman()
-    if (podmanInstalled) {
-      log.info('Starting Podman service')
-      await startPodman()
+  if (IS_PRODUCTION) {
+    try {
+      log.info('Checking and installing Podman if needed')
+      const podmanInstalled = await installPodman()
+      if (podmanInstalled) {
+        log.info('Starting Podman service')
+        await startPodman()
 
-      log.info('Waiting for Podman machine to be ready...')
-      let machineRunning = false
-      let attempts = 0
-      const maxAttempts = 30
+        log.info('Waiting for Podman machine to be ready...')
+        let machineRunning = false
+        let attempts = 0
+        const maxAttempts = 30
 
-      while (!machineRunning && attempts < maxAttempts) {
-        machineRunning = await isMachineRunning()
-        if (!machineRunning) {
-          log.info(`Podman machine not ready yet, waiting... (${attempts + 1}/${maxAttempts})`)
-          await new Promise((resolve) => setTimeout(resolve, 2000)) // Wait 2 seconds between checks
-          attempts++
+        while (!machineRunning && attempts < maxAttempts) {
+          machineRunning = await isMachineRunning()
+          if (!machineRunning) {
+            log.info(`Podman machine not ready yet, waiting... (${attempts + 1}/${maxAttempts})`)
+            await new Promise((resolve) => setTimeout(resolve, 2000)) // Wait 2 seconds between checks
+            attempts++
+          }
         }
-      }
 
-      if (machineRunning) {
-        log.info('Podman machine is running!')
+        if (machineRunning) {
+          log.info('Podman machine is running!')
 
-        log.info('Running Podman diagnostics...')
-        const diagnostics = await runPodmanDiagnostics()
-        log.info(`Podman diagnostics result: ${JSON.stringify(diagnostics, null, 2)}`)
+          log.info('Running Podman diagnostics...')
+          const diagnostics = await runPodmanDiagnostics()
+          log.info(`Podman diagnostics result: ${JSON.stringify(diagnostics, null, 2)}`)
 
-        if (diagnostics.success) {
-          log.info('Podman diagnostics passed, attempting to pull image')
-          const smallImageResult = await pullImage('docker.io/library/alpine:latest', {
-            timeout: 300_000,
-            retry: 3,
-            retryDelay: 5_000
-          })
-
-          if (smallImageResult) {
-            log.info('Successfully pulled test image. Now trying the application image.')
-
-            log.info('Starting background pull of main application image (kokoro)...')
-
-            pullImage('ghcr.io/remsky/kokoro-fastapi-cpu:latest', {
-              timeout: 1_800_000,
-              retry: 5,
-              retryDelay: 10_000
+          if (diagnostics.success) {
+            log.info('Podman diagnostics passed, attempting to pull image')
+            const smallImageResult = await pullImage('docker.io/library/alpine:latest', {
+              timeout: 300_000,
+              retry: 3,
+              retryDelay: 5_000
             })
-              .then((success) => {
-                log.info(`Background main image pull ${success ? 'succeeded' : 'failed'}`)
 
-                if (success) {
-                  const imageListProcess = spawn('podman', [
-                    'image',
-                    'ls',
-                    'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
-                  ])
-                  imageListProcess.stdout.on('data', (data) => {
-                    log.info(`Image list: ${data.toString().trim()}`)
-                  })
-                }
+            if (smallImageResult) {
+              log.info('Successfully pulled test image. Now trying the application image.')
+
+              log.info('Starting background pull of main application image (kokoro)...')
+
+              pullImage('ghcr.io/remsky/kokoro-fastapi-cpu:latest', {
+                timeout: 1_800_000,
+                retry: 5,
+                retryDelay: 10_000
               })
-              .catch((error) => {
-                log.error('Background image pull error:', error)
-              })
+                .then((success) => {
+                  log.info(`Background main image pull ${success ? 'succeeded' : 'failed'}`)
+
+                  if (success) {
+                    const imageListProcess = spawn('podman', [
+                      'image',
+                      'ls',
+                      'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
+                    ])
+                    imageListProcess.stdout.on('data', (data) => {
+                      log.info(`Image list: ${data.toString().trim()}`)
+                    })
+                  }
+                })
+                .catch((error) => {
+                  log.error('Background image pull error:', error)
+                })
+            } else {
+              log.error('Failed to pull test image')
+            }
           } else {
-            log.error('Failed to pull test image')
+            log.error('Podman diagnostics failed, skipping image pull')
           }
         } else {
-          log.error('Podman diagnostics failed, skipping image pull')
+          log.error('Timed out waiting for Podman machine to start')
         }
       } else {
-        log.error('Timed out waiting for Podman machine to start')
+        log.warn('Podman installation or initialization failed')
       }
-    } else {
-      log.warn('Podman installation or initialization failed')
+    } catch (error) {
+      log.error('Error setting up Podman:', error)
     }
-  } catch (error) {
-    log.error('Error setting up Podman:', error)
+  } else {
+    log.info('Running in development mode – skipping Podman setup (using Docker)')
   }
 
   installAndStartScreenpipe().then((result) => {
