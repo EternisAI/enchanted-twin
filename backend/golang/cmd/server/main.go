@@ -112,7 +112,7 @@ func main() {
 			defer cancel()
 
 			cleanupManager := container.NewManager(envs.ContainerRuntime)
-			if err := cleanupManager.CleanupContainer(ctx, DefaultKokoroContainerName); err != nil {
+			if err := cleanupManager.CleanupContainer(ctx, container.KokoroContainer.ContainerID); err != nil {
 				logger.Error("Failed to clean up Kokoro containers", "error", err)
 			} else {
 				logger.Info("All Kokoro containers cleaned up successfully")
@@ -323,15 +323,16 @@ func main() {
 	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:          logger,
-		temporalClient:  temporalClient,
-		port:            envs.GraphqlPort,
-		twinChatService: *twinChatService,
-		natsClient:      nc,
-		store:           store,
-		aiService:       aiCompletionsService,
-		mcpService:      mcpService,
-		telegramService: telegramService,
+		logger:           logger,
+		temporalClient:   temporalClient,
+		port:             envs.GraphqlPort,
+		twinChatService:  *twinChatService,
+		natsClient:       nc,
+		store:            store,
+		aiService:        aiCompletionsService,
+		mcpService:       mcpService,
+		telegramService:  telegramService,
+		containerManager: container.NewManager(envs.ContainerRuntime),
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -441,6 +442,7 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	containerManager       container.ContainerManager
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -461,6 +463,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
+		ContainerManager:       input.containerManager,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
@@ -586,14 +589,14 @@ func bootstrapKokoro(envs *config.Config) (string, error) {
 	}
 
 	log.Info("Pulling the Kokoro image...")
-	if err := manager.PullImage(ctx, DefaultKokoroImage); err != nil {
+	if err := manager.PullImage(ctx, container.KokoroContainer.ImageURL); err != nil {
 		return "", fmt.Errorf("failed to pull Kokoro image: %w", err)
 	}
 
 	containerConfig := container.ContainerConfig{
-		ImageURL:     DefaultKokoroImage,
-		Name:         DefaultKokoroContainerName,
-		Ports:        map[string]string{DefaultKokoroPort: DefaultKokoroPort},
+		ImageURL:     container.KokoroContainer.ImageURL,
+		Name:         container.KokoroContainer.ContainerID,
+		Ports:        map[string]string{container.KokoroContainer.DefaultPort: container.KokoroContainer.DefaultPort},
 		Environment:  map[string]string{},
 		PullIfNeeded: true,
 	}
@@ -625,25 +628,3 @@ func bootstrapPostgres(ctx context.Context, logger *log.Logger, envs *config.Con
 
 	return postgresManager, nil
 }
-
-const (
-	// DefaultKokoroImage is the default Kokoro image URL.
-	DefaultKokoroImage = "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
-
-	// DefaultKokoroContainerName is the default name for the Kokoro container.
-	DefaultKokoroContainerName = "kokoro-fastapi"
-
-	// DefaultKokoroPort is the default port the Kokoro API listens on.
-	DefaultKokoroPort = "8880"
-)
-
-const (
-	// DefaultPostgresImage is the default PostgreSQL image URL.
-	DefaultPostgresImage = "pgvector/pgvector:pg17"
-
-	// DefaultPostgresContainerName is the default name for the PostgreSQL container.
-	DefaultPostgresContainerName = "enchanted-twin-postgres-container-runtime"
-
-	// DefaultPostgresPort is the default port PostgreSQL listens on.
-	DefaultPostgresPort = "5432"
-)

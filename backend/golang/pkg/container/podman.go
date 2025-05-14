@@ -369,3 +369,16 @@ func (m *DefaultManager) ExecCommand(ctx context.Context, cmd string, args []str
 	}
 	return string(output), nil
 }
+
+func (m *DefaultManager) GetImageProgress(ctx context.Context, imageURL string) (int, error) {
+	// Similar heuristic to the Docker implementation: if the image exists locally, assume 100% downloaded.
+	// If not present, return 0%.
+	exists, err := m.imageExists(ctx, imageURL)
+	if err != nil {
+		return 0, err
+	}
+	if exists {
+		return 100, nil
+	}
+	return 0, nil
+}

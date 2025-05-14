@@ -12,18 +12,18 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	"go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
+	"github.com/EternisAI/enchanted-twin/pkg/container"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -512,6 +512,34 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 	return agentTasks, nil
 }
 
+func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupProgress, error) {
+	// Use the injected container manager if available, otherwise create a new one
+	mgr := r.ContainerManager
+
+	kokoroProgress, err := mgr.GetImageProgress(ctx, container.KokoroContainer.ImageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Kokoro image progress: %w", err)
+	}
+
+	postgresProgress, err := mgr.GetImageProgress(ctx, container.PostgresContainer.ImageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Postgres image progress: %w", err)
+	}
+
+	results := []*model.SetupProgress{
+		{
+			Name:     container.KokoroContainer.ContainerID,
+			Progress: int32(kokoroProgress),
+		},
+		{
+			Name:     container.PostgresContainer.ContainerID,
+			Progress: int32(postgresProgress),
+		},
+	}
+
+	return results, nil
+}
+
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)
@@ -797,3 +825,42 @@ type (
 	subscriptionResolver struct{ *Resolver }
 	userProfileResolver  struct{ *Resolver }
 )
+
+// !!! WARNING !!!
+// The code below was going to be deleted when updating resolvers. It has been copied here so you have
+// one last chance to move it out of harms way if you want. There are two reasons this happens:
+//  - When renaming or deleting a resolver the old code will be put in here. You can safely delete
+//    it when you're done.
+//  - You have helper methods in this file. Move them out to keep these resolver files clean.
+/*
+	func (r *queryResolver) SetupProgress(ctx context.Context) ([]*model.SetupProgress, error) {
+	// Use the injected container manager if available, otherwise create a new one
+	mgr := r.ContainerManager
+	if mgr == nil {
+		mgr = container.NewManager("") // falls back to default (Podman)
+	}
+
+	kokoroProgress, err := mgr.GetImageProgress(ctx, container.KokoroContainer.ImageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Kokoro image progress: %w", err)
+	}
+
+	postgresProgress, err := mgr.GetImageProgress(ctx, container.PostgresContainer.ImageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get Postgres image progress: %w", err)
+	}
+
+	results := []*model.SetupProgress{
+		{
+			Name:     "kokoro",
+			Progress: int32(kokoroProgress),
+		},
+		{
+			Name:     "postgres",
+			Progress: int32(postgresProgress),
+		},
+	}
+
+	return results, nil
+}
+*/

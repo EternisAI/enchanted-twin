@@ -97,6 +97,12 @@ type Query {
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
   getAgentTasks: [AgentTask!]!
+  getSetupProgress: [SetupProgress!]!
+}
+
+type SetupProgress {
+  name: String!
+  progress: Int!
 }
 
 type Mutation {
