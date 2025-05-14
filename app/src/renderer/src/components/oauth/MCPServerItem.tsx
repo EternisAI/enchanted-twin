@@ -159,43 +159,6 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-              {onRemove && (
-                <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
-                  <AlertDialogTrigger asChild>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full"
-                            onClick={() => setIsRemoveDialogOpen(true)}
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Remove connection</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Remove server connection</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This action cannot be undone. It will permanently remove the server.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Do not delete</AlertDialogCancel>
-                      <Button variant="destructive" onClick={handleRemove}>
-                        Delete
-                      </Button>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
             </>
           ) : (
             <Button
@@ -205,6 +168,43 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
             >
               Connect
             </Button>
+          )}
+          {(server.type === 'OTHER' || server.connected) && onRemove && (
+            <AlertDialog open={isRemoveDialogOpen} onOpenChange={setIsRemoveDialogOpen}>
+              <AlertDialogTrigger asChild>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive rounded-full"
+                        onClick={() => setIsRemoveDialogOpen(true)}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>Remove connection</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove server connection</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action cannot be undone. It will permanently remove the server.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Do not delete</AlertDialogCancel>
+                  <Button variant="destructive" onClick={handleRemove}>
+                    Delete
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </div>
       </div>
