@@ -1,8 +1,9 @@
-import { ipcMain, Notification, shell } from 'electron'
+import { ipcMain, Notification, shell, nativeImage } from 'electron'
 import { BrowserWindow } from 'electron'
 import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 import { existsSync } from 'fs'
 import { exec } from 'child_process'
+import fetch from 'node-fetch'
 
 export function notificationsSupported(): boolean {
   return Notification.isSupported()
@@ -34,7 +35,34 @@ function checkNotificationStatus(): Promise<boolean> {
   })
 }
 
-export async function showOsNotification(
+async function fetchNotificationIcon(url: string): Promise<Electron.NativeImage | undefined> {
+  try {
+    if (!/^https?:\/\//i.test(url)) return
+
+    const res = await fetch(url, { redirect: 'follow' })
+    if (!res.ok) return
+
+    const buf = Buffer.from(await res.arrayBuffer())
+    const ctype = res.headers.get('content-type') ?? ''
+
+    // PNG / JPEG / ICO – handled by Electron
+    let img = nativeImage.createFromBuffer(buf)
+    if (!img.isEmpty()) return img
+
+    // WebP → PNG (lazy-load @napi-rs/image)
+    if (/image\/webp/i.test(ctype) || url.toLowerCase().endsWith('.webp')) {
+      const { Transformer } = await import('@napi-rs/image')
+      const pngBuf = await new Transformer(buf).png()
+      img = nativeImage.createFromBuffer(Buffer.from(pngBuf))
+      if (!img.isEmpty()) return img
+    }
+  } catch (e) {
+    console.error('[icon] fetchNotificationIcon failed:', e)
+  }
+  return undefined
+}
+
+async function showOsNotification(
   win: BrowserWindow,
   notification: AppNotification
 ): Promise<boolean> {
@@ -43,10 +71,16 @@ export async function showOsNotification(
 
   if (!notificationEnabled) return false
 
+  let icon: string | Electron.NativeImage | undefined = notification.image ?? undefined
+
+  if (icon && typeof icon === 'string' && /^https?:\/\//.test(icon)) {
+    icon = await fetchNotificationIcon(icon)
+  }
+
   const toast = new Notification({
     title: notification.title,
     body: notification.message,
-    icon: notification.image ?? undefined,
+    icon,
     silent: false
   })
 

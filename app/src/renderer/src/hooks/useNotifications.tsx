@@ -7,7 +7,6 @@ export function useOsNotifications() {
     onData: ({ data }) => {
       const notification = data?.data?.notificationAdded
       if (notification) {
-        console.log('notification', notification)
         window.api.notify(notification)
       }
     },

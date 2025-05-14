@@ -27,6 +27,7 @@
     "@electron-toolkit/preload": "^3.0.1",
     "@electron-toolkit/utils": "^4.0.0",
     "@graphql-codegen/cli": "^5.0.5",
+    "@napi-rs/image": "^1.9.2",
     "@radix-ui/react-alert-dialog": "^1.1.7",
     "@radix-ui/react-collapsible": "^1.1.10",
     "@radix-ui/react-dialog": "^1.1.7",
