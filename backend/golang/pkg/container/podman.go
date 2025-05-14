@@ -61,7 +61,7 @@ func newPodmanManager() ContainerManager {
 	}
 }
 
-// Ensure DefaultManager satisfies ContainerManager at compile-time
+// Ensure DefaultManager satisfies ContainerManager at compile-time.
 var _ ContainerManager = (*DefaultManager)(nil)
 
 // Executable returns the CLI executable used by this manager ("podman").
