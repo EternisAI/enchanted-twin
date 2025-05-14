@@ -1,8 +1,11 @@
 import { useSubscription } from '@apollo/client'
 import { NotificationAddedDocument } from '@renderer/graphql/generated/graphql'
 import { useEffect } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 
 export function useOsNotifications() {
+  const navigate = useNavigate()
+
   useSubscription(NotificationAddedDocument, {
     onData: ({ data }) => {
       const notification = data?.data?.notificationAdded
@@ -17,8 +20,12 @@ export function useOsNotifications() {
 
   useEffect(() => {
     window.api.onDeepLink((url) => {
-      // handle deep link navigation
-      window.location.hash = url // or `router.push(url)`
+      // Backend Notification format: twin://chat/{chatId}
+      const match = url.match(/twin:\/\/chat\/(.+)/)
+      if (match && match[1]) {
+        const chatId = match[1]
+        navigate({ to: '/chat/$chatId', params: { chatId } })
+      }
     })
-  }, [])
+  }, [navigate])
 }

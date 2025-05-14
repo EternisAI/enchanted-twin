@@ -80,6 +80,15 @@ async function showOsNotification(
   const toast = new Notification({
     title: notification.title,
     body: notification.message,
+    actions: notification.link
+      ? [
+          {
+            type: 'button',
+            text: 'Open chat'
+          }
+        ]
+      : [],
+
     icon,
     silent: false
   })
@@ -92,7 +101,12 @@ async function showOsNotification(
 
   toast
     .once('show', () => console.log('[toast] show event – OS accepted'))
-    .once('action', (_, idx) => console.log('[toast] action', idx))
+    .once('action', (_, idx) => {
+      console.log('[toast] action!', idx, notification.link)
+      if (notification.link) {
+        win.webContents.send('open-deeplink', notification.link)
+      }
+    })
     .once('click', () => console.log('[toast] click'))
     .once('close', () => console.log('[toast] close'))
     .once('failed', (_, err) => console.error('[toast] failed', err))
