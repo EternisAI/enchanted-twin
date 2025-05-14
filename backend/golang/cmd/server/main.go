@@ -39,11 +39,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/container"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
-	"github.com/EternisAI/enchanted-twin/pkg/podman"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -111,7 +111,7 @@ func main() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			cleanupManager := podman.NewManager()
+			cleanupManager := container.NewManager()
 			if err := cleanupManager.CleanupContainer(ctx, DefaultKokoroContainerName); err != nil {
 				logger.Error("Failed to clean up Kokoro containers", "error", err)
 			} else {
@@ -136,11 +136,11 @@ func main() {
 	}
 
 	defer func() {
-		manager := podman.NewManager()
+		manager := container.NewManager()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
-		options := podman.DefaultPostgresOptions()
+		options := container.DefaultPostgresOptions()
 		if err := manager.StopContainer(shutdownCtx, options.ContainerName); err != nil {
 			logger.Error("Error stopping PostgreSQL", "error", err)
 		}
@@ -169,7 +169,7 @@ func main() {
 	)
 
 	logger.Info("Testing direct database connection")
-	if err := podman.TestDbConnection(context.Background(), connString, logger); err != nil {
+	if err := container.TestDbConnection(context.Background(), connString, logger); err != nil {
 		logger.Warn("Database connection test failed", "error", err)
 	}
 
@@ -519,7 +519,7 @@ func bootstrapKokoro() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	manager := podman.NewManager()
+	manager := container.NewManager()
 
 	installed, err := manager.IsInstalled(ctx)
 	if err != nil {
@@ -590,7 +590,7 @@ func bootstrapKokoro() (string, error) {
 		return "", fmt.Errorf("failed to pull Kokoro image: %w", err)
 	}
 
-	containerConfig := podman.ContainerConfig{
+	containerConfig := container.ContainerConfig{
 		ImageURL:     DefaultKokoroImage,
 		Name:         DefaultKokoroContainerName,
 		Ports:        map[string]string{DefaultKokoroPort: DefaultKokoroPort},
@@ -611,13 +611,13 @@ func bootstrapKokoro() (string, error) {
 	return containerID, nil
 }
 
-func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*podman.PostgresManager, error) {
-	options := podman.DefaultPostgresOptions()
+func bootstrapPostgres(ctx context.Context, logger *log.Logger) (*container.PostgresManager, error) {
+	options := container.DefaultPostgresOptions()
 	options.Port = "15432"
 
-	postgresManager := podman.NewPostgresManager(logger, options)
+	postgresManager := container.NewPostgresManager(logger, options)
 
-	logger.Info("Starting PostgreSQL container with Podman...")
+	logger.Info("Starting PostgreSQL container with container...")
 	_, err := postgresManager.StartPostgresContainer(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to start PostgreSQL container with Podman: %w", err)
