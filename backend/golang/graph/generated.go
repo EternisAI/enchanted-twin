@@ -197,6 +197,7 @@ type ComplexityRoot struct {
 	SetupProgress struct {
 		Name     func(childComplexity int) int
 		Progress func(childComplexity int) int
+		Status   func(childComplexity int) int
 	}
 
 	Subscription struct {
@@ -1077,6 +1078,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SetupProgress.Progress(childComplexity), true
+
+	case "SetupProgress.status":
+		if e.complexity.SetupProgress.Status == nil {
+			break
+		}
+
+		return e.complexity.SetupProgress.Status(childComplexity), true
 
 	case "Subscription.indexingStatus":
 		if e.complexity.Subscription.IndexingStatus == nil {
@@ -6760,6 +6768,8 @@ func (ec *executionContext) fieldContext_Query_getSetupProgress(_ context.Contex
 				return ec.fieldContext_SetupProgress_name(ctx, field)
 			case "progress":
 				return ec.fieldContext_SetupProgress_progress(ctx, field)
+			case "status":
+				return ec.fieldContext_SetupProgress_status(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SetupProgress", field.Name)
 		},
@@ -6968,9 +6978,9 @@ func (ec *executionContext) _SetupProgress_progress(ctx context.Context, field g
 		}
 		return graphql.Null
 	}
-	res := resTmp.(int32)
+	res := resTmp.(float64)
 	fc.Result = res
-	return ec.marshalNInt2int32(ctx, field.Selections, res)
+	return ec.marshalNFloat2float64(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_SetupProgress_progress(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -6980,7 +6990,51 @@ func (ec *executionContext) fieldContext_SetupProgress_progress(_ context.Contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Int does not have child fields")
+			return nil, errors.New("field of type Float does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SetupProgress_status(ctx context.Context, field graphql.CollectedField, obj *model.SetupProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SetupProgress_status(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Status, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SetupProgress_status(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SetupProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -11366,6 +11420,11 @@ func (ec *executionContext) _SetupProgress(ctx context.Context, sel ast.Selectio
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "status":
+			out.Values[i] = ec._SetupProgress_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -12301,6 +12360,22 @@ func (ec *executionContext) marshalNDateTime2ᚕstringᚄ(ctx context.Context, s
 	}
 
 	return ret
+}
+
+func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
+	res, err := graphql.UnmarshalFloatContext(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFloat2float64(ctx context.Context, sel ast.SelectionSet, v float64) graphql.Marshaler {
+	_ = sel
+	res := graphql.MarshalFloatContext(v)
+	if res == graphql.Null {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+	}
+	return graphql.WrapContextMarshaler(ctx, res)
 }
 
 func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (string, error) {

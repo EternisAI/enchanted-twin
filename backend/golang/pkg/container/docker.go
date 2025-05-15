@@ -2,22 +2,79 @@ package container
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"strings"
 
 	"github.com/docker/docker/api/types/container"
 	imageapi "github.com/docker/docker/api/types/image"
 	"github.com/docker/docker/client"
 	"github.com/docker/go-connections/nat"
+	"github.com/pkg/errors"
 )
 
-// DockerManager implements ContainerManager using the Docker SDK.
 type DockerManager struct {
 	cli *client.Client
 }
 
-func (m *DockerManager) PullImage(ctx context.Context, imageURL string) error {
-	_, err := m.cli.ImagePull(ctx, imageURL, imageapi.PullOptions{})
-	return err
+func (m *DockerManager) PullImage(ctx context.Context, imageURL string, progress ProgressCallback) error {
+	rc, err := m.cli.ImagePull(ctx, imageURL, imageapi.PullOptions{})
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+
+	dec := json.NewDecoder(rc)
+	type pullEvent struct {
+		Status   string `json:"status"`
+		ID       string `json:"id"`
+		Error    string `json:"error"`
+		Progress struct {
+			Current int64 `json:"current"`
+			Total   int64 `json:"total"`
+		} `json:"progressDetail"`
+	}
+
+	// Track per-layer progress so we can aggregate.
+	layers := make(map[string]struct{ current, total int64 })
+
+	for {
+		var evt pullEvent
+		if err := dec.Decode(&evt); err == io.EOF {
+			break
+		} else if err != nil {
+			return err
+		}
+
+		if evt.Error != "" {
+			return errors.New(evt.Error)
+		}
+
+		// Update layer progress if we have valid data.
+		if evt.Progress.Total > 0 {
+			layers[evt.ID] = struct {
+				current, total int64
+			}{evt.Progress.Current, evt.Progress.Total}
+		}
+
+		// Calculate aggregate totals and emit callback.
+		if progress != nil {
+			var cur, tot int64
+			for _, p := range layers {
+				cur += p.current
+				tot += p.total
+			}
+			if tot > 0 {
+				progress(float64(cur)/float64(tot), evt.Status)
+			}
+		}
+	}
+
+	// Ensure caller sees 100 % even if Docker sent no final progress.
+	if progress != nil {
+		progress(1, "completed")
+	}
+	return nil
 }
 
 func (m *DockerManager) RunContainer(ctx context.Context, config ContainerConfig) (string, error) {

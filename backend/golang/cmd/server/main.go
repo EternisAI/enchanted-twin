@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	stderrs "errors"
 	"fmt"
 	"log/slog"
@@ -31,6 +32,7 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
@@ -44,6 +46,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/container"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -51,47 +54,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
-
-// startKokoroContainer starts the Kokoro container
-func startKokoroContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger) (string, error) {
-	config := container.ContainerConfig{
-		ImageURL:     "ghcr.io/remsky/kokoro-fastapi-cpu:latest",
-		Name:         "kokoro-fastapi",
-		Ports:        map[string]string{"45000": "8880"},
-		Environment:  map[string]string{},
-		PullIfNeeded: true,
-	}
-	return container.StartContainerWithReadiness(ctx, mgr, config, nil, 0)
-}
-
-// startPostgresContainer starts the Postgres container and returns the connection string
-func startPostgresContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger) (string, error) {
-	config := container.ContainerConfig{
-		ImageURL: "pgvector/pgvector:pg17",
-		Name:     "enchanted-twin-postgres-pgvector",
-		Ports:    map[string]string{"15432": "5432"},
-		Environment: map[string]string{
-			"POSTGRES_PASSWORD": "postgres",
-			"POSTGRES_USER":     "postgres",
-			"POSTGRES_DB":       "postgres",
-		},
-		PullIfNeeded: true,
-	}
-	pgString := "postgres://postgres:postgres@localhost:15432/postgres?sslmode=disable"
-	check := func(ctx context.Context) error {
-		db, err := sql.Open("postgres", pgString)
-		if err != nil {
-			return err
-		}
-		defer db.Close()
-		return db.PingContext(ctx)
-	}
-	_, err := container.StartContainerWithReadiness(ctx, mgr, config, check, 30*time.Second)
-	if err != nil {
-		return "", err
-	}
-	return pgString, nil
-}
 
 func main() {
 	logger := log.NewWithOptions(os.Stdout, log.Options{
@@ -135,6 +97,19 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
+	// Setup progress state and NATS responders
+	var latestKokoroProgress = &model.SetupProgress{Name: "kokoro", Progress: 0}
+	var latestPostgresProgress = &model.SetupProgress{Name: "postgres", Progress: 0}
+
+	nc.Subscribe("setup_progress.kokoro", func(msg *nats.Msg) {
+		data, _ := json.Marshal(latestKokoroProgress)
+		_ = msg.Respond(data)
+	})
+	nc.Subscribe("setup_progress.postgres", func(msg *nats.Msg) {
+		data, _ := json.Marshal(latestPostgresProgress)
+		_ = msg.Respond(data)
+	})
+
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
@@ -147,12 +122,18 @@ func main() {
 	}()
 
 	logger.Info("SQLite database initialized")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	pgString, err := startPostgresContainer(ctx, sharedContainerManager, logger, nc, latestPostgresProgress)
+	if err != nil {
+		logger.Error("Failed to start PostgreSQL container", "error", err)
+		panic(errors.Wrap(err, "Failed to start PostgreSQL container"))
+	}
 
-	// Start Kokoro container in the background
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
-		containerID, err := startKokoroContainer(ctx, sharedContainerManager, logger)
+		containerID, err := startKokoroContainer(ctx, sharedContainerManager, logger, nc, latestKokoroProgress)
 		if err != nil {
 			logger.Warn("Failed to start Kokoro container", "error", err)
 			logger.Info("Continuing without Kokoro container")
@@ -161,16 +142,6 @@ func main() {
 		}
 	}()
 
-	// Start Postgres container
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-	pgString, err := startPostgresContainer(ctx, sharedContainerManager, logger)
-	if err != nil {
-		logger.Error("Failed to start PostgreSQL container", "error", err)
-		panic(errors.Wrap(err, "Failed to start PostgreSQL container"))
-	}
-
-	// Deferred cleanup for containers
 	defer func() {
 		logger.Info("Cleaning up containers...")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -370,8 +341,6 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-// Remaining functions (bootstrapTemporalServer, bootstrapTemporalWorker, bootstrapTTS, bootstrapGraphqlServer, gqlSchema) remain unchanged from the original.
-
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
@@ -484,7 +453,6 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
-		// ContainerManager:       input.containerManager,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
@@ -535,4 +503,59 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func startKokoroContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger, nc *nats.Conn, latest *model.SetupProgress) (string, error) {
+	config := container.ContainerConfig{
+		ImageURL:     "ghcr.io/remsky/kokoro-fastapi-cpu:latest",
+		Name:         "kokoro-fastapi",
+		Ports:        map[string]string{"45000": "8880"},
+		Environment:  map[string]string{},
+		PullIfNeeded: true,
+	}
+	return container.StartContainerWithReadiness(ctx, mgr, config, nil, 0, func(progress float64, status string) {
+		logger.Info("Kokoro container progress", "progress", progress, "status", status)
+		latest.Progress = progress
+		latest.Status = status
+		_ = helpers.NatsPublish(nc, "setup_progress.kokoro", latest)
+	})
+}
+
+func startPostgresContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger, nc *nats.Conn, latest *model.SetupProgress) (string, error) {
+	const (
+		pgPort = "15432"
+		pgUser = "postgres"
+		pgPass = "postgres"
+		pgDB   = "postgres"
+	)
+	config := container.ContainerConfig{
+		ImageURL: "pgvector/pgvector:pg17",
+		Name:     "enchanted-twin-postgres-pgvector",
+		Ports:    map[string]string{pgPort: "5432"},
+		Environment: map[string]string{
+			"POSTGRES_PASSWORD": pgPass,
+			"POSTGRES_USER":     pgUser,
+			"POSTGRES_DB":       pgDB,
+		},
+		PullIfNeeded: true,
+	}
+	pgString := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", pgUser, pgPass, pgPort, pgDB)
+	check := func(ctx context.Context) error {
+		db, err := sql.Open("postgres", pgString)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		return db.PingContext(ctx)
+	}
+	_, err := container.StartContainerWithReadiness(ctx, mgr, config, check, 10*time.Minute, func(progress float64, status string) {
+		logger.Info("Postgres container progress", "progress", progress, "status", status)
+		latest.Progress = progress
+		latest.Status = status
+		_ = helpers.NatsPublish(nc, "setup_progress.postgres", latest)
+	})
+	if err != nil {
+		return "", err
+	}
+	return pgString, nil
 }
