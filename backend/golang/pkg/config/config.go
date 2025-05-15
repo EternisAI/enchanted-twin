@@ -10,13 +10,14 @@ import (
 )
 
 type Config struct {
-	OpenAIAPIKey       string
-	GraphqlPort        string
-	OpenAIBaseURL      string
+	CompletionsAPIURL  string
+	CompletionsAPIKey  string
 	CompletionsModel   string
+	ReasoningModel     string
+	GraphqlPort        string
 	EmbeddingsAPIURL   string
-	EmbeddingsModel    string
 	EmbeddingsAPIKey   string
+	EmbeddingsModel    string
 	DBPath             string
 	AppDataPath        string
 	OllamaBaseURL      string
@@ -48,10 +49,11 @@ func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 
 	conf := &Config{
-		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", "", printEnv),
-		GraphqlPort:        getEnv("GRAPHQL_PORT", "3000", printEnv),
-		OpenAIBaseURL:      getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsAPIURL:  getEnv("COMPLETIONS_API_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsAPIKey:  getEnv("COMPLETIONS_API_KEY", "", printEnv),
 		CompletionsModel:   getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
+		ReasoningModel:     getEnvOrPanic("REASONING_MODEL", printEnv),
+		GraphqlPort:        getEnv("GRAPHQL_PORT", "3000", printEnv),
 		EmbeddingsAPIURL:   getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
 		EmbeddingsModel:    getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
