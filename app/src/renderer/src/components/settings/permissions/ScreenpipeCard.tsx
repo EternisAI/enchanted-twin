@@ -18,7 +18,7 @@ interface ScreenpipeStatus {
 }
 
 export default function ScreenpipePanel() {
-  const [status, setStatus] = useState<ScreenpipeStatus>({ isRunning: false, isInstalled: false })
+  const [status, setStatus] = useState<ScreenpipeStatus>({ isRunning: false, isInstalled: true })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<Record<string, MediaStatusType>>({
@@ -137,15 +137,16 @@ export default function ScreenpipePanel() {
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        {!hasAllPermissions() && (
-          <Alert variant="destructive">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              Please enable the following permissions to use Screenpipe:{' '}
-              {getPermissionMessages().join(', ')}
-            </AlertDescription>
-          </Alert>
-        )}
+        {!hasAllPermissions() &&
+          Object.values(permissions).every((status) => status !== 'loading') && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                Please enable the following permissions to use Screenpipe:{' '}
+                {getPermissionMessages().join(', ')}
+              </AlertDescription>
+            </Alert>
+          )}
         <p className="text-sm text-muted-foreground">
           {!status.isInstalled
             ? 'Screenpipe needs to be installed first.'
