@@ -144,6 +144,7 @@ type SetupProgress struct {
 	Name     string  `json:"name"`
 	Progress float64 `json:"progress"`
 	Status   string  `json:"status"`
+	Required bool    `json:"required"`
 }
 
 type Subscription struct {
