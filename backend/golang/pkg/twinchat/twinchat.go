@@ -108,6 +108,20 @@ func (s *Service) SendMessage(
 	if userProfile.Bio != nil {
 		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
 	}
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return nil, err
+	}
+	if len(oauthTokens) > 0 {
+		systemPrompt += "You have following email accounts connected to your account: "
+		for _, token := range oauthTokens {
+			systemPrompt += fmt.Sprintf("%s, ", token.Username)
+		}
+	} else {
+		systemPrompt += "You have no email accounts connected to your account."
+	}
+
 	systemPrompt += fmt.Sprintf("Current date and time: %s.", time.Now().Format(time.RFC3339))
 	systemPrompt += fmt.Sprintf("Current Chat ID is %s.", chatID)
 
