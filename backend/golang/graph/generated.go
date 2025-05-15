@@ -197,6 +197,7 @@ type ComplexityRoot struct {
 	SetupProgress struct {
 		Name     func(childComplexity int) int
 		Progress func(childComplexity int) int
+		Required func(childComplexity int) int
 		Status   func(childComplexity int) int
 	}
 
@@ -1078,6 +1079,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.SetupProgress.Progress(childComplexity), true
+
+	case "SetupProgress.required":
+		if e.complexity.SetupProgress.Required == nil {
+			break
+		}
+
+		return e.complexity.SetupProgress.Required(childComplexity), true
 
 	case "SetupProgress.status":
 		if e.complexity.SetupProgress.Status == nil {
@@ -6770,6 +6778,8 @@ func (ec *executionContext) fieldContext_Query_getSetupProgress(_ context.Contex
 				return ec.fieldContext_SetupProgress_progress(ctx, field)
 			case "status":
 				return ec.fieldContext_SetupProgress_status(ctx, field)
+			case "required":
+				return ec.fieldContext_SetupProgress_required(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type SetupProgress", field.Name)
 		},
@@ -7035,6 +7045,50 @@ func (ec *executionContext) fieldContext_SetupProgress_status(_ context.Context,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _SetupProgress_required(ctx context.Context, field graphql.CollectedField, obj *model.SetupProgress) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_SetupProgress_required(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Required, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_SetupProgress_required(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "SetupProgress",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -11422,6 +11476,11 @@ func (ec *executionContext) _SetupProgress(ctx context.Context, sel ast.Selectio
 			}
 		case "status":
 			out.Values[i] = ec._SetupProgress_status(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "required":
+			out.Values[i] = ec._SetupProgress_required(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}

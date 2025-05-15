@@ -104,6 +104,7 @@ type SetupProgress {
   name: String!
   progress: Float!
   status: String!
+  required: Boolean!
 }
 
 type Mutation {

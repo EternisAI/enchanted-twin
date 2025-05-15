@@ -556,24 +556,25 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 // GetSetupProgress is the resolver for the getSetupProgress field.
 func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupProgress, error) {
 	type subjectInfo struct {
-		subject string
-		name    string
+		subject  string
+		name     string
+		required bool
 	}
 	subjects := []subjectInfo{
-		{"setup_progress.kokoro", "kokoro"},
-		{"setup_progress.postgres", "postgres"},
+		{"setup_progress.kokoro", "kokoro", false},
+		{"setup_progress.postgres", "postgres", true},
 	}
 	results := make([]*model.SetupProgress, 0, len(subjects))
 
 	for _, s := range subjects {
 		msg, err := r.Nc.Request(s.subject, nil, 250*time.Millisecond)
 		if err != nil || msg == nil {
-			results = append(results, &model.SetupProgress{Name: s.name, Progress: 0})
+			results = append(results, &model.SetupProgress{Name: s.name, Progress: 0, Required: s.required})
 			continue
 		}
 		var progress model.SetupProgress
 		if err := json.Unmarshal(msg.Data, &progress); err != nil {
-			results = append(results, &model.SetupProgress{Name: s.name, Progress: 0})
+			results = append(results, &model.SetupProgress{Name: s.name, Progress: 0, Required: s.required})
 			continue
 		}
 		results = append(results, &progress)
