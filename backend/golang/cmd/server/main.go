@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	stderrs "errors"
 	"fmt"
 	"log/slog"
@@ -21,11 +22,11 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
+	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
-	"github.com/sirupsen/logrus"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -51,6 +52,47 @@ import (
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
+// startKokoroContainer starts the Kokoro container
+func startKokoroContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger) (string, error) {
+	config := container.ContainerConfig{
+		ImageURL:     "ghcr.io/remsky/kokoro-fastapi-cpu:latest",
+		Name:         "kokoro-fastapi",
+		Ports:        map[string]string{"45000": "8880"},
+		Environment:  map[string]string{},
+		PullIfNeeded: true,
+	}
+	return container.StartContainerWithReadiness(ctx, mgr, config, nil, 0)
+}
+
+// startPostgresContainer starts the Postgres container and returns the connection string
+func startPostgresContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger) (string, error) {
+	config := container.ContainerConfig{
+		ImageURL: "pgvector/pgvector:pg17",
+		Name:     "enchanted-twin-postgres-pgvector",
+		Ports:    map[string]string{"15432": "5432"},
+		Environment: map[string]string{
+			"POSTGRES_PASSWORD": "postgres",
+			"POSTGRES_USER":     "postgres",
+			"POSTGRES_DB":       "postgres",
+		},
+		PullIfNeeded: true,
+	}
+	pgString := "postgres://postgres:postgres@localhost:15432/postgres?sslmode=disable"
+	check := func(ctx context.Context) error {
+		db, err := sql.Open("postgres", pgString)
+		if err != nil {
+			return err
+		}
+		defer db.Close()
+		return db.PingContext(ctx)
+	}
+	_, err := container.StartContainerWithReadiness(ctx, mgr, config, check, 30*time.Second)
+	if err != nil {
+		return "", err
+	}
+	return pgString, nil
+}
+
 func main() {
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
@@ -63,9 +105,12 @@ func main() {
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 
-	// Shared container manager instance for the entire application so that we can
-	// track image-pull progress and reuse cached state across subsystems.
-	sharedContainerManager := container.NewManager(envs.ContainerRuntime)
+	// Shared container manager instance
+	sharedContainerManager, err := container.NewManager(envs.ContainerRuntime)
+	if err != nil {
+		logger.Error("Unable to create container manager", "error", err)
+		panic(errors.Wrap(err, "Unable to create container manager"))
+	}
 
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
@@ -103,30 +148,38 @@ func main() {
 
 	logger.Info("SQLite database initialized")
 
-	logger.Info("Initializing container runtime and Kokoro container...")
-
-	var containerID string
+	// Start Kokoro container in the background
 	go func() {
-		var err error
-		containerID, err = bootstrapKokoro(envs, sharedContainerManager)
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		containerID, err := startKokoroContainer(ctx, sharedContainerManager, logger)
 		if err != nil {
-			logger.Warn("Failed to initialize container runtime and Kokoro container", "error", err)
+			logger.Warn("Failed to start Kokoro container", "error", err)
 			logger.Info("Continuing without Kokoro container")
 		} else {
-			logger.Info("Kokoro container initialized successfully", "containerID", containerID)
+			logger.Info("Kokoro container started successfully", "containerID", containerID)
 		}
 	}()
 
+	// Start Postgres container
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	pgString, err := startPostgresContainer(ctx, sharedContainerManager, logger)
+	if err != nil {
+		logger.Error("Failed to start PostgreSQL container", "error", err)
+		panic(errors.Wrap(err, "Failed to start PostgreSQL container"))
+	}
+
+	// Deferred cleanup for containers
 	defer func() {
-		logger.Info("Cleaning up Kokoro containers...")
+		logger.Info("Cleaning up containers...")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
-
-		cleanupManager := sharedContainerManager
-		if err := cleanupManager.CleanupContainer(ctx, container.KokoroContainer.ContainerID); err != nil {
-			logger.Error("Failed to clean up Kokoro containers", "error", err)
-		} else {
-			logger.Info("All Kokoro containers cleaned up successfully")
+		if err := sharedContainerManager.CleanupContainer(ctx, "kokoro-fastapi"); err != nil {
+			logger.Error("Failed to clean up Kokoro container", "error", err)
+		}
+		if err := sharedContainerManager.CleanupContainer(ctx, "enchanted-twin-postgres-pgvector"); err != nil {
+			logger.Error("Failed to clean up PostgreSQL container", "error", err)
 		}
 	}()
 
@@ -135,59 +188,11 @@ func main() {
 	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	// Start PostgreSQL using container runtime
-	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	postgresManager, err := bootstrapPostgres(postgresCtx, logger, sharedContainerManager)
-	if err != nil {
-		logger.Error("Failed to start PostgreSQL with container manager", "error", err)
-		panic(errors.Wrap(err, "Failed to start PostgreSQL with container manager"))
-	}
-
-	defer func() {
-		manager := sharedContainerManager
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-
-		options := container.DefaultPostgresOptions()
-		if err := manager.StopContainer(shutdownCtx, options.ContainerName); err != nil {
-			logger.Error("Error stopping PostgreSQL", "error", err)
-		}
-
-		if err := manager.RemoveContainer(shutdownCtx, options.ContainerName); err != nil {
-			logger.Error("Error removing PostgreSQL container", "error", err)
-		}
-	}()
-
-	if err := postgresManager.WaitForReady(postgresCtx, 30*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
-		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
-	}
-
-	dbName := "enchanted_twin"
-	if err := postgresManager.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", "error", err)
-		panic(errors.Wrap(err, "Unable to ensure database exists"))
-	}
-
-	connString := postgresManager.GetConnectionString(dbName)
-	logger.Info(
-		"PostgreSQL listening at",
-		"connection",
-		connString,
-	)
-
-	logger.Info("Testing direct database connection")
-	if err := container.TestDbConnection(context.Background(), connString, logger); err != nil {
-		logger.Warn("Database connection test failed", "error", err)
-	}
-
 	recreateMemDb := false
 	mem, err := embeddingsmemory.NewEmbeddingsMemory(
 		&embeddingsmemory.Config{
 			Logger:              logger,
-			PgString:            connString,
+			PgString:            pgString,
 			AI:                  aiEmbeddingsService,
 			Recreate:            recreateMemDb,
 			EmbeddingsModelName: envs.EmbeddingsModel,
@@ -365,6 +370,8 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
+// Remaining functions (bootstrapTemporalServer, bootstrapTemporalWorker, bootstrapTTS, bootstrapGraphqlServer, gqlSchema) remain unchanged from the original.
+
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
@@ -477,7 +484,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
-		ContainerManager:       input.containerManager,
+		// ContainerManager:       input.containerManager,
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
@@ -528,119 +535,4 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
-}
-
-func bootstrapKokoro(envs *config.Config, manager container.ContainerManager) (string, error) {
-	log := logrus.WithField("component", "container-runtime-bootstrap")
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
-
-	installed, err := manager.IsInstalled(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to check if container runtime is installed: %w", err)
-	}
-
-	if !installed {
-		log.Warn("Container runtime is not installed. Please install container runtime to enable container features.")
-		return "", fmt.Errorf("container runtime is not installed")
-	}
-
-	machineExists, err := manager.IsMachineInstalled(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to check if container runtime machine exists: %w", err)
-	}
-
-	if !machineExists {
-		log.Warn("Container runtime machine does not exist. Please initialize a container runtime machine.")
-		return "", fmt.Errorf("container runtime machine does not exist")
-	}
-
-	running, err := manager.IsMachineRunning(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to check if container runtime is running: %w", err)
-	}
-
-	if !running {
-		log.Warn("Container runtime machine is not running. Please start the container runtime machine.")
-		return "", fmt.Errorf("container runtime machine is not running")
-	}
-
-	const containerName = "kokoro-fastapi"
-	containerExists, containerId, err := manager.CheckContainerExists(ctx, containerName)
-	if err != nil {
-		log.Warn("Failed to check if container exists: ", err)
-	}
-
-	if containerExists {
-		log.Info("Container already exists with ID: ", containerId)
-
-		containerRunning, err := manager.IsContainerRunning(ctx, containerId)
-		if err != nil {
-			log.Warn("Failed to check if container is running: ", err)
-		}
-
-		if containerRunning {
-			log.Info("Container is already running, reusing it")
-			return containerId, nil
-		}
-
-		log.Info("Container exists but is not running, attempting to start it")
-		err = manager.StartContainer(ctx, containerId)
-		if err == nil {
-			log.Info("Successfully started existing container")
-			return containerId, nil
-		}
-
-		log.Warn("Failed to start existing container, removing it: ", err)
-		err = manager.RemoveContainer(ctx, containerId)
-		if err != nil {
-			return "", fmt.Errorf("failed to remove existing container: %w", err)
-		}
-		log.Info("Removed existing container")
-	}
-
-	log.Info("Pulling the Kokoro image...")
-	ch, err := manager.PullImage(ctx, container.KokoroContainer.ImageURL)
-	if err != nil {
-		return "", fmt.Errorf("failed to pull Kokoro image: %w", err)
-	}
-	for range ch {
-	}
-	log.Info("Image downloaded, starting container...")
-
-	containerConfig := container.ContainerConfig{
-		ImageURL:     container.KokoroContainer.ImageURL,
-		Name:         container.KokoroContainer.ContainerID,
-		Ports:        map[string]string{container.KokoroContainer.DefaultPort: container.KokoroContainer.DefaultPort},
-		Environment:  map[string]string{},
-		PullIfNeeded: true,
-	}
-
-	log.Info("Starting the Kokoro container...")
-	containerID, err := manager.RunContainer(ctx, containerConfig)
-	if err != nil {
-		return "", fmt.Errorf("failed to start Kokoro container: %w", err)
-	}
-
-	log.WithField("containerId", containerID).
-		WithField("port", "8765").
-		Info("Kokoro container started successfully")
-
-	return containerID, nil
-}
-
-func bootstrapPostgres(ctx context.Context, logger *log.Logger, sharedContainerManager container.ContainerManager) (*container.PostgresManager, error) {
-	options := container.DefaultPostgresOptions()
-	options.Port = "15432"
-
-	postgresManager := container.NewPostgresManager(logger, options, sharedContainerManager)
-
-	logger.Info("Starting PostgreSQL container with container...")
-	_, err := postgresManager.StartPostgresContainer(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL container with container runtime: %w", err)
-	}
-
-	return postgresManager, nil
 }
