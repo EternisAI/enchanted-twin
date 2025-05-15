@@ -9,7 +9,7 @@ import (
 )
 
 type ContainerManager interface {
-	PullImage(ctx context.Context, imageURL string) error
+	PullImage(ctx context.Context, imageURL string, progress ProgressCallback) error
 	RunContainer(ctx context.Context, config ContainerConfig) (string, error)
 	StartContainer(ctx context.Context, containerID string) error
 	StopContainer(ctx context.Context, containerID string) error
@@ -17,6 +17,8 @@ type ContainerManager interface {
 	CheckContainerExists(ctx context.Context, name string) (bool, string, error)
 	CleanupContainer(ctx context.Context, name string) error
 }
+
+type ProgressCallback func(progress float64, status string)
 
 type ContainerConfig struct {
 	ImageURL     string
@@ -45,7 +47,7 @@ func NewManager(runtime string) (ContainerManager, error) {
 	}
 }
 
-func StartContainerWithReadiness(ctx context.Context, mgr ContainerManager, config ContainerConfig, check ReadinessCheck, timeout time.Duration) (string, error) {
+func StartContainerWithReadiness(ctx context.Context, mgr ContainerManager, config ContainerConfig, check ReadinessCheck, timeout time.Duration, progress ProgressCallback) (string, error) {
 	exists, containerID, err := mgr.CheckContainerExists(ctx, config.Name)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to check container existence")
@@ -54,13 +56,16 @@ func StartContainerWithReadiness(ctx context.Context, mgr ContainerManager, conf
 	if exists {
 		err = mgr.StartContainer(ctx, containerID)
 		if err == nil && (check == nil || WaitForReady(ctx, check, timeout) == nil) {
+			if progress != nil {
+				progress(1, "Completed")
+			}
 			return containerID, nil
 		}
-		_ = mgr.RemoveContainer(ctx, containerID) // Remove if start or readiness fails
+		_ = mgr.RemoveContainer(ctx, containerID)
 	}
 
 	if config.PullIfNeeded {
-		if err := mgr.PullImage(ctx, config.ImageURL); err != nil {
+		if err := mgr.PullImage(ctx, config.ImageURL, progress); err != nil {
 			return "", errors.Wrap(err, "failed to pull image")
 		}
 	}
@@ -68,6 +73,10 @@ func StartContainerWithReadiness(ctx context.Context, mgr ContainerManager, conf
 	containerID, err = mgr.RunContainer(ctx, config)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to run container")
+	}
+
+	if progress != nil {
+		progress(1, "Completed")
 	}
 
 	if check != nil {

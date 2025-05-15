@@ -102,7 +102,8 @@ type Query {
 
 type SetupProgress {
   name: String!
-  progress: Int!
+  progress: Float!
+  status: String!
 }
 
 type Mutation {

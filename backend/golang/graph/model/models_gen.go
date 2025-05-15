@@ -141,8 +141,9 @@ type Query struct {
 }
 
 type SetupProgress struct {
-	Name     string `json:"name"`
-	Progress int32  `json:"progress"`
+	Name     string  `json:"name"`
+	Progress float64 `json:"progress"`
+	Status   string  `json:"status"`
 }
 
 type Subscription struct {

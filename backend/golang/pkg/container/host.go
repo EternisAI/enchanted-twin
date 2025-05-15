@@ -65,8 +65,6 @@ func probePodmanSocket() (string, error) {
 		return "", err
 	}
 
-	fmt.Println(string(out))
-
 	var machines []struct {
 		State          string `json:"State"`
 		ConnectionInfo struct {

@@ -554,30 +554,29 @@ func (r *queryResolver) GetAgentTasks(ctx context.Context) ([]*model.AgentTask, 
 
 // GetSetupProgress is the resolver for the getSetupProgress field.
 func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupProgress, error) {
-	// Use the injected container manager if available, otherwise create a new one
-	// mgr := r.ContainerManager
-
-	// kokoroProgress, err := mgr.GetImageProgress(ctx, container.KokoroContainer.ImageURL)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to get Kokoro image progress: %w", err)
-	// }
-
-	// postgresProgress, err := mgr.GetImageProgress(ctx, container.PostgresContainer.ImageURL)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to get Postgres image progress: %w", err)
-	// }
-
-	results := []*model.SetupProgress{
-		// {
-		// 	Name: container.KokoroContainer.ContainerID,
-		// 	// Progress: int32(kokoroProgress),
-		// },
-		// {
-		// 	Name: container.PostgresContainer.ContainerID,
-		// 	// Progress: int32(postgresProgress),
-		// },
+	type subjectInfo struct {
+		subject string
+		name    string
 	}
+	subjects := []subjectInfo{
+		{"setup_progress.kokoro", "kokoro"},
+		{"setup_progress.postgres", "postgres"},
+	}
+	results := make([]*model.SetupProgress, 0, len(subjects))
 
+	for _, s := range subjects {
+		msg, err := r.Nc.Request(s.subject, nil, 250*time.Millisecond)
+		if err != nil || msg == nil {
+			results = append(results, &model.SetupProgress{Name: s.name, Progress: 0})
+			continue
+		}
+		var progress model.SetupProgress
+		if err := json.Unmarshal(msg.Data, &progress); err != nil {
+			results = append(results, &model.SetupProgress{Name: s.name, Progress: 0})
+			continue
+		}
+		results = append(results, &progress)
+	}
 	return results, nil
 }
 
