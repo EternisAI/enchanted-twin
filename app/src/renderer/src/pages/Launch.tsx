@@ -15,7 +15,9 @@ const CYCLE_TEXT_WORDS = [
 ]
 
 export default function LaunchScreen() {
-  const { data, loading, error } = useQuery(GetSetupProgressDocument)
+  const { data, loading, error } = useQuery(GetSetupProgressDocument, {
+    pollInterval: 5000
+  })
   const [progress, setProgress] = useState(20)
 
   console.log('data', data)
