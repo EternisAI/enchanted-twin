@@ -215,35 +215,15 @@ export async function installPodman(): Promise<boolean> {
     let installProcess
 
     if (process.platform === 'darwin') {
-      installProcess = spawn('open', [installerPath])
+      // Perform a silent installation on macOS using the command-line installer.
+      // This avoids showing the graphical wizard and instead relies on the
+      // standard macOS privilege-elevation prompt. The user may be asked for
+      // their administrator password.
+      installProcess = spawn('sudo', ['installer', '-pkg', installerPath, '-target', '/'])
 
-      log.info('Launched macOS installer. Please complete the installation when prompted.')
-      log.info('If the installer does not appear, please install manually with:')
-      log.info(`open "${installerPath}"`)
-
-      return new Promise((resolve) => {
-        installProcess.on('close', (code) => {
-          log.info(`Installer launcher exited with code ${code}`)
-        })
-        ;(async () => {
-          log.info('Waiting for Podman installation to finish (up to 10 minutes)...')
-          const installed = await waitForPodmanInstalled()
-          log.info(`Podman installed: ${installed}`)
-
-          if (installed) {
-            const machineInit = await initMachine()
-            resolve(machineInit)
-          } else {
-            log.error('Timed out waiting for Podman to be installed')
-            resolve(false)
-          }
-        })()
-
-        installProcess.on('error', (err) => {
-          log.error(`Error launching installer: ${err.message}`)
-          resolve(false)
-        })
-      })
+      log.info(
+        'Running macOS pkg through the command-line installer. You may be prompted for your password.'
+      )
     } else if (process.platform === 'linux') {
       const isRpm = installerPath.endsWith('.rpm')
 
@@ -275,6 +255,17 @@ export async function installPodman(): Promise<boolean> {
         )
 
         if (success) {
+          // Double-check that the CLI is now available on the PATH. On slower
+          // systems the package post-install scripts can take a short while to
+          // finish even after the installer exits.
+          const installed = await waitForPodmanInstalled()
+
+          if (!installed) {
+            log.error('Podman was not detected on the system after the installer finished.')
+            resolve(false)
+            return
+          }
+
           const machineInit = await initMachine()
           resolve(machineInit)
         } else {
