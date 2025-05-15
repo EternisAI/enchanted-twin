@@ -1,7 +1,7 @@
 APP_DIR = app
 BACKEND_DIR = backend/golang
 RESOURCES_DIR = $(APP_DIR)/resources
-PODMAN_VERSION = 5.4.2
+PODMAN_VERSION = 5.5.0
 
 BUILD_TARGETS = mac-silicon linux
 
@@ -17,15 +17,15 @@ BUILD_CMD_mac-silicon = build:mac
 BUILD_CMD_windows = build:win
 BUILD_CMD_linux = build:linux
 
-PODMAN_URL_mac-silicon = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-installer-$(PODMAN_VERSION)-darwin-arm64.pkg
-PODMAN_URL_mac-intel = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-installer-$(PODMAN_VERSION)-darwin-amd64.pkg
+PODMAN_URL_mac-silicon = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-installer-macos-arm64.pkg
+PODMAN_URL_mac-intel = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-installer-macos-amd64.pkg
 PODMAN_URL_linux = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-v$(PODMAN_VERSION)-linux-amd64.rpm
-PODMAN_URL_windows = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-v$(PODMAN_VERSION)-setup.exe
+PODMAN_URL_windows = https://github.com/containers/podman/releases/download/v$(PODMAN_VERSION)/podman-installer-windows-amd64.exe
 
 PODMAN_INSTALLER_mac-silicon = podman-installer-macos-arm64.pkg
 PODMAN_INSTALLER_mac-intel = podman-installer-macos-amd64.pkg
 PODMAN_INSTALLER_linux = podman-installer-linux-amd64.rpm
-PODMAN_INSTALLER_windows = podman-installer-windows-amd64.msi
+PODMAN_INSTALLER_windows = podman-installer-windows-amd64.exe
 
 define build_recipe
 build-$(1):
