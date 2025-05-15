@@ -215,14 +215,18 @@ export async function installPodman(): Promise<boolean> {
     let installProcess
 
     if (process.platform === 'darwin') {
-      // Perform a silent installation on macOS using the command-line installer.
-      // This avoids showing the graphical wizard and instead relies on the
-      // standard macOS privilege-elevation prompt. The user may be asked for
-      // their administrator password.
-      installProcess = spawn('sudo', ['installer', '-pkg', installerPath, '-target', '/'])
+      // Perform a silent installation on macOS using the command-line `installer` wrapped
+      // in AppleScript. Using `osascript` with the `with administrator privileges` flag
+      // triggers the native macOS authorisation dialog, which supports Touch ID and
+      // does not require users to type their password in the terminal.
+
+      // Craft an AppleScript command that quotes the pkg path safely.
+      const escapedPath = installerPath.replace(/'/g, "'\\''")
+      const appleScript = `do shell script "installer -pkg '${escapedPath}' -target /" with administrator privileges`
+      installProcess = spawn('osascript', ['-e', appleScript])
 
       log.info(
-        'Running macOS pkg through the command-line installer. You may be prompted for your password.'
+        'Running macOS pkg through osascript; users will be prompted via the standard authorisation dialog (Touch ID supported).'
       )
     } else if (process.platform === 'linux') {
       const isRpm = installerPath.endsWith('.rpm')
