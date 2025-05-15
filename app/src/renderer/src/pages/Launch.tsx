@@ -31,10 +31,13 @@ export default function LaunchScreen() {
     console.error('error', error)
     if (loading || error) return
 
-    const allRequiredComplete = setupData
-      .filter((item) => item.required)
-      .every((item) => item.status === 'complete')
-    if (allRequiredComplete) {
+    const requiredItems = setupData.filter((item) => item.required)
+
+    const allRequiredComplete = requiredItems.every(
+      (item) => item.status.toLowerCase() === 'Completed'
+    )
+
+    if (allRequiredComplete || requiredItems.length === 0) {
       console.log('allRequiredComplete')
       handleComplete()
     }
@@ -51,6 +54,7 @@ export default function LaunchScreen() {
 
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-background font-sans">
+      <div className="titlebar fixed top-0 left-0 right-0 h-8" />
       <div className="flex flex-col gap-8 items-center w-full max-w-xl">
         <div className="w-full gap-4 max-w-lg h-2 rounded-full bg-primary/20 overflow-hidden mb-10">
           <div
