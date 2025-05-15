@@ -8,6 +8,11 @@ import * as https from 'https'
 let podmanProcess: ChildProcess | null = null
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
+// Early in your main process (e.g. before any spawn calls)
+if (process.platform === 'darwin') {
+  process.env.PATH = ['/opt/podman/bin', process.env.PATH!].join(':')
+}
+
 export async function isPodmanInstalled(): Promise<boolean> {
   return new Promise((resolve) => {
     log.info('Checking for Podman in standard locations...')
