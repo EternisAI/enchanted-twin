@@ -22,7 +22,7 @@ export function useSendMessage(
     }
   })
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, deepMemory?: boolean) => {
     const optimisticMessage: Message = {
       id: crypto.randomUUID(),
       text,
@@ -30,7 +30,8 @@ export function useSendMessage(
       imageUrls: [],
       toolCalls: [],
       toolResults: [],
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      deepMemory
     }
 
     onMessageSent(optimisticMessage)
@@ -39,7 +40,8 @@ export function useSendMessage(
       await sendMessageMutation({
         variables: {
           chatId,
-          text
+          text,
+          deepMemory
         }
       })
     } catch (error) {
@@ -51,7 +53,8 @@ export function useSendMessage(
         imageUrls: [],
         toolCalls: [],
         toolResults: [],
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        deepMemory
       }
 
       onError(errorMessage)

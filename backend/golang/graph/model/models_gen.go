@@ -109,6 +109,7 @@ type Message struct {
 	ToolCalls   []*ToolCall `json:"toolCalls"`
 	ToolResults []string    `json:"toolResults"`
 	CreatedAt   string      `json:"createdAt"`
+	DeepMemory  *bool       `json:"deepMemory,omitempty"`
 }
 
 type MessageStreamPayload struct {

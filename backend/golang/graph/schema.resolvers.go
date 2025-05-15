@@ -205,14 +205,15 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string) (*model.
 }
 
 // SendMessage is the resolver for the sendMessage field.
-func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error) {
+func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, deepMemory *bool) (*model.Message, error) {
 	subject := fmt.Sprintf("chat.%s", chatID)
 
 	userMessageJson, err := json.Marshal(model.Message{
-		ID:        uuid.New().String(),
-		Text:      &text,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Role:      model.RoleUser,
+		ID:         uuid.New().String(),
+		Text:       &text,
+		CreatedAt:  time.Now().Format(time.RFC3339),
+		Role:       model.RoleUser,
+		DeepMemory: deepMemory,
 	})
 	if err != nil {
 		return nil, err
@@ -222,7 +223,7 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 		return nil, err
 	}
 
-	return r.TwinChatService.SendMessage(ctx, chatID, text)
+	return r.TwinChatService.SendMessage(ctx, chatID, text, deepMemory)
 }
 
 // DeleteChat is the resolver for the deleteChat field.
@@ -319,11 +320,7 @@ func (r *mutationResolver) DeleteAgentTask(ctx context.Context, id string) (bool
 }
 
 // UpdateAgentTask sets the Notify flag for the given schedule.
-func (r *mutationResolver) UpdateAgentTask(
-	ctx context.Context,
-	id string,
-	notify bool,
-) (bool, error) {
+func (r *mutationResolver) UpdateAgentTask(ctx context.Context, id string, notify bool) (bool, error) {
 	h := r.TemporalClient.ScheduleClient().GetHandle(ctx, id)
 	err := h.Update(ctx, client.ScheduleUpdateOptions{
 		DoUpdate: func(in client.ScheduleUpdateInput) (*client.ScheduleUpdate, error) {

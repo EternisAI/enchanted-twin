@@ -87,6 +87,7 @@ func (s *Service) SendMessage(
 	ctx context.Context,
 	chatID string,
 	message string,
+	deepMemory *bool,
 ) (*model.Message, error) {
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
@@ -96,6 +97,10 @@ func (s *Service) SendMessage(
 	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. When user asks something to be done every minute, every hour, every day, every week, every month, every year, you should use the `schedule_task` tool and construct cron expression. When calling `schedule_task` tool you must not include your human name in the task name, it is implicitly assumed that any message send to the chat will be sent to the human."
 	now := time.Now()
 	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now.Format(time.RFC3339))
+
+	if deepMemory != nil && *deepMemory {
+		s.logger.Info("Deep memory mode enabled for message", "chatID", chatID)
+	}
 
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	if err != nil {
