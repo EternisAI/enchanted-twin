@@ -47,23 +47,26 @@ func (a *Agent) ExecuteStream(
 		}
 		tool, ok := toolMap[tc.Function.Name]
 		if !ok {
-			return types.SimpleToolResult(""), fmt.Errorf("tool %q not found", tc.Function.Name)
+			return nil, fmt.Errorf("tool %q not found", tc.Function.Name)
 		}
 		var args map[string]any
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return types.SimpleToolResult(""), err
+			return nil, err
 		}
-		res, err := tool.Execute(ctx, args)
+		toolResult, err := tool.Execute(ctx, args)
 		if err != nil {
-			return types.SimpleToolResult(""), err
+			return nil, err
 		}
+
+		a.logger.Debug("Post tool callback", "result", toolResult)
 		if a.PostToolCallback != nil {
-			a.PostToolCallback(tc, res)
+			a.PostToolCallback(tc, toolResult)
 		}
-		if urls := res.ImageURLs(); len(urls) > 0 {
+
+		if urls := toolResult.ImageURLs(); len(urls) > 0 {
 			allImages = append(allImages, urls...)
 		}
-		return res, nil
+		return toolResult, nil
 	}
 
 	for step := 0; step < MAX_STEPS; step++ {
