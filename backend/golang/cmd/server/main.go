@@ -98,14 +98,14 @@ func main() {
 	logger.Info("NATS client started")
 
 	// Setup progress state and NATS responders
-	var latestKokoroProgress = &model.SetupProgress{Name: "kokoro", Progress: 0}
-	var latestPostgresProgress = &model.SetupProgress{Name: "postgres", Progress: 0}
+	latestKokoroProgress := &model.SetupProgress{Name: "kokoro", Progress: 0}
+	latestPostgresProgress := &model.SetupProgress{Name: "postgres", Progress: 0}
 
-	nc.Subscribe("setup_progress.kokoro", func(msg *nats.Msg) {
+	_, _ = nc.Subscribe("setup_progress.kokoro", func(msg *nats.Msg) {
 		data, _ := json.Marshal(latestKokoroProgress)
 		_ = msg.Respond(data)
 	})
-	nc.Subscribe("setup_progress.postgres", func(msg *nats.Msg) {
+	_, _ = nc.Subscribe("setup_progress.postgres", func(msg *nats.Msg) {
 		data, _ := json.Marshal(latestPostgresProgress)
 		_ = msg.Respond(data)
 	})
@@ -545,7 +545,9 @@ func startPostgresContainer(ctx context.Context, mgr container.ContainerManager,
 		if err != nil {
 			return err
 		}
-		defer db.Close()
+		defer func() {
+			_ = db.Close()
+		}()
 		return db.PingContext(ctx)
 	}
 	_, err := container.StartContainerWithReadiness(ctx, mgr, config, check, 10*time.Minute, func(progress float64, status string) {
