@@ -130,8 +130,8 @@ mutation CreateChat($name: String!) {
   }
 }
 
-mutation SendMessage($chatId: ID!, $text: String!, $deepMemory: Boolean) {
-  sendMessage(chatId: $chatId, text: $text, deepMemory: $deepMemory) {
+mutation SendMessage($chatId: ID!, $text: String!, $reason: Boolean) {
+  sendMessage(chatId: $chatId, text: $text, reason: $reason) {
     id
     text
     role

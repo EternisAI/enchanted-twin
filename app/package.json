@@ -113,6 +113,7 @@
       "region": "us-east-1"
     },
     "mac": {
+      "identity": null,
       "target": [
         "dmg",
         "zip"
@@ -129,7 +130,6 @@
         "NSAccessibilityUsageDescription": "This app needs accessibility permissions to enhance user experience.",
         "NSUserNotificationUsageDescription": "This app needs notification permissions to send you important updates and alerts."
       }
-    },
-    "afterSign": "./build/notarize.js"
+    }
   }
 }

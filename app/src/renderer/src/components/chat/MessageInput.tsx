@@ -5,20 +5,20 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
 type MessageInputProps = {
-  onSend: (text: string, deepMemory: boolean) => void
+  onSend: (text: string, reason: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
 }
 
 export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: MessageInputProps) {
   const [text, setText] = useState('')
-  const [isDeepMemory, setIsDeepMemory] = useState(false)
+  const [isReasonSelected, setIsReasonSelected] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
-    onSend(text, isDeepMemory)
+    onSend(text, isReasonSelected)
     setText('')
   }
 
@@ -47,8 +47,8 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
     }
   }
 
-  const toggleDeepMemory = () => {
-    setIsDeepMemory(!isDeepMemory)
+  const toggleReason = () => {
+    setIsReasonSelected(!isReasonSelected)
   }
 
   return (
@@ -74,17 +74,17 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
       </div>
       <div className="flex justify-end items-center gap-3">
         <Button
-          onClick={toggleDeepMemory}
+          onClick={toggleReason}
           className={cn(
             'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
-            isDeepMemory
+            isReasonSelected
               ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
               : ''
           )}
           variant="outline"
         >
           <History className="w-4 h-5" />
-          Deep Memory
+          Reasoning
         </Button>
         <SendButton
           onSend={handleSend}
