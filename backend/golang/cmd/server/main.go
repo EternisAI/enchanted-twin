@@ -298,7 +298,7 @@ type bootstrapTemporalWorkerInput struct {
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		kokoroPort = 8765
+		kokoroPort = 8880
 		ttsWsPort  = 45001
 	)
 

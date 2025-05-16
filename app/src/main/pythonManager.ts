@@ -11,27 +11,34 @@ import http from 'node:http'
 
 type RunOptions = SpawnOptions & { label: string }
 
-export class KokoroBootstrap {
-  private readonly USER_DIR: string
-  private readonly USER_BIN: string
-  private readonly UV_EXE: string
-  private readonly KOKORO_DIR: string // project root
-  private readonly VENV_DIR: string // dedicated venv
-  private readonly ZIP_URL: string =
-    'https://github.com/remsky/Kokoro-FastAPI/archive/refs/heads/master.zip'
-  private readonly onProgress?: (progress: number, status?: string) => void
-  private kokoroProc: import('child_process').ChildProcess | null = null // Track the TTS process
+/* ─────────────────────────────────────────────────────────────────────────── */
 
-  constructor(onProgress?: (progress: number, status?: string) => void) {
-    this.USER_DIR = app.getPath('userData')
-    this.USER_BIN = path.join(this.USER_DIR, 'bin')
-    this.UV_EXE = path.join(this.USER_BIN, process.platform === 'win32' ? 'uv.exe' : 'uv')
-    this.KOKORO_DIR = path.join(this.USER_DIR, 'kokoro')
-    this.VENV_DIR = path.join(this.USER_DIR, 'uv_envs', 'kokoro')
-    this.onProgress = onProgress
+export class KokoroBootstrap {
+  private readonly USER_DIR = app.getPath('userData')
+  private readonly USER_BIN = path.join(this.USER_DIR, 'bin')
+  private readonly UV_PATH = path.join(
+    this.USER_BIN,
+    process.platform === 'win32' ? 'uv.exe' : 'uv'
+  )
+
+  private readonly KOKORO_DIR = path.join(this.USER_DIR, 'dependencies', 'kokoro')
+  private readonly VENV_DIR = path.join(this.KOKORO_DIR, '.venv')
+
+  private readonly ZIP_URL =
+    'https://github.com/remsky/Kokoro-FastAPI/archive/refs/heads/master.zip'
+
+  /** absolute path to the python executable in the venv */
+  private pythonBin(): string {
+    const sub =
+      process.platform === 'win32' ? path.join('Scripts', 'python.exe') : path.join('bin', 'python')
+    return path.join(this.VENV_DIR, sub)
   }
 
-  private async fileExists(p: string, mode = fsc.F_OK): Promise<boolean> {
+  private kokoroProc: import('child_process').ChildProcess | null = null
+  constructor(private readonly onProgress?: (pct: number, status?: string) => void) {}
+
+  /* ── helpers ────────────────────────────────────────────────────────────── */
+  private async exists(p: string, mode = fsc.F_OK) {
     try {
       await fs.promises.access(p, mode)
       return true
@@ -40,285 +47,215 @@ export class KokoroBootstrap {
     }
   }
 
-  private uvEnv(venvPath: string): Record<string, string | undefined> {
-    const binDir =
-      process.platform === 'win32' ? path.join(venvPath, 'Scripts') : path.join(venvPath, 'bin')
-    return {
-      ...process.env,
-      VIRTUAL_ENV: venvPath,
-      PATH: `${binDir}${path.delimiter}${process.env.PATH ?? ''}`
-    }
+  private uvEnv(venv: string) {
+    const bin = process.platform === 'win32' ? path.join(venv, 'Scripts') : path.join(venv, 'bin')
+    return { ...process.env, VIRTUAL_ENV: venv, PATH: `${bin}${path.delimiter}${process.env.PATH}` }
   }
 
-  private run(cmd: string, args: readonly string[], opts: RunOptions): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const t0 = Date.now()
+  private run(cmd: string, args: readonly string[], opts: RunOptions) {
+    return new Promise<void>((resolve, reject) => {
       log.info(`[${opts.label}] → ${cmd} ${args.join(' ')}`)
-      const proc = spawn(cmd, args, { ...opts, stdio: 'inherit' })
-      proc.once('error', (err) => {
-        log.error(`[${opts.label}] ✖ process error`, err)
-        reject(err)
-      })
-      proc.once('exit', (code) => {
-        const dt = Date.now() - t0
-        if (code === 0) {
-          log.info(`[${opts.label}] ✓ finished in ${dt} ms`)
-          resolve()
-        } else {
-          log.error(`[${opts.label}] ✖ exited ${code} after ${dt} ms`)
-          reject(new Error(`${opts.label} failed (exit ${code})`))
-        }
-      })
+      const p = spawn(cmd, args, { ...opts, stdio: 'inherit' })
+      p.once('error', reject)
+      p.once('exit', (c) => (c === 0 ? resolve() : reject(new Error(`${opts.label} exit ${c}`))))
     })
   }
 
   private download(url: string, dest: string, redirects = 5): Promise<void> {
     return new Promise((resolve, reject) => {
-      const requestFn = (currentUrl: string, remainingRedirects: number) => {
+      const req = (u: string, r: number) =>
         https
-          .get(currentUrl, { headers: { 'User-Agent': 'kokoro-installer' } }, (res) => {
+          .get(u, { headers: { 'User-Agent': 'kokoro-installer' } }, (res) => {
             const { statusCode, headers } = res
             if (statusCode && statusCode >= 300 && statusCode < 400 && headers.location) {
-              if (remainingRedirects === 0) {
-                return reject(new Error('Too many redirects'))
-              }
-              return requestFn(headers.location, remainingRedirects - 1)
+              return r ? req(headers.location, r - 1) : reject(new Error('Too many redirects'))
             }
             if (statusCode !== 200) {
-              res.resume() // Consume data to free up resources
-              return reject(new Error(`HTTP ${statusCode} on ${currentUrl}`))
+              res.resume()
+              return reject(new Error(`HTTP ${statusCode} on ${u}`))
             }
             pipeline(res, fs.createWriteStream(dest)).then(resolve).catch(reject)
           })
           .on('error', reject)
-      }
-      requestFn(url, redirects)
+      req(url, redirects)
     })
   }
 
-  private async extractZipFlattened(zipFile: string, destDir: string): Promise<void> {
-    const zip = await unzipper.Open.file(zipFile)
-    for (const entry of zip.files) {
-      if (entry.type === 'Directory') continue
-
-      const relativePathParts = entry.path.split(/[/\\]/).slice(1)
-
-      if (relativePathParts.length === 0 || relativePathParts.join('') === '') {
-        log.warn(
-          `[extractZipFlattened] Skipping entry with unusual path after flattening: ${entry.path}`
-        )
-        continue
-      }
-
-      const outPath = path.join(destDir, ...relativePathParts)
-      await fs.promises.mkdir(path.dirname(outPath), { recursive: true })
+  private async extractZipFlattened(src: string, dest: string) {
+    const zip = await unzipper.Open.file(src)
+    for (const e of zip.files) {
+      if (e.type === 'Directory') continue
+      const rel = e.path.split(/[/\\]/).slice(1)
+      if (!rel.length) continue
+      const out = path.join(dest, ...rel)
+      await fs.promises.mkdir(path.dirname(out), { recursive: true })
       await new Promise<void>((res, rej) =>
-        entry.stream().pipe(fs.createWriteStream(outPath)).on('finish', res).on('error', rej)
+        e.stream().pipe(fs.createWriteStream(out)).on('finish', res).on('error', rej)
       )
     }
   }
 
-  private async ensureUv(): Promise<void> {
-    if (await this.fileExists(this.UV_EXE, fsc.X_OK)) return
+  /* ── install steps ──────────────────────────────────────────────────────── */
+  private async ensureUv() {
+    if (await this.exists(this.UV_PATH, fsc.X_OK)) return
     await fs.promises.mkdir(this.USER_BIN, { recursive: true })
     await this.run('sh', ['-c', 'curl -LsSf https://astral.sh/uv/install.sh | sh'], {
       label: 'uv-install',
       env: { ...process.env, UV_INSTALL_DIR: this.USER_BIN }
     })
-    if (!(await this.fileExists(this.UV_EXE, fsc.X_OK))) {
-      throw new Error(`uv binary missing at ${this.UV_EXE} after installation attempt.`)
-    }
   }
 
-  private async ensureKokoroRepo(): Promise<void> {
-    if (await this.fileExists(path.join(this.KOKORO_DIR, 'api'))) return
+  private async ensurePython312() {
+    await this.run(this.UV_PATH, ['python', 'install', '3.12', '--quiet'], { label: 'py312' })
+  }
+
+  private async ensureRepo() {
+    if (await this.exists(path.join(this.KOKORO_DIR, 'api'))) return
     await fs.promises.rm(this.KOKORO_DIR, { recursive: true, force: true }).catch(() => {})
     await fs.promises.mkdir(this.KOKORO_DIR, { recursive: true })
-    const zipFileName = `kokoro-${Date.now()}.zip`
-    const zipTempPath = path.join(tmpdir(), zipFileName)
+
+    const zipTmp = path.join(tmpdir(), `kokoro-${Date.now()}.zip`)
     try {
-      await this.download(this.ZIP_URL, zipTempPath)
-      await this.extractZipFlattened(zipTempPath, this.KOKORO_DIR)
+      await this.download(this.ZIP_URL, zipTmp)
+      await this.extractZipFlattened(zipTmp, this.KOKORO_DIR)
     } finally {
-      await fs.promises.unlink(zipTempPath).catch((err) => {
-        log.warn(`[ensureKokoroRepo] Failed to delete temp zip: ${zipTempPath}`, err)
-      })
+      await fs.promises.unlink(zipTmp).catch(() => {})
     }
   }
 
-  private async ensureVenv(): Promise<void> {
-    if (await this.fileExists(path.join(this.VENV_DIR, 'pyvenv.cfg'))) return
+  private async ensureVenv() {
+    const cfg = path.join(this.VENV_DIR, 'pyvenv.cfg')
+    if (await this.exists(cfg)) {
+      const txt = await fs.promises.readFile(cfg, 'utf8')
+      if (/^version = 3\.12\./m.test(txt)) return
+      await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true })
+    }
     await fs.promises.mkdir(path.dirname(this.VENV_DIR), { recursive: true })
-    await this.run(this.UV_EXE, ['venv', '--python', '3.12', this.VENV_DIR], { label: 'uv-venv' })
+    await this.run(this.UV_PATH, ['venv', '--python', '3.12', this.VENV_DIR], { label: 'uv-venv' })
   }
 
-  private async ensureDeps(): Promise<void> {
-    const stampFile = path.join(this.VENV_DIR, '.kokoro-installed')
-    if (await this.fileExists(stampFile)) return
+  private async ensureDeps() {
+    const stamp = path.join(this.VENV_DIR, '.kokoro-installed')
+    if (await this.exists(stamp)) return
 
-    const baseInstallArgs: string[] = ['pip', 'install', '-e', this.KOKORO_DIR]
-    const requirementsPath = path.join(this.KOKORO_DIR, 'requirements.txt')
-
-    if (await this.fileExists(requirementsPath)) {
-      baseInstallArgs.push('-r', requirementsPath)
-    }
-
-    await this.run(this.UV_EXE, baseInstallArgs, {
-      label: 'uv-pip-dependencies',
-      env: this.uvEnv(this.VENV_DIR)
+    // 1️⃣ install Kokoro itself
+    await this.run(this.UV_PATH, ['pip', 'install', '-e', '.'], {
+      cwd: this.KOKORO_DIR,
+      env: this.uvEnv(this.VENV_DIR),
+      label: 'uv-pip'
     })
 
-    await this.run(
-      this.UV_EXE,
-      ['pip', 'install', '--upgrade', 'torch', 'torchaudio', 'torchvision'],
-      {
-        label: 'uv-pip-torch',
-        env: this.uvEnv(this.VENV_DIR)
-      }
-    )
+    // 2️⃣ add websocket support for uvicorn
+    await this.run(this.UV_PATH, ['pip', 'install', 'uvicorn[standard]'], {
+      env: this.uvEnv(this.VENV_DIR),
+      label: 'uv-ws'
+    })
 
-    await fs.promises.writeFile(stampFile, '')
+    await fs.promises.writeFile(stamp, '')
   }
 
-  private async checkTorch(): Promise<void> {
+  private async smokeTest() {
+    const script =
+      'import torch,sys;' +
+      'print(f"Torch:{torch.__version__}");' +
+      'print(f"Python:{sys.version}");' +
+      'print(f"Exec:{sys.executable}")'
+    await this.run(this.pythonBin(), ['-c', script], {
+      cwd: this.KOKORO_DIR,
+      env: this.uvEnv(this.VENV_DIR),
+      label: 'torch-check'
+    })
+  }
+
+  private async startTts() {
+    /* print interpreter info */
     await this.run(
-      this.UV_EXE,
+      this.pythonBin(),
       [
-        'run',
-        'python',
         '-c',
-        "import torch, sys; print(f'torch OK: {torch.__version__}, Python: {sys.version}')"
+        'import sys;print("\\n=== Kokoro Runtime ===");' +
+          'print("Python:",sys.version);print("Exec:",sys.executable);print("====================\\n")'
       ],
-      { label: 'torch-check', env: this.uvEnv(this.VENV_DIR) }
+      { cwd: this.KOKORO_DIR, env: this.uvEnv(this.VENV_DIR), label: 'python-info' }
     )
-  }
 
-  private async startTts(): Promise<void> {
-    const kokoroEnv = {
+    const env = {
       ...this.uvEnv(this.VENV_DIR),
       USE_GPU: 'true',
       USE_ONNX: 'false',
       PYTHONPATH: `${this.KOKORO_DIR}${path.delimiter}${path.join(this.KOKORO_DIR, 'api')}`,
       MODEL_DIR: 'src/models',
       VOICES_DIR: 'src/voices/v1_0',
-      WEB_PLAYER_PATH: 'web',
+      WEB_PLAYER_PATH: `${this.KOKORO_DIR}/web`,
       DEVICE_TYPE: 'mps',
-      PYTORCH_ENABLE_MPS_FALLBACK: '1'
+      PYTORCH_ENABLE_MPS_FALLBACK: '1',
+      TORCHVISION_DISABLE_META_REGISTRATION: '1'
     }
 
+    /* download model */
     await this.run(
-      this.UV_EXE,
-      [
-        'run',
-        '--no-sync',
-        'python',
-        'docker/scripts/download_model.py',
-        '--output',
-        'src/models/v1_0'
-      ],
-      {
-        cwd: this.KOKORO_DIR,
-        env: kokoroEnv,
-        label: 'kokoro-download-model'
-      }
+      this.pythonBin(),
+      ['docker/scripts/download_model.py', '--output', 'api/src/models/v1_0'],
+      { cwd: this.KOKORO_DIR, env, label: 'model-dl' }
     )
 
-    // Kill any previous process if exists
-    if (this.kokoroProc) {
-      try {
-        this.kokoroProc.kill()
-      } catch (err) {
-        log.warn('[KokoroBootstrap] Failed to kill previous Kokoro TTS process:', err)
-      }
-      this.kokoroProc = null
-    }
-
-    const proc = spawn(
-      this.UV_EXE,
-      ['run', '--no-sync', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '8880'],
-      {
-        cwd: this.KOKORO_DIR,
-        env: kokoroEnv,
-        stdio: 'inherit'
-      }
+    /* start uvicorn */
+    this.kokoroProc?.kill()
+    this.kokoroProc = spawn(
+      this.pythonBin(),
+      ['-m', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '8880'],
+      { cwd: this.KOKORO_DIR, env, stdio: 'inherit' }
     )
-    this.kokoroProc = proc
-    proc.on('error', (err) => {
-      log.error('[kokoro-tts] Failed to start:', err)
-    })
-    proc.on('exit', (code) => {
-      log.info(`[kokoro-tts] exited with code ${code}`)
-      if (this.kokoroProc === proc) this.kokoroProc = null
-    })
+    this.kokoroProc.on('exit', () => (this.kokoroProc = null))
 
-    await this.waitForServer('http://127.0.0.1:8880/web', 20000)
+    await this.waitReady('http://127.0.0.1:8880/web', 30_000)
   }
 
-  private async waitForServer(url: string, timeoutMs: number): Promise<void> {
+  private async waitReady(url: string, ms: number) {
     const start = Date.now()
-    while (Date.now() - start < timeoutMs) {
+    while (Date.now() - start < ms) {
       try {
-        await new Promise<void>((resolve, reject) => {
+        await new Promise<void>((res, rej) =>
           http
-            .get(url, (res) => {
-              if (res.statusCode && res.statusCode < 500) {
-                resolve()
-              } else {
-                reject(new Error('Server not ready'))
-              }
-            })
-            .on('error', reject)
-        })
-        log.info(`[waitForServer] Server is up at ${url}`)
+            .get(url, (r) => (r.statusCode && r.statusCode < 500 ? res() : rej()))
+            .on('error', rej)
+        )
         return
       } catch {
         await new Promise((r) => setTimeout(r, 500))
       }
     }
-    throw new Error(`Server at ${url} did not become ready in ${timeoutMs}ms`)
+    throw new Error(`Server ${url} not ready after ${ms} ms`)
   }
 
-  private emitProgress(progress: number, status?: string) {
-    const safeStatus = status ?? ''
-    log.info(`[KokoroBootstrap] Emitting progress: ${progress}, status: ${safeStatus}`)
-    if (this.onProgress) {
-      this.onProgress(progress, safeStatus)
-    }
-  }
-
-  public async setup(): Promise<void> {
+  /* ── public ─────────────────────────────────────────────────────────────── */
+  async setup() {
     try {
-      this.emitProgress(10, 'Ensuring UV')
+      this.onProgress?.(10, 'Setting up dependency manager')
       await this.ensureUv()
-      this.emitProgress(25, 'Cloning Kokoro Repo')
-      await this.ensureKokoroRepo()
-      this.emitProgress(40, 'Creating Virtual Env')
+      this.onProgress?.(20, 'Installing Python')
+      await this.ensurePython312()
+      this.onProgress?.(30, 'Downloading Kokoro')
+      await this.ensureRepo()
+      this.onProgress?.(45, 'Creating virtual environment')
       await this.ensureVenv()
-      this.emitProgress(60, 'Installing Dependencies')
+      this.onProgress?.(60, 'Installing dependencies')
       await this.ensureDeps()
-      this.emitProgress(80, 'Checking Torch')
-      await this.checkTorch()
-      this.emitProgress(95, 'Starting TTS')
-      await this.startTts()
-      this.emitProgress(100, 'Setup Complete')
-    } catch (error) {
-      log.error('─── PythonBootstrap: Python setup failed ❌', error)
-      throw error
+      this.onProgress?.(75, 'Smoke test')
+      await this.smokeTest()
+      this.onProgress?.(90, 'Starting speech model')
+      this.startTts()
+      this.onProgress?.(100, 'Completed')
+    } catch (e) {
+      log.error('[KokoroBootstrap] failed', e)
+      throw e
     }
   }
 
-  /**
-   * Cleanup method to kill the Kokoro TTS process if running
-   */
-  public async cleanup(): Promise<void> {
-    if (this.kokoroProc) {
-      log.info('[KokoroBootstrap] Killing Kokoro TTS process...')
-      try {
-        this.kokoroProc.kill()
-        log.info('[KokoroBootstrap] Kokoro TTS process killed.')
-      } catch (err) {
-        log.warn('[KokoroBootstrap] Failed to kill Kokoro TTS process:', err)
-      }
+  async cleanup() {
+    try {
+      this.kokoroProc?.kill()
+    } finally {
       this.kokoroProc = null
     }
   }
