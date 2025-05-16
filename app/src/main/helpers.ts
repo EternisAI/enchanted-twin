@@ -5,7 +5,7 @@ import waitOn from 'wait-on'
 
 export async function waitForBackend(port: number) {
   log.info(`Waiting for backend on tcp:127.0.0.1:${port} …`)
-  await waitOn({ resources: [`tcp:127.0.0.1:${port}`], timeout: 15000, delay: 100 })
+  await waitOn({ resources: [`tcp:127.0.0.1:${port}`], timeout: 30_000, delay: 100 })
   log.info('Backend is ready.')
 }
 
@@ -123,9 +123,9 @@ export function createSplashWindow(): BrowserWindow {
       document.body.style.background='${palette.bg}';
       document.body.style.color='${palette.text}';
       const sp=document.querySelector('.spinner');
-      if(sp){ 
-        sp.style.borderColor='${palette.track}'; 
-        sp.style.borderTopColor='${palette.accent}'; 
+      if(sp){
+        sp.style.borderColor='${palette.track}';
+        sp.style.borderTopColor='${palette.accent}';
       }
     `)
   })
