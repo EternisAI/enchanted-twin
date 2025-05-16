@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 
 interface InstallationStatus {
+  dependency: string
   progress: number
   status: string
   error?: string
@@ -8,6 +9,7 @@ interface InstallationStatus {
 
 export default function InstallationStatus() {
   const [installationStatus, setInstallationStatus] = useState<InstallationStatus>({
+    dependency: 'Kokoro',
     progress: 0,
     status: 'Not started'
   })
@@ -30,7 +32,9 @@ export default function InstallationStatus() {
       <h3 className="text-xl font-semibold mb-4">Dependencies</h3>
       <div className="flex flex-col gap-2">
         <div className="flex justify-between text-sm">
-          <span>{installationStatus.status}</span>
+          <span>
+            {installationStatus.dependency}: {installationStatus.status}
+          </span>
           <span>{installationStatus.progress}%</span>
         </div>
         <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
