@@ -52,6 +52,7 @@ func TaskScheduleWorkflow(ctx workflow.Context, input *TaskScheduleWorkflowInput
 		PreviousResult: lastWorkflowResult,
 		ChatID:         input.ChatID,
 		Notify:         input.Notify,
+		Name:           input.Name,
 	}
 	if err := workflow.ExecuteActivity(
 		ctx,

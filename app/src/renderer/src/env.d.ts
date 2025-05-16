@@ -58,6 +58,15 @@ interface IApi {
     start: () => Promise<ScreenpipeResult>
     stop: () => Promise<boolean>
   }
+  launch: {
+    onProgress: (callback: (data: { status: string; progress: number }) => void) => () => void
+    notifyReady: () => void
+    complete: () => Promise<void>
+  }
+  onLaunch: (
+    channel: 'launch-complete' | 'launch-progress',
+    callback: (data: { status: string; progress: number } | void) => void
+  ) => void
 }
 
 interface ScreenpipeStatus {

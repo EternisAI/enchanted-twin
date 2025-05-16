@@ -75,6 +75,7 @@ export function createSplashWindow(): BrowserWindow {
         display: flex;
         align-items: center;
         justify-content: center;
+        -webkit-app-region: drag;
       }
 
       .container {
@@ -83,6 +84,7 @@ export function createSplashWindow(): BrowserWindow {
         align-items: center;
         flex-direction: column;
         gap: 20px;
+        -webkit-app-region: no-drag;
       }
 
       .spinner {

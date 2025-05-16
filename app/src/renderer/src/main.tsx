@@ -1,17 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
 import './assets/main.css'
 
-import { StrictMode } from 'react'
+import { StrictMode, useState, useEffect } from 'react'
 import { createRoot } from 'react-dom/client'
-
-import { routeTree } from '@renderer/routeTree.gen'
+import { Toaster } from 'sonner'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
+import { createHashHistory } from '@tanstack/react-router'
+
 import { ApolloClientProvider } from './graphql/provider'
 import { ThemeProvider } from './lib/theme'
-import { Toaster } from 'sonner'
-
-import { createHashHistory } from '@tanstack/react-router'
 import { TTSProvider } from './lib/ttsProvider'
+import { routeTree } from '@renderer/routeTree.gen'
+import LaunchScreen from './pages/Launch'
 
 const router = createRouter({
   routeTree,
@@ -33,15 +33,35 @@ const savedTheme = (() => {
   }
 })()
 
-export default createRoot(document.getElementById('root')!).render(
-  <StrictMode>
+function App() {
+  const [isLaunchComplete, setIsLaunchComplete] = useState(false)
+
+  useEffect(() => {
+    window.api.onLaunch('launch-complete', () => {
+      setIsLaunchComplete(true)
+    })
+  }, [])
+
+  return (
     <ThemeProvider defaultTheme={savedTheme}>
       <TTSProvider>
         <ApolloClientProvider>
-          <RouterProvider router={router} />
-          <Toaster position="bottom-right" />
+          {isLaunchComplete ? (
+            <>
+              <RouterProvider router={router} />
+              <Toaster position="bottom-right" />
+            </>
+          ) : (
+            <LaunchScreen />
+          )}
         </ApolloClientProvider>
       </TTSProvider>
     </ThemeProvider>
+  )
+}
+
+export default createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
   </StrictMode>
 )
