@@ -34,7 +34,19 @@ export class KokoroBootstrap {
   }
 
   private kokoroProc: import('child_process').ChildProcess | null = null
-  constructor(private readonly onProgress?: (pct: number, status?: string) => void) {}
+  private onProgress?: (progress: number, status?: string) => void
+  private latestProgress: { progress: number; status: string; error?: string } = {
+    progress: 0,
+    status: 'Not started'
+  }
+
+  constructor(onProgress?: (progress: number, status?: string) => void) {
+    this.onProgress = onProgress
+  }
+
+  getLatestProgress() {
+    return this.latestProgress
+  }
 
   /* ── helpers ────────────────────────────────────────────────────────────── */
   private async exists(p: string, mode = fsc.F_OK) {
@@ -124,13 +136,21 @@ export class KokoroBootstrap {
 
   private async ensureVenv() {
     const cfg = path.join(this.VENV_DIR, 'pyvenv.cfg')
+
+    let venvIs312 = false
     if (await this.exists(cfg)) {
       const txt = await fs.promises.readFile(cfg, 'utf8')
-      if (/^version = 3\.12\./m.test(txt)) return
-      await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true })
+      venvIs312 = /^version = 3\.12\./m.test(txt)
     }
-    await fs.promises.mkdir(path.dirname(this.VENV_DIR), { recursive: true })
-    await this.run(this.UV_PATH, ['venv', '--python', '3.12', this.VENV_DIR], { label: 'uv-venv' })
+
+    /* Delete the whole dir if it is (a) missing or (b) the wrong version */
+    if (!venvIs312) {
+      await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true }).catch(() => {})
+    }
+
+    await this.run(this.UV_PATH, ['venv', '--python', '3.12', this.VENV_DIR], {
+      label: 'uv-venv'
+    })
   }
 
   private async ensureDeps() {
@@ -191,20 +211,34 @@ export class KokoroBootstrap {
   async setup() {
     try {
       this.onProgress?.(10, 'Setting up dependency manager')
+      this.latestProgress = { progress: 10, status: 'Setting up dependency manager' }
       await this.ensureUv()
       this.onProgress?.(20, 'Installing Python')
+      this.latestProgress = { progress: 20, status: 'Installing Python' }
       await this.ensurePython312()
       this.onProgress?.(30, 'Downloading Kokoro')
+      this.latestProgress = { progress: 30, status: 'Downloading Kokoro' }
       await this.ensureRepo()
       this.onProgress?.(45, 'Creating virtual environment')
+      this.latestProgress = { progress: 45, status: 'Creating virtual environment' }
       await this.ensureVenv()
       this.onProgress?.(60, 'Installing dependencies')
+      this.latestProgress = { progress: 60, status: 'Installing dependencies' }
       await this.ensureDeps()
       this.onProgress?.(90, 'Starting speech model')
+      this.latestProgress = { progress: 90, status: 'Starting speech model' }
       this.startTts()
       this.onProgress?.(100, 'Completed')
+      this.latestProgress = { progress: 100, status: 'Completed' }
     } catch (e) {
+      const error = e instanceof Error ? e.message : 'Unknown error occurred'
       log.error('[KokoroBootstrap] failed', e)
+      this.latestProgress = {
+        progress: this.latestProgress.progress,
+        status: 'Failed',
+        error
+      }
+      this.onProgress?.(0, 'Failed')
       throw e
     }
   }

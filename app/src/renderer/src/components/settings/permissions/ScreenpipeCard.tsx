@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader } from '@renderer/components/ui/card'
+import { Card, CardHeader } from '@renderer/components/ui/card'
 import { Play, StopCircle, AlertCircle, Download } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@renderer/components/ui/button'
@@ -130,7 +130,7 @@ export default function ScreenpipePanel() {
           {status.isRunning ? 'Running' : 'Stopped'}
         </span>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 px-6">
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -188,7 +188,7 @@ export default function ScreenpipePanel() {
             </>
           )}
         </div>
-      </CardContent>
+      </div>
     </Card>
   )
 }
