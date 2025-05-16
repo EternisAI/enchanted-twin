@@ -78,8 +78,6 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 	}
 	systemPrompt += fmt.Sprintf("\n\nChat ID: ```%s```.", input.ChatID)
 
-	fmt.Println("systemPrompt", systemPrompt)
-
 	tools := s.ToolsRegistry.Excluding("schedule_task").GetAll()
 	for _, tool := range tools {
 		s.logger.Info("Tool", "name", tool.Definition().Function.Name, "description", tool.Definition().Function.Description)
