@@ -4,6 +4,7 @@ import { cn } from '@renderer/lib/utils'
 import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
 import { extractReasoningAndReply, formatToolName } from './config'
 import { Badge } from '../ui/badge'
+import ImagePreview from './ImagePreview'
 import Markdown from './Markdown'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import { useTTS } from '@renderer/hooks/useTTS'
@@ -28,11 +29,11 @@ export function UserMessageBubble({ message }: { message: Message }) {
         {message.imageUrls.length > 0 && (
           <div className="flex gap-2 mt-2">
             {message.imageUrls.map((url, i) => (
-              <img
+              <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block h-32 w-32 object-cover rounded"
+                thumbClassName="inline-block h-32 w-32 object-cover rounded"
               />
             ))}
           </div>
@@ -83,11 +84,11 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
         {message.imageUrls.length > 0 && (
           <div className="flex flex-col gap-2 my-2">
             {message.imageUrls.map((url, i) => (
-              <img
+              <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block h-40 w-40 object-cover rounded"
+                thumbClassName="inline-block h-40 w-40 object-cover rounded"
               />
             ))}
           </div>
