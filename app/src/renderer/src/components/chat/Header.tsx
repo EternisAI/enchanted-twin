@@ -54,9 +54,12 @@ export function Header() {
   const [isEditingName, setIsEditingName] = useState(false)
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const debouncedQuery = useDebounce(query, 300)
+  const [isReasonSelected, setIsReasonSelected] = useState(false)
+
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
   const [updateProfile] = useMutation(UPDATE_PROFILE)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const chats = chatsData?.getChats || []
@@ -234,7 +237,9 @@ export function Header() {
           filter: (match) => match.routeId === '/chat/$chatId'
         })
 
-        sendMessage({ variables: { chatId: newChatId, text: suggestion.name } })
+        sendMessage({
+          variables: { chatId: newChatId, text: suggestion.name, reason: isReasonSelected }
+        })
         setQuery('')
       }
     } catch (error) {
@@ -305,6 +310,29 @@ export function Header() {
                 rows={1}
               />
               <motion.div className="flex items-center self-end gap-1 pb-2">
+                <motion.div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          onClick={() => setIsReasonSelected(!isReasonSelected)}
+                          className={cn(
+                            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
+                            isReasonSelected
+                              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+                              : ''
+                          )}
+                          variant="outline"
+                        >
+                          <Brain className="w-4 h-5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Reasoning</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </motion.div>
                 <motion.div>
                   <TooltipProvider>
                     <Tooltip>

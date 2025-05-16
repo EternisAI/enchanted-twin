@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowBigUp, History, X } from 'lucide-react'
+import { ArrowBigUp, Brain, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
@@ -83,7 +83,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           )}
           variant="outline"
         >
-          <History className="w-4 h-5" />
+          <Brain className="w-4 h-5" />
           Reasoning
         </Button>
         <SendButton
