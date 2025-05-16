@@ -3,10 +3,18 @@ import path from 'node:path'
 import fs, { constants as fsc } from 'node:fs'
 import { pipeline } from 'node:stream/promises'
 import { tmpdir } from 'node:os'
+import http from 'node:http'
 import https from 'node:https'
 import { spawn, SpawnOptions } from 'node:child_process'
 import unzipper from 'unzipper'
 import log from 'electron-log/main'
+
+export interface DependencyProgress {
+  dependency: string
+  progress: number
+  status: string
+  error?: string
+}
 
 type RunOptions = SpawnOptions & { label: string }
 
@@ -34,13 +42,14 @@ export class KokoroBootstrap {
   }
 
   private kokoroProc: import('child_process').ChildProcess | null = null
-  private onProgress?: (progress: number, status?: string) => void
-  private latestProgress: { progress: number; status: string; error?: string } = {
+  private onProgress?: (data: DependencyProgress) => void
+  private latestProgress: DependencyProgress = {
+    dependency: 'Kokoro',
     progress: 0,
     status: 'Not started'
   }
 
-  constructor(onProgress?: (progress: number, status?: string) => void) {
+  constructor(onProgress?: (data: DependencyProgress) => void) {
     this.onProgress = onProgress
   }
 
@@ -206,39 +215,60 @@ export class KokoroBootstrap {
       { cwd: this.KOKORO_DIR, env, stdio: 'inherit' }
     )
     this.kokoroProc.on('exit', () => (this.kokoroProc = null))
+
+    const checkServer = () =>
+      new Promise<boolean>((resolve) => {
+        const req = http.get('http://localhost:45000/web', (res) => {
+          res.resume()
+          resolve(res.statusCode === 200)
+        })
+        req.on('error', () => resolve(false))
+      })
+
+    const start = Date.now()
+    const timeout = 10 * 60 * 1000
+    while (Date.now() - start < timeout) {
+      if (await checkServer()) {
+        this.onProgress?.({ dependency: 'Kokoro', progress: 100, status: 'Completed' })
+        this.latestProgress = { dependency: 'Kokoro', progress: 100, status: 'Completed' }
+        return
+      }
+      await new Promise((r) => setTimeout(r, 1000))
+    }
+
+    throw new Error('Timed out waiting for Kokoro server to start')
   }
 
   async setup() {
     try {
-      this.onProgress?.(10, 'Setting up dependency manager')
-      this.latestProgress = { progress: 10, status: 'Setting up dependency manager' }
+      this.onProgress?.({ dependency: 'Kokoro', progress: 10, status: 'Setting up dependency manager' })
+      this.latestProgress = { dependency: 'Kokoro', progress: 10, status: 'Setting up dependency manager' }
       await this.ensureUv()
-      this.onProgress?.(20, 'Installing Python')
-      this.latestProgress = { progress: 20, status: 'Installing Python' }
+      this.onProgress?.({ dependency: 'Kokoro', progress: 20, status: 'Installing Python' })
+      this.latestProgress = { dependency: 'Kokoro', progress: 20, status: 'Installing Python' }
       await this.ensurePython312()
-      this.onProgress?.(30, 'Downloading Kokoro')
-      this.latestProgress = { progress: 30, status: 'Downloading Kokoro' }
+      this.onProgress?.({ dependency: 'Kokoro', progress: 30, status: 'Downloading Kokoro' })
+      this.latestProgress = { dependency: 'Kokoro', progress: 30, status: 'Downloading Kokoro' }
       await this.ensureRepo()
-      this.onProgress?.(45, 'Creating virtual environment')
-      this.latestProgress = { progress: 45, status: 'Creating virtual environment' }
+      this.onProgress?.({ dependency: 'Kokoro', progress: 45, status: 'Creating virtual environment' })
+      this.latestProgress = { dependency: 'Kokoro', progress: 45, status: 'Creating virtual environment' }
       await this.ensureVenv()
-      this.onProgress?.(60, 'Installing dependencies')
-      this.latestProgress = { progress: 60, status: 'Installing dependencies' }
+      this.onProgress?.({ dependency: 'Kokoro', progress: 60, status: 'Installing dependencies' })
+      this.latestProgress = { dependency: 'Kokoro', progress: 60, status: 'Installing dependencies' }
       await this.ensureDeps()
-      this.onProgress?.(90, 'Starting speech model')
-      this.latestProgress = { progress: 90, status: 'Starting speech model' }
-      this.startTts()
-      this.onProgress?.(100, 'Completed')
-      this.latestProgress = { progress: 100, status: 'Completed' }
+      this.onProgress?.({ dependency: 'Kokoro', progress: 90, status: 'Starting speech model' })
+      this.latestProgress = { dependency: 'Kokoro', progress: 90, status: 'Starting speech model' }
+      await this.startTts()
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Unknown error occurred'
       log.error('[KokoroBootstrap] failed', e)
       this.latestProgress = {
+        dependency: 'Kokoro',
         progress: this.latestProgress.progress,
         status: 'Failed',
         error
       }
-      this.onProgress?.(0, 'Failed')
+      this.onProgress?.({ dependency: 'Kokoro', progress: 0, status: 'Failed', error })
       throw e
     }
   }
