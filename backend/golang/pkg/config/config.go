@@ -54,7 +54,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		CompletionsAPIKey:  getEnv("COMPLETIONS_API_KEY", "", printEnv),
 		CompletionsModel:   getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
 		ReasoningModel:     getEnvOrPanic("REASONING_MODEL", printEnv),
-		GraphqlPort:        getEnv("GRAPHQL_PORT", "3000", printEnv),
+		GraphqlPort:        getEnv("GRAPHQL_PORT", "44999", printEnv),
 		EmbeddingsAPIURL:   getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
 		EmbeddingsModel:    getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),

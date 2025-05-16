@@ -19,7 +19,7 @@ import { KokoroBootstrap } from './pythonManager'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
-const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 3000
+const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
 // Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev

@@ -49,7 +49,6 @@ func (s *Service) CompletionsStream(
 		for stream.Next() {
 			chunk := stream.Current()
 			acc.AddChunk(chunk)
-			s.logger.Debug("chunk", "chunk", chunk)
 
 			if tc, ok := acc.JustFinishedToolCall(); ok {
 				s.logger.Debug("tool call", "tool call", tc)
