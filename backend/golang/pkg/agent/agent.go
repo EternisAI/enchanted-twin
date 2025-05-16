@@ -23,6 +23,7 @@ type Agent struct {
 	nc               *nats.Conn
 	aiService        *ai.Service
 	CompletionsModel string
+	ReasoningModel   string
 	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
 	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult)
 }
@@ -32,6 +33,7 @@ func NewAgent(
 	nc *nats.Conn,
 	aiService *ai.Service,
 	completionsModel string,
+	reasoningModel string,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 ) *Agent {
@@ -40,6 +42,7 @@ func NewAgent(
 		nc:               nc,
 		aiService:        aiService,
 		CompletionsModel: completionsModel,
+		ReasoningModel:   reasoningModel,
 		PreToolCallback:  preToolCallback,
 		PostToolCallback: postToolCallback,
 	}

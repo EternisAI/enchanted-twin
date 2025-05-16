@@ -110,7 +110,6 @@ type Message struct {
 	ToolCalls   []*ToolCall `json:"toolCalls"`
 	ToolResults []string    `json:"toolResults"`
 	CreatedAt   string      `json:"createdAt"`
-	Reason      *bool       `json:"reason,omitempty"`
 }
 
 type MessageStreamPayload struct {

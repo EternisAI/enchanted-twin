@@ -13,18 +13,17 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -205,7 +204,7 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string) (*model.
 }
 
 // SendMessage is the resolver for the sendMessage field.
-func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reason *bool) (*model.Message, error) {
+func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool) (*model.Message, error) {
 	subject := fmt.Sprintf("chat.%s", chatID)
 
 	userMessageJson, err := json.Marshal(model.Message{
@@ -213,7 +212,6 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 		Text:      &text,
 		CreatedAt: time.Now().Format(time.RFC3339),
 		Role:      model.RoleUser,
-		Reason:    reason,
 	})
 	if err != nil {
 		return nil, err
@@ -223,7 +221,7 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 		return nil, err
 	}
 
-	return r.TwinChatService.SendMessage(ctx, chatID, text, reason)
+	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning)
 }
 
 // DeleteChat is the resolver for the deleteChat field.
@@ -879,10 +877,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

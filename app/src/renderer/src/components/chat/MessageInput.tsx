@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowBigUp, History, X } from 'lucide-react'
+import { ArrowBigUp, Lightbulb, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
 type MessageInputProps = {
-  onSend: (text: string, reason: boolean) => void
+  onSend: (text: string, reasoning: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
 }
@@ -83,7 +83,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           )}
           variant="outline"
         >
-          <History className="w-4 h-5" />
+          <Lightbulb className="w-4 h-5" />
           Reasoning
         </Button>
         <SendButton

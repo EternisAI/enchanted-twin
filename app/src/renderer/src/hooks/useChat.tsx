@@ -22,7 +22,7 @@ export function useSendMessage(
     }
   })
 
-  const sendMessage = async (text: string, reason?: boolean) => {
+  const sendMessage = async (text: string, reasoning: boolean) => {
     const optimisticMessage: Message = {
       id: crypto.randomUUID(),
       text,
@@ -30,8 +30,7 @@ export function useSendMessage(
       imageUrls: [],
       toolCalls: [],
       toolResults: [],
-      createdAt: new Date().toISOString(),
-      reason
+      createdAt: new Date().toISOString()
     }
 
     onMessageSent(optimisticMessage)
@@ -41,7 +40,7 @@ export function useSendMessage(
         variables: {
           chatId,
           text,
-          reason
+          reasoning
         }
       })
     } catch (error) {
@@ -53,8 +52,7 @@ export function useSendMessage(
         imageUrls: [],
         toolCalls: [],
         toolResults: [],
-        createdAt: new Date().toISOString(),
-        reason
+        createdAt: new Date().toISOString()
       }
 
       onError(errorMessage)
