@@ -451,7 +451,7 @@ app.whenReady().then(async () => {
   kokoro = new KokoroBootstrap(kokoroProgress)
 
   try {
-    await kokoro.setup()
+    kokoro.setup()
   } catch (error) {
     console.error('Failed to setup Python environment:', error)
   }
