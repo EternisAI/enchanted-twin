@@ -35,7 +35,7 @@ export class KokoroBootstrap {
 
   private kokoroProc: import('child_process').ChildProcess | null = null
   private onProgress?: (progress: number, status?: string) => void
-  private latestProgress: { progress: number; status: string } = {
+  private latestProgress: { progress: number; status: string; error?: string } = {
     progress: 0,
     status: 'Not started'
   }
@@ -136,13 +136,21 @@ export class KokoroBootstrap {
 
   private async ensureVenv() {
     const cfg = path.join(this.VENV_DIR, 'pyvenv.cfg')
+
+    let venvIs312 = false
     if (await this.exists(cfg)) {
       const txt = await fs.promises.readFile(cfg, 'utf8')
-      if (/^version = 3\.12\./m.test(txt)) return
-      await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true })
+      venvIs312 = /^version = 3\.12\./m.test(txt)
     }
-    await fs.promises.mkdir(path.dirname(this.VENV_DIR), { recursive: true })
-    await this.run(this.UV_PATH, ['venv', '--python', '3.12', this.VENV_DIR], { label: 'uv-venv' })
+
+    /* Delete the whole dir if it is (a) missing or (b) the wrong version */
+    if (!venvIs312) {
+      await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true }).catch(() => {})
+    }
+
+    await this.run(this.UV_PATH, ['venv', '--python', '3.12', this.VENV_DIR], {
+      label: 'uv-venv'
+    })
   }
 
   private async ensureDeps() {
@@ -223,7 +231,14 @@ export class KokoroBootstrap {
       this.onProgress?.(100, 'Completed')
       this.latestProgress = { progress: 100, status: 'Completed' }
     } catch (e) {
+      const error = e instanceof Error ? e.message : 'Unknown error occurred'
       log.error('[KokoroBootstrap] failed', e)
+      this.latestProgress = {
+        progress: this.latestProgress.progress,
+        status: 'Failed',
+        error
+      }
+      this.onProgress?.(0, 'Failed')
       throw e
     }
   }
