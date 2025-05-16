@@ -3,7 +3,9 @@ package google_addresses
 import (
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -127,4 +129,36 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	}
 
 	return records, nil
+}
+
+func (s *Source) ProcessDirectory(dir string) ([]types.Record, error) {
+	var allRecords []types.Record
+
+	err := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if filepath.Ext(path) != ".json" {
+			return nil
+		}
+
+		records, err := s.ProcessFile(path)
+		if err != nil {
+			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
+			return nil
+		}
+
+		allRecords = append(allRecords, records...)
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error walking directory %s: %w", dir, err)
+	}
+
+	return allRecords, nil
 }

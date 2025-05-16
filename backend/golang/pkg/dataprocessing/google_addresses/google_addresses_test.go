@@ -171,12 +171,26 @@ func TestProcessDirectory(t *testing.T) {
 	}
 
 	source := New(tempDir)
-	records, err := source.ProcessFile(testFile1)
+	records, err := source.ProcessDirectory(tempDir)
 	if err != nil {
 		t.Fatalf("ProcessDirectory failed: %v", err)
 	}
 
-	if len(records) != 1 {
-		t.Errorf("Expected 1 record, got %d", len(records))
+	if len(records) != 2 {
+		t.Errorf("Expected 2 records, got %d", len(records))
+	}
+
+	foundName := false
+	foundComment := false
+	for _, r := range records {
+		if r.Data["name"] == "Test Location 1" {
+			foundName = true
+		}
+		if c, ok := r.Data["comment"]; ok && c == "No location information is available for this saved address" {
+			foundComment = true
+		}
+	}
+	if !foundName || !foundComment {
+		t.Errorf("records from both files were not processed")
 	}
 }
