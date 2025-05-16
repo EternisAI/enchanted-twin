@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -245,7 +246,7 @@ func main() {
 		}
 	}()
 
-	go bootstrapWeaviateServer(logger)
+	go bootstrapWeaviateServer(logger, envs.WeaviatePort)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
@@ -439,7 +440,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapWeaviateServer(logger *log.Logger) {
+func bootstrapWeaviateServer(logger *log.Logger, port string) {
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
 	if err != nil {
 		logger.Error("Failed to load swagger spec", slog.Any("error", err))
@@ -452,6 +453,7 @@ func bootstrapWeaviateServer(logger *log.Logger) {
 	// local instance that lives inside our application process. If you need
 	// HTTPS, run Weaviate behind a reverse-proxy that terminates TLS instead.
 	server.EnabledListeners = []string{"http"}
+	server.Port, _ = strconv.Atoi(port)
 	defer server.Shutdown()
 
 	parser := flags.NewParser(server, flags.Default)
