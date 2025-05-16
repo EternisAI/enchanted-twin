@@ -451,7 +451,11 @@ func bootstrapWeaviateServer(logger *log.Logger, port string) {
 	server := rest.NewServer(api)
 
 	server.EnabledListeners = []string{"http"}
-	server.Port, _ = strconv.Atoi(port)
+	server.Port, err = strconv.Atoi(port)
+	if err != nil {
+		logger.Error("Failed to convert port to int", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to convert port to int"))
+	}
 	defer server.Shutdown()
 
 	parser := flags.NewParser(server, flags.Default)
