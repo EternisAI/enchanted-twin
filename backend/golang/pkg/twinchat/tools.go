@@ -121,7 +121,7 @@ func (e *sendToChat) Definition() openai.ChatCompletionToolParam {
 						},
 					},
 				},
-				"required": []string{"message"},
+				"required": []string{"message", "chat_id"},
 			},
 		},
 	}

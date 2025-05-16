@@ -147,7 +147,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   }, [messages, mounted])
 
   const handleSuggestionClick = (suggestion: string) => {
-    sendMessage(suggestion)
+    sendMessage(suggestion, false)
   }
 
   return (
