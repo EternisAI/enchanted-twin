@@ -7,7 +7,6 @@ import https from 'node:https'
 import { spawn, SpawnOptions } from 'node:child_process'
 import unzipper from 'unzipper'
 import log from 'electron-log/main'
-import http from 'node:http'
 
 type RunOptions = SpawnOptions & { label: string }
 
@@ -183,32 +182,12 @@ export class KokoroBootstrap {
     this.kokoroProc?.kill()
     this.kokoroProc = spawn(
       this.pythonBin(),
-      ['-m', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '8880'],
+      ['-m', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '45000'],
       { cwd: this.KOKORO_DIR, env, stdio: 'inherit' }
     )
     this.kokoroProc.on('exit', () => (this.kokoroProc = null))
-
-    // await this.waitReady('http://127.0.0.1:8880/web', 30_000)
   }
 
-  // private async waitReady(url: string, ms: number) {
-  //   const start = Date.now()
-  //   while (Date.now() - start < ms) {
-  //     try {
-  //       await new Promise<void>((res, rej) =>
-  //         http
-  //           .get(url, (r) => (r.statusCode && r.statusCode < 500 ? res() : rej()))
-  //           .on('error', rej)
-  //       )
-  //       return
-  //     } catch {
-  //       await new Promise((r) => setTimeout(r, 500))
-  //     }
-  //   }
-  //   throw new Error(`Server ${url} not ready after ${ms} ms`)
-  // }
-
-  /* ── public ─────────────────────────────────────────────────────────────── */
   async setup() {
     try {
       this.onProgress?.(10, 'Setting up dependency manager')
