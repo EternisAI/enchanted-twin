@@ -113,6 +113,15 @@ query GetTools {
   }
 }
 
+query GetSetupProgress {
+  getSetupProgress {
+    name
+    status
+    progress
+    required
+  }
+}
+
 mutation CreateChat($name: String!) {
   createChat(name: $name) {
     id

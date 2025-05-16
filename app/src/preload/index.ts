@@ -60,6 +60,21 @@ const api = {
     install: () => ipcRenderer.invoke('screenpipe:install'),
     start: () => ipcRenderer.invoke('screenpipe:start'),
     stop: () => ipcRenderer.invoke('screenpipe:stop')
+  },
+  launch: {
+    onProgress: (callback: (data: { status: string; progress: number }) => void) => {
+      const listener = (_: unknown, data: { status: string; progress: number }) => callback(data)
+      ipcRenderer.on('launch-progress', listener)
+      return () => ipcRenderer.removeListener('launch-progress', listener)
+    },
+    notifyReady: () => ipcRenderer.send('launch-ready'),
+    complete: () => ipcRenderer.send('launch-complete')
+  },
+  onLaunch: (
+    channel: 'launch-complete' | 'launch-progress',
+    callback: (data: { status: string; progress: number } | void) => void
+  ) => {
+    ipcRenderer.on(channel, (_, data) => callback(data))
   }
 }
 

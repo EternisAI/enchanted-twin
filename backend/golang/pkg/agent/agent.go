@@ -129,11 +129,7 @@ func (a *Agent) Execute(
 				return AgentResponse{}, err
 			}
 
-			// extracting image URLs from content
-			imageURLs = append(imageURLs, extractImageURLs(toolResult.Content())...)
-
-			// send message with isCompleted true
-			a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_content", toolResult.Content(), "tool_image_urls", toolResult.ImageURLs())
+			a.logger.Debug("Post tool callback", "tool_call", toolCall, "result", toolResult)
 			if a.PostToolCallback != nil {
 				a.PostToolCallback(toolCall, toolResult)
 			}
