@@ -47,6 +47,12 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+
+	"github.com/go-openapi/loads"
+	flags "github.com/jessevdk/go-flags"
+
+	"github.com/weaviate/weaviate/adapters/handlers/rest"
+	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 )
 
 func main() {
@@ -239,6 +245,8 @@ func main() {
 		}
 	}()
 
+	go bootstrapWeaviateServer(logger)
+
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
 		temporalClient:  temporalClient,
@@ -429,4 +437,49 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func bootstrapWeaviateServer(logger *log.Logger) {
+	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
+	if err != nil {
+		logger.Error("Failed to load swagger spec", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to load swagger spec"))
+	}
+
+	api := operations.NewWeaviateAPI(swaggerSpec)
+	server := rest.NewServer(api)
+	// Only expose the unsecured HTTP listener; this is fine for the embedded
+	// local instance that lives inside our application process. If you need
+	// HTTPS, run Weaviate behind a reverse-proxy that terminates TLS instead.
+	server.EnabledListeners = []string{"http"}
+	defer server.Shutdown()
+
+	parser := flags.NewParser(server, flags.Default)
+	parser.ShortDescription = "Weaviate"
+	parser.LongDescription = "# Introduction\n Weaviate is an open source, AI-native vector database that helps developers create intuitive and reliable AI-powered applications. \n ### Base Path \nThe base path for the Weaviate server is structured as `[YOUR-WEAVIATE-HOST]:[PORT]/v1`. As an example, if you wish to access the `schema` endpoint on a local instance, you would navigate to `http://localhost:8080/v1/schema`. Ensure you replace `[YOUR-WEAVIATE-HOST]` and `[PORT]` with your actual server host and port number respectively. \n ### Questions? \nIf you have any comments or questions, please feel free to reach out to us at the community forum [https://forum.weaviate.io/](https://forum.weaviate.io/). \n### Issues? \nIf you find a bug or want to file a feature request, please open an issue on our GitHub repository for [Weaviate](https://github.com/weaviate/weaviate). \n### Want more documentation? \nFor a quickstart, code examples, concepts and more, please visit our [documentation page](https://weaviate.io/developers/weaviate)."
+	server.ConfigureFlags()
+	for _, optsGroup := range api.CommandLineOptionsGroups {
+		_, err := parser.AddGroup(optsGroup.ShortDescription, optsGroup.LongDescription, optsGroup.Options)
+		if err != nil {
+			logger.Error("Failed to add group", slog.Any("error", err))
+			panic(errors.Wrap(err, "Failed to add group"))
+		}
+	}
+
+	if _, err := parser.Parse(); err != nil {
+		code := 1
+		if fe, ok := err.(*flags.Error); ok {
+			if fe.Type == flags.ErrHelp {
+				code = 0
+			}
+		}
+		os.Exit(code)
+	}
+
+	server.ConfigureAPI()
+
+	if err := server.Serve(); err != nil {
+		logger.Error("Failed to serve weaviate", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to serve weaviate"))
+	}
 }
