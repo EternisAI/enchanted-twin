@@ -22,6 +22,7 @@ query GetChats($first: Int!, $offset: Int!) {
         messageId
       }
       toolResults
+      feedback
     }
   }
 }
@@ -44,6 +45,7 @@ query GetChat($id: ID!) {
         messageId
       }
       toolResults
+      feedback
     }
   }
 }
@@ -253,4 +255,8 @@ mutation ConnectMCPServer($input: ConnectMCPServerInput!) {
 
 mutation RemoveMCPServer($id: String!) {
   removeMCPServer(id: $id)
+}
+
+mutation UpdateFeedback($messageId: ID!, $feedback: FeedbackType!) {
+  updateFeedback(messageId: $messageId, feedback: $feedback)
 }

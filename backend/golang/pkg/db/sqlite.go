@@ -74,10 +74,14 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			image_urls JSON,
 			role TEXT,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			feedback TEXT,
 			FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 		);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
+
+		-- Add feedback column if it doesn't exist
+		ALTER TABLE messages ADD COLUMN feedback TEXT;
 	`)
 	if err != nil {
 		return nil, err

@@ -13,5 +13,7 @@ type Storage interface {
 	CreateChat(ctx context.Context, name string) (model.Chat, error)
 	DeleteChat(ctx context.Context, chatID string) error
 	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
+	GetMessage(ctx context.Context, messageId string) (*model.Message, error)
 	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
+	UpdateMessageFeedback(ctx context.Context, messageID string, feedback string) error
 }

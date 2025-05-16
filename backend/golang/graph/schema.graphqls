@@ -18,6 +18,12 @@ directive @goTag(
   value: String
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
+enum FeedbackType {
+  THUMBS_UP
+  THUMBS_DOWN
+  NONE
+}
+
 type UserProfile {
   name: String
   bio: String
@@ -58,6 +64,7 @@ type Message {
   toolCalls: [ToolCall!]!
   toolResults: [String!]!
   createdAt: DateTime!
+  feedback: FeedbackType
 }
 
 enum Role {
@@ -127,6 +134,7 @@ type Mutation {
   deleteAgentTask(id: ID!): Boolean!
   updateAgentTask(id: ID!, notify: Boolean!): Boolean!
   removeMCPServer(id: String!): Boolean!
+  updateFeedback(messageId: ID!, feedback: FeedbackType!): Boolean!
 }
 
 type Subscription {

@@ -35,6 +35,7 @@ type Message struct {
 	ToolResultsStr *string `db:"tool_results"`
 	ImageURLsStr   *string `db:"image_urls"` // Stored as JSON string
 	CreatedAtStr   string  `db:"created_at"` // Stored as RFC3339 string
+	Feedback       *string `db:"feedback"`    // Stored as string enum
 }
 
 func (m *Message) ToModel() *model.Message {
@@ -59,6 +60,12 @@ func (m *Message) ToModel() *model.Message {
 		}
 	}
 
+	var feedback *model.FeedbackType
+	if m.Feedback != nil {
+		feedbackType := model.FeedbackType(*m.Feedback)
+		feedback = &feedbackType
+	}
+
 	return &model.Message{
 		ID:          m.ID,
 		Text:        &m.Text,
@@ -67,5 +74,6 @@ func (m *Message) ToModel() *model.Message {
 		CreatedAt:   m.CreatedAtStr,
 		ToolCalls:   toolCalls,
 		ToolResults: toolCallResults,
+		Feedback:    feedback,
 	}
 }

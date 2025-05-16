@@ -448,3 +448,22 @@ func (s *Service) Tools() []tools.Tool {
 	sendToChatTool := NewSendToChatTool(s.storage, s.nc)
 	return []tools.Tool{sendToChatTool}
 }
+
+func (s *Service) UpdateMessageFeedback(ctx context.Context, messageID string, feedback model.FeedbackType) error {
+	// Get the message to verify it exists
+	message, err := s.storage.GetMessage(ctx, messageID)
+	if err != nil {
+		return fmt.Errorf("failed to get message: %w", err)
+	}
+	if message == nil {
+		return fmt.Errorf("message not found")
+	}
+
+	// Update the feedback
+	err = s.storage.UpdateMessageFeedback(ctx, messageID, string(feedback))
+	if err != nil {
+		return fmt.Errorf("failed to update message feedback: %w", err)
+	}
+
+	return nil
+}

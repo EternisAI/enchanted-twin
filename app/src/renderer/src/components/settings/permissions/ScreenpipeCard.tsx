@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader } from '@renderer/components/ui/card'
+import { Card, CardHeader } from '@renderer/components/ui/card'
 import { Play, StopCircle, AlertCircle, Download } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Button } from '@renderer/components/ui/button'
@@ -130,7 +130,7 @@ export default function ScreenpipePanel() {
           {status.isRunning ? 'Running' : 'Stopped'}
         </span>
       </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 px-6">
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -139,13 +139,11 @@ export default function ScreenpipePanel() {
         )}
         {!hasAllPermissions() &&
           Object.values(permissions).every((status) => status !== 'loading') && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                Please enable the following permissions to use Screenpipe:{' '}
-                {getPermissionMessages().join(', ')}
-              </AlertDescription>
-            </Alert>
+            <div className="flex items-center gap-2 text-sm text-red-400 border border-red-300 rounded-md px-4 py-2">
+              <AlertCircle className="h-7 w-7" />
+              Please enable the following permissions to use Screenpipe:{' '}
+              {getPermissionMessages().join(', ')}
+            </div>
           )}
         <p className="text-sm text-muted-foreground">
           {!status.isInstalled
@@ -188,7 +186,7 @@ export default function ScreenpipePanel() {
             </>
           )}
         </div>
-      </CardContent>
+      </div>
     </Card>
   )
 }

@@ -103,13 +103,14 @@ type MCPServerDefinition struct {
 }
 
 type Message struct {
-	ID          string      `json:"id"`
-	Text        *string     `json:"text,omitempty"`
-	ImageUrls   []string    `json:"imageUrls"`
-	Role        Role        `json:"role"`
-	ToolCalls   []*ToolCall `json:"toolCalls"`
-	ToolResults []string    `json:"toolResults"`
-	CreatedAt   string      `json:"createdAt"`
+	ID          string        `json:"id"`
+	Text        *string       `json:"text,omitempty"`
+	ImageUrls   []string      `json:"imageUrls"`
+	Role        Role          `json:"role"`
+	ToolCalls   []*ToolCall   `json:"toolCalls"`
+	ToolResults []string      `json:"toolResults"`
+	CreatedAt   string        `json:"createdAt"`
+	Feedback    *FeedbackType `json:"feedback,omitempty"`
 }
 
 type MessageStreamPayload struct {
@@ -178,6 +179,63 @@ type UserProfile struct {
 	Bio                  *string         `json:"bio,omitempty"`
 	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
 	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
+}
+
+type FeedbackType string
+
+const (
+	FeedbackTypeThumbsUp   FeedbackType = "THUMBS_UP"
+	FeedbackTypeThumbsDown FeedbackType = "THUMBS_DOWN"
+	FeedbackTypeNone       FeedbackType = "NONE"
+)
+
+var AllFeedbackType = []FeedbackType{
+	FeedbackTypeThumbsUp,
+	FeedbackTypeThumbsDown,
+	FeedbackTypeNone,
+}
+
+func (e FeedbackType) IsValid() bool {
+	switch e {
+	case FeedbackTypeThumbsUp, FeedbackTypeThumbsDown, FeedbackTypeNone:
+		return true
+	}
+	return false
+}
+
+func (e FeedbackType) String() string {
+	return string(e)
+}
+
+func (e *FeedbackType) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = FeedbackType(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid FeedbackType", str)
+	}
+	return nil
+}
+
+func (e FeedbackType) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *FeedbackType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e FeedbackType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type IndexingState string

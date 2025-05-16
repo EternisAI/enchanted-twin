@@ -1,13 +1,22 @@
-import { Message } from '@renderer/graphql/generated/graphql'
+import { FeedbackType, Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import { CheckCircle, ChevronRight, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
+import {
+  CheckCircle,
+  ChevronRight,
+  LoaderIcon,
+  ThumbsDown,
+  ThumbsUp,
+  Volume2,
+  VolumeOff
+} from 'lucide-react'
 import { extractReasoningAndReply, formatToolName } from './config'
 import { Badge } from '../ui/badge'
 import Markdown from './Markdown'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { useMemo } from 'react'
+import useMessageFeedback from '@renderer/hooks/useMessageFeedback'
 
 const messageAnimation = {
   initial: { opacity: 0, y: 20 },
@@ -47,6 +56,8 @@ export function UserMessageBubble({ message }: { message: Message }) {
 
 export function AssistantMessageBubble({ message }: { message: Message }) {
   const { speak, stop, isSpeaking } = useTTS()
+  const { handleUpdateFeedback, loading, feedback } = useMessageFeedback(message)
+
   const { thinkingText, replyText } = useMemo(
     () => extractReasoningAndReply(message.text || ''),
     [message.text]
@@ -90,34 +101,70 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
             ))}
           </div>
         )}
-        <div className="flex flex-row items-center pt-2 gap-4 justify-between w-full">
-          <div className="flex flex-wrap gap-4 items-center">
-            {message.toolCalls.map((toolCall) => {
-              const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
+        {message.toolCalls.length > 0 && (
+          <div className="flex flex-row items-center pt-2 gap-4 justify-between w-full">
+            <div className="flex flex-wrap gap-4 items-center">
+              {message.toolCalls.map((toolCall) => {
+                const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
 
-              return (
-                <div
-                  key={toolCall.id}
-                  className={cn(
-                    'flex items-center gap-2',
-                    toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
-                  )}
-                >
-                  {toolCall.isCompleted ? (
-                    <Badge className="text-green-600 border-green-500" variant="outline">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>{toolNameCompleted}</span>
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-gray-300">
-                      <LoaderIcon className="h-4 w-4 animate-spin" />
-                      <span>{toolNameInProgress}...</span>
-                    </Badge>
-                  )}
-                </div>
-              )
-            })}
+                return (
+                  <div
+                    key={toolCall.id}
+                    className={cn(
+                      'flex items-center gap-2',
+                      toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
+                    )}
+                  >
+                    {toolCall.isCompleted ? (
+                      <Badge className="text-green-600 border-green-500" variant="outline">
+                        <CheckCircle className="h-4 w-4" />
+                        <span>{toolNameCompleted}</span>
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-gray-300">
+                        <LoaderIcon className="h-4 w-4 animate-spin" />
+                        <span>{toolNameInProgress}...</span>
+                      </Badge>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
           </div>
+        )}
+
+        <div className="flex flex-row justify-between gap-2 pb-2">
+          <span className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handleUpdateFeedback(FeedbackType.ThumbsUp)}
+                disabled={loading}
+                className={cn(
+                  'p-1 rounded-full transition-colors cursor-pointer',
+                  feedback === FeedbackType.ThumbsUp
+                    ? 'text-green-600 hover:text-green-700'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                aria-label="Thumbs up"
+              >
+                <ThumbsUp className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => handleUpdateFeedback(FeedbackType.ThumbsDown)}
+                disabled={loading}
+                className={cn(
+                  'p-1 rounded-full transition-colors cursor-pointer',
+                  feedback === FeedbackType.ThumbsDown
+                    ? 'text-red-600 hover:text-red-700'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+                aria-label="Thumbs down"
+              >
+                <ThumbsDown className="h-4 w-4" />
+              </button>
+            </div>
+          </span>
+
           {replyText && replyText.trim() && (
             <span className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
               {isSpeaking ? (

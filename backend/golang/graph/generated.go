@@ -133,6 +133,7 @@ type ComplexityRoot struct {
 
 	Message struct {
 		CreatedAt   func(childComplexity int) int
+		Feedback    func(childComplexity int) int
 		ID          func(childComplexity int) int
 		ImageUrls   func(childComplexity int) int
 		Role        func(childComplexity int) int
@@ -165,6 +166,7 @@ type ComplexityRoot struct {
 		StartIndexing             func(childComplexity int) int
 		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
 		UpdateAgentTask           func(childComplexity int, id string, notify bool) int
+		UpdateFeedback            func(childComplexity int, messageID string, feedback model.FeedbackType) int
 		UpdateProfile             func(childComplexity int, input model.UpdateProfileInput) int
 	}
 
@@ -255,6 +257,7 @@ type MutationResolver interface {
 	DeleteAgentTask(ctx context.Context, id string) (bool, error)
 	UpdateAgentTask(ctx context.Context, id string, notify bool) (bool, error)
 	RemoveMCPServer(ctx context.Context, id string) (bool, error)
+	UpdateFeedback(ctx context.Context, messageID string, feedback model.FeedbackType) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -678,6 +681,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Message.CreatedAt(childComplexity), true
 
+	case "Message.feedback":
+		if e.complexity.Message.Feedback == nil {
+			break
+		}
+
+		return e.complexity.Message.Feedback(childComplexity), true
+
 	case "Message.id":
 		if e.complexity.Message.ID == nil {
 			break
@@ -919,6 +929,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.UpdateAgentTask(childComplexity, args["id"].(string), args["notify"].(bool)), true
+
+	case "Mutation.updateFeedback":
+		if e.complexity.Mutation.UpdateFeedback == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateFeedback_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateFeedback(childComplexity, args["messageId"].(string), args["feedback"].(model.FeedbackType)), true
 
 	case "Mutation.updateProfile":
 		if e.complexity.Mutation.UpdateProfile == nil {
@@ -1772,6 +1794,47 @@ func (ec *executionContext) field_Mutation_updateAgentTask_argsNotify(
 	}
 
 	var zeroVal bool
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_updateFeedback_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_updateFeedback_argsMessageID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["messageId"] = arg0
+	arg1, err := ec.field_Mutation_updateFeedback_argsFeedback(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["feedback"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_updateFeedback_argsMessageID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("messageId"))
+	if tmp, ok := rawArgs["messageId"]; ok {
+		return ec.unmarshalNID2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_updateFeedback_argsFeedback(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (model.FeedbackType, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("feedback"))
+	if tmp, ok := rawArgs["feedback"]; ok {
+		return ec.unmarshalNFeedbackType2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐFeedbackType(ctx, tmp)
+	}
+
+	var zeroVal model.FeedbackType
 	return zeroVal, nil
 }
 
@@ -3015,6 +3078,8 @@ func (ec *executionContext) fieldContext_Chat_messages(_ context.Context, field 
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
+			case "feedback":
+				return ec.fieldContext_Message_feedback(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -4762,6 +4827,47 @@ func (ec *executionContext) fieldContext_Message_createdAt(_ context.Context, fi
 	return fc, nil
 }
 
+func (ec *executionContext) _Message_feedback(ctx context.Context, field graphql.CollectedField, obj *model.Message) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Message_feedback(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Feedback, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*model.FeedbackType)
+	fc.Result = res
+	return ec.marshalOFeedbackType2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐFeedbackType(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Message_feedback(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Message",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type FeedbackType does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _MessageStreamPayload_messageId(ctx context.Context, field graphql.CollectedField, obj *model.MessageStreamPayload) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_MessageStreamPayload_messageId(ctx, field)
 	if err != nil {
@@ -5368,6 +5474,8 @@ func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Contex
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
+			case "feedback":
+				return ec.fieldContext_Message_feedback(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -5874,6 +5982,61 @@ func (ec *executionContext) fieldContext_Mutation_removeMCPServer(ctx context.Co
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_removeMCPServer_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_updateFeedback(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_updateFeedback(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdateFeedback(rctx, fc.Args["messageId"].(string), fc.Args["feedback"].(model.FeedbackType))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_updateFeedback(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_updateFeedback_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -7161,6 +7324,8 @@ func (ec *executionContext) fieldContext_Subscription_messageAdded(ctx context.C
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
+			case "feedback":
+				return ec.fieldContext_Message_feedback(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -7465,6 +7630,8 @@ func (ec *executionContext) fieldContext_Subscription_telegramMessageAdded(ctx c
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
+			case "feedback":
+				return ec.fieldContext_Message_feedback(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -10849,6 +11016,8 @@ func (ec *executionContext) _Message(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "feedback":
+			out.Values[i] = ec._Message_feedback(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -11053,6 +11222,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "removeMCPServer":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_removeMCPServer(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updateFeedback":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_updateFeedback(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
@@ -12421,6 +12597,16 @@ func (ec *executionContext) marshalNDateTime2ᚕstringᚄ(ctx context.Context, s
 	return ret
 }
 
+func (ec *executionContext) unmarshalNFeedbackType2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐFeedbackType(ctx context.Context, v any) (model.FeedbackType, error) {
+	var res model.FeedbackType
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNFeedbackType2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐFeedbackType(ctx context.Context, sel ast.SelectionSet, v model.FeedbackType) graphql.Marshaler {
+	return v
+}
+
 func (ec *executionContext) unmarshalNFloat2float64(ctx context.Context, v any) (float64, error) {
 	res, err := graphql.UnmarshalFloatContext(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
@@ -13252,6 +13438,22 @@ func (ec *executionContext) marshalODateTime2ᚖstring(ctx context.Context, sel 
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) unmarshalOFeedbackType2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐFeedbackType(ctx context.Context, v any) (*model.FeedbackType, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var res = new(model.FeedbackType)
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOFeedbackType2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐFeedbackType(ctx context.Context, sel ast.SelectionSet, v *model.FeedbackType) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	return v
 }
 
 func (ec *executionContext) marshalOIndexingStatus2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐIndexingStatus(ctx context.Context, sel ast.SelectionSet, v *model.IndexingStatus) graphql.Marshaler {

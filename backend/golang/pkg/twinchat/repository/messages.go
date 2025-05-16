@@ -43,10 +43,10 @@ func (r *Repository) AddMessageToChat(ctx context.Context, message Message) (str
 
 	// Insert the message within the transaction
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO messages (id, chat_id, text, role, tool_calls, tool_results, image_urls, created_at) 
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO messages (id, chat_id, text, role, tool_calls, tool_results, image_urls, created_at, feedback) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`, message.ID, message.ChatID, message.Text, message.Role,
-		message.ToolCallsStr, message.ToolResultsStr, message.ImageURLsStr, message.CreatedAtStr)
+		message.ToolCallsStr, message.ToolResultsStr, message.ImageURLsStr, message.CreatedAtStr, message.Feedback)
 	if err != nil {
 		return "", fmt.Errorf("failed to add message: %w", err)
 	}
@@ -89,7 +89,7 @@ func (r *Repository) GetMessagesByChatId(
 
 	var messages []Message
 	err = tx.SelectContext(ctx, &messages, `
-		SELECT id, chat_id, text, role, tool_calls, tool_results, image_urls, created_at 
+		SELECT id, chat_id, text, role, tool_calls, tool_results, image_urls, created_at, feedback
 		FROM messages 
 		WHERE chat_id = ? 
 		ORDER BY created_at ASC
@@ -112,4 +112,74 @@ func (r *Repository) GetMessagesByChatId(
 	tx = nil
 
 	return result, nil
+}
+
+func (r *Repository) UpdateMessageFeedback(ctx context.Context, messageID string, feedback string) error {
+	// Start a transaction to ensure consistency
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// Defer a rollback in case anything fails
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// Update the message feedback within the transaction
+	_, err = tx.ExecContext(ctx, `
+		UPDATE messages 
+		SET feedback = ? 
+		WHERE id = ?
+	`, feedback, messageID)
+	if err != nil {
+		return fmt.Errorf("failed to update message feedback: %w", err)
+	}
+
+	// Commit the transaction
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Set tx to nil so rollback won't be called
+	tx = nil
+
+	return nil
+}
+
+func (r *Repository) GetMessage(ctx context.Context, messageID string) (*model.Message, error) {
+	// Start a read transaction for consistency
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// Defer a rollback in case anything fails
+	defer func() {
+		if tx != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	var message Message
+	err = tx.GetContext(ctx, &message, `
+		SELECT id, chat_id, text, role, tool_calls, tool_results, image_urls, created_at, feedback
+		FROM messages 
+		WHERE id = ?
+	`, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get message: %w", err)
+	}
+
+	// Commit the transaction
+	if err = tx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Set tx to nil so rollback won't be called
+	tx = nil
+
+	return message.ToModel(), nil
 }
