@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/openai/openai-go"
-	"github.com/openai/openai-go/packages/param"
 )
 
 // ToolResult defines the interface for results returned by tools.
@@ -56,10 +55,17 @@ func (t *StructuredToolResult) Data() any {
 }
 
 func (t *StructuredToolResult) ImageURLs() []string {
+	imageURLs := make([]string, 0)
+
 	if images, ok := t.Output["images"].([]string); ok {
-		return images
+		imageURLs = append(imageURLs, images...)
 	}
-	return nil
+
+	if content, ok := t.Output["content"].(string); ok {
+		imageURLs = append(imageURLs, extractImageURLs(content)...)
+	}
+
+	return imageURLs
 }
 
 func (t *StructuredToolResult) Error() string {
@@ -89,28 +95,6 @@ func ImageToolResult(content string, imageURLs []string) *StructuredToolResult {
 		},
 		ToolParams: make(map[string]any),
 	}
-}
-
-// ToOpenAIToolParam converts a ToolDef to OpenAI tool format.
-func (t ToolDef) ToOpenAIToolParam() openai.ChatCompletionToolParam {
-	return openai.ChatCompletionToolParam{
-		Type: "function",
-		Function: openai.FunctionDefinitionParam{
-			Name:        t.Name,
-			Description: param.NewOpt(t.Description),
-			Parameters:  map[string]any(t.Parameters),
-		},
-	}
-}
-
-// GetParameters returns the Parameters field as a map[string]any.
-func (t ToolDef) GetParameters() map[string]any {
-	return map[string]any(t.Parameters)
-}
-
-// GetReturns returns the Returns field as a map[string]any.
-func (t ToolDef) GetReturns() map[string]any {
-	return map[string]any(t.Returns)
 }
 
 // Tool defines the interface for all executable tools.
