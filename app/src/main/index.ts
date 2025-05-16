@@ -413,8 +413,9 @@ app.whenReady().then(async () => {
   registerAccessibilityIpc()
 
   ipcMain.on('launch-ready', () => {
-    if (mainWindow) {
-      mainWindow.webContents.send('launch-progress', { status: 'Initializing...', progress: 0 })
+    if (mainWindow && kokoro) {
+      const latestProgress = kokoro.getLatestProgress()
+      mainWindow.webContents.send('launch-progress', latestProgress)
     }
   })
 
