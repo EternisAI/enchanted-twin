@@ -1,7 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
 import { spawn, ChildProcess } from 'child_process'
 import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
@@ -10,17 +9,26 @@ import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import http from 'http'
 import { URL } from 'url'
-import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
+import { createErrorWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
 import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
+import { windowManager } from './windows'
+import {
+  installPodman,
+  startPodman,
+  stopPodman,
+  machineExists,
+  pullImage,
+  isMachineRunning,
+  runPodmanDiagnostics
+} from './podman'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
 const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 3000
 
-let mainWindow: BrowserWindow | null = null
 // Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
@@ -52,8 +60,8 @@ function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
           const code = parsedUrl.searchParams.get('code')
           const state = parsedUrl.searchParams.get('state')
 
-          if (code && state && mainWindow) {
-            mainWindow.webContents.send('oauth-callback', { code, state })
+          if (code && state && windowManager.mainWindow) {
+            windowManager.mainWindow.webContents.send('oauth-callback', { code, state })
             res.writeHead(200, { 'Content-Type': 'text/html' })
             res.end(`
               <!DOCTYPE html>
@@ -155,8 +163,8 @@ function openOAuthWindow(authUrl: string, redirectUri?: string) {
             const code = parsedUrl.searchParams.get('code')
             const state = parsedUrl.searchParams.get('state')
 
-            if (code && state && mainWindow) {
-              mainWindow.webContents.send('oauth-callback', { code, state })
+            if (code && state && windowManager.mainWindow) {
+              windowManager.mainWindow.webContents.send('oauth-callback', { code, state })
 
               authWindow.loadURL(
                 'data:text/html,' +
@@ -261,32 +269,29 @@ function setupAutoUpdater() {
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'Checking for update...')
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', 'Checking for update...')
     }
   })
 
   autoUpdater.on('update-available', (info) => {
     log.info('Update available:', info)
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'Update available, downloading...')
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', 'Update available, downloading...')
     }
   })
 
   autoUpdater.on('update-not-available', (info) => {
     log.info('Update not available:', info)
-
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'No updates available')
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', 'No updates available')
     }
   })
 
   autoUpdater.on('error', (err) => {
     log.error('Error in auto-updater:', err)
-
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', `Error: ${err.message}`)
-
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', `Error: ${err.message}`)
       dialog.showErrorBox(
         'Update Error',
         `An error occurred while updating the application: ${err.message}`
@@ -300,18 +305,21 @@ function setupAutoUpdater() {
     logMessage += ` (${progressObj.transferred}/${progressObj.total})`
     log.info(logMessage)
 
-    if (mainWindow) {
-      mainWindow.webContents.send('update-progress', progressObj)
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-progress', progressObj)
     }
   })
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('Update downloaded:', info)
     updateDownloaded = true
-    mainWindow?.webContents.send('update-status', 'Update downloaded – ready to install')
+    windowManager.mainWindow?.webContents.send(
+      'update-status',
+      'Update downloaded – ready to install'
+    )
 
     dialog
-      .showMessageBox(mainWindow!, {
+      .showMessageBox(windowManager.mainWindow!, {
         type: 'info',
         title: 'Update Ready',
         message: `Version ${info.version} has been downloaded. Install and restart now?`,
@@ -342,9 +350,9 @@ function checkForUpdates(silent = false) {
       )
       autoUpdater.quitAndInstall(true, true)
     } else {
-      if (mainWindow) {
+      if (windowManager.mainWindow) {
         dialog
-          .showMessageBox(mainWindow, {
+          .showMessageBox(windowManager.mainWindow, {
             type: 'info',
             title: 'Install Updates',
             message: 'Updates downloaded previously are ready to be installed.',
@@ -367,17 +375,17 @@ function checkForUpdates(silent = false) {
     return
   }
   log.info(`Checking for updates... (Silent: ${silent})`)
-  if (mainWindow && !silent) {
-    mainWindow.webContents.send('update-status', 'Checking for update...')
+  if (windowManager.mainWindow && !silent) {
+    windowManager.mainWindow.webContents.send('update-status', 'Checking for update...')
   }
 
   autoUpdater
     .checkForUpdates()
     .then((result) => {
       if (!result || !result.updateInfo || result.updateInfo.version === app.getVersion()) {
-        if (mainWindow && !silent) {
-          mainWindow.webContents.send('update-status', 'No updates available')
-          dialog.showMessageBox(mainWindow, {
+        if (windowManager.mainWindow && !silent) {
+          windowManager.mainWindow.webContents.send('update-status', 'No updates available')
+          dialog.showMessageBox(windowManager.mainWindow, {
             type: 'info',
             title: 'No Updates',
             message: 'You are using the latest version of the application.',
@@ -388,8 +396,11 @@ function checkForUpdates(silent = false) {
     })
     .catch((err) => {
       log.error('Error checking for updates:', err)
-      if (mainWindow && !silent) {
-        mainWindow.webContents.send('update-status', `Error checking for updates: ${err.message}`)
+      if (windowManager.mainWindow && !silent) {
+        windowManager.mainWindow.webContents.send(
+          'update-status',
+          `Error checking for updates: ${err.message}`
+        )
         dialog.showErrorBox(
           'Update Check Error',
           `An error occurred while checking for updates: ${err.message}`
@@ -398,67 +409,30 @@ function checkForUpdates(silent = false) {
     })
 }
 
-function createWindow(): BrowserWindow {
-  const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    show: false,
-    titleBarStyle: 'hidden',
-    autoHideMenuBar: true,
-    ...(process.platform !== 'darwin' ? { titleBarOverlay: true } : {}),
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+app.whenReady().then(async () => {
+  log.info(`App version: ${app.getVersion()}`)
+
+  const mainWindow = windowManager.createMainWindow()
+  registerNotificationIpc(mainWindow)
+  registerMediaPermissionHandlers(session.defaultSession)
+  registerPermissionIpc()
+  registerScreenpipeIpc()
+  registerAccessibilityIpc()
+
+  ipcMain.on('launch-ready', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('launch-progress', { status: 'Initializing...', progress: 0 })
     }
   })
 
-  mainWindow.webContents.on('context-menu', (_, params) => {
-    const menu = Menu.buildFromTemplate([
-      {
-        label: 'Toggle Developer Tools',
-        click: () => {
-          mainWindow.webContents.toggleDevTools()
-        }
-      }
-    ])
-    menu.popup({ window: mainWindow, x: params.x, y: params.y })
+  ipcMain.on('launch-complete', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('launch-complete')
+    }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (!IS_PRODUCTION && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-
-  return mainWindow
-}
-
-app.whenReady().then(async () => {
-  const splash = createSplashWindow()
-
-  log.info(`App version: ${app.getVersion()}`)
-
-  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-  const goBinaryPath = !IS_PRODUCTION
-    ? join(__dirname, '..', '..', 'resources', executable) // Path in development
-    : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
-
-  // Set up auto-updater
   setupAutoUpdater()
 
-  // Create the database directory in user data path
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
 
@@ -473,6 +447,94 @@ app.whenReady().then(async () => {
 
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
+
+  if (IS_PRODUCTION) {
+    try {
+      log.info('Checking and installing Podman if needed')
+      const podmanInstalled = await installPodman()
+      if (podmanInstalled) {
+        log.info('Starting Podman service')
+        await startPodman()
+
+        log.info('Waiting for Podman machine to be ready...')
+        let machineRunning = false
+        let attempts = 0
+        const maxAttempts = 30
+
+        while (!machineRunning && attempts < maxAttempts) {
+          machineRunning = await isMachineRunning()
+          if (!machineRunning) {
+            log.info(`Podman machine not ready yet, waiting... (${attempts + 1}/${maxAttempts})`)
+            await new Promise((resolve) => setTimeout(resolve, 2000)) // Wait 2 seconds between checks
+            attempts++
+          }
+        }
+
+        if (machineRunning) {
+          log.info('Podman machine is running!')
+
+          log.info('Running Podman diagnostics...')
+          const diagnostics = await runPodmanDiagnostics()
+          log.info(`Podman diagnostics result: ${JSON.stringify(diagnostics, null, 2)}`)
+
+          if (diagnostics.success) {
+            log.info('Podman diagnostics passed, attempting to pull image')
+            const smallImageResult = await pullImage('docker.io/library/alpine:latest', {
+              timeout: 300_000,
+              retry: 3,
+              retryDelay: 5_000
+            })
+
+            if (smallImageResult) {
+              log.info('Successfully pulled test image. Now trying the application image.')
+
+              log.info('Starting background pull of main application image (kokoro)...')
+
+              pullImage('ghcr.io/remsky/kokoro-fastapi-cpu:latest', {
+                timeout: 1_800_000,
+                retry: 5,
+                retryDelay: 10_000
+              })
+                .then((success) => {
+                  log.info(`Background main image pull ${success ? 'succeeded' : 'failed'}`)
+
+                  if (success) {
+                    const imageListProcess = spawn('podman', [
+                      'image',
+                      'ls',
+                      'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
+                    ])
+                    imageListProcess.stdout.on('data', (data) => {
+                      log.info(`Image list: ${data.toString().trim()}`)
+                    })
+                  }
+                })
+                .catch((error) => {
+                  log.error('Background image pull error:', error)
+                })
+            } else {
+              log.error('Failed to pull test image')
+            }
+          } else {
+            log.error('Podman diagnostics failed, skipping image pull')
+          }
+        } else {
+          log.error('Timed out waiting for Podman machine to start')
+        }
+      } else {
+        log.warn('Podman installation or initialization failed')
+      }
+    } catch (error) {
+      log.error('Error setting up Podman:', error)
+    }
+  } else {
+    log.info('Running in development mode – skipping Podman setup (using Docker)')
+  }
+
+  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
+  const goBinaryPath = !IS_PRODUCTION
+    ? join(__dirname, '..', '..', 'resources', executable)
+    : join(process.resourcesPath, 'resources', executable)
 
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {
@@ -525,7 +587,6 @@ app.whenReady().then(async () => {
         log.error('Failed to spawn Go server process.')
       }
     } catch (error: unknown) {
-      splash.destroy()
       log.error('Error spawning Go server:', error)
       createErrorWindow(
         `Failed to start Go server: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -536,16 +597,16 @@ app.whenReady().then(async () => {
   }
 
   electronApp.setAppUserModelId('com.electron')
-  mainWindow = createWindow()
-  registerNotificationIpc(mainWindow)
-  registerMediaPermissionHandlers(session.defaultSession)
-  registerPermissionIpc()
-  registerScreenpipeIpc()
-  registerAccessibilityIpc()
 
-  splash.destroy()
+  // Register Podman progress IPC handlers
+  ipcMain.on('get-podman-status', () => {
+    machineExists().then((exists) => {
+      if (mainWindow) {
+        mainWindow.webContents.send('podman-status', { exists })
+      }
+    })
+  })
 
-  // Perform initial check after main window exists, wait a bit for autoUpdater setup
   setTimeout(() => {
     log.info('Performing initial silent update check.')
     checkForUpdates(true)
@@ -637,7 +698,9 @@ app.whenReady().then(async () => {
   })
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      windowManager.createMainWindow()
+    }
   })
 
   ipcMain.handle('restart-app', async () => {
@@ -804,6 +867,19 @@ app.on('will-quit', () => {
     oauthServer.close()
     oauthServer = null
   }
+
+  // Stop Podman service when app is quitting
+  stopPodman()
+    .then((success) => {
+      if (success) {
+        log.info('Podman service stopped successfully')
+      } else {
+        log.warn('Failed to stop Podman service')
+      }
+    })
+    .catch((err) => {
+      log.error('Error stopping Podman service:', err)
+    })
 
   cleanupScreenpipe()
 })

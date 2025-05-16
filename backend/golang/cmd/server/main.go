@@ -3,6 +3,8 @@ package main
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	stderrs "errors"
 	"fmt"
 	"log/slog"
@@ -21,6 +23,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
+	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
@@ -29,7 +32,7 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
-	"github.com/EternisAI/enchanted-twin/internal/service/docker"
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
@@ -40,8 +43,10 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/container"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -62,6 +67,13 @@ func main() {
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 
+	// Shared container manager instance
+	sharedContainerManager, err := container.NewManager(envs.ContainerRuntime)
+	if err != nil {
+		logger.Error("Unable to create container manager", "error", err)
+		panic(errors.Wrap(err, "Unable to create container manager"))
+	}
+
 	var ollamaClient *ollamaapi.Client
 	if envs.OllamaBaseURL != "" {
 		baseURL, err := url.Parse(envs.OllamaBaseURL)
@@ -71,30 +83,6 @@ func main() {
 			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
 		}
 	}
-
-	// Start PostgreSQL
-	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	postgresService, err := bootstrapPostgres(postgresCtx, logger)
-	if err != nil {
-		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
-	}
-
-	// Set up cleanup on shutdown
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		// Stop the container
-		if err := postgresService.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
-		}
-		// Remove the container to ensure clean state for next startup
-		if err := postgresService.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
-		}
-	}()
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -109,6 +97,19 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
+	// Setup progress state and NATS responders
+	latestKokoroProgress := &model.SetupProgress{Name: "kokoro", Progress: 0}
+	latestPostgresProgress := &model.SetupProgress{Name: "postgres", Progress: 0}
+
+	_, _ = nc.Subscribe("setup_progress.kokoro", func(msg *nats.Msg) {
+		data, _ := json.Marshal(latestKokoroProgress)
+		_ = msg.Respond(data)
+	})
+	_, _ = nc.Subscribe("setup_progress.postgres", func(msg *nats.Msg) {
+		data, _ := json.Marshal(latestPostgresProgress)
+		_ = msg.Respond(data)
+	})
+
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
@@ -121,33 +122,48 @@ func main() {
 	}()
 
 	logger.Info("SQLite database initialized")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	pgString, err := startPostgresContainer(ctx, sharedContainerManager, logger, nc, latestPostgresProgress)
+	if err != nil {
+		logger.Error("Failed to start PostgreSQL container", "error", err)
+		panic(errors.Wrap(err, "Failed to start PostgreSQL container"))
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		containerID, err := startKokoroContainer(ctx, sharedContainerManager, logger, nc, latestKokoroProgress)
+		if err != nil {
+			logger.Warn("Failed to start Kokoro container", "error", err)
+			logger.Info("Continuing without Kokoro container")
+		} else {
+			logger.Info("Kokoro container started successfully", "containerID", containerID)
+		}
+	}()
+
+	defer func() {
+		logger.Info("Cleaning up containers...")
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		if err := sharedContainerManager.CleanupContainer(ctx, "kokoro-fastapi"); err != nil {
+			logger.Error("Failed to clean up Kokoro container", "error", err)
+		}
+		if err := sharedContainerManager.CleanupContainer(ctx, "enchanted-twin-postgres-pgvector"); err != nil {
+			logger.Error("Failed to clean up PostgreSQL container", "error", err)
+		}
+	}()
 
 	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
 	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	// Ensure enchanted_twin database exists
-	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
-		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
-	}
-
-	dbName := "enchanted_twin"
-	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", "error", err)
-		panic(errors.Wrap(err, "Unable to ensure database exists"))
-	}
-	logger.Info(
-		"PostgreSQL listening at",
-		"connection",
-		postgresService.GetConnectionString(dbName),
-	)
 	recreateMemDb := false
 	mem, err := embeddingsmemory.NewEmbeddingsMemory(
 		&embeddingsmemory.Config{
 			Logger:              logger,
-			PgString:            postgresService.GetConnectionString(dbName),
+			PgString:            pgString,
 			AI:                  aiEmbeddingsService,
 			Recreate:            recreateMemDb,
 			EmbeddingsModelName: envs.EmbeddingsModel,
@@ -296,15 +312,16 @@ func main() {
 	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:          logger,
-		temporalClient:  temporalClient,
-		port:            envs.GraphqlPort,
-		twinChatService: *twinChatService,
-		natsClient:      nc,
-		store:           store,
-		aiService:       aiCompletionsService,
-		mcpService:      mcpService,
-		telegramService: telegramService,
+		logger:           logger,
+		temporalClient:   temporalClient,
+		port:             envs.GraphqlPort,
+		twinChatService:  *twinChatService,
+		natsClient:       nc,
+		store:            store,
+		aiService:        aiCompletionsService,
+		mcpService:       mcpService,
+		telegramService:  telegramService,
+		containerManager: sharedContainerManager,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -320,31 +337,8 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
-}
-
-func bootstrapPostgres(
-	ctx context.Context,
-	logger *log.Logger,
-) (*bootstrap.PostgresService, error) {
-	// Get default options
-	options := bootstrap.DefaultPostgresOptions()
-
-	// Create and start PostgreSQL service
-	postgresService, err := bootstrap.NewPostgresService(logger, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
-	}
-
-	logger.Info("Starting PostgreSQL service...")
-	err = postgresService.Start(ctx, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
-	}
-
-	return postgresService, nil
 }
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
@@ -377,28 +371,12 @@ type bootstrapTemporalWorkerInput struct {
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		kokoroDockerPort = 45000
-		ttsWsPort        = 45001
-		image            = "ghcr.io/remsky/kokoro-fastapi-cpu"
+		kokoroPort = 8765
+		ttsWsPort  = 45001
 	)
 
-	dockerSvc, err := docker.NewService(docker.ContainerOptions{
-		ImageName: image,
-		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprint(kokoroDockerPort): "8880"},
-		Detached:  true,
-	}, logger)
-	if err != nil {
-		logger.Error("docker service init", "error", err)
-		return nil, errors.Wrap(err, "docker service init")
-	}
-	if err := dockerSvc.RunContainer(context.Background()); err != nil {
-		logger.Error("docker run", "error", err)
-		return nil, errors.Wrap(err, "docker run")
-	}
-
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroDockerPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/api/v1/tts/generate", kokoroPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
@@ -454,6 +432,7 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	containerManager       container.ContainerManager
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -524,4 +503,61 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func startKokoroContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger, nc *nats.Conn, latest *model.SetupProgress) (string, error) {
+	config := container.ContainerConfig{
+		ImageURL:     "ghcr.io/remsky/kokoro-fastapi-cpu:latest",
+		Name:         "kokoro-fastapi",
+		Ports:        map[string]string{"45000": "8880"},
+		Environment:  map[string]string{},
+		PullIfNeeded: true,
+	}
+	return container.StartContainerWithReadiness(ctx, mgr, config, nil, 0, func(progress float64, status string) {
+		logger.Info("Kokoro container progress", "progress", progress, "status", status)
+		latest.Progress = progress
+		latest.Status = status
+		_ = helpers.NatsPublish(nc, "setup_progress.kokoro", latest)
+	})
+}
+
+func startPostgresContainer(ctx context.Context, mgr container.ContainerManager, logger *log.Logger, nc *nats.Conn, latest *model.SetupProgress) (string, error) {
+	const (
+		pgPort = "15432"
+		pgUser = "postgres"
+		pgPass = "postgres"
+		pgDB   = "postgres"
+	)
+	config := container.ContainerConfig{
+		ImageURL: "pgvector/pgvector:pg17",
+		Name:     "enchanted-twin-postgres-pgvector",
+		Ports:    map[string]string{pgPort: "5432"},
+		Environment: map[string]string{
+			"POSTGRES_PASSWORD": pgPass,
+			"POSTGRES_USER":     pgUser,
+			"POSTGRES_DB":       pgDB,
+		},
+		PullIfNeeded: true,
+	}
+	pgString := fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", pgUser, pgPass, pgPort, pgDB)
+	check := func(ctx context.Context) error {
+		db, err := sql.Open("postgres", pgString)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			_ = db.Close()
+		}()
+		return db.PingContext(ctx)
+	}
+	_, err := container.StartContainerWithReadiness(ctx, mgr, config, check, 10*time.Minute, func(progress float64, status string) {
+		logger.Info("Postgres container progress", "progress", progress, "status", status)
+		latest.Progress = progress
+		latest.Status = status
+		_ = helpers.NatsPublish(nc, "setup_progress.postgres", latest)
+	})
+	if err != nil {
+		return "", err
+	}
+	return pgString, nil
 }
