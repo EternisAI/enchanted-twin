@@ -244,7 +244,10 @@ func main() {
 		}
 	}()
 
-	go bootstrapWeaviateServer(logger, envs.WeaviatePort)
+	// Start embedded Weaviate and wait until it is ready
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
@@ -438,30 +441,21 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapWeaviateServer(logger *log.Logger, port string) {
+func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string) (*rest.Server, error) {
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
 	if err != nil {
-		logger.Error("Failed to load swagger spec", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to load swagger spec"))
+		return nil, errors.Wrap(err, "Failed to load swagger spec")
 	}
 
 	api := operations.NewWeaviateAPI(swaggerSpec)
 	server := rest.NewServer(api)
 
 	server.EnabledListeners = []string{"http"}
-	server.Port, err = strconv.Atoi(port)
+	p, err := strconv.Atoi(port)
 	if err != nil {
-		logger.Error("Failed to convert port to int", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to convert port to int"))
+		return nil, errors.Wrap(err, "Failed to convert port to int")
 	}
-
-	defer func() {
-		err := server.Shutdown()
-		if err != nil {
-			logger.Error("Failed to shutdown weaviate", slog.Any("error", err))
-			panic(errors.Wrap(err, "Failed to shutdown weaviate"))
-		}
-	}()
+	server.Port = p
 
 	parser := flags.NewParser(server, flags.Default)
 	parser.ShortDescription = "Weaviate"
@@ -470,25 +464,43 @@ func bootstrapWeaviateServer(logger *log.Logger, port string) {
 	for _, optsGroup := range api.CommandLineOptionsGroups {
 		_, err := parser.AddGroup(optsGroup.ShortDescription, optsGroup.LongDescription, optsGroup.Options)
 		if err != nil {
-			logger.Error("Failed to add group", slog.Any("error", err))
-			panic(errors.Wrap(err, "Failed to add group"))
+			return nil, errors.Wrap(err, "Failed to add flag group")
 		}
 	}
 
 	if _, err := parser.Parse(); err != nil {
-		code := 1
-		if fe, ok := err.(*flags.Error); ok {
-			if fe.Type == flags.ErrHelp {
-				code = 0
-			}
+		if fe, ok := err.(*flags.Error); ok && fe.Type == flags.ErrHelp {
+			return nil, nil
 		}
-		os.Exit(code)
+		return nil, err
 	}
 
 	server.ConfigureAPI()
 
-	if err := server.Serve(); err != nil {
-		logger.Error("Failed to serve weaviate", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to serve weaviate"))
+	go func() {
+		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Weaviate serve error", slog.Any("error", err))
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		_ = server.Shutdown()
+	}()
+
+	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("weaviate did not become ready in time on %s", readyURL)
+		}
+
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			return server, nil
+		}
+
+		time.Sleep(200 * time.Millisecond)
 	}
 }
