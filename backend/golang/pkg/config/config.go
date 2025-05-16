@@ -22,6 +22,7 @@ type Config struct {
 	OllamaBaseURL      string
 	TelegramToken      string
 	TelegramChatServer string
+	ContainerRuntime   string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -60,6 +61,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
+		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 	}
 	return conf, nil
 }

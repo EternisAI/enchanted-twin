@@ -127,7 +127,7 @@ function AgentTaskRow({ task, onDelete, onUpdate }: Props) {
           {task.plan && <p className="text-sm text-muted-foreground">{task.plan}</p>}
         </div>
 
-        <div>
+        <div className="flex flex-row gap-2 items-center shrink-0">
           {onUpdate && (
             <TooltipProvider>
               <Tooltip>
