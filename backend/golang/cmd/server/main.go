@@ -244,9 +244,9 @@ func main() {
 		}
 	}()
 
-	// Start embedded Weaviate and wait until it is ready
 	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort); err != nil {
 		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
 	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
