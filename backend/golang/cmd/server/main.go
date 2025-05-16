@@ -21,12 +21,16 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
+	"github.com/go-openapi/loads"
 	"github.com/gorilla/websocket"
+	flags "github.com/jessevdk/go-flags"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/weaviate/weaviate/adapters/handlers/rest"
+	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -48,12 +52,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
-
-	"github.com/go-openapi/loads"
-	flags "github.com/jessevdk/go-flags"
-
-	"github.com/weaviate/weaviate/adapters/handlers/rest"
-	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 )
 
 func main() {
@@ -456,7 +454,14 @@ func bootstrapWeaviateServer(logger *log.Logger, port string) {
 		logger.Error("Failed to convert port to int", slog.Any("error", err))
 		panic(errors.Wrap(err, "Failed to convert port to int"))
 	}
-	defer server.Shutdown()
+
+	defer func() {
+		err := server.Shutdown()
+		if err != nil {
+			logger.Error("Failed to shutdown weaviate", slog.Any("error", err))
+			panic(errors.Wrap(err, "Failed to shutdown weaviate"))
+		}
+	}()
 
 	parser := flags.NewParser(server, flags.Default)
 	parser.ShortDescription = "Weaviate"
