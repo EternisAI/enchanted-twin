@@ -402,7 +402,7 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(
 	} else {
 		// Log how many expired sessions were cleaned up
 		rowsAffected, err := deleteResult.RowsAffected()
-		if err != nil && rowsAffected > 0 {
+		if err == nil && rowsAffected > 0 {
 			logger.Debugf("Cleaned up %d expired OAuth sessions", rowsAffected)
 		}
 	}
