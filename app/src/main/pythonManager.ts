@@ -138,33 +138,13 @@ export class KokoroBootstrap {
     const stamp = path.join(this.VENV_DIR, '.kokoro-installed')
     if (await this.exists(stamp)) return
 
-    // 1️⃣ install Kokoro itself
     await this.run(this.UV_PATH, ['pip', 'install', '-e', '.'], {
       cwd: this.KOKORO_DIR,
       env: this.uvEnv(this.VENV_DIR),
       label: 'uv-pip'
     })
 
-    // 2️⃣ add websocket support for uvicorn
-    await this.run(this.UV_PATH, ['pip', 'install', 'uvicorn[standard]'], {
-      env: this.uvEnv(this.VENV_DIR),
-      label: 'uv-ws'
-    })
-
     await fs.promises.writeFile(stamp, '')
-  }
-
-  private async smokeTest() {
-    const script =
-      'import torch,sys;' +
-      'print(f"Torch:{torch.__version__}");' +
-      'print(f"Python:{sys.version}");' +
-      'print(f"Exec:{sys.executable}")'
-    await this.run(this.pythonBin(), ['-c', script], {
-      cwd: this.KOKORO_DIR,
-      env: this.uvEnv(this.VENV_DIR),
-      label: 'torch-check'
-    })
   }
 
   private async startTts() {
@@ -208,25 +188,25 @@ export class KokoroBootstrap {
     )
     this.kokoroProc.on('exit', () => (this.kokoroProc = null))
 
-    await this.waitReady('http://127.0.0.1:8880/web', 30_000)
+    // await this.waitReady('http://127.0.0.1:8880/web', 30_000)
   }
 
-  private async waitReady(url: string, ms: number) {
-    const start = Date.now()
-    while (Date.now() - start < ms) {
-      try {
-        await new Promise<void>((res, rej) =>
-          http
-            .get(url, (r) => (r.statusCode && r.statusCode < 500 ? res() : rej()))
-            .on('error', rej)
-        )
-        return
-      } catch {
-        await new Promise((r) => setTimeout(r, 500))
-      }
-    }
-    throw new Error(`Server ${url} not ready after ${ms} ms`)
-  }
+  // private async waitReady(url: string, ms: number) {
+  //   const start = Date.now()
+  //   while (Date.now() - start < ms) {
+  //     try {
+  //       await new Promise<void>((res, rej) =>
+  //         http
+  //           .get(url, (r) => (r.statusCode && r.statusCode < 500 ? res() : rej()))
+  //           .on('error', rej)
+  //       )
+  //       return
+  //     } catch {
+  //       await new Promise((r) => setTimeout(r, 500))
+  //     }
+  //   }
+  //   throw new Error(`Server ${url} not ready after ${ms} ms`)
+  // }
 
   /* ── public ─────────────────────────────────────────────────────────────── */
   async setup() {
@@ -241,8 +221,6 @@ export class KokoroBootstrap {
       await this.ensureVenv()
       this.onProgress?.(60, 'Installing dependencies')
       await this.ensureDeps()
-      this.onProgress?.(75, 'Smoke test')
-      await this.smokeTest()
       this.onProgress?.(90, 'Starting speech model')
       this.startTts()
       this.onProgress?.(100, 'Completed')
