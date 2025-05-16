@@ -96,7 +96,7 @@ func main() {
 	}()
 
 	// Initialize the AI service singleton
-	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
+	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	mem := &memory.MockMemory{}

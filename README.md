@@ -50,8 +50,9 @@ Navigate to the root.
 For Mac M series use.
 
 ```sh
-OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
+COMPLETIONS_API_URL='https://enchanted.ngrok.pro/v1' \
 COMPLETIONS_MODEL='mistral-small3.1' \
+REASONING_MODEL='qwen3:32b' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
 IS_PROD_BUILD='true' \
@@ -68,8 +69,9 @@ make build-mac-silicon
 To build for all architectures
 
 ```sh
-OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
+COMPLETIONS_API_URL='https://enchanted.ngrok.pro/v1' \
 COMPLETIONS_MODEL='mistral-small3.1' \
+REASONING_MODEL='qwen3:32b' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
 IS_PROD_BUILD='true' \

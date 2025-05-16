@@ -4,6 +4,8 @@ package ai
 import (
 	"context"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
@@ -16,12 +18,14 @@ type Config struct {
 
 type Service struct {
 	client *openai.Client
+	logger *log.Logger
 }
 
-func NewOpenAIService(apiKey string, baseUrl string) *Service {
+func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
 	client := openai.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseUrl))
 	return &Service{
 		client: &client,
+		logger: logger,
 	}
 }
 
