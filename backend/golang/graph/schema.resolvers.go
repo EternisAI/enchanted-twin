@@ -205,15 +205,15 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string) (*model.
 }
 
 // SendMessage is the resolver for the sendMessage field.
-func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, deepMemory *bool) (*model.Message, error) {
+func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reason *bool) (*model.Message, error) {
 	subject := fmt.Sprintf("chat.%s", chatID)
 
 	userMessageJson, err := json.Marshal(model.Message{
-		ID:         uuid.New().String(),
-		Text:       &text,
-		CreatedAt:  time.Now().Format(time.RFC3339),
-		Role:       model.RoleUser,
-		DeepMemory: deepMemory,
+		ID:        uuid.New().String(),
+		Text:      &text,
+		CreatedAt: time.Now().Format(time.RFC3339),
+		Role:      model.RoleUser,
+		Reason:    reason,
 	})
 	if err != nil {
 		return nil, err
@@ -223,7 +223,7 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 		return nil, err
 	}
 
-	return r.TwinChatService.SendMessage(ctx, chatID, text, deepMemory)
+	return r.TwinChatService.SendMessage(ctx, chatID, text, reason)
 }
 
 // DeleteChat is the resolver for the deleteChat field.

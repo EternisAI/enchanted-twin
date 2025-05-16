@@ -87,7 +87,7 @@ func (s *Service) SendMessage(
 	ctx context.Context,
 	chatID string,
 	message string,
-	deepMemory *bool,
+	reason *bool,
 ) (*model.Message, error) {
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
@@ -98,7 +98,7 @@ func (s *Service) SendMessage(
 	now := time.Now()
 	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now.Format(time.RFC3339))
 
-	if deepMemory != nil && *deepMemory {
+	if reason != nil && *reason {
 		s.logger.Info("Deep memory mode enabled for message", "chatID", chatID)
 	}
 

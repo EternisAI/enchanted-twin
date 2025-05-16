@@ -133,9 +133,9 @@ type ComplexityRoot struct {
 
 	Message struct {
 		CreatedAt   func(childComplexity int) int
-		DeepMemory  func(childComplexity int) int
 		ID          func(childComplexity int) int
 		ImageUrls   func(childComplexity int) int
+		Reason      func(childComplexity int) int
 		Role        func(childComplexity int) int
 		Text        func(childComplexity int) int
 		ToolCalls   func(childComplexity int) int
@@ -161,7 +161,7 @@ type ComplexityRoot struct {
 		DeleteDataSource          func(childComplexity int, id string) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
-		SendMessage               func(childComplexity int, chatID string, text string, deepMemory *bool) int
+		SendMessage               func(childComplexity int, chatID string, text string, reason *bool) int
 		SendTelegramMessage       func(childComplexity int, chatUUID string, text string) int
 		StartIndexing             func(childComplexity int) int
 		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
@@ -246,7 +246,7 @@ type MutationResolver interface {
 	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
-	SendMessage(ctx context.Context, chatID string, text string, deepMemory *bool) (*model.Message, error)
+	SendMessage(ctx context.Context, chatID string, text string, reason *bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -679,13 +679,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Message.CreatedAt(childComplexity), true
 
-	case "Message.deepMemory":
-		if e.complexity.Message.DeepMemory == nil {
-			break
-		}
-
-		return e.complexity.Message.DeepMemory(childComplexity), true
-
 	case "Message.id":
 		if e.complexity.Message.ID == nil {
 			break
@@ -699,6 +692,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Message.ImageUrls(childComplexity), true
+
+	case "Message.reason":
+		if e.complexity.Message.Reason == nil {
+			break
+		}
+
+		return e.complexity.Message.Reason(childComplexity), true
 
 	case "Message.role":
 		if e.complexity.Message.Role == nil {
@@ -883,7 +883,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string), args["deepMemory"].(*bool)), true
+		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string), args["reason"].(*bool)), true
 
 	case "Mutation.sendTelegramMessage":
 		if e.complexity.Mutation.SendTelegramMessage == nil {
@@ -1632,11 +1632,11 @@ func (ec *executionContext) field_Mutation_sendMessage_args(ctx context.Context,
 		return nil, err
 	}
 	args["text"] = arg1
-	arg2, err := ec.field_Mutation_sendMessage_argsDeepMemory(ctx, rawArgs)
+	arg2, err := ec.field_Mutation_sendMessage_argsReason(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["deepMemory"] = arg2
+	args["reason"] = arg2
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_sendMessage_argsChatID(
@@ -1665,12 +1665,12 @@ func (ec *executionContext) field_Mutation_sendMessage_argsText(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_sendMessage_argsDeepMemory(
+func (ec *executionContext) field_Mutation_sendMessage_argsReason(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (*bool, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("deepMemory"))
-	if tmp, ok := rawArgs["deepMemory"]; ok {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("reason"))
+	if tmp, ok := rawArgs["reason"]; ok {
 		return ec.unmarshalOBoolean2ᚖbool(ctx, tmp)
 	}
 
@@ -3041,8 +3041,8 @@ func (ec *executionContext) fieldContext_Chat_messages(_ context.Context, field 
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
-			case "deepMemory":
-				return ec.fieldContext_Message_deepMemory(ctx, field)
+			case "reason":
+				return ec.fieldContext_Message_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -4790,8 +4790,8 @@ func (ec *executionContext) fieldContext_Message_createdAt(_ context.Context, fi
 	return fc, nil
 }
 
-func (ec *executionContext) _Message_deepMemory(ctx context.Context, field graphql.CollectedField, obj *model.Message) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Message_deepMemory(ctx, field)
+func (ec *executionContext) _Message_reason(ctx context.Context, field graphql.CollectedField, obj *model.Message) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Message_reason(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -4804,7 +4804,7 @@ func (ec *executionContext) _Message_deepMemory(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.DeepMemory, nil
+		return obj.Reason, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -4818,7 +4818,7 @@ func (ec *executionContext) _Message_deepMemory(ctx context.Context, field graph
 	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Message_deepMemory(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Message_reason(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Message",
 		Field:      field,
@@ -5398,7 +5398,7 @@ func (ec *executionContext) _Mutation_sendMessage(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().SendMessage(rctx, fc.Args["chatId"].(string), fc.Args["text"].(string), fc.Args["deepMemory"].(*bool))
+		return ec.resolvers.Mutation().SendMessage(rctx, fc.Args["chatId"].(string), fc.Args["text"].(string), fc.Args["reason"].(*bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5437,8 +5437,8 @@ func (ec *executionContext) fieldContext_Mutation_sendMessage(ctx context.Contex
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
-			case "deepMemory":
-				return ec.fieldContext_Message_deepMemory(ctx, field)
+			case "reason":
+				return ec.fieldContext_Message_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -7232,8 +7232,8 @@ func (ec *executionContext) fieldContext_Subscription_messageAdded(ctx context.C
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
-			case "deepMemory":
-				return ec.fieldContext_Message_deepMemory(ctx, field)
+			case "reason":
+				return ec.fieldContext_Message_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -7538,8 +7538,8 @@ func (ec *executionContext) fieldContext_Subscription_telegramMessageAdded(ctx c
 				return ec.fieldContext_Message_toolResults(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Message_createdAt(ctx, field)
-			case "deepMemory":
-				return ec.fieldContext_Message_deepMemory(ctx, field)
+			case "reason":
+				return ec.fieldContext_Message_reason(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Message", field.Name)
 		},
@@ -10924,8 +10924,8 @@ func (ec *executionContext) _Message(ctx context.Context, sel ast.SelectionSet, 
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
-		case "deepMemory":
-			out.Values[i] = ec._Message_deepMemory(ctx, field, obj)
+		case "reason":
+			out.Values[i] = ec._Message_reason(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

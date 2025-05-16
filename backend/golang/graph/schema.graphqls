@@ -58,7 +58,7 @@ type Message {
   toolCalls: [ToolCall!]!
   toolResults: [String!]!
   createdAt: DateTime!
-  deepMemory: Boolean
+  reason: Boolean
 }
 
 enum Role {
@@ -118,7 +118,7 @@ type Mutation {
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
   createChat(name: String!): Chat!
-  sendMessage(chatId: ID!, text: String!, deepMemory: Boolean): Message!
+  sendMessage(chatId: ID!, text: String!, reason: Boolean): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
