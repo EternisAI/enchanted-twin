@@ -220,7 +220,7 @@ export class KokoroBootstrap {
       new Promise<boolean>((resolve) => {
         const req = http.get('http://localhost:45000/web', (res) => {
           res.resume()
-          resolve(res.statusCode === 200)
+          resolve(res.statusCode === 200 || res.statusCode === 307)
         })
         req.on('error', () => resolve(false))
       })
@@ -241,8 +241,16 @@ export class KokoroBootstrap {
 
   async setup() {
     try {
-      this.onProgress?.({ dependency: 'Kokoro', progress: 10, status: 'Setting up dependency manager' })
-      this.latestProgress = { dependency: 'Kokoro', progress: 10, status: 'Setting up dependency manager' }
+      this.onProgress?.({
+        dependency: 'Kokoro',
+        progress: 10,
+        status: 'Setting up dependency manager'
+      })
+      this.latestProgress = {
+        dependency: 'Kokoro',
+        progress: 10,
+        status: 'Setting up dependency manager'
+      }
       await this.ensureUv()
       this.onProgress?.({ dependency: 'Kokoro', progress: 20, status: 'Installing Python' })
       this.latestProgress = { dependency: 'Kokoro', progress: 20, status: 'Installing Python' }
@@ -250,11 +258,23 @@ export class KokoroBootstrap {
       this.onProgress?.({ dependency: 'Kokoro', progress: 30, status: 'Downloading Kokoro' })
       this.latestProgress = { dependency: 'Kokoro', progress: 30, status: 'Downloading Kokoro' }
       await this.ensureRepo()
-      this.onProgress?.({ dependency: 'Kokoro', progress: 45, status: 'Creating virtual environment' })
-      this.latestProgress = { dependency: 'Kokoro', progress: 45, status: 'Creating virtual environment' }
+      this.onProgress?.({
+        dependency: 'Kokoro',
+        progress: 45,
+        status: 'Creating virtual environment'
+      })
+      this.latestProgress = {
+        dependency: 'Kokoro',
+        progress: 45,
+        status: 'Creating virtual environment'
+      }
       await this.ensureVenv()
       this.onProgress?.({ dependency: 'Kokoro', progress: 60, status: 'Installing dependencies' })
-      this.latestProgress = { dependency: 'Kokoro', progress: 60, status: 'Installing dependencies' }
+      this.latestProgress = {
+        dependency: 'Kokoro',
+        progress: 60,
+        status: 'Installing dependencies'
+      }
       await this.ensureDeps()
       this.onProgress?.({ dependency: 'Kokoro', progress: 90, status: 'Starting speech model' })
       this.latestProgress = { dependency: 'Kokoro', progress: 90, status: 'Starting speech model' }
