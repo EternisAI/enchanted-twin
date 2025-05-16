@@ -1,6 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn, ChildProcess } from 'child_process'
 import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
@@ -15,19 +15,11 @@ import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaP
 import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
 import { windowManager } from './windows'
-import {
-  installPodman,
-  startPodman,
-  stopPodman,
-  machineExists,
-  pullImage,
-  isMachineRunning,
-  runPodmanDiagnostics
-} from './podman'
+import { KokoroBootstrap } from './pythonManager'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
-const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 3000
+const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
 // Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
@@ -39,6 +31,7 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
+let kokoro: KokoroBootstrap | null = null
 
 let updateDownloaded = false
 
@@ -448,87 +441,19 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  if (IS_PRODUCTION) {
-    try {
-      log.info('Checking and installing Podman if needed')
-      const podmanInstalled = await installPodman()
-      if (podmanInstalled) {
-        log.info('Starting Podman service')
-        await startPodman()
-
-        log.info('Waiting for Podman machine to be ready...')
-        let machineRunning = false
-        let attempts = 0
-        const maxAttempts = 30
-
-        while (!machineRunning && attempts < maxAttempts) {
-          machineRunning = await isMachineRunning()
-          if (!machineRunning) {
-            log.info(`Podman machine not ready yet, waiting... (${attempts + 1}/${maxAttempts})`)
-            await new Promise((resolve) => setTimeout(resolve, 2000)) // Wait 2 seconds between checks
-            attempts++
-          }
-        }
-
-        if (machineRunning) {
-          log.info('Podman machine is running!')
-
-          log.info('Running Podman diagnostics...')
-          const diagnostics = await runPodmanDiagnostics()
-          log.info(`Podman diagnostics result: ${JSON.stringify(diagnostics, null, 2)}`)
-
-          if (diagnostics.success) {
-            log.info('Podman diagnostics passed, attempting to pull image')
-            const smallImageResult = await pullImage('docker.io/library/alpine:latest', {
-              timeout: 300_000,
-              retry: 3,
-              retryDelay: 5_000
-            })
-
-            if (smallImageResult) {
-              log.info('Successfully pulled test image. Now trying the application image.')
-
-              log.info('Starting background pull of main application image (kokoro)...')
-
-              pullImage('ghcr.io/remsky/kokoro-fastapi-cpu:latest', {
-                timeout: 1_800_000,
-                retry: 5,
-                retryDelay: 10_000
-              })
-                .then((success) => {
-                  log.info(`Background main image pull ${success ? 'succeeded' : 'failed'}`)
-
-                  if (success) {
-                    const imageListProcess = spawn('podman', [
-                      'image',
-                      'ls',
-                      'ghcr.io/remsky/kokoro-fastapi-cpu:latest'
-                    ])
-                    imageListProcess.stdout.on('data', (data) => {
-                      log.info(`Image list: ${data.toString().trim()}`)
-                    })
-                  }
-                })
-                .catch((error) => {
-                  log.error('Background image pull error:', error)
-                })
-            } else {
-              log.error('Failed to pull test image')
-            }
-          } else {
-            log.error('Podman diagnostics failed, skipping image pull')
-          }
-        } else {
-          log.error('Timed out waiting for Podman machine to start')
-        }
-      } else {
-        log.warn('Podman installation or initialization failed')
-      }
-    } catch (error) {
-      log.error('Error setting up Podman:', error)
+  const kokoroProgress = (progress: number, status?: string) => {
+    if (mainWindow) {
+      log.info(`[Kokoro] Emitting launch-progress: ${progress}, Status: ${status}`)
+      mainWindow.webContents.send('launch-progress', { progress, status })
     }
-  } else {
-    log.info('Running in development mode – skipping Podman setup (using Docker)')
+  }
+
+  kokoro = new KokoroBootstrap(kokoroProgress)
+
+  try {
+    kokoro.setup()
+  } catch (error) {
+    console.error('Failed to setup Python environment:', error)
   }
 
   const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
@@ -551,9 +476,9 @@ app.whenReady().then(async () => {
           ...process.env,
           APP_DATA_PATH: userDataPath,
           DB_PATH: dbPath,
-          OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
-          OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+          COMPLETIONS_API_URL: process.env.COMPLETIONS_API_URL,
           COMPLETIONS_MODEL: process.env.COMPLETIONS_MODEL,
+          REASONING_MODEL: process.env.REASONING_MODEL,
           EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
           EMBEDDINGS_API_KEY: process.env.EMBEDDINGS_API_KEY,
           EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL,
@@ -599,15 +524,6 @@ app.whenReady().then(async () => {
   }
 
   electronApp.setAppUserModelId('com.electron')
-
-  // Register Podman progress IPC handlers
-  ipcMain.on('get-podman-status', () => {
-    machineExists().then((exists) => {
-      if (mainWindow) {
-        mainWindow.webContents.send('podman-status', { exists })
-      }
-    })
-  })
 
   setTimeout(() => {
     log.info('Performing initial silent update check.')
@@ -851,7 +767,7 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
   if (goServerProcess) {
     log.info('Attempting to kill Go server process...')
     const killed = goServerProcess.kill()
@@ -870,18 +786,10 @@ app.on('will-quit', () => {
     oauthServer = null
   }
 
-  // Stop Podman service when app is quitting
-  stopPodman()
-    .then((success) => {
-      if (success) {
-        log.info('Podman service stopped successfully')
-      } else {
-        log.warn('Failed to stop Podman service')
-      }
-    })
-    .catch((err) => {
-      log.error('Error stopping Podman service:', err)
-    })
+  if (kokoro) {
+    log.info('Cleaning up Kokoro TTS server...')
+    await kokoro.cleanup()
+  }
 
   cleanupScreenpipe()
 })

@@ -51,6 +51,7 @@ func (s *Service) CompletionsStream(
 			acc.AddChunk(chunk)
 
 			if tc, ok := acc.JustFinishedToolCall(); ok {
+				s.logger.Debug("tool call", "tool call", tc)
 				toolCh <- openai.ChatCompletionMessageToolCall{
 					ID:   tc.Id,
 					Type: "function",
@@ -63,6 +64,7 @@ func (s *Service) CompletionsStream(
 			}
 
 			if _, ok := acc.JustFinishedContent(); ok {
+				s.logger.Debug("finished content")
 				contentCh <- StreamDelta{
 					ContentDelta: "",
 					IsCompleted:  true,

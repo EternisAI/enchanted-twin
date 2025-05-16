@@ -50,8 +50,9 @@ Navigate to the root.
 For Mac M series use.
 
 ```sh
-OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
+COMPLETIONS_API_URL='https://enchanted.ngrok.pro/v1' \
 COMPLETIONS_MODEL='mistral-small3.1' \
+REASONING_MODEL='qwen3:32b' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
 IS_PROD_BUILD='true' \
@@ -68,8 +69,9 @@ make build-mac-silicon
 To build for all architectures
 
 ```sh
-OPENAI_BASE_URL='https://enchanted.ngrok.pro/v1' \
+COMPLETIONS_API_URL='https://enchanted.ngrok.pro/v1' \
 COMPLETIONS_MODEL='mistral-small3.1' \
+REASONING_MODEL='qwen3:32b' \
 EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1' \
 EMBEDDINGS_MODEL='nomic-embed-text' \
 IS_PROD_BUILD='true' \
@@ -86,7 +88,20 @@ make build-all
 Local build
 
 ```sh
-NOTARY_TEAM_ID=JDDZ55DT74 NOTARY_API_ISSUER=899fdbc2-cee9-4aea-b78b-850333a61f19 NOTARY_API_KEY_ID=742ZY9FRN6 pnpm build-local:mac
+COMPLETIONS_API_URL='https://enchanted.ngrok.pro/v1' \
+COMPLETIONS_MODEL='mistral-small3.1' \
+REASONING_MODEL='qwen3:32b' \
+EMBEDDINGS_API_URL='https://enchanted.ngrok.pro/v1' \
+EMBEDDINGS_MODEL='nomic-embed-text' \
+IS_PROD_BUILD='true' \
+OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
+NOTARY_API_KEY_ID=742ZY9FRN6 \
+NOTARY_API_ISSUER=899fdbc2-cee9-4aea-b78b-850333a61f19 \
+NOTARY_TEAM_ID=JDDZ55DT74 \
+OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
+TELEGRAM_TOKEN=xxx \
+TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
+pnpm build-local:mac
 ```
 
 ### Troubleshooting
