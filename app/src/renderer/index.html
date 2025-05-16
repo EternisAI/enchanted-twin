@@ -4,14 +4,14 @@
     <meta charset="UTF-8" />
     <title>Digital Twin</title>
 
-    <!-- CSP that covers dev + prod assets, TTS WS on :8080, Vite WS on :5173, backend on :3000 -->
+    <!-- CSP that covers dev + prod assets, TTS WS on :8080, Vite WS on :5173, backend on :44999 -->
     <meta
       http-equiv="Content-Security-Policy"
       content="
         default-src 'self';
         connect-src 'self'
           http://localhost:45001 ws://localhost:45001
-          http://localhost:3000 ws://localhost:3000
+          http://localhost:44999 ws://localhost:44999
           ws://localhost:5173
           https://www.gstatic.com
           https://prod.spline.design;
