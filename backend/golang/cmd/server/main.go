@@ -449,9 +449,7 @@ func bootstrapWeaviateServer(logger *log.Logger, port string) {
 
 	api := operations.NewWeaviateAPI(swaggerSpec)
 	server := rest.NewServer(api)
-	// Only expose the unsecured HTTP listener; this is fine for the embedded
-	// local instance that lives inside our application process. If you need
-	// HTTPS, run Weaviate behind a reverse-proxy that terminates TLS instead.
+
 	server.EnabledListeners = []string{"http"}
 	server.Port, _ = strconv.Atoi(port)
 	defer server.Shutdown()
