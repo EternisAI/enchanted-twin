@@ -31,6 +31,7 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
+let kokoro: KokoroBootstrap | null = null
 
 let updateDownloaded = false
 
@@ -447,7 +448,7 @@ app.whenReady().then(async () => {
     }
   }
 
-  const kokoro = new KokoroBootstrap(kokoroProgress)
+  kokoro = new KokoroBootstrap(kokoroProgress)
 
   try {
     await kokoro.setup()
@@ -765,7 +766,7 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
   if (goServerProcess) {
     log.info('Attempting to kill Go server process...')
     const killed = goServerProcess.kill()
@@ -782,6 +783,11 @@ app.on('will-quit', () => {
     log.info('Closing OAuth callback server...')
     oauthServer.close()
     oauthServer = null
+  }
+
+  if (kokoro) {
+    log.info('Cleaning up Kokoro TTS server...')
+    await kokoro.cleanup()
   }
 
   cleanupScreenpipe()

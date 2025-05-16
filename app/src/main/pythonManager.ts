@@ -20,6 +20,7 @@ export class KokoroBootstrap {
   private readonly ZIP_URL: string =
     'https://github.com/remsky/Kokoro-FastAPI/archive/refs/heads/master.zip'
   private readonly onProgress?: (progress: number, status?: string) => void
+  private kokoroProc: import('child_process').ChildProcess | null = null // Track the TTS process
 
   constructor(onProgress?: (progress: number, status?: string) => void) {
     this.USER_DIR = app.getPath('userData')
@@ -200,7 +201,7 @@ export class KokoroBootstrap {
       PYTHONPATH: `${this.KOKORO_DIR}${path.delimiter}${path.join(this.KOKORO_DIR, 'api')}`,
       MODEL_DIR: 'src/models',
       VOICES_DIR: 'src/voices/v1_0',
-      WEB_PLAYER_PATH: this.KOKORO_DIR,
+      WEB_PLAYER_PATH: 'web',
       DEVICE_TYPE: 'mps',
       PYTORCH_ENABLE_MPS_FALLBACK: '1'
     }
@@ -213,7 +214,7 @@ export class KokoroBootstrap {
         'python',
         'docker/scripts/download_model.py',
         '--output',
-        'api/src/models/v1_0'
+        'src/models/v1_0'
       ],
       {
         cwd: this.KOKORO_DIR,
@@ -222,23 +223,35 @@ export class KokoroBootstrap {
       }
     )
 
+    // Kill any previous process if exists
+    if (this.kokoroProc) {
+      try {
+        this.kokoroProc.kill()
+      } catch (err) {
+        log.warn('[KokoroBootstrap] Failed to kill previous Kokoro TTS process:', err)
+      }
+      this.kokoroProc = null
+    }
+
     const proc = spawn(
       this.UV_EXE,
-      ['run', '--no-sync', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '8765'],
+      ['run', '--no-sync', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '8880'],
       {
         cwd: this.KOKORO_DIR,
         env: kokoroEnv,
         stdio: 'inherit'
       }
     )
+    this.kokoroProc = proc
     proc.on('error', (err) => {
       log.error('[kokoro-tts] Failed to start:', err)
     })
     proc.on('exit', (code) => {
       log.info(`[kokoro-tts] exited with code ${code}`)
+      if (this.kokoroProc === proc) this.kokoroProc = null
     })
 
-    await this.waitForServer('http://127.0.0.1:8765/docs', 10000)
+    await this.waitForServer('http://127.0.0.1:8880/web', 20000)
   }
 
   private async waitForServer(url: string, timeoutMs: number): Promise<void> {
@@ -291,6 +304,22 @@ export class KokoroBootstrap {
     } catch (error) {
       log.error('─── PythonBootstrap: Python setup failed ❌', error)
       throw error
+    }
+  }
+
+  /**
+   * Cleanup method to kill the Kokoro TTS process if running
+   */
+  public async cleanup(): Promise<void> {
+    if (this.kokoroProc) {
+      log.info('[KokoroBootstrap] Killing Kokoro TTS process...')
+      try {
+        this.kokoroProc.kill()
+        log.info('[KokoroBootstrap] Kokoro TTS process killed.')
+      } catch (err) {
+        log.warn('[KokoroBootstrap] Failed to kill Kokoro TTS process:', err)
+      }
+      this.kokoroProc = null
     }
   }
 }
