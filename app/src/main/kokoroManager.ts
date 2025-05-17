@@ -29,3 +29,14 @@ export async function cleanupKokoro() {
     kokoro = null
   }
 }
+
+export async function getKokoroState(): Promise<DependencyProgress> {
+  if (!kokoro) {
+    return {
+      dependency: 'Kokoro',
+      progress: 0,
+      status: 'Not started'
+    }
+  }
+  return kokoro.getLatestProgress()
+}

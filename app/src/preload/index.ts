@@ -63,7 +63,12 @@ const api = {
   },
   launch: {
     onProgress: (
-      callback: (data: { dependency: string; status: string; progress: number; error?: string }) => void
+      callback: (data: {
+        dependency: string
+        status: string
+        progress: number
+        error?: string
+      }) => void
     ) => {
       const listener = (
         _: unknown,
@@ -73,11 +78,14 @@ const api = {
       return () => ipcRenderer.removeListener('launch-progress', listener)
     },
     notifyReady: () => ipcRenderer.send('launch-ready'),
-    complete: () => ipcRenderer.send('launch-complete')
+    complete: () => ipcRenderer.send('launch-complete'),
+    getCurrentState: () => ipcRenderer.invoke('launch-get-current-state')
   },
   onLaunch: (
     channel: 'launch-complete' | 'launch-progress',
-    callback: (data: { dependency: string; status: string; progress: number; error?: string } | void) => void
+    callback: (
+      data: { dependency: string; status: string; progress: number; error?: string } | void
+    ) => void
   ) => {
     ipcRenderer.on(channel, (_, data) => callback(data))
   }

@@ -5,6 +5,7 @@ import fs from 'fs'
 import { windowManager } from './windows'
 import { openOAuthWindow } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
+import { getKokoroState } from './kokoroManager'
 
 const PATHNAME = 'input_data'
 
@@ -168,5 +169,15 @@ export function registerIpcHandlers() {
     log.info(`Manual update check requested (silent: ${silent})`)
     checkForUpdates(silent)
     return true
+  })
+
+  ipcMain.handle('launch-get-current-state', async () => {
+    try {
+      const kokoroState = await getKokoroState()
+      return kokoroState
+    } catch (error) {
+      log.error('Failed to get current launch state:', error)
+      return null
+    }
   })
 }
