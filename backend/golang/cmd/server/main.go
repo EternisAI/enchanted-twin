@@ -31,11 +31,11 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/weaviate/weaviate/adapters/handlers/rest"
+	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
-	"github.com/weaviate/weaviate/adapters/handlers/rest"
-	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -85,7 +85,6 @@ func main() {
 			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
 		}
 	}
-
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -178,7 +177,6 @@ func main() {
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	mem := &memory.MockMemory{}
-
 
 	whatsapp.TriggerConnect()
 
@@ -371,7 +369,6 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
 	ready := make(chan struct{})
 	go bootstrap.CreateTemporalServer(logger, ready, envs.DBPath)
@@ -542,7 +539,6 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-
 func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
 	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
@@ -645,6 +641,7 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	}()
 
 	return client
+}
 
 func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
 	err := os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
@@ -714,5 +711,4 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
-
 }
