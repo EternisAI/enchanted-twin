@@ -479,6 +479,7 @@ app.whenReady().then(async () => {
           APP_DATA_PATH: userDataPath,
           DB_PATH: dbPath,
           COMPLETIONS_API_URL: process.env.COMPLETIONS_API_URL,
+          COMPLETIONS_API_KEY: process.env.COMPLETIONS_API_KEY,
           COMPLETIONS_MODEL: process.env.COMPLETIONS_MODEL,
           REASONING_MODEL: process.env.REASONING_MODEL,
           EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
