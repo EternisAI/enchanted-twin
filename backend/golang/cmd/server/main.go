@@ -334,7 +334,7 @@ func main() {
 	}()
 
 	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
-	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath, envs.CompletionsAPIKey); err != nil {
 		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
 		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
 	}
@@ -643,10 +643,18 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	return client
 }
 
-func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string, openaiApiKey string) (*rest.Server, error) {
 	err := os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
+	}
+	err = os.Setenv("ENABLE_MODULES", "text2vec-openai")
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to set ENABLE_MODULES")
+	}
+	err = os.Setenv("OPENAI_APIKEY", openaiApiKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to set OPENAI_APIKEY")
 	}
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
 	if err != nil {
