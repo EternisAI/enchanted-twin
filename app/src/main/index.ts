@@ -1,7 +1,6 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, nativeTheme, Menu, session } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import { spawn, ChildProcess } from 'child_process'
 import log from 'electron-log/main'
 import { existsSync, mkdirSync } from 'fs'
@@ -10,15 +9,18 @@ import path from 'path'
 import { autoUpdater } from 'electron-updater'
 import http from 'http'
 import { URL } from 'url'
-import { createErrorWindow, createSplashWindow, waitForBackend } from './helpers'
+import { createErrorWindow, waitForBackend } from './helpers'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
+import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
+import { registerAccessibilityIpc } from './accessibilityPermissions'
+import { windowManager } from './windows'
+import { KokoroBootstrap, DependencyProgress } from './pythonManager'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
-const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 3000
+const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
-let mainWindow: BrowserWindow | null = null
 // Check if running in production using environment variable
 const IS_PRODUCTION = process.env.IS_PROD_BUILD === 'true' || !is.dev
 
@@ -29,6 +31,7 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 
 let goServerProcess: ChildProcess | null = null
 let oauthServer: http.Server | null = null
+let kokoro: KokoroBootstrap | null = null
 
 let updateDownloaded = false
 
@@ -50,8 +53,8 @@ function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
           const code = parsedUrl.searchParams.get('code')
           const state = parsedUrl.searchParams.get('state')
 
-          if (code && state && mainWindow) {
-            mainWindow.webContents.send('oauth-callback', { code, state })
+          if (code && state && windowManager.mainWindow) {
+            windowManager.mainWindow.webContents.send('oauth-callback', { code, state })
             res.writeHead(200, { 'Content-Type': 'text/html' })
             res.end(`
               <!DOCTYPE html>
@@ -133,7 +136,7 @@ function openOAuthWindow(authUrl: string, redirectUri?: string) {
           }
         })
 
-        app.on('certificate-error', (event, webContents, url, error, certificate, callback) => {
+        app.on('certificate-error', (event, webContents, _url, _error, _certificate, callback) => {
           if (webContents.id === authWindow.webContents.id) {
             log.info('[OAuth] Handling certificate error for auth window')
             event.preventDefault()
@@ -153,8 +156,8 @@ function openOAuthWindow(authUrl: string, redirectUri?: string) {
             const code = parsedUrl.searchParams.get('code')
             const state = parsedUrl.searchParams.get('state')
 
-            if (code && state && mainWindow) {
-              mainWindow.webContents.send('oauth-callback', { code, state })
+            if (code && state && windowManager.mainWindow) {
+              windowManager.mainWindow.webContents.send('oauth-callback', { code, state })
 
               authWindow.loadURL(
                 'data:text/html,' +
@@ -259,32 +262,29 @@ function setupAutoUpdater() {
 
   autoUpdater.on('checking-for-update', () => {
     log.info('Checking for update...')
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'Checking for update...')
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', 'Checking for update...')
     }
   })
 
   autoUpdater.on('update-available', (info) => {
     log.info('Update available:', info)
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'Update available, downloading...')
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', 'Update available, downloading...')
     }
   })
 
   autoUpdater.on('update-not-available', (info) => {
     log.info('Update not available:', info)
-
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', 'No updates available')
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', 'No updates available')
     }
   })
 
   autoUpdater.on('error', (err) => {
     log.error('Error in auto-updater:', err)
-
-    if (mainWindow) {
-      mainWindow.webContents.send('update-status', `Error: ${err.message}`)
-
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-status', `Error: ${err.message}`)
       dialog.showErrorBox(
         'Update Error',
         `An error occurred while updating the application: ${err.message}`
@@ -298,18 +298,21 @@ function setupAutoUpdater() {
     logMessage += ` (${progressObj.transferred}/${progressObj.total})`
     log.info(logMessage)
 
-    if (mainWindow) {
-      mainWindow.webContents.send('update-progress', progressObj)
+    if (windowManager.mainWindow) {
+      windowManager.mainWindow.webContents.send('update-progress', progressObj)
     }
   })
 
   autoUpdater.on('update-downloaded', (info) => {
     log.info('Update downloaded:', info)
     updateDownloaded = true
-    mainWindow?.webContents.send('update-status', 'Update downloaded – ready to install')
+    windowManager.mainWindow?.webContents.send(
+      'update-status',
+      'Update downloaded – ready to install'
+    )
 
     dialog
-      .showMessageBox(mainWindow!, {
+      .showMessageBox(windowManager.mainWindow!, {
         type: 'info',
         title: 'Update Ready',
         message: `Version ${info.version} has been downloaded. Install and restart now?`,
@@ -340,9 +343,9 @@ function checkForUpdates(silent = false) {
       )
       autoUpdater.quitAndInstall(true, true)
     } else {
-      if (mainWindow) {
+      if (windowManager.mainWindow) {
         dialog
-          .showMessageBox(mainWindow, {
+          .showMessageBox(windowManager.mainWindow, {
             type: 'info',
             title: 'Install Updates',
             message: 'Updates downloaded previously are ready to be installed.',
@@ -365,17 +368,17 @@ function checkForUpdates(silent = false) {
     return
   }
   log.info(`Checking for updates... (Silent: ${silent})`)
-  if (mainWindow && !silent) {
-    mainWindow.webContents.send('update-status', 'Checking for update...')
+  if (windowManager.mainWindow && !silent) {
+    windowManager.mainWindow.webContents.send('update-status', 'Checking for update...')
   }
 
   autoUpdater
     .checkForUpdates()
     .then((result) => {
       if (!result || !result.updateInfo || result.updateInfo.version === app.getVersion()) {
-        if (mainWindow && !silent) {
-          mainWindow.webContents.send('update-status', 'No updates available')
-          dialog.showMessageBox(mainWindow, {
+        if (windowManager.mainWindow && !silent) {
+          windowManager.mainWindow.webContents.send('update-status', 'No updates available')
+          dialog.showMessageBox(windowManager.mainWindow, {
             type: 'info',
             title: 'No Updates',
             message: 'You are using the latest version of the application.',
@@ -386,8 +389,11 @@ function checkForUpdates(silent = false) {
     })
     .catch((err) => {
       log.error('Error checking for updates:', err)
-      if (mainWindow && !silent) {
-        mainWindow.webContents.send('update-status', `Error checking for updates: ${err.message}`)
+      if (windowManager.mainWindow && !silent) {
+        windowManager.mainWindow.webContents.send(
+          'update-status',
+          `Error checking for updates: ${err.message}`
+        )
         dialog.showErrorBox(
           'Update Check Error',
           `An error occurred while checking for updates: ${err.message}`
@@ -396,67 +402,31 @@ function checkForUpdates(silent = false) {
     })
 }
 
-function createWindow(): BrowserWindow {
-  const mainWindow = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    show: false,
-    titleBarStyle: 'hidden',
-    autoHideMenuBar: true,
-    ...(process.platform !== 'darwin' ? { titleBarOverlay: true } : {}),
-    ...(process.platform === 'linux' ? { icon } : {}),
-    webPreferences: {
-      preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+app.whenReady().then(async () => {
+  log.info(`App version: ${app.getVersion()}`)
+
+  const mainWindow = windowManager.createMainWindow()
+  registerNotificationIpc(mainWindow)
+  registerMediaPermissionHandlers(session.defaultSession)
+  registerPermissionIpc()
+  registerScreenpipeIpc()
+  registerAccessibilityIpc()
+
+  ipcMain.on('launch-ready', () => {
+    if (mainWindow && kokoro) {
+      const latestProgress = kokoro.getLatestProgress()
+      mainWindow.webContents.send('launch-progress', latestProgress)
     }
   })
 
-  mainWindow.webContents.on('context-menu', (_, params) => {
-    const menu = Menu.buildFromTemplate([
-      {
-        label: 'Toggle Developer Tools',
-        click: () => {
-          mainWindow.webContents.toggleDevTools()
-        }
-      }
-    ])
-    menu.popup({ window: mainWindow, x: params.x, y: params.y })
+  ipcMain.on('launch-complete', () => {
+    if (mainWindow) {
+      mainWindow.webContents.send('launch-complete')
+    }
   })
 
-  mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
-  })
-
-  mainWindow.webContents.setWindowOpenHandler((details) => {
-    shell.openExternal(details.url)
-    return { action: 'deny' }
-  })
-
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
-  if (!IS_PRODUCTION && process.env['ELECTRON_RENDERER_URL']) {
-    mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
-  } else {
-    mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
-  }
-
-  return mainWindow
-}
-
-app.whenReady().then(async () => {
-  const splash = createSplashWindow()
-
-  log.info(`App version: ${app.getVersion()}`)
-
-  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-  const goBinaryPath = !IS_PRODUCTION
-    ? join(__dirname, '..', '..', 'resources', executable) // Path in development
-    : join(process.resourcesPath, 'resources', executable) // Adjusted path in production
-
-  // Set up auto-updater
   setupAutoUpdater()
 
-  // Create the database directory in user data path
   const userDataPath = app.getPath('userData')
   const dbDir = join(userDataPath, 'db')
 
@@ -472,6 +442,27 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
+  const kokoroProgress = (data: DependencyProgress) => {
+    if (mainWindow) {
+      const { progress, status } = data
+      log.info(`[Kokoro] Emitting launch-progress: ${progress}, Status: ${status}`)
+      mainWindow.webContents.send('launch-progress', data)
+    }
+  }
+
+  kokoro = new KokoroBootstrap(kokoroProgress)
+
+  try {
+    kokoro.setup()
+  } catch (error) {
+    console.error('Failed to setup Python environment:', error)
+  }
+
+  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
+  const goBinaryPath = !IS_PRODUCTION
+    ? join(__dirname, '..', '..', 'resources', executable)
+    : join(process.resourcesPath, 'resources', executable)
+
   // Only start the Go server in production environment
   if (IS_PRODUCTION) {
     if (!existsSync(goBinaryPath)) {
@@ -482,15 +473,14 @@ app.whenReady().then(async () => {
     log.info(`Attempting to start Go server at: ${goBinaryPath}`)
 
     try {
-      //@TODO: we should await this process to be fully started or have a initialize screen to show in the meantime while it's starting
-
       goServerProcess = spawn(goBinaryPath, [], {
         env: {
           ...process.env,
           APP_DATA_PATH: userDataPath,
           DB_PATH: dbPath,
-          OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
+          COMPLETIONS_API_URL: process.env.COMPLETIONS_API_URL,
           COMPLETIONS_MODEL: process.env.COMPLETIONS_MODEL,
+          REASONING_MODEL: process.env.REASONING_MODEL,
           EMBEDDINGS_API_URL: process.env.EMBEDDINGS_API_URL,
           EMBEDDINGS_MODEL: process.env.EMBEDDINGS_MODEL,
           TELEGRAM_TOKEN: process.env.TELEGRAM_TOKEN,
@@ -525,7 +515,6 @@ app.whenReady().then(async () => {
         log.error('Failed to spawn Go server process.')
       }
     } catch (error: unknown) {
-      splash.destroy()
       log.error('Error spawning Go server:', error)
       createErrorWindow(
         `Failed to start Go server: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -536,14 +525,7 @@ app.whenReady().then(async () => {
   }
 
   electronApp.setAppUserModelId('com.electron')
-  mainWindow = createWindow()
-  registerNotificationIpc(mainWindow)
-  registerMediaPermissionHandlers(session.defaultSession)
-  registerPermissionIpc()
 
-  splash.destroy()
-
-  // Perform initial check after main window exists, wait a bit for autoUpdater setup
   setTimeout(() => {
     log.info('Performing initial silent update check.')
     checkForUpdates(true)
@@ -635,7 +617,9 @@ app.whenReady().then(async () => {
   })
 
   app.on('activate', function () {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    if (BrowserWindow.getAllWindows().length === 0) {
+      windowManager.createMainWindow()
+    }
   })
 
   ipcMain.handle('restart-app', async () => {
@@ -722,6 +706,60 @@ app.whenReady().then(async () => {
     checkForUpdates(silent)
     return true
   })
+  // Create the application menu
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: 'File',
+      submenu: [
+        {
+          label: 'Settings',
+          accelerator: process.platform === 'darwin' ? 'Command+,' : 'Ctrl+,',
+          click: () => {
+            if (mainWindow) {
+              mainWindow.webContents.send('open-settings')
+            }
+          }
+        },
+        { type: 'separator' },
+        { role: 'quit' }
+      ]
+    },
+    {
+      label: 'Edit',
+      submenu: [
+        { role: 'undo' },
+        { role: 'redo' },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { role: 'delete' },
+        { type: 'separator' },
+        { role: 'selectAll' }
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      label: 'Window',
+      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
+    }
+  ]
+
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
 })
 
 app.on('window-all-closed', () => {
@@ -730,7 +768,7 @@ app.on('window-all-closed', () => {
   }
 })
 
-app.on('will-quit', () => {
+app.on('will-quit', async () => {
   if (goServerProcess) {
     log.info('Attempting to kill Go server process...')
     const killed = goServerProcess.kill()
@@ -748,4 +786,11 @@ app.on('will-quit', () => {
     oauthServer.close()
     oauthServer = null
   }
+
+  if (kokoro) {
+    log.info('Cleaning up Kokoro TTS server...')
+    await kokoro.cleanup()
+  }
+
+  cleanupScreenpipe()
 })

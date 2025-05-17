@@ -1,9 +1,19 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Button } from '../../ui/button'
+import {
+  Camera,
+  Mic,
+  Monitor,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  HelpCircle,
+  LucideIcon
+} from 'lucide-react'
+import { DetailCard } from './DetailCard'
 
 type MediaType = 'camera' | 'microphone' | 'screen'
-type MediaStatus =
+type MediaStatusType =
   | 'granted'
   | 'not-determined'
   | 'denied'
@@ -13,78 +23,144 @@ type MediaStatus =
 
 const types: MediaType[] = ['camera', 'microphone', 'screen']
 
-interface RowProps {
-  type: MediaType
-  status: string
-  queryAllMediaStatus(): void
+const typeConfig: Record<MediaType, { icon: LucideIcon; title: string }> = {
+  camera: { icon: Camera, title: 'Camera' },
+  microphone: { icon: Mic, title: 'Microphone' },
+  screen: { icon: Monitor, title: 'Screen Recording' }
 }
 
-function StatusRow({ type, status, queryAllMediaStatus }: RowProps) {
-  const formattedStatus =
-    {
-      loading: 'Loading',
-      granted: 'Granted',
-      'not-determined': 'Not determined',
-      denied: 'Denied',
-      restricted: 'Restricted',
-      unavailable: 'Unavailable'
-    }[status] || status
+const explanations: Record<MediaType, string> = {
+  camera: 'Capture your facial expressions. (coming soon)',
+  microphone: 'Speak with your Twin naturally. (coming soon)',
+  screen: 'Twin understands and remembers your activity.'
+}
 
-  const requestAccess = async () => {
-    await window.api.requestMediaAccess(type)
-    await queryAllMediaStatus()
+const getStatusConfig = (status: MediaStatusType) => {
+  switch (status) {
+    case 'loading':
+      return {
+        icon: HelpCircle,
+        color: 'text-muted-foreground',
+        label: 'Loading'
+      }
+    case 'granted':
+      return {
+        icon: CheckCircle2,
+        color: 'text-green-500',
+        label: 'Granted'
+      }
+    case 'not-determined':
+      return {
+        icon: HelpCircle,
+        color: 'text-muted-foreground',
+        label: 'Not determined'
+      }
+    case 'denied':
+      return {
+        icon: XCircle,
+        color: 'text-red-500',
+        label: 'Denied'
+      }
+    case 'restricted':
+      return {
+        icon: AlertCircle,
+        color: 'text-yellow-500',
+        label: 'Restricted'
+      }
+    case 'unavailable':
+      return {
+        icon: XCircle,
+        color: 'text-red-500',
+        label: 'Unavailable'
+      }
+    default:
+      // Handle unexpected status values gracefully
+      console.warn(`Unexpected media status: ${status}`)
+      return {
+        icon: HelpCircle,
+        color: 'text-muted-foreground',
+        label: String(status) // Display the raw status if unknown
+      }
   }
-
-  return (
-    <div className="grid grid-cols-3 items-center">
-      <span className="capitalize">{type}</span>
-      <span className="text-center">{formattedStatus}</span>
-
-      <div className="flex justify-end">
-        {status === 'not-determined' && (
-          <Button className="w-fit" size="sm" onClick={requestAccess}>
-            Request
-          </Button>
-        )}
-
-        {(status === 'denied' || status === 'restricted' || status === 'granted') && (
-          <Button className="w-fit" size="sm" onClick={requestAccess}>
-            Open {type} settings
-          </Button>
-        )}
-      </div>
-    </div>
-  )
 }
 
 export default function MediaStatus() {
-  const [status, setStatus] = useState<Record<MediaType, MediaStatus>>({
+  const [status, setStatus] = useState<Record<MediaType, MediaStatusType>>({
     camera: 'loading',
     microphone: 'loading',
     screen: 'loading'
   })
+  const [isLoading, setIsLoading] = useState<Record<MediaType, boolean>>({
+    camera: true,
+    microphone: true,
+    screen: true
+  })
+
+  const queryMediaStatus = async (type: MediaType) => {
+    try {
+      setIsLoading((prev) => ({ ...prev, [type]: true }))
+      const currentStatus = await window.api.queryMediaStatus(type)
+      setStatus((prev) => ({ ...prev, [type]: currentStatus as MediaStatusType }))
+    } catch (error) {
+      console.error(`Error querying ${type} status:`, error)
+      setStatus((prev) => ({ ...prev, [type]: 'denied' })) // Default to denied on error
+    } finally {
+      setIsLoading((prev) => ({ ...prev, [type]: false }))
+    }
+  }
 
   const queryAllMediaStatus = async () => {
-    const pairs = await Promise.all(
-      types.map(async (type) => [type, await window.api.queryMediaStatus(type)])
-    )
-    setStatus(Object.fromEntries(pairs) as Record<MediaType, MediaStatus>)
+    await Promise.all(types.map((type) => queryMediaStatus(type)))
   }
 
   useEffect(() => {
     queryAllMediaStatus()
-  }, [])
+    const interval = setInterval(() => {
+      queryAllMediaStatus()
+    }, 5000)
+
+    return () => clearInterval(interval)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run only on mount
+
+  const requestAccess = async (type: MediaType) => {
+    try {
+      setIsLoading((prev) => ({ ...prev, [type]: true }))
+      await window.api.requestMediaAccess(type)
+      // Re-query status after requesting access
+      await queryMediaStatus(type)
+    } catch (error) {
+      console.error(`Error requesting ${type} access:`, error)
+      // Optionally update status to reflect the error
+      setIsLoading((prev) => ({ ...prev, [type]: false }))
+    }
+  }
 
   return (
-    <div className="flex flex-col gap-6">
-      {types.map((type) => (
-        <StatusRow
-          key={type}
-          type={type}
-          status={status[type]}
-          queryAllMediaStatus={queryAllMediaStatus}
-        />
-      ))}
-    </div>
+    <>
+      {types.map((type) => {
+        const currentStatus = status[type]
+        const config = typeConfig[type]
+        const statusInfo = getStatusConfig(currentStatus)
+        const buttonLabel =
+          currentStatus === 'not-determined' || currentStatus === 'denied' ? 'Request' : 'Settings'
+        const handleButtonClick = () => {
+          requestAccess(type)
+        }
+
+        return (
+          <DetailCard
+            key={type}
+            title={config.title}
+            IconComponent={config.icon}
+            statusInfo={statusInfo}
+            buttonLabel={buttonLabel}
+            onButtonClick={handleButtonClick}
+            isLoading={isLoading[type]}
+            explanation={explanations[type]}
+          />
+        )
+      })}
+    </>
   )
 }

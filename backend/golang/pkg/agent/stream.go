@@ -23,6 +23,7 @@ func (a *Agent) ExecuteStream(
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 	onDelta func(StreamDelta),
+	reasoning bool,
 ) (AgentResponse, error) {
 	// Build lookup + OpenAI tool defs once.
 	toolDefs := make([]openai.ChatCompletionToolParam, 0, len(currentTools))
@@ -41,28 +42,32 @@ func (a *Agent) ExecuteStream(
 	)
 
 	runTool := func(tc openai.ChatCompletionMessageToolCall) (types.ToolResult, error) {
+		a.logger.Debug("Pre tool callback", "tool_call", tc)
 		if a.PreToolCallback != nil {
 			a.PreToolCallback(tc)
 		}
 		tool, ok := toolMap[tc.Function.Name]
 		if !ok {
-			return types.SimpleToolResult(""), fmt.Errorf("tool %q not found", tc.Function.Name)
+			return nil, fmt.Errorf("tool %q not found", tc.Function.Name)
 		}
 		var args map[string]any
 		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return types.SimpleToolResult(""), err
+			return nil, err
 		}
-		res, err := tool.Execute(ctx, args)
+		toolResult, err := tool.Execute(ctx, args)
 		if err != nil {
-			return types.SimpleToolResult(""), err
+			return nil, err
 		}
+
+		a.logger.Debug("Post tool callback", "result", toolResult)
 		if a.PostToolCallback != nil {
-			a.PostToolCallback(tc, res)
+			a.PostToolCallback(tc, toolResult)
 		}
-		if urls := res.ImageURLs(); len(urls) > 0 {
+
+		if urls := toolResult.ImageURLs(); len(urls) > 0 {
 			allImages = append(allImages, urls...)
 		}
-		return res, nil
+		return toolResult, nil
 	}
 
 	for step := 0; step < MAX_STEPS; step++ {
@@ -70,7 +75,12 @@ func (a *Agent) ExecuteStream(
 		stepCalls := []openai.ChatCompletionMessageToolCall{}
 		stepResults := []types.ToolResult{}
 
-		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, a.CompletionsModel)
+		languageModel := a.CompletionsModel
+		if reasoning {
+			languageModel = a.ReasoningModel
+		}
+
+		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, languageModel)
 
 	loop:
 		for {

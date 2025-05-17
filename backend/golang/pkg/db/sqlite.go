@@ -77,6 +77,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 		);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+		CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
 	`)
 	if err != nil {
 		return nil, err

@@ -16,9 +16,11 @@ interface OnboardingLayoutProps {
 
 function OnboardingTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="flex flex-col gap-3 text-center">
-      <h1 className="text-5xl tracking-normal">{title}</h1>
-      {subtitle && <p className="text-muted-foreground text-balance">{subtitle}</p>}
+    <div className="flex flex-col gap-6 text-center items-center">
+      <h1 className="text-4xl tracking-normal">{title}</h1>
+      {subtitle && (
+        <p className="text-xl text-secondary-foreground text-balance max-w-xl">{subtitle}</p>
+      )}
     </div>
   )
 }

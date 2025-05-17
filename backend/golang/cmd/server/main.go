@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
 	"github.com/gorilla/websocket"
+	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
@@ -29,12 +30,10 @@ import (
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
-	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
-	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/root-v2"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -71,30 +70,6 @@ func main() {
 		}
 	}
 
-	// Start PostgreSQL
-	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	postgresService, err := bootstrapPostgres(postgresCtx, logger)
-	if err != nil {
-		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
-	}
-
-	// Set up cleanup on shutdown
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		// Stop the container
-		if err := postgresService.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
-		}
-		// Remove the container to ensure clean state for next startup
-		if err := postgresService.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
-		}
-	}()
-
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start nats server"))
@@ -119,42 +94,11 @@ func main() {
 		}
 	}()
 
-	logger.Info("SQLite database initialized")
-
 	// Initialize the AI service singleton
-	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	// Ensure enchanted_twin database exists
-	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
-		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
-	}
-
-	dbName := "enchanted_twin"
-	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", "error", err)
-		panic(errors.Wrap(err, "Unable to ensure database exists"))
-	}
-	logger.Info(
-		"PostgreSQL listening at",
-		"connection",
-		postgresService.GetConnectionString(dbName),
-	)
-	recreateMemDb := false
-	mem, err := embeddingsmemory.NewEmbeddingsMemory(
-		&embeddingsmemory.Config{
-			Logger:              logger,
-			PgString:            postgresService.GetConnectionString(dbName),
-			AI:                  aiEmbeddingsService,
-			Recreate:            recreateMemDb,
-			EmbeddingsModelName: envs.EmbeddingsModel,
-		},
-	)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to create memory"))
-	}
+	mem := &memory.MockMemory{}
 
 	ttsSvc, err := bootstrapTTS(logger)
 	if err != nil {
@@ -171,13 +115,6 @@ func main() {
 	temporalClient, err := bootstrapTemporalServer(logger, envs)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
-	}
-
-	// Ensure the root workflow is running
-	rootClient := root.NewRootClient(temporalClient, logger)
-	if err := rootClient.EnsureRunRootWorkflow(context.Background()); err != nil {
-		logger.Error("Failed to ensure root workflow is running", "error", err)
-		logger.Error("Child workflows may not be able to start")
 	}
 
 	toolRegistry := tools.NewRegistry()
@@ -209,6 +146,7 @@ func main() {
 		toolRegistry,
 		store,
 		envs.CompletionsModel,
+		envs.ReasoningModel,
 	)
 
 	// Register tools from the TwinChat service
@@ -232,6 +170,8 @@ func main() {
 		toolRegistry.List(),
 	)
 
+	notificationsSvc := notifications.NewService(nc)
+
 	// Initialize and start the temporal worker
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
@@ -243,8 +183,8 @@ func main() {
 			ollamaClient:         ollamaClient,
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
-			registry:             toolRegistry,
-			rootClient:           rootClient,
+			toolsRegistry:        toolRegistry,
+			notifications:        notificationsSvc,
 		},
 	)
 	if err != nil {
@@ -268,7 +208,7 @@ func main() {
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
 		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -279,7 +219,6 @@ func main() {
 			case <-ticker.C:
 				chatUUID, err := telegramService.GetChatUUID(context.Background())
 				if err != nil {
-					logger.Error("Error getting chat UUID", slog.Any("error", err))
 					continue
 				}
 				err = telegramService.Subscribe(appCtx, chatUUID)
@@ -309,7 +248,6 @@ func main() {
 		aiService:       aiCompletionsService,
 		mcpService:      mcpService,
 		telegramService: telegramService,
-		rootClient:      rootClient,
 	})
 
 	// Start HTTP server in a goroutine so it doesn't block signal handling
@@ -325,31 +263,8 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
-}
-
-func bootstrapPostgres(
-	ctx context.Context,
-	logger *log.Logger,
-) (*bootstrap.PostgresService, error) {
-	// Get default options
-	options := bootstrap.DefaultPostgresOptions()
-
-	// Create and start PostgreSQL service
-	postgresService, err := bootstrap.NewPostgresService(logger, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
-	}
-
-	logger.Info("Starting PostgreSQL service...")
-	err = postgresService.Start(ctx, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
-	}
-
-	return postgresService, nil
 }
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
@@ -358,11 +273,7 @@ func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Cl
 	<-ready
 	logger.Info("Temporal server started")
 
-	temporalClient, err := bootstrap.CreateTemporalClient(
-		"localhost:7233",
-		bootstrap.TemporalNamespace,
-		"",
-	)
+	temporalClient, err := bootstrap.NewTemporalClient(logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
@@ -379,35 +290,19 @@ type bootstrapTemporalWorkerInput struct {
 	nc                   *nats.Conn
 	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
-	registry             tools.ToolRegistry
+	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
-	rootClient           *root.RootClient
+	notifications        *notifications.Service
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		kokoroDockerPort = 45000
-		ttsWsPort        = 45001
-		image            = "ghcr.io/remsky/kokoro-fastapi-cpu"
+		kokoroPort = 45000
+		ttsWsPort  = 45001
 	)
 
-	dockerSvc, err := docker.NewService(docker.ContainerOptions{
-		ImageName: image,
-		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprint(kokoroDockerPort): "8880"},
-		Detached:  true,
-	}, logger)
-	if err != nil {
-		logger.Error("docker service init", "error", err)
-		return nil, errors.Wrap(err, "docker service init")
-	}
-	if err := dockerSvc.RunContainer(context.Background()); err != nil {
-		logger.Error("docker run", "error", err)
-		return nil, errors.Wrap(err, "docker run")
-	}
-
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroDockerPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
@@ -433,17 +328,14 @@ func bootstrapTemporalWorker(
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
-	// Root workflow
-	input.rootClient.RegisterWorkflowsAndActivities(&w)
-
 	// Register auth activities
 	authActivities := auth.NewOAuthActivities(input.store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.registry)
-	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
-	input.logger.Info("Registered planned agent workflow", "tools", input.registry.List())
+	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, input.envs.ReasoningModel, nil, nil)
+	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
+	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
 	// Start the worker
 	err := w.Start()
@@ -466,7 +358,6 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
-	rootClient             *root.RootClient
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -487,7 +378,6 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
-		RootClient:             input.rootClient, // root.NewRootClient(input.temporalClient, input.logger),
 	}))
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})

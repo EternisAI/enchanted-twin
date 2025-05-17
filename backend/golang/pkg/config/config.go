@@ -10,18 +10,20 @@ import (
 )
 
 type Config struct {
-	OpenAIAPIKey       string
-	GraphqlPort        string
-	OpenAIBaseURL      string
+	CompletionsAPIURL  string
+	CompletionsAPIKey  string
 	CompletionsModel   string
+	ReasoningModel     string
+	GraphqlPort        string
 	EmbeddingsAPIURL   string
-	EmbeddingsModel    string
 	EmbeddingsAPIKey   string
+	EmbeddingsModel    string
 	DBPath             string
 	AppDataPath        string
 	OllamaBaseURL      string
 	TelegramToken      string
 	TelegramChatServer string
+	ContainerRuntime   string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -48,10 +50,11 @@ func LoadConfig(printEnv bool) (*Config, error) {
 	_ = godotenv.Load()
 
 	conf := &Config{
-		OpenAIAPIKey:       getEnv("OPENAI_API_KEY", "", printEnv),
-		GraphqlPort:        getEnv("GRAPHQL_PORT", "3000", printEnv),
-		OpenAIBaseURL:      getEnv("OPENAI_BASE_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsAPIURL:  getEnv("COMPLETIONS_API_URL", "https://api.openai.com/v1", printEnv),
+		CompletionsAPIKey:  getEnv("COMPLETIONS_API_KEY", "", printEnv),
 		CompletionsModel:   getEnvOrPanic("COMPLETIONS_MODEL", printEnv),
+		ReasoningModel:     getEnvOrPanic("REASONING_MODEL", printEnv),
+		GraphqlPort:        getEnv("GRAPHQL_PORT", "44999", printEnv),
 		EmbeddingsAPIURL:   getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
 		EmbeddingsModel:    getEnvOrPanic("EMBEDDINGS_MODEL", printEnv),
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
@@ -60,6 +63,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
+		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 	}
 	return conf, nil
 }

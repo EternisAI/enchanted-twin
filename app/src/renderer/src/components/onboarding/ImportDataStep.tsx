@@ -6,7 +6,7 @@ import { Button } from '../ui/button'
 import { useState } from 'react'
 import { toast } from 'sonner'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
-import { DataSourcesPanel } from '../DataSourcesPanel'
+import { DataSourcesPanel } from '../data-sources/DataSourcesPanel'
 import { GetDataSourcesDocument } from '@renderer/graphql/generated/graphql'
 
 const ADD_DATA_SOURCE = gql`

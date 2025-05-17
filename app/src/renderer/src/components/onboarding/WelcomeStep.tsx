@@ -60,8 +60,8 @@ export function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 
   return (
     <OnboardingLayout
-      title="Enchanted"
-      subtitle="Let's get started by personalizing your experience"
+      title="Welcome"
+      subtitle="What should we call you?"
       className="max-w-sm w-full self-center text-center"
     >
       <form className="flex flex-col gap-6" onSubmit={handleSubmit}>

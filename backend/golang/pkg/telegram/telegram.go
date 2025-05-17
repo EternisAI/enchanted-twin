@@ -211,6 +211,11 @@ func (s *TelegramService) Start(ctx context.Context) error {
 							s.Logger.Error("Failed to create chat", "error", err)
 							continue
 						}
+						err = s.SendMessage(ctx, chatID, "Send any message to start the conversation")
+						if err != nil {
+							s.Logger.Error("Failed to send message", "error", err)
+							continue
+						}
 					}
 
 					if s.NatsClient != nil {
@@ -290,7 +295,7 @@ func (s *TelegramService) Execute(
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	message string,
 ) (agent.AgentResponse, error) {
-	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, nil, nil)
+	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, s.CompletionsModel, nil, nil)
 
 	toolsList := []tools.Tool{}
 	for _, name := range s.ToolsRegistry.Excluding("sleep", "sleep_until").List() {
@@ -756,9 +761,9 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
-					s.Logger.Info("telegramenabled", "Received data", "response", response)
+					// s.Logger.Info("telegramenabled", "Received data", "response", response)
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
-						s.Logger.Info("telegramenabled", "Received nil text message")
+						// s.Logger.Info("telegramenabled", "Received nil text message")
 						exitErr = ErrSubscriptionNilTextMessage
 						return
 					}

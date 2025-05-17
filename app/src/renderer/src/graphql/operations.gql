@@ -102,6 +102,7 @@ query GetAgentTasks {
     completedAt
     terminatedAt
     output
+    notify
   }
 }
 
@@ -109,6 +110,15 @@ query GetTools {
   getTools {
     name
     description
+  }
+}
+
+query GetSetupProgress {
+  getSetupProgress {
+    name
+    status
+    progress
+    required
   }
 }
 
@@ -120,8 +130,8 @@ mutation CreateChat($name: String!) {
   }
 }
 
-mutation SendMessage($chatId: ID!, $text: String!) {
-  sendMessage(chatId: $chatId, text: $text) {
+mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!) {
+  sendMessage(chatId: $chatId, text: $text, reasoning: $reasoning) {
     id
     text
     role
@@ -231,6 +241,10 @@ mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
 
 mutation DeleteAgentTask($id: ID!) {
   deleteAgentTask(id: $id)
+}
+
+mutation UpdateAgentTask($id: ID!, $notify: Boolean!) {
+  updateAgentTask(id: $id, notify: $notify)
 }
 
 mutation ConnectMCPServer($input: ConnectMCPServerInput!) {

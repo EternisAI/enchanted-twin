@@ -36,18 +36,51 @@ const api = {
   openSettings: () => ipcRenderer.invoke('open-notification-settings'),
   queryMediaStatus: (type: MediaType) => ipcRenderer.invoke('permissions:get-status', type),
   requestMediaAccess: (type: MediaType) => ipcRenderer.invoke('permissions:request', type),
+  accessibility: {
+    getStatus: () => ipcRenderer.invoke('accessibility:get-status'),
+    request: () => ipcRenderer.invoke('accessibility:request')
+  },
   checkForUpdates: (silent: boolean = false) => ipcRenderer.invoke('check-for-updates', silent),
   onUpdateStatus: (callback: (status: string) => void) => {
-    const listener = (_: any, status: string) => callback(status)
+    const listener = (_: unknown, status: string) => callback(status)
     ipcRenderer.on('update-status', listener)
     return () => ipcRenderer.removeListener('update-status', listener)
   },
-  onUpdateProgress: (callback: (progress: any) => void) => {
-    const listener = (_: any, progress: any) => callback(progress)
+  onUpdateProgress: (callback: (progress: unknown) => void) => {
+    const listener = (_: unknown, progress: unknown) => callback(progress)
     ipcRenderer.on('update-progress', listener)
     return () => ipcRenderer.removeListener('update-progress', listener)
   },
-  getAppVersion: () => ipcRenderer.invoke('get-app-version')
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  onOpenSettings: (callback: () => void) => {
+    ipcRenderer.on('open-settings', callback)
+  },
+  screenpipe: {
+    getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
+    install: () => ipcRenderer.invoke('screenpipe:install'),
+    start: () => ipcRenderer.invoke('screenpipe:start'),
+    stop: () => ipcRenderer.invoke('screenpipe:stop')
+  },
+  launch: {
+    onProgress: (
+      callback: (data: { dependency: string; status: string; progress: number; error?: string }) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        data: { dependency: string; status: string; progress: number; error?: string }
+      ) => callback(data)
+      ipcRenderer.on('launch-progress', listener)
+      return () => ipcRenderer.removeListener('launch-progress', listener)
+    },
+    notifyReady: () => ipcRenderer.send('launch-ready'),
+    complete: () => ipcRenderer.send('launch-complete')
+  },
+  onLaunch: (
+    channel: 'launch-complete' | 'launch-progress',
+    callback: (data: { dependency: string; status: string; progress: number; error?: string } | void) => void
+  ) => {
+    ipcRenderer.on(channel, (_, data) => callback(data))
+  }
 }
 
 // Use `contextBridge` APIs to expose Electron APIs to

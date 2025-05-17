@@ -19,8 +19,8 @@ interface IElectronAPI {
 }
 
 interface IApi {
-  ping: () => void
-  copyDroppedFiles: (filePaths: string[]) => Promise<void>
+  getPathForFile: (file: string) => string
+  copyDroppedFiles: (paths: string[]) => Promise<string[]>
   selectDirectory: () => Promise<{ canceled: boolean; filePaths: string[] }>
   selectFiles: (options?: {
     filters?: { name: string; extensions: string[] }[]
@@ -28,7 +28,7 @@ interface IApi {
   getNativeTheme: () => Promise<'light' | 'dark'>
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
-  openOAuthUrl: (url: string, redirectUri?: string) => Promise<void>
+  openOAuthUrl: (url: string, redirectUri?: string) => void
   onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => void
   openLogsFolder: () => Promise<boolean>
   openAppDataFolder: () => Promise<boolean>
@@ -37,14 +37,48 @@ interface IApi {
   restartApp: () => void
   notify: (notification: AppNotification) => void
   onDeepLink: (cb: (url: string) => void) => void
-  getNotificationStatus: () => Promise<boolean>
-  openSettings: () => void
-  queryMediaStatus: (type: MediaType) => string
-  requestMediaAccess: (type: MediaType) => string
+  getNotificationStatus: () => Promise<string>
+  openSettings: () => Promise<void>
+  queryMediaStatus: (type: MediaType) => Promise<string>
+  requestMediaAccess: (type: MediaType) => Promise<string>
+  accessibility: {
+    getStatus: () => Promise<string>
+    request: () => Promise<string>
+  }
+  checkForUpdates: (silent?: boolean) => Promise<boolean>
   onUpdateStatus: (callback: (status: string) => void) => () => void
-  onUpdateProgress: (callback: (progressData: { percent: number }) => void) => () => void
+  onUpdateProgress: (callback: (progress: unknown) => void) => () => void
   checkForUpdates: (silent: boolean) => Promise<void>
   getAppVersion: () => Promise<string>
+  restartApp: () => Promise<void>
+  onOpenSettings: (callback: () => void) => void
+  screenpipe: {
+    getStatus: () => Promise<ScreenpipeStatus>
+    install: () => Promise<ScreenpipeResult>
+    start: () => Promise<ScreenpipeResult>
+    stop: () => Promise<boolean>
+  }
+  launch: {
+    onProgress: (
+      callback: (data: { dependency: string; status: string; progress: number; error?: string }) => void
+    ) => () => void
+    notifyReady: () => void
+    complete: () => Promise<void>
+  }
+  onLaunch: (
+    channel: 'launch-complete' | 'launch-progress',
+    callback: (data: { dependency: string; status: string; progress: number; error?: string } | void) => void
+  ) => void
+}
+
+interface ScreenpipeStatus {
+  isRunning: boolean
+  isInstalled: boolean
+}
+
+interface ScreenpipeResult {
+  success: boolean
+  error?: string
 }
 
 declare global {

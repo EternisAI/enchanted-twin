@@ -97,6 +97,14 @@ type Query {
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
   getAgentTasks: [AgentTask!]!
+  getSetupProgress: [SetupProgress!]!
+}
+
+type SetupProgress {
+  name: String!
+  progress: Float!
+  status: String!
+  required: Boolean!
 }
 
 type Mutation {
@@ -109,7 +117,7 @@ type Mutation {
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
   createChat(name: String!): Chat!
-  sendMessage(chatId: ID!, text: String!): Message!
+  sendMessage(chatId: ID!, text: String!, reasoning: Boolean! = False): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
@@ -117,6 +125,7 @@ type Mutation {
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
   deleteAgentTask(id: ID!): Boolean!
+  updateAgentTask(id: ID!, notify: Boolean!): Boolean!
   removeMCPServer(id: String!): Boolean!
 }
 
@@ -232,4 +241,7 @@ type AgentTask {
   completedAt: DateTime
   terminatedAt: DateTime
   output: String
+  upcomingRuns: [DateTime!]!
+  previousRuns: [DateTime!]!
+  notify: Boolean!
 }
