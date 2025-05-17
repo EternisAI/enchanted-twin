@@ -42,7 +42,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
-	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -125,8 +124,7 @@ func main() {
 	}
 
 	// Initialize MCP Service with tool registry
-	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
-	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store, toolRegistry)
+	mcpService := mcpserver.NewService(context.Background(), store, toolRegistry)
 
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(

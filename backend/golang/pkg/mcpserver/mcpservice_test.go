@@ -5,31 +5,29 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/charmbracelet/log"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	db "github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 )
 
 func TestMCPService_GetTools(t *testing.T) {
+	t.Setenv("COMPLETIONS_MODEL", "gpt-4o-mini")
+	t.Setenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
+	t.Setenv("TELEGRAM_CHAT_SERVER", "1234567890")
 	ctx := context.Background()
 
-	logger := log.Default()
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
 		t.Fatalf("Failed to create db: %v", err)
 	}
 
-	repo := repository.NewRepository(logger, db.DB())
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, *repo, db, toolRegistry)
+	s := NewService(ctx, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
 		Command: "go",
-		Args:    []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
+		Args:    []string{"run", "./internal/mcp_test_server/hello_world_mcp_server.go"},
 		Type:    model.MCPServerTypeOther,
 	})
 	if err != nil {
@@ -70,26 +68,35 @@ func TestMCPService_GetTools(t *testing.T) {
 }
 
 func TestMCPService_ExecuteTool(t *testing.T) {
+	t.Setenv("COMPLETIONS_MODEL", "gpt-4o-mini")
+	t.Setenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
+	t.Setenv("TELEGRAM_CHAT_SERVER", "1234567890")
+
 	ctx := context.Background()
 
-	logger := log.Default()
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
 		t.Fatalf("Failed to create db: %v", err)
 	}
 
-	repo := repository.NewRepository(logger, db.DB())
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, *repo, db, toolRegistry)
+	s := NewService(ctx, db, toolRegistry)
 
-	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
-		Name:    "hello_world_mcp_server",
-		Command: "go",
-		Args:    []string{"run", "./mcp_test_server/hello_world_mcp_server.go"},
-		Type:    model.MCPServerTypeOther,
-	})
+	mcpServers, err := s.GetMCPServers(ctx)
 	if err != nil {
-		t.Fatalf("Failed to add MCPServer: %v", err)
+		t.Fatalf("Failed to get MCPServers: %v", err)
+	}
+
+	if len(mcpServers) == 0 {
+		_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
+			Name:    "hello_world_mcp_server",
+			Command: "go",
+			Args:    []string{"run", "./internal/mcp_test_server/hello_world_mcp_server.go"},
+			Type:    model.MCPServerTypeOther,
+		})
+		if err != nil {
+			t.Fatalf("Failed to add MCPServer: %v", err)
+		}
 	}
 
 	tools, err := s.GetInternalTools(ctx)

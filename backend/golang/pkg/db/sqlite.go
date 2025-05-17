@@ -96,6 +96,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			enabled BOOLEAN DEFAULT FALSE
 		);
 		CREATE INDEX IF NOT EXISTS idx_mcp_servers_id ON mcp_servers(id);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
 	`)
 	if err != nil {
 		return nil, err
