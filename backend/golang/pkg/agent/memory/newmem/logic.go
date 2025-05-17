@@ -4,17 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
-	"sync" // Added for managing goroutines
+	"sync"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/google/uuid"
-	"github.com/sashabaranov/go-openai"
-	"github.com/weaviate/weaviate-go-client/v4/weaviate"
-	"github.com/weaviate/weaviate-go-client/v4/weaviate/graphql"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 )
 
 // --- Prompts and Structs for LLM Interactions ---
@@ -24,7 +27,7 @@ const FactExtractionSystemPrompt = `You are an expert AI tasked with extracting 
 Each fact should be a concise, self-contained piece of information. 
 For example, if the text is "User A is in San Francisco and likes ice cream", the facts are "User A is in San Francisco" and "User A likes ice cream".
 If the text is a question, extract the core statement or assumption if possible, or state that it's a question about a topic.
-Respond with a JSON list of strings, where each string is a fact. Example: ["fact 1", "fact 2", "fact 3"]
+Respond with a tool call object containing the "facts" (array of strings). Example: {"facts": ["fact 1", "fact 2", "fact 3"]}
 If there are no clear facts to extract (e.g., the text is too short, a greeting, or nonsensical), return an empty list [].`
 
 // FactExtractionUserPromptTemplate is the template for the user message for fact extraction.
@@ -46,6 +49,7 @@ type LLMDecision struct {
 	IDToUpdate     string `json:"id_to_update,omitempty"`    // For UPDATE
 	UpdatedContent string `json:"updated_content,omitempty"` // For UPDATE or ADD
 	IDToDelete     string `json:"id_to_delete,omitempty"`    // For DELETE
+	Reason         string `json:"reason,omitempty"`          // For ADD, UPDATE, DELETE, NONE
 }
 
 // ConsolidationSystemPrompt defines the system role for the consolidation LLM.
@@ -64,12 +68,12 @@ Based on the new fact and existing memories, choose one of the following actions
 - DELETE: If the new fact explicitly invalidates or marks an existing memory as obsolete. If you choose DELETE, you MUST provide the ID of the memory to delete.
 - NONE: If the new fact is a duplicate of an existing memory, or if it's too vague or doesn't add significant value compared to existing memories.
 
-Respond with a JSON object containing the "action" (ADD, UPDATE, DELETE, NONE). 
-If UPDATE, also include "id_to_update" and "updated_content". 
-If DELETE, also include "id_to_delete".
+Respond with a TOol call object containing the "action" (ADD, UPDATE, DELETE, NONE). 
+If UPDATE, also include "id" and "updated_content". 
+If DELETE, also include "id".
 
 Example for UPDATE:
-{"action": "UPDATE", "id_to_update": "existing_memory_id_123", "updated_content": "Updated version of the memory with new details from the fact."}
+{"action": "UPDATE", "id": "existing_memory_id_123", "updated_content": "Updated version of the memory with new details from the fact."}
 
 Example for ADD:
 {"action": "ADD"}
@@ -78,7 +82,7 @@ Example for NONE:
 {"action": "NONE"}
 
 Example for DELETE:
-{"action": "DELETE", "id_to_delete": "existing_memory_id_456"}
+{"action": "DELETE", "id": "existing_memory_id_456"}
 
 Consider the timestamp and specificity of the information. A newer, more specific fact might supersede an older, vaguer one.`
 
@@ -90,36 +94,45 @@ Relevant Existing Memories (if any):
 %s
 
 Based on the new information and existing memories, what is your decision (ADD, UPDATE, DELETE, NONE) and the necessary details (id, content)?
-Respond with a JSON object.`
+Respond with a tool call.`
 
 // --- WeaviateMemoryStore Implementation ---
 
 // WeaviateMemoryStore implements the memory.Storage interface using Weaviate and OpenAI.
 type WeaviateMemoryStore struct {
-	client       *weaviate.Client
-	openaiClient *openai.Client
-	logger       *log.Logger
-	className    string
-	storeTimeout time.Duration
-	queryTimeout time.Duration
-	llmTimeout   time.Duration
+	client               *weaviate.Client
+	aiCompletionsService *ai.Service
+	aiEmbeddingsService  *ai.Service
+	logger               *log.Logger
+	className            string
+	storeTimeout         time.Duration
+	queryTimeout         time.Duration
+	llmTimeout           time.Duration
+	completionsModel     string
+	embeddingsModel      string
 }
 
 // NewWeaviateMemoryStore creates a new instance of WeaviateMemoryStore.
 func NewWeaviateMemoryStore(
 	client *weaviate.Client,
-	openaiClient *openai.Client,
+	aiCompletionsService *ai.Service,
+	aiEmbeddingsService *ai.Service,
+	completionsModel string,
+	embeddingsModel string,
 	className string,
 	logger *log.Logger,
 ) memory.Storage {
 	return &WeaviateMemoryStore{
-		client:       client,
-		openaiClient: openaiClient,
-		className:    className,
-		logger:       logger,
-		storeTimeout: 30 * time.Minute,
-		queryTimeout: 1 * time.Minute,
-		llmTimeout:   60 * time.Second,
+		client:               client,
+		aiCompletionsService: aiCompletionsService,
+		aiEmbeddingsService:  aiEmbeddingsService,
+		completionsModel:     completionsModel,
+		embeddingsModel:      embeddingsModel,
+		className:            className,
+		logger:               logger,
+		storeTimeout:         30 * time.Minute,
+		queryTimeout:         1 * time.Minute,
+		llmTimeout:           60 * time.Second,
 	}
 }
 
@@ -204,36 +217,32 @@ func (wms *WeaviateMemoryStore) Store(ctx context.Context, documents []memory.Te
 			totalFactsProcessed++
 			wms.logger.Printf("  Processing fact %d/%d for turn %d: Content: \"%s\"", factIndex+1, len(processedTurn.extractedFacts), i+1, factContent)
 
-			// Diagnostic: Add a small delay to allow for vectorization/indexing
-			time.Sleep(1 * time.Second)
-			wms.logger.Printf("    Waited 1s for potential indexing of previous fact.")
-
 			relevantFactMemories, err := wms.Query(ctx, factContent)
 			if err != nil {
 				wms.logger.Printf("    Error querying relevant fact-memories for fact \"%s\" (turn %d): %v. Proceeding without consolidation for this fact.", factContent, i+1, err)
+				return errors.Wrap(err, "error querying relevant fact-memories")
 			} else {
 				wms.logger.Printf("    Retrieved %d relevant fact-memories for fact \"%s\".", len(relevantFactMemories.Documents), factContent)
 			}
 
-			llmDecision := LLMDecision{Action: "ADD"}
-
 			decision, err := wms.getLLMConsolidationDecision(ctx, factContent, relevantFactMemories.Documents)
 			if err != nil {
-				wms.logger.Printf("    Error getting LLM consolidation decision for fact \"%s\": %v. Defaulting to ADD.", factContent, err)
-			} else {
-				llmDecision = decision
-				logMsg := fmt.Sprintf("    LLM decision for fact \"%s\": Action: %s", factContent, llmDecision.Action)
-				if llmDecision.IDToUpdate != "" {
-					logMsg += fmt.Sprintf(", IDToUpdate: %s", llmDecision.IDToUpdate)
-				}
-				if llmDecision.UpdatedContent != "" {
-					logMsg += fmt.Sprintf(", UpdatedContent: \"%s\"", llmDecision.UpdatedContent)
-				}
-				if llmDecision.IDToDelete != "" {
-					logMsg += fmt.Sprintf(", IDToDelete: %s", llmDecision.IDToDelete)
-				}
-				wms.logger.Printf(logMsg)
+				wms.logger.Debug("Error getting LLM consolidation decision", "fact_content", factContent, "error", err)
+				continue
 			}
+
+			llmDecision := decision
+			logMsg := fmt.Sprintf("    LLM decision for fact \"%s\": Action: %s", factContent, llmDecision.Action)
+			if llmDecision.IDToUpdate != "" {
+				logMsg += fmt.Sprintf(", IDToUpdate: %s", llmDecision.IDToUpdate)
+			}
+			if llmDecision.UpdatedContent != "" {
+				logMsg += fmt.Sprintf(", UpdatedContent: \"%s\"", llmDecision.UpdatedContent)
+			}
+			if llmDecision.IDToDelete != "" {
+				logMsg += fmt.Sprintf(", IDToDelete: %s", llmDecision.IDToDelete)
+			}
+			wms.logger.Printf(logMsg)
 
 			switch llmDecision.Action {
 			case "ADD":
@@ -246,7 +255,17 @@ func (wms *WeaviateMemoryStore) Store(ctx context.Context, documents []memory.Te
 					wms.logger.Printf("    ADD action: Using 'updated_content' from LLM: \"%s\"", contentForStorage)
 				}
 
-				properties := map[string]interface{}{
+				embedding, err := wms.aiEmbeddingsService.Embedding(ctx, contentForStorage, wms.embeddingsModel)
+				if err != nil {
+					wms.logger.Printf("    Error generating embedding for new fact: %v", err)
+					return errors.Wrap(err, "error generating embedding for new fact")
+				}
+				embedding32 := make([]float32, len(embedding))
+				for i, v := range embedding {
+					embedding32[i] = float32(v)
+				}
+
+				properties := map[string]any{
 					"content": contentForStorage,
 				}
 				if processedTurn.originalTurn.Timestamp != nil {
@@ -265,24 +284,25 @@ func (wms *WeaviateMemoryStore) Store(ctx context.Context, documents []memory.Te
 				factMetadata["original_turn_content_preview"] = truncateString(processedTurn.originalTurn.Content, 50)
 				factMetadata["fact_index_in_turn"] = fmt.Sprintf("%d", factIndex)
 
-				metadataJSON, merr := json.Marshal(factMetadata)
-				if merr != nil {
-					wms.logger.Printf("    Error marshalling metadata for fact (new ID %s): %v. Metadata will not be stored.", newFactID, merr)
-				} else {
-					properties["metadata_map"] = string(metadataJSON)
+				metadataJSON, err := json.Marshal(factMetadata)
+				if err != nil {
+					wms.logger.Printf("    Error marshalling metadata for fact (new ID %s): %v. Metadata will not be stored.", newFactID, err)
+					return errors.Wrap(err, "memory failed to unmarshal")
 				}
+				properties["metadata_map"] = string(metadataJSON)
 
 				// IMMEDIATE ADD
-				_, createErr := wms.client.Data().Creator().
+				_, err = wms.client.Data().Creator().
 					WithClassName(wms.className).
 					WithID(newFactID).
 					WithProperties(properties).
+					WithVector(embedding32).
 					Do(ctx)
-				if createErr != nil {
-					wms.logger.Printf("    Error immediately ADDING fact (new ID %s) derived from turn %d: %v", newFactID, i+1, createErr)
-				} else {
-					wms.logger.Printf("    Successfully ADDED fact (new ID %s), derived from turn %d. Content: \"%s\"", newFactID, i+1, contentForStorage)
+				if err != nil {
+					wms.logger.Printf("    Error immediately ADDING fact (new ID %s) derived from turn %d: %v", newFactID, i+1, err)
+					return errors.Wrap(err, "error immediately ADDING fact")
 				}
+				wms.logger.Printf("    Successfully ADDED fact (new ID %s), derived from turn %d. Content: \"%s\"", newFactID, i+1, contentForStorage)
 
 			case "UPDATE":
 				idToUpdate := llmDecision.IDToUpdate
@@ -304,9 +324,9 @@ func (wms *WeaviateMemoryStore) Store(ctx context.Context, documents []memory.Te
 					Do(ctx)
 				if err != nil {
 					wms.logger.Printf("    Error updating fact-memory ID %s in Weaviate: %v", idToUpdate, err)
-				} else {
-					wms.logger.Printf("    Successfully UPDATED fact-memory ID %s.", idToUpdate)
+					return errors.Wrap(err, "error updating fact-memory")
 				}
+				wms.logger.Printf("    Successfully UPDATED fact-memory ID %s.", idToUpdate)
 
 			case "DELETE":
 				idToDelete := llmDecision.IDToDelete
@@ -321,34 +341,14 @@ func (wms *WeaviateMemoryStore) Store(ctx context.Context, documents []memory.Te
 					Do(ctx)
 				if err != nil {
 					wms.logger.Printf("    Error deleting fact-memory ID %s from Weaviate: %v", idToDelete, err)
-				} else {
-					wms.logger.Printf("    Successfully DELETED fact-memory ID %s.", idToDelete)
+					return errors.Wrap(err, "error deleting fact-memory")
 				}
+				wms.logger.Printf("    Successfully DELETED fact-memory ID %s.", idToDelete)
 
 			case "NONE":
 				wms.logger.Printf("    NONE action chosen by LLM for fact \"%s\". Skipping.", factContent)
 			default:
-				wms.logger.Printf("    Unknown action '%s' from LLM for fact \"%s\". Defaulting to ADD this fact.", llmDecision.Action, factContent)
-				newFactID := uuid.New().String()
-				properties := map[string]interface{}{ // Simplified properties for default ADD
-					"content": factContent,
-				}
-				if processedTurn.originalTurn.Timestamp != nil {
-					properties["timestamp"] = processedTurn.originalTurn.Timestamp.Format(time.RFC3339Nano)
-				} else {
-					wms.logger.Printf("    Default ADD action: originalTurn.Timestamp is nil for new fact ID %s", newFactID)
-				}
-				// IMMEDIATE ADD (fallback)
-				_, createErr := wms.client.Data().Creator().
-					WithClassName(wms.className).
-					WithID(newFactID).
-					WithProperties(properties).
-					Do(ctx)
-				if createErr != nil {
-					wms.logger.Printf("    Error immediately ADDING fact (new ID %s) due to unknown LLM action: %v", newFactID, createErr)
-				} else {
-					wms.logger.Printf("    Defaulted to ADD for fact (new ID %s) due to unknown LLM action. Content: \"%s\"", newFactID, factContent)
-				}
+				return errors.New("unknown action from LLM")
 			}
 		}
 
@@ -368,72 +368,54 @@ func (wms *WeaviateMemoryStore) Store(ctx context.Context, documents []memory.Te
 
 func (wms *WeaviateMemoryStore) extractFactsFromTurn(ctx context.Context, turnDoc memory.TextDocument) ([]string, error) {
 	if strings.TrimSpace(turnDoc.Content) == "" {
-		wms.logger.Println("extractFactsFromTurn: called with empty turnContent, returning no facts.")
+		wms.logger.Debug("extractFactsFromTurn: called with empty turnContent, returning no facts.")
 		return []string{}, nil
 	}
 
 	prompt := fmt.Sprintf(FactExtractionUserPromptTemplate, turnDoc.Content)
-	var resp openai.ChatCompletionResponse
-	var err error
 
-	for i := 0; i <= MaxRetries; i++ {
-		requestCtx, cancel := context.WithTimeout(ctx, wms.llmTimeout)
-
-		resp, err = wms.openaiClient.CreateChatCompletion(
-			requestCtx,
-			openai.ChatCompletionRequest{
-				Model: "gpt-4o-mini",
-				Messages: []openai.ChatCompletionMessage{
-					{Role: openai.ChatMessageRoleSystem, Content: FactExtractionSystemPrompt},
-					{Role: openai.ChatMessageRoleUser, Content: prompt},
-				},
-				ResponseFormat: &openai.ChatCompletionResponseFormat{Type: openai.ChatCompletionResponseFormatTypeJSONObject},
-				Temperature:    0.1,
-			},
-		)
-		cancel() // Release context resources as soon as possible
-		if err == nil {
-			break
-		}
-		wms.logger.Printf("extractFactsFromTurn: OpenAI call attempt %d/%d failed: %v", i+1, MaxRetries+1, err)
-		if i < MaxRetries {
-			time.Sleep(RetryDelay)
-		}
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(FactExtractionSystemPrompt),
+		openai.UserMessage(prompt),
 	}
+
+	resp, err := wms.aiCompletionsService.ParamsCompletions(
+		ctx,
+		openai.ChatCompletionNewParams{
+			Model:       wms.completionsModel,
+			Messages:    messages,
+			Tools:       []openai.ChatCompletionToolParam{extractFactsTool},
+			ToolChoice:  openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: param.NewOpt("required")},
+			Temperature: param.NewOpt(0.1),
+		},
+	)
 
 	if err != nil {
 		return nil, fmt.Errorf("fact extraction LLM call failed after %d retries: %w", MaxRetries+1, err)
 	}
 
-	if len(resp.Choices) == 0 || resp.Choices[0].Message.Content == "" {
-		wms.logger.Printf("extractFactsFromTurn: OpenAI returned no choices or empty content for turn: \"%s\"", turnDoc.Content)
-		return []string{}, nil
+	wms.logger.Debug("extractFactsFromTurn", "content", turnDoc.Content, "tool_calls", resp.ToolCalls)
+
+	if len(resp.ToolCalls) == 0 {
+		return nil, errors.New("no tool call for extractFactsFromTurn")
 	}
 
-	llmOutput := resp.Choices[0].Message.Content
 	var factsResponse FactsExtractionResponse
-	err = json.Unmarshal([]byte(llmOutput), &factsResponse)
-	if err == nil {
-		return factsResponse.Facts, nil
-	}
-
-	wms.logger.Printf("Direct JSON unmarshal for fact extraction failed (err: %v), trying markdown fallback for output: %s", err, llmOutput)
-	if strings.HasPrefix(llmOutput, "```json") && strings.HasSuffix(llmOutput, "```") {
-		unwrappedJSON := strings.TrimPrefix(llmOutput, "```json\n")
-		unwrappedJSON = strings.TrimSuffix(unwrappedJSON, "\n```")
-		unwrappedJSON = strings.TrimSpace(unwrappedJSON)
-		err = json.Unmarshal([]byte(unwrappedJSON), &factsResponse)
-		if err == nil {
-			return factsResponse.Facts, nil
+	for _, toolCall := range resp.ToolCalls {
+		wms.logger.Debug("extractFactsFromTurn", "tool_returned", toolCall.Function.Name, "expected_name", extractFactsTool.Function.Name)
+		if toolCall.Function.Name == extractFactsTool.Function.Name {
+			err = json.Unmarshal([]byte(toolCall.Function.Arguments), &factsResponse)
+			if err == nil {
+				return factsResponse.Facts, nil
+			}
 		}
-		wms.logger.Printf("Markdown JSON unmarshal for fact extraction also failed (err: %v)", err)
 	}
 
-	return nil, fmt.Errorf("failed to parse LLM response for fact extraction (output: %s): %w", llmOutput, err)
+	return nil, errors.Wrap(err, "could not find tool call for extractFactsFromTurn")
 }
 
 func (wms *WeaviateMemoryStore) getLLMConsolidationDecision(ctx context.Context, newFactContent string, relevantDocs []memory.TextDocument) (LLMDecision, error) {
-	wms.logger.Printf("Getting LLM consolidation decision for new fact: \"%s\"", newFactContent)
+	wms.logger.Debug("Getting LLM consolidation decision", "new_fact_content", newFactContent)
 
 	var relevantMemoriesString string
 	if len(relevantDocs) > 0 {
@@ -445,6 +427,7 @@ func (wms *WeaviateMemoryStore) getLLMConsolidationDecision(ctx context.Context,
 		for _, doc := range relevantDocs {
 			promptMemories = append(promptMemories, PromptRelevantMemory{ID: doc.ID, Content: doc.Content})
 		}
+		// TODO: Why marshalling instead of just using pretty string based on the data?
 		memBytes, err := json.Marshal(promptMemories)
 		if err != nil {
 			wms.logger.Printf("Error marshalling relevant memories for prompt: %v", err)
@@ -458,115 +441,106 @@ func (wms *WeaviateMemoryStore) getLLMConsolidationDecision(ctx context.Context,
 
 	prompt := fmt.Sprintf(ConsolidationUserPromptTemplate, newFactContent, relevantMemoriesString)
 
-	var resp openai.ChatCompletionResponse
-	var err error
-	var llmDecision LLMDecision
-
-	for i := 0; i <= MaxRetries; i++ {
-		requestCtx, cancel := context.WithTimeout(ctx, wms.llmTimeout)
-
-		resp, err = wms.openaiClient.CreateChatCompletion(
-			requestCtx,
-			openai.ChatCompletionRequest{
-				Model: "gpt-4o-mini",
-				Messages: []openai.ChatCompletionMessage{
-					{Role: openai.ChatMessageRoleSystem, Content: ConsolidationSystemPrompt},
-					{Role: openai.ChatMessageRoleUser, Content: prompt},
-				},
-				ResponseFormat: &openai.ChatCompletionResponseFormat{Type: openai.ChatCompletionResponseFormatTypeJSONObject},
-				Temperature:    0.1,
-			},
-		)
-		cancel()
-		if err == nil {
-			break
-		}
-		wms.logger.Printf("getLLMConsolidationDecision: OpenAI call attempt %d/%d failed: %v", i+1, MaxRetries+1, err)
-		if i < MaxRetries {
-			time.Sleep(RetryDelay)
-		}
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(ConsolidationSystemPrompt),
+		openai.UserMessage(prompt),
 	}
+	tools := []openai.ChatCompletionToolParam{addMemoryTool, updateMemoryTool, deleteMemoryTool, noneMemoryTool}
 
+	resp, err := wms.aiCompletionsService.ParamsCompletions(
+		ctx,
+		openai.ChatCompletionNewParams{
+			Model:      wms.completionsModel,
+			Messages:   messages,
+			Tools:      tools,
+			ToolChoice: openai.ChatCompletionToolChoiceOptionUnionParam{OfAuto: param.NewOpt("required")},
+		},
+	)
 	if err != nil {
-		return LLMDecision{}, fmt.Errorf("consolidation LLM call failed after %d retries: %w", MaxRetries+1, err)
+		return LLMDecision{}, fmt.Errorf("consolidation LLM call failed: %w", err)
 	}
 
-	if len(resp.Choices) == 0 || resp.Choices[0].Message.Content == "" {
-		wms.logger.Printf("getLLMConsolidationDecision: OpenAI returned no choices or empty content for fact: \"%s\"", newFactContent)
-		return LLMDecision{Action: "ADD"}, nil
+	if len(resp.ToolCalls) == 0 {
+		wms.logger.Printf("getLLMConsolidationDecision: OpenAI returned empty content for fact: \"%s\"", newFactContent)
+		return LLMDecision{}, errors.New("no tool call for getLLMConsolidationDecision")
 	}
 
-	llmOutput := resp.Choices[0].Message.Content
-	err = json.Unmarshal([]byte(llmOutput), &llmDecision)
-	if err != nil {
-		wms.logger.Printf("Direct JSON unmarshal for consolidation decision failed (err: %v), trying markdown fallback for output: %s", err, llmOutput)
-		if strings.HasPrefix(llmOutput, "```json") && strings.HasSuffix(llmOutput, "```") {
-			unwrappedJSON := strings.TrimPrefix(llmOutput, "```json\n")
-			unwrappedJSON = strings.TrimSuffix(unwrappedJSON, "\n```")
-			unwrappedJSON = strings.TrimSpace(unwrappedJSON)
-			err = json.Unmarshal([]byte(unwrappedJSON), &llmDecision)
-			if err == nil {
-				wms.logger.Printf("Successfully parsed consolidation decision from markdown fallback: Action: %s", llmDecision.Action)
-			} else {
-				wms.logger.Printf("Markdown JSON unmarshal for consolidation decision also failed (err: %v)", err)
+	for _, toolCall := range resp.ToolCalls {
+		if toolCall.Function.Name == addMemoryTool.Function.Name {
+			return LLMDecision{Action: "ADD"}, nil
+		} else if toolCall.Function.Name == updateMemoryTool.Function.Name {
+			var updateToolRes struct {
+				ID             string `json:"id"`
+				UpdatedContent string `json:"updated_content"`
+				Reason         string `json:"reason"`
 			}
-		}
-		if err != nil {
-			return LLMDecision{}, fmt.Errorf("failed to parse consolidation LLM response (output: %s): %w", llmOutput, err)
+			err = json.Unmarshal([]byte(toolCall.Function.Arguments), &updateToolRes)
+			if err != nil {
+				return LLMDecision{}, errors.Wrap(err, "could not update tool call arguments")
+			}
+			return LLMDecision{Action: "UPDATE", IDToUpdate: updateToolRes.ID, UpdatedContent: updateToolRes.UpdatedContent, Reason: updateToolRes.Reason}, nil
+		} else if toolCall.Function.Name == deleteMemoryTool.Function.Name {
+			var deleteToolRes struct {
+				ID     string `json:"id"`
+				Reason string `json:"reason"`
+			}
+			err = json.Unmarshal([]byte(toolCall.Function.Arguments), &deleteToolRes)
+			if err != nil {
+				return LLMDecision{}, errors.Wrap(err, "could not delete tool call arguments")
+			}
+			return LLMDecision{Action: "DELETE", IDToDelete: deleteToolRes.ID, Reason: deleteToolRes.Reason}, nil
+		} else if toolCall.Function.Name == noneMemoryTool.Function.Name {
+			var noneToolRes struct {
+				Reason string `json:"reason"`
+			}
+			err = json.Unmarshal([]byte(toolCall.Function.Arguments), &noneToolRes)
+			if err != nil {
+				return LLMDecision{}, errors.Wrap(err, "could not none tool call arguments")
+			}
+			return LLMDecision{Action: "NONE", Reason: noneToolRes.Reason}, nil
+		} else {
+			wms.logger.Printf("getLLMConsolidationDecision: unknown tool call: %s", toolCall.Function.Name)
 		}
 	}
 
-	validActions := map[string]bool{"ADD": true, "UPDATE": true, "DELETE": true, "NONE": true}
-	if !validActions[llmDecision.Action] {
-		wms.logger.Printf("LLM returned invalid action '%s'. Defaulting to NONE.", llmDecision.Action)
-		return LLMDecision{Action: "NONE"}, nil
-	}
-
-	logMsg := fmt.Sprintf("Consolidation LLM decision parsed: Action: %s", llmDecision.Action)
-	if llmDecision.IDToUpdate != "" {
-		logMsg += fmt.Sprintf(", IDToUpdate: %s", llmDecision.IDToUpdate)
-	}
-	if llmDecision.UpdatedContent != "" {
-		logMsg += fmt.Sprintf(", UpdatedContent: \"%s\"", llmDecision.UpdatedContent)
-	}
-	if llmDecision.IDToDelete != "" {
-		logMsg += fmt.Sprintf(", IDToDelete: %s", llmDecision.IDToDelete)
-	}
-	wms.logger.Printf(logMsg)
-	return llmDecision, nil
+	return LLMDecision{}, errors.New("could not find matching tool call for getLLMConsolidationDecision")
 }
 
 func (wms *WeaviateMemoryStore) Query(ctx context.Context, query string) (memory.QueryResult, error) {
-	ctx, cancel := context.WithTimeout(ctx, wms.queryTimeout)
-	defer cancel()
-
-	wms.logger.Printf("Querying Weaviate class '%s' with query: '%s'", wms.className, truncateString(query, 100))
-
-	// Prepare GraphQL query
 	fields := []graphql.Field{
 		{Name: "content"},
 		{Name: "timestamp"},
 		{Name: "tags"},
-		{Name: "metadata_map"}, // This is assumed to be a JSON string
+		{Name: "metadata_map"},
 		{Name: "_additional", Fields: []graphql.Field{
 			{Name: "id"},
-			{Name: "certainty"}, // We can include certainty if available and useful
+			{Name: "certainty"},
 		}},
 	}
 
-	nearText := wms.client.GraphQL().
-		NearTextArgBuilder().
-		WithConcepts([]string{query})
+	embedding, err := wms.aiEmbeddingsService.Embedding(ctx, query, wms.embeddingsModel)
+	if err != nil {
+		return memory.QueryResult{}, errors.Wrap(err, "failed to calculate embedding")
+	}
+
+	embedding32 := make([]float32, len(embedding))
+	for i, v := range embedding {
+		embedding32[i] = float32(v)
+	}
+
+	nearVector := wms.client.GraphQL().
+		NearVectorArgBuilder().
+		WithVector(embedding32)
 
 	resp, err := wms.client.GraphQL().Get().
 		WithClassName(wms.className).
 		WithFields(fields...).
-		WithNearText(nearText).
-		// WithLimit(k). // k is no longer passed, so remove or use a default from wms if available
+		WithNearVector(nearVector).
+		WithLimit(10).
 		Do(ctx)
 
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to execute Weaviate GraphQL query: %w", err)
+		return memory.QueryResult{}, errors.Wrap(err, "failed to execute Weaviate GraphQL query")
 	}
 	if len(resp.Errors) > 0 {
 		var errMsgs []string
@@ -577,15 +551,15 @@ func (wms *WeaviateMemoryStore) Query(ctx context.Context, query string) (memory
 	}
 
 	// Assuming resp.Data["Get"][wms.className] returns a list of maps or a compatible structure
-	data, ok := resp.Data["Get"].(map[string]interface{})
+	data, ok := resp.Data["Get"].(map[string]any)
 	if !ok {
-		return memory.QueryResult{}, fmt.Errorf("unexpected structure for GraphQL response data 'Get'")
+		return memory.QueryResult{}, errors.New("unexpected structure for GraphQL response data 'Get'")
 	}
 
-	classData, ok := data[wms.className].([]interface{})
+	classData, ok := data[wms.className].([]any)
 	if !ok {
 		// It might be that if no results, this key is missing or nil.
-		wms.logger.Printf("No results found for class '%s' with query: '%s'", wms.className, query)
+		wms.logger.Debug("No results found for class", "class", wms.className, "query", query)
 		return memory.QueryResult{Documents: []memory.TextDocument{}, Text: []string{}}, nil
 	}
 
@@ -593,9 +567,9 @@ func (wms *WeaviateMemoryStore) Query(ctx context.Context, query string) (memory
 	var textResults []string
 
 	for _, item := range classData {
-		itemMap, ok := item.(map[string]interface{})
+		itemMap, ok := item.(map[string]any)
 		if !ok {
-			wms.logger.Printf("Warning: Skipping item, not a map[string]interface{}: %T", item)
+			wms.logger.Debug("Warning: Skipping item, not a map[string]any", "item", item)
 			continue
 		}
 
@@ -608,7 +582,7 @@ func (wms *WeaviateMemoryStore) Query(ctx context.Context, query string) (memory
 		if parsedTimestamp := parseTime(timestampStr); parsedTimestamp != nil {
 			doc.Timestamp = parsedTimestamp
 		} else if timestampStr != "" {
-			wms.logger.Printf("Error parsing timestamp '%s' for doc ID %s: %v. Using nil time.", timestampStr, doc.ID, err)
+			wms.logger.Debug("Error parsing timestamp", "timestamp", timestampStr, "doc_id", doc.ID, "error", err)
 		}
 
 		if tagsInterface, ok := itemMap["tags"].([]interface{}); ok {
@@ -628,7 +602,7 @@ func (wms *WeaviateMemoryStore) Query(ctx context.Context, query string) (memory
 		textResults = append(textResults, doc.Content)
 	}
 
-	wms.logger.Printf("Query returned %d documents for query '%s'.", len(queryResults), query)
+	wms.logger.Debug("Query returned documents", "count", len(queryResults), "query", query)
 	return memory.QueryResult{Documents: queryResults, Text: textResults}, nil
 }
 

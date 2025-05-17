@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	stderrs "errors"
 	"fmt"
 	"log/slog"
@@ -11,7 +10,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -31,8 +29,10 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
+	"github.com/weaviate/weaviate/entities/models"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
@@ -42,6 +42,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/newmem"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -51,19 +52,21 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	weaviateAuth "github.com/weaviate/weaviate-go-client/v5/weaviate/auth"
 )
 
 func main() {
-	whatsappQRChan := whatsapp.GetQRChannel()
-	var currentWhatsAppQRCode *string
-	whatsAppConnected := false
-	var whatsappClient *whatsmeow.Client
+	// whatsappQRChan := whatsapp.GetQRChannel()
+	// var currentWhatsAppQRCode *string
+	// whatsAppConnected := false
+	// var whatsappClient *whatsmeow.Client
 
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
@@ -99,67 +102,67 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
-	go func() {
-		for evt := range whatsappQRChan {
-			switch evt.Event {
-			case "code":
-				qrCode := evt.Code
-				currentWhatsAppQRCode = &qrCode
-				whatsAppConnected = false
-				logger.Info("Received new WhatsApp QR code, length:", "length", len(qrCode))
+	// go func() {
+	// 	for evt := range whatsappQRChan {
+	// 		switch evt.Event {
+	// 		case "code":
+	// 			qrCode := evt.Code
+	// 			currentWhatsAppQRCode = &qrCode
+	// 			whatsAppConnected = false
+	// 			logger.Info("Received new WhatsApp QR code, length:", "length", len(qrCode))
 
-				qrCodeUpdate := map[string]interface{}{
-					"event":        "code",
-					"qr_code_data": qrCode,
-					"is_connected": false,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(qrCodeUpdate)
-				if err == nil {
-					err = nc.Publish("whatsapp.qr_code", jsonData)
-					if err != nil {
-						logger.Error("Failed to publish WhatsApp QR code to NATS", slog.Any("error", err))
-					} else {
-						logger.Info("Published WhatsApp QR code to NATS")
-					}
-				} else {
-					logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
-				}
-			case "success":
-				whatsAppConnected = true
-				currentWhatsAppQRCode = nil
-				logger.Info("WhatsApp connection successful")
+	// 			qrCodeUpdate := map[string]interface{}{
+	// 				"event":        "code",
+	// 				"qr_code_data": qrCode,
+	// 				"is_connected": false,
+	// 				"timestamp":    time.Now().Format(time.RFC3339),
+	// 			}
+	// 			jsonData, err := json.Marshal(qrCodeUpdate)
+	// 			if err == nil {
+	// 				err = nc.Publish("whatsapp.qr_code", jsonData)
+	// 				if err != nil {
+	// 					logger.Error("Failed to publish WhatsApp QR code to NATS", slog.Any("error", err))
+	// 				} else {
+	// 					logger.Info("Published WhatsApp QR code to NATS")
+	// 				}
+	// 			} else {
+	// 				logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
+	// 			}
+	// 		case "success":
+	// 			whatsAppConnected = true
+	// 			currentWhatsAppQRCode = nil
+	// 			logger.Info("WhatsApp connection successful")
 
-				whatsapp.StartSync()
-				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
-					IsSyncing:      true,
-					IsCompleted:    false,
-					ProcessedItems: 0,
-					TotalItems:     0,
-					StatusMessage:  "Waiting for history sync to begin",
-				})
-				whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
+	// 			whatsapp.StartSync()
+	// 			whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+	// 				IsSyncing:      true,
+	// 				IsCompleted:    false,
+	// 				ProcessedItems: 0,
+	// 				TotalItems:     0,
+	// 				StatusMessage:  "Waiting for history sync to begin",
+	// 			})
+	// 			whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
 
-				successUpdate := map[string]interface{}{
-					"event":        "success",
-					"qr_code_data": nil,
-					"is_connected": true,
-					"timestamp":    time.Now().Format(time.RFC3339),
-				}
-				jsonData, err := json.Marshal(successUpdate)
-				if err == nil {
-					err = nc.Publish("whatsapp.qr_code", jsonData)
-					if err != nil {
-						logger.Error("Failed to publish WhatsApp connection success to NATS", slog.Any("error", err))
-					} else {
-						logger.Info("Published WhatsApp connection success to NATS")
-					}
-				} else {
-					logger.Error("Failed to marshal WhatsApp success data", "error", err)
-				}
-			}
-		}
-	}()
+	// 			successUpdate := map[string]interface{}{
+	// 				"event":        "success",
+	// 				"qr_code_data": nil,
+	// 				"is_connected": true,
+	// 				"timestamp":    time.Now().Format(time.RFC3339),
+	// 			}
+	// 			jsonData, err := json.Marshal(successUpdate)
+	// 			if err == nil {
+	// 				err = nc.Publish("whatsapp.qr_code", jsonData)
+	// 				if err != nil {
+	// 					logger.Error("Failed to publish WhatsApp connection success to NATS", slog.Any("error", err))
+	// 				} else {
+	// 					logger.Info("Published WhatsApp connection success to NATS")
+	// 				}
+	// 			} else {
+	// 				logger.Error("Failed to marshal WhatsApp success data", "error", err)
+	// 			}
+	// 		}
+	// 	}
+	// }()
 
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
@@ -174,17 +177,54 @@ func main() {
 
 	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+	aiEmbeddingsService := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	mem := &memory.MockMemory{}
+	// weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	// if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+	// 	logger.Error("Failed to bootstrap Weaviate server", "error", err)
+	// 	panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
+	// }
 
-	whatsapp.TriggerConnect()
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		// Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
+		// Scheme: "http",
+		Host:   "pcpsisggqlosvuh0rtadkg.c0.us-west3.gcp.weaviate.cloud",
+		Scheme: "https",
+		AuthConfig: &weaviateAuth.ApiKey{
+			Value: "l8SzG9vo5c1JG7qBWxwAwyrkBkm8vqsrTbBq",
+		},
+	})
+	if err != nil {
+		logger.Error("Failed to create Weaviate client", "error", err)
+		panic(errors.Wrap(err, "Failed to create Weaviate client"))
+	}
 
-	whatsappClientChan := make(chan *whatsmeow.Client)
-	go func() {
-		client := bootstrapWhatsAppClient(mem, logger, nc)
-		whatsappClientChan <- client
-	}()
+	if err := InitSchema(weaviateClient); err != nil {
+		logger.Error("Failed to initialize Weaviate schema", "error", err)
+		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
+	}
+
+	mem := newmem.NewWeaviateMemoryStore(weaviateClient, aiCompletionsService, aiEmbeddingsService, envs.CompletionsModel, envs.EmbeddingsModel, "Memory", logger)
+	err = mem.Store(context.Background(), []memory.TextDocument{
+		{
+			ID:        "1",
+			Content:   "I like going to the park to play with my dog Coco.",
+			Timestamp: helpers.Ptr(time.Now()),
+		},
+	}, nil)
+	if err != nil {
+		logger.Error("Failed to store initial memory", "error", err)
+		panic(errors.Wrap(err, "Failed to store initial memory"))
+	}
+
+	// whatsapp.TriggerConnect()
+
+	// whatsappClientChan := make(chan *whatsmeow.Client)
+	// go func() {
+	// 	client := bootstrapWhatsAppClient(mem, logger, nc)
+	// 	whatsappClientChan <- client
+	// }()
 
 	ttsSvc, err := bootstrapTTS(logger)
 	if err != nil {
@@ -223,16 +263,16 @@ func main() {
 		envs.TelegramChatServer,
 	)
 
-	select {
-	case whatsappClient = <-whatsappClientChan:
+	// select {
+	// case whatsappClient = <-whatsappClientChan:
 
-		if whatsappClient != nil {
-			whatsappTools := agent.RegisterWhatsAppTool(toolRegistry, logger, whatsappClient)
-			logger.Info("WhatsApp tools registered", "count", len(whatsappTools))
-		}
-	case <-time.After(1 * time.Second):
-		logger.Warn("Timed out waiting for WhatsApp client, continuing without WhatsApp tool")
-	}
+	// 	if whatsappClient != nil {
+	// 		whatsappTools := agent.RegisterWhatsAppTool(toolRegistry, logger, whatsappClient)
+	// 		logger.Info("WhatsApp tools registered", "count", len(whatsappTools))
+	// 	}
+	// case <-time.After(1 * time.Second):
+	// 	logger.Warn("Timed out waiting for WhatsApp client, continuing without WhatsApp tool")
+	// }
 
 	twinChatService := twinchat.NewService(
 		logger,
@@ -333,24 +373,18 @@ func main() {
 		}
 	}()
 
-	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
-	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
-		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
-	}
-
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:            logger,
-		temporalClient:    temporalClient,
-		port:              envs.GraphqlPort,
-		twinChatService:   *twinChatService,
-		natsClient:        nc,
-		store:             store,
-		aiService:         aiCompletionsService,
-		mcpService:        mcpService,
-		telegramService:   telegramService,
-		whatsAppQRCode:    currentWhatsAppQRCode,
-		whatsAppConnected: whatsAppConnected,
+		logger:          logger,
+		temporalClient:  temporalClient,
+		port:            envs.GraphqlPort,
+		twinChatService: *twinChatService,
+		natsClient:      nc,
+		store:           store,
+		aiService:       aiCompletionsService,
+		mcpService:      mcpService,
+		telegramService: telegramService,
+		// whatsAppQRCode:    currentWhatsAppQRCode,
+		// whatsAppConnected: whatsAppConnected,
 	})
 
 	go func() {
@@ -711,4 +745,99 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+// DefineMessageSchema creates the schema for the Message class in Weaviate.
+func DefineMessageSchema(client *weaviate.Client) error {
+	className := "Message"
+	classExists, err := ClassExists(client, className)
+	if err != nil {
+		return fmt.Errorf("checking if class %s exists: %w", className, err)
+	}
+	if classExists {
+		fmt.Printf("Class '%s' already exists.\n", className)
+		return nil
+	}
+
+	messageClass := &models.Class{
+		Class:       "Message",
+		Description: "A message in a conversation turn",
+		Vectorizer:  "none", // We provide our own vectors
+		Properties: []*models.Property{
+			{Name: "role", DataType: []string{"text"}, Description: "Role of the sender (user or assistant)"},
+			{Name: "text", DataType: []string{"text"}, Description: "Content of the message"},
+			{Name: "conversation_id", DataType: []string{"text"}, Description: "Identifier for the conversation"},
+			{Name: "timestamp", DataType: []string{"text"}, Description: "Timestamp of the message in RFC3339Nano format"},
+			{Name: "summary", DataType: []string{"text"}, Description: "Optional summary of the chat up to this message"},
+		},
+		VectorIndexConfig: map[string]interface{}{
+			"distance": "cosine",
+		},
+	}
+
+	err = client.Schema().ClassCreator().WithClass(messageClass).Do(context.Background())
+	if err != nil {
+		return fmt.Errorf("creating class %s: %w", className, err)
+	}
+	fmt.Printf("Class '%s' created successfully.\n", className)
+	return nil
+}
+
+// DefineMemorySchema creates the schema for the Memory class in Weaviate.
+func DefineMemorySchema(client *weaviate.Client) error {
+	className := "Memory"
+	classExists, err := ClassExists(client, className)
+	if err != nil {
+		return fmt.Errorf("checking if class %s exists: %w", className, err)
+	}
+	if classExists {
+		fmt.Printf("Class '%s' already exists.\n", className)
+		return nil
+	}
+
+	memoryClass := &models.Class{
+		Class: className,
+		Properties: []*models.Property{
+			{Name: "content", DataType: []string{"text"}},
+			{Name: "timestamp", DataType: []string{"date"}},
+			{Name: "tags", DataType: []string{"text[]"}},
+			{Name: "metadata_map", DataType: []string{"text"}},
+		},
+		Vectorizer: "none",
+		VectorIndexConfig: map[string]interface{}{
+			"distance": "cosine",
+		},
+	}
+
+	err = client.Schema().ClassCreator().WithClass(memoryClass).Do(context.Background())
+	if err != nil {
+		return fmt.Errorf("creating class %s: %w", className, err)
+	}
+	fmt.Printf("Class '%s' created successfully.\n", className)
+	return nil
+}
+
+// ClassExists checks if a class already exists in Weaviate.
+func ClassExists(client *weaviate.Client, className string) (bool, error) {
+	schema, err := client.Schema().Getter().Do(context.Background())
+	if err != nil {
+		return false, err
+	}
+	for _, class := range schema.Classes {
+		if class.Class == className {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// InitSchema defines all schemas
+func InitSchema(client *weaviate.Client) error {
+	if err := DefineMessageSchema(client); err != nil {
+		return err
+	}
+	if err := DefineMemorySchema(client); err != nil {
+		return err
+	}
+	return nil
 }

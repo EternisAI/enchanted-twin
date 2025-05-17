@@ -3,17 +3,13 @@ package ai
 
 import (
 	"context"
+	"errors"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
 )
-
-type Config struct {
-	APIKey  string
-	BaseUrl string
-}
 
 type Service struct {
 	client *openai.Client
@@ -33,6 +29,10 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
 	}
+	if len(completion.Choices) == 0 {
+		s.logger.Error("no choices returned", "params", params)
+		return openai.ChatCompletionMessage{}, errors.New("no choices returned")
+	}
 	return completion.Choices[0].Message, nil
 }
 
@@ -42,21 +42,6 @@ func (s *Service) Completions(ctx context.Context, messages []openai.ChatComplet
 		Model:    model,
 		Tools:    tools,
 	})
-}
-
-// CompletionsWithMessages executes a completion using our internal message format.
-func (s *Service) CompletionsWithMessages(ctx context.Context, messages []Message, tools []openai.ChatCompletionToolParam, model string) (Message, error) {
-	// Convert our messages to OpenAI format
-	openaiMessages := ToOpenAIMessages(messages)
-
-	// Execute the completion
-	completion, err := s.Completions(ctx, openaiMessages, tools, model)
-	if err != nil {
-		return Message{}, err
-	}
-
-	// Convert result back to our format
-	return FromOpenAIMessage(completion), nil
 }
 
 func (s *Service) Embeddings(ctx context.Context, inputs []string, model string) ([][]float64, error) {
