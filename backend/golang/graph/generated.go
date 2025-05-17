@@ -160,7 +160,7 @@ type ComplexityRoot struct {
 		DeleteDataSource          func(childComplexity int, id string) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
-		SendMessage               func(childComplexity int, chatID string, text string) int
+		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool) int
 		SendTelegramMessage       func(childComplexity int, chatUUID string, text string) int
 		StartIndexing             func(childComplexity int) int
 		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
@@ -245,7 +245,7 @@ type MutationResolver interface {
 	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
-	SendMessage(ctx context.Context, chatID string, text string) (*model.Message, error)
+	SendMessage(ctx context.Context, chatID string, text string, reasoning bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -875,7 +875,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string)), true
+		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string), args["reasoning"].(bool)), true
 
 	case "Mutation.sendTelegramMessage":
 		if e.complexity.Mutation.SendTelegramMessage == nil {
@@ -1624,6 +1624,11 @@ func (ec *executionContext) field_Mutation_sendMessage_args(ctx context.Context,
 		return nil, err
 	}
 	args["text"] = arg1
+	arg2, err := ec.field_Mutation_sendMessage_argsReasoning(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["reasoning"] = arg2
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_sendMessage_argsChatID(
@@ -1649,6 +1654,19 @@ func (ec *executionContext) field_Mutation_sendMessage_argsText(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_sendMessage_argsReasoning(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (bool, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("reasoning"))
+	if tmp, ok := rawArgs["reasoning"]; ok {
+		return ec.unmarshalNBoolean2bool(ctx, tmp)
+	}
+
+	var zeroVal bool
 	return zeroVal, nil
 }
 
@@ -5329,7 +5347,7 @@ func (ec *executionContext) _Mutation_sendMessage(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().SendMessage(rctx, fc.Args["chatId"].(string), fc.Args["text"].(string))
+		return ec.resolvers.Mutation().SendMessage(rctx, fc.Args["chatId"].(string), fc.Args["text"].(string), fc.Args["reasoning"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
