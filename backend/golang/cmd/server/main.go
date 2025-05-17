@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,12 +22,16 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
+	"github.com/go-openapi/loads"
 	"github.com/gorilla/websocket"
+	flags "github.com/jessevdk/go-flags"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/weaviate/weaviate/adapters/handlers/rest"
+	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -238,6 +244,12 @@ func main() {
 		}
 	}()
 
+	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
+	}
+
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:          logger,
 		temporalClient:  temporalClient,
@@ -428,4 +440,74 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+	err := os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
+	}
+	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to load swagger spec")
+	}
+
+	api := operations.NewWeaviateAPI(swaggerSpec)
+	api.Logger = func(s string, i ...any) {
+		logger.Debug(s, i...)
+	}
+	server := rest.NewServer(api)
+
+	server.EnabledListeners = []string{"http"}
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to convert port to int")
+	}
+	server.Port = p
+
+	parser := flags.NewParser(server, flags.Default)
+	parser.ShortDescription = "Weaviate"
+	server.ConfigureFlags()
+	for _, optsGroup := range api.CommandLineOptionsGroups {
+		_, err := parser.AddGroup(optsGroup.ShortDescription, optsGroup.LongDescription, optsGroup.Options)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to add flag group")
+		}
+	}
+
+	if _, err := parser.Parse(); err != nil {
+		if fe, ok := err.(*flags.Error); ok && fe.Type == flags.ErrHelp {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	server.ConfigureAPI()
+
+	go func() {
+		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Weaviate serve error", slog.Any("error", err))
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		_ = server.Shutdown()
+	}()
+
+	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("weaviate did not become ready in time on %s", readyURL)
+		}
+
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			return server, nil
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
 }
