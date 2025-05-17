@@ -58,9 +58,6 @@ pkg/
     └── agi_test.go
 ```
 
-### Keep code easy to follow
+### Requirements
 
-- Write code in a direct style, making it easy to understand by reading and following function calls.
-- Use Go channels when appropriate, but don't overuse them. Channels should be used for communication between Goroutines when it simplifies the code.
-- Use Goroutines for concurrency, but avoid creating Goroutines that persist beyond the function's execution whenever possible. Bugs in background or long-running tasks are difficult to diagnose and debug.
-  - Instead, centralize the creation of all Goroutines that must perform background tasks (timers, imports, etc.) in the `main` function. This approach makes it easier to monitor and control these tasks.
+- When writing go code always perform linting via `make lint` and testing via `make test` before committing.
