@@ -1,13 +1,13 @@
 import log from 'electron-log/main'
-import { KokoroBootstrap } from './pythonManager'
+import { DependencyProgress, KokoroBootstrap } from './pythonManager'
 
 let kokoro: KokoroBootstrap | null = null
 
 export function startKokoro(mainWindow: Electron.BrowserWindow) {
-  const kokoroProgress = (progress: number, status?: string) => {
+  const kokoroProgress = (data: DependencyProgress) => {
     if (mainWindow) {
-      log.info(`[Kokoro] Emitting launch-progress: ${progress}, Status: ${status}`)
-      mainWindow.webContents.send('launch-progress', { progress, status })
+      log.info(`[Kokoro] Emitting launch-progress: ${data.progress}, Status: ${data.status}`)
+      mainWindow.webContents.send('launch-progress', data)
     }
   }
 
