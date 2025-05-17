@@ -1,4 +1,4 @@
-package memory
+package newmem
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"sync" // Added for managing goroutines
 	"time"
 
-	"mem-zero/pkg/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 
 	"github.com/google/uuid"
 	"github.com/sashabaranov/go-openai"
