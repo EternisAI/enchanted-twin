@@ -57,6 +57,7 @@
     "lucide-react": "^0.488.0",
     "react-focus-lock": "^2.13.6",
     "react-markdown": "^10.1.0",
+    "react-qr-code": "^2.0.15",
     "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.3",

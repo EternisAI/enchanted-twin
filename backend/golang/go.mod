@@ -28,12 +28,14 @@ require (
 	github.com/pion/webrtc/v4 v4.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/cors v1.11.1
+	github.com/samber/lo v1.50.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/skip2/go-qrcode v0.0.0-20200617195104-da1b6568686e
 	github.com/slack-go/slack v0.16.0
 	github.com/temporalio/ui-server/v2 v2.37.2
 	github.com/vektah/gqlparser/v2 v2.5.27
 	github.com/weaviate/weaviate v1.30.3
+	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-133.3
 	google.golang.org/grpc v1.72.0
@@ -141,6 +143,7 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
+	github.com/petermattis/goid v0.0.0-20250319124200-ccd6737f222a // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
 	github.com/pion/dtls/v3 v3.0.6 // indirect
 	github.com/pion/ice/v4 v4.0.10 // indirect
@@ -157,6 +160,7 @@ require (
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.1 // indirect
 	github.com/rs/xid v1.6.0 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
@@ -173,6 +177,8 @@ require (
 	github.com/wlynxg/anet v0.0.5 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	go.etcd.io/bbolt v1.3.11 // indirect
+	go.mau.fi/libsignal v0.1.2 // indirect
+	go.mau.fi/util v0.8.6 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.33.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
@@ -344,7 +350,7 @@ require (
 	google.golang.org/genproto v0.0.0-20250512202823-5a2f75b736a9 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250512202823-5a2f75b736a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20250512202823-5a2f75b736a9 // indirect
-	google.golang.org/protobuf v1.36.6 // indirect
+	google.golang.org/protobuf v1.36.6
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/validator.v2 v2.0.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
@@ -355,4 +361,3 @@ require (
 )
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.71.1
-toolchain go1.22

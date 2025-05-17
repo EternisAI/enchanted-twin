@@ -12,6 +12,10 @@ export interface DataSource {
   fileRequirement: string
   icon: ReactNode
   fileFilters?: { name: string; extensions: string[] }[]
+  customView?: {
+    name: string
+    component: ReactNode
+  }
 }
 
 export interface DataSourcesPanelProps {
