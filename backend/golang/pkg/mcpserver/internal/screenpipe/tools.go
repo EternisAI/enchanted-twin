@@ -13,7 +13,7 @@ import (
 
 	mcp_golang "github.com/metoro-io/mcp-golang"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -170,7 +170,7 @@ func processSearchContent(
 }
 
 func GetInputSchema(args any) map[string]any {
-	inputSchema, err := helpers.ConverToInputSchema(args)
+	inputSchema, err := utils.ConverToInputSchema(args)
 	if err != nil {
 		return nil
 	}

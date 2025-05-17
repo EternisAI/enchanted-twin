@@ -98,6 +98,14 @@ type Query {
   getTools: [Tool!]!
   getWhatsAppStatus: WhatsAppStatus!
   getAgentTasks: [AgentTask!]!
+  getSetupProgress: [SetupProgress!]!
+}
+
+type SetupProgress {
+  name: String!
+  progress: Float!
+  status: String!
+  required: Boolean!
 }
 
 type Mutation {
@@ -110,7 +118,7 @@ type Mutation {
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
   createChat(name: String!): Chat!
-  sendMessage(chatId: ID!, text: String!): Message!
+  sendMessage(chatId: ID!, text: String!, reasoning: Boolean! = False): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!

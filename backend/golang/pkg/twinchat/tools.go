@@ -79,6 +79,7 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	natsMessage := model.Message{
 		ID:        id,
 		Text:      &message,
+		Role:      model.RoleAssistant,
 		ImageUrls: imageURLs,
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}
@@ -121,7 +122,7 @@ func (e *sendToChat) Definition() openai.ChatCompletionToolParam {
 						},
 					},
 				},
-				"required": []string{"message"},
+				"required": []string{"message", "chat_id"},
 			},
 		},
 	}

@@ -7,7 +7,7 @@ import (
 	mcp_golang "github.com/metoro-io/mcp-golang"
 	"github.com/slack-go/slack"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -205,7 +205,7 @@ func GenerateSlackTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType
 
 	// List Channels Tool
-	listChannelsSchema, err := helpers.ConverToInputSchema(ListChannelsArguments{})
+	listChannelsSchema, err := utils.ConverToInputSchema(ListChannelsArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for list_channels: %w", err)
 	}
@@ -217,7 +217,7 @@ func GenerateSlackTools() ([]mcp_golang.ToolRetType, error) {
 	})
 
 	// Post Message Tool
-	postMessageSchema, err := helpers.ConverToInputSchema(PostMessageArguments{})
+	postMessageSchema, err := utils.ConverToInputSchema(PostMessageArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for post_message: %w", err)
 	}
@@ -229,7 +229,7 @@ func GenerateSlackTools() ([]mcp_golang.ToolRetType, error) {
 	})
 
 	// Search Messages Tool
-	searchMessagesSchema, err := helpers.ConverToInputSchema(SearchMessagesArguments{})
+	searchMessagesSchema, err := utils.ConverToInputSchema(SearchMessagesArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for search_messages: %w", err)
 	}

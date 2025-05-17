@@ -23,6 +23,7 @@ type Agent struct {
 	nc               *nats.Conn
 	aiService        *ai.Service
 	CompletionsModel string
+	ReasoningModel   string
 	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
 	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult)
 }
@@ -32,6 +33,7 @@ func NewAgent(
 	nc *nats.Conn,
 	aiService *ai.Service,
 	completionsModel string,
+	reasoningModel string,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 ) *Agent {
@@ -40,6 +42,7 @@ func NewAgent(
 		nc:               nc,
 		aiService:        aiService,
 		CompletionsModel: completionsModel,
+		ReasoningModel:   reasoningModel,
 		PreToolCallback:  preToolCallback,
 		PostToolCallback: postToolCallback,
 	}
@@ -129,11 +132,7 @@ func (a *Agent) Execute(
 				return AgentResponse{}, err
 			}
 
-			// extracting image URLs from content
-			imageURLs = append(imageURLs, extractImageURLs(toolResult.Content())...)
-
-			// send message with isCompleted true
-			a.logger.Debug("Post tool callback", "tool_call", toolCall, "tool_content", toolResult.Content(), "tool_image_urls", toolResult.ImageURLs())
+			a.logger.Debug("Post tool callback", "tool_call", toolCall, "result", toolResult)
 			if a.PostToolCallback != nil {
 				a.PostToolCallback(toolCall, toolResult)
 			}

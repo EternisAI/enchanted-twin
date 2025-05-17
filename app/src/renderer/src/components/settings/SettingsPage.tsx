@@ -8,6 +8,7 @@ import PermissionsCard from './permissions/PermissionsCard'
 import Versions from '../Versions'
 import SystemTheme from './appearance/system-theme'
 import AdminPanel from '../admin/AdminPanel'
+import InstallationStatus from '../InstallationStatus'
 
 const settingsTabs = [
   {
@@ -85,8 +86,9 @@ const settingsTabs = [
         <p className="text-sm text-muted-foreground">
           Configure advanced application settings and preferences.
         </p>
-        <div className="mt-4 space-y-4 max-w-md">
+        <div className="mt-4 flex flex-col gap-4 max-w-md">
           <AdminPanel />
+          <InstallationStatus />
         </div>
       </>
     ),

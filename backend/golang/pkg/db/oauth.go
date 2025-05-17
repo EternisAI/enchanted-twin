@@ -121,7 +121,7 @@ func (s *Store) InitOAuthTokens(ctx context.Context) error {
 	return nil
 }
 
-// InitOAuthTokens initializes the OAuth tokens table.
+// InitOAuthSessions initializes the OAuth sessions table.
 func (s *Store) InitOAuthSessions(ctx context.Context) error {
 	// Create the tokens table
 	_, err := s.db.ExecContext(ctx, `
@@ -402,7 +402,7 @@ func (s *Store) GetAndClearOAuthProviderAndVerifier(
 	} else {
 		// Log how many expired sessions were cleaned up
 		rowsAffected, err := deleteResult.RowsAffected()
-		if err != nil && rowsAffected > 0 {
+		if err == nil && rowsAffected > 0 {
 			logger.Debugf("Cleaned up %d expired OAuth sessions", rowsAffected)
 		}
 	}

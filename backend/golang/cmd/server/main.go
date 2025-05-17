@@ -11,6 +11,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -21,7 +23,10 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
+	"github.com/go-openapi/loads"
 	"github.com/gorilla/websocket"
+	flags "github.com/jessevdk/go-flags"
+	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
@@ -29,14 +34,14 @@ import (
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	"github.com/weaviate/weaviate/adapters/handlers/rest"
+	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
-	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -47,7 +52,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
-	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -82,25 +86,6 @@ func main() {
 		}
 	}
 
-	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	postgresService, err := bootstrapPostgres(postgresCtx, logger)
-	if err != nil {
-		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
-	}
-
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		if err := postgresService.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
-		}
-		if err := postgresService.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
-		}
-	}()
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -188,40 +173,12 @@ func main() {
 		}
 	}()
 
-	logger.Info("SQLite database initialized")
-
-	aiCompletionsService := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL)
-	aiEmbeddingsService := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	// Initialize the AI service singleton
+	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
-		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
-	}
+	mem := &memory.MockMemory{}
 
-	dbName := "enchanted_twin"
-	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", "error", err)
-		panic(errors.Wrap(err, "Unable to ensure database exists"))
-	}
-	logger.Info(
-		"PostgreSQL listening at",
-		"connection",
-		postgresService.GetConnectionString(dbName),
-	)
-	recreateMemDb := false
-	mem, err := embeddingsmemory.NewEmbeddingsMemory(
-		&embeddingsmemory.Config{
-			Logger:              logger,
-			PgString:            postgresService.GetConnectionString(dbName),
-			AI:                  aiEmbeddingsService,
-			Recreate:            recreateMemDb,
-			EmbeddingsModelName: envs.EmbeddingsModel,
-		},
-	)
-	if err != nil {
-		panic(errors.Wrap(err, "Unable to create memory"))
-	}
 
 	whatsapp.TriggerConnect()
 
@@ -255,8 +212,7 @@ func main() {
 	}
 
 	// Initialize MCP Service with tool registry
-	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
-	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store, toolRegistry)
+	mcpService := mcpserver.NewService(context.Background(), store, toolRegistry)
 
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
@@ -288,6 +244,7 @@ func main() {
 		toolRegistry,
 		store,
 		envs.CompletionsModel,
+		envs.ReasoningModel,
 	)
 
 	providerTools := agent.RegisterToolProviders(toolRegistry, logger, twinChatService)
@@ -378,6 +335,12 @@ func main() {
 		}
 	}()
 
+	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
+	}
+
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
 		temporalClient:    temporalClient,
@@ -408,25 +371,6 @@ func main() {
 	logger.Info("Server shutting down...")
 }
 
-func bootstrapPostgres(
-	ctx context.Context,
-	logger *log.Logger,
-) (*bootstrap.PostgresService, error) {
-	options := bootstrap.DefaultPostgresOptions()
-
-	postgresService, err := bootstrap.NewPostgresService(logger, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
-	}
-
-	logger.Info("Starting PostgreSQL service...")
-	err = postgresService.Start(ctx, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
-	}
-
-	return postgresService, nil
-}
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
 	ready := make(chan struct{})
@@ -458,28 +402,12 @@ type bootstrapTemporalWorkerInput struct {
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		kokoroDockerPort = 45000
-		ttsWsPort        = 45001
-		image            = "ghcr.io/remsky/kokoro-fastapi-cpu"
+		kokoroPort = 45000
+		ttsWsPort  = 45001
 	)
 
-	dockerSvc, err := docker.NewService(docker.ContainerOptions{
-		ImageName: image,
-		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprint(kokoroDockerPort): "8880"},
-		Detached:  true,
-	}, logger)
-	if err != nil {
-		logger.Error("docker service init", "error", err)
-		return nil, errors.Wrap(err, "docker service init")
-	}
-	if err := dockerSvc.RunContainer(context.Background()); err != nil {
-		logger.Error("docker run", "error", err)
-		return nil, errors.Wrap(err, "docker run")
-	}
-
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroDockerPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
@@ -510,7 +438,7 @@ func bootstrapTemporalWorker(
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, nil, nil)
+	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, input.envs.ReasoningModel, nil, nil)
 	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
@@ -614,6 +542,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
+
 func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
 	dbLog := waLog.Stdout("Database", "DEBUG", true)
 	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
@@ -716,4 +645,74 @@ func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	}()
 
 	return client
+
+func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+	err := os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
+	}
+	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to load swagger spec")
+	}
+
+	api := operations.NewWeaviateAPI(swaggerSpec)
+	api.Logger = func(s string, i ...any) {
+		logger.Debug(s, i...)
+	}
+	server := rest.NewServer(api)
+
+	server.EnabledListeners = []string{"http"}
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to convert port to int")
+	}
+	server.Port = p
+
+	parser := flags.NewParser(server, flags.Default)
+	parser.ShortDescription = "Weaviate"
+	server.ConfigureFlags()
+	for _, optsGroup := range api.CommandLineOptionsGroups {
+		_, err := parser.AddGroup(optsGroup.ShortDescription, optsGroup.LongDescription, optsGroup.Options)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to add flag group")
+		}
+	}
+
+	if _, err := parser.Parse(); err != nil {
+		if fe, ok := err.(*flags.Error); ok && fe.Type == flags.ErrHelp {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	server.ConfigureAPI()
+
+	go func() {
+		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Weaviate serve error", slog.Any("error", err))
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		_ = server.Shutdown()
+	}()
+
+	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("weaviate did not become ready in time on %s", readyURL)
+		}
+
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			return server, nil
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+
 }

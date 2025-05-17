@@ -17,8 +17,8 @@ type Repository struct {
 	db     *sqlx.DB
 }
 
-func NewRepository(logger *log.Logger, db *sqlx.DB) *Repository {
-	return &Repository{
+func NewRepository(logger *log.Logger, db *sqlx.DB) Repository {
+	return Repository{
 		logger: logger,
 		db:     db,
 	}
@@ -186,4 +186,104 @@ func (r *Repository) DeleteMCPServer(ctx context.Context, id string) error {
 		return err
 	}
 	return nil
+}
+
+const getMCPServerByNameQuery = `
+SELECT id, name, command, args, envs, type, created_at, enabled FROM mcp_servers WHERE name = $1;
+`
+
+const getCountMCPServersByNameQuery = `
+SELECT COUNT(*) FROM mcp_servers WHERE name = $1;
+`
+
+func (r *Repository) GetMCPServerByName(ctx context.Context, name string) (*model.MCPServer, error) {
+	var count int
+	err := r.db.GetContext(ctx, &count, getCountMCPServersByNameQuery, name)
+	if err != nil {
+		r.logger.Error("failed to get count of mcp servers by name", "error", err, "name", name)
+		return nil, err
+	}
+
+	if count == 0 {
+		return nil, nil
+	}
+
+	var dbServer dbMCPServer
+	err = r.db.GetContext(ctx, &dbServer, getMCPServerByNameQuery, name)
+	if err != nil {
+		r.logger.Error("failed to get mcp server by name", "error", err, "name", name)
+		return nil, err
+	}
+
+	if dbServer.ID == "" {
+		return nil, nil
+	}
+
+	var argsSlice []string
+	if dbServer.Args != "" {
+		if err := json.Unmarshal([]byte(dbServer.Args), &argsSlice); err != nil {
+			r.logger.Error("failed to unmarshal args for mcp server", "error", err, "id", dbServer.ID)
+			return nil, err
+		}
+	}
+
+	var envsSlice []*model.KeyValue
+	if dbServer.Envs != "" {
+		if err := json.Unmarshal([]byte(dbServer.Envs), &envsSlice); err != nil {
+			r.logger.Error("failed to unmarshal envs for mcp server", "error", err, "id", dbServer.ID)
+			return nil, err
+		}
+	}
+
+	var mcpType model.MCPServerType
+	if err := mcpType.UnmarshalGQL(dbServer.Type); err != nil {
+		r.logger.Error("failed to unmarshal type for mcp server", "error", err, "id", dbServer.ID)
+		return nil, err
+	}
+
+	return &model.MCPServer{
+		ID:        dbServer.ID,
+		Name:      dbServer.Name,
+		Command:   dbServer.Command,
+		Args:      argsSlice,
+		Envs:      envsSlice,
+		CreatedAt: dbServer.CreatedAt,
+		Enabled:   dbServer.Enabled,
+		Type:      mcpType,
+	}, nil
+}
+
+const getMCPServerByTypeQuery = `
+SELECT id, name, command, args, envs, type, created_at, enabled FROM mcp_servers WHERE type = $1;
+`
+
+const getCountMCPServersByTypeQuery = `
+SELECT COUNT(*) FROM mcp_servers WHERE type = $1;
+`
+
+func (r *Repository) GetMCPServerByType(ctx context.Context, mcpType model.MCPServerType) (*model.MCPServer, error) {
+	var count int
+	err := r.db.GetContext(ctx, &count, getCountMCPServersByTypeQuery, mcpType)
+	if err != nil {
+		r.logger.Error("failed to get count of mcp servers by type", "error", err, "type", mcpType)
+		return nil, err
+	}
+
+	if count == 0 {
+		return nil, nil
+	}
+
+	var dbServer dbMCPServer
+	err = r.db.GetContext(ctx, &dbServer, getMCPServerByTypeQuery, mcpType)
+	if err != nil {
+		r.logger.Error("failed to get mcp server by type", "error", err, "type", mcpType)
+		return nil, err
+	}
+
+	return &model.MCPServer{
+		ID:      dbServer.ID,
+		Name:    dbServer.Name,
+		Command: dbServer.Command,
+		Type:    mcpType,
+	}, nil
 }

@@ -110,7 +110,7 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 					},
 					"task": map[string]string{
 						"type":        "string",
-						"description": "The task that agent should execute. It should contain all information nescessary to accomplish the task. It should not include cron, delay or name of your human.",
+						"description": "The task that agent should execute. It should contain all information nescessary to accomplish the task and be as detailed as user provided. Task must not include cron, delay or name of your human.",
 					},
 					"delay": map[string]string{
 						"type":        "number",

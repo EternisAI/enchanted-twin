@@ -1,9 +1,10 @@
 import { Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import { CheckCircle, ChevronRight, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
 import { extractReasoningAndReply, formatToolName } from './config'
 import { Badge } from '../ui/badge'
+import ImagePreview from './ImagePreview'
 import Markdown from './Markdown'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../ui/collapsible'
 import { useTTS } from '@renderer/hooks/useTTS'
@@ -28,11 +29,11 @@ export function UserMessageBubble({ message }: { message: Message }) {
         {message.imageUrls.length > 0 && (
           <div className="flex gap-2 mt-2">
             {message.imageUrls.map((url, i) => (
-              <img
+              <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block h-32 w-32 object-cover rounded"
+                thumbClassName="inline-block h-32 w-32 object-cover rounded"
               />
             ))}
           </div>
@@ -64,7 +65,9 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           <Collapsible defaultOpen className="flex flex-col gap-2 pb-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:underline group">
               <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
-              <span className="font-medium">💭 Reasoning</span>
+              <span className="font-medium flex items-center gap-1">
+                <Lightbulb className="w-4 h-5" /> Reasoning
+              </span>
             </CollapsibleTrigger>
             <CollapsibleContent
               className={cn(
@@ -81,11 +84,11 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
         {message.imageUrls.length > 0 && (
           <div className="flex flex-col gap-2 my-2">
             {message.imageUrls.map((url, i) => (
-              <img
+              <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                className="inline-block h-40 w-40 object-cover rounded"
+                thumbClassName="inline-block h-40 w-40 object-cover rounded"
               />
             ))}
           </div>

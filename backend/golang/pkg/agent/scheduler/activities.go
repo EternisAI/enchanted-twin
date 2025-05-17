@@ -54,10 +54,11 @@ type ExecuteTaskActivityInput struct {
 	PreviousResult *string
 	ChatID         string
 	Notify         bool
+	Name           string
 }
 
 func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input ExecuteTaskActivityInput) (string, error) {
-	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. You must send a message after completing all tool calls. You must ensure that the final message includes the answer to the original task. If user's task requires communicating the result back to them, you MUST send message to chat unless user explicitly requested different output channel like email ortelegram. You are currently performing a periodic task, if there is previous execution result below make sure not repeat the same result when possible."
+	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. You must send a message after completing all tool calls. You must ensure that the final message includes the answer to the original task. You must never ask where to send the message, you MUST send it to the chat by default by specifying the chat_id. You are currently performing a periodic task, if there is previous execution result below make sure not repeat the same result when possible. "
 
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	if err != nil {
@@ -94,7 +95,7 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 	if input.Notify {
 		notification := &model.AppNotification{
 			ID:        uuid.New().String(),
-			Title:     input.Task,
+			Title:     input.Name,
 			Message:   response.Content,
 			CreatedAt: time.Now().Format(time.RFC3339),
 			Link:      helpers.Ptr("twin://chat/" + input.ChatID),
