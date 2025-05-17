@@ -62,8 +62,13 @@ const api = {
     stop: () => ipcRenderer.invoke('screenpipe:stop')
   },
   launch: {
-    onProgress: (callback: (data: { status: string; progress: number }) => void) => {
-      const listener = (_: unknown, data: { status: string; progress: number }) => callback(data)
+    onProgress: (
+      callback: (data: { dependency: string; status: string; progress: number; error?: string }) => void
+    ) => {
+      const listener = (
+        _: unknown,
+        data: { dependency: string; status: string; progress: number; error?: string }
+      ) => callback(data)
       ipcRenderer.on('launch-progress', listener)
       return () => ipcRenderer.removeListener('launch-progress', listener)
     },
@@ -72,7 +77,7 @@ const api = {
   },
   onLaunch: (
     channel: 'launch-complete' | 'launch-progress',
-    callback: (data: { status: string; progress: number } | void) => void
+    callback: (data: { dependency: string; status: string; progress: number; error?: string } | void) => void
   ) => {
     ipcRenderer.on(channel, (_, data) => callback(data))
   }

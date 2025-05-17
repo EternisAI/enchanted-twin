@@ -251,3 +251,5 @@ require (
 	modernc.org/memory v1.10.0 // indirect
 	modernc.org/sqlite v1.37.0 // indirect
 )
+
+toolchain go1.22

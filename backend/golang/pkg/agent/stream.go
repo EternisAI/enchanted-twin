@@ -23,6 +23,7 @@ func (a *Agent) ExecuteStream(
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 	onDelta func(StreamDelta),
+	reasoning bool,
 ) (AgentResponse, error) {
 	// Build lookup + OpenAI tool defs once.
 	toolDefs := make([]openai.ChatCompletionToolParam, 0, len(currentTools))
@@ -74,7 +75,12 @@ func (a *Agent) ExecuteStream(
 		stepCalls := []openai.ChatCompletionMessageToolCall{}
 		stepResults := []types.ToolResult{}
 
-		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, a.CompletionsModel)
+		languageModel := a.CompletionsModel
+		if reasoning {
+			languageModel = a.ReasoningModel
+		}
+
+		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, languageModel)
 
 	loop:
 		for {
