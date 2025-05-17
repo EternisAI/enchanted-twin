@@ -1,34 +1,105 @@
-import { Clock, ExternalLink } from 'lucide-react'
+import { Clock, ExternalLink, FileUp, Settings } from 'lucide-react'
 import { Button } from '../ui/button'
-import { DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '../ui/dialog'
 import { DataSource, PendingDataSource } from './types'
 import { truncatePath } from './utils'
 import { EXPORT_INSTRUCTIONS } from './export-instructions'
+import { ReactNode, useState } from 'react'
+import { TabsContent } from '../ui/tabs'
+import { TabsList, TabsTrigger } from '../ui/tabs'
+import { Tabs } from '../ui/tabs'
 
 export const DataSourceDialog = ({
   selectedSource,
   onClose,
   pendingDataSources,
   onFileSelect,
-  onAddSource
+  onAddSource,
+  customComponent
 }: {
   selectedSource: DataSource | null
   onClose: () => void
   pendingDataSources: Record<string, PendingDataSource>
   onFileSelect: () => void
   onAddSource: () => void
+  customComponent?: {
+    name: string
+    component: ReactNode
+  }
 }) => {
+  const [activeTab, setActiveTab] = useState<string>(
+    customComponent ? customComponent.name : 'file'
+  )
+
   if (!selectedSource) return null
 
   return (
+    <Dialog open={!!selectedSource} onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>Add {selectedSource.name} Data</DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground flex items-center gap-2">
+            <Clock className="h-4 w-4 text-muted-foreground/50" />
+            {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
+          </DialogDescription>
+        </DialogHeader>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className={`grid ${customComponent ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
+            <TabsTrigger value="file" className="flex py-2 items-center gap-2">
+              <FileUp className="h-4 w-4" />
+              File Upload
+            </TabsTrigger>
+
+            {customComponent && (
+              <TabsTrigger value={customComponent.name} className="flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                {customComponent.name}
+              </TabsTrigger>
+            )}
+          </TabsList>
+
+          <TabsContent value="file">
+            <StandardFileUpload
+              selectedSource={selectedSource}
+              pendingDataSources={pendingDataSources}
+              onFileSelect={onFileSelect}
+              onClose={onClose}
+              onAddSource={onAddSource}
+            />
+          </TabsContent>
+
+          {customComponent && (
+            <TabsContent value="QR Code">{customComponent.component}</TabsContent>
+          )}
+        </Tabs>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const StandardFileUpload = ({
+  selectedSource,
+  pendingDataSources,
+  onFileSelect,
+  onClose,
+  onAddSource
+}: {
+  selectedSource: DataSource
+  pendingDataSources: Record<string, PendingDataSource>
+  onFileSelect: () => void
+  onClose: () => void
+  onAddSource: () => void
+}) => {
+  return (
     <>
-      <DialogHeader>
-        <DialogTitle>Add {selectedSource.name} Data</DialogTitle>
-        <DialogDescription className="text-sm text-muted-foreground flex items-center gap-2">
-          <Clock className="h-4 w-4 text-muted-foreground/50" />
-          {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
-        </DialogDescription>
-      </DialogHeader>
       <div className="space-y-8">
         <div className="space-y-4 py-4">
           <div className="rounded-lg">
@@ -74,7 +145,7 @@ export const DataSourceDialog = ({
           </div>
         </div>
       </div>
-      <DialogFooter>
+      <DialogFooter className="pt-4">
         <Button variant="outline" onClick={onClose}>
           Cancel
         </Button>

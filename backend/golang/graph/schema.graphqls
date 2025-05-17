@@ -96,6 +96,7 @@ type Query {
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
+  getWhatsAppStatus: WhatsAppStatus!
   getAgentTasks: [AgentTask!]!
   getSetupProgress: [SetupProgress!]!
 }
@@ -127,6 +128,7 @@ type Mutation {
   deleteAgentTask(id: ID!): Boolean!
   updateAgentTask(id: ID!, notify: Boolean!): Boolean!
   removeMCPServer(id: String!): Boolean!
+  startWhatsAppConnection: Boolean!
 }
 
 type Subscription {
@@ -136,6 +138,14 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
+  whatsAppSyncStatus: WhatsAppSyncStatus!
+}
+
+type WhatsAppSyncStatus {
+  isSyncing: Boolean!
+  isCompleted: Boolean!
+  error: String
+  statusMessage: String
 }
 
 type DataSource {
@@ -229,6 +239,21 @@ type AppNotification {
   createdAt: DateTime!
   image: String
   link: String
+}
+
+# WhatsApp integration
+type WhatsAppStatus {
+  isConnected: Boolean!
+  qrCodeData: String
+  statusMessage: String!
+}
+
+# WhatsApp QR code update for subscription
+type WhatsAppQRCodeUpdate {
+  qrCodeData: String
+  event: String!
+  timestamp: DateTime!
+  isConnected: Boolean!
 }
 
 type AgentTask {

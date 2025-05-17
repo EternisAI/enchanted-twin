@@ -25,6 +25,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
+	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
 // Messages is the resolver for the messages field.
@@ -363,6 +364,22 @@ func (r *mutationResolver) RemoveMCPServer(ctx context.Context, id string) (bool
 	return true, nil
 }
 
+// StartWhatsAppConnection is the resolver for the startWhatsAppConnection field.
+func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, error) {
+	connectChan := whatsapp.GetConnectChannel()
+	select {
+	case connectChan <- struct{}{}:
+		r.Logger.Info("Triggered WhatsApp connection start")
+		return true, nil
+	default:
+		go func() {
+			connectChan <- struct{}{}
+		}()
+		r.Logger.Info("Triggered WhatsApp connection start (async)")
+		return true, nil
+	}
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -454,6 +471,45 @@ func (r *queryResolver) GetTools(ctx context.Context) ([]*model.Tool, error) {
 		}
 	}
 	return toolsDefinitions, nil
+}
+
+// GetWhatsAppStatus is the resolver for the getWhatsAppStatus field.
+func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppStatus, error) {
+	// Get the latest QR event to ensure we have the most up-to-date information
+	latestQREvent := whatsapp.GetLatestQREvent()
+
+	isConnected := r.WhatsAppConnected
+	var qrCodeData *string
+
+	// If we have a latest QR event, use its data
+	if latestQREvent != nil {
+		switch latestQREvent.Event {
+		case "success":
+			isConnected = true
+			qrCodeData = nil
+		case "code":
+			isConnected = false
+			qrCodeData = &latestQREvent.Code
+		}
+	} else {
+		// Fallback to resolver's stored values
+		qrCodeData = r.WhatsAppQRCode
+	}
+
+	statusMessage := ""
+	if isConnected {
+		statusMessage = "WhatsApp is connected and ready."
+	} else if qrCodeData != nil {
+		statusMessage = "Scan the QR code to connect WhatsApp."
+	} else {
+		statusMessage = "Start WhatsApp connection to get a QR code."
+	}
+
+	return &model.WhatsAppStatus{
+		IsConnected:   isConnected,
+		QRCodeData:    qrCodeData,
+		StatusMessage: statusMessage,
+	}, nil
 }
 
 // GetAgentTasks is the resolver for the getAgentTasks field.
@@ -830,6 +886,76 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string)
 	}()
 
 	return ch, nil
+}
+
+// WhatsAppSyncStatus is the resolver for the whatsAppSyncStatus field.
+func (r *subscriptionResolver) WhatsAppSyncStatus(ctx context.Context) (<-chan *model.WhatsAppSyncStatus, error) {
+	whatsappSyncStatus := make(chan *model.WhatsAppSyncStatus, 10)
+	subject := "whatsapp.sync.status"
+
+	r.Logger.Info("Setting up WhatsApp sync status subscription", "subject", subject)
+
+	sub, err := r.Nc.Subscribe(subject, func(msg *nats.Msg) {
+		if msg == nil || len(msg.Data) == 0 {
+			r.Logger.Error("Received nil or empty WhatsApp sync status message")
+			return
+		}
+
+		r.Logger.Debug("Received WhatsApp sync status update", "data", string(msg.Data))
+
+		var status model.WhatsAppSyncStatus
+		if err := json.Unmarshal(msg.Data, &status); err != nil {
+			r.Logger.Error("Failed to unmarshal WhatsApp sync status", "error", err, "data", string(msg.Data))
+			return
+		}
+
+		r.Logger.Info("Processed WhatsApp sync status",
+			"isSyncing", status.IsSyncing,
+			"isCompleted", status.IsCompleted,
+			"statusMessage", status.StatusMessage)
+
+		select {
+		case whatsappSyncStatus <- &status:
+			r.Logger.Debug("Sent WhatsApp sync status to client")
+		case <-ctx.Done():
+			r.Logger.Info("Context canceled while sending WhatsApp sync status")
+			return
+		default:
+			r.Logger.Warn("WhatsApp sync status channel is full, dropping message")
+		}
+	})
+	if err != nil {
+		r.Logger.Error("Failed to subscribe to WhatsApp sync status", "error", err)
+		return nil, err
+	}
+
+	initialStatus := &model.WhatsAppSyncStatus{
+		IsSyncing:   false,
+		IsCompleted: false,
+	}
+
+	statusMessage := "Waiting for WhatsApp sync updates..."
+	initialStatus.StatusMessage = &statusMessage
+
+	go func() {
+		select {
+		case whatsappSyncStatus <- initialStatus:
+			r.Logger.Info("Sent initial WhatsApp sync status to client")
+		case <-time.After(1 * time.Second):
+			r.Logger.Warn("Timeout sending initial WhatsApp sync status")
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		r.Logger.Info("Unsubscribing from WhatsApp sync status")
+		if err := sub.Unsubscribe(); err != nil {
+			r.Logger.Error("Error unsubscribing from WhatsApp sync status", "error", err)
+		}
+		close(whatsappSyncStatus)
+	}()
+
+	return whatsappSyncStatus, nil
 }
 
 // IndexingStatus is the resolver for the indexingStatus field.
