@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	stderrs "errors"
 	"fmt"
 	"log/slog"
@@ -32,6 +33,9 @@ import (
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store/sqlstore"
+	waLog "go.mau.fi/whatsmeow/util/log"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -52,9 +56,15 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
 func main() {
+	whatsappQRChan := whatsapp.GetQRChannel()
+	var currentWhatsAppQRCode *string
+	whatsAppConnected := false
+	var whatsappClient *whatsmeow.Client
+
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
@@ -89,6 +99,68 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
+	go func() {
+		for evt := range whatsappQRChan {
+			switch evt.Event {
+			case "code":
+				qrCode := evt.Code
+				currentWhatsAppQRCode = &qrCode
+				whatsAppConnected = false
+				logger.Info("Received new WhatsApp QR code, length:", "length", len(qrCode))
+
+				qrCodeUpdate := map[string]interface{}{
+					"event":        "code",
+					"qr_code_data": qrCode,
+					"is_connected": false,
+					"timestamp":    time.Now().Format(time.RFC3339),
+				}
+				jsonData, err := json.Marshal(qrCodeUpdate)
+				if err == nil {
+					err = nc.Publish("whatsapp.qr_code", jsonData)
+					if err != nil {
+						logger.Error("Failed to publish WhatsApp QR code to NATS", slog.Any("error", err))
+					} else {
+						logger.Info("Published WhatsApp QR code to NATS")
+					}
+				} else {
+					logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
+				}
+			case "success":
+				whatsAppConnected = true
+				currentWhatsAppQRCode = nil
+				logger.Info("WhatsApp connection successful")
+
+				whatsapp.StartSync()
+				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
+				whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
+
+				successUpdate := map[string]interface{}{
+					"event":        "success",
+					"qr_code_data": nil,
+					"is_connected": true,
+					"timestamp":    time.Now().Format(time.RFC3339),
+				}
+				jsonData, err := json.Marshal(successUpdate)
+				if err == nil {
+					err = nc.Publish("whatsapp.qr_code", jsonData)
+					if err != nil {
+						logger.Error("Failed to publish WhatsApp connection success to NATS", slog.Any("error", err))
+					} else {
+						logger.Info("Published WhatsApp connection success to NATS")
+					}
+				} else {
+					logger.Error("Failed to marshal WhatsApp success data", "error", err)
+				}
+			}
+		}
+	}()
+
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
@@ -105,6 +177,14 @@ func main() {
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	mem := &memory.MockMemory{}
+
+	whatsapp.TriggerConnect()
+
+	whatsappClientChan := make(chan *whatsmeow.Client)
+	go func() {
+		client := bootstrapWhatsAppClient(mem, logger, nc)
+		whatsappClientChan <- client
+	}()
 
 	ttsSvc, err := bootstrapTTS(logger)
 	if err != nil {
@@ -143,7 +223,17 @@ func main() {
 		envs.TelegramChatServer,
 	)
 
-	// Create TwinChat service with minimal dependencies
+	select {
+	case whatsappClient = <-whatsappClientChan:
+
+		if whatsappClient != nil {
+			whatsappTools := agent.RegisterWhatsAppTool(toolRegistry, logger, whatsappClient)
+			logger.Info("WhatsApp tools registered", "count", len(whatsappTools))
+		}
+	case <-time.After(1 * time.Second):
+		logger.Warn("Timed out waiting for WhatsApp client, continuing without WhatsApp tool")
+	}
+
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
@@ -155,7 +245,6 @@ func main() {
 		envs.ReasoningModel,
 	)
 
-	// Register tools from the TwinChat service
 	providerTools := agent.RegisterToolProviders(toolRegistry, logger, twinChatService)
 	logger.Info("Standard tools registered", "count", len(standardTools))
 	logger.Info("Provider tools registered", "count", len(providerTools))
@@ -251,18 +340,19 @@ func main() {
 	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:          logger,
-		temporalClient:  temporalClient,
-		port:            envs.GraphqlPort,
-		twinChatService: *twinChatService,
-		natsClient:      nc,
-		store:           store,
-		aiService:       aiCompletionsService,
-		mcpService:      mcpService,
-		telegramService: telegramService,
+		logger:            logger,
+		temporalClient:    temporalClient,
+		port:              envs.GraphqlPort,
+		twinChatService:   *twinChatService,
+		natsClient:        nc,
+		store:             store,
+		aiService:         aiCompletionsService,
+		mcpService:        mcpService,
+		telegramService:   telegramService,
+		whatsAppQRCode:    currentWhatsAppQRCode,
+		whatsAppConnected: whatsAppConnected,
 	})
 
-	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
 		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
@@ -349,7 +439,6 @@ func bootstrapTemporalWorker(
 	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
-	// Start the worker
 	err := w.Start()
 	if err != nil {
 		input.logger.Error("Error starting worker", slog.Any("error", err))
@@ -370,6 +459,8 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	whatsAppQRCode         *string
+	whatsAppConnected      bool
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -381,7 +472,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Debug:            false,
 	}).Handler)
 
-	srv := handler.New(gqlSchema(&graph.Resolver{
+	resolver := &graph.Resolver{
 		Logger:                 input.logger,
 		TemporalClient:         input.temporalClient,
 		TwinChatService:        input.twinChatService,
@@ -390,7 +481,13 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
-	}))
+		TelegramService:        input.telegramService,
+		WhatsAppQRCode:         input.whatsAppQRCode,
+		WhatsAppConnected:      input.whatsAppConnected,
+	}
+
+	srv := handler.New(gqlSchema(resolver))
+
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.Options{})
@@ -440,6 +537,110 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func bootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
+	dbLog := waLog.Stdout("Database", "DEBUG", true)
+	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
+	if err != nil {
+		panic(err)
+	}
+	deviceStore, err := container.GetFirstDevice()
+	if err != nil {
+		panic(err)
+	}
+	clientLog := waLog.Stdout("Client", "DEBUG", true)
+	client := whatsmeow.NewClient(deviceStore, clientLog)
+	client.AddEventHandler(whatsapp.EventHandler(memoryStorage, logger, nc))
+
+	logger.Info("Waiting for WhatsApp connection signal...")
+	connectChan := whatsapp.GetConnectChannel()
+	<-connectChan
+	logger.Info("Received signal to start WhatsApp connection")
+
+	if client.Store.ID == nil {
+		qrChan, _ := client.GetQRChannel(context.Background())
+		err = client.Connect()
+		if err != nil {
+			logger.Error("Error connecting to WhatsApp", slog.Any("error", err))
+		}
+		for evt := range qrChan {
+			switch evt.Event {
+			case "code":
+				qrEvent := whatsapp.QRCodeEvent{
+					Event: evt.Event,
+					Code:  evt.Code,
+				}
+				whatsapp.SetLatestQREvent(qrEvent)
+				whatsappQRChan := whatsapp.GetQRChannel()
+				select {
+				case whatsappQRChan <- qrEvent:
+				default:
+					logger.Warn("Warning: QR channel buffer full, dropping event")
+				}
+				logger.Info("Received new WhatsApp QR code", "qr_code", evt.Code)
+			case "success":
+				qrEvent := whatsapp.QRCodeEvent{
+					Event: "success",
+					Code:  "",
+				}
+				whatsapp.SetLatestQREvent(qrEvent)
+				whatsapp.GetQRChannel() <- qrEvent
+				logger.Info("WhatsApp connection successful")
+
+				whatsapp.StartSync()
+				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
+				err = whatsapp.PublishSyncStatus(nc, logger)
+				if err != nil {
+					logger.Error("Error publishing sync status", slog.Any("error", err))
+				}
+
+			default:
+				logger.Info("Login event", "event", evt.Event)
+			}
+		}
+	} else {
+		err = client.Connect()
+		if err != nil {
+			logger.Error("Error connecting to WhatsApp", slog.Any("error", err))
+		} else {
+			qrEvent := whatsapp.QRCodeEvent{
+				Event: "success",
+				Code:  "",
+			}
+			whatsapp.SetLatestQREvent(qrEvent)
+			whatsapp.GetQRChannel() <- qrEvent
+			logger.Info("Already logged in, reusing session")
+
+			whatsapp.StartSync()
+			whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+				IsSyncing:      true,
+				IsCompleted:    false,
+				ProcessedItems: 0,
+				TotalItems:     0,
+				StatusMessage:  "Waiting for history sync to begin",
+			})
+			err = whatsapp.PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", slog.Any("error", err))
+			}
+		}
+	}
+
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		<-c
+		client.Disconnect()
+	}()
+
+	return client
 }
 
 func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {

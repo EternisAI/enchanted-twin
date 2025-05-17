@@ -27,4 +27,6 @@ type Resolver struct {
 	MCPService             mcpserver.MCPService
 	DataProcessingWorkflow *workflows.DataProcessingWorkflows
 	TelegramService        *telegram.TelegramService
+	WhatsAppQRCode         *string // Current WhatsApp QR code
+	WhatsAppConnected      bool    // WhatsApp connection status
 }
