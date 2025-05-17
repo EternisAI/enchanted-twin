@@ -15,7 +15,7 @@ import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaP
 import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
 import { windowManager } from './windows'
-import { KokoroBootstrap } from './pythonManager'
+import { KokoroBootstrap, DependencyProgress } from './pythonManager'
 
 const PATHNAME = 'input_data'
 const DEFAULT_OAUTH_SERVER_PORT = 8080
@@ -413,8 +413,9 @@ app.whenReady().then(async () => {
   registerAccessibilityIpc()
 
   ipcMain.on('launch-ready', () => {
-    if (mainWindow) {
-      mainWindow.webContents.send('launch-progress', { status: 'Initializing...', progress: 0 })
+    if (mainWindow && kokoro) {
+      const latestProgress = kokoro.getLatestProgress()
+      mainWindow.webContents.send('launch-progress', latestProgress)
     }
   })
 
@@ -441,10 +442,11 @@ app.whenReady().then(async () => {
   const dbPath = join(dbDir, 'enchanted-twin.db')
   log.info(`Database path: ${dbPath}`)
 
-  const kokoroProgress = (progress: number, status?: string) => {
+  const kokoroProgress = (data: DependencyProgress) => {
     if (mainWindow) {
+      const { progress, status } = data
       log.info(`[Kokoro] Emitting launch-progress: ${progress}, Status: ${status}`)
-      mainWindow.webContents.send('launch-progress', { progress, status })
+      mainWindow.webContents.send('launch-progress', data)
     }
   }
 
