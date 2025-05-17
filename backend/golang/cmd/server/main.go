@@ -443,7 +443,10 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 }
 
 func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
-	os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
+	err := os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
+	}
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to load swagger spec")
