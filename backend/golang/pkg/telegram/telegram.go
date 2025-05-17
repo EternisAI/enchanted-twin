@@ -295,7 +295,7 @@ func (s *TelegramService) Execute(
 	messageHistory []openai.ChatCompletionMessageParamUnion,
 	message string,
 ) (agent.AgentResponse, error) {
-	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, nil, nil)
+	newAgent := agent.NewAgent(s.Logger, nil, s.AiService, s.CompletionsModel, s.CompletionsModel, nil, nil)
 
 	toolsList := []tools.Tool{}
 	for _, name := range s.ToolsRegistry.Excluding("sleep", "sleep_until").List() {

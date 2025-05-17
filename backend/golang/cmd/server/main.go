@@ -48,7 +48,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
-	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -131,8 +130,7 @@ func main() {
 	}
 
 	// Initialize MCP Service with tool registry
-	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
-	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store, toolRegistry)
+	mcpService := mcpserver.NewService(context.Background(), store, toolRegistry)
 
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
@@ -154,6 +152,7 @@ func main() {
 		toolRegistry,
 		store,
 		envs.CompletionsModel,
+		envs.ReasoningModel,
 	)
 
 	// Register tools from the TwinChat service
@@ -346,7 +345,7 @@ func bootstrapTemporalWorker(
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, nil, nil)
+	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, input.envs.ReasoningModel, nil, nil)
 	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
 

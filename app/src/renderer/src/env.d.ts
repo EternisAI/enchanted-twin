@@ -59,13 +59,15 @@ interface IApi {
     stop: () => Promise<boolean>
   }
   launch: {
-    onProgress: (callback: (data: { status: string; progress: number }) => void) => () => void
+    onProgress: (
+      callback: (data: { dependency: string; status: string; progress: number; error?: string }) => void
+    ) => () => void
     notifyReady: () => void
     complete: () => Promise<void>
   }
   onLaunch: (
     channel: 'launch-complete' | 'launch-progress',
-    callback: (data: { status: string; progress: number } | void) => void
+    callback: (data: { dependency: string; status: string; progress: number; error?: string } | void) => void
   ) => void
 }
 

@@ -1,22 +1,24 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowBigUp, X } from 'lucide-react'
+import { ArrowBigUp, Lightbulb, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
 type MessageInputProps = {
-  onSend: (text: string) => void
+  onSend: (text: string, reasoning: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
 }
 
 export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: MessageInputProps) {
   const [text, setText] = useState('')
+  const [isReasonSelected, setIsReasonSelected] = useState(false)
+
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
-    onSend(text)
+    onSend(text, isReasonSelected)
     setText('')
   }
 
@@ -27,18 +29,14 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
     }
   }
 
-  // Adjust textarea height based on content
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
-      // Reset height to auto to get the correct scrollHeight
       textarea.style.height = 'auto'
-      // Set the height to the scroll height, but respect max-height CSS
       textarea.style.height = `${textarea.scrollHeight}px`
     }
-  }, [text]) // Re-run this effect when text changes
+  }, [text])
 
-  // TODO: this will be less relevant once we have actions in the input bar
   const handleClickContainer = (e: React.MouseEvent<HTMLDivElement>) => {
     if (textareaRef.current) {
       const target = e.target as Element
@@ -49,11 +47,9 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
     }
   }
 
-  // const [isDeepMemory, setIsDeepMemory] = useState(false)
-
-  // const toggleDeepMemory = () => {
-  //   setIsDeepMemory(!isDeepMemory)
-  // }
+  const toggleReason = () => {
+    setIsReasonSelected(!isReasonSelected)
+  }
 
   return (
     <motion.div
@@ -77,17 +73,19 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
         />
       </div>
       <div className="flex justify-end items-center gap-3">
-        {/* <Button
-          onClick={toggleDeepMemory}
+        <Button
+          onClick={toggleReason}
           className={cn(
             'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
-            isDeepMemory ? 'text-orange-500 !bg-orange-50 ring-orange-200 ring-1' : ''
+            isReasonSelected
+              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+              : ''
           )}
           variant="outline"
         >
-          <History className="w-4 h-5" />
-          Deep Memory
-        </Button> */}
+          <Lightbulb className="w-4 h-5" />
+          Reasoning
+        </Button>
         <SendButton
           onSend={handleSend}
           isWaitingTwinResponse={isWaitingTwinResponse}

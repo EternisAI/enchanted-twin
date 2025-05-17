@@ -11,7 +11,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 type TwitterClient struct {
@@ -22,7 +22,7 @@ func (c *TwitterClient) ListTools(
 	ctx context.Context,
 	cursor *string,
 ) (*mcp_golang.ToolsResponse, error) {
-	inputSchema, err := helpers.ConverToInputSchema(ListFeedTweetsArguments{})
+	inputSchema, err := utils.ConverToInputSchema(ListFeedTweetsArguments{})
 	if err != nil {
 		return nil, err
 	}
@@ -36,7 +36,7 @@ func (c *TwitterClient) ListTools(
 		},
 	}
 
-	inputSchema, err = helpers.ConverToInputSchema(PostTweetArguments{})
+	inputSchema, err = utils.ConverToInputSchema(PostTweetArguments{})
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (c *TwitterClient) ListTools(
 		InputSchema: inputSchema,
 	})
 
-	inputSchema, err = helpers.ConverToInputSchema(SearchTweetsArguments{})
+	inputSchema, err = utils.ConverToInputSchema(SearchTweetsArguments{})
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +60,7 @@ func (c *TwitterClient) ListTools(
 		InputSchema: inputSchema,
 	})
 
-	inputSchema, err = helpers.ConverToInputSchema(ListBookmarksArguments{})
+	inputSchema, err = utils.ConverToInputSchema(ListBookmarksArguments{})
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (c *TwitterClient) CallTool(
 ) (*mcp_golang.ToolResponse, error) {
 	fmt.Println("Call tool TWITTER", name, arguments)
 
-	bytes, err := helpers.ConvertToBytes(arguments)
+	bytes, err := utils.ConvertToBytes(arguments)
 	if err != nil {
 		return nil, err
 	}

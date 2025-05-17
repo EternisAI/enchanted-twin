@@ -30,6 +30,7 @@ type Service struct {
 	nc               *nats.Conn
 	logger           *log.Logger
 	completionsModel string
+	reasoningModel   string
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
 }
@@ -42,6 +43,7 @@ func NewService(
 	registry *tools.ToolMapRegistry,
 	userStorage *db.Store,
 	completionsModel string,
+	reasoningModel string,
 ) *Service {
 	return &Service{
 		logger:           logger,
@@ -49,6 +51,7 @@ func NewService(
 		storage:          storage,
 		nc:               nc,
 		completionsModel: completionsModel,
+		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
 		userStorage:      userStorage,
 	}
@@ -61,12 +64,14 @@ func (s *Service) Execute(
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 	onDelta func(agent.StreamDelta),
+	reasoning bool,
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
 		s.logger,
 		s.nc,
 		s.aiService,
 		s.completionsModel,
+		s.reasoningModel,
 		preToolCallback,
 		postToolCallback,
 	)
@@ -75,7 +80,7 @@ func (s *Service) Execute(
 	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
 
 	// TODO(cosmic): pass origin to agent
-	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta)
+	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, reasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -87,6 +92,7 @@ func (s *Service) SendMessage(
 	ctx context.Context,
 	chatID string,
 	message string,
+	reasoning bool,
 ) (*model.Message, error) {
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
@@ -108,6 +114,20 @@ func (s *Service) SendMessage(
 	if userProfile.Bio != nil {
 		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
 	}
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return nil, err
+	}
+	if len(oauthTokens) > 0 {
+		systemPrompt += "You have following email accounts connected to your account: "
+		for _, token := range oauthTokens {
+			systemPrompt += fmt.Sprintf("%s, ", token.Username)
+		}
+	} else {
+		systemPrompt += "You have no email accounts connected to your account."
+	}
+
 	systemPrompt += fmt.Sprintf("Current date and time: %s.", time.Now().Format(time.RFC3339))
 	systemPrompt += fmt.Sprintf("Current Chat ID is %s.", chatID)
 
@@ -196,7 +216,8 @@ func (s *Service) SendMessage(
 		"message_id": userMsgID,
 	}
 
-	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta)
+	s.logger.Info("Executing agent", "reasoning", reasoning)
+	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, reasoning)
 	if err != nil {
 		return nil, err
 	}
