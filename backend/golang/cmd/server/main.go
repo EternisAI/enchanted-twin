@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
@@ -244,7 +245,8 @@ func main() {
 		}
 	}()
 
-	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort); err != nil {
+	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
 		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
 		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
 	}
@@ -441,13 +443,17 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string) (*rest.Server, error) {
+func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+	os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to load swagger spec")
 	}
 
 	api := operations.NewWeaviateAPI(swaggerSpec)
+	api.Logger = func(s string, i ...any) {
+		logger.Debug(s, i...)
+	}
 	server := rest.NewServer(api)
 
 	server.EnabledListeners = []string{"http"}
