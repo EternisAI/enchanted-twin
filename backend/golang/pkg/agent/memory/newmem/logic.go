@@ -316,11 +316,24 @@ func (wms *WeaviateMemoryStore) Store(ctx context.Context, documents []memory.Te
 					"content":   contentForUpdate,
 					"timestamp": time.Now().UTC().Format(time.RFC3339Nano), // Update timestamp always uses time.Now()
 				}
-				err := wms.client.Data().Updater().
+
+				embedding, err := wms.aiEmbeddingsService.Embedding(ctx, contentForUpdate, wms.embeddingsModel)
+				if err != nil {
+					wms.logger.Printf("    Error generating embedding for new fact: %v", err)
+					return errors.Wrap(err, "error generating embedding for new fact")
+				}
+
+				embedding32 := make([]float32, len(embedding))
+				for i, v := range embedding {
+					embedding32[i] = float32(v)
+				}
+
+				err = wms.client.Data().Updater().
 					WithClassName(wms.className).
 					WithID(idToUpdate).
+					WithVector(embedding32).
 					WithProperties(updateData).
-					WithMerge(). // Use merge to only update specified fields
+					WithMerge().
 					Do(ctx)
 				if err != nil {
 					wms.logger.Printf("    Error updating fact-memory ID %s in Weaviate: %v", idToUpdate, err)
