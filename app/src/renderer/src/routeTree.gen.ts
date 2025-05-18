@@ -17,6 +17,7 @@ import { Route as OnboardingImport } from './routes/onboarding'
 import { Route as AdminImport } from './routes/admin'
 import { Route as IndexImport } from './routes/index'
 import { Route as ChatChatIdImport } from './routes/chat/$chatId'
+import { Route as VoiceChatIdImport } from './routes/voice/$chatId'
 
 // Create/Update Routes
 
@@ -53,6 +54,12 @@ const IndexRoute = IndexImport.update({
 const ChatChatIdRoute = ChatChatIdImport.update({
   id: '/chat/$chatId',
   path: '/chat/$chatId',
+  getParentRoute: () => rootRoute,
+} as any)
+
+const VoiceChatIdRoute = VoiceChatIdImport.update({
+  id: '/voice/$chatId',
+  path: '/voice/$chatId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -102,6 +109,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatChatIdImport
       parentRoute: typeof rootRoute
     }
+    '/voice/$chatId': {
+      id: '/voice/$chatId'
+      path: '/voice/$chatId'
+      fullPath: '/voice/$chatId'
+      preLoaderRoute: typeof VoiceChatIdImport
+      parentRoute: typeof rootRoute
+    }
   }
 }
 
@@ -114,6 +128,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
+  '/voice/$chatId': typeof VoiceChatIdRoute
 }
 
 export interface FileRoutesByTo {
@@ -123,6 +138,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
+  '/voice/$chatId': typeof VoiceChatIdRoute
 }
 
 export interface FileRoutesById {
@@ -133,6 +149,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
+  '/voice/$chatId': typeof VoiceChatIdRoute
 }
 
 export interface FileRouteTypes {
@@ -144,8 +161,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/chat/$chatId'
+    | '/voice/$chatId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/onboarding' | '/settings' | '/tasks' | '/chat/$chatId'
+  to:
+    | '/'
+    | '/admin'
+    | '/onboarding'
+    | '/settings'
+    | '/tasks'
+    | '/chat/$chatId'
+    | '/voice/$chatId'
   id:
     | '__root__'
     | '/'
@@ -154,6 +179,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/chat/$chatId'
+    | '/voice/$chatId'
   fileRoutesById: FileRoutesById
 }
 
@@ -164,6 +190,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
+  VoiceChatIdRoute: typeof VoiceChatIdRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -173,6 +200,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
   ChatChatIdRoute: ChatChatIdRoute,
+  VoiceChatIdRoute: VoiceChatIdRoute,
 }
 
 export const routeTree = rootRoute
@@ -190,7 +218,8 @@ export const routeTree = rootRoute
         "/onboarding",
         "/settings",
         "/tasks",
-        "/chat/$chatId"
+        "/chat/$chatId",
+        "/voice/$chatId"
       ]
     },
     "/": {
@@ -210,6 +239,9 @@ export const routeTree = rootRoute
     },
     "/chat/$chatId": {
       "filePath": "chat/$chatId.tsx"
+    },
+    "/voice/$chatId": {
+      "filePath": "voice/$chatId.tsx"
     }
   }
 }
