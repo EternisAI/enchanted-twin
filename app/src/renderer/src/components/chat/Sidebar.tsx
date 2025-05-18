@@ -1,5 +1,10 @@
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
-import { Chat, DeleteChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
+import {
+  Chat,
+  DeleteChatDocument,
+  GetChatsDocument,
+  CreateChatDocument
+} from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
 import {
   AlertDialog,
@@ -20,7 +25,8 @@ import {
   SearchIcon,
   ChevronDown,
   ChevronUp,
-  CheckSquare
+  CheckSquare,
+  Mic
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -75,6 +81,26 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 
   const handleNavigateTasks = () => {
     navigate({ to: '/tasks' })
+  }
+
+  const [createChat] = useMutation(CreateChatDocument)
+
+  const router = useRouter()
+
+  const handleVoiceMode = async () => {
+    try {
+      const { data: createData } = await createChat({
+        variables: { name: 'Voice Chat' }
+      })
+      const newChatId = createData?.createChat?.id
+      if (newChatId) {
+        navigate({ to: `/voice/${newChatId}` })
+        await client.cache.evict({ fieldName: 'getChats' })
+        await router.invalidate()
+      }
+    } catch (error) {
+      console.error('Failed to create chat:', error)
+    }
   }
 
   const chatsToDisplay = showAllChats ? chats : chats.slice(0, 5)
@@ -190,6 +216,15 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         >
           <CheckSquare className="w-4 h-4 mr-2 text-muted-foreground" />
           <span className="text-sm">Tasks</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
+          onClick={handleVoiceMode}
+        >
+          <Mic className="w-4 h-4 mr-2 text-muted-foreground" />
+          <span className="text-sm">Voice mode</span>
         </Button>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
