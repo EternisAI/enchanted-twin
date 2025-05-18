@@ -233,3 +233,11 @@
   cursor: pointer;
 } */
 
+.chat-image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
+  gap: 0.25rem; /* 4px */
+  width: 100%;
+}
+
+

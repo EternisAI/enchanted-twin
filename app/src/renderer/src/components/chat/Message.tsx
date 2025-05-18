@@ -27,13 +27,13 @@ export function UserMessageBubble({ message }: { message: Message }) {
       <div className="bg-accent dark:bg-black dark:border dark:border-border text-foreground rounded-lg px-4 py-2 max-w-md">
         {message.text && <p>{message.text}</p>}
         {message.imageUrls.length > 0 && (
-          <div className="flex gap-2 mt-2">
+          <div className="chat-image-grid mt-2">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                thumbClassName="inline-block h-32 w-32 object-cover rounded"
+                thumbClassName="inline-block h-32 w-full object-cover rounded"
               />
             ))}
           </div>
@@ -82,13 +82,13 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
 
         {replyText && <Markdown>{replyText}</Markdown>}
         {message.imageUrls.length > 0 && (
-          <div className="flex flex-col gap-2 my-2">
+          <div className="chat-image-grid my-2">
             {message.imageUrls.map((url, i) => (
               <ImagePreview
                 key={i}
                 src={url}
                 alt={`attachment-${i}`}
-                thumbClassName="inline-block h-40 w-40 object-cover rounded"
+                thumbClassName="inline-block h-40 w-full object-cover rounded"
               />
             ))}
           </div>
