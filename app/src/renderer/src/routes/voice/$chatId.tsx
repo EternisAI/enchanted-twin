@@ -1,22 +1,16 @@
 // routes/voice/$chatId.tsx
 import { createFileRoute } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
-import { GetChatDocument, Chat, Message, Role } from '@renderer/graphql/generated/graphql'
-import MessageInput from '@renderer/components/chat/MessageInput'
-import { UserMessageBubble } from '@renderer/components/chat/Message'
-import MovingBall from '@renderer/components/voice/MovingBall'
-import { useSendMessage } from '@renderer/hooks/useChat'
-import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
-import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
-import { useTTS } from '@renderer/hooks/useTTS'
-import { useState } from 'react'
+import { GetChatDocument } from '@renderer/graphql/generated/graphql'
+
+import VoiceChatView from '@renderer/components/voice/VoiceChatView'
 
 interface VoiceSearchParams {
   initialMessage?: string
 }
 
 export const Route = createFileRoute('/voice/$chatId')({
-  component: VoiceRouteComponent,
+  component: VoiceChatRouteComponent,
   validateSearch: (search: Record<string, unknown>): VoiceSearchParams => {
     return {
       initialMessage: typeof search.initialMessage === 'string' ? search.initialMessage : undefined
@@ -62,68 +56,21 @@ export const Route = createFileRoute('/voice/$chatId')({
   pendingMinMs: 300
 })
 
-function VoiceRouteComponent() {
+function VoiceChatRouteComponent() {
   const { data, error } = Route.useLoaderData()
   const { initialMessage } = Route.useSearch()
-  const { speak } = useTTS()
-
-  const [lastUserMessage, setLastUserMessage] = useState<Message | null>(() => {
-    if (!data) return null
-    if (initialMessage && data.messages.length === 0) {
-      const msg: Message = {
-        id: `temp-${Date.now()}`,
-        text: initialMessage,
-        imageUrls: [],
-        role: Role.User,
-        toolCalls: [],
-        toolResults: [],
-        createdAt: new Date().toISOString()
-      }
-      return msg
-    }
-    const msg = [...data.messages].reverse().find((m) => m.role === Role.User) || null
-    return msg
-  })
-
-  const [assistantBuffer, setAssistantBuffer] = useState<{ id: string; text: string }>({ id: '', text: '' })
 
   if (!data) return <div className="p-4">Invalid chat ID.</div>
   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
 
-  const { sendMessage } = useSendMessage(
-    data.id,
-    (msg) => {
-      setLastUserMessage(msg)
-      setAssistantBuffer({ id: '', text: '' })
-    },
-    () => {}
-  )
-
-  useMessageSubscription(data.id, (message) => {
-    if (message.role === Role.Assistant) {
-      speak(message.text || '')
-    }
-  })
-
-  useMessageStreamSubscription(data.id, (messageId, chunk, isComplete) => {
-    setAssistantBuffer((prev) => {
-      const newText = prev.id === messageId ? prev.text + (chunk ?? '') : (chunk ?? '')
-      if (isComplete) {
-        speak(newText)
-        return { id: '', text: '' }
-      }
-      return { id: messageId, text: newText }
-    })
-  })
-
   return (
-    <div className="flex flex-col h-full w-full items-center">
-      <div className="flex-1 flex items-center justify-center w-full">
-        <MovingBall />
-      </div>
-      <div className="w-full max-w-4xl flex flex-col gap-4 px-4 pb-4">
-        {lastUserMessage && <UserMessageBubble message={lastUserMessage} />}
-        <MessageInput isWaitingTwinResponse={false} onSend={sendMessage} />
+    <div className="flex flex-col h-full flex-1 w-full">
+      <div className="flex-1 overflow-hidden w-full">
+        <div className="flex flex-col items-center h-full w-full">
+          <div className="w-full max-w-4xl mx-auto h-full">
+            <VoiceChatView key={data.id} chat={data} initialMessage={initialMessage} />
+          </div>
+        </div>
       </div>
     </div>
   )

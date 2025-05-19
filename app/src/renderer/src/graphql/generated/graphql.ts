@@ -50,6 +50,7 @@ export type Chat = {
   id: Scalars['ID']['output'];
   messages: Array<Message>;
   name: Scalars['String']['output'];
+  voice?: Maybe<Scalars['Boolean']['output']>;
 };
 
 export type ChatSuggestionsCategory = {
