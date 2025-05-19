@@ -48,6 +48,7 @@ type Chat {
   name: String!
   messages: [Message!]! @goField(forceResolver: true)
   createdAt: DateTime!
+  voice: Boolean
 }
 
 type Message {

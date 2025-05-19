@@ -1,10 +1,5 @@
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
-import {
-  Chat,
-  DeleteChatDocument,
-  GetChatsDocument,
-  CreateChatDocument
-} from '@renderer/graphql/generated/graphql'
+import { Chat, DeleteChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
 import {
   AlertDialog,
@@ -83,23 +78,11 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
     navigate({ to: '/tasks' })
   }
 
-  const [createChat] = useMutation(CreateChatDocument)
-
-  const router = useRouter()
-
   const handleVoiceMode = async () => {
     try {
-      const { data: createData } = await createChat({
-        variables: { name: 'Voice Chat' }
-      })
-      const newChatId = createData?.createChat?.id
-      if (newChatId) {
-        navigate({ to: `/voice/${newChatId}` })
-        await client.cache.evict({ fieldName: 'getChats' })
-        await router.invalidate()
-      }
+      navigate({ to: '/voice' })
     } catch (error) {
-      console.error('Failed to create chat:', error)
+      console.error('Failed to navigate to voice chat:', error)
     }
   }
 
@@ -328,7 +311,8 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
       <Link
         key={chat.id}
         disabled={isActive}
-        to="/chat/$chatId"
+        to="/voice/$chatId"
+        // to={chat.voice ? '/voice/$chatId' : '/chat/$chatId'}
         params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,
