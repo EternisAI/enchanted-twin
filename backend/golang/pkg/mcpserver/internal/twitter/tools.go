@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	LIST_FEED_TOOL_DESCRIPTION      = "List the tweets from the feed of user. It returns chronologically list of tweets from most recent" 
+	LIST_FEED_TOOL_DESCRIPTION      = "List the tweets from the feed of user. It returns chronologically list of tweets from most recent"
 	POST_TWEET_TOOL_DESCRIPTION     = "Post a tweet"
 	SEARCH_TWEETS_TOOL_DESCRIPTION  = "Search for tweets from all tweets using a keyword"
 	LIST_BOOKMARKS_TOOL_DESCRIPTION = "List the bookmarks of the user"
