@@ -25,3 +25,11 @@ gqlgen:
 
 run-telegram-chat:
 	go run cmd/telegram_chat_server/main.go
+
+# Generate GraphQL code for the twin-network API
+gqlgen-twin-network:
+	cd twin_network && go run github.com/99designs/gqlgen generate
+
+# Run the standalone twin-network GraphQL server
+run-twin-network-server:
+	go run cmd/twin-network-server/main.go

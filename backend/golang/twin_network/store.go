@@ -1,0 +1,60 @@
+package twin_network
+
+import (
+	"sync"
+	"time"
+)
+
+// NetworkMessage represents a single message published on the twin network.
+// This struct mirrors the GraphQL type definition, but uses Go native types.
+type NetworkMessage struct {
+	AuthorPubKey string
+	NetworkID    string
+	Text         string
+	CreatedAt    time.Time
+	ID           int64
+}
+
+// MessageStore is a concurrency-safe in-memory store for NetworkMessage items.
+// For the first iteration we keep everything in memory; this can be replaced
+// by a persistent store later if needed.
+type MessageStore struct {
+	mu       sync.RWMutex
+	messages []NetworkMessage
+	nextID   int64 // monotonically increasing counter for assigning message IDs
+}
+
+// NewMessageStore returns a ready-to-use empty MessageStore.
+func NewMessageStore() *MessageStore {
+	return &MessageStore{
+		messages: make([]NetworkMessage, 0),
+		nextID:   1,
+	}
+}
+
+// Add appends a message to the store.
+func (s *MessageStore) Add(msg NetworkMessage) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	msg.ID = s.nextID
+	s.nextID++
+	s.messages = append(s.messages, msg)
+}
+
+// GetSince returns all messages that belong to the given networkID and were
+// created strictly after the provided timestamp.
+func (s *MessageStore) GetSince(networkID string, fromID int64, limit *int) []NetworkMessage {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var out []NetworkMessage
+	for _, m := range s.messages {
+		if m.NetworkID == networkID && m.ID > fromID {
+			out = append(out, m)
+		}
+	}
+	if limit != nil && len(out) > *limit {
+		return out[:*limit]
+	}
+	return out
+}

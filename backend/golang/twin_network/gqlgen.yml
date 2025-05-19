@@ -1,0 +1,25 @@
+# Code generation configuration for the twin-network GraphQL API
+# Run `make gqlgen-twin-network` (added below) to regenerate after schema changes.
+
+schema:
+  - graph/*.graphqls
+
+exec:
+  # generated server glue (single-file layout, like the main API)
+  package: graph
+  layout: single-file
+  filename: graph/generated.go
+
+model:
+  # generated GraphQL models
+  filename: graph/model/models_gen.go
+  package: model
+
+resolver:
+  # where resolvers live – follow-schema layout so each operation gets its own file
+  package: graph
+  layout: follow-schema
+  dir: graph
+  filename_template: "{name}.resolvers.go"
+
+# No additional custom scalar mappings required – DateTime defaults to string. 

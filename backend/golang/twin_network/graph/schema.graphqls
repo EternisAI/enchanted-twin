@@ -1,0 +1,29 @@
+scalar DateTime
+
+"""
+NetworkMessage represents a single message in the twin network.  
+The DateTime scalar re-uses the same string-based representation as the main API.
+"""
+type NetworkMessage {
+  id: ID!
+  authorPubKey: String!
+  networkID: String!
+  text: String!
+  createdAt: DateTime!
+}
+
+type Query {
+  """
+  Returns all messages for the given network that were created strictly after
+  the provided timestamp (RFC-3339 format).
+  """
+  getNewMessages(networkID: String!, fromID: Int!, limit: Int): [NetworkMessage!]!
+}
+
+type Mutation {
+  """
+  Publish a new message to the given network.  
+  Returns the created NetworkMessage.
+  """
+  postMessage(authorPubKey: String!, networkID: String!, text: String!): NetworkMessage!
+} 
