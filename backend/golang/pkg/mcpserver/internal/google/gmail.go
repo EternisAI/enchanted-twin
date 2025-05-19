@@ -129,7 +129,7 @@ func processSearchEmails(
 		return nil, err
 	}
 
-	maxResults := 10
+	maxResults := 50
 	if arguments.Limit > maxResults {
 		maxResults = arguments.Limit
 	}

@@ -19,7 +19,7 @@ const (
 )
 
 const (
-	LIST_FEED_TOOL_DESCRIPTION      = "List the tweets from the feed of user. It returns chronologically list of tweets from most recent"
+	LIST_FEED_TOOL_DESCRIPTION      = "List the tweets from the feed of user. It returns chronologically list of tweets from most recent" 
 	POST_TWEET_TOOL_DESCRIPTION     = "Post a tweet"
 	SEARCH_TWEETS_TOOL_DESCRIPTION  = "Search for tweets from all tweets using a keyword"
 	LIST_BOOKMARKS_TOOL_DESCRIPTION = "List the bookmarks of the user"
@@ -79,7 +79,7 @@ func GetUser(accessToken string) (*User, error) {
 }
 
 type ListFeedTweetsArguments struct {
-	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
+	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page, returned in the response"`
 	Limit           int    `json:"limit"            jsonschema:"required,description=The number of tweets to list, minimum 10, maximum 50"`
 }
 
@@ -123,8 +123,8 @@ func processListFeedTweets(
 		return nil, err
 	}
 
-	maxResults := 100
-	if arguments.Limit > 5 {
+	maxResults := 50
+	if arguments.Limit > 50 {
 		maxResults = arguments.Limit
 	}
 
@@ -224,8 +224,8 @@ func processSearchTweets(
 		Host:   "https://api.twitter.com",
 	}
 
-	limit := 10
-	if arguments.Limit > 10 {
+	limit := 50
+	if arguments.Limit > 50 {
 		limit = arguments.Limit
 	}
 
@@ -300,8 +300,8 @@ func processListBookmarks(
 		paginationToken = arguments.PaginationToken
 	}
 
-	limit := 10
-	if arguments.Limit > 10 {
+	limit := 50
+	if arguments.Limit > 50 {
 		limit = arguments.Limit
 	}
 
