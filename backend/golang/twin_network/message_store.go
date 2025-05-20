@@ -1,6 +1,7 @@
 package twin_network
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -57,4 +58,10 @@ func (s *MessageStore) GetSince(networkID string, fromID int64, limit *int) []Ne
 		return out[:*limit]
 	}
 	return out
+}
+
+// String returns a human-readable representation of the message – suitable for
+// feeding directly into an LLM prompt.
+func (m NetworkMessage) String() string {
+	return fmt.Sprintf("Message[%d] from %s on network %s at %s: %s", m.ID, m.AuthorPubKey, m.NetworkID, m.CreatedAt.Format(time.RFC3339), m.Content)
 }
