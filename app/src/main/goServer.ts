@@ -1,11 +1,58 @@
 import { spawn, ChildProcess } from 'child_process'
 import log from 'electron-log/main'
-import { existsSync } from 'fs'
-import { createErrorWindow, waitForBackend } from './helpers'
+import { existsSync, mkdirSync } from 'fs'
+import { join } from 'path'
+import { app } from 'electron'
+import { createErrorWindow, waitForBackend, createSplashWindow } from './helpers'
+import { BrowserWindow } from 'electron'
 
 let goServerProcess: ChildProcess | null = null
+let splashWindow: BrowserWindow | null = null
 
-export async function startGoServer(
+export async function initializeGoServer(IS_PRODUCTION: boolean, DEFAULT_BACKEND_PORT: number) {
+  // Create and show splash screen
+  splashWindow = createSplashWindow()
+
+  const userDataPath = app.getPath('userData')
+  const dbDir = join(userDataPath, 'db')
+
+  if (!existsSync(dbDir)) {
+    try {
+      mkdirSync(dbDir, { recursive: true })
+      log.info(`Created database directory: ${dbDir}`)
+    } catch (err) {
+      log.error(`Failed to create database directory: ${err}`)
+    }
+  }
+
+  const dbPath = join(dbDir, 'enchanted-twin.db')
+  log.info(`Database path: ${dbPath}`)
+
+  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
+  const goBinaryPath = !IS_PRODUCTION
+    ? join(__dirname, '..', '..', 'resources', executable)
+    : join(process.resourcesPath, 'resources', executable)
+
+  if (IS_PRODUCTION) {
+    const success = await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
+    // Close splash screen after Go server is ready
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close()
+      splashWindow = null
+    }
+    return success
+  } else {
+    log.info('Running in development mode - packaged Go server not started')
+    // Close splash screen in development mode
+    if (splashWindow && !splashWindow.isDestroyed()) {
+      splashWindow.close()
+      splashWindow = null
+    }
+    return true
+  }
+}
+
+async function startGoServer(
   goBinaryPath: string,
   userDataPath: string,
   dbPath: string,
