@@ -13,7 +13,7 @@ interface VoiceChatViewProps {
 }
 
 export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewProps) {
-  const { isSpeaking, speak, getFreqData } = useTTS()
+  const { isSpeaking, speak, getFreqData, isLoading } = useTTS()
 
   /* ---------- last user message (for UI) ---------- */
   const [lastUserMessage, setLastUserMessage] = useState<Message | null>(() => {
@@ -39,14 +39,16 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
     sendMessageRaw(text, reasoning, true)
   }
 
+  useEffect(() => {
+    console.log({ isSpeaking, isLoading })
+  }, [isSpeaking, isLoading])
+
   /* ---------- speech state machine ---------- */
-  const [pendingSpeech, setPendingSpeech] = useState(false) // true until isSpeaking flips on
   const triggeredRef = useRef(false)
 
   useMessageSubscription(chat.id, (message) => {
     if (message.role === Role.Assistant) {
       triggeredRef.current = true
-      setPendingSpeech(true)
       speak(message.text ?? '')
     }
   })
@@ -54,12 +56,11 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
   /* when audio actually starts, drop loading state */
   useEffect(() => {
     if (isSpeaking && triggeredRef.current) {
-      setPendingSpeech(false)
       triggeredRef.current = false
     }
   }, [isSpeaking])
 
-  const visualState: 0 | 1 | 2 = isSpeaking ? 2 : pendingSpeech ? 1 : 0
+  const visualState: 0 | 1 | 2 = isSpeaking ? 2 : isLoading ? 1 : 0
 
   useEffect(() => {
     console.log('visualState', visualState)
