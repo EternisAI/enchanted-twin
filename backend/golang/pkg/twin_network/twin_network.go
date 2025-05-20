@@ -6,6 +6,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
+	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/client"
 )
@@ -17,6 +18,7 @@ type TwinNetworkWorkflow struct {
 	readNetworkTool  *ReadNetworkTool
 	agentKey         AgentKey
 	identityService  *identity.IdentityService
+	twinChatService  *twinchat.Service
 }
 
 type TwinNetworkWorkflowInput struct {
@@ -25,6 +27,7 @@ type TwinNetworkWorkflowInput struct {
 	NetworkServerURL string
 	AgentKey         AgentKey
 	IdentityService  *identity.IdentityService
+	TwinChatService  *twinchat.Service
 }
 
 func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow {
@@ -35,6 +38,7 @@ func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow
 		readNetworkTool:  NewReadNetworkTool(input.Logger, input.AI, "gpt-4.1-mini"),
 		agentKey:         input.AgentKey,
 		identityService:  input.IdentityService,
+		twinChatService:  input.TwinChatService,
 	}
 }
 

@@ -17,24 +17,24 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
-type chatStore interface {
+type ChatStore interface {
 	AddMessageToChat(ctx context.Context, msg repository.Message) (string, error)
 	CreateChat(ctx context.Context, name string) (model.Chat, error)
 }
 
-type sendToChat struct {
-	chatStorage chatStore
+type SendToChat struct {
+	chatStorage ChatStore
 	nc          *nats.Conn
 }
 
-func NewSendToChatTool(chatStorage chatStore, nc *nats.Conn) *sendToChat {
-	return &sendToChat{
+func NewSendToChatTool(chatStorage ChatStore, nc *nats.Conn) *SendToChat {
+	return &SendToChat{
 		chatStorage: chatStorage,
 		nc:          nc,
 	}
 }
 
-func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
+func (e *SendToChat) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	message, ok := inputs["message"].(string)
 	if !ok {
 		return nil, errors.New("message is not a string")
@@ -97,7 +97,7 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	}, nil
 }
 
-func (e *sendToChat) Definition() openai.ChatCompletionToolParam {
+func (e *SendToChat) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{

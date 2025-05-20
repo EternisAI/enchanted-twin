@@ -42,7 +42,7 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 			lastMessageID = msg.ID
 		}
 
-		identityContext, err := a.identityService.GetPersonality(ctx)
+		personality, err := a.identityService.GetPersonality(ctx)
 		if err != nil {
 			a.logger.Error("Failed to get identity context",
 				"error", err,
@@ -50,9 +50,11 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 			continue
 		}
 
+		fmt.Println("personality", personality)
+
 		response, err := a.readNetworkTool.Execute(ctx, map[string]any{
 			"network_message": []NetworkMessage{msg},
-		}, identityContext)
+		}, personality)
 		if err != nil {
 			a.logger.Error("Failed to process message with agent tool",
 				"error", err,
@@ -81,6 +83,14 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 				"error", err,
 				"messageID", msg.ID)
 			continue
+		}
+
+		// Notify user in chat about the network reply
+		_, err = a.twinChatService.SendMessage(ctx, "default", fmt.Sprintf("I've replied to a message in network %s: %s", input.NetworkID, responseString), false)
+		if err != nil {
+			a.logger.Error("Failed to send chat notification",
+				"error", err,
+				"messageID", msg.ID)
 		}
 
 		a.logger.Info("Successfully processed and responded to message",

@@ -280,6 +280,8 @@ func main() {
 	}
 	logger.Info("Personality", "personality", personality)
 
+	sendToChatTool := twinchat.NewSendToChatTool(chatStorage, nc)
+
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
 			logger:               logger,
@@ -294,6 +296,8 @@ func main() {
 			notifications:        notificationsSvc,
 			agentKey:             agentKey,
 			identityService:      identitySvc,
+			sendToChatTool:       sendToChatTool,
+			TwinChatService:      twinChatService,
 		},
 	)
 	if err != nil {
@@ -411,6 +415,8 @@ type bootstrapTemporalWorkerInput struct {
 	notifications        *notifications.Service
 	agentKey             *twin_network.AgentKey
 	identityService      *identity.IdentityService
+	sendToChatTool       *twinchat.SendToChat
+	TwinChatService      *twinchat.Service
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
@@ -466,6 +472,7 @@ func bootstrapTemporalWorker(
 		NetworkServerURL: input.envs.NetworkServerURL,
 		AgentKey:         *input.agentKey,
 		IdentityService:  input.identityService,
+		TwinChatService:  input.TwinChatService,
 	}
 	twinNetworkActivities := twin_network.NewTwinNetworkWorkflow(twinNetworkInput)
 	twinNetworkActivities.RegisterWorkflows(w)
