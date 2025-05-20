@@ -2,6 +2,7 @@ package twin_network
 
 import (
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 )
@@ -15,6 +16,7 @@ type NetworkMessage struct {
 	CreatedAt    time.Time
 	ID           int64
 	IsMine       bool
+	Signature    string
 }
 
 // MessageStore is a concurrency-safe in-memory store for NetworkMessage items.
@@ -55,6 +57,12 @@ func (s *MessageStore) GetSince(networkID string, fromID int64, limit *int) []Ne
 			out = append(out, m)
 		}
 	}
+
+	// Sort messages by CreatedAt in descending order
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+
 	if limit != nil && len(out) > *limit {
 		return out[:*limit]
 	}

@@ -97,12 +97,16 @@ func (a *AgentKey) PubKeyHex() string {
 // SignMessage signs an arbitrary ASCII/UTF-8 string using the agent's private
 // key. The signature is 65 bytes long: {R || S || V} where V is the recovery
 // identifier (0 or 1) as produced by go-ethereum/crypto.Sign.
-func (a *AgentKey) SignMessage(msg string) ([]byte, error) {
+func (a *AgentKey) SignMessage(msg string) (string, error) {
 	if a == nil || a.PrivateKey == nil {
-		return nil, errors.New("agent has no private key")
+		return "", errors.New("agent has no private key")
 	}
 	hash := crypto.Keccak256([]byte(msg))
-	return crypto.Sign(hash, a.PrivateKey)
+	signature, err := crypto.Sign(hash, a.PrivateKey)
+	if err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(signature), nil
 }
 
 // RecoverPubKey derives the public key that produced the signature for the
@@ -118,12 +122,15 @@ func RecoverPubKey(msg string, signature []byte) (*ecdsa.PublicKey, error) {
 
 // VerifyMessageSignature verifies that `signature` is a valid signature of
 // `msg` by the given public key.
-func VerifyMessageSignature(msg string, signature []byte, pubKey *ecdsa.PublicKey) bool {
+func VerifyMessageSignature(msg string, signature string, pubKey *ecdsa.PublicKey) bool {
 	if len(signature) != 65 || pubKey == nil {
 		return false
 	}
 	hash := crypto.Keccak256([]byte(msg))
 	// crypto.VerifySignature expects the 64-byte RS pair without recovery id.
-	sigNoV := signature[:64]
+	sigNoV, err := hex.DecodeString(signature)
+	if err != nil {
+		return false
+	}
 	return crypto.VerifySignature(crypto.FromECDSAPub(pubKey), hash, sigNoV)
 }

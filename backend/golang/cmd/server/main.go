@@ -49,11 +49,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
+	twin_network "github.com/EternisAI/enchanted-twin/pkg/twin_network"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
@@ -267,7 +267,11 @@ func main() {
 
 	notificationsSvc := notifications.NewService(nc)
 
-	// Initialize and start the temporal worker
+	agentKey, err := twin_network.NewRandomAgentPubKey()
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to generate agent key"))
+	}
+
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
 			logger:               logger,
@@ -280,17 +284,13 @@ func main() {
 			aiCompletionsService: aiCompletionsService,
 			toolsRegistry:        toolRegistry,
 			notifications:        notificationsSvc,
+			agentKey:             agentKey,
 		},
 	)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal worker"))
 	}
 	defer temporalWorker.Stop()
-
-	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
-		logger.Error("Failed to bootstrap periodic workflows", "error", err)
-		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
-	}
 
 	identitySvc := identity.NewIdentityService(temporalClient)
 	personality, err := identitySvc.GetPersonality(context.Background())
@@ -408,6 +408,7 @@ type bootstrapTemporalWorkerInput struct {
 	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
 	notifications        *notifications.Service
+	agentKey             *twin_network.AgentKey
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
@@ -456,10 +457,22 @@ func bootstrapTemporalWorker(
 	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
 
+	// Register twin network activities
+	twinNetworkActivities := twin_network.NewTwinNetworkWorkflow(input.aiCompletionsService, input.logger, input.envs.NetworkServerURL, *input.agentKey)
+	twinNetworkActivities.RegisterWorkflows(w)
+	twinNetworkActivities.RegisterActivities(w)
+
 	err := w.Start()
 	if err != nil {
 		input.logger.Error("Error starting worker", slog.Any("error", err))
 		return nil, err
+	}
+
+	twinNetworkWorkflow := twin_network.NewTwinNetworkWorkflow(input.aiCompletionsService, input.logger, input.envs.NetworkServerURL, *input.agentKey)
+
+	err = twinNetworkWorkflow.ScheduleNetworkMonitor(input.logger, input.temporalClient)
+	if err != nil {
+		input.logger.Error("Failed to schedule twin network monitor workflow", slog.Any("error", err))
 	}
 
 	return w, nil
@@ -624,12 +637,4 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
-}
-
-func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
-	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
-	if err != nil {
-		return errors.Wrap(err, "Failed to create identity personality workflow")
-	}
-	return nil
 }

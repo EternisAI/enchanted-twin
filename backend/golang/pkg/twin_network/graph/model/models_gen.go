@@ -14,6 +14,7 @@ type NetworkMessage struct {
 	Content      string `json:"content"`
 	CreatedAt    string `json:"createdAt"`
 	IsMine       bool   `json:"isMine"`
+	Signature    string `json:"signature"`
 }
 
 type Query struct {

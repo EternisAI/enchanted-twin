@@ -25,6 +25,7 @@ type Config struct {
 	TelegramChatServer string
 	ContainerRuntime   string
 	WeaviatePort       string
+	NetworkServerURL   string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -66,6 +67,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
+		NetworkServerURL:   getEnv("NETWORK_SERVER_URL", "http://localhost:8082/query", printEnv),
 	}
 	return conf, nil
 }

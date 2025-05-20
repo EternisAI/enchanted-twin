@@ -54,7 +54,7 @@ func TestSignAndVerify(t *testing.T) {
 		t.Fatalf("expected 65-byte signature, got %d", len(sig))
 	}
 
-	pubRecovered, err := RecoverPubKey(msg, sig)
+	pubRecovered, err := RecoverPubKey(msg, []byte(sig))
 	if err != nil {
 		t.Fatalf("RecoverPubKey error: %v", err)
 	}

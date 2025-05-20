@@ -11,6 +11,7 @@ type NetworkMessage {
   content: String!
   createdAt: DateTime!
   isMine: Boolean!
+  signature: String!
 }
 
 type Query {
@@ -26,5 +27,5 @@ type Mutation {
   Publish a new message to the given network.  
   Returns the created NetworkMessage.
   """
-  postMessage(authorPubKey: String!, networkID: String!, content: String!): NetworkMessage!
+  postMessage(authorPubKey: String!, networkID: String!, content: String!, signature: String!): NetworkMessage!
 } 
