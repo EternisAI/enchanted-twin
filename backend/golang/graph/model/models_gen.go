@@ -38,6 +38,7 @@ type Chat struct {
 	Name      string     `json:"name"`
 	Messages  []*Message `json:"messages"`
 	CreatedAt string     `json:"createdAt"`
+	Voice     *bool      `json:"voice,omitempty"`
 }
 
 type ChatSuggestionsCategory struct {

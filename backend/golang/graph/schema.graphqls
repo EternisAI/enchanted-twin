@@ -119,7 +119,12 @@ type Mutation {
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
   createChat(name: String!): Chat!
-  sendMessage(chatId: ID!, text: String!, reasoning: Boolean! = False): Message!
+  sendMessage(
+    chatId: ID!
+    text: String!
+    reasoning: Boolean! = False
+    voice: Boolean! = False
+  ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!

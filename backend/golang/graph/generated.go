@@ -80,6 +80,7 @@ type ComplexityRoot struct {
 		ID        func(childComplexity int) int
 		Messages  func(childComplexity int) int
 		Name      func(childComplexity int) int
+		Voice     func(childComplexity int) int
 	}
 
 	ChatSuggestionsCategory struct {
@@ -160,7 +161,7 @@ type ComplexityRoot struct {
 		DeleteDataSource          func(childComplexity int, id string) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
-		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool) int
+		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool, voice bool) int
 		SendTelegramMessage       func(childComplexity int, chatUUID string, text string) int
 		StartIndexing             func(childComplexity int) int
 		StartOAuthFlow            func(childComplexity int, provider string, scope string) int
@@ -268,7 +269,7 @@ type MutationResolver interface {
 	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string) (*model.Chat, error)
-	SendMessage(ctx context.Context, chatID string, text string, reasoning bool) (*model.Message, error)
+	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -479,6 +480,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Chat.Name(childComplexity), true
+
+	case "Chat.voice":
+		if e.complexity.Chat.Voice == nil {
+			break
+		}
+
+		return e.complexity.Chat.Voice(childComplexity), true
 
 	case "ChatSuggestionsCategory.category":
 		if e.complexity.ChatSuggestionsCategory.Category == nil {
@@ -901,7 +909,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string), args["reasoning"].(bool)), true
+		return e.complexity.Mutation.SendMessage(childComplexity, args["chatId"].(string), args["text"].(string), args["reasoning"].(bool), args["voice"].(bool)), true
 
 	case "Mutation.sendTelegramMessage":
 		if e.complexity.Mutation.SendTelegramMessage == nil {
@@ -1753,6 +1761,11 @@ func (ec *executionContext) field_Mutation_sendMessage_args(ctx context.Context,
 		return nil, err
 	}
 	args["reasoning"] = arg2
+	arg3, err := ec.field_Mutation_sendMessage_argsVoice(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["voice"] = arg3
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_sendMessage_argsChatID(
@@ -1787,6 +1800,19 @@ func (ec *executionContext) field_Mutation_sendMessage_argsReasoning(
 ) (bool, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("reasoning"))
 	if tmp, ok := rawArgs["reasoning"]; ok {
+		return ec.unmarshalNBoolean2bool(ctx, tmp)
+	}
+
+	var zeroVal bool
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_sendMessage_argsVoice(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (bool, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("voice"))
+	if tmp, ok := rawArgs["voice"]; ok {
 		return ec.unmarshalNBoolean2bool(ctx, tmp)
 	}
 
@@ -3203,6 +3229,47 @@ func (ec *executionContext) fieldContext_Chat_createdAt(_ context.Context, field
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Chat_voice(ctx context.Context, field graphql.CollectedField, obj *model.Chat) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Chat_voice(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Voice, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*bool)
+	fc.Result = res
+	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Chat_voice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Chat",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
 		},
 	}
 	return fc, nil
@@ -5439,6 +5506,8 @@ func (ec *executionContext) fieldContext_Mutation_createChat(ctx context.Context
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
+			case "voice":
+				return ec.fieldContext_Chat_voice(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -5471,7 +5540,7 @@ func (ec *executionContext) _Mutation_sendMessage(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().SendMessage(rctx, fc.Args["chatId"].(string), fc.Args["text"].(string), fc.Args["reasoning"].(bool))
+		return ec.resolvers.Mutation().SendMessage(rctx, fc.Args["chatId"].(string), fc.Args["text"].(string), fc.Args["reasoning"].(bool), fc.Args["voice"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -5575,6 +5644,8 @@ func (ec *executionContext) fieldContext_Mutation_deleteChat(ctx context.Context
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
+			case "voice":
+				return ec.fieldContext_Chat_voice(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -6475,6 +6546,8 @@ func (ec *executionContext) fieldContext_Query_getChats(ctx context.Context, fie
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
+			case "voice":
+				return ec.fieldContext_Chat_voice(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -6540,6 +6613,8 @@ func (ec *executionContext) fieldContext_Query_getChat(ctx context.Context, fiel
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
+			case "voice":
+				return ec.fieldContext_Chat_voice(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -11217,6 +11292,8 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "voice":
+			out.Values[i] = ec._Chat_voice(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

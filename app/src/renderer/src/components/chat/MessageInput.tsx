@@ -5,17 +5,19 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
 type MessageInputProps = {
-  onSend: (text: string, reasoning: boolean) => void
+  onSend: (text: string, reasoning: boolean, voice: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
   hasReasoning?: boolean
+  voice?: boolean
 }
 
 export default function MessageInput({
   onSend,
   isWaitingTwinResponse,
   onStop,
-  hasReasoning = true
+  hasReasoning = true,
+  voice = false
 }: MessageInputProps) {
   const [text, setText] = useState('')
   const [isReasonSelected, setIsReasonSelected] = useState(false)
@@ -24,7 +26,7 @@ export default function MessageInput({
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
-    onSend(text, isReasonSelected)
+    onSend(text, isReasonSelected, voice)
     setText('')
   }
 
