@@ -49,6 +49,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -311,6 +312,13 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal worker"))
 	}
 	defer temporalWorker.Stop()
+
+	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
+		logger.Error("Failed to bootstrap periodic workflows", "error", err)
+		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
+	}
+
+	logger.Info("Personality", "personality", personality)
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -664,4 +672,12 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create identity personality workflow")
+	}
+	return nil
 }
