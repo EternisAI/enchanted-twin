@@ -1,18 +1,7 @@
-/**
- * GPU-driven audio visualiser.
- *
- * visualState: 0 = passive, 1 = loading, 2 = speaking
- *
- * Requires:
- *   pnpm add three @react-three/fiber @react-three/drei
- */
-
+// VoiceVisualizer.tsx
 import { Canvas, useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
-
-/* ────────────────────────────────────────────────────────── */
-/* Public wrapper – embed this anywhere with visualState prop */
 
 export default function VoiceVisualizer({
   visualState,
@@ -26,7 +15,12 @@ export default function VoiceVisualizer({
   particleCount?: number
 }) {
   return (
-    <Canvas className={className ?? ''}>
+    <Canvas
+      className={className}
+      camera={{ position: [0, 0, 5], fov: 60 }}
+      gl={{ antialias: true }}
+    >
+      {/* dark background so additive points show up */}
       <Particles
         visualState={visualState}
         particleCount={particleCount}
@@ -35,9 +29,6 @@ export default function VoiceVisualizer({
     </Canvas>
   )
 }
-
-/* ────────────────────────────────────────────────────────── */
-/* GPU particle implementation */
 
 function Particles({
   visualState,
@@ -50,44 +41,36 @@ function Particles({
 }) {
   const mesh = useRef<THREE.Points>(null!)
 
-  /* ---------- audio texture (256-bin FFT) ---------- */
+  // 1) use Uint8Array + UnsignedByteType for max compatibility
   const fftTex = useMemo(() => {
-    const tex = new THREE.DataTexture(
-      new Float32Array(256 * 4),
-      256,
-      1,
-      THREE.RGBAFormat,
-      THREE.FloatType
-    )
+    const size = 256 * 4
+    const data = new Uint8Array(size) // RGBA8
+    const tex = new THREE.DataTexture(data, 256, 1, THREE.RGBAFormat, THREE.UnsignedByteType)
+    tex.minFilter = THREE.NearestFilter
+    tex.magFilter = THREE.NearestFilter
     tex.needsUpdate = true
     return tex
   }, [])
 
-  /* ---------- geometry (points in a sphere) ---------- */
   const geometry = useMemo(() => {
     const pos = new Float32Array(particleCount * 3)
     const id = new Float32Array(particleCount)
-
     for (let i = 0; i < particleCount; i++) {
-      /* random inside sphere (radius≈1.3) */
       const r = Math.cbrt(Math.random()) * 1.3
-      const theta = Math.random() * Math.PI * 2
-      const phi = Math.acos(2 * Math.random() - 1)
-
-      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-      pos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta)
-      pos[i * 3 + 2] = r * Math.cos(phi)
-
-      id[i] = i % 256 /* maps each vert to an FFT bin */
+      const θ = Math.random() * Math.PI * 2
+      const φ = Math.acos(2 * Math.random() - 1)
+      pos.set(
+        [r * Math.sin(φ) * Math.cos(θ), r * Math.sin(φ) * Math.sin(θ), r * Math.cos(φ)],
+        i * 3
+      )
+      id[i] = i % 256
     }
-
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
     g.setAttribute('aId', new THREE.BufferAttribute(id, 1))
     return g
   }, [particleCount])
 
-  /* ---------- material with custom shaders ---------- */
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -105,102 +88,94 @@ function Particles({
     [fftTex, visualState]
   )
 
-  /* ---------- per-frame updates ---------- */
-  /* ---------- frame loop ---------- */
-  useFrame((state, delta) => {
-    const { clock } = state
-    /* 1 ▸ update FFT texture */
+  useFrame(({ clock }, delta) => {
+    // update FFT texture bytes
     const fft = getFreqData()
+    const data = fftTex.image.data as Uint8Array
     for (let i = 0; i < 256; i++) {
-      const v = (fft[i] ?? 0) / 255
-      const idx = i * 4
-      fftTex.image.data[idx] = fftTex.image.data[idx + 1] = fftTex.image.data[idx + 2] = v
-      fftTex.image.data[idx + 3] = 1
+      const b = fft[i] // 0–255
+      const off = i * 4
+      data[off] = b
+      data[off + 1] = b
+      data[off + 2] = b
+      data[off + 3] = 255
     }
     fftTex.needsUpdate = true
 
-    /* 2 ▸ **smooth spring** toward target visualState  (THREE.MathUtils.damp) */
+    // smooth state tween (≈0.6 s)
     const cur = material.uniforms.uState.value as number
-    material.uniforms.uState.value = THREE.MathUtils.damp(cur, visualState, 2.5, delta)
-    /*  2.5   ⟶ “lambda”   →  smaller = slower ( try 2‒3 for ~½–¾ s transitions ) */
+    material.uniforms.uState.value = THREE.MathUtils.damp(cur, visualState, 4.0, delta)
 
-    /* 3 ▸ keep time uniform */
     material.uniforms.uTime.value = clock.elapsedTime
   })
 
   return <points ref={mesh} geometry={geometry} material={material} />
 }
 
-/* ───────────────────────── GLSL ─────────────────────────── */
+/* ─── GLSL ───────────────────────────────────────────────── */
 
-/* prettier-ignore */
-const vertexShader = /* glsl */`
+/* smooth bell with overlap */
+const vertexShader = /* glsl */ `
 uniform sampler2D uFFT;
-uniform float uState;     // 0 → passive, 1 → loading, 2 → speaking (float, tweened)
-uniform float uTime;
-attribute float aId;
+uniform float      uState;
+uniform float      uTime;
+attribute float    aId;
+varying   vec3     vColor;
 
-varying vec3 vColor;
-
-/* helper for weights ------------------------------------------------------ */
-float bell(float x, float c, float w){
-  return clamp(1.0 - abs(x - c) / w, 0.0, 1.0);  // linear bell curve
+float bellSmooth(float x, float c, float w){
+  float d = abs(x - c);
+  return 1.0 - smoothstep(0.0, w, d);
 }
+
+const float WIDTH = 1.0;
 
 void main() {
   vec3 p   = position;
   vec3 dir = normalize(p);
 
-  /* -------- weights (all in [0,1]) -------------------------------------- */
-  float wPassive = bell(uState, 0.0, 0.5);   // centred at 0, width 0.5
-  float wLoad    = bell(uState, 1.0, 0.5);   // centred at 1
-  float wSpeak   = bell(uState, 2.0, 0.5);   // centred at 2
+  float wP = bellSmooth(uState, 0.0, WIDTH);
+  float wL = bellSmooth(uState, 1.0, WIDTH);
+  float wS = bellSmooth(uState, 2.0, WIDTH);
 
-  /* -------- PASSIVE  | breathing ---------------------------------------- */
+  float sumW = wP + wL + wS + 1e-4;
+  wP /= sumW; wL /= sumW; wS /= sumW;
+
+  // passive breathing
   float breathe = sin(uTime * 0.9 + aId * 0.12) * 0.06;
-  p += dir * breathe * wPassive;
+  p += dir * breathe * wP;
 
-  /* -------- LOADING  | swirl + gentle contraction ----------------------- */
-  if (wLoad > 0.001) {
-    float angle = uTime * 2.5 + aId * 0.03;
-    mat2  rot   = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
-    float squish = 0.65 + 0.25 * sin(uTime * 1.4);  // 0.4–0.9 radius
-    vec3  swirl  = p;
-    swirl.xy = rot * swirl.xy * squish;
-    p = mix(p, swirl, wLoad);                       // blend by weight
+  // loading swirl
+  if (wL > 0.001) {
+    float a = uTime * 2.5 + aId * 0.03;
+    mat2 R = mat2(cos(a), -sin(a), sin(a), cos(a));
+    vec3 q = p;
+    q.xy = R * q.xy * (0.60 + 0.25 * sin(uTime * 1.4));
+    p = mix(p, q, wL);
   }
 
-  /* -------- SPEAKING | audio-reactive radial pulse ---------------------- */
-  float amp = texture2D(uFFT, vec2(aId / 256.0, 0.0)).r;
-  p += dir * amp * amp * 0.7 * wSpeak;
+  // speaking pulse
+  float amp = texture2D(uFFT, vec2(aId/256.0, 0.)).r;
+  p += dir * amp * amp * 0.7 * wS;
 
-  /* -------- point size -------------------------------------------------- */
+  // size & color
   float size = 2.2
-             + wLoad  * (2.5 + sin(uTime * 3.0) * 2.0)
-             + wSpeak * amp * 16.0;
+             + wL * (2.5 + sin(uTime * 3.0) * 2.0)
+             + wS * amp * 16.0;
   gl_PointSize = size;
 
-  /* -------- colour blend ------------------------------------------------ */
-  vec3 cPassive = vec3(0.30, 0.42, 0.55);
-  vec3 cLoad    = vec3(0.00, 0.82, 1.00);
-  vec3 cSpeak   = vec3(1.00, 0.47, 0.10);
-  vColor = cPassive * wPassive
-         + cLoad    * wLoad
-         + mix(cLoad, cSpeak, amp) * wSpeak;
+  vec3 cP = vec3(0.30,0.42,0.55);
+  vec3 cL = vec3(0.00,0.82,1.00);
+  vec3 cS = vec3(1.00,0.47,0.10);
+  vColor = cP*wP + cL*wL + mix(cL,cS,amp)*wS;
 
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-}
-`;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0);
+}`
 
-/* ─── VoiceVisualizer – UPDATED fragmentShader ─── */
 const fragmentShader = /* glsl */ `
 varying vec3 vColor;
-
 void main() {
   float d = length(gl_PointCoord - 0.5);
-  if (d > 0.5) discard;               // circular sprite
-
-  float alpha = smoothstep(0.5, 0.0, d);   // radial fade
-  gl_FragColor = vec4(vColor, alpha);
-}
-`
+  if (d > 0.5) discard;
+  float a = smoothstep(0.5, 0.0, d);
+  gl_FragColor = vec4(vColor, a);
+}`

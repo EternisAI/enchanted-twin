@@ -1,19 +1,15 @@
+// ttsProvider.tsx
 import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { TTSContext } from '@renderer/hooks/useTTS'
-/* ────────────────────────────────────  Public API  ──────────────────────────────────── */
 
 export interface TTSAPI {
   speak: (text: string) => Promise<void>
   stop: () => void
   isSpeaking: boolean
   isLoading: boolean
-  /** frequency-domain data (0-255 per FFT bin) */
   getFreqData: () => Uint8Array
-  /** time-domain waveform data (0-255) */
   getTimeData: () => Uint8Array
 }
-
-/* ────────────────────────────────────  Provider  ──────────────────────────────────── */
 
 export function TTSProvider({
   children,
@@ -22,11 +18,9 @@ export function TTSProvider({
   children: ReactNode
   wsURL?: string
 }) {
-  /* ───────────── state ───────────── */
   const [isSpeaking, setIsSpeaking] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
 
-  /* ───────────── refs ───────────── */
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const srcNodeRef = useRef<MediaElementAudioSourceNode | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
@@ -37,13 +31,11 @@ export function TTSProvider({
   const eosReceivedRef = useRef(false)
   const stoppingRef = useRef(false)
 
-  /* web-audio (visualiser) */
   const ctxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const freqBufRef = useRef<Uint8Array>(new Uint8Array(0))
   const timeBufRef = useRef<Uint8Array>(new Uint8Array(0))
 
-  /* ───────────── helpers ───────────── */
   const getFreqData = useCallback(() => {
     if (!analyserRef.current) return freqBufRef.current
     analyserRef.current.getByteFrequencyData(freqBufRef.current)
@@ -64,7 +56,6 @@ export function TTSProvider({
     pcRef.current?.close()
     wsRef.current = pcRef.current = null
 
-    /* disconnect previous source node */
     srcNodeRef.current?.disconnect()
     srcNodeRef.current = null
 
@@ -96,7 +87,6 @@ export function TTSProvider({
       audioRef.current = el
     }
 
-    /* (re-)create Web-Audio graph every time we have a *new* element */
     if (!ctxRef.current) {
       ctxRef.current = new AudioContext()
       analyserRef.current = ctxRef.current.createAnalyser()
@@ -105,7 +95,6 @@ export function TTSProvider({
       timeBufRef.current = new Uint8Array(analyserRef.current.fftSize)
     }
 
-    /* disconnect old source and connect current element */
     srcNodeRef.current?.disconnect()
     srcNodeRef.current = ctxRef.current.createMediaElementSource(audioRef.current!)
     srcNodeRef.current.connect(analyserRef.current!)
@@ -114,7 +103,6 @@ export function TTSProvider({
     return audioRef.current
   }, [stop])
 
-  /* Wait until the peer-connection has gathered all ICE candidates */
   const waitIceComplete = (pc: RTCPeerConnection) =>
     new Promise<void>((resolve) => {
       if (pc.iceGatheringState === 'complete') return resolve()
@@ -159,12 +147,10 @@ export function TTSProvider({
     }
   }, [tryEndOfStream, stop])
 
-  /* ───────────── speak() ───────────── */
   const speak = useCallback(
     async (text: string) => {
       if (!text.trim()) return
 
-      /* clean previous session */
       if (wsRef.current || pcRef.current || isSpeaking) {
         stop()
         await new Promise((r) => setTimeout(r, 100))
@@ -177,12 +163,10 @@ export function TTSProvider({
       const audio = ensureAudio()
       const ws = new WebSocket(wsURL)
       const pc = new RTCPeerConnection()
-
       wsRef.current = ws
       pcRef.current = pc
       pc.createDataChannel('audio', { ordered: true })
 
-      /* MediaSource */
       const mediaSource = new MediaSource()
       mediaSourceRef.current = mediaSource
       mediaSource.addEventListener('sourceopen', () => {
@@ -197,33 +181,40 @@ export function TTSProvider({
       })
       audio.src = URL.createObjectURL(mediaSource)
 
-      /* data channel → audio queue */
+      let firstChunk = true
       pc.ondatachannel = ({ channel }) => {
         channel.binaryType = 'arraybuffer'
         channel.onmessage = async ({ data }) => {
-          if (isLoading) setIsLoading(false)
-          if (typeof data === 'string' && data === 'EOS') {
-            eosReceivedRef.current = true
-            if (audioQueueRef.current.length === 0) tryEndOfStream()
+          // drop "loading" and flip speaking *when the first binary arrives*
+          if (typeof data !== 'string') {
+            if (firstChunk) {
+              firstChunk = false
+              setIsLoading(false)
+              setIsSpeaking(true)
+            }
+            const chunk =
+              data instanceof ArrayBuffer
+                ? new Uint8Array(data)
+                : new Uint8Array(await (data as Blob).arrayBuffer())
+            audioQueueRef.current.push(chunk)
+            pump()
             return
           }
-          const chunk =
-            data instanceof ArrayBuffer
-              ? new Uint8Array(data)
-              : new Uint8Array(await (data as Blob).arrayBuffer())
-          audioQueueRef.current.push(chunk)
-          pump()
+
+          // handle EOS
+          if (data === 'EOS') {
+            eosReceivedRef.current = true
+            if (audioQueueRef.current.length === 0) tryEndOfStream()
+          }
         }
       }
 
-      /* signalling */
       ws.onopen = async () => {
         try {
           const offer = await pc.createOffer()
           await pc.setLocalDescription(offer)
           await waitIceComplete(pc)
           ws.send(JSON.stringify({ sdp: pc.localDescription!.sdp, text }))
-          setIsSpeaking(true)
         } catch {
           stop()
         }
@@ -237,24 +228,14 @@ export function TTSProvider({
       }
       ws.onerror = ws.onclose = () => stop()
     },
-    [wsURL, ensureAudio, pump, tryEndOfStream, stop, isSpeaking, isLoading]
+    [wsURL, ensureAudio, pump, tryEndOfStream, stop, isSpeaking]
   )
 
-  /* ───────────── public value ───────────── */
-  const api = useMemo<TTSAPI>(
-    () => ({
-      speak,
-      stop,
-      isSpeaking,
-      isLoading,
-      getFreqData,
-      getTimeData
-    }),
+  const api = useMemo(
+    () => ({ speak, stop, isSpeaking, isLoading, getFreqData, getTimeData }),
     [speak, stop, isSpeaking, isLoading, getFreqData, getTimeData]
   )
 
-  /* cleanup on unmount */
   useEffect(() => stop, [stop])
-
   return <TTSContext.Provider value={api}>{children}</TTSContext.Provider>
 }
