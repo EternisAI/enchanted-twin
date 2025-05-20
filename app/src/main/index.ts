@@ -14,6 +14,7 @@ import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
 import { startGoServer, cleanupGoServer } from './goServer'
 import { startKokoro, cleanupKokoro } from './kokoroManager'
+import { initializeAnalytics } from './analytics'
 
 const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
@@ -35,6 +36,7 @@ app.whenReady().then(async () => {
   registerScreenpipeIpc()
   registerAccessibilityIpc()
   registerIpcHandlers()
+  initializeAnalytics()
 
   setupAutoUpdater()
   setupMenu()
