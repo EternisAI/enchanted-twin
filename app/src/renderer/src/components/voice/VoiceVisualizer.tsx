@@ -1,4 +1,3 @@
-// VoiceVisualizer.tsx
 import React, { useMemo, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { EffectComposer, Bloom } from '@react-three/postprocessing'
@@ -18,26 +17,32 @@ export default function VoiceVisualizer({
   className,
   particleCount = 12000
 }: VoiceVisualizerProps) {
+  // Simple fill container without affecting layout
   return (
-    <Canvas
+    <div
       className={className}
-      camera={{ position: [0, 0, 5], fov: 60 }}
-      gl={{ antialias: true }}
+      style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}
     >
-      <Particles
-        visualState={visualState}
-        particleCount={particleCount}
-        getFreqData={getFreqData}
-      />
-      <EffectComposer>
-        <Bloom luminanceThreshold={0.3} intensity={1.2} />
-      </EffectComposer>
-      <OrbitControls enableZoom={false} enablePan={false} />
-    </Canvas>
+      <Canvas
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        camera={{ position: [0, 0, 6], fov: 60 }}
+        gl={{ antialias: true }}
+      >
+        <CubeParticles
+          visualState={visualState}
+          particleCount={particleCount}
+          getFreqData={getFreqData}
+        />
+        <EffectComposer>
+          <Bloom luminanceThreshold={0.3} intensity={1.2} />
+        </EffectComposer>
+        <OrbitControls enableZoom={false} enablePan={false} />
+      </Canvas>
+    </div>
   )
 }
 
-function Particles({
+function CubeParticles({
   visualState,
   particleCount,
   getFreqData
@@ -47,9 +52,11 @@ function Particles({
   getFreqData: () => Uint8Array
 }) {
   const mesh = useRef<THREE.Points>(null!)
+  const prevState = useRef(visualState)
+  const rotating = useRef(false)
+  const rotStart = useRef(0)
   const smoothedFFT = useRef(new Float32Array(256))
 
-  // FFT texture
   const fftTex = useMemo(() => {
     const data = new Uint8Array(256 * 4)
     const tex = new THREE.DataTexture(data, 256, 1, THREE.RGBAFormat)
@@ -59,129 +66,129 @@ function Particles({
     return tex
   }, [])
 
-  // Geometry
   const geometry = useMemo(() => {
-    const pos = new Float32Array(particleCount * 3)
+    const home = new Float32Array(particleCount * 3)
     const ids = new Float32Array(particleCount)
     for (let i = 0; i < particleCount; i++) {
-      const r = Math.cbrt(Math.random()) * 1.3
-      const theta = Math.random() * Math.PI * 2
-      const phi = Math.acos(2 * Math.random() - 1)
-      const x = r * Math.sin(phi) * Math.cos(theta)
-      const y = r * Math.sin(phi) * Math.sin(theta)
-      const z = r * Math.cos(phi)
-      pos.set([x, y, z], i * 3)
+      const half = 1.0
+      const x = (Math.random() * 2 - 1) * half
+      const y = (Math.random() * 2 - 1) * half
+      const z = (Math.random() * 2 - 1) * half
+      home.set([x, y, z], i * 3)
       ids[i] = i % 256
     }
     const g = new THREE.BufferGeometry()
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+    g.setAttribute('position', new THREE.BufferAttribute(home, 3))
+    g.setAttribute('aHome', new THREE.BufferAttribute(home, 3))
     g.setAttribute('aId', new THREE.BufferAttribute(ids, 1))
     return g
   }, [particleCount])
 
-  // Theme detection
   const isDark = useMemo(() => window.matchMedia('(prefers-color-scheme: dark)').matches, [])
+  const idleCol = isDark ? new THREE.Color(0.2, 0.4, 0.6) : new THREE.Color(0, 0, 0)
+  const loadCol = isDark ? new THREE.Color(0.5, 0.7, 1.0) : new THREE.Color(0.3, 0.6, 0.9)
+  const speakCol = isDark ? new THREE.Color(1.0, 0.5, 0.1) : new THREE.Color(0.8, 0, 0)
 
-  // Light-mode contrasting colors
-  const idleColDark = new THREE.Color(0.2, 0.4, 0.6)
-  const speakColDark = new THREE.Color(1.0, 0.5, 0.1)
-  const idleColLight = new THREE.Color(0.0, 0.0, 0.0) // pure black
-  const speakColLight = new THREE.Color(0.8, 0.0, 0.0) // dark red
+  const material = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        uniforms: {
+          uFFT: { value: fftTex },
+          uState: { value: 0 },
+          uTime: { value: 0 },
+          uIdleCol: { value: idleCol },
+          uLoadCol: { value: loadCol },
+          uSpeakCol: { value: speakCol }
+        },
+        vertexShader,
+        fragmentShader,
+        transparent: true,
+        depthWrite: false,
+        blending: isDark ? THREE.AdditiveBlending : THREE.NormalBlending
+      }),
+    [fftTex, idleCol, loadCol, speakCol, isDark]
+  )
 
-  // Shader material
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      uniforms: {
-        uFFT: { value: fftTex },
-        uState: { value: 0 },
-        uTime: { value: 0 },
-        uIdleCol: { value: isDark ? idleColDark : idleColLight },
-        uSpeakCol: { value: isDark ? speakColDark : speakColLight }
-      },
-      vertexShader,
-      fragmentShader,
-      transparent: true,
-      depthWrite: false,
-      blending: isDark ? THREE.AdditiveBlending : THREE.NormalBlending
-    })
-  }, [fftTex, isDark])
-
-  // Animation loop
   useFrame(({ clock }, delta) => {
-    // update FFT texture
     const fft = getFreqData()
     const sm = smoothedFFT.current
     const data = fftTex.image.data as Uint8Array
     for (let i = 0; i < 256; i++) {
-      sm[i] = THREE.MathUtils.lerp(sm[i], fft[i], 0.05)
+      sm[i] = THREE.MathUtils.lerp(sm[i], fft[i], 0.1)
       const v = sm[i]
-      const off = i * 4
-      data[off] = data[off + 1] = data[off + 2] = v
-      data[off + 3] = 255
+      const idx = i * 4
+      data[idx] = data[idx + 1] = data[idx + 2] = v
+      data[idx + 3] = 255
     }
     fftTex.needsUpdate = true
 
-    // smoothly lerp state & time
-    material.uniforms.uState.value = THREE.MathUtils.lerp(
-      material.uniforms.uState.value,
-      visualState,
-      delta * 2.0
-    )
+    if (visualState === 2 && prevState.current !== 2) {
+      rotating.current = true
+      rotStart.current = clock.elapsedTime
+    }
+    prevState.current = visualState
+
+    if (rotating.current) {
+      const t = (clock.elapsedTime - rotStart.current) / 0.3
+      const prog = THREE.MathUtils.clamp(t, 0, 1)
+      mesh.current.rotation.z = prog * Math.PI * 2
+      material.uniforms.uState.value = THREE.MathUtils.damp(
+        material.uniforms.uState.value,
+        1,
+        5,
+        delta
+      )
+      if (prog >= 1) rotating.current = false
+    } else {
+      mesh.current.rotation.z = 0
+      material.uniforms.uState.value = THREE.MathUtils.damp(
+        material.uniforms.uState.value,
+        visualState,
+        5,
+        delta
+      )
+    }
+
     material.uniforms.uTime.value = clock.elapsedTime
   })
 
   return <points ref={mesh} geometry={geometry} material={material} />
 }
 
-// ——— VERTEX SHADER ———
 const vertexShader = /* glsl */ `
 uniform sampler2D uFFT;
 uniform float uState;
 uniform float uTime;
-uniform vec3  uIdleCol;
-uniform vec3  uSpeakCol;
+uniform vec3 uIdleCol;
+uniform vec3 uLoadCol;
+uniform vec3 uSpeakCol;
+attribute vec3 aHome;
 attribute float aId;
 varying vec3 vColor;
 
-float bellSmooth(float x, float c, float w) {
-  return 1.0 - smoothstep(0.0, w, abs(x - c));
-}
-
 void main() {
-  vec3 p0 = position;
-  vec3 dir = normalize(p0);
+  float wLoad = smoothstep(0.0, 1.0, uState) - smoothstep(1.0, 2.0, uState);
+  float wSpeak = smoothstep(1.0, 2.0, uState);
 
-  // gentle swirl mapped 0.1 → 0.2
-  float swirl = mix(0.1, 0.2, uState * 0.5);
-  float angle = uTime * swirl;
-  mat2 rot = mat2(cos(angle), -sin(angle), sin(angle), cos(angle));
-  vec3 p = p0;
-  p.xz = rot * p.xz;
+  vec3 pBase = aHome;
+  vec3 pSpeak = aHome + normalize(aHome) * (texture2D(uFFT, vec2(aId/256.0,0)).r * 1.0);
+  vec3 p = mix(pBase, pSpeak, wSpeak);
 
-  // idle breathing
-  float wIdle = bellSmooth(uState, 0.0, 1.5);
-  p += dir * sin(uTime*0.8 + aId*0.1) * 0.05 * wIdle;
+  float swirlW = 1.0 - wSpeak;
+  float ang = atan(p.y,p.x) + uTime*0.2*swirlW;
+  float r = length(p.xy);
+  p.xy = vec2(cos(ang),sin(ang))*r;
 
-  // speaking expansion
-  float amp = texture2D(uFFT, vec2(aId/256.0,0.0)).r;
-  float wSpeak = bellSmooth(uState, 2.0, 1.0);
-  float expansion = pow(amp,1.5) * 1.0;
-  p = mix(p, dir*(length(p0)+expansion), wSpeak);
-
-  // size
-  gl_PointSize = 2.0 + wIdle*1.5 + amp*8.0*wSpeak;
-
-  // mix between the passed-in colors
-  vColor = mix(uIdleCol, uSpeakCol, wSpeak);
-
-  gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0);
+  float amp = texture2D(uFFT, vec2(aId/256.0,0)).r;
+  gl_PointSize = 2.0 + amp*5.0*wSpeak;
+  vColor = mix(mix(uIdleCol,uLoadCol,wLoad),uSpeakCol,wSpeak);
+  gl_Position = projectionMatrix*modelViewMatrix*vec4(p,1.0);
 }`
 
-// ——— FRAGMENT SHADER ———
 const fragmentShader = /* glsl */ `
 varying vec3 vColor;
-void main() {
-  float d = length(gl_PointCoord - 0.5);
-  float alpha = smoothstep(0.5, 0.0, d);
-  gl_FragColor = vec4(vColor, alpha);
+void main(){
+  float d = length(gl_PointCoord-0.5);
+  float a = smoothstep(0.5,0.0,d);
+  gl_FragColor = vec4(vColor,a);
 }`
