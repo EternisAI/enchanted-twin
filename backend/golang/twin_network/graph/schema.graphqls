@@ -10,6 +10,7 @@ type NetworkMessage {
   networkID: String!
   content: String!
   createdAt: DateTime!
+  isMine: Boolean!
 }
 
 type Query {

@@ -13,6 +13,7 @@ type NetworkMessage struct {
 	NetworkID    string `json:"networkID"`
 	Content      string `json:"content"`
 	CreatedAt    string `json:"createdAt"`
+	IsMine       bool   `json:"isMine"`
 }
 
 type Query struct {

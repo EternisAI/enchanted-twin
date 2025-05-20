@@ -18,17 +18,19 @@ import (
 // and optionally suggests a reply.
 
 type ReadNetworkTool struct {
-	AI               *ai.Service
-	Logger           *log.Logger
-	CompletionsModel string
+	AI                 *ai.Service
+	Logger             *log.Logger
+	CompletionsModel   string
+	PersonalityContext string
 }
 
 // NewReadNetworkTool constructs a new tool instance.
 func NewReadNetworkTool(logger *log.Logger, aiService *ai.Service, completionsModel string) *ReadNetworkTool {
 	return &ReadNetworkTool{
-		AI:               aiService,
-		Logger:           logger,
-		CompletionsModel: completionsModel,
+		AI:                 aiService,
+		Logger:             logger,
+		CompletionsModel:   completionsModel,
+		PersonalityContext: "You are a helpful and friendly AI assistant in the twin network. You aim to be concise, clear, and maintain a professional yet approachable tone.",
 	}
 }
 
@@ -38,7 +40,7 @@ func (t *ReadNetworkTool) Definition() openai.ChatCompletionToolParam {
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
 			Name:        "Read_Network",
-			Description: param.NewOpt("Analyzes a messages received from the twin network and provides reasoning. Optionally suggest a response."),
+			Description: param.NewOpt("Analyzes a messages received from the twin network and provides reasoning based on your personality and goals. Optionally suggest a response."),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
@@ -64,39 +66,18 @@ func (t *ReadNetworkTool) Execute(ctx context.Context, inputs map[string]any) (t
 		return nil, errors.New("network_message is required")
 	}
 
-	type Message struct {
-		Role    string
-		Content string
-	}
-
-	var messages []Message
+	var messages []NetworkMessage
 	switch v := rawMsg.(type) {
-	case string:
-		messages = []Message{{Role: "user", Content: v}}
-	case []string:
-		for _, msg := range v {
-			messages = append(messages, Message{Role: "user", Content: msg})
-		}
-	case []map[string]string:
-		for _, msg := range v {
-			role, ok1 := msg["role"]
-			content, ok2 := msg["content"]
-			if ok1 && ok2 {
-				messages = append(messages, Message{Role: role, Content: content})
-			}
-		}
+	case []NetworkMessage:
+		messages = v
 	case []interface{}:
 		for _, msg := range v {
-			if m, ok := msg.(map[string]interface{}); ok {
-				role, _ := m["role"].(string)
-				content, _ := m["content"].(string)
-				if role != "" && content != "" {
-					messages = append(messages, Message{Role: role, Content: content})
-				}
+			if m, ok := msg.(NetworkMessage); ok {
+				messages = append(messages, m)
 			}
 		}
 	default:
-		return nil, errors.New("network_message must be a string, array of strings, or array of message objects")
+		return nil, errors.New("network_message must be an array of NetworkMessage")
 	}
 
 	if len(messages) == 0 {
@@ -113,11 +94,15 @@ func (t *ReadNetworkTool) Execute(ctx context.Context, inputs map[string]any) (t
 		// Format messages for the AI
 		formattedMessages := "Messages in the conversation:\n"
 		for i, msg := range messages {
-			formattedMessages += fmt.Sprintf("%d. [%s] %s\n", i+1, msg.Role, msg.Content)
+			role := "user"
+			if msg.IsMine {
+				role = "assistant"
+			}
+			formattedMessages += fmt.Sprintf("%d. [%s] %s\n", i+1, role, msg.Content)
 		}
 
 		messages := []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage("You are an expert AI analysing messages exchanged between users and assistants in the twin network. Analyze the conversation and provide your analysis in two parts:\n1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n2. Response: A suggested next response that would be appropriate in this context\nFormat your response exactly like this:\nReasoning: [your reasoning here]\nResponse: [your response here]"),
+			openai.SystemMessage(fmt.Sprintf("%s\n\nAnalyze the conversation and provide your analysis in two parts:\n1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n2. Response: A suggested next response that would be appropriate in this context\nFormat your response exactly like this:\nReasoning: [your reasoning here]\nResponse: [your response here]", t.PersonalityContext)),
 			openai.UserMessage(formattedMessages),
 		}
 

@@ -14,6 +14,7 @@ type NetworkMessage struct {
 	Content      string
 	CreatedAt    time.Time
 	ID           int64
+	IsMine       bool
 }
 
 // MessageStore is a concurrency-safe in-memory store for NetworkMessage items.

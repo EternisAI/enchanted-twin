@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -30,22 +31,28 @@ func TestReadNetworkTool(t *testing.T) {
 
 	tool := NewReadNetworkTool(logger, aiService, "gpt-4.1-mini")
 
-	messages := []map[string]string{
+	// Create a conversation with NetworkMessages
+	messages := []NetworkMessage{
 		{
-			"role":    "user",
-			"content": "Hello from the twin network! How are you doing today?",
+			AuthorPubKey: "0x1234",
+			NetworkID:    "default",
+			Content:      "Hello from the twin network! How are you doing today?",
+			CreatedAt:    time.Now().UTC(),
+			IsMine:       false,
 		},
 		{
-			"role":    "assistant",
-			"content": "I'm doing well, thank you for asking! How can I assist you today?",
+			AuthorPubKey: "0x5678",
+			NetworkID:    "default",
+			Content:      "I'm doing well, thank you for asking! How can I assist you today?",
+			CreatedAt:    time.Now().UTC(),
+			IsMine:       true,
 		},
 		{
-			"role":    "user",
-			"content": "Can you help me analyze this data pattern?",
-		},
-		{
-			"role":    "assistant",
-			"content": "I've analyzed the pattern and found some interesting correlations.",
+			AuthorPubKey: "0x1234",
+			NetworkID:    "default",
+			Content:      "Can you help me analyze this data pattern?",
+			CreatedAt:    time.Now().UTC(),
+			IsMine:       false,
 		},
 	}
 
