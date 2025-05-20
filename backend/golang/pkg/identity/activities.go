@@ -10,6 +10,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 )
 
 func NewIdentityActivities(logger *log.Logger, memory memory.Storage, ai *ai.Service, completionsModel string) *identityActivities {
@@ -48,8 +49,13 @@ func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (s
 		}
 	}
 
+	systemPrompt, err := prompts.BuildIdentityPersonalitySystemPrompt()
+	if err != nil {
+		return "", err
+	}
+
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage("You are expert psychologist. Your goal is to obtain personality, preferences and interests of the user based on the following memories provided. You are provided with "),
+		openai.SystemMessage(systemPrompt),
 		openai.UserMessage(strings.Join(memoryDocuments, "\n")),
 	}
 
