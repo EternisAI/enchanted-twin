@@ -43,6 +43,10 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
     console.log({ isSpeaking, isLoading })
   }, [isSpeaking, isLoading])
 
+  useEffect(() => {
+    console.log('isLoading', isLoading)
+  }, [isLoading])
+
   /* ---------- speech state machine ---------- */
   const triggeredRef = useRef(false)
 
