@@ -76,7 +76,7 @@ export default function MessageInput({
           onKeyDown={handleKeyDown}
           rows={1}
           autoFocus
-          placeholder="Type a message..."
+          placeholder="What are you thinking?"
           className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[15rem]"
         />
       </div>

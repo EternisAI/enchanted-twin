@@ -311,8 +311,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
       <Link
         key={chat.id}
         disabled={isActive}
-        to="/voice/$chatId"
-        // to={chat.voice ? '/voice/$chatId' : '/chat/$chatId'}
+        to="/chat/$chatId"
         params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,
