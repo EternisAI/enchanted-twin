@@ -172,7 +172,9 @@ export function Header() {
           filter: (match) => match.routeId === '/chat/$chatId'
         })
 
-        sendMessage({ variables: { chatId: newChatId, text: query, reasoning: isReasonSelected } })
+        sendMessage({
+          variables: { chatId: newChatId, text: query, reasoning: isReasonSelected, voice: false }
+        })
         setQuery('')
       }
     } catch (error) {
@@ -237,7 +239,12 @@ export function Header() {
         })
 
         sendMessage({
-          variables: { chatId: newChatId, text: suggestion.name, reasoning: isReasonSelected }
+          variables: {
+            chatId: newChatId,
+            text: suggestion.name,
+            reasoning: isReasonSelected,
+            voice: false
+          }
         })
         setQuery('')
       }

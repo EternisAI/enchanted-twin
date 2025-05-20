@@ -7,6 +7,7 @@ import { useSendMessage } from '@renderer/hooks/useChat'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
+import VoiceModeChatView, { VoiceModeSwitch } from './ChatVoideModeView'
 
 interface ChatViewProps {
   chat: Chat
@@ -15,6 +16,7 @@ interface ChatViewProps {
 
 export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const [voiceMode, setVoiceMode] = useState(false)
   const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -147,7 +149,18 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   }, [messages, mounted])
 
   const handleSuggestionClick = (suggestion: string) => {
-    sendMessage(suggestion, false)
+    sendMessage(suggestion, false, voiceMode)
+  }
+
+  if (voiceMode) {
+    return (
+      <VoiceModeChatView
+        chat={chat}
+        toggleVoiceMode={() => setVoiceMode(!voiceMode)}
+        // isWaitingTwinResponse={isWaitingTwinResponse}
+        // error={error}
+      />
+    )
   }
 
   return (
@@ -174,7 +187,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
             toggleVisibility={() => setShowSuggestions(!showSuggestions)}
           />
         </div>
-        <div className="pb-4 w-full max-w-4xl flex justify-center items-center ">
+        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
+          <VoiceModeSwitch voiceMode={voiceMode} setVoiceMode={setVoiceMode} />
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}

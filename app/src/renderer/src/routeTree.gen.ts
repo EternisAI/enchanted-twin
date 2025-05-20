@@ -16,8 +16,6 @@ import { Route as SettingsImport } from './routes/settings'
 import { Route as OnboardingImport } from './routes/onboarding'
 import { Route as AdminImport } from './routes/admin'
 import { Route as IndexImport } from './routes/index'
-import { Route as VoiceIndexImport } from './routes/voice/index'
-import { Route as VoiceChatIdImport } from './routes/voice/$chatId'
 import { Route as ChatChatIdImport } from './routes/chat/$chatId'
 
 // Create/Update Routes
@@ -49,18 +47,6 @@ const AdminRoute = AdminImport.update({
 const IndexRoute = IndexImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const VoiceIndexRoute = VoiceIndexImport.update({
-  id: '/voice/',
-  path: '/voice/',
-  getParentRoute: () => rootRoute,
-} as any)
-
-const VoiceChatIdRoute = VoiceChatIdImport.update({
-  id: '/voice/$chatId',
-  path: '/voice/$chatId',
   getParentRoute: () => rootRoute,
 } as any)
 
@@ -116,20 +102,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ChatChatIdImport
       parentRoute: typeof rootRoute
     }
-    '/voice/$chatId': {
-      id: '/voice/$chatId'
-      path: '/voice/$chatId'
-      fullPath: '/voice/$chatId'
-      preLoaderRoute: typeof VoiceChatIdImport
-      parentRoute: typeof rootRoute
-    }
-    '/voice/': {
-      id: '/voice/'
-      path: '/voice'
-      fullPath: '/voice'
-      preLoaderRoute: typeof VoiceIndexImport
-      parentRoute: typeof rootRoute
-    }
   }
 }
 
@@ -142,8 +114,6 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
-  '/voice/$chatId': typeof VoiceChatIdRoute
-  '/voice': typeof VoiceIndexRoute
 }
 
 export interface FileRoutesByTo {
@@ -153,8 +123,6 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
-  '/voice/$chatId': typeof VoiceChatIdRoute
-  '/voice': typeof VoiceIndexRoute
 }
 
 export interface FileRoutesById {
@@ -165,8 +133,6 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/chat/$chatId': typeof ChatChatIdRoute
-  '/voice/$chatId': typeof VoiceChatIdRoute
-  '/voice/': typeof VoiceIndexRoute
 }
 
 export interface FileRouteTypes {
@@ -178,18 +144,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/chat/$chatId'
-    | '/voice/$chatId'
-    | '/voice'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/admin'
-    | '/onboarding'
-    | '/settings'
-    | '/tasks'
-    | '/chat/$chatId'
-    | '/voice/$chatId'
-    | '/voice'
+  to: '/' | '/admin' | '/onboarding' | '/settings' | '/tasks' | '/chat/$chatId'
   id:
     | '__root__'
     | '/'
@@ -198,8 +154,6 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/chat/$chatId'
-    | '/voice/$chatId'
-    | '/voice/'
   fileRoutesById: FileRoutesById
 }
 
@@ -210,8 +164,6 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
   ChatChatIdRoute: typeof ChatChatIdRoute
-  VoiceChatIdRoute: typeof VoiceChatIdRoute
-  VoiceIndexRoute: typeof VoiceIndexRoute
 }
 
 const rootRouteChildren: RootRouteChildren = {
@@ -221,8 +173,6 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
   ChatChatIdRoute: ChatChatIdRoute,
-  VoiceChatIdRoute: VoiceChatIdRoute,
-  VoiceIndexRoute: VoiceIndexRoute,
 }
 
 export const routeTree = rootRoute
@@ -240,9 +190,7 @@ export const routeTree = rootRoute
         "/onboarding",
         "/settings",
         "/tasks",
-        "/chat/$chatId",
-        "/voice/$chatId",
-        "/voice/"
+        "/chat/$chatId"
       ]
     },
     "/": {
@@ -262,12 +210,6 @@ export const routeTree = rootRoute
     },
     "/chat/$chatId": {
       "filePath": "chat/$chatId.tsx"
-    },
-    "/voice/$chatId": {
-      "filePath": "voice/$chatId.tsx"
-    },
-    "/voice/": {
-      "filePath": "voice/index.tsx"
     }
   }
 }

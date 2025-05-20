@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
-import MessageInput from '@renderer/components/chat/MessageInput'
-import { UserMessageBubble } from '@renderer/components/chat/Message'
+
+import { Chat, Message, Role } from '@renderer/graphql/generated/graphql'
+import MessageInput from './MessageInput'
+import { Switch } from '../ui/switch'
+import VoiceVisualizer from '../voice/VoiceVisualizer'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
-import { Chat, Message, Role } from '@renderer/graphql/generated/graphql'
-import VoiceVisualizer from './VoiceVisualizer' // ⬅️  ① import
+import { UserMessageBubble } from './Message'
+import { motion } from 'framer-motion'
 
-interface VoiceChatViewProps {
+interface VoiceModeChatViewProps {
   chat: Chat
   initialMessage?: string
+  toggleVoiceMode: () => void
 }
 
-export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewProps) {
+export default function VoiceModeChatView({
+  chat,
+  initialMessage,
+  toggleVoiceMode
+}: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, isLoading } = useTTS()
 
   /* ---------- last user message (for UI) ---------- */
@@ -32,7 +40,6 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
     return [...chat.messages].reverse().find((m) => m.role === Role.User) ?? null
   })
 
-  /* ---------- send message mutation ---------- */
   const { sendMessage: sendMessageRaw } = useSendMessage(chat.id, setLastUserMessage, () => {})
 
   const sendMessage = (text: string, reasoning: boolean) => {
@@ -47,7 +54,6 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
     console.log('isLoading', isLoading)
   }, [isLoading])
 
-  /* ---------- speech state machine ---------- */
   const triggeredRef = useRef(false)
 
   useMessageSubscription(chat.id, (message) => {
@@ -70,30 +76,50 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
     console.log('visualState', visualState)
   }, [visualState])
 
-  /* ---------- render ---------- */
-  if (!chat) return <div className="p-4">Invalid chat ID.</div>
-
   return (
     <div className="flex flex-col h-full w-full items-center">
-      {/* particle visual */}
-      <div className="relative flex-1 w-full">
+      <motion.div
+        className="relative flex-1 w-full"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
         <VoiceVisualizer
           className="absolute inset-0"
           visualState={visualState}
           getFreqData={getFreqData}
         />
-      </div>
+      </motion.div>
 
-      {/* chat footer */}
-      <div className="w-full max-w-4xl flex flex-col gap-4 px-4 pb-4">
+      <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
         {lastUserMessage && <UserMessageBubble message={lastUserMessage} />}
+        <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} />
         <MessageInput
           isWaitingTwinResponse={false}
           onSend={sendMessage}
           hasReasoning={false}
-          voice={true}
+          voice
         />
       </div>
+    </div>
+  )
+}
+
+export function VoiceModeSwitch({
+  voiceMode,
+  setVoiceMode
+}: {
+  voiceMode: boolean
+  setVoiceMode: (voiceMode: boolean) => void
+}) {
+  return (
+    <div className="flex justify-end w-full gap-2">
+      <Switch id="voiceMode" checked={voiceMode} onCheckedChange={() => setVoiceMode(!voiceMode)}>
+        Voice Mode
+      </Switch>
+      <label className="text-sm" htmlFor="voiceMode">
+        Voice Mode
+      </label>
     </div>
   )
 }
