@@ -7,7 +7,8 @@ import { useSendMessage } from '@renderer/hooks/useChat'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
-import VoiceModeChatView, { VoiceModeSwitch } from './ChatVoideModeView'
+import VoiceModeChatView, { VoiceModeSwitch } from './voice/ChatVoiceModeView'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 interface ChatViewProps {
   chat: Chat
@@ -16,7 +17,7 @@ interface ChatViewProps {
 
 export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
-  const [voiceMode, setVoiceMode] = useState(false)
+  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -149,14 +150,14 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   }, [messages, mounted])
 
   const handleSuggestionClick = (suggestion: string) => {
-    sendMessage(suggestion, false, voiceMode)
+    sendMessage(suggestion, false, isVoiceMode)
   }
 
-  if (voiceMode) {
+  if (isVoiceMode) {
     return (
       <VoiceModeChatView
         chat={chat}
-        toggleVoiceMode={() => setVoiceMode(!voiceMode)}
+        toggleVoiceMode={toggleVoiceMode}
         // isWaitingTwinResponse={isWaitingTwinResponse}
         // error={error}
       />
@@ -164,22 +165,25 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   }
 
   return (
-    <div className="flex flex-col h-full w-full">
-      <div className="flex-1 overflow-y-auto w-full">
-        <div className="flex flex-col items-center p-4 w-full">
-          <div className="w-full">
-            <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
-            {error && (
-              <div className="py-2 px-4 rounded-md border border-red-500 bg-red-500/10 text-red-500">
-                Error: {error}
-              </div>
-            )}
-            <div ref={bottomRef} />
+    <div className="flex flex-col h-full w-full items-center">
+      <div className="flex flex-1 flex-col w-full overflow-y-auto ">
+        <div className="flex w-full justify-center">
+          <div className="flex flex-col max-w-4xl items-center p-4 w-full">
+            <div className="w-full">
+              <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
+              {error && (
+                <div className="py-2 px-4 rounded-md border border-red-500 bg-red-500/10 text-red-500">
+                  Error: {error}
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
           </div>
         </div>
       </div>
+
       <div className="flex flex-col w-full items-center justify-center px-2">
-        <div className="w-full flex justify-center items-center relative">
+        <div className="w-full flex max-w-4xl justify-center items-center relative">
           <ChatSuggestions
             chatId={chat.id}
             visible={showSuggestions}
@@ -188,7 +192,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
           />
         </div>
         <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
-          <VoiceModeSwitch voiceMode={voiceMode} setVoiceMode={setVoiceMode} />
+          <VoiceModeSwitch voiceMode={isVoiceMode} setVoiceMode={toggleVoiceMode} />
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}

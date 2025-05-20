@@ -20,8 +20,7 @@ import {
   SearchIcon,
   ChevronDown,
   ChevronUp,
-  CheckSquare,
-  Mic
+  CheckSquare
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -68,6 +67,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
   const { openOmnibar } = useOmnibarStore()
+  // const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const [showAllChats, setShowAllChats] = useState(false)
 
   const handleNewChat = () => {
@@ -76,14 +76,6 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 
   const handleNavigateTasks = () => {
     navigate({ to: '/tasks' })
-  }
-
-  const handleVoiceMode = async () => {
-    try {
-      navigate({ to: '/voice' })
-    } catch (error) {
-      console.error('Failed to navigate to voice chat:', error)
-    }
   }
 
   const chatsToDisplay = showAllChats ? chats : chats.slice(0, 5)
@@ -201,14 +193,19 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           <span className="text-sm">Tasks</span>
         </Button>
 
-        <Button
+        {/* <Button
           variant="outline"
           className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
-          onClick={handleVoiceMode}
+          onClick={() => {
+            if (!isVoiceMode) {
+              setSidebarOpen(false)
+            }
+            toggleVoiceMode()
+          }}
         >
           <Mic className="w-4 h-4 mr-2 text-muted-foreground" />
           <span className="text-sm">Voice mode</span>
-        </Button>
+        </Button> */}
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
           <AnimatePresence initial={false} mode="popLayout">

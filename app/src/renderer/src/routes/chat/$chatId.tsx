@@ -66,7 +66,7 @@ function ChatRouteComponent() {
     <div className="flex flex-col h-full flex-1 w-full">
       <div className="flex-1 overflow-hidden w-full">
         <div className="flex flex-col items-center h-full w-full">
-          <div className="w-full max-w-4xl mx-auto h-full">
+          <div className="w-full mx-auto h-full">
             <ChatView key={data.id} chat={data} initialMessage={initialMessage} />
           </div>
         </div>

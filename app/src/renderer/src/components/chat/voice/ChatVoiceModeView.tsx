@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { Chat, Message, Role } from '@renderer/graphql/generated/graphql'
-import MessageInput from './MessageInput'
-import { Switch } from '../ui/switch'
-import VoiceVisualizer from '../voice/VoiceVisualizer'
+import MessageInput from '../MessageInput'
+import { Switch } from '../../ui/switch'
+import VoiceVisualizer from './VoiceVisualizer'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
-import { UserMessageBubble } from './Message'
+import { UserMessageBubble } from '../Message'
 import { motion } from 'framer-motion'
+import { useSidebarStore } from '@renderer/lib/stores/sidebar'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -112,9 +113,17 @@ export function VoiceModeSwitch({
   voiceMode: boolean
   setVoiceMode: (voiceMode: boolean) => void
 }) {
+  const { setOpen: setSidebarOpen } = useSidebarStore()
   return (
     <div className="flex justify-end w-full gap-2">
-      <Switch id="voiceMode" checked={voiceMode} onCheckedChange={() => setVoiceMode(!voiceMode)}>
+      <Switch
+        id="voiceMode"
+        checked={voiceMode}
+        onCheckedChange={() => {
+          setVoiceMode(!voiceMode)
+          setSidebarOpen(voiceMode)
+        }}
+      >
         Voice Mode
       </Switch>
       <label className="text-sm" htmlFor="voiceMode">

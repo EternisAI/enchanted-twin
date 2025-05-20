@@ -4,7 +4,7 @@ import { Omnibar } from '@renderer/components/Omnibar'
 import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { useOsNotifications } from '@renderer/hooks/useNotifications'
 import UpdateNotification from '@renderer/components/UpdateNotification'
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { LayoutGroup, motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from '@renderer/components/chat/Sidebar'
 import { Button } from '@renderer/components/ui/button'
@@ -19,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger
 } from '@renderer/components/ui/tooltip'
+import { useSidebarStore } from '@renderer/lib/stores/sidebar'
 
 function DevBadge() {
   return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
@@ -27,7 +28,7 @@ function DevBadge() {
 function RootComponent() {
   useOsNotifications()
   const omnibar = useOmnibarStore()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const { isOpen: sidebarOpen, setOpen: setSidebarOpen } = useSidebarStore()
   const navigate = useNavigate()
   const { location } = useRouterState()
 
@@ -66,7 +67,7 @@ function RootComponent() {
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname])
+  }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname, setSidebarOpen])
 
   if (location.pathname === '/settings') {
     return <Outlet />
