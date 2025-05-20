@@ -3,6 +3,7 @@ package memory
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -12,6 +13,14 @@ type TextDocument struct {
 	Timestamp *time.Time
 	Tags      []string
 	Metadata  map[string]string
+}
+
+func (d *TextDocument) String() string {
+	metadataString := ""
+	for k, v := range d.Metadata {
+		metadataString += fmt.Sprintf("%s: %s. ", k, v)
+	}
+	return fmt.Sprintf("Content: %s, Timestamp: %s, Metadata: %s", d.Content, d.Timestamp, metadataString)
 }
 
 type QueryResult struct {
