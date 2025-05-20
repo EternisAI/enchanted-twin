@@ -14,7 +14,7 @@ import (
 
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
-	"github.com/EternisAI/enchanted-twin/twin_network/graph/model"
+	"github.com/EternisAI/enchanted-twin/pkg/twin_network/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 )
@@ -604,7 +604,7 @@ func (ec *executionContext) _Mutation_postMessage(ctx context.Context, field gra
 	}
 	res := resTmp.(*model.NetworkMessage)
 	fc.Result = res
-	return ec.marshalNNetworkMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx, field.Selections, res)
+	return ec.marshalNNetworkMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Mutation_postMessage(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -937,7 +937,7 @@ func (ec *executionContext) _Query_getNewMessages(ctx context.Context, field gra
 	}
 	res := resTmp.([]*model.NetworkMessage)
 	fc.Result = res
-	return ec.marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessageᚄ(ctx, field.Selections, res)
+	return ec.marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessageᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_getNewMessages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -3652,11 +3652,11 @@ func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.Selecti
 	return res
 }
 
-func (ec *executionContext) marshalNNetworkMessage2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx context.Context, sel ast.SelectionSet, v model.NetworkMessage) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkMessage2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx context.Context, sel ast.SelectionSet, v model.NetworkMessage) graphql.Marshaler {
 	return ec._NetworkMessage(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NetworkMessage) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessageᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NetworkMessage) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3680,7 +3680,7 @@ func (ec *executionContext) marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisA
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNNetworkMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx, sel, v[i])
+			ret[i] = ec.marshalNNetworkMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -3700,7 +3700,7 @@ func (ec *executionContext) marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisA
 	return ret
 }
 
-func (ec *executionContext) marshalNNetworkMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx context.Context, sel ast.SelectionSet, v *model.NetworkMessage) graphql.Marshaler {
+func (ec *executionContext) marshalNNetworkMessage2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessage(ctx context.Context, sel ast.SelectionSet, v *model.NetworkMessage) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")

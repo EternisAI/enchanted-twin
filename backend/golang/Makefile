@@ -28,7 +28,7 @@ run-telegram-chat:
 
 # Generate GraphQL code for the twin-network API
 gqlgen-twin-network:
-	cd twin_network && go run github.com/99designs/gqlgen generate
+	cd pkg/twin_network && go run github.com/99designs/gqlgen generate
 
 # Run the standalone twin-network GraphQL server
 run-twin-network-server:

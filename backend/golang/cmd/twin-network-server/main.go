@@ -14,8 +14,8 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/rs/cors"
 
-	twinnetwork "github.com/EternisAI/enchanted-twin/twin_network"
-	"github.com/EternisAI/enchanted-twin/twin_network/graph"
+	twinnetwork "github.com/EternisAI/enchanted-twin/pkg/twin_network"
+	"github.com/EternisAI/enchanted-twin/pkg/twin_network/graph"
 )
 
 const defaultPort = "8082"

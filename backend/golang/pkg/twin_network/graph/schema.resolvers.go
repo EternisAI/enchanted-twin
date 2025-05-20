@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"time"
 
-	twinnetwork "github.com/EternisAI/enchanted-twin/twin_network"
-	"github.com/EternisAI/enchanted-twin/twin_network/graph/model"
+	twinnetwork "github.com/EternisAI/enchanted-twin/pkg/twin_network"
+	"github.com/EternisAI/enchanted-twin/pkg/twin_network/graph/model"
 )
 
 // PostMessage is the resolver for the postMessage field.

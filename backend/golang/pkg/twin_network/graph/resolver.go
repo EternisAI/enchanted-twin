@@ -1,7 +1,7 @@
 package graph
 
 import (
-	twinnetwork "github.com/EternisAI/enchanted-twin/twin_network"
+	twinnetwork "github.com/EternisAI/enchanted-twin/pkg/twin_network"
 	"github.com/charmbracelet/log"
 )
 
