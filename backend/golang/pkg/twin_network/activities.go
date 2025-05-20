@@ -18,96 +18,120 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 		"networkID", input.NetworkID,
 		"lastMessageID", input.LastMessageID)
 
-	messages, err := a.getNewMessages(ctx, input.NetworkID, input.LastMessageID, nil)
+	allNewMessages, err := a.getNewMessages(ctx, input.NetworkID, input.LastMessageID, 30)
 	if err != nil {
 		a.logger.Error("Failed to fetch new messages", "error", err)
 		return nil, fmt.Errorf("failed to fetch new messages: %w", err)
 	}
 
-	a.logger.Info("Retrieved messages",
-		"count", len(messages),
+	a.logger.Info("Retrieved new messages",
+		"count", len(allNewMessages),
 		"networkID", input.NetworkID)
 
-	var lastMessageID int64 = input.LastMessageID
-	for _, msg := range messages {
-
-		if msg.AuthorPubKey == a.agentKey.PubKeyHex() {
-			a.logger.Debug("Skipping message authored by our agent",
-				"messageID", msg.ID,
-				"networkID", input.NetworkID)
-			continue
-		}
-
-		if msg.ID > lastMessageID {
-			lastMessageID = msg.ID
-		}
-
-		personality, err := a.identityService.GetPersonality(ctx)
-		if err != nil {
-			a.logger.Error("Failed to get identity context",
-				"error", err,
-				"messageID", msg.ID)
-			continue
-		}
-
-		fmt.Println("personality", personality)
-
-		response, err := a.readNetworkTool.Execute(ctx, map[string]any{
-			"network_message": []NetworkMessage{msg},
-		}, personality)
-		if err != nil {
-			a.logger.Error("Failed to process message with agent tool",
-				"error", err,
-				"messageID", msg.ID)
-			continue
-		}
-
-		responseString, ok := response.(*types.StructuredToolResult).Output["response"].(string)
-		if !ok {
-			a.logger.Error("Unexpected response type from tool",
-				"messageID", msg.ID,
-				"resultType", fmt.Sprintf("%T", response))
-			continue
-		}
-
-		signature, err := a.agentKey.SignMessage(responseString)
-		if err != nil {
-			a.logger.Error("Failed to sign message",
-				"error", err,
-				"messageID", msg.ID)
-			continue
-		}
-		err = a.postMessage(ctx, input.NetworkID, responseString, a.agentKey.PubKeyHex(), signature)
-		if err != nil {
-			a.logger.Error("Failed to post message",
-				"error", err,
-				"messageID", msg.ID)
-			continue
-		}
-
-		// Notify user in chat about the network reply
-		_, err = a.twinChatService.SendMessage(ctx, "default", fmt.Sprintf("I've replied to a message in network %s: %s", input.NetworkID, responseString), false)
-		if err != nil {
-			a.logger.Error("Failed to send chat notification",
-				"error", err,
-				"messageID", msg.ID)
-		}
-
-		a.logger.Info("Successfully processed and responded to message",
-			"messageID", msg.ID,
-			"networkID", input.NetworkID)
+	currentRunMaxID := input.LastMessageID
+	if len(allNewMessages) > 0 {
+		// Assuming messages are sorted by ID ascending from getNewMessages,
+		// the last message in the slice has the highest ID.
+		currentRunMaxID = allNewMessages[len(allNewMessages)-1].ID
 	}
 
-	a.logger.Info("Completed network activity monitoring",
+	if len(allNewMessages) == 0 {
+		a.logger.Info("No new messages to process.", "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
+	}
+
+	var nonSelfAuthoredMessages []NetworkMessage
+	for _, msg := range allNewMessages {
+		if msg.AuthorPubKey == a.agentKey.PubKeyHex() {
+			a.logger.Debug("Skipping message authored by our agent", "messageID", msg.ID, "networkID", input.NetworkID)
+			continue
+		}
+		nonSelfAuthoredMessages = append(nonSelfAuthoredMessages, msg)
+	}
+
+	if len(nonSelfAuthoredMessages) == 0 {
+		a.logger.Info("No non-self-authored new messages to process after filtering.", "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
+	}
+
+	const messageProcessingLimit = 20
+	var messagesForTool []NetworkMessage
+	if len(nonSelfAuthoredMessages) > messageProcessingLimit {
+		messagesForTool = nonSelfAuthoredMessages[len(nonSelfAuthoredMessages)-messageProcessingLimit:]
+	} else {
+		messagesForTool = nonSelfAuthoredMessages
+	}
+
+	if len(messagesForTool) == 0 {
+		// This case should ideally be covered by the previous check (len(nonSelfAuthoredMessages) == 0)
+		// but kept for robustness.
+		a.logger.Info("Message batch for tool is empty after selection. No action taken.", "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
+	}
+
+	a.logger.Info("Processing batch of messages for tool", "count", len(messagesForTool), "networkID", input.NetworkID)
+
+	personality, err := a.identityService.GetPersonality(ctx)
+	if err != nil {
+		a.logger.Error("Failed to get identity context for batch processing", "error", err, "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("failed to get identity context for batch: %w", err)
+	}
+
+	response, err := a.readNetworkTool.Execute(ctx, map[string]any{
+		"network_message": messagesForTool,
+	}, personality)
+	if err != nil {
+		a.logger.Error("Failed to process message batch with agent tool", "error", err, "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("agent tool failed for batch: %w", err)
+	}
+
+	responseString, ok := response.(*types.StructuredToolResult).Output["response"].(string)
+	if !ok {
+		a.logger.Error("Unexpected response type from tool for batch", "resultType", fmt.Sprintf("%T", response), "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("unexpected response type from tool for batch: %T", response)
+	}
+
+	if responseString == "" {
+		a.logger.Info("Agent tool returned an empty response for the batch. No message will be posted.", "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
+	}
+
+	// Prevent posting generic "Unable to generate response" messages
+	if responseString == "Unable to generate response." {
+		a.logger.Info("Agent tool generated a generic 'Unable to generate response' message for the batch. No message will be posted.", "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
+	}
+
+	signature, err := a.agentKey.SignMessage(responseString)
+	if err != nil {
+		a.logger.Error("Failed to sign batch response message", "error", err, "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("failed to sign batch response: %w", err)
+	}
+
+	err = a.postMessage(ctx, input.NetworkID, responseString, a.agentKey.PubKeyHex(), signature)
+	if err != nil {
+		a.logger.Error("Failed to post batch response message", "error", err, "networkID", input.NetworkID)
+		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("failed to post batch response: %w", err)
+	}
+
+	_, err = a.twinChatService.SendMessage(ctx, "default", fmt.Sprintf("I've replied to a group of messages in network %s: %s", input.NetworkID, responseString), false)
+	if err != nil {
+		// Log error but don't fail the entire workflow activity for a chat notification failure
+		a.logger.Error("Failed to send chat notification for batch response", "error", err, "networkID", input.NetworkID)
+	}
+
+	a.logger.Info("Successfully processed and responded to message batch", "networkID", input.NetworkID)
+
+	a.logger.Info("Completed network activity monitoring cycle",
 		"networkID", input.NetworkID,
-		"lastMessageID", lastMessageID)
+		"nextLastMessageID", currentRunMaxID)
 
 	return &NetworkMonitorOutput{
-		LastMessageID: lastMessageID,
+		LastMessageID: currentRunMaxID,
 	}, nil
 }
 
-func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID string, fromID int64, limit *int) ([]NetworkMessage, error) {
+func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID string, fromID int64, limit int) ([]NetworkMessage, error) {
 	a.logger.Debug("Fetching new messages",
 		"networkID", networkID,
 		"fromID", fromID,
