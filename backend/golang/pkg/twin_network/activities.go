@@ -18,7 +18,6 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 		"networkID", input.NetworkID,
 		"lastMessageID", input.LastMessageID)
 
-	// Get new messages since last message ID
 	messages, err := a.getNewMessages(ctx, input.NetworkID, input.LastMessageID, nil)
 	if err != nil {
 		a.logger.Error("Failed to fetch new messages", "error", err)
@@ -31,7 +30,7 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 
 	var lastMessageID int64 = input.LastMessageID
 	for _, msg := range messages {
-		// Skip messages authored by our agent
+
 		if msg.AuthorPubKey == a.agentKey.PubKeyHex() {
 			a.logger.Debug("Skipping message authored by our agent",
 				"messageID", msg.ID,
@@ -39,15 +38,21 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 			continue
 		}
 
-		// Update last message ID
 		if msg.ID > lastMessageID {
 			lastMessageID = msg.ID
 		}
 
-		// Process message with agent tool
+		identityContext, err := a.identityService.GetPersonality(ctx)
+		if err != nil {
+			a.logger.Error("Failed to get identity context",
+				"error", err,
+				"messageID", msg.ID)
+			continue
+		}
+
 		response, err := a.readNetworkTool.Execute(ctx, map[string]any{
 			"network_message": []NetworkMessage{msg},
-		})
+		}, identityContext)
 		if err != nil {
 			a.logger.Error("Failed to process message with agent tool",
 				"error", err,
@@ -63,7 +68,6 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 			continue
 		}
 
-		// Post response to the network using our agent key
 		signature, err := a.agentKey.SignMessage(responseString)
 		if err != nil {
 			a.logger.Error("Failed to sign message",
@@ -158,14 +162,12 @@ func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID stri
 		return nil, fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Read the response body first
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		a.logger.Error("Failed to read response body", "error", err)
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Log the raw response for debugging
 	a.logger.Debug("Received response from network server",
 		"body", string(body),
 		"url", a.networkServerURL,
@@ -216,52 +218,6 @@ func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID stri
 		"count", len(messages),
 		"networkID", networkID)
 	return messages, nil
-}
-
-func (a *TwinNetworkWorkflow) analyzeMessage(ctx context.Context, msg NetworkMessage) (bool, string, error) {
-	a.logger.Debug("Analyzing message",
-		"messageID", msg.ID,
-		"networkID", msg.NetworkID,
-		"contentLength", len(msg.Content))
-
-	// Create a new ReadNetworkTool instance
-	tool := NewReadNetworkTool(a.logger, a.ai, "gpt-4.1-mini")
-
-	// Prepare the input for the tool
-	inputs := map[string]any{
-		"network_message": []NetworkMessage{msg},
-	}
-
-	// Execute the tool
-	result, err := tool.Execute(ctx, inputs)
-	if err != nil {
-		a.logger.Error("Failed to analyze message",
-			"error", err,
-			"messageID", msg.ID)
-		return false, "", fmt.Errorf("failed to analyze message: %w", err)
-	}
-
-	// Extract the response from the tool result
-	if structuredResult, ok := result.(*types.StructuredToolResult); ok {
-		response, ok := structuredResult.Output["response"].(string)
-		if !ok {
-			a.logger.Error("Unexpected response type from tool",
-				"messageID", msg.ID,
-				"resultType", fmt.Sprintf("%T", result))
-			return false, "", fmt.Errorf("unexpected response type from tool")
-		}
-		shouldRespond := response != ""
-		a.logger.Debug("Message analysis complete",
-			"messageID", msg.ID,
-			"shouldRespond", shouldRespond,
-			"responseLength", len(response))
-		return shouldRespond, response, nil
-	}
-
-	a.logger.Error("Unexpected result type from tool",
-		"messageID", msg.ID,
-		"resultType", fmt.Sprintf("%T", result))
-	return false, "", fmt.Errorf("unexpected result type from tool")
 }
 
 func (a *TwinNetworkWorkflow) postMessage(ctx context.Context, networkID string, content string, authorPubKey string, signature string) error {
@@ -331,14 +287,12 @@ func (a *TwinNetworkWorkflow) postMessage(ctx context.Context, networkID string,
 		return fmt.Errorf("request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	// Read the response body first
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		a.logger.Error("Failed to read response body", "error", err)
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Log the raw response for debugging
 	a.logger.Debug("Received response from network server",
 		"body", string(body),
 		"url", a.networkServerURL,

@@ -60,7 +60,7 @@ func (t *ReadNetworkTool) Definition() openai.ChatCompletionToolParam {
 }
 
 // Execute performs the actual analysis using the configured ai.Service.
-func (t *ReadNetworkTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
+func (t *ReadNetworkTool) Execute(ctx context.Context, inputs map[string]any, identityContext string) (types.ToolResult, error) {
 	rawMsg, ok := inputs["network_message"]
 	if !ok {
 		return nil, errors.New("network_message is required")
@@ -102,7 +102,13 @@ func (t *ReadNetworkTool) Execute(ctx context.Context, inputs map[string]any) (t
 		}
 
 		messages := []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(fmt.Sprintf("%s\n\nAnalyze the conversation and provide your analysis in two parts:\n1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n2. Response: A suggested next response that would be appropriate in this context\nFormat your response exactly like this:\nReasoning: [your reasoning here]\nResponse: [your response here]", t.PersonalityContext)),
+			openai.SystemMessage(fmt.Sprintf(`%s\n\nAnalyze the conversation and provide your analysis in two parts:\n
+			1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n
+			2. Response: A suggested next response that would be appropriate in this context\n
+
+			Here is some context about your personality and identity:
+			%s
+		`, t.PersonalityContext, identityContext)),
 			openai.UserMessage(formattedMessages),
 		}
 

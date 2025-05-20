@@ -25,7 +25,6 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		StartToCloseTimeout: time.Minute,
 	})
 
-	// Get the last completion result to track the last message ID
 	var lastOutput *NetworkMonitorOutput
 	if workflow.HasLastCompletionResult(ctx) {
 		err := workflow.GetLastCompletionResult(ctx, &lastOutput)
@@ -34,7 +33,6 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		}
 	}
 
-	// If we have a last output, use its last message ID
 	if lastOutput != nil {
 		input.LastMessageID = lastOutput.LastMessageID
 	}

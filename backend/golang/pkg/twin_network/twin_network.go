@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/charmbracelet/log"
 	"go.temporal.io/sdk/client"
 )
@@ -15,6 +16,7 @@ type TwinNetworkWorkflow struct {
 	networkServerURL string
 	readNetworkTool  *ReadNetworkTool
 	agentKey         AgentKey
+	identityService  *identity.IdentityService
 }
 
 func NewTwinNetworkWorkflow(ai *ai.Service, logger *log.Logger, networkServerURL string, agentKey AgentKey) *TwinNetworkWorkflow {
