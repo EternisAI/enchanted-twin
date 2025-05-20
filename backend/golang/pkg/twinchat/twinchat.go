@@ -21,6 +21,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
@@ -88,6 +89,37 @@ func (s *Service) Execute(
 	return &response, nil
 }
 
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return "", err
+	}
+	var emailAccounts []string
+	if len(oauthTokens) > 0 {
+		for _, token := range oauthTokens {
+			emailAccounts = append(emailAccounts, token.Username)
+		}
+	}
+
+	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
+		UserName:      userProfile.Name,
+		Bio:           userProfile.Bio,
+		EmailAccounts: emailAccounts,
+		ChatID:        &chatID,
+		CurrentTime:   time.Now().Format(time.RFC3339),
+		IsVoice:       isVoice,
+	})
+	if err != nil {
+		return "", err
+	}
+	return systemPrompt, nil
+}
+
 func (s *Service) SendMessage(
 	ctx context.Context,
 	chatID string,
@@ -95,18 +127,18 @@ func (s *Service) SendMessage(
 	isReasoning bool,
 	isVoice bool,
 ) (*model.Message, error) {
-	systemPrompt, err := s.getSystemPrompt(ctx, chatID, isVoice)
-	if err != nil {
-		return nil, err
-	}
-	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
-
 	now := time.Now()
-
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
+
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
+	if err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
