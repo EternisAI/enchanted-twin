@@ -11,7 +11,7 @@ type NetworkMessage struct {
 	ID           string `json:"id"`
 	AuthorPubKey string `json:"authorPubKey"`
 	NetworkID    string `json:"networkID"`
-	Text         string `json:"text"`
+	Content      string `json:"content"`
 	CreatedAt    string `json:"createdAt"`
 }
 

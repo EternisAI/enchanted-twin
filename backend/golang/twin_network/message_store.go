@@ -10,7 +10,7 @@ import (
 type NetworkMessage struct {
 	AuthorPubKey string
 	NetworkID    string
-	Text         string
+	Content      string
 	CreatedAt    time.Time
 	ID           int64
 }

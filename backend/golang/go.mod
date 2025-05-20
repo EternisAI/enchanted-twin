@@ -7,6 +7,7 @@ require (
 	github.com/charmbracelet/log v0.4.2
 	github.com/docker/docker v28.1.1+incompatible
 	github.com/docker/go-connections v0.5.0
+	github.com/ethereum/go-ethereum v1.14.0
 	github.com/g8rswimmer/go-twitter/v2 v2.1.5
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-openapi/loads v0.22.0
@@ -77,17 +78,12 @@ require (
 	github.com/charmbracelet/x/cellbuf v0.0.13 // indirect
 	github.com/charmbracelet/x/term v0.2.1 // indirect
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
-	github.com/consensys/bavard v0.1.13 // indirect
-	github.com/consensys/gnark-crypto v0.12.1 // indirect
-	github.com/crate-crypto/go-kzg-4844 v1.0.0 // indirect
 	github.com/danaugrs/go-tsne v0.0.0-20200708172100-6b7d1d577fd3 // indirect
 	github.com/decred/dcrd/dcrec/secp256k1/v4 v4.0.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
-	github.com/ethereum/c-kzg-4844 v1.0.0 // indirect
-	github.com/ethereum/go-ethereum v1.14.0 // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/getsentry/sentry-go v0.30.0 // indirect
@@ -141,7 +137,6 @@ require (
 	github.com/miekg/dns v1.1.31 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.84 // indirect
-	github.com/mmcloughlin/addchain v0.4.0 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
 	github.com/moby/sys/atomicwriter v0.1.0 // indirect
 	github.com/moby/term v0.5.2 // indirect
@@ -173,7 +168,6 @@ require (
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
-	github.com/supranational/blst v0.3.11 // indirect
 	github.com/tailor-inc/graphql v0.5.7 // indirect
 	github.com/termie/go-shutil v0.0.0-20140729215957-bcacb06fecae // indirect
 	github.com/vcaesar/cedar v0.20.2 // indirect
@@ -195,7 +189,6 @@ require (
 	gonum.org/v1/gonum v0.15.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
-	rsc.io/tmplfunc v0.0.3 // indirect
 )
 
 require (

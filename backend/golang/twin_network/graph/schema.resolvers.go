@@ -14,11 +14,11 @@ import (
 )
 
 // PostMessage is the resolver for the postMessage field.
-func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string, networkID string, text string) (*model.NetworkMessage, error) {
+func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string, networkID string, content string) (*model.NetworkMessage, error) {
 	msg := twinnetwork.NetworkMessage{
 		AuthorPubKey: authorPubKey,
 		NetworkID:    networkID,
-		Text:         text,
+		Content:      content,
 		CreatedAt:    time.Now().UTC(),
 	}
 	r.Store.Add(msg)
@@ -26,7 +26,7 @@ func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string,
 	return &model.NetworkMessage{
 		AuthorPubKey: msg.AuthorPubKey,
 		NetworkID:    msg.NetworkID,
-		Text:         msg.Text,
+		Content:      msg.Content,
 		CreatedAt:    msg.CreatedAt.Format(time.RFC3339),
 	}, nil
 }
@@ -41,7 +41,7 @@ func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, fr
 			ID:           fmt.Sprintf("%d", m.ID),
 			AuthorPubKey: m.AuthorPubKey,
 			NetworkID:    m.NetworkID,
-			Text:         m.Text,
+			Content:      m.Content,
 			CreatedAt:    m.CreatedAt.Format(time.RFC3339),
 		}
 	}
@@ -54,7 +54,5 @@ func (r *Resolver) Mutation() MutationResolver { return &mutationResolver{r} }
 // Query returns QueryResolver implementation.
 func (r *Resolver) Query() QueryResolver { return &queryResolver{r} }
 
-type (
-	mutationResolver struct{ *Resolver }
-	queryResolver    struct{ *Resolver }
-)
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }

@@ -8,7 +8,7 @@ type NetworkMessage {
   id: ID!
   authorPubKey: String!
   networkID: String!
-  text: String!
+  content: String!
   createdAt: DateTime!
 }
 
@@ -25,5 +25,5 @@ type Mutation {
   Publish a new message to the given network.  
   Returns the created NetworkMessage.
   """
-  postMessage(authorPubKey: String!, networkID: String!, text: String!): NetworkMessage!
+  postMessage(authorPubKey: String!, networkID: String!, content: String!): NetworkMessage!
 } 
