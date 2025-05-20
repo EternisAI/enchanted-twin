@@ -62,6 +62,8 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
 
   const visualState: 0 | 1 | 2 = isSpeaking ? 2 : isLoading ? 1 : 0
 
+  const phaseLabel = visualState === 2 ? 'Speaking' : visualState === 1 ? 'Loading' : 'Standby'
+
   useEffect(() => {
     console.log('visualState', visualState)
   }, [visualState])
@@ -72,12 +74,25 @@ export default function VoiceChatView({ chat, initialMessage }: VoiceChatViewPro
   return (
     <div className="flex flex-col h-full w-full items-center">
       {/* particle visual */}
-      <div className="relative flex-1 w-full">
+      <div className="relative flex-1 w-full overflow-hidden">
         <VoiceVisualizer
           className="absolute inset-0"
           visualState={visualState}
           getFreqData={getFreqData}
         />
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span
+            className={
+              visualState === 2
+                ? 'text-orange-500 font-semibold'
+                : visualState === 1
+                  ? 'animate-pulse font-semibold'
+                  : 'text-muted-foreground'
+            }
+          >
+            {phaseLabel}
+          </span>
+        </div>
       </div>
 
       {/* chat footer */}
