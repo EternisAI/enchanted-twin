@@ -19,7 +19,7 @@ type TwinChatSystemPrompt struct {
 }
 
 func BuildTwinChatSystemPrompt(data TwinChatSystemPrompt) (string, error) {
-	var systemPromptTmpl = template.Must(template.New("system_prompt").Parse(twinChatSystemPromptTemplate))
+	systemPromptTmpl := template.Must(template.New("system_prompt").Parse(twinChatSystemPromptTemplate))
 	var buf bytes.Buffer
 	if err := systemPromptTmpl.Execute(&buf, data); err != nil {
 		return "", err

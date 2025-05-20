@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -15,11 +14,14 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 )
 
 type userProfile interface {
 	GetUserProfile(ctx context.Context) (*model.UserProfile, error)
+	GetOAuthTokensArray(ctx context.Context, provider string) ([]db.OAuthTokens, error)
 }
 
 type TaskSchedulerActivities struct {
@@ -58,25 +60,10 @@ type ExecuteTaskActivityInput struct {
 }
 
 func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input ExecuteTaskActivityInput) (string, error) {
-	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. You must send a message after completing all tool calls. You must ensure that the final message includes the answer to the original task. You must never ask where to send the message, you MUST send it to the chat by default by specifying the chat_id. You are currently performing a periodic task, if there is previous execution result below make sure not repeat the same result when possible. "
-
-	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	systemPrompt, err := s.buildSystemPrompt(ctx, input.ChatID, input.PreviousResult)
 	if err != nil {
 		return "", err
 	}
-
-	if userProfile.Name != nil {
-		systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
-	}
-	if userProfile.Bio != nil {
-		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
-	}
-	systemPrompt += fmt.Sprintf("Current date and time: %s.", time.Now().Format(time.RFC3339))
-
-	if input.PreviousResult != nil {
-		systemPrompt += fmt.Sprintf("\n\nPrevious result: %s.", *input.PreviousResult)
-	}
-	systemPrompt += fmt.Sprintf("\n\nChat ID: ```%s```.", input.ChatID)
 
 	tools := s.ToolsRegistry.Excluding("schedule_task").GetAll()
 	for _, tool := range tools {
@@ -111,4 +98,35 @@ func (s *TaskSchedulerActivities) executeActivity(ctx context.Context, input Exe
 	}
 
 	return response.String(), nil
+}
+
+func (s *TaskSchedulerActivities) buildSystemPrompt(ctx context.Context, chatID string, previousResult *string) (string, error) {
+	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return "", err
+	}
+	var emailAccounts []string
+	if len(oauthTokens) > 0 {
+		for _, token := range oauthTokens {
+			emailAccounts = append(emailAccounts, token.Username)
+		}
+	}
+
+	systemPrompt, err := prompts.BuildScheduledTaskSystemPrompt(prompts.ScheduledTaskSystemPrompt{
+		UserName:       userProfile.Name,
+		Bio:            userProfile.Bio,
+		ChatID:         &chatID,
+		CurrentTime:    time.Now().Format(time.RFC3339),
+		EmailAccounts:  emailAccounts,
+		PreviousResult: previousResult,
+	})
+	if err != nil {
+		return "", err
+	}
+	return systemPrompt, nil
 }
