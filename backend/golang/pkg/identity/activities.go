@@ -4,11 +4,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"go.temporal.io/sdk/worker"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 func NewIdentityActivities(logger *log.Logger, memory memory.Storage, ai *ai.Service, completionsModel string) *identityActivities {
