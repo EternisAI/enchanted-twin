@@ -28,6 +28,7 @@ import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '../ui/
 import { useDebounce } from '@renderer/hooks/useDebounce'
 import { ScrollArea } from '../ui/scroll-area'
 import { SendButton } from './MessageInput'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 // Define expected search params type that matches routes/index.tsx
 interface IndexRouteSearch {
@@ -45,6 +46,7 @@ export function Header() {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
+  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const navigate = useNavigate()
   const router = useRouter()
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
@@ -173,14 +175,19 @@ export function Header() {
         })
 
         sendMessage({
-          variables: { chatId: newChatId, text: query, reasoning: isReasonSelected, voice: false }
+          variables: {
+            chatId: newChatId,
+            text: query,
+            reasoning: isReasonSelected,
+            voice: isVoiceMode
+          }
         })
         setQuery('')
       }
     } catch (error) {
       console.error('Failed to create chat:', error)
     }
-  }, [query, navigate, createChat, sendMessage, router, isReasonSelected])
+  }, [query, navigate, createChat, sendMessage, router, isReasonSelected, isVoiceMode])
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
@@ -243,7 +250,7 @@ export function Header() {
             chatId: newChatId,
             text: suggestion.name,
             reasoning: isReasonSelected,
-            voice: false
+            voice: isVoiceMode
           }
         })
         setQuery('')
@@ -315,13 +322,18 @@ export function Header() {
                 className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
                 rows={1}
               />
-              <motion.div className="flex items-center self-end gap-1 pb-2">
+              <motion.div className="flex items-center self-end gap-2 pb-2">
                 <motion.div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          onClick={() => setIsReasonSelected(!isReasonSelected)}
+                          onClick={() => {
+                            if (isVoiceMode) {
+                              return
+                            }
+                            setIsReasonSelected(!isReasonSelected)
+                          }}
                           className={cn(
                             'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
                             isReasonSelected
@@ -329,31 +341,44 @@ export function Header() {
                               : ''
                           )}
                           variant="outline"
+                          // disabled={isVoiceMode}
                         >
-                          <Lightbulb className="w-4 h-5" />
+                          <Lightbulb className="w-4 h-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Reasoning</p>
+                        <p>Reasoning {isVoiceMode ? '(turn off voice mode to use)' : ''}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </motion.div>
+
                 <motion.div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant="ghost"
+                          onClick={() => {
+                            toggleVoiceMode()
+                            if (isReasonSelected) {
+                              setIsReasonSelected(false)
+                            }
+                          }}
+                          variant="outline"
                           type="button"
                           size="icon"
-                          className="h-10 w-10 rounded-full"
+                          className={cn(
+                            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
+                            isVoiceMode
+                              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+                              : ''
+                          )}
                         >
                           <AudioLines className="h-5 w-5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Voice chat (coming soon)</p>
+                        <p>Voice chat {isVoiceMode ? '(enabled)' : '(disabled)'}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
