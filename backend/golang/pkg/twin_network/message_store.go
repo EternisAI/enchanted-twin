@@ -15,6 +15,7 @@ type NetworkMessage struct {
 	Content      string
 	CreatedAt    time.Time
 	ID           int64
+	ThreadID     string
 	IsMine       bool
 	Signature    string
 }

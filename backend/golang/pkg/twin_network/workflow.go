@@ -12,12 +12,12 @@ const (
 
 type NetworkMonitorInput struct {
 	NetworkID     string
-	LastMessageID int64
+	LastMessageID string
 }
 
 type NetworkMonitorOutput struct {
 	ProcessedMessages int
-	LastMessageID     int64
+	LastMessageID     string
 }
 
 func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input NetworkMonitorInput) (*NetworkMonitorOutput, error) {

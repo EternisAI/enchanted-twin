@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	openai "github.com/openai/openai-go"
 )
 
 func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input NetworkMonitorInput) (*NetworkMonitorOutput, error) {
@@ -18,7 +19,7 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 		"networkID", input.NetworkID,
 		"lastMessageID", input.LastMessageID)
 
-	allNewMessages, err := a.getNewMessages(ctx, input.NetworkID, input.LastMessageID, 30)
+	allNewMessages, err := a.twinNetworkAPI.GetNewMessages(ctx, input.NetworkID, input.LastMessageID, 30)
 	if err != nil {
 		a.logger.Error("Failed to fetch new messages", "error", err)
 		return nil, fmt.Errorf("failed to fetch new messages: %w", err)
@@ -46,7 +47,14 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 			a.logger.Debug("Skipping message authored by our agent", "messageID", msg.ID, "networkID", input.NetworkID)
 			continue
 		}
-		nonSelfAuthoredMessages = append(nonSelfAuthoredMessages, msg)
+		// TODO: Add message to message store
+		nonSelfAuthoredMessages = append(nonSelfAuthoredMessages, NetworkMessage{
+			// ID:           msg.ID,
+			// AuthorPubKey: msg.AuthorPubKey,
+			// NetworkID:    msg.NetworkID,
+			// Content:      msg.Content,
+			// CreatedAt:    msg.CreatedAt,
+		})
 	}
 
 	if len(nonSelfAuthoredMessages) == 0 {
@@ -129,6 +137,39 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 	return &NetworkMonitorOutput{
 		LastMessageID: currentRunMaxID,
 	}, nil
+}
+
+func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, message NetworkMessage) (string, error) {
+	personality, err := a.identityService.GetPersonality(ctx)
+	if err != nil {
+		a.logger.Error("Failed to get identity context for batch processing", "error", err, "networkID", message.NetworkID)
+		return "", fmt.Errorf("failed to get identity context for batch: %w", err)
+	}
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(fmt.Sprintf(`Analyze the conversation and provide your analysis in two parts:\n
+		1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n
+		2. Response: A suggested next response that would be appropriate in this context\n
+
+		If you think this message is useful to your human, send it to the chat by calling "send_to_chat" tool and specifying "chat_id" to be empty string.
+		If the bulletin board message is interesting to your human and requires response and if you know the correct response call "send_bulletin_board_message" tool. 
+		If you're missing some information nescessary to respond, only send message to your human chat.
+
+		Here is some context about your personality and identity:
+
+		Thread ID: %s
+		%s`, personality, message.ThreadID)),
+		openai.UserMessage(message.String()),
+	}
+
+	tools := a.toolRegistry.GetAll()
+
+	response, err := a.agent.Execute(ctx, nil, messages, tools)
+	if err != nil {
+		a.logger.Error("Failed to execute agent", "error", err)
+		return "", fmt.Errorf("failed to execute agent: %w", err)
+	}
+
+	return response.Content, nil
 }
 
 func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID string, fromID int64, limit int) ([]NetworkMessage, error) {

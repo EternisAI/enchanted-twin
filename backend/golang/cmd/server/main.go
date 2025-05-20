@@ -54,6 +54,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	twin_network "github.com/EternisAI/enchanted-twin/pkg/twin_network"
+	twinnetworkapi "github.com/EternisAI/enchanted-twin/pkg/twin_network/api"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
@@ -209,6 +210,16 @@ func main() {
 		logger.Error("Failed to register memory search tool", "error", err)
 	}
 
+	twinNetworkAPI := twinnetworkapi.NewTwinNetworkAPI(logger, envs.NetworkServerURL)
+	agentKey, err := twin_network.NewRandomAgentPubKey()
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to generate agent key"))
+	}
+	sendNetworkMessageTool := twin_network.NewSendNetworkMessageTool(twinNetworkAPI, agentKey)
+	if err := toolRegistry.Register(sendNetworkMessageTool); err != nil {
+		logger.Error("Failed to register send network message tool", "error", err)
+	}
+
 	// Initialize MCP Service with tool registry
 	mcpService := mcpserver.NewService(context.Background(), store, toolRegistry)
 
@@ -266,11 +277,6 @@ func main() {
 	)
 
 	notificationsSvc := notifications.NewService(nc)
-
-	agentKey, err := twin_network.NewRandomAgentPubKey()
-	if err != nil {
-		panic(errors.Wrap(err, "Failed to generate agent key"))
-	}
 
 	identitySvc := identity.NewIdentityService(temporalClient)
 	personality, err := identitySvc.GetPersonality(context.Background())
@@ -473,6 +479,8 @@ func bootstrapTemporalWorker(
 		AgentKey:         *input.agentKey,
 		IdentityService:  input.identityService,
 		TwinChatService:  input.TwinChatService,
+		Agent:            aiAgent,
+		ToolRegistry:     input.toolsRegistry,
 	}
 	twinNetworkActivities := twin_network.NewTwinNetworkWorkflow(twinNetworkInput)
 	twinNetworkActivities.RegisterWorkflows(w)
