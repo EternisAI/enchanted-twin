@@ -9,7 +9,7 @@ import { ipcMain } from 'electron/main'
 
 log.transports.file.level = 'info'
 
-const POSTHOG_API_KEY = 'phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8'
+const POSTHOG_API_KEY = process.env.POSTHOG_API_KEY ?? ''
 const POSTHOG_HOST = 'https://us.i.posthog.com'
 
 const machineId = machineIdSync(true)
