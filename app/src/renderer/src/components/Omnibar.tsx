@@ -16,6 +16,7 @@ import FocusLock from 'react-focus-lock'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { SendButton } from './chat/MessageInput'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 export const Omnibar = () => {
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -24,6 +25,7 @@ export const Omnibar = () => {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const navigate = useNavigate()
   const router = useRouter()
+  const { isVoiceMode } = useVoiceStore()
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
   const { data: chatsData } = useQuery(GetChatsDocument, {
@@ -80,7 +82,7 @@ export const Omnibar = () => {
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: query }
+        variables: { name: query, voice: isVoiceMode }
       })
       const newChatId = createData?.createChat?.id
 
@@ -96,7 +98,14 @@ export const Omnibar = () => {
           filter: (match) => match.routeId === '/chat/$chatId'
         })
 
-        sendMessage({ variables: { chatId: newChatId, text: query } })
+        sendMessage({
+          variables: {
+            chatId: newChatId,
+            text: query,
+            voice: isVoiceMode,
+            reasoning: false
+          }
+        })
       }
     } catch (error) {
       console.error('Failed to create chat:', error)

@@ -159,7 +159,7 @@ export function Header() {
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: query }
+        variables: { name: query, voice: isVoiceMode }
       })
       const newChatId = createData?.createChat?.id
 
@@ -230,7 +230,7 @@ export function Header() {
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
     try {
       const { data: createData } = await createChat({
-        variables: { name: suggestion.name }
+        variables: { name: suggestion.name, voice: isVoiceMode }
       })
       const newChatId = createData?.createChat?.id
 
@@ -378,7 +378,7 @@ export function Header() {
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Voice chat {isVoiceMode ? '(enabled)' : '(disabled)'}</p>
+                        <p>Voice chat {isVoiceMode ? '(enabled)' : '(click to enable)'}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>

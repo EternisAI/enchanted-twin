@@ -48,6 +48,7 @@ type Chat {
   name: String!
   messages: [Message!]! @goField(forceResolver: true)
   createdAt: DateTime!
+  voice: Boolean!
 }
 
 type Message {
@@ -117,7 +118,7 @@ type Mutation {
   completeOAuthFlow(state: String!, authCode: String!): String!
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
-  createChat(name: String!): Chat!
+  createChat(name: String!, voice: Boolean! = False): Chat!
   sendMessage(
     chatId: ID!
     text: String!

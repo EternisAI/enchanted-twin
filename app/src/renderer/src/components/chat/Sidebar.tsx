@@ -30,6 +30,7 @@ import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 interface SidebarProps {
   chats: Chat[]
@@ -261,6 +262,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   const navigate = useNavigate()
   const router = useRouter()
+  const { setVoiceMode } = useVoiceStore()
   const [deleteChat] = useMutation(DeleteChatDocument, {
     refetchQueries: [GetChatsDocument],
     onError: (error) => {
@@ -309,6 +311,9 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         key={chat.id}
         disabled={isActive}
         to="/chat/$chatId"
+        onClick={() => {
+          setVoiceMode(chat.voice)
+        }}
         params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,

@@ -9,6 +9,7 @@ query GetChats($first: Int!, $offset: Int!) {
     id
     name
     createdAt
+    voice
     messages {
       id
       text
@@ -31,6 +32,7 @@ query GetChat($id: ID!) {
     id
     name
     createdAt
+    voice
     messages {
       id
       text
@@ -122,8 +124,8 @@ query GetSetupProgress {
   }
 }
 
-mutation CreateChat($name: String!) {
-  createChat(name: $name) {
+mutation CreateChat($name: String!, $voice: Boolean!) {
+  createChat(name: $name, voice: $voice) {
     id
     name
     createdAt
