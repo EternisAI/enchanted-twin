@@ -272,6 +272,14 @@ func main() {
 		panic(errors.Wrap(err, "Failed to generate agent key"))
 	}
 
+	identitySvc := identity.NewIdentityService(temporalClient)
+	personality, err := identitySvc.GetPersonality(context.Background())
+	if err != nil {
+		logger.Error("Failed to get personality", "error", err)
+		panic(errors.Wrap(err, "Failed to get personality"))
+	}
+	logger.Info("Personality", "personality", personality)
+
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
 			logger:               logger,
@@ -285,20 +293,13 @@ func main() {
 			toolsRegistry:        toolRegistry,
 			notifications:        notificationsSvc,
 			agentKey:             agentKey,
+			identityService:      identitySvc,
 		},
 	)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal worker"))
 	}
 	defer temporalWorker.Stop()
-
-	identitySvc := identity.NewIdentityService(temporalClient)
-	personality, err := identitySvc.GetPersonality(context.Background())
-	if err != nil {
-		logger.Error("Failed to get personality", "error", err)
-		panic(errors.Wrap(err, "Failed to get personality"))
-	}
-	logger.Info("Personality", "personality", personality)
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -409,6 +410,7 @@ type bootstrapTemporalWorkerInput struct {
 	aiCompletionsService *ai.Service
 	notifications        *notifications.Service
 	agentKey             *twin_network.AgentKey
+	identityService      *identity.IdentityService
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
@@ -458,7 +460,14 @@ func bootstrapTemporalWorker(
 	identityActivities.RegisterWorkflowsAndActivities(w)
 
 	// Register twin network activities
-	twinNetworkActivities := twin_network.NewTwinNetworkWorkflow(input.aiCompletionsService, input.logger, input.envs.NetworkServerURL, *input.agentKey)
+	twinNetworkInput := twin_network.TwinNetworkWorkflowInput{
+		AI:               input.aiCompletionsService,
+		Logger:           input.logger,
+		NetworkServerURL: input.envs.NetworkServerURL,
+		AgentKey:         *input.agentKey,
+		IdentityService:  input.identityService,
+	}
+	twinNetworkActivities := twin_network.NewTwinNetworkWorkflow(twinNetworkInput)
 	twinNetworkActivities.RegisterWorkflows(w)
 	twinNetworkActivities.RegisterActivities(w)
 
@@ -468,7 +477,7 @@ func bootstrapTemporalWorker(
 		return nil, err
 	}
 
-	twinNetworkWorkflow := twin_network.NewTwinNetworkWorkflow(input.aiCompletionsService, input.logger, input.envs.NetworkServerURL, *input.agentKey)
+	twinNetworkWorkflow := twin_network.NewTwinNetworkWorkflow(twinNetworkInput)
 
 	err = twinNetworkWorkflow.ScheduleNetworkMonitor(input.logger, input.temporalClient)
 	if err != nil {

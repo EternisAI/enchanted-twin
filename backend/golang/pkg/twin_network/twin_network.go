@@ -19,13 +19,22 @@ type TwinNetworkWorkflow struct {
 	identityService  *identity.IdentityService
 }
 
-func NewTwinNetworkWorkflow(ai *ai.Service, logger *log.Logger, networkServerURL string, agentKey AgentKey) *TwinNetworkWorkflow {
+type TwinNetworkWorkflowInput struct {
+	AI               *ai.Service
+	Logger           *log.Logger
+	NetworkServerURL string
+	AgentKey         AgentKey
+	IdentityService  *identity.IdentityService
+}
+
+func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow {
 	return &TwinNetworkWorkflow{
-		ai:               ai,
-		logger:           logger,
-		networkServerURL: networkServerURL,
-		readNetworkTool:  NewReadNetworkTool(logger, ai, "gpt-4.1-mini"),
-		agentKey:         agentKey,
+		ai:               input.AI,
+		logger:           input.Logger,
+		networkServerURL: input.NetworkServerURL,
+		readNetworkTool:  NewReadNetworkTool(input.Logger, input.AI, "gpt-4.1-mini"),
+		agentKey:         input.AgentKey,
+		identityService:  input.IdentityService,
 	}
 }
 
