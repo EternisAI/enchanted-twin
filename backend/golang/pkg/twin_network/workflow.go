@@ -61,7 +61,6 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	if len(allNewMessages) > 0 {
 		activityInput.LastMessageID = allNewMessages[0].ID
 
-		// Process the new messages using EvaluateMessage
 		var response string
 		err = workflow.ExecuteActivity(options, w.EvaluateMessage, allNewMessages).Get(ctx, &response)
 		if err != nil {

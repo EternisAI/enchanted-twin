@@ -136,7 +136,7 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 	for i, msg := range response.Data.GetNewMessages {
 		id, _ := strconv.ParseInt(msg.ID, 10, 64)
 		messages[i] = model.NetworkMessage{
-			ID:           string(id),
+			ID:           strconv.FormatInt(id, 10),
 			AuthorPubKey: msg.AuthorPubKey,
 			NetworkID:    msg.NetworkID,
 			Content:      msg.Content,
