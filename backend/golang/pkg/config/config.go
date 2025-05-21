@@ -26,6 +26,7 @@ type Config struct {
 	ContainerRuntime   string
 	WeaviatePort       string
 	NetworkServerURL   string
+	EnchantedMcpURL    string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -68,6 +69,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		NetworkServerURL:   getEnv("NETWORK_SERVER_URL", "http://localhost:8082/query", printEnv),
+		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 	}
 	return conf, nil
 }

@@ -195,6 +195,7 @@ enum MCPServerType {
   SLACK
   OTHER
   SCREENPIPE
+  ENCHANTED
 }
 
 input ConnectMCPServerInput {

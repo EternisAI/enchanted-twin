@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -14,6 +15,8 @@ func TestMCPService_GetTools(t *testing.T) {
 	t.Setenv("COMPLETIONS_MODEL", "gpt-4o-mini")
 	t.Setenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
 	t.Setenv("TELEGRAM_CHAT_SERVER", "1234567890")
+	t.Setenv("REASONING_MODEL", "gpt-4o-mini")
+
 	ctx := context.Background()
 
 	db, err := db.NewStore(ctx, "./test.db")
@@ -25,7 +28,7 @@ func TestMCPService_GetTools(t *testing.T) {
 	s := NewService(ctx, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
-		Name:    "hello_world_mcp_server",
+		Name:    "hello_world_mcp_server_" + time.Now().Format(time.RFC3339),
 		Command: "go",
 		Args:    []string{"run", "./internal/mcp_test_server/hello_world_mcp_server.go"},
 		Type:    model.MCPServerTypeOther,
@@ -71,6 +74,7 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	t.Setenv("COMPLETIONS_MODEL", "gpt-4o-mini")
 	t.Setenv("EMBEDDINGS_MODEL", "text-embedding-3-small")
 	t.Setenv("TELEGRAM_CHAT_SERVER", "1234567890")
+	t.Setenv("REASONING_MODEL", "gpt-4o-mini")
 
 	ctx := context.Background()
 
@@ -81,6 +85,8 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 
 	toolRegistry := tools.NewRegistry()
 	s := NewService(ctx, db, toolRegistry)
+
+	time.Sleep(1 * time.Second)
 
 	mcpServers, err := s.GetMCPServers(ctx)
 	if err != nil {
@@ -103,6 +109,8 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get tools: %v", err)
 	}
+
+	fmt.Println(tools)
 
 	tool_response, err := tools[0].Execute(ctx, map[string]any{"submitter": "John Doe"})
 	if err != nil {
