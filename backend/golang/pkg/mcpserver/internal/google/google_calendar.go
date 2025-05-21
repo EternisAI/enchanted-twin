@@ -70,6 +70,10 @@ func processListEvents(
 		maxResults = 10
 	}
 
+	if maxResults > 50 {
+		maxResults = 50
+	}
+
 	eventsCall := calendarService.Events.List(calendarID).
 		ShowDeleted(false).
 		SingleEvents(true). // Expand recurring events
