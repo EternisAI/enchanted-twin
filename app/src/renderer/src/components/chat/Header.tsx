@@ -1,16 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Input } from '@renderer/components/ui/input'
-import { Textarea } from '@renderer/components/ui/textarea'
-import {
-  AudioLines,
-  Calendar,
-  Search,
-  GraduationCap,
-  Telescope,
-  Lightbulb,
-  Brain
-} from 'lucide-react'
+import { Calendar, Search, GraduationCap, Telescope, Brain } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
 import {
@@ -23,14 +14,12 @@ import { toast } from 'sonner'
 import { client } from '@renderer/graphql/lib'
 import { ContextCard } from './ContextCard'
 import { cn } from '@renderer/lib/utils'
-import { Button } from '../ui/button'
-import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '../ui/tooltip'
 import { useDebounce } from '@renderer/hooks/useDebounce'
 import { ScrollArea } from '../ui/scroll-area'
-import { SendButton } from './MessageInput'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
+import ChatInputBox from './ChatInputBox'
+import VoiceVisualizer from './voice/VoiceVisualizer'
 
-// Define expected search params type that matches routes/index.tsx
 interface IndexRouteSearch {
   focusInput?: string
 }
@@ -269,43 +258,71 @@ export function Header() {
       transition={{ type: 'spring', stiffness: 120, damping: 20 }}
       className="flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto px-4"
     >
-      <div className="flex flex-col items-center gap-4 w-full">
-        {isEditingName ? (
-          <motion.div
-            layout
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="w-full"
-          >
-            <Input
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onKeyDown={handleNameEditKeyDown}
-              onBlur={handleNameUpdate}
-              autoFocus
-              className="!text-2xl font-bold text-center"
-            />
+      {!isVoiceMode && (
+        <div className="flex flex-col items-center gap-4 w-full min-h-[160px]">
+          {isEditingName ? (
+            <motion.div
+              layout
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="w-full"
+            >
+              <Input
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onKeyDown={handleNameEditKeyDown}
+                onBlur={handleNameUpdate}
+                autoFocus
+                className="!text-2xl font-bold text-center"
+              />
+            </motion.div>
+          ) : (
+            <motion.h1
+              layout
+              className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
+              onClick={() => {
+                setEditedName(twinName)
+                setIsEditingName(true)
+              }}
+            >
+              {twinName}
+            </motion.h1>
+          )}
+          <motion.div layout>
+            <ContextCard />
           </motion.div>
-        ) : (
-          <motion.h1
-            layout
-            className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
-            onClick={() => {
-              setEditedName(twinName)
-              setIsEditingName(true)
-            }}
-          >
-            {twinName}
-          </motion.h1>
-        )}
-        <motion.div layout>
-          <ContextCard />
+        </div>
+      )}
+
+      {isVoiceMode && (
+        <motion.div
+          className="flex-1 w-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
+        >
+          <VoiceVisualizer
+            visualState={1}
+            getFreqData={() => new Uint8Array()}
+            className="min-w-60 min-h-40"
+          />
         </motion.div>
-      </div>
+      )}
 
       <motion.div layout className="relative w-full">
-        <form onSubmit={handleSubmit} className="relative w-full">
+        <ChatInputBox
+          query={query}
+          textareaRef={textareaRef}
+          isReasonSelected={isReasonSelected}
+          isVoiceMode={isVoiceMode}
+          onVoiceModeChange={toggleVoiceMode}
+          onInputChange={setQuery}
+          handleSubmit={handleSubmit}
+          setIsReasonSelected={setIsReasonSelected}
+          handleCreateChat={handleCreateChat}
+        />
+        {/* <form onSubmit={handleSubmit} className="relative w-full">
           <div className="flex items-center gap-6 p-1">
             <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border px-2">
               <Textarea
@@ -392,7 +409,7 @@ export function Header() {
               </motion.div>
             </div>
           </div>
-        </form>
+        </form> */}
         <AnimatePresence mode="wait">
           <motion.div
             initial={{ opacity: 0, height: 0 }}

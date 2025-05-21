@@ -3,21 +3,25 @@ import { useSidebarStore } from './sidebar'
 
 interface VoiceStore {
   isVoiceMode: boolean
-  toggleVoiceMode: () => void
-  setVoiceMode: (isVoiceMode: boolean) => void
+  toggleVoiceMode: (toggleSidebar?: boolean) => void
+  setVoiceMode: (isVoiceMode: boolean, toggleSidebar?: boolean) => void
 }
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   isVoiceMode: false,
-  toggleVoiceMode: () => {
+  toggleVoiceMode: (toggleSidebar = true) => {
     const { setOpen } = useSidebarStore.getState()
     const { isVoiceMode } = get()
-    setOpen(isVoiceMode)
+    if (toggleSidebar) {
+      setOpen(isVoiceMode)
+    }
     set((state) => ({ isVoiceMode: !state.isVoiceMode }))
   },
-  setVoiceMode: (isVoiceMode: boolean) => {
-    const { setOpen } = useSidebarStore.getState()
-    setOpen(!isVoiceMode)
+  setVoiceMode: (isVoiceMode: boolean, toggleSidebar = true) => {
+    if (toggleSidebar) {
+      const { setOpen } = useSidebarStore.getState()
+      setOpen(!isVoiceMode)
+    }
     set({ isVoiceMode })
   }
 }))
