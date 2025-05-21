@@ -49,6 +49,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
@@ -285,6 +287,19 @@ func main() {
 	}
 	defer temporalWorker.Stop()
 
+	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
+		logger.Error("Failed to bootstrap periodic workflows", "error", err)
+		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
+	}
+
+	identitySvc := identity.NewIdentityService(temporalClient)
+	personality, err := identitySvc.GetPersonality(context.Background())
+	if err != nil {
+		logger.Error("Failed to get personality", "error", err)
+		panic(errors.Wrap(err, "Failed to get personality"))
+	}
+	logger.Info("Personality", "personality", personality)
+
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
 		Token:            envs.TelegramToken,
@@ -436,6 +451,10 @@ func bootstrapTemporalWorker(
 	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, input.envs.ReasoningModel, nil, nil)
 	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
+
+	// Register identity activities
+	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
+	identityActivities.RegisterWorkflowsAndActivities(w)
 
 	err := w.Start()
 	if err != nil {
@@ -605,4 +624,12 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create identity personality workflow")
+	}
+	return nil
 }

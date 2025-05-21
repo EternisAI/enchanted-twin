@@ -127,6 +127,11 @@ func processSearchFiles(
 	if limit <= 0 {
 		limit = 10 // Default limit
 	}
+
+	if limit > 50 {
+		limit = 50
+	}
+
 	request := driveService.Files.List().
 		Q(q).
 		PageSize(int64(limit)).
