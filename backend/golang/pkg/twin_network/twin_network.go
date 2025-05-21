@@ -51,6 +51,7 @@ func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow
 		agentKey:         input.AgentKey,
 		identityService:  input.IdentityService,
 		twinChatService:  input.TwinChatService,
+		userStorage:      input.UserStorage,
 		agent:            input.Agent,
 		toolRegistry:     input.ToolRegistry,
 		twinNetworkAPI:   *input.TwinNetworkAPI,
