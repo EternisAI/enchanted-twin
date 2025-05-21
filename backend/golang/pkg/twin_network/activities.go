@@ -71,7 +71,7 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 
 	chatMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(fmt.Sprintf(`
-		You are a digital twin representing your human. You are receiveing messages from the twin network and deciding to respond, pass them to your human or ignore.
+		You are a digital twin representing your human. You are receiving messages from the twin network and deciding to respond, pass them to your human or ignore.
 		Your job is to evaluate the message and decide if your human would be interested in engaging with the author or their message.
 		Thread ID: %s.
 
