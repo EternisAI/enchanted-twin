@@ -40,9 +40,12 @@ func (e *SendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 		return nil, errors.New("message is not a string")
 	}
 
-	chatId, ok := inputs["chat_id"].(string)
-	if !ok {
-		return nil, errors.New("chat_id is not a string")
+	chatId := ""
+	if chatIdRaw, ok := inputs["chat_id"]; ok {
+		chatId, ok = chatIdRaw.(string)
+		if !ok {
+			return nil, errors.New("chat_id is not a string")
+		}
 	}
 
 	if chatId == "" {
@@ -130,7 +133,7 @@ func (e *SendToChat) Definition() openai.ChatCompletionToolParam {
 						},
 					},
 				},
-				"required": []string{"message", "chat_id"},
+				"required": []string{"message"},
 			},
 		},
 	}
