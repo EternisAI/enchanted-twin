@@ -69,7 +69,6 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		return "", fmt.Errorf("failed to get identity context for batch: %w", err)
 	}
 
-	// Start with the system message
 	chatMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(fmt.Sprintf(`
 		You are a digital twin representing your human. You are receiveing messages from the twin network and deciding to respond, pass them to your human or ignore.
@@ -112,8 +111,6 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		%s`, messages[0].ThreadID, personality)),
 	}
 
-	// Convert each message into the appropriate format
-	// Messages from the agent are assistant messages, others are user messages
 	agentPubKey := a.agentKey.PubKeyHex()
 
 	chatMessages = append(chatMessages, openai.UserMessage(fmt.Sprintf("Thread ID: %s", messages[0].ThreadID)))
