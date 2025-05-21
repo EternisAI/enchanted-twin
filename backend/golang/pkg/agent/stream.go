@@ -99,6 +99,7 @@ func (a *Agent) ExecuteStream(
 				}
 
 			case tc, ok := <-stream.ToolCalls:
+				a.logger.Debug("stream tool call", "tool_call", tc)
 				if ok {
 					res, err := runTool(tc)
 					if err != nil {
