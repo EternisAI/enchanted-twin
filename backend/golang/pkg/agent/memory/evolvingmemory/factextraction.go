@@ -10,33 +10,15 @@ import (
 	"github.com/openai/openai-go"
 )
 
-// extractFactsTool is defined below. SpeakerFocusedFactExtractionPrompt is in prompts.go
-
-var extractFactsTool openai.ChatCompletionToolParam = openai.ChatCompletionToolParam{
-	Type: openai.ChatCompletionToolTypeFunction,
-	Function: &openai.FunctionDefinition{
-		Name:        ExtractFactsToolName,
-		Description: "Extracts a list of facts from the conversation.",
-		Parameters: openai.JSONSchemaDefinition{
-			Type: openai.JSONSchemaTypeObject,
-			Properties: map[string]openai.JSONSchemaDefinition{
-				"facts": {
-					Type:        openai.JSONSchemaTypeArray,
-					Description: "A list of distinct facts asserted by the primary speaker.",
-					Items:       &openai.JSONSchemaDefinition{Type: openai.JSONSchemaTypeString},
-				},
-			},
-			Required: []string{"facts"},
-		},
-	},
-}
+// SpeakerFocusedFactExtractionPrompt is in prompts.go
+// extractFactsTool is defined in tools.go
 
 // extractFactsFromTextDocument extracts facts for a given speaker from a text document.
 func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sessionDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
 	s.logger.Infof("== Starting Fact Extraction for Speaker: %s == (Session Doc ID: '%s')", speakerID, sessionDoc.ID)
 
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
-		extractFactsTool,
+		extractFactsTool, // This will now correctly refer to the one in tools.go
 	}
 
 	sysPrompt := strings.ReplaceAll(SpeakerFocusedFactExtractionPrompt, "{primary_speaker_name}", speakerID)

@@ -12,60 +12,8 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 )
 
-// Tool definitions (placeholders - should be properly defined, possibly in a tools.go)
-var addMemoryTool openai.ChatCompletionToolParam = openai.ChatCompletionToolParam{
-	Type: openai.ChatCompletionToolTypeFunction,
-	Function: &openai.FunctionDefinition{
-		Name:        AddMemoryToolName, // From evolvingmemory.go
-		Description: "Adds the new fact as a new memory.",
-		Parameters:  openai.JSONSchemaDefinition{Type: openai.JSONSchemaTypeObject, Properties: map[string]openai.JSONSchemaDefinition{}},
-	},
-}
-var updateMemoryTool openai.ChatCompletionToolParam = openai.ChatCompletionToolParam{
-	Type: openai.ChatCompletionToolTypeFunction,
-	Function: &openai.FunctionDefinition{
-		Name:        UpdateMemoryToolName, // From evolvingmemory.go
-		Description: "Updates an existing memory with the new fact or a consolidated version.",
-		Parameters: openai.JSONSchemaDefinition{
-			Type: openai.JSONSchemaTypeObject,
-			Properties: map[string]openai.JSONSchemaDefinition{
-				"id":              {Type: openai.JSONSchemaTypeString, Description: "The ID of the memory to update."},
-				"updated_content": {Type: openai.JSONSchemaTypeString, Description: "The new or updated content for the memory."},
-				"reason":          {Type: openai.JSONSchemaTypeString, Description: "Reason for the update."},
-			},
-			Required: []string{"id", "updated_content"},
-		},
-	},
-}
-var deleteMemoryTool openai.ChatCompletionToolParam = openai.ChatCompletionToolParam{
-	Type: openai.ChatCompletionToolTypeFunction,
-	Function: &openai.FunctionDefinition{
-		Name:        DeleteMemoryToolName, // From evolvingmemory.go
-		Description: "Deletes an existing memory that is made redundant or incorrect by the new fact.",
-		Parameters: openai.JSONSchemaDefinition{
-			Type: openai.JSONSchemaTypeObject,
-			Properties: map[string]openai.JSONSchemaDefinition{
-				"id":     {Type: openai.JSONSchemaTypeString, Description: "The ID of the memory to delete."},
-				"reason": {Type: openai.JSONSchemaTypeString, Description: "Reason for the deletion."},
-			},
-			Required: []string{"id"},
-		},
-	},
-}
-var noneMemoryTool openai.ChatCompletionToolParam = openai.ChatCompletionToolParam{
-	Type: openai.ChatCompletionToolTypeFunction,
-	Function: &openai.FunctionDefinition{
-		Name:        NoneMemoryToolName, // From evolvingmemory.go
-		Description: "No action is needed for this new fact in relation to existing memories.",
-		Parameters: openai.JSONSchemaDefinition{
-			Type: openai.JSONSchemaTypeObject,
-			Properties: map[string]openai.JSONSchemaDefinition{
-				"reason": {Type: openai.JSONSchemaTypeString, Description: "Reason for taking no action."},
-			},
-			Required: []string{"reason"},
-		},
-	},
-}
+// DefaultUpdateMemoryPrompt is in prompts.go
+// Tool definitions (addMemoryTool, updateMemoryTool, deleteMemoryTool, noneMemoryTool) are in tools.go
 
 // updateMemories decides and executes memory operations (ADD, UPDATE, DELETE, NONE) for a given fact.
 func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sessionDoc memory.TextDocument) (string, *models.Object, error) {
