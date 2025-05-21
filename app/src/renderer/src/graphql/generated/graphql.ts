@@ -130,6 +130,7 @@ export type McpServerDefinition = {
 };
 
 export enum McpServerType {
+  Enchanted = 'ENCHANTED',
   Google = 'GOOGLE',
   Other = 'OTHER',
   Screenpipe = 'SCREENPIPE',
