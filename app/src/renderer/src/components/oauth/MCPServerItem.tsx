@@ -5,7 +5,8 @@ import {
   McpServerDefinition,
   StartOAuthFlowMutation,
   StartOAuthFlowMutationVariables,
-  McpServerType
+  McpServerType,
+  ConnectMcpServerDocument
 } from '@renderer/graphql/generated/graphql'
 import { useEffect, useState } from 'react'
 import { Button } from '../ui/button'
@@ -26,6 +27,8 @@ import {
 } from '../ui/alert-dialog'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/tooltip'
 import { Check, Trash2 } from 'lucide-react'
+import icon from '../../../../../resources/icon.png'
+
 const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
   GOOGLE: {
     provider: 'google',
@@ -41,7 +44,8 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
     scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read'
   },
   SCREENPIPE: { provider: 'screenpipe', scope: '' },
-  OTHER: { provider: 'other', scope: '' }
+  OTHER: { provider: 'other', scope: '' },
+  ENCHANTED: { provider: 'enchanted', scope: '' }
 }
 
 const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
@@ -49,7 +53,8 @@ const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
   SLACK: <Slack />,
   TWITTER: <XformerlyTwitter />,
   SCREENPIPE: <></>,
-  OTHER: <></>
+  OTHER: <></>,
+  ENCHANTED: <img src={icon} alt="Enchanted" className="w-8 h-8" />
 }
 
 interface MCPServerItemProps {
@@ -61,14 +66,35 @@ interface MCPServerItemProps {
 export default function MCPServerItem({ server, onConnect, onRemove }: MCPServerItemProps) {
   const [showEnvInputs, setShowEnvInputs] = useState(false)
   const [authStateId, setAuthStateId] = useState<string | null>(null)
+  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
+
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
-  const [isRemoveDialogOpen, setIsRemoveDialogOpen] = useState(false)
+  const [connectMCPServer] = useMutation(ConnectMcpServerDocument)
 
   const handleRemove = () => {
     if (onRemove) {
       onRemove()
       setIsRemoveDialogOpen(false)
+    }
+  }
+
+  const handleConnectEnchantedMCP = async () => {
+    const { data } = await connectMCPServer({
+      variables: {
+        input: {
+          name: server.name,
+          command: 'npx',
+          args: [],
+          envs: [],
+          type: server.type
+        }
+      }
+    })
+
+    if (data?.connectMCPServer) {
+      toast.success(`Connected successfully to ${data.connectMCPServer}!`)
+      onConnect()
     }
   }
 
@@ -105,6 +131,11 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   const handleEnableToolsToggle = async (enabled: boolean) => {
+    if (server.type === McpServerType.Enchanted) {
+      handleConnectEnchantedMCP()
+      return
+    }
+
     if (server.type === 'OTHER') {
       setShowEnvInputs(enabled)
       return
@@ -130,6 +161,11 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
         if (data?.completeOAuthFlow) {
           toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
           onConnect()
+
+          window.api.analytics.capture('server_connected', {
+            server: server.name,
+            type: server.type
+          })
         }
       } catch (err) {
         console.error('OAuth completion failed:', err)

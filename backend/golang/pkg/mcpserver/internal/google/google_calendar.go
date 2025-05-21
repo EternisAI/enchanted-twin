@@ -11,7 +11,7 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -68,6 +68,10 @@ func processListEvents(
 	maxResults := args.MaxResults
 	if maxResults <= 0 {
 		maxResults = 10
+	}
+
+	if maxResults > 50 {
+		maxResults = 50
 	}
 
 	eventsCall := calendarService.Events.List(calendarID).
@@ -214,7 +218,7 @@ func getCalendarService(ctx context.Context, accessToken string) (*calendar.Serv
 func GenerateGoogleCalendarTools() ([]mcp_golang.ToolRetType, error) {
 	var tools []mcp_golang.ToolRetType
 
-	listEventsSchema, err := helpers.ConverToInputSchema(ListEventsArguments{})
+	listEventsSchema, err := utils.ConverToInputSchema(ListEventsArguments{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for list_calendar_events: %w", err)
 	}
@@ -225,7 +229,7 @@ func GenerateGoogleCalendarTools() ([]mcp_golang.ToolRetType, error) {
 		InputSchema: listEventsSchema,
 	})
 
-	createEventSchema, err := helpers.ConverToInputSchema(CreateEventArgs{})
+	createEventSchema, err := utils.ConverToInputSchema(CreateEventArgs{})
 	if err != nil {
 		return nil, fmt.Errorf("error generating schema for create_calendar_event: %w", err)
 	}

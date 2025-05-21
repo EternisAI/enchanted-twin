@@ -11,7 +11,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 type SlackClient struct {
@@ -42,7 +42,7 @@ func (c *SlackClient) CallTool(
 ) (*mcp_golang.ToolResponse, error) {
 	fmt.Println("Call tool SLACK", name, arguments)
 
-	bytes, err := helpers.ConvertToBytes(arguments)
+	bytes, err := utils.ConvertToBytes(arguments)
 	if err != nil {
 		return nil, err
 	}

@@ -33,6 +33,7 @@ interface DetailCardProps {
   onButtonClick: () => void
   isLoading: boolean
   explanation?: string
+  grantedIcon?: React.ReactNode
 }
 
 export function DetailCard({
@@ -42,10 +43,9 @@ export function DetailCard({
   buttonLabel,
   onButtonClick,
   isLoading,
-  explanation
+  explanation,
+  grantedIcon = <Settings className="h-4 w-4" />
 }: DetailCardProps) {
-  // const StatusIcon = statusInfo.icon // Remove unused variable
-
   return (
     <Card className="p-4 flex-col gap-3 flex items-start justify-between w-full">
       <div className="flex items-start gap-3 w-full">
@@ -67,11 +67,9 @@ export function DetailCard({
               disabled={isLoading}
               className="py-1 h-fit w-fit px-2"
             >
-              {statusInfo.label === 'Granted' || statusInfo.label === 'Enabled' ? (
-                <Settings className="h-4 w-4" />
-              ) : (
-                buttonLabel
-              )}
+              {statusInfo.label === 'Granted' || statusInfo.label === 'Enabled'
+                ? grantedIcon
+                : buttonLabel}
             </Button>
           </div>
           {explanation && <p className="text-xs text-muted-foreground mt-1">{explanation}</p>}

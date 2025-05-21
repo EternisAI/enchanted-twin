@@ -16,6 +16,13 @@ type MCPService interface {
 		ctx context.Context,
 		input model.ConnectMCPServerInput,
 	) (*model.MCPServer, error)
+
+	// ConnectMCPServerIfNotExists connects a new MCP server if it doesn't exist.
+	ConnectMCPServerIfNotExists(
+		ctx context.Context,
+		input model.ConnectMCPServerInput,
+	) (*model.MCPServer, error)
+
 	// GetMCPServers retrieves all MCP servers.
 	GetMCPServers(ctx context.Context) ([]*model.MCPServerDefinition, error)
 	// Load MCP Server from database

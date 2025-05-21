@@ -5,6 +5,7 @@ import log from 'electron-log/main'
 import { ipcMain } from 'electron'
 
 let screenpipeProcess: ChildProcess | null = null
+let isScreenpipeCurrentlyInstalled: boolean = false
 
 export function startScreenpipe(): Promise<{ success: boolean; error?: string }> {
   console.log('Starting screenpipe!!')
@@ -95,6 +96,7 @@ export function installScreenpipe(): Promise<{ success: boolean; error?: string 
       }
 
       log.info('Screenpipe installation complete')
+      isScreenpipeCurrentlyInstalled = true
       resolve({ success: true })
     })
   })
@@ -111,9 +113,11 @@ function isScreenpipeInstalled(): boolean {
     log.info('Application PATH', process.env.PATH)
     execSync(checkCommand)
     log.info('Screenpipe already installed')
+    isScreenpipeCurrentlyInstalled = true
     return true
   } catch (error) {
     log.warn(`Screenpipe not found: ${error}`)
+    isScreenpipeCurrentlyInstalled = false
     return false
   }
 }
@@ -142,7 +146,7 @@ export function registerScreenpipeIpc(): void {
   ipcMain.handle('screenpipe:get-status', () => {
     return {
       isRunning: isScreenpipeRunning(),
-      isInstalled: isScreenpipeInstalled()
+      isInstalled: isScreenpipeCurrentlyInstalled
     }
   })
 
