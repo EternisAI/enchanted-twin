@@ -28,6 +28,14 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 			Enabled: enabled,
 			Type:    model.MCPServerTypeGoogle,
 		},
+		model.MCPServerTypeEnchanted: {
+			ID:      "enchanted",
+			Name:    "Enchanted",
+			Command: "npx",
+			Args:    []string{},
+			Enabled: enabled,
+			Type:    model.MCPServerTypeEnchanted,
+		},
 		model.MCPServerTypeSLACk: {
 			ID:      "slack",
 			Name:    "Slack",
