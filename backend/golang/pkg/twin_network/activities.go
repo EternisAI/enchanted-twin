@@ -72,9 +72,10 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n
 		2. Response: A suggested next response that would be appropriate in this context\n
 
+		Always call "send_to_twin_network" tool to respond to the message.
 		If you think this message is useful to your human, send it to the chat by calling "send_to_chat" tool and specifying "chat_id" to be empty string.
-		If the bulletin board message is interesting to your human and requires response and if you know the correct response call "send_bulletin_board_message" tool. 
-		If you're missing some information nescessary to respond, only send message to your human chat.
+
+		If you're missing some information necessary to respond, only send message to your human chat.
 
 		Here is some context about your personality and identity:
 

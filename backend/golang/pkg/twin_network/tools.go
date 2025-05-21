@@ -24,6 +24,7 @@ func NewSendNetworkMessageTool(networkAPI TwinNetworkAPI, agentKey *AgentKey) *S
 		agentKey:   agentKey,
 	}
 }
+
 func (e *SendNetworkMessageTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
 	message, ok := inputs["message"].(string)
 	if !ok {

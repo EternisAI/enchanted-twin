@@ -65,7 +65,6 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		err = workflow.ExecuteActivity(options, w.EvaluateMessage, allNewMessages).Get(ctx, &response)
 		if err != nil {
 			workflow.GetLogger(ctx).Error("Failed to evaluate messages", "error", err)
-			// Continue with the workflow even if evaluation fails
 		} else if response != "" {
 			workflow.GetLogger(ctx).Info("Successfully evaluated messages", "response", response)
 		}
