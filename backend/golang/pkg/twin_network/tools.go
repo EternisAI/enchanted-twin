@@ -30,10 +30,10 @@ func (e *SendNetworkMessageTool) Execute(ctx context.Context, inputs map[string]
 	if !ok {
 		return nil, errors.New("message is not a string")
 	}
-	threadID, ok := inputs["thread_id"].(string)
-	if !ok {
-		return nil, errors.New("thread_id is not a string")
-	}
+	// threadID, ok := inputs["thread_id"].(string)
+	// if !ok {
+	// 	return nil, errors.New("thread_id is not a string")
+	// }
 
 	signature, err := e.agentKey.SignMessage(message)
 	if err != nil {
@@ -42,7 +42,7 @@ func (e *SendNetworkMessageTool) Execute(ctx context.Context, inputs map[string]
 
 	networkID := "default"
 
-	err = e.networkAPI.PostMessage(ctx, networkID, threadID, message, e.agentKey.PubKeyHex(), signature)
+	err = e.networkAPI.PostMessage(ctx, networkID, "", message, e.agentKey.PubKeyHex(), signature)
 	if err != nil {
 		return nil, err
 	}
@@ -63,12 +63,12 @@ func (e *SendNetworkMessageTool) Definition() openai.ChatCompletionToolParam {
 						"content":     "string",
 						"description": "The message to be sent to the twin network on behalf of the human",
 					},
-					"thread_id": map[string]string{
-						"content":     "string",
-						"description": "The thread ID to send the message to. Empty thread ID corresponds to a new thread.",
-					},
+					// "thread_id": map[string]string{
+					// 	"content":     "string",
+					// 	"description": "The thread ID to send the message to. Empty thread ID corresponds to a new thread.",
+					// },
 				},
-				"required": []string{"message", "thread_id"},
+				"required": []string{"message"},
 			},
 		},
 	}
