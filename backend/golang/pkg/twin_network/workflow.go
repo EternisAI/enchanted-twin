@@ -61,12 +61,16 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	if len(allNewMessages) > 0 {
 		activityInput.LastMessageID = allNewMessages[0].ID
 
-		var response string
-		err = workflow.ExecuteActivity(options, w.EvaluateMessage, allNewMessages).Get(ctx, &response)
-		if err != nil {
-			workflow.GetLogger(ctx).Error("Failed to evaluate messages", "error", err)
-		} else if response != "" {
-			workflow.GetLogger(ctx).Info("Successfully evaluated messages", "response", response)
+		if !allNewMessages[0].IsMine {
+			var response string
+			err = workflow.ExecuteActivity(options, w.EvaluateMessage, allNewMessages).Get(ctx, &response)
+			if err != nil {
+				workflow.GetLogger(ctx).Error("Failed to evaluate messages", "error", err)
+			} else if response != "" {
+				workflow.GetLogger(ctx).Info("Successfully evaluated messages", "response", response)
+			}
+		} else {
+			workflow.GetLogger(ctx).Info("Skipping evaluation as the last message is from the user", "messageID", allNewMessages[0].ID)
 		}
 	} else {
 		workflow.GetLogger(ctx).Info("No new messages found", "networkID", input.NetworkID)

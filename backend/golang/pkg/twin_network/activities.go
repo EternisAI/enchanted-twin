@@ -40,12 +40,14 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 			continue
 		}
 
+		myPubKey := a.agentKey.PubKeyHex()
+
 		networkMessages[i] = NetworkMessage{
 			ID:           id,
 			AuthorPubKey: msg.AuthorPubKey,
 			NetworkID:    msg.NetworkID,
 			Content:      msg.Content,
-			IsMine:       msg.IsMine,
+			IsMine:       msg.AuthorPubKey == myPubKey,
 			Signature:    msg.Signature,
 		}
 	}
