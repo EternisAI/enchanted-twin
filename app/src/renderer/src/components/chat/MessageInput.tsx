@@ -8,11 +8,18 @@ type MessageInputProps = {
   onSend: (text: string, reasoning: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
+  isReasonSelected: boolean
+  onReasonToggle: (value: boolean) => void
 }
 
-export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: MessageInputProps) {
+export default function MessageInput({
+  onSend,
+  isWaitingTwinResponse,
+  onStop,
+  isReasonSelected,
+  onReasonToggle
+}: MessageInputProps) {
   const [text, setText] = useState('')
-  const [isReasonSelected, setIsReasonSelected] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -48,7 +55,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   }
 
   const toggleReason = () => {
-    setIsReasonSelected(!isReasonSelected)
+    onReasonToggle(!isReasonSelected)
   }
 
   return (

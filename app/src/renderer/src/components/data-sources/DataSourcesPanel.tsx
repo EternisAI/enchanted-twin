@@ -365,6 +365,9 @@ export function DataSourcesPanel({
             path: source.path
           }
         })
+        window.api.analytics.capture('data_source_added', {
+          source: source.name
+        })
       }
       return true
     } catch (error) {
