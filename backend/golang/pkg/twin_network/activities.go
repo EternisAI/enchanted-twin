@@ -109,9 +109,7 @@ Call your human by his name.
 The other participants are identified by their public keys.
 
 Here is the latest information about your human's personality and identity:
-
-
-Below is the conversation corresponding to the thread ID above on the twin network proposal.
+The bio of your human is the most important information used to decide if you should respond to a message.
 %s`, messages[0].ThreadID, messages[0].AuthorPubKey, personality)
 
 	if userProfile.Name != nil {
