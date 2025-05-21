@@ -9,7 +9,7 @@ import (
 
 	mcp_golang "github.com/metoro-io/mcp-golang"
 
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/utils"
 )
 
 const (
@@ -44,7 +44,7 @@ func (c *ScreenpipeClient) CallTool(
 ) (*mcp_golang.ToolResponse, error) {
 	fmt.Println("Call tool SCREENPIPE", name, arguments)
 
-	bytes, err := helpers.ConvertToBytes(arguments)
+	bytes, err := utils.ConvertToBytes(arguments)
 	if err != nil {
 		return nil, err
 	}

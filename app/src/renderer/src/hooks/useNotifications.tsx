@@ -25,6 +25,9 @@ export function useOsNotifications() {
       if (match && match[1]) {
         const chatId = match[1]
         navigate({ to: '/chat/$chatId', params: { chatId } })
+        window.api.analytics.capture('open_chat', {
+          method: 'notification'
+        })
       }
     })
   }, [navigate])

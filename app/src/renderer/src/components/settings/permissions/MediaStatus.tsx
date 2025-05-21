@@ -129,6 +129,10 @@ export default function MediaStatus() {
       await window.api.requestMediaAccess(type)
       // Re-query status after requesting access
       await queryMediaStatus(type)
+
+      window.api.analytics.capture('permission_asked', {
+        name: type
+      })
     } catch (error) {
       console.error(`Error requesting ${type} access:`, error)
       // Optionally update status to reflect the error

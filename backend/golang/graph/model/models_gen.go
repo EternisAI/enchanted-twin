@@ -180,6 +180,26 @@ type UserProfile struct {
 	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
 }
 
+type WhatsAppQRCodeUpdate struct {
+	QRCodeData  *string `json:"qrCodeData,omitempty"`
+	Event       string  `json:"event"`
+	Timestamp   string  `json:"timestamp"`
+	IsConnected bool    `json:"isConnected"`
+}
+
+type WhatsAppStatus struct {
+	IsConnected   bool    `json:"isConnected"`
+	QRCodeData    *string `json:"qrCodeData,omitempty"`
+	StatusMessage string  `json:"statusMessage"`
+}
+
+type WhatsAppSyncStatus struct {
+	IsSyncing     bool    `json:"isSyncing"`
+	IsCompleted   bool    `json:"isCompleted"`
+	Error         *string `json:"error,omitempty"`
+	StatusMessage *string `json:"statusMessage,omitempty"`
+}
+
 type IndexingState string
 
 const (
@@ -251,6 +271,7 @@ const (
 	MCPServerTypeSLACk      MCPServerType = "SLACK"
 	MCPServerTypeOther      MCPServerType = "OTHER"
 	MCPServerTypeScreenpipe MCPServerType = "SCREENPIPE"
+	MCPServerTypeEnchanted  MCPServerType = "ENCHANTED"
 )
 
 var AllMCPServerType = []MCPServerType{
@@ -259,11 +280,12 @@ var AllMCPServerType = []MCPServerType{
 	MCPServerTypeSLACk,
 	MCPServerTypeOther,
 	MCPServerTypeScreenpipe,
+	MCPServerTypeEnchanted,
 }
 
 func (e MCPServerType) IsValid() bool {
 	switch e {
-	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe:
+	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe, MCPServerTypeEnchanted:
 		return true
 	}
 	return false

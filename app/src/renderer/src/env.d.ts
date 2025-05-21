@@ -60,15 +60,35 @@ interface IApi {
   }
   launch: {
     onProgress: (
-      callback: (data: { dependency: string; status: string; progress: number; error?: string }) => void
+      callback: (data: {
+        dependency: string
+        status: string
+        progress: number
+        error?: string
+      }) => void
     ) => () => void
     notifyReady: () => void
     complete: () => Promise<void>
+    getCurrentState: () => Promise<{
+      dependency: string
+      status: string
+      progress: number
+      error?: string
+    } | null>
   }
   onLaunch: (
     channel: 'launch-complete' | 'launch-progress',
-    callback: (data: { dependency: string; status: string; progress: number; error?: string } | void) => void
+    callback: (
+      data: { dependency: string; status: string; progress: number; error?: string } | void
+    ) => void
   ) => void
+  analytics: {
+    capture: (event: string, properties: Record<string, unknown>) => void
+    identify: (properties: Record<string, unknown>) => void
+    getDistinctId: () => string
+    getEnabled: () => Promise<boolean>
+    setEnabled: (enabled: boolean) => Promise<void>
+  }
 }
 
 interface ScreenpipeStatus {

@@ -14,13 +14,26 @@ export default function InstallationStatus() {
     status: 'Not started'
   })
 
+  const fetchCurrentState = async () => {
+    try {
+      const currentState = await window.api.launch.getCurrentState()
+      if (currentState) {
+        setInstallationStatus(currentState)
+      }
+    } catch (error) {
+      console.error('Failed to fetch current state:', error)
+    }
+  }
+
   useEffect(() => {
-    window.api.launch.notifyReady()
+    fetchCurrentState()
 
     const removeListener = window.api.launch.onProgress((data) => {
-      console.log('Launch progress update:', data)
+      console.log('Launch progress update received:', data)
       setInstallationStatus(data)
     })
+
+    window.api.launch.notifyReady()
 
     return () => {
       removeListener()

@@ -220,6 +220,14 @@ subscription MessageStream($chatId: ID!) {
   }
 }
 
+subscription WhatsAppSyncStatus {
+  whatsAppSyncStatus {
+    isSyncing
+    isCompleted
+    error
+    statusMessage
+  }
+}
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }
@@ -253,4 +261,16 @@ mutation ConnectMCPServer($input: ConnectMCPServerInput!) {
 
 mutation RemoveMCPServer($id: String!) {
   removeMCPServer(id: $id)
+}
+
+query GetWhatsAppStatus {
+  getWhatsAppStatus {
+    isConnected
+    qrCodeData
+    statusMessage
+  }
+}
+
+mutation StartWhatsAppConnection {
+  startWhatsAppConnection
 }
