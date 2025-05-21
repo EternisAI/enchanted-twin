@@ -35,13 +35,21 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 	return allNewMessages, nil
 }
 
-func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, message NetworkMessage) (string, error) {
+func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage) (string, error) {
+	if len(messages) == 0 {
+		return "", nil
+	}
+
 	personality, err := a.identityService.GetPersonality(ctx)
 	if err != nil {
-		a.logger.Error("Failed to get identity context for batch processing", "error", err, "networkID", message.NetworkID)
+		a.logger.Error("Failed to get identity context for batch processing",
+			"error", err,
+			"networkID", messages[0].NetworkID)
 		return "", fmt.Errorf("failed to get identity context for batch: %w", err)
 	}
-	messages := []openai.ChatCompletionMessageParamUnion{
+
+	// Start with the system message
+	chatMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(fmt.Sprintf(`Analyze the conversation and provide your analysis in two parts:\n
 		1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n
 		2. Response: A suggested next response that would be appropriate in this context\n
@@ -53,13 +61,25 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, message Netwo
 		Here is some context about your personality and identity:
 
 		Thread ID: %s
-		%s`, personality, message.ThreadID)),
-		openai.UserMessage(message.String()),
+		%s`, messages[0].ThreadID, personality)),
+	}
+
+	// Convert each message into the appropriate format
+	// Messages from the agent are assistant messages, others are user messages
+	agentPubKey := a.agentKey.PubKeyHex()
+
+	for _, msg := range messages {
+		if msg.AuthorPubKey == agentPubKey {
+			chatMessages = append(chatMessages, openai.AssistantMessage(msg.Content))
+		} else {
+			prefixedContent := fmt.Sprintf("[%s] %s", msg.AuthorPubKey, msg.Content)
+			chatMessages = append(chatMessages, openai.UserMessage(prefixedContent))
+		}
 	}
 
 	tools := a.toolRegistry.GetAll()
 
-	response, err := a.agent.Execute(ctx, nil, messages, tools)
+	response, err := a.agent.Execute(ctx, nil, chatMessages, tools)
 	if err != nil {
 		a.logger.Error("Failed to execute agent", "error", err)
 		return "", fmt.Errorf("failed to execute agent: %w", err)

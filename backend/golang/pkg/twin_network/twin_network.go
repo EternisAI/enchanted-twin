@@ -36,7 +36,7 @@ type TwinNetworkWorkflowInput struct {
 	TwinChatService  *twinchat.Service
 	Agent            *agent.Agent
 	ToolRegistry     tools.ToolRegistry
-	TwinNetworkAPI   api.TwinNetworkAPI
+	TwinNetworkAPI   *api.TwinNetworkAPI
 }
 
 func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow {
@@ -50,7 +50,7 @@ func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow
 		twinChatService:  input.TwinChatService,
 		agent:            input.Agent,
 		toolRegistry:     input.ToolRegistry,
-		twinNetworkAPI:   input.TwinNetworkAPI,
+		twinNetworkAPI:   *input.TwinNetworkAPI,
 	}
 }
 
