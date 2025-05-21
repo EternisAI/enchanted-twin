@@ -12,10 +12,37 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/samber/lo"
 	"go.mau.fi/whatsmeow/types/events"
+	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 )
+
+// WhatsmeowLoggerAdapter adapts github.com/charmbracelet/log.Logger to whatsmeow's Logger interface.
+type WhatsmeowLoggerAdapter struct {
+	Logger *log.Logger
+	Module string
+}
+
+func (a *WhatsmeowLoggerAdapter) Warnf(msg string, args ...interface{}) {
+	a.Logger.Warnf("[WA:%s] "+msg, append([]interface{}{a.Module}, args...)...)
+}
+
+func (a *WhatsmeowLoggerAdapter) Errorf(msg string, args ...interface{}) {
+	a.Logger.Errorf("[WA:%s] "+msg, append([]interface{}{a.Module}, args...)...)
+}
+
+func (a *WhatsmeowLoggerAdapter) Infof(msg string, args ...interface{}) {
+	a.Logger.Infof("[WA:%s] "+msg, append([]interface{}{a.Module}, args...)...)
+}
+
+func (a *WhatsmeowLoggerAdapter) Debugf(msg string, args ...interface{}) {
+	a.Logger.Debugf("[WA:%s] "+msg, append([]interface{}{a.Module}, args...)...)
+}
+
+func (a *WhatsmeowLoggerAdapter) Sub(module string) waLog.Logger {
+	return &WhatsmeowLoggerAdapter{Logger: a.Logger, Module: a.Module + "/" + module}
+}
 
 type QRCodeEvent struct {
 	Event string
