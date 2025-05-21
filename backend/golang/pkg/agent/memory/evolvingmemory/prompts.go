@@ -1,4 +1,4 @@
-package newmem
+package evolvingmemory
 
 import (
 	"time"
