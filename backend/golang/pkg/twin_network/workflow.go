@@ -58,7 +58,7 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 
 	queryInput := QueryNetworkActivityInput{
 		NetworkID: input.NetworkID,
-		FromID:    strconv.FormatInt(resolvedLastMessageID-10, 10),
+		FromID:    strconv.FormatInt(resolvedLastMessageID-30, 10),
 		Limit:     30,
 	}
 	var allNewMessages []NetworkMessage
