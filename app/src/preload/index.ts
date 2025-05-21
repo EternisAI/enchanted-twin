@@ -88,6 +88,15 @@ const api = {
     ) => void
   ) => {
     ipcRenderer.on(channel, (_, data) => callback(data))
+  },
+  analytics: {
+    capture: (event: string, properties: Record<string, unknown>) =>
+      ipcRenderer.invoke('analytics:capture', event, properties),
+    identify: (properties: Record<string, unknown>) =>
+      ipcRenderer.invoke('analytics:identify', properties),
+    getDistinctId: () => ipcRenderer.invoke('analytics:get-distinct-id'),
+    getEnabled: () => ipcRenderer.invoke('analytics:is-enabled'),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke('analytics:set-enabled', enabled)
   }
 }
 

@@ -161,6 +161,11 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
         if (data?.completeOAuthFlow) {
           toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
           onConnect()
+
+          window.api.analytics.capture('server_connected', {
+            server: server.name,
+            type: server.type
+          })
         }
       } catch (err) {
         console.error('OAuth completion failed:', err)

@@ -299,41 +299,44 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
           'text-primary font-medium': isActive,
           'text-foreground': !isActive
         })}
+        onClick={() => {
+          window.api.analytics.capture('open_chat', {
+            method: 'ui'
+          })
+        }}
       >
         {chat.name || 'Untitled Chat'}
       </Link>
-      {
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete chat</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. It will permanently delete the chat.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Do not delete</AlertDialogCancel>
             <Button
-              variant="ghost"
-              size="icon"
-              className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
+              variant="destructive"
+              onClick={() => {
+                deleteChat({ variables: { chatId: chat.id } })
+              }}
             >
-              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+              Delete
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete chat</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. It will permanently delete the chat.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Do not delete</AlertDialogCancel>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  deleteChat({ variables: { chatId: chat.id } })
-                }}
-              >
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      }
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   )
 }
