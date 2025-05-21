@@ -116,14 +116,18 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	// Messages from the agent are assistant messages, others are user messages
 	agentPubKey := a.agentKey.PubKeyHex()
 
+	chatMessages = append(chatMessages, openai.UserMessage(fmt.Sprintf("Thread ID: %s", messages[0].ThreadID)))
+
+	conversation := ""
 	for _, msg := range messages {
 		if msg.AuthorPubKey == agentPubKey {
-			chatMessages = append(chatMessages, openai.AssistantMessage(msg.Content))
+			conversation += fmt.Sprintf("[you] %s\n", msg.Content)
 		} else {
-			prefixedContent := fmt.Sprintf("[%s] %s", msg.AuthorPubKey, msg.Content)
-			chatMessages = append(chatMessages, openai.UserMessage(prefixedContent))
+			conversation += fmt.Sprintf("[%s] %s\n", msg.AuthorPubKey, msg.Content)
 		}
 	}
+
+	chatMessages = append(chatMessages, openai.UserMessage(conversation))
 
 	tools := a.toolRegistry.GetAll()
 
