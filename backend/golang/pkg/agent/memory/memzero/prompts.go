@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// Added for dynamic date in FactRetrievalPrompt
+// Added for dynamic date in FactRetrievalPrompt.
 func getCurrentDateForPrompt() string {
 	return time.Now().Format("2006-01-02")
 }
@@ -33,7 +33,7 @@ Conversation Text:
 {conversation_text}
 `
 
-	// New Speaker-Focused Fact Extraction Prompt
+	// New Speaker-Focused Fact Extraction Prompt.
 	SpeakerFocusedFactExtractionPrompt = `
 You are a Personal Information Organizer. Your task is to extract memories for a SPECIFIC PERSON based ONLY on what THAT PERSON says or does in the provided text.
 For your reference, the current system date is {current_system_date}.
@@ -67,14 +67,14 @@ Guidelines for memories:
 5.  **Narrative Paragraph Format:** Format each memory as a paragraph with a clear narrative structure that captures the PrimarySpeaker's experience, challenges, and aspirations.
 
 // Updated instructions for structured message history:
-The conversation history has been provided as a series of messages. You are to extract memories for {primary_speaker_name} based EXCLUSIVELY on the statements made by {primary_speaker_name} (which appear as 'user' role messages in the dialogue).
+The conversation history has been provided as a series of messages. You are to extract memories for {primary_speaker_name} based EXCLUSIVELY on the statements made by {primary_speaker_name} (which appear as 'user' role messages in the dialog).
 
 Follow all previously stated guidelines. The output must be a list of fact strings, suitable for the 'extractFactsTool'.
 
 Extracted memories for {primary_speaker_name}:
 `
 
-	// New QA System Prompt, inspired by memzero's MEMORY_ANSWER_PROMPT and its usage
+	// New QA System Prompt, inspired by memzero's MEMORY_ANSWER_PROMPT and its usage.
 	SpeakerFocusedQASystemPrompt = `You are an expert at answering questions. Your task is to provide accurate and concise answers to the USER'S QUESTION based SOLELY on the provided MEMORIES for each speaker.
 
 Guidelines:

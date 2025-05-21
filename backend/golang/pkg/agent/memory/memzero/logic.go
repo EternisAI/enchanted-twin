@@ -8,15 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"weaviate-go-server/pkg/ai"
-	"weaviate-go-server/pkg/memory"
-
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
-
-	"github.com/weaviate/weaviate-go-client/v4/weaviate"
-	"github.com/weaviate/weaviate-go-client/v4/weaviate/graphql"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 const (
@@ -28,7 +27,7 @@ const (
 	openAIEmbedModel  = "text-embedding-3-small"
 	openAIChatModel   = "gpt-4o-mini"
 
-	// Tool Names (matching function names in tools.go)
+	// Tool Names (matching function names in tools.go).
 	AddMemoryToolName    = "ADD"
 	UpdateMemoryToolName = "UPDATE"
 	DeleteMemoryToolName = "DELETE"
@@ -41,25 +40,25 @@ const (
 // AddToolArguments is currently empty as per tools.go definition
 // type AddToolArguments struct {}
 
-// UpdateToolArguments matches the parameters defined in updateMemoryTool in tools.go
+// UpdateToolArguments matches the parameters defined in updateMemoryTool in tools.go.
 type UpdateToolArguments struct {
 	MemoryID      string `json:"id"`
 	UpdatedMemory string `json:"updated_content"`
 	Reason        string `json:"reason,omitempty"`
 }
 
-// DeleteToolArguments matches the parameters defined in deleteMemoryTool in tools.go
+// DeleteToolArguments matches the parameters defined in deleteMemoryTool in tools.go.
 type DeleteToolArguments struct {
 	MemoryID string `json:"id"`
 	Reason   string `json:"reason,omitempty"`
 }
 
-// NoneToolArguments matches the parameters defined in noneMemoryTool in tools.go
+// NoneToolArguments matches the parameters defined in noneMemoryTool in tools.go.
 type NoneToolArguments struct {
 	Reason string `json:"reason"`
 }
 
-// ExtractFactsToolArguments matches the parameters defined in extractFactsTool in tools.go
+// ExtractFactsToolArguments matches the parameters defined in extractFactsTool in tools.go.
 type ExtractFactsToolArguments struct {
 	Facts []string `json:"facts"`
 }
@@ -300,7 +299,6 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 			s.logger.Debugf("Calling LLM for Speaker-Focused Fact Extraction (%s). Model: %s, Tools: %d tools", currentSpeakerIDForLog, openAIChatModel, len(factExtractionTools))
 
 			llmResponse, err := s.aiService.Completions(ctx, llmMsgs, factExtractionTools, openAIChatModel)
-
 			if err != nil {
 				s.logger.Errorf("LLM completion error during fact extraction for speaker %s: %v", currentSpeakerIDForLog, err)
 				continue
@@ -428,7 +426,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 
 					metadataBytes, jsonErr := json.Marshal(factMetadata)
 					if jsonErr != nil {
-						s.logger.Errorf("Error marshalling metadata for ADD for speaker %s: %v. Storing with empty metadata.", currentSpeakerIDForLog, jsonErr)
+						s.logger.Errorf("Error marshaling metadata for ADD for speaker %s: %v. Storing with empty metadata.", currentSpeakerIDForLog, jsonErr)
 						metadataBytes = []byte("{}")
 					}
 
@@ -473,7 +471,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 
 					updatedEmbedding64, embedErr := s.aiService.Embedding(ctx, updateArgs.UpdatedMemory, openAIEmbedModel)
 					if embedErr != nil {
-						s.logger.Errorf("Error generating embedding for updated memory (UPDATE) for speaker %s, skipping: %v", currentSpeakerIDForLog, embedErr, "memory_id", updateArgs.MemoryID)
+						s.logger.Error("Error generating embedding for updated memory (UPDATE)", "current_speaker", currentSpeakerIDForLog, "error", embedErr, "memory_id", updateArgs.MemoryID)
 						continue
 					}
 					updatedEmbedding32 := make([]float32, len(updatedEmbedding64))
@@ -495,7 +493,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 					}
 
 					if err = s.Update(ctx, updateArgs.MemoryID, docToUpdate, updatedEmbedding32); err != nil {
-						s.logger.Errorf("Error performing UPDATE operation for speaker %s: %v", currentSpeakerIDForLog, err, "memory_id", updateArgs.MemoryID)
+						s.logger.Error("Error performing UPDATE operation", "current_speaker", currentSpeakerIDForLog, "error", err, "memory_id", updateArgs.MemoryID)
 					} else {
 						s.logger.Infof("Fact UPDATED successfully for speaker %s. Memory ID: %s", currentSpeakerIDForLog, updateArgs.MemoryID)
 					}
@@ -510,7 +508,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 					s.logger.Debugf("Parsed DELETE arguments: ID=%s, Reason='%s'", deleteArgs.MemoryID, deleteArgs.Reason)
 
 					if err = s.Delete(ctx, deleteArgs.MemoryID); err != nil {
-						s.logger.Errorf("Error performing DELETE operation for speaker %s: %v", currentSpeakerIDForLog, err, "memory_id", deleteArgs.MemoryID)
+						s.logger.Error("Error performing DELETE operation", "current_speaker", currentSpeakerIDForLog, "error", err, "memory_id", deleteArgs.MemoryID)
 					} else {
 						s.logger.Infof("Fact DELETED successfully for speaker %s. Memory ID: %s", currentSpeakerIDForLog, deleteArgs.MemoryID)
 					}
@@ -543,7 +541,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 					factMetadataDefault["speakerID"] = currentSpeakerIDForLog
 					metadataBytesDefault, jsonErrDefault := json.Marshal(factMetadataDefault)
 					if jsonErrDefault != nil {
-						s.logger.Errorf("Error marshalling metadata for default ADD for speaker %s: %v. Storing with empty metadata.", currentSpeakerIDForLog, jsonErrDefault)
+						s.logger.Errorf("Error marshaling metadata for default ADD for speaker %s: %v. Storing with empty metadata.", currentSpeakerIDForLog, jsonErrDefault)
 						metadataBytesDefault = []byte("{}")
 					}
 					dataDefault := map[string]interface{}{
@@ -606,22 +604,6 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 
 	s.logger.Info("Store method finished processing all documents.")
 	return nil
-}
-
-// Helper function to get first N float64 values for logging vector snippets
-func firstNFloats(v []float64, n int) []float64 {
-	if len(v) <= n {
-		return v
-	}
-	return v[:n]
-}
-
-// Helper function to get first N float32 values for logging vector snippets
-func firstNFloat32s(v []float32, n int) []float32 {
-	if len(v) <= n {
-		return v
-	}
-	return v[:n]
 }
 
 // firstNChars is a helper to get the first N characters of a string for logging.
@@ -778,7 +760,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		WithID(id).
 		// No WithAdditionalParameters needed for ObjectsGetter for standard properties
 		Do(ctx)
-
 	if err != nil {
 		// Weaviate client might return a specific error for not found (e.g., status code 404 in the error details)
 		// For now, returning the generic error. Could inspect err for specific handling of "not found".
@@ -843,7 +824,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 }
 
 // Update updates an existing document in Weaviate.
-// speakerID (if present) is expected to be within doc.Metadata, which is marshalled to metadataJson.
+// speakerID (if present) is expected to be within doc.Metadata, which is marshaled to metadataJson.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
 	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
 		return fmt.Errorf("pre-update schema check failed: %w", err)
@@ -865,7 +846,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	}
 
 	// All metadata, including speakerID, is expected to be in doc.Metadata.
-	// This map will be marshalled into the metadataJson field.
+	// This map will be marshaled into the metadataJson field.
 	if len(doc.Metadata) > 0 {
 		metadataBytes, err := json.Marshal(doc.Metadata) // doc.Metadata should contain speakerID if it's set
 		if err != nil {
@@ -873,7 +854,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 			return fmt.Errorf("marshaling metadata for update: %w", err)
 		}
 		data[metadataProperty] = string(metadataBytes)
-		s.logger.Debugf("Updating doc %s, speakerID in marshalled metadata: '%s'", id, doc.Metadata["speakerID"])
+		s.logger.Debugf("Updating doc %s, speakerID in marshaled metadata: '%s'", id, doc.Metadata["speakerID"])
 	} else {
 		data[metadataProperty] = "{}" // Store an empty JSON object string if no metadata
 		s.logger.Debugf("Updating doc %s with empty metadataJson", id)
@@ -908,7 +889,6 @@ func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
 		WithClassName(className).
 		WithID(id).
 		Do(ctx)
-
 	if err != nil {
 		// Check if the error is because the object was not found. Often, delete is idempotent.
 		// For now, we just return the error. Specific error handling (e.g., for 404) can be added if needed.
