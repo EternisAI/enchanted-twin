@@ -1,11 +1,14 @@
 package twin_network
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
 	"go.temporal.io/sdk/workflow"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 const (
@@ -15,11 +18,13 @@ const (
 type NetworkMonitorInput struct {
 	NetworkID     string
 	LastMessageID int64
+	ChatID        string
 }
 
 type NetworkMonitorOutput struct {
 	ProcessedMessages int
 	LastMessageID     int64
+	ChatID            string
 }
 
 func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input NetworkMonitorInput) (*NetworkMonitorOutput, error) {
@@ -28,22 +33,27 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	})
 
 	var resolvedLastMessageID int64
+	var chatID string
 
 	var lastCompletionOutput NetworkMonitorOutput
 	if workflow.HasLastCompletionResult(ctx) {
 		if err := workflow.GetLastCompletionResult(ctx, &lastCompletionOutput); err == nil {
 			resolvedLastMessageID = lastCompletionOutput.LastMessageID
+			chatID = lastCompletionOutput.ChatID
 		} else {
 			workflow.GetLogger(ctx).Error("NetworkMonitorWorkflow: Failed to get last completion result. Using current input's LastMessageID.", "error", err)
 			resolvedLastMessageID = input.LastMessageID
+			chatID = input.ChatID
 		}
 	} else {
 		resolvedLastMessageID = input.LastMessageID
+		chatID = input.ChatID
 	}
 
 	activityInput := NetworkMonitorInput{
 		NetworkID:     input.NetworkID,
 		LastMessageID: resolvedLastMessageID,
+		ChatID:        chatID,
 	}
 
 	queryInput := QueryNetworkActivityInput{
@@ -66,17 +76,53 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 			return &NetworkMonitorOutput{
 				ProcessedMessages: 0,
 				LastMessageID:     resolvedLastMessageID,
+				ChatID:            chatID,
 			}, nil
 		}
 		activityInput.LastMessageID = lastMessageID
 
 		if !allNewMessages[0].IsMine {
+			if chatID != "" {
+				var chatMessages []*model.Message
+				err := workflow.ExecuteActivity(options, w.GetChatMessages, chatID).Get(ctx, &chatMessages)
+				if err != nil {
+					workflow.GetLogger(ctx).Error("Failed to get chat messages", "error", err, "chatID", chatID)
+				} else {
+					workflow.GetLogger(ctx).Info("Retrieved chat messages", "count", len(chatMessages), "chatID", chatID)
+
+					if len(chatMessages) > 0 {
+						var lastUserMessage *model.Message
+						for i := len(chatMessages) - 1; i >= 0; i-- {
+							if chatMessages[i].Role == model.RoleUser {
+								lastUserMessage = chatMessages[i]
+								break
+							}
+						}
+
+						if lastUserMessage != nil {
+							workflow.GetLogger(ctx).Info("Found user response in chat", "message", *lastUserMessage.Text)
+							allNewMessages = append([]NetworkMessage{
+								{
+									Content: fmt.Sprintf("User response from chat: %s", *lastUserMessage.Text),
+									IsMine:  true,
+								},
+							}, allNewMessages...)
+						}
+					}
+				}
+			}
+
 			var response string
 			err = workflow.ExecuteActivity(options, w.EvaluateMessage, allNewMessages).Get(ctx, &response)
 			if err != nil {
 				workflow.GetLogger(ctx).Error("Failed to evaluate messages", "error", err)
 			} else if response != "" {
 				workflow.GetLogger(ctx).Info("Successfully evaluated messages", "response", response)
+
+				if newChatID := w.extractChatIDFromResponse(response); newChatID != "" {
+					chatID = newChatID
+					workflow.GetLogger(ctx).Info("Updated chat ID from response", "chatID", chatID)
+				}
 			}
 		} else {
 			workflow.GetLogger(ctx).Info("Skipping evaluation as the last message is from the user", "messageID", allNewMessages[0].ID)
@@ -86,13 +132,29 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		return &NetworkMonitorOutput{
 			ProcessedMessages: 0,
 			LastMessageID:     resolvedLastMessageID,
+			ChatID:            chatID,
 		}, nil
 	}
 
 	output := NetworkMonitorOutput{
 		ProcessedMessages: len(allNewMessages),
 		LastMessageID:     activityInput.LastMessageID,
+		ChatID:            chatID,
 	}
 
 	return &output, nil
+}
+
+func (w *TwinNetworkWorkflow) extractChatIDFromResponse(response string) string {
+	if len(response) > 0 && response[0] == '{' {
+		var result map[string]interface{}
+		if err := json.Unmarshal([]byte(response), &result); err == nil {
+			if toolParams, ok := result["ToolParams"].(map[string]interface{}); ok {
+				if chatID, ok := toolParams["chat_id"].(string); ok {
+					return chatID
+				}
+			}
+		}
+	}
+	return ""
 }

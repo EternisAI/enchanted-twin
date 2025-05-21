@@ -81,7 +81,7 @@ func (w *TwinNetworkWorkflow) ScheduleNetworkMonitor(logger *log.Logger, tempora
 		Spec: client.ScheduleSpec{
 			Intervals: []client.ScheduleIntervalSpec{
 				{
-					Every: time.Minute,
+					Every: time.Second * 20,
 				},
 			},
 		},
@@ -101,6 +101,7 @@ func (w *TwinNetworkWorkflow) ScheduleNetworkMonitor(logger *log.Logger, tempora
 func (a *TwinNetworkWorkflow) RegisterActivities(w interface{ RegisterActivity(interface{}) }) {
 	w.RegisterActivity(a.EvaluateMessage)
 	w.RegisterActivity(a.QueryNetworkActivity)
+	w.RegisterActivity(a.GetChatMessages)
 }
 
 func (a *TwinNetworkWorkflow) RegisterWorkflows(w interface{ RegisterWorkflow(interface{}) }) {

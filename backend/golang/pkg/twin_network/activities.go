@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/EternisAI/enchanted-twin/graph/model"
 	openai "github.com/openai/openai-go"
 )
 
@@ -130,4 +131,16 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	}
 
 	return response.Content, nil
+}
+
+func (a *TwinNetworkWorkflow) GetChatMessages(ctx context.Context, chatID string) ([]*model.Message, error) {
+	a.logger.Debug("Getting messages from chat", "chatID", chatID)
+
+	messages, err := a.twinChatService.GetMessagesByChatId(ctx, chatID)
+	if err != nil {
+		a.logger.Error("Failed to get chat messages", "error", err, "chatID", chatID)
+		return nil, fmt.Errorf("failed to get chat messages: %w", err)
+	}
+
+	return messages, nil
 }

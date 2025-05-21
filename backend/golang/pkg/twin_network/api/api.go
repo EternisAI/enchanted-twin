@@ -33,6 +33,13 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 		"fromID", fromID,
 		"limit", limit)
 
+	// Convert the fromID from string to int for GraphQL query
+	fromIDInt, err := strconv.ParseInt(fromID, 10, 64)
+	if err != nil {
+		a.logger.Error("Failed to parse fromID as integer", "error", err, "fromID", fromID)
+		return nil, fmt.Errorf("failed to parse fromID as integer: %w", err)
+	}
+
 	query := `
 		query GetNewMessages($networkID: String!, $fromID: Int!, $limit: Int) {
 			getNewMessages(networkID: $networkID, fromID: $fromID, limit: $limit) {
@@ -48,7 +55,7 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 
 	variables := map[string]interface{}{
 		"networkID": networkID,
-		"fromID":    fromID,
+		"fromID":    fromIDInt, // Now passing an integer instead of a string
 		"limit":     limit,
 	}
 
