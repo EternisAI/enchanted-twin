@@ -27,5 +27,6 @@ type Mutation {
   Publish a new message to the given network.  
   Returns the created NetworkMessage.
   """
+  
   postMessage(authorPubKey: String!, networkID: String!, content: String!, signature: String!): NetworkMessage!
 } 

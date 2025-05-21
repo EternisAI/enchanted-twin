@@ -19,21 +19,42 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 		"networkID", input.NetworkID,
 		"lastMessageID", input.LastMessageID)
 
-	allNewMessages, err := a.twinNetworkAPI.GetNewMessages(ctx, input.NetworkID, input.LastMessageID, 30)
-	if err != nil {
-		a.logger.Error("Failed to fetch new messages", "error", err)
-		return nil, fmt.Errorf("failed to fetch new messages: %w", err)
+	// Convert LastMessageID to string
+	var lastMessageIDStr string
+	switch v := input.LastMessageID.(type) {
+	case string:
+		lastMessageIDStr = v
+	case json.Number:
+		lastMessageIDStr = v.String()
+	case float64:
+		lastMessageIDStr = strconv.FormatFloat(v, 'f', -1, 64)
+	case int:
+		lastMessageIDStr = strconv.Itoa(v)
+	case int64:
+		lastMessageIDStr = strconv.FormatInt(v, 10)
+	case nil:
+		lastMessageIDStr = ""
+	default:
+		a.logger.Warn("Unexpected type for LastMessageID, defaulting to empty string",
+			"type", fmt.Sprintf("%T", input.LastMessageID),
+			"value", input.LastMessageID)
+		lastMessageIDStr = ""
 	}
 
-	a.logger.Info("Retrieved new messages",
-		"count", len(allNewMessages),
-		"networkID", input.NetworkID)
+	allNewMessages, err := a.QueryNetworkActivity(ctx, NetworkActivityQueryInput{
+		NetworkID: input.NetworkID,
+		FromID:    lastMessageIDStr,
+		Limit:     30,
+	})
+	if err != nil {
+		a.logger.Error("Failed to query network activity", "error", err)
+		return nil, fmt.Errorf("failed to query network activity: %w", err)
+	}
+	a.logger.Info("Retrieved new messages", "count", len(allNewMessages), "networkID", input.NetworkID)
 
-	currentRunMaxID := input.LastMessageID
+	currentRunMaxID := lastMessageIDStr // Initialize with the converted string
 	if len(allNewMessages) > 0 {
-		// Assuming messages are sorted by ID ascending from getNewMessages,
-		// the last message in the slice has the highest ID.
-		currentRunMaxID = allNewMessages[len(allNewMessages)-1].ID
+		currentRunMaxID = strconv.FormatInt(allNewMessages[len(allNewMessages)-1].ID, 10)
 	}
 
 	if len(allNewMessages) == 0 {
@@ -139,6 +160,27 @@ func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input 
 	}, nil
 }
 
+type NetworkActivityQueryInput struct {
+	NetworkID string
+	FromID    string
+	Limit     int
+}
+
+func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input NetworkActivityQueryInput) ([]NetworkMessage, error) {
+	a.logger.Debug("Querying network activity",
+		"networkID", input.NetworkID,
+		"fromID", input.FromID,
+		"limit", input.Limit)
+
+	allNewMessages, err := a.getNewMessages(ctx, input.NetworkID, input.FromID, input.Limit)
+	if err != nil {
+		a.logger.Error("Failed to fetch new messages", "error", err)
+		return nil, fmt.Errorf("failed to fetch new messages: %w", err)
+	}
+
+	return allNewMessages, nil
+}
+
 func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, message NetworkMessage) (string, error) {
 	personality, err := a.identityService.GetPersonality(ctx)
 	if err != nil {
@@ -172,11 +214,21 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, message Netwo
 	return response.Content, nil
 }
 
-func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID string, fromID int64, limit int) ([]NetworkMessage, error) {
+func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID string, fromID string, limit int) ([]NetworkMessage, error) {
 	a.logger.Debug("Fetching new messages",
 		"networkID", networkID,
 		"fromID", fromID,
 		"limit", limit)
+
+	fromIDInt := 0
+	if fromID != "" {
+		parsedFromID, err := strconv.Atoi(fromID)
+		if err != nil {
+			a.logger.Error("Failed to parse fromID to integer", "fromID", fromID, "error", err)
+		} else {
+			fromIDInt = parsedFromID
+		}
+	}
 
 	query := `
 		query GetNewMessages($networkID: String!, $fromID: Int!, $limit: Int) {
@@ -193,7 +245,7 @@ func (a *TwinNetworkWorkflow) getNewMessages(ctx context.Context, networkID stri
 
 	variables := map[string]interface{}{
 		"networkID": networkID,
-		"fromID":    fromID,
+		"fromID":    fromIDInt,
 		"limit":     limit,
 	}
 
