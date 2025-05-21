@@ -155,7 +155,7 @@ type ComplexityRoot struct {
 		AddDataSource             func(childComplexity int, name string, path string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
-		CreateChat                func(childComplexity int, name string) int
+		CreateChat                func(childComplexity int, name string, voice bool) int
 		DeleteAgentTask           func(childComplexity int, id string) int
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
@@ -268,7 +268,7 @@ type MutationResolver interface {
 	CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
 	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
-	CreateChat(ctx context.Context, name string) (*model.Chat, error)
+	CreateChat(ctx context.Context, name string, voice bool) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
@@ -842,7 +842,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string)), true
+		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string), args["voice"].(bool)), true
 
 	case "Mutation.deleteAgentTask":
 		if e.complexity.Mutation.DeleteAgentTask == nil {
@@ -1636,6 +1636,11 @@ func (ec *executionContext) field_Mutation_createChat_args(ctx context.Context, 
 		return nil, err
 	}
 	args["name"] = arg0
+	arg1, err := ec.field_Mutation_createChat_argsVoice(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["voice"] = arg1
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_createChat_argsName(
@@ -1648,6 +1653,19 @@ func (ec *executionContext) field_Mutation_createChat_argsName(
 	}
 
 	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createChat_argsVoice(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (bool, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("voice"))
+	if tmp, ok := rawArgs["voice"]; ok {
+		return ec.unmarshalNBoolean2bool(ctx, tmp)
+	}
+
+	var zeroVal bool
 	return zeroVal, nil
 }
 
@@ -3255,11 +3273,14 @@ func (ec *executionContext) _Chat_voice(ctx context.Context, field graphql.Colle
 		return graphql.Null
 	}
 	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
 		return graphql.Null
 	}
-	res := resTmp.(*bool)
+	res := resTmp.(bool)
 	fc.Result = res
-	return ec.marshalOBoolean2ᚖbool(ctx, field.Selections, res)
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Chat_voice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -5473,7 +5494,7 @@ func (ec *executionContext) _Mutation_createChat(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string))
+		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string), fc.Args["voice"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -11294,6 +11315,9 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			}
 		case "voice":
 			out.Values[i] = ec._Chat_voice(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&out.Invalids, 1)
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}

@@ -124,7 +124,7 @@ query GetSetupProgress {
   }
 }
 
-mutation CreateChat($name: String!, $voice: Boolean!) {
+mutation CreateChat($name: String!, $voice: Boolean! = false) {
   createChat(name: $name, voice: $voice) {
     id
     name
