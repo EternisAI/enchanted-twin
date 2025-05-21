@@ -73,20 +73,20 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		openai.SystemMessage(fmt.Sprintf(`
 		You are a digital twin representing your human. You are receiveing messages from the twin network and deciding to respond, pass them to your human or ignore.
 		Your job is to evaluate the message and decide if your human would be interested in engaging with the author or their message.
+		Thread ID: %s.
 
-		Analyze the conversation and provide your analysis in two parts:\n
-		1. Reasoning: Your analysis of the conversation flow, message patterns, and the roles of each participant\n
-		2. Response: A suggested next response that would be appropriate in this context\n
+		The first message in the thread is the proposal from the author (Public Key: %s).
+		If you are the author your job is to make a decision when the proposal is completed and all actions have been taken. In this case you should announce it to the network.
+
+		Once Author announces the completion of the proposal, no new messages should be sent to the network. If the proposal is completed you should all appropriate tools (for example to book a calendar event).
 
 		IMPORTANT: There are two separate communication channels:
-		1. The twin network: Use "send_to_twin_network" ONLY when you want to respond to other agents
-		2. Your human's chat: Use "send_to_chat" ONLY when you want to relay important information to your human
+		1. The Twin Network: Use "send_to_twin_network" ONLY when you want to respond the Network Thread to express your participation, actions or ask for more information. (For example: human is interested in participating in the poker game.)
+		2. Your human's chat: Use "send_to_chat" ONLY when you want to relay important information to your human or ask for human feedback. You must communicate with your human when proposal is completed.
 
 		DO NOT MIRROR OR REPEAT messages from the network back to the network.
 		If you think a message is useful to your human, use ONLY the "send_to_chat" tool to forward it directly to your human.
-		Only use "send_to_twin_network" when you have a NEW response to contribute to the conversation.
-
-		If you're missing some information necessary from the human to respond, use the send_to_chat tool to ask your human.
+		Only use "send_to_twin_network" when you have a NEW response to contribute to the conversation. Your default behaviour should be not to send any messages to the network if you already have send one.
 
 		For example if someone ask if anyone is interested in an event, ask your human with the send_to_chat tool before booking the tickets.
 		Then after confirmation book the ticket and send the message to the twin network with the "send_to_twin_network" tool.
@@ -103,14 +103,13 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		Be practical and remember to check your human calendar and also to check if the time/date make sense for your human.
 		Call your human by his name.
 
-		The other twin participants are identified by their public keys.
+		The other participants are identified by their public keys.
 
 		Here is the latest information about your human's personality and identity:
 		
-		Thread ID: %s
 
 		Below is the conversation corresponding to the thread ID above on the twin network proposal.
-		%s`, messages[0].ThreadID, personality)),
+		%s`, messages[0].ThreadID, messages[0].AuthorPubKey, personality)),
 	}
 
 	agentPubKey := a.agentKey.PubKeyHex()
@@ -120,7 +119,7 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	conversation := ""
 	for _, msg := range messages {
 		if msg.AuthorPubKey == agentPubKey {
-			conversation += fmt.Sprintf("[you] %s\n", msg.Content)
+			conversation += fmt.Sprintf("[%s](You) %s\n", msg.AuthorPubKey, msg.Content)
 		} else {
 			conversation += fmt.Sprintf("[%s] %s\n", msg.AuthorPubKey, msg.Content)
 		}
@@ -129,6 +128,9 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	chatMessages = append(chatMessages, openai.UserMessage(conversation))
 
 	tools := a.toolRegistry.GetAll()
+	for _, tool := range tools {
+		a.logger.Debug("Tool", "tool", tool.Definition().Function.Name)
+	}
 
 	response, err := a.agent.Execute(ctx, nil, chatMessages, tools)
 	if err != nil {
