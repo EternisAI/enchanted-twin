@@ -10,163 +10,22 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	openai "github.com/openai/openai-go"
 )
 
-func (a *TwinNetworkWorkflow) MonitorNetworkActivity(ctx context.Context, input NetworkMonitorInput) (*NetworkMonitorOutput, error) {
-	a.logger.Info("Starting network activity monitoring",
-		"networkID", input.NetworkID,
-		"lastMessageID", input.LastMessageID)
-
-	// Convert LastMessageID to string
-	var lastMessageIDStr string
-	switch v := input.LastMessageID.(type) {
-	case string:
-		lastMessageIDStr = v
-	case json.Number:
-		lastMessageIDStr = v.String()
-	case float64:
-		lastMessageIDStr = strconv.FormatFloat(v, 'f', -1, 64)
-	case int:
-		lastMessageIDStr = strconv.Itoa(v)
-	case int64:
-		lastMessageIDStr = strconv.FormatInt(v, 10)
-	case nil:
-		lastMessageIDStr = ""
-	default:
-		a.logger.Warn("Unexpected type for LastMessageID, defaulting to empty string",
-			"type", fmt.Sprintf("%T", input.LastMessageID),
-			"value", input.LastMessageID)
-		lastMessageIDStr = ""
-	}
-
-	allNewMessages, err := a.QueryNetworkActivity(ctx, NetworkActivityQueryInput{
-		NetworkID: input.NetworkID,
-		FromID:    lastMessageIDStr,
-		Limit:     30,
-	})
-	if err != nil {
-		a.logger.Error("Failed to query network activity", "error", err)
-		return nil, fmt.Errorf("failed to query network activity: %w", err)
-	}
-	a.logger.Info("Retrieved new messages", "count", len(allNewMessages), "networkID", input.NetworkID)
-
-	currentRunMaxID := lastMessageIDStr // Initialize with the converted string
-	if len(allNewMessages) > 0 {
-		currentRunMaxID = strconv.FormatInt(allNewMessages[len(allNewMessages)-1].ID, 10)
-	}
-
-	if len(allNewMessages) == 0 {
-		a.logger.Info("No new messages to process.", "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
-	}
-
-	var nonSelfAuthoredMessages []NetworkMessage
-	for _, msg := range allNewMessages {
-		if msg.AuthorPubKey == a.agentKey.PubKeyHex() {
-			a.logger.Debug("Skipping message authored by our agent", "messageID", msg.ID, "networkID", input.NetworkID)
-			continue
-		}
-		// TODO: Add message to message store
-		nonSelfAuthoredMessages = append(nonSelfAuthoredMessages, NetworkMessage{
-			// ID:           msg.ID,
-			// AuthorPubKey: msg.AuthorPubKey,
-			// NetworkID:    msg.NetworkID,
-			// Content:      msg.Content,
-			// CreatedAt:    msg.CreatedAt,
-		})
-	}
-
-	if len(nonSelfAuthoredMessages) == 0 {
-		a.logger.Info("No non-self-authored new messages to process after filtering.", "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
-	}
-
-	const messageProcessingLimit = 20
-	var messagesForTool []NetworkMessage
-	if len(nonSelfAuthoredMessages) > messageProcessingLimit {
-		messagesForTool = nonSelfAuthoredMessages[len(nonSelfAuthoredMessages)-messageProcessingLimit:]
-	} else {
-		messagesForTool = nonSelfAuthoredMessages
-	}
-
-	if len(messagesForTool) == 0 {
-		// This case should ideally be covered by the previous check (len(nonSelfAuthoredMessages) == 0)
-		// but kept for robustness.
-		a.logger.Info("Message batch for tool is empty after selection. No action taken.", "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
-	}
-
-	a.logger.Info("Processing batch of messages for tool", "count", len(messagesForTool), "networkID", input.NetworkID)
-
-	personality, err := a.identityService.GetPersonality(ctx)
-	if err != nil {
-		a.logger.Error("Failed to get identity context for batch processing", "error", err, "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("failed to get identity context for batch: %w", err)
-	}
-
-	response, err := a.readNetworkTool.Execute(ctx, map[string]any{
-		"network_message": messagesForTool,
-	}, personality)
-	if err != nil {
-		a.logger.Error("Failed to process message batch with agent tool", "error", err, "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("agent tool failed for batch: %w", err)
-	}
-
-	responseString, ok := response.(*types.StructuredToolResult).Output["response"].(string)
-	if !ok {
-		a.logger.Error("Unexpected response type from tool for batch", "resultType", fmt.Sprintf("%T", response), "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("unexpected response type from tool for batch: %T", response)
-	}
-
-	if responseString == "" {
-		a.logger.Info("Agent tool returned an empty response for the batch. No message will be posted.", "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
-	}
-
-	// Prevent posting generic "Unable to generate response" messages
-	if responseString == "Unable to generate response." {
-		a.logger.Info("Agent tool generated a generic 'Unable to generate response' message for the batch. No message will be posted.", "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, nil
-	}
-
-	signature, err := a.agentKey.SignMessage(responseString)
-	if err != nil {
-		a.logger.Error("Failed to sign batch response message", "error", err, "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("failed to sign batch response: %w", err)
-	}
-
-	err = a.postMessage(ctx, input.NetworkID, responseString, a.agentKey.PubKeyHex(), signature)
-	if err != nil {
-		a.logger.Error("Failed to post batch response message", "error", err, "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{LastMessageID: currentRunMaxID}, fmt.Errorf("failed to post batch response: %w", err)
-	}
-
-	_, err = a.twinChatService.SendMessage(ctx, "default", fmt.Sprintf("I've replied to a group of messages in network %s: %s", input.NetworkID, responseString), false)
-	if err != nil {
-		// Log error but don't fail the entire workflow activity for a chat notification failure
-		a.logger.Error("Failed to send chat notification for batch response", "error", err, "networkID", input.NetworkID)
-	}
-
-	a.logger.Info("Successfully processed and responded to message batch", "networkID", input.NetworkID)
-
-	a.logger.Info("Completed network activity monitoring cycle",
-		"networkID", input.NetworkID,
-		"nextLastMessageID", currentRunMaxID)
-
-	return &NetworkMonitorOutput{
-		LastMessageID: currentRunMaxID,
-	}, nil
+type MonitorNetworkActivityInput struct {
+	NetworkID     string
+	LastMessageID string
+	Messages      []NetworkMessage
 }
 
-type NetworkActivityQueryInput struct {
+type QueryNetworkActivityInput struct {
 	NetworkID string
 	FromID    string
 	Limit     int
 }
 
-func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input NetworkActivityQueryInput) ([]NetworkMessage, error) {
+func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) ([]NetworkMessage, error) {
 	a.logger.Debug("Querying network activity",
 		"networkID", input.NetworkID,
 		"fromID", input.FromID,

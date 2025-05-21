@@ -99,7 +99,7 @@ func (w *TwinNetworkWorkflow) ScheduleNetworkMonitor(logger *log.Logger, tempora
 }
 
 func (a *TwinNetworkWorkflow) RegisterActivities(w interface{ RegisterActivity(interface{}) }) {
-	w.RegisterActivity(a.MonitorNetworkActivity)
+	w.RegisterActivity(a.EvaluateMessage)
 	w.RegisterActivity(a.QueryNetworkActivity)
 }
 
