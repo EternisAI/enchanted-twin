@@ -24,7 +24,7 @@ export default function ToolCallCenter({ activeToolCalls }: ToolCallCenterProps)
     <>
       {!isShowing && (
         <div
-          className="fixed top-0 right-0 h-full w-40 z-50"
+          className="fixed top-0 right-0 h-full w-72 z-50"
           onMouseEnter={() => setIsShowing(true)}
         />
       )}
@@ -36,7 +36,7 @@ export default function ToolCallCenter({ activeToolCalls }: ToolCallCenterProps)
         animate={{ x: isShowing ? '0%' : '100%' }}
         transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       >
-        <div className="h-full w-full p-4 flex flex-col gap-4">
+        <div className="h-full w-full p-4 overflow-y-auto overflow-x-hidden flex flex-col gap-8">
           <ToolCallProcessing toolCalls={activeToolCalls} />
           {notifications.length > 0 && <ToolCallNotificationList notifications={notifications} />}
           <ToolCallResult toolCalls={activeToolCalls} />

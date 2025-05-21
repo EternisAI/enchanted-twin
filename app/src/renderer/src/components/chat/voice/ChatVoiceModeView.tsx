@@ -25,9 +25,15 @@ export default function VoiceModeChatView({
   messages,
   toggleVoiceMode
 }: VoiceModeChatViewProps) {
-  const { isSpeaking, speak, getFreqData, isLoading } = useTTS()
+  const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
   const triggeredRef = useRef(false)
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([])
+
+  const [lastAssistantMessage, setLastAssistantMessage] = useState<Message | null>(() => {
+    if (!chat || messages.length === 0) return null
+    const lastAssistantMessage = messages.filter((m) => m.role === Role.Assistant).pop()
+    return lastAssistantMessage || null
+  })
 
   const [lastUserMessage, setLastUserMessage] = useState<Message | null>(() => {
     if (!chat) return null
@@ -60,12 +66,7 @@ export default function VoiceModeChatView({
     if (message.role === Role.Assistant) {
       triggeredRef.current = true
       speak(message.text ?? '')
-
-      message.toolCalls.forEach((toolCall) => {
-        if (toolCall.name === 'image') {
-          // Handle image tool calls if needed
-        }
-      })
+      setLastAssistantMessage(message)
     }
   })
 
@@ -87,20 +88,12 @@ export default function VoiceModeChatView({
     console.log({ isSpeaking, isLoading })
   }, [isSpeaking, isLoading])
 
-  useEffect(() => {
-    console.log('isLoading', isLoading)
-  }, [isLoading])
-
   /* when audio actually starts, drop loading state */
   useEffect(() => {
     if (isSpeaking && triggeredRef.current) {
       triggeredRef.current = false
     }
   }, [isSpeaking])
-
-  useEffect(() => {
-    console.log('visualState', visualState)
-  }, [visualState])
 
   return (
     <div className="flex flex-col h-full w-full items-center relative">
@@ -114,7 +107,10 @@ export default function VoiceModeChatView({
           className="absolute inset-0"
           visualState={visualState}
           getFreqData={getFreqData}
+          assistantTextMessage={lastAssistantMessage?.text ?? undefined}
         />
+
+        {/* @TODO: Splti active tool calls from last message and historic everything else */}
         <ToolCallCenter activeToolCalls={activeToolCalls} />
       </motion.div>
 
@@ -122,8 +118,9 @@ export default function VoiceModeChatView({
         {lastUserMessage && <UserMessageBubble message={lastUserMessage} />}
         <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} />
         <MessageInput
-          isWaitingTwinResponse={false}
+          isWaitingTwinResponse={isLoading || isSpeaking}
           onSend={sendMessage}
+          onStop={stop}
           hasReasoning={false}
           voice
         />
@@ -143,6 +140,7 @@ export function VoiceModeSwitch({
     <div className="flex justify-end w-full gap-2">
       <Switch
         id="voiceMode"
+        className="data-[state=unchecked]:bg-foreground/30"
         checked={voiceMode}
         onCheckedChange={() => {
           setVoiceMode(!voiceMode)

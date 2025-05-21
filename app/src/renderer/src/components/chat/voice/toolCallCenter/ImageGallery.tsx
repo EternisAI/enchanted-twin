@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { Dialog, DialogContent } from '../../../ui/dialog'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
@@ -21,6 +21,21 @@ export default function ImageGallery({ images, initialIndex = 0, onClose }: Imag
     setCurrentIndex((prev) => (prev - 1 + images.length) % images.length)
   }
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') {
+        nextImage()
+      } else if (e.key === 'ArrowLeft') {
+        previousImage()
+      } else if (e.key === 'Escape') {
+        onClose()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [images.length])
+
   return (
     <Dialog open>
       <DialogTitle></DialogTitle>
@@ -36,12 +51,14 @@ export default function ImageGallery({ images, initialIndex = 0, onClose }: Imag
         </button>
 
         <div className="relative w-full h-full flex items-center justify-center">
-          <button
-            onClick={previousImage}
-            className="absolute left-6 text-primary hover:text-gray-300 transition-colors z-50"
-          >
-            <ChevronLeft className="h-12 w-12" />
-          </button>
+          {images.length > 1 && (
+            <button
+              onClick={previousImage}
+              className="absolute left-6 text-primary hover:text-gray-300 transition-colors z-50"
+            >
+              <ChevronLeft className="h-12 w-12" />
+            </button>
+          )}
 
           <motion.img
             key={currentIndex}
@@ -54,12 +71,14 @@ export default function ImageGallery({ images, initialIndex = 0, onClose }: Imag
             transition={{ duration: 0.2 }}
           />
 
-          <button
-            onClick={nextImage}
-            className="absolute right-6 text-primary hover:text-gray-300 transition-colors z-50"
-          >
-            <ChevronRight className="h-12 w-12" />
-          </button>
+          {images.length > 1 && (
+            <button
+              onClick={nextImage}
+              className="absolute right-6 text-primary hover:text-gray-300 transition-colors z-50"
+            >
+              <ChevronRight className="h-12 w-12" />
+            </button>
+          )}
 
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 text-primary text-base z-50">
             {currentIndex + 1} / {images.length}
