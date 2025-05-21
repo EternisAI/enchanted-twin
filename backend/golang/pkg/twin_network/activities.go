@@ -109,7 +109,7 @@ Call your human by his name.
 The other participants are identified by their public keys.
 
 Here is the latest information about your human's personality and identity:
-The bio of your human is the most important information used to decide if you should respond to a message.
+The bio of your human is the most important information used to decide if you should respond to a proposal. If the proposal is not aligned with human you should ignore it. 
 %s`, messages[0].ThreadID, messages[0].AuthorPubKey, personality)
 
 	if userProfile.Name != nil {
