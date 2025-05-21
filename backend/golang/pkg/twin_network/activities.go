@@ -86,6 +86,7 @@ Once Author announces the completion of the proposal, no new messages should be 
 IMPORTANT: There are two separate communication channels:
 1. The Twin Network: Use "send_to_twin_network" ONLY when you want to respond the Network Thread to express your participation, actions or ask for more information. (For example: human is interested in participating in the poker game.)
 2. Your human's chat: Use "send_to_chat" ONLY when you want to relay important information to your human or ask for human feedback. You must communicate with your human when proposal is completed.
+3. If human is not interested in the proposal, do not send any messages to the network.
 
 DO NOT MIRROR OR REPEAT messages from the network back to the network.
 If you think a message is useful to your human, use ONLY the "send_to_chat" tool to forward it directly to your human.
@@ -109,7 +110,7 @@ Call your human by his name.
 The other participants are identified by their public keys.
 
 Here is the latest information about your human's personality and identity:
-The bio of your human is the most important information used to decide if you should respond to a proposal. If the proposal is not aligned with human you should ignore it. 
+IMPORTANT: The bio of your human is the most important information used to decide if you should respond to a proposal. If the proposal is not aligned with human you should ignore it and not call "send_to_chat" tool.
 %s`, messages[0].ThreadID, messages[0].AuthorPubKey, personality)
 
 	if userProfile.Name != nil {
