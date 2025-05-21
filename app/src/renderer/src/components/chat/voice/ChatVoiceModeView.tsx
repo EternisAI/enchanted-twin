@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'framer-motion'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import MessageInput from '../MessageInput'
@@ -8,12 +9,54 @@ import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Badge } from '../../ui/badge'
-import { CheckCircle, LoaderIcon } from 'lucide-react'
-import { cn } from '@renderer/lib/utils'
-import { formatToolName } from '../config'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
+import ToolCallCenter from './ToolCallCenter'
+
+// Mock tool calls for testing
+const mockToolCalls: ToolCall[] = [
+  {
+    id: '23',
+    name: 'search_tool',
+    isCompleted: false,
+    messageId: 'msg2',
+    result: {
+      content: 'Found 3 relevant results',
+      imageUrls: []
+    }
+  },
+  {
+    id: '1',
+    name: 'image_tool',
+    isCompleted: false,
+    messageId: 'msg1',
+    result: null
+  },
+  {
+    id: '2',
+    name: 'search_tool',
+    isCompleted: true,
+    messageId: 'msg2',
+    result: {
+      content: 'Found 3 relevant results',
+      imageUrls: []
+    }
+  },
+  {
+    id: '3',
+    name: 'image_tool',
+    isCompleted: true,
+    messageId: 'msg3',
+    result: {
+      content: 'Generated image based on your description',
+      imageUrls: [
+        'https://picsum.photos/600/600',
+        'https://picsum.photos/600/301',
+        'https://picsum.photos/600/600',
+        'https://picsum.photos/600/600'
+      ]
+    }
+  }
+]
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -30,7 +73,7 @@ export default function VoiceModeChatView({
 }: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, isLoading } = useTTS()
   const triggeredRef = useRef(false)
-  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([])
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>(mockToolCalls)
 
   const [lastUserMessage, setLastUserMessage] = useState<Message | null>(() => {
     if (!chat) return null
@@ -106,7 +149,7 @@ export default function VoiceModeChatView({
   }, [visualState])
 
   return (
-    <div className="flex flex-col h-full w-full items-center">
+    <div className="flex flex-col h-full w-full items-center relative">
       <motion.div
         className="relative flex-1 w-full"
         initial={{ opacity: 0 }}
@@ -118,47 +161,7 @@ export default function VoiceModeChatView({
           visualState={visualState}
           getFreqData={getFreqData}
         />
-        <AnimatePresence>
-          {activeToolCalls.length > 0 && (
-            <motion.div
-              className="absolute top-4 left-1/2 -translate-x-1/2 flex flex-col gap-4 items-center"
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -20 }}
-            >
-              {activeToolCalls.map((toolCall) => {
-                const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
-                return (
-                  <motion.div
-                    key={toolCall.id}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    className={cn(
-                      'flex items-center gap-3',
-                      toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
-                    )}
-                  >
-                    {toolCall.isCompleted ? (
-                      <Badge
-                        className="text-green-600 border-green-500 px-4 py-2 text-base"
-                        variant="outline"
-                      >
-                        <CheckCircle className="h-14 w-14 mr-2" />
-                        <span>{toolNameCompleted}</span>
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-gray-300 px-4 py-2 text-base">
-                        <LoaderIcon className="h-10 w-10 mr-2 animate-spin" />
-                        <span>{toolNameInProgress}...</span>
-                      </Badge>
-                    )}
-                  </motion.div>
-                )
-              })}
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <ToolCallCenter activeToolCalls={activeToolCalls} />
       </motion.div>
 
       <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
