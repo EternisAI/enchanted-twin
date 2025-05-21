@@ -6,12 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory" // Ensure ai package is imported
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/openai/openai-go"
 )
-
-// SpeakerFocusedFactExtractionPrompt is in prompts.go
-// extractFactsTool is defined in tools.go
 
 // extractFactsFromTextDocument extracts facts for a given speaker from a text document.
 func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sessionDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {

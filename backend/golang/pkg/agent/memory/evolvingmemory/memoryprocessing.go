@@ -12,9 +12,6 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 )
 
-// DefaultUpdateMemoryPrompt is in prompts.go
-// Tool definitions (addMemoryTool, updateMemoryTool, deleteMemoryTool, noneMemoryTool) are in tools.go
-
 // updateMemories decides and executes memory operations (ADD, UPDATE, DELETE, NONE) for a given fact.
 func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sessionDoc memory.TextDocument) (string, *models.Object, error) {
 	s.logger.Infof("Processing fact for speaker %s: \"%s...\"", speakerID, firstNChars(factContent, 70))

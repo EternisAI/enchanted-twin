@@ -1,14 +1,11 @@
 package evolvingmemory
 
 import (
-	"context" // Added for potential use by moved logic
+	"context"
 	"fmt"
 	"strings"
 
-	// Added for potential use by moved logic
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	// Added for potential use by moved logic
-	// Added for potential use by moved logic
 )
 
 // Store orchestrates the process of extracting facts from documents and updating memories.
