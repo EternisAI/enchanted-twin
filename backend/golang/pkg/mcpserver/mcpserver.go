@@ -219,6 +219,34 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 
 	// Process servers from the repository
 	for _, mcpServer := range mcpservers {
+		var tools []*model.Tool
+		for _, connectedServer := range s.connectedServers {
+			if connectedServer.ID != mcpServer.ID {
+				continue
+			}
+
+			cursor := ""
+			for {
+				resp, err := connectedServer.Client.ListTools(ctx, &cursor)
+				if err != nil {
+					log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
+					break
+				}
+
+				for _, t := range resp.Tools {
+					if t.Description == nil {
+						continue
+					}
+					tools = append(tools, &model.Tool{Name: t.Name, Description: *t.Description})
+				}
+
+				if resp.NextCursor == nil || *resp.NextCursor == "" {
+					break
+				}
+				cursor = *resp.NextCursor
+			}
+		}
+
 		mcpserversDefinitions = append(mcpserversDefinitions, &model.MCPServerDefinition{
 			ID:        mcpServer.ID,
 			Name:      mcpServer.Name,
@@ -228,6 +256,7 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 			Connected: slices.Contains(connectedServerIds, mcpServer.ID),
 			Enabled:   mcpServer.Enabled,
 			Type:      mcpServer.Type,
+			Tools:     tools,
 		})
 		existingTypes[string(mcpServer.Type)] = true // Mark type as existing
 	}
@@ -244,6 +273,7 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 				Connected: false, // Default servers added this way are not connected
 				Enabled:   false, // Default servers added this way are not enabled by default
 				Type:      defaultServer.Type,
+				Tools:     []*model.Tool{},
 			})
 		}
 	}
