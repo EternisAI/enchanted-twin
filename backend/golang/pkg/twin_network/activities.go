@@ -86,7 +86,6 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		DO NOT MIRROR OR REPEAT messages from the network back to the network.
 		If you think a message is useful to your human, use ONLY the "send_to_chat" tool to forward it directly to your human.
 		Only use "send_to_twin_network" when you have a NEW response to contribute to the conversation.
-		You shall also use send_to_twin_network to notify the other twins that you are waiting from a response from your human.
 
 		If you're missing some information necessary from the human to respond, use the send_to_chat tool to ask your human.
 

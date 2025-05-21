@@ -61,7 +61,7 @@ func (e *SendNetworkMessageTool) Definition() openai.ChatCompletionToolParam {
 				"properties": map[string]any{
 					"message": map[string]string{
 						"content":     "string",
-						"description": "The message to be sent to the twin network",
+						"description": "The message to be sent to the twin network on behalf of the human",
 					},
 					"thread_id": map[string]string{
 						"content":     "string",
