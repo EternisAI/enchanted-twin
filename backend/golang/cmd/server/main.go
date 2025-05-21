@@ -489,6 +489,7 @@ func bootstrapTemporalWorker(
 		AgentKey:         *input.agentKey,
 		IdentityService:  input.identityService,
 		TwinChatService:  input.TwinChatService,
+		UserStorage:      input.store,
 		Agent:            aiAgent,
 		ToolRegistry:     input.toolsRegistry,
 		TwinNetworkAPI:   input.TwinNetworkAPI.(*twinnetworkapi.TwinNetworkAPI),

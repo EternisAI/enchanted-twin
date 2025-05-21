@@ -61,6 +61,11 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		return "", nil
 	}
 
+	userProfile, err := a.userStorage.GetUserProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+
 	personality, err := a.identityService.GetPersonality(ctx)
 	if err != nil {
 		a.logger.Error("Failed to get identity context for batch processing",
@@ -108,6 +113,13 @@ Here is the latest information about your human's personality and identity:
 
 Below is the conversation corresponding to the thread ID above on the twin network proposal.
 %s`, messages[0].ThreadID, messages[0].AuthorPubKey, personality)
+
+	if userProfile.Name != nil {
+		systemPrompt += fmt.Sprintf("Your human's name is %s.\n", *userProfile.Name)
+	}
+	if userProfile.Bio != nil {
+		systemPrompt += fmt.Sprintf("Your human's bio is %s.\n", *userProfile.Bio)
+	}
 
 	agentPubKey := a.agentKey.PubKeyHex()
 

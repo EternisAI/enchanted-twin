@@ -7,6 +7,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/twin_network/api"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -22,6 +23,7 @@ type TwinNetworkWorkflow struct {
 	agentKey         AgentKey
 	identityService  *identity.IdentityService
 	twinChatService  *twinchat.Service
+	userStorage      *db.Store
 	agent            *agent.Agent
 	toolRegistry     tools.ToolRegistry
 	twinNetworkAPI   api.TwinNetworkAPI
@@ -34,6 +36,7 @@ type TwinNetworkWorkflowInput struct {
 	AgentKey         AgentKey
 	IdentityService  *identity.IdentityService
 	TwinChatService  *twinchat.Service
+	UserStorage      *db.Store
 	Agent            *agent.Agent
 	ToolRegistry     tools.ToolRegistry
 	TwinNetworkAPI   *api.TwinNetworkAPI
