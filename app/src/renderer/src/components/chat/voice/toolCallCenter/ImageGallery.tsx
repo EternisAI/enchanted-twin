@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Dialog, DialogContent } from '../../ui/dialog'
+import { Dialog, DialogContent } from '../../../ui/dialog'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { DialogTitle } from '@radix-ui/react-dialog'
 
 interface ImageGalleryProps {
   images: string[]
@@ -22,7 +23,11 @@ export default function ImageGallery({ images, initialIndex = 0, onClose }: Imag
 
   return (
     <Dialog open>
-      <DialogContent className="min-w-full w-full h-full p-0 border-none bg-background">
+      <DialogTitle></DialogTitle>
+      <DialogContent
+        className="min-w-full w-full h-full p-0 border-none bg-background"
+        aria-describedby={undefined}
+      >
         <button
           onClick={onClose}
           className="absolute top-6 right-6 text-primary hover:text-gray-300 transition-colors z-50"

@@ -10,53 +10,7 @@ import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
-import ToolCallCenter from './ToolCallCenter'
-
-// Mock tool calls for testing
-const mockToolCalls: ToolCall[] = [
-  {
-    id: '23',
-    name: 'search_tool',
-    isCompleted: false,
-    messageId: 'msg2',
-    result: {
-      content: 'Found 3 relevant results',
-      imageUrls: []
-    }
-  },
-  {
-    id: '1',
-    name: 'image_tool',
-    isCompleted: false,
-    messageId: 'msg1',
-    result: null
-  },
-  {
-    id: '2',
-    name: 'search_tool',
-    isCompleted: true,
-    messageId: 'msg2',
-    result: {
-      content: 'Found 3 relevant results',
-      imageUrls: []
-    }
-  },
-  {
-    id: '3',
-    name: 'image_tool',
-    isCompleted: true,
-    messageId: 'msg3',
-    result: {
-      content: 'Generated image based on your description',
-      imageUrls: [
-        'https://picsum.photos/600/600',
-        'https://picsum.photos/600/301',
-        'https://picsum.photos/600/600',
-        'https://picsum.photos/600/600'
-      ]
-    }
-  }
-]
+import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -73,7 +27,7 @@ export default function VoiceModeChatView({
 }: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, isLoading } = useTTS()
   const triggeredRef = useRef(false)
-  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>(mockToolCalls)
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([])
 
   const [lastUserMessage, setLastUserMessage] = useState<Message | null>(() => {
     if (!chat) return null

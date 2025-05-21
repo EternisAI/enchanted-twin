@@ -3,7 +3,6 @@ import { ToolCall } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
 import ImageGallery from './ImageGallery'
-import ToolCallNotificationItem from './ToolCallNotificationItem'
 
 interface ToolCallResultProps {
   toolCalls: ToolCall[]
@@ -23,7 +22,7 @@ export default function ToolCallResult({ toolCalls }: ToolCallResultProps) {
         const imageUrls = toolCall.result?.imageUrls ?? []
         const IMAGE_WIDTH = 140
         const IMAGE_HEIGHT = 170
-        const SHIFT_PERCENT = 0.33
+        const SHIFT_PERCENT = 0.38
         const SHIFT_AMOUNT = IMAGE_WIDTH * SHIFT_PERCENT
 
         return (
@@ -37,35 +36,42 @@ export default function ToolCallResult({ toolCalls }: ToolCallResultProps) {
               <>
                 {imageUrls.length <= 2 ? (
                   <div className="flex flex-col gap-2">
-                    {imageUrls.map((url, index) => (
-                      <motion.img
-                        key={url}
-                        src={url}
-                        alt={`Tool result ${index + 1}`}
-                        className="rounded-lg object-cover cursor-pointer transition-transform hover:scale-105 w-full h-[170px]"
-                        initial={{ opacity: 0, scale: 0.8 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        transition={{ delay: index * 0.1 }}
-                        onClick={() =>
-                          setSelectedImages({
-                            images: imageUrls,
-                            index
-                          })
-                        }
-                      />
-                    ))}
+                    {imageUrls.map((url, index) => {
+                      return (
+                        <motion.img
+                          key={url}
+                          src={url}
+                          alt={`Tool result ${index + 1}`}
+                          className="rounded-lg object-cover cursor-pointer transition-transform hover:scale-105 w-full h-[170px]"
+                          initial={{ opacity: 0, scale: 0.8 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.1 }}
+                          onClick={() =>
+                            setSelectedImages({
+                              images: imageUrls,
+                              index
+                            })
+                          }
+                        />
+                      )
+                    })}
                   </div>
                 ) : (
                   <div
-                    className="relative"
+                    className="relative min-h-[190px]"
                     style={{
                       width: `${IMAGE_WIDTH + SHIFT_AMOUNT * 2}px`, // accommodate shift
                       height: `${IMAGE_HEIGHT}px`
                     }}
                   >
                     {imageUrls.slice(0, 3).map((url, index) => {
-                      const rotate = [-5, 0, 5][index]
                       const translateX = index * SHIFT_AMOUNT
+                      let rotation = 0
+                      if (index !== 1) {
+                        // Skip rotation for center item (index 1)
+                        rotation = index % 2 === 0 ? -15 : 20
+                      }
+
                       return (
                         <motion.img
                           key={index}
@@ -78,11 +84,10 @@ export default function ToolCallResult({ toolCalls }: ToolCallResultProps) {
                             left: `${translateX}px`,
                             width: `${IMAGE_WIDTH}px`,
                             height: `${IMAGE_HEIGHT}px`,
-                            transform: `rotate(${rotate}deg)`,
                             zIndex: index
                           }}
                           initial={{ opacity: 0, scale: 0.8 }}
-                          animate={{ opacity: 1, scale: 1 }}
+                          animate={{ opacity: 1, scale: 1, rotate: rotation }}
                           transition={{ delay: index * 0.1 }}
                           onClick={() =>
                             setSelectedImages({
@@ -98,7 +103,7 @@ export default function ToolCallResult({ toolCalls }: ToolCallResultProps) {
               </>
             )}
 
-            {toolCall.result?.content && (
+            {/* {toolCall.result?.content && (
               <motion.p
                 className={cn('text-sm text-muted-foreground', imageUrls.length > 0 ? 'mt-2' : '')}
                 initial={{ opacity: 0 }}
@@ -106,17 +111,7 @@ export default function ToolCallResult({ toolCalls }: ToolCallResultProps) {
               >
                 {toolCall.result.content}
               </motion.p>
-            )}
-
-            <ToolCallNotificationItem
-              notification={{
-                id: toolCall.id,
-                createdAt: new Date(),
-                title: 'Image Generation Complete',
-                message: 'Your image has been successfully generated',
-                image: imageUrls[0]
-              }}
-            />
+            )} */}
           </motion.div>
         )
       })}

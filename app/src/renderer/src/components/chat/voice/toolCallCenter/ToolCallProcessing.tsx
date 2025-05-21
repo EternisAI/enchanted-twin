@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion'
 import { ToolCall } from '@renderer/graphql/generated/graphql'
-import { Badge } from '../../ui/badge'
+import { Badge } from '../../../ui/badge'
 import { CheckCircle, LoaderIcon } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
-import { formatToolName } from '../config'
+import { formatToolName } from '../../config'
 
 interface ToolCallProcessingProps {
   toolCalls: ToolCall[]
@@ -27,16 +27,16 @@ export default function ToolCallProcessing({ toolCalls }: ToolCallProcessingProp
             <Badge
               variant="outline"
               className={cn(
-                'flex items-center gap-1.5 w-full rounded-full border text-sm'
+                'flex items-center gap-1.5 w-full rounded-full border text-sm px-1'
                 // isCompleted ? '' : ''
               )}
             >
               {isCompleted ? (
                 <CheckCircle className="mr-1 text-green-600" />
               ) : (
-                <LoaderIcon className="h-3 w-3 mr-1 animate-spin" />
+                <LoaderIcon className="mr-1 animate-spin" />
               )}
-              <span>{isCompleted ? toolNameCompleted : `${toolNameInProgress}...`}</span>
+              <span>{isCompleted ? toolNameCompleted : `${toolNameInProgress}`}</span>
             </Badge>
           </motion.div>
         )
