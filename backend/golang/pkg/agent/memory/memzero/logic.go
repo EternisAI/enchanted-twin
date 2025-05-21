@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"weaviate-go-server/pkg/ai"
@@ -26,6 +27,13 @@ const (
 	metadataProperty  = "metadataJson"
 	openAIEmbedModel  = "text-embedding-3-small"
 	openAIChatModel   = "gpt-4o-mini"
+
+	// Tool Names (matching function names in tools.go)
+	AddMemoryToolName    = "ADD"
+	UpdateMemoryToolName = "UPDATE"
+	DeleteMemoryToolName = "DELETE"
+	NoneMemoryToolName   = "NONE"
+	ExtractFactsToolName = "EXTRACT_FACTS"
 )
 
 // --- Structs for Tool Call Arguments ---
@@ -49,6 +57,11 @@ type DeleteToolArguments struct {
 // NoneToolArguments matches the parameters defined in noneMemoryTool in tools.go
 type NoneToolArguments struct {
 	Reason string `json:"reason"`
+}
+
+// ExtractFactsToolArguments matches the parameters defined in extractFactsTool in tools.go
+type ExtractFactsToolArguments struct {
+	Facts []string `json:"facts"`
 }
 
 // WeaviateStorage implements the memory.Storage interface using Weaviate.
@@ -107,14 +120,28 @@ func (s *WeaviateStorage) ensureSchemaExistsInternal(ctx context.Context) error 
 	}
 
 	s.logger.Infof("Class '%s' does not exist, creating it now.", className)
-	classObj := &models.Class{
-		Class: className,
-		Properties: []*models.Property{
-			{Name: contentProperty, DataType: []string{"text"}},
-			{Name: timestampProperty, DataType: []string{"date"}},
-			{Name: tagsProperty, DataType: []string{"text[]"}},
-			{Name: metadataProperty, DataType: []string{"text"}},
+	properties := []*models.Property{
+		{
+			Name:     contentProperty,
+			DataType: []string{"text"},
 		},
+		{
+			Name:     timestampProperty, // Added for storing the event timestamp of the memory
+			DataType: []string{"date"},
+		},
+		{
+			Name:     tagsProperty,       // For categorization or keyword tagging
+			DataType: []string{"text[]"}, // Array of strings
+		},
+		{
+			Name:     metadataProperty, // For any other structured metadata
+			DataType: []string{"text"}, // Storing as JSON string
+		},
+	}
+
+	classObj := &models.Class{
+		Class:      className,
+		Properties: properties,
 		Vectorizer: "none",
 	}
 
@@ -143,171 +170,310 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 		return fmt.Errorf("pre-store schema check failed: %w", err)
 	}
 
-	batcher := s.client.Batch().ObjectsBatcher() // Create batcher once at the function level
-	var objectsAddedToBatch int                  // Counter for objects added to the main batcher
+	batcher := s.client.Batch().ObjectsBatcher()
+	var objectsAddedToBatch int
 
 	totalDocs := len(documents)
 	if totalDocs == 0 {
-		s.logger.Debug("No documents provided to store.")
 		return nil
 	}
 
-	// Define the tools for the LLM call
-	tools := []openai.ChatCompletionToolParam{
+	factExtractionTools := []openai.ChatCompletionToolParam{
+		extractFactsTool,
+	}
+	memoryDecisionTools := []openai.ChatCompletionToolParam{
 		addMemoryTool,
 		updateMemoryTool,
 		deleteMemoryTool,
 		noneMemoryTool,
 	}
-	_ = tools // Keep tools variable used for now, will be used in LLM call later
 
-	for i, doc := range documents {
-		s.logger.Info("Processing document for intelligent storage", "index", i+1, "total", totalDocs, "docID_if_any", doc.ID, "content_snippet", firstNChars(doc.Content, 50))
+	currentSystemDate := getCurrentDateForPrompt()
 
-		// 1. Embed the "New Fact" (current document content)
-		newFactEmbedding64, err := s.aiService.Embedding(ctx, doc.Content, openAIEmbedModel)
-		if err != nil {
-			s.logger.Error("Error generating embedding for new fact, skipping document.", "docID", doc.ID, "index", i, "error", err)
-			if progressChan != nil {
-				progressChan <- memory.ProgressUpdate{Processed: 1, Total: totalDocs} // Mark as processed (though skipped)
+	for i, sessionDoc := range documents { // Each 'sessionDoc' is an aggregated session
+		s.logger.Infof("Processing session document %d of %d. Session Doc ID (if any): '%s'", i+1, totalDocs, sessionDoc.ID)
+
+		var speakerIterationCandidates []string
+		if speakerA, ok := sessionDoc.Metadata["dataset_speaker_a"]; ok && speakerA != "" {
+			speakerIterationCandidates = append(speakerIterationCandidates, speakerA)
+		}
+		if speakerB, ok := sessionDoc.Metadata["dataset_speaker_b"]; ok && speakerB != "" {
+			addSpeakerB := true
+			if len(speakerIterationCandidates) == 1 && speakerIterationCandidates[0] == speakerB {
+				addSpeakerB = false
 			}
-			continue
-		}
-		newFactEmbedding32 := make([]float32, len(newFactEmbedding64))
-		for j, val := range newFactEmbedding64 {
-			newFactEmbedding32[j] = float32(val)
-		}
-
-		// 2. Retrieve Relevant Existing Memories for Context
-		// We pass newFactEmbedding32 here
-		retrievedDocsRaw, existingDocsJSONForLLM, tempIDToActualIDMap, err := s.searchExistingDocumentsByVector(ctx, newFactEmbedding32, 5) // Limit 5
-		if err != nil {
-			s.logger.Error("Error searching existing documents by vector, skipping document.", "docID", doc.ID, "index", i, "error", err)
-			if progressChan != nil {
-				progressChan <- memory.ProgressUpdate{Processed: 1, Total: totalDocs}
+			if addSpeakerB {
+				speakerIterationCandidates = append(speakerIterationCandidates, speakerB)
 			}
-			continue
-		}
-		s.logger.Debug("Retrieved existing documents for context", "count", len(retrievedDocsRaw), "jsonForLLM_snippet", firstNChars(existingDocsJSONForLLM, 100))
-		_ = tempIDToActualIDMap // Will be used when processing LLM response
-
-		// 3. LLM-Powered Decision Making (using Tool Calling)
-		// Construct the "new facts" JSON list (currently, just the single document content)
-		newFactContent := doc.Content
-		escapedNewFactContent, err := json.Marshal(newFactContent)
-		if err != nil {
-			s.logger.Error("Error marshalling new fact content to JSON string, skipping document.", "docID", doc.ID, "index", i, "error", err)
-			if progressChan != nil {
-				progressChan <- memory.ProgressUpdate{Processed: 1, Total: totalDocs}
-			}
-			continue
-		}
-		newFactsJSONList := fmt.Sprintf("[%s]", string(escapedNewFactContent))
-
-		// Construct the full system prompt
-		systemPromptStr := DefaultUpdateMemoryPrompt +
-			"\n\nBelow is the current content of my memory which I have collected till now. Please review it carefully.\n\nExisting Memories:\n" +
-			"```json\n" + existingDocsJSONForLLM + "\n```" +
-			"\n\nThe new retrieved facts are mentioned below. You have to analyze these new facts in the context of the existing memories and decide whether each new fact should be added, or if an existing memory should be updated or deleted.\n\nNew Facts:\n" +
-			"```json\n" + newFactsJSONList + "\n```" +
-			"\n\nUse the available tools to perform the appropriate memory operation (ADD, UPDATE, DELETE, or NONE) for each new fact or necessary memory adjustment. " +
-			"When calling UPDATE or DELETE, you MUST provide the 'id' of the relevant memory from the 'Existing Memories' list as the 'memory_id' argument in your tool call. " +
-			"If adding a new fact, the system will assign a new ID. Always provide a concise reason for your chosen action."
-
-		s.logger.Debug("Constructed system prompt for LLM", "length", len(systemPromptStr), "prompt_snippet", firstNChars(systemPromptStr, 250))
-
-		// Prepare messages for the LLM
-		messages := []openai.ChatCompletionMessageParamUnion{
-			{ // System Message
-				OfSystem: &openai.ChatCompletionSystemMessageParam{
-					Content: openai.ChatCompletionSystemMessageParamContentUnion{
-						OfString: openai.String(systemPromptStr),
-					},
-				},
-			},
-			{ // User Message
-				OfUser: &openai.ChatCompletionUserMessageParam{
-					Content: openai.ChatCompletionUserMessageParamContentUnion{
-						OfString: openai.String("Based on the new information and existing memories, decide on the necessary memory operations using the provided tools."),
-					},
-				},
-			},
 		}
 
-		// Call s.aiService.Completions with the prompt and tools
-		llmResponse, err := s.aiService.Completions(ctx, messages, tools, openAIChatModel)
-		if err != nil {
-			s.logger.Error("Error calling OpenAI Completions for memory decision, skipping document.", "docID", doc.ID, "index", i, "error", err)
-			if progressChan != nil {
-				progressChan <- memory.ProgressUpdate{Processed: 1, Total: totalDocs}
-			}
-			continue
-		}
-
-		s.logger.Info("LLM response received", "docID", doc.ID, "content_llm", llmResponse.Content, "toolCalls_count", len(llmResponse.ToolCalls))
-
-		// 4. Execute LLM-Instructed Actions
-		if len(llmResponse.ToolCalls) == 0 {
-			s.logger.Warn("LLM did not request any tool calls. Defaulting to ADD for current document.", "docID", doc.ID)
-			// Fallback: If LLM provides no tool, add the new document as a default.
-			data := map[string]interface{}{
-				contentProperty:   doc.Content,
-				timestampProperty: time.Now().Format(time.RFC3339),
-				// Potentially add tags or metadata if available in doc
-				// Add doc.Source, doc.SourceType etc. if they should be part of properties directly
-				// if len(doc.Tags) > 0 { data[tagsProperty] = doc.Tags }
-				// if len(doc.Metadata) > 0 { metaBytes, _ := json.Marshal(doc.Metadata); data[metadataProperty] = string(metaBytes) }
-			}
-			// Force Weaviate to generate the ID for new documents by passing empty string for ID.
-			batcher.WithObjects(&models.Object{
-				Class:      className,
-				ID:         "", // Let Weaviate generate the UUID
-				Properties: data,
-				Vector:     newFactEmbedding32,
-			})
-			objectsAddedToBatch++
+		if len(speakerIterationCandidates) > 0 {
+			s.logger.Debugf("Identified speaker iteration candidates: %v", speakerIterationCandidates)
 		} else {
-			for _, toolCall := range llmResponse.ToolCalls {
-				s.logger.Info("Processing tool call", "toolName", toolCall.Function.Name, "toolID", toolCall.ID)
-				switch toolCall.Function.Name {
-				case "ADD": // Use literal string name
-					s.logger.Info("LLM requested ADD action.", "original_docID_if_any", doc.ID)
-					data := map[string]interface{}{
-						contentProperty:   doc.Content,
-						timestampProperty: time.Now().Format(time.RFC3339),
-						// TODO: Add Source, SourceType, Tags from original doc if desired into properties
-						// If doc.Tags or doc.Metadata are available, consider adding them here:
-						// if len(doc.Tags) > 0 { data[tagsProperty] = doc.Tags }
-						// if len(doc.Metadata) > 0 { metaBytes, _ := json.Marshal(doc.Metadata); data[metadataProperty] = string(metaBytes) }
+			s.logger.Warn("Could not identify speakers from 'dataset_speaker_a' or 'dataset_speaker_b' in sessionDoc.Metadata. Fact extraction might be limited or speaker-agnostic.")
+		}
+
+		if len(speakerIterationCandidates) == 0 {
+			s.logger.Warn("No speaker candidates identified for session doc ID '%s'. Skipping speaker-focused fact extraction for this document.", sessionDoc.ID)
+			if progressChan != nil {
+				progressChan <- memory.ProgressUpdate{
+					Processed: i + 1,
+					Total:     totalDocs,
+				}
+			}
+			continue
+		}
+
+		factsProcessedForSession := 0
+
+		for _, speakerID := range speakerIterationCandidates {
+			currentSpeakerIDForLog := speakerID
+			s.logger.Infof("== Starting Fact Extraction for Speaker: %s == (Session Doc %d of %d)", currentSpeakerIDForLog, i+1, totalDocs)
+
+			speakerFactExtractionSystemPrompt := strings.ReplaceAll(SpeakerFocusedFactExtractionPrompt, "{primary_speaker_name}", speakerID)
+			speakerFactExtractionSystemPrompt = strings.ReplaceAll(speakerFactExtractionSystemPrompt, "{current_system_date}", currentSystemDate)
+			docEventDateStr := "Unknown"
+			if sessionDoc.Timestamp != nil && !sessionDoc.Timestamp.IsZero() {
+				docEventDateStr = sessionDoc.Timestamp.Format("2006-01-02")
+			}
+			speakerFactExtractionSystemPrompt = strings.ReplaceAll(speakerFactExtractionSystemPrompt, "{document_event_date}", docEventDateStr)
+
+			llmMsgs := []openai.ChatCompletionMessageParamUnion{
+				{
+					OfSystem: &openai.ChatCompletionSystemMessageParam{
+						Content: openai.ChatCompletionSystemMessageParamContentUnion{
+							OfString: openai.String(speakerFactExtractionSystemPrompt),
+						},
+					},
+				},
+			}
+
+			conversationLines := strings.Split(strings.TrimSpace(sessionDoc.Content), "\\n")
+
+			parsedTurnsCount := 0
+			for _, line := range conversationLines {
+				trimmedLine := strings.TrimSpace(line)
+				if trimmedLine == "" {
+					continue
+				}
+				parts := strings.SplitN(trimmedLine, ":", 2)
+				if len(parts) < 2 {
+					s.logger.Warnf("Skipping malformed line (no speaker colon): '%s'", trimmedLine)
+					continue
+				}
+				turnSpeaker := strings.TrimSpace(parts[0])
+				turnText := strings.TrimSpace(parts[1])
+
+				if turnText == "" {
+					continue
+				}
+
+				parsedTurnsCount++
+				fullTurnContent := fmt.Sprintf("%s: %s", turnSpeaker, turnText)
+
+				if turnSpeaker == speakerID {
+					llmMsgs = append(llmMsgs, openai.ChatCompletionMessageParamUnion{
+						OfUser: &openai.ChatCompletionUserMessageParam{
+							Content: openai.ChatCompletionUserMessageParamContentUnion{
+								OfString: openai.String(fullTurnContent),
+							},
+						},
+					})
+				} else {
+					llmMsgs = append(llmMsgs, openai.ChatCompletionMessageParamUnion{
+						OfAssistant: &openai.ChatCompletionAssistantMessageParam{
+							Content: openai.ChatCompletionAssistantMessageParamContentUnion{
+								OfString: openai.String(fullTurnContent),
+							},
+						},
+					})
+				}
+			}
+			if parsedTurnsCount == 0 && len(conversationLines) > 0 {
+				s.logger.Warnf("No valid turns were parsed from %d conversation lines for speaker %s. LLM might not have sufficient context.", len(conversationLines), currentSpeakerIDForLog)
+			}
+			if len(llmMsgs) <= 1 {
+				s.logger.Warnf("llmMsgs only contains system prompt for speaker %s. No conversational turns added. Skipping LLM call for fact extraction.", currentSpeakerIDForLog)
+				continue
+			}
+
+			s.logger.Debugf("Calling LLM for Speaker-Focused Fact Extraction (%s). Model: %s, Tools: %d tools", currentSpeakerIDForLog, openAIChatModel, len(factExtractionTools))
+
+			llmResponse, err := s.aiService.Completions(ctx, llmMsgs, factExtractionTools, openAIChatModel)
+
+			if err != nil {
+				s.logger.Errorf("LLM completion error during fact extraction for speaker %s: %v", currentSpeakerIDForLog, err)
+				continue
+			}
+
+			var extractedFacts []string
+			if len(llmResponse.ToolCalls) > 0 {
+				for _, toolCall := range llmResponse.ToolCalls {
+					if toolCall.Function.Name == ExtractFactsToolName {
+						var args ExtractFactsToolArguments
+						if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
+							extractedFacts = append(extractedFacts, args.Facts...)
+							s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s.", len(args.Facts), currentSpeakerIDForLog)
+						} else {
+							s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s: %v. Arguments: %s", currentSpeakerIDForLog, err, toolCall.Function.Arguments)
+						}
+					} else {
+						s.logger.Warnf("LLM called an unexpected tool '%s' during fact extraction for speaker %s.", toolCall.Function.Name, currentSpeakerIDForLog)
 					}
-					// Force Weaviate to generate the ID for new documents by passing empty string for ID.
-					batcher.WithObjects(&models.Object{
+				}
+			} else {
+				s.logger.Info("LLM response for fact extraction for speaker %s did not contain tool calls. No facts extracted by tool.", currentSpeakerIDForLog)
+			}
+
+			if len(extractedFacts) == 0 {
+				s.logger.Infof("No facts extracted by LLM for speaker %s. Skipping memory operations for this speaker for this session doc.", currentSpeakerIDForLog)
+				if progressChan != nil {
+					s.logger.Debugf("Progress update: No specific facts to process for speaker %s in session %d", speakerID, i+1)
+				}
+				continue
+			}
+
+			s.logger.Infof("Total facts to process for speaker '%s': %d", currentSpeakerIDForLog, len(extractedFacts))
+
+			for factIdx, factContent := range extractedFacts {
+				factsProcessedForSession++
+				if strings.TrimSpace(factContent) == "" {
+					s.logger.Debug("Skipping empty fact text.", "speaker", currentSpeakerIDForLog)
+					continue
+				}
+				s.logger.Infof("Processing fact %d for speaker %s: \"%s...\"", factIdx+1, currentSpeakerIDForLog, firstNChars(factContent, 70))
+
+				queryOptions := map[string]interface{}{"speakerID": currentSpeakerIDForLog}
+				existingMemoriesResult, err := s.Query(ctx, factContent, queryOptions)
+				if err != nil {
+					s.logger.Errorf("Error querying existing memories for fact processing for speaker %s: %v. Fact: \"%s...\"", currentSpeakerIDForLog, err, firstNChars(factContent, 50))
+					continue
+				}
+
+				existingMemoriesContentForPrompt := []string{}
+				existingMemoriesForPromptStr := "No existing relevant memories found."
+				if existingMemoriesResult != nil && len(existingMemoriesResult.Documents) > 0 {
+					s.logger.Debugf("Retrieved %d existing memories for decision prompt for speaker %s.", len(existingMemoriesResult.Documents), currentSpeakerIDForLog)
+					for _, memDoc := range existingMemoriesResult.Documents {
+						memContext := fmt.Sprintf("ID: %s, Content: %s", memDoc.ID, memDoc.Content)
+						existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
+					}
+					existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
+				} else {
+					s.logger.Debug("No existing relevant memories found for this fact for speaker %s.", currentSpeakerIDForLog)
+				}
+
+				var decisionPromptBuilder strings.Builder
+				decisionPromptBuilder.WriteString(DefaultUpdateMemoryPrompt)
+				decisionPromptBuilder.WriteString("\n\n")
+
+				var contextSb strings.Builder
+				contextSb.WriteString(fmt.Sprintf("Current System Date: %s\n", currentSystemDate))
+				contextSb.WriteString(fmt.Sprintf("Document Event Date (when the new information occurred): %s\n", docEventDateStr))
+				contextSb.WriteString(fmt.Sprintf("Primary Speaker for this fact: %s\n\n", currentSpeakerIDForLog))
+				contextSb.WriteString(fmt.Sprintf("Existing Memories for %s (if any, related to the new fact):\n%s\n\n", currentSpeakerIDForLog, existingMemoriesForPromptStr))
+				contextSb.WriteString(fmt.Sprintf("New Fact to consider for %s:\n%s\n\n", currentSpeakerIDForLog, factContent))
+				contextSb.WriteString("Based on the guidelines, what action should be taken for the NEW FACT?")
+				dynamicContextPart := contextSb.String()
+
+				decisionPromptBuilder.WriteString(dynamicContextPart)
+				fullDecisionPrompt := decisionPromptBuilder.String()
+
+				decisionMessages := []openai.ChatCompletionMessageParamUnion{
+					{
+						OfSystem: &openai.ChatCompletionSystemMessageParam{
+							Content: openai.ChatCompletionSystemMessageParamContentUnion{OfString: openai.String(fullDecisionPrompt)},
+						},
+					},
+				}
+
+				s.logger.Info("Calling LLM for Memory Update Decision.", "speaker", currentSpeakerIDForLog, "fact_snippet", firstNChars(factContent, 30))
+				llmDecisionResponse, err := s.aiService.Completions(ctx, decisionMessages, memoryDecisionTools, openAIChatModel)
+				if err != nil {
+					s.logger.Errorf("Error calling OpenAI for memory update decision for speaker %s: %v. Fact: \"%s...\"", currentSpeakerIDForLog, err, firstNChars(factContent, 50))
+					continue
+				}
+
+				chosenToolName := ""
+				var toolArgsJSON string
+
+				if len(llmDecisionResponse.ToolCalls) > 0 {
+					chosenToolName = llmDecisionResponse.ToolCalls[0].Function.Name
+					toolArgsJSON = llmDecisionResponse.ToolCalls[0].Function.Arguments
+					s.logger.Infof("LLM chose memory action: '%s' for speaker %s. Fact: \"%s...\"", chosenToolName, currentSpeakerIDForLog, firstNChars(factContent, 30))
+				} else {
+					s.logger.Warn("LLM made no tool call for memory decision. Defaulting to ADD for safety.", "speaker", currentSpeakerIDForLog, "fact_snippet", firstNChars(factContent, 30))
+				}
+
+				switch chosenToolName {
+				case AddMemoryToolName:
+					s.logger.Info("ACTION: ADD Memory", "speaker", currentSpeakerIDForLog)
+					newFactEmbedding64, embedErr := s.aiService.Embedding(ctx, factContent, openAIEmbedModel)
+					if embedErr != nil {
+						s.logger.Errorf("Error generating embedding for new fact (ADD), skipping for speaker %s: %v. Fact: \"%s...\"", currentSpeakerIDForLog, embedErr, firstNChars(factContent, 50))
+						continue
+					}
+					newFactEmbedding32 := make([]float32, len(newFactEmbedding64))
+					for j, val := range newFactEmbedding64 {
+						newFactEmbedding32[j] = float32(val)
+					}
+
+					factMetadata := make(map[string]string)
+					for k, v := range sessionDoc.Metadata {
+						if k != "dataset_speaker_a" && k != "dataset_speaker_b" {
+							factMetadata[k] = v
+						}
+					}
+					factMetadata["speakerID"] = currentSpeakerIDForLog
+
+					metadataBytes, jsonErr := json.Marshal(factMetadata)
+					if jsonErr != nil {
+						s.logger.Errorf("Error marshalling metadata for ADD for speaker %s: %v. Storing with empty metadata.", currentSpeakerIDForLog, jsonErr)
+						metadataBytes = []byte("{}")
+					}
+
+					data := map[string]interface{}{
+						contentProperty:  factContent,
+						metadataProperty: string(metadataBytes),
+					}
+					if sessionDoc.Timestamp != nil {
+						data[timestampProperty] = sessionDoc.Timestamp.Format(time.RFC3339)
+					}
+
+					addObject := &models.Object{
 						Class:      className,
-						ID:         "", // Let Weaviate generate the UUID
 						Properties: data,
 						Vector:     newFactEmbedding32,
-					})
+					}
+					batcher.WithObjects(addObject)
 					objectsAddedToBatch++
-					s.logger.Info("ADD action prepared for batching. Weaviate will generate ID.", "original_docID_if_any", doc.ID)
+					s.logger.Infof("Fact ADDED to batch for speaker %s. Fact: \"%s...\"", currentSpeakerIDForLog, firstNChars(factContent, 50))
 
-				case "UPDATE": // Use literal string name
-					var args UpdateToolArguments
-					s.logger.Debug("Raw arguments for UPDATE tool call", "raw_args", toolCall.Function.Arguments) // Log the raw arguments
-					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-						s.logger.Error("Error unmarshalling UPDATE arguments, skipping tool call.", "args_string", toolCall.Function.Arguments, "error", err)
+				case UpdateMemoryToolName:
+					s.logger.Info("ACTION: UPDATE Memory", "speaker", currentSpeakerIDForLog)
+					var updateArgs UpdateToolArguments
+					if err = json.Unmarshal([]byte(toolArgsJSON), &updateArgs); err != nil {
+						s.logger.Errorf("Error unmarshalling UPDATE arguments for speaker %s: %v. Args: %s", currentSpeakerIDForLog, err, toolArgsJSON)
 						continue
 					}
-					s.logger.Info("LLM requested UPDATE action.", "parsed_tempMemoryID", args.MemoryID, "parsed_reason", args.Reason, "parsed_updatedMemory_snippet", firstNChars(args.UpdatedMemory, 50))
+					s.logger.Debugf("Parsed UPDATE arguments: ID=%s, UpdatedMemory (snippet)='%s', Reason='%s'", updateArgs.MemoryID, firstNChars(updateArgs.UpdatedMemory, 100), updateArgs.Reason)
 
-					actualID, ok := tempIDToActualIDMap[args.MemoryID]
-					if !ok {
-						s.logger.Error("Failed to find actual Weaviate ID for temporary ID from LLM.", "tempMemoryID", args.MemoryID)
+					originalDoc, getErr := s.GetByID(ctx, updateArgs.MemoryID)
+					if getErr != nil || originalDoc == nil {
+						s.logger.Errorf("Failed to get original document for UPDATE (ID: %s) for speaker %s: %v. Skipping update.", updateArgs.MemoryID, currentSpeakerIDForLog, getErr)
 						continue
 					}
 
-					updatedEmbedding64, err := s.aiService.Embedding(ctx, args.UpdatedMemory, openAIEmbedModel)
-					if err != nil {
-						s.logger.Error("Error generating embedding for updated content, skipping update.", "actualID", actualID, "error", err)
+					if originalDoc.Metadata["speakerID"] != "" && originalDoc.Metadata["speakerID"] != currentSpeakerIDForLog {
+						s.logger.Warn("LLM attempted to UPDATE a memory of a different/unspecified speaker. Skipping update.",
+							"target_id", updateArgs.MemoryID, "target_speaker_in_meta", originalDoc.Metadata["speakerID"],
+							"current_processing_speaker", currentSpeakerIDForLog)
+						continue
+					}
+
+					updatedEmbedding64, embedErr := s.aiService.Embedding(ctx, updateArgs.UpdatedMemory, openAIEmbedModel)
+					if embedErr != nil {
+						s.logger.Errorf("Error generating embedding for updated memory (UPDATE) for speaker %s, skipping: %v", currentSpeakerIDForLog, embedErr, "memory_id", updateArgs.MemoryID)
 						continue
 					}
 					updatedEmbedding32 := make([]float32, len(updatedEmbedding64))
@@ -315,106 +481,147 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 						updatedEmbedding32[j] = float32(val)
 					}
 
-					originalDocToUpdate, err := s.GetByID(ctx, actualID)
-					if err != nil {
-						s.logger.Error("Failed to retrieve original document for update, skipping update.", "actualID", actualID, "error", err)
-						continue
+					updatedFactMetadata := make(map[string]string)
+					for k, v := range originalDoc.Metadata {
+						updatedFactMetadata[k] = v
 					}
-					if originalDocToUpdate == nil {
-						s.logger.Error("Original document for update not found (nil), skipping update.", "actualID", actualID)
-						continue
+					updatedFactMetadata["speakerID"] = currentSpeakerIDForLog
+
+					docToUpdate := memory.TextDocument{
+						ID:        updateArgs.MemoryID,
+						Content:   updateArgs.UpdatedMemory,
+						Timestamp: sessionDoc.Timestamp,
+						Metadata:  updatedFactMetadata,
 					}
 
-					currentTime := time.Now()
-					updatedDoc := memory.TextDocument{
-						ID:      actualID,
-						Content: args.UpdatedMemory,
-						// Source and SourceType will be preserved if they are within Metadata
-						Timestamp: &currentTime,
-						Metadata:  originalDocToUpdate.Metadata, // Preserve original metadata map
-						Tags:      originalDocToUpdate.Tags,     // Preserve original tags
-					}
-
-					if err := s.Update(ctx, actualID, updatedDoc, updatedEmbedding32); err != nil {
-						s.logger.Error("Failed to update document in Weaviate.", "actualID", actualID, "error", err)
+					if err = s.Update(ctx, updateArgs.MemoryID, docToUpdate, updatedEmbedding32); err != nil {
+						s.logger.Errorf("Error performing UPDATE operation for speaker %s: %v", currentSpeakerIDForLog, err, "memory_id", updateArgs.MemoryID)
 					} else {
-						s.logger.Info("UPDATE action successfully performed.", "actualID", actualID, "updatedContentSnippet", firstNChars(args.UpdatedMemory, 50))
+						s.logger.Infof("Fact UPDATED successfully for speaker %s. Memory ID: %s", currentSpeakerIDForLog, updateArgs.MemoryID)
 					}
 
-				case "DELETE": // Use literal string name
-					var args DeleteToolArguments
-					s.logger.Debug("Raw arguments for DELETE tool call", "raw_args", toolCall.Function.Arguments) // Log the raw arguments
-					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-						s.logger.Error("Error unmarshalling DELETE arguments, skipping tool call.", "args_string", toolCall.Function.Arguments, "error", err)
+				case DeleteMemoryToolName:
+					s.logger.Info("ACTION: DELETE Memory", "speaker", currentSpeakerIDForLog)
+					var deleteArgs DeleteToolArguments
+					if err = json.Unmarshal([]byte(toolArgsJSON), &deleteArgs); err != nil {
+						s.logger.Errorf("Error unmarshalling DELETE arguments for speaker %s: %v. Args: %s", currentSpeakerIDForLog, err, toolArgsJSON)
 						continue
 					}
-					s.logger.Info("LLM requested DELETE action.", "parsed_tempMemoryID", args.MemoryID, "parsed_reason", args.Reason)
+					s.logger.Debugf("Parsed DELETE arguments: ID=%s, Reason='%s'", deleteArgs.MemoryID, deleteArgs.Reason)
 
-					actualID, ok := tempIDToActualIDMap[args.MemoryID]
-					if !ok {
-						s.logger.Error("Failed to find actual Weaviate ID for temporary ID from LLM for delete.", "tempMemoryID", args.MemoryID)
-						continue
-					}
-
-					if err := s.Delete(ctx, actualID); err != nil {
-						s.logger.Error("Failed to delete document from Weaviate.", "actualID", actualID, "error", err)
+					if err = s.Delete(ctx, deleteArgs.MemoryID); err != nil {
+						s.logger.Errorf("Error performing DELETE operation for speaker %s: %v", currentSpeakerIDForLog, err, "memory_id", deleteArgs.MemoryID)
 					} else {
-						s.logger.Info("DELETE action successfully performed.", "actualID", actualID)
+						s.logger.Infof("Fact DELETED successfully for speaker %s. Memory ID: %s", currentSpeakerIDForLog, deleteArgs.MemoryID)
 					}
 
-				case "NONE": // Use literal string name
-					var args NoneToolArguments
-					s.logger.Debug("Raw arguments for NONE tool call", "raw_args", toolCall.Function.Arguments) // Log the raw arguments
-					if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-						s.logger.Error("Error unmarshalling NONE arguments, skipping tool call.", "args_string", toolCall.Function.Arguments, "error", err)
-						// Log intent even if reason cannot be parsed
+				case NoneMemoryToolName:
+					s.logger.Info("ACTION: NONE", "speaker", currentSpeakerIDForLog)
+					var noneArgs NoneToolArguments
+					if err = json.Unmarshal([]byte(toolArgsJSON), &noneArgs); err != nil {
+						s.logger.Warnf("Error unmarshalling NONE arguments for speaker %s: %v. Args: %s. Proceeding with NONE action.", currentSpeakerIDForLog, err, toolArgsJSON)
 					}
-					s.logger.Info("LLM requested NO action.", "parsed_reason", args.Reason, "docID", doc.ID)
+					s.logger.Infof("LLM chose NONE action for fact for speaker %s. Reason: '%s'. Fact: \"%s...\"", currentSpeakerIDForLog, noneArgs.Reason, firstNChars(factContent, 50))
 
 				default:
-					s.logger.Warn("LLM requested an unknown tool.", "toolName", toolCall.Function.Name, "docID", doc.ID)
+					s.logger.Warn("ACTION: DEFAULT to ADD (LLM decision unrecognized or no tool called)", "chosen_tool", chosenToolName, "speaker", currentSpeakerIDForLog)
+					newFactEmbedding64, embedErr := s.aiService.Embedding(ctx, factContent, openAIEmbedModel)
+					if embedErr != nil {
+						s.logger.Errorf("Error generating embedding for default ADD fact for speaker %s, skipping: %v. Fact: \"%s...\"", currentSpeakerIDForLog, embedErr, firstNChars(factContent, 50))
+						continue
+					}
+					newFactEmbedding32 := make([]float32, len(newFactEmbedding64))
+					for j, val := range newFactEmbedding64 {
+						newFactEmbedding32[j] = float32(val)
+					}
+					factMetadataDefault := make(map[string]string)
+					for k, v := range sessionDoc.Metadata {
+						if k != "dataset_speaker_a" && k != "dataset_speaker_b" {
+							factMetadataDefault[k] = v
+						}
+					}
+					factMetadataDefault["speakerID"] = currentSpeakerIDForLog
+					metadataBytesDefault, jsonErrDefault := json.Marshal(factMetadataDefault)
+					if jsonErrDefault != nil {
+						s.logger.Errorf("Error marshalling metadata for default ADD for speaker %s: %v. Storing with empty metadata.", currentSpeakerIDForLog, jsonErrDefault)
+						metadataBytesDefault = []byte("{}")
+					}
+					dataDefault := map[string]interface{}{
+						contentProperty:  factContent,
+						metadataProperty: string(metadataBytesDefault),
+					}
+					if sessionDoc.Timestamp != nil {
+						dataDefault[timestampProperty] = sessionDoc.Timestamp.Format(time.RFC3339)
+					}
+
+					defaultAddObject := &models.Object{
+						Class:      className,
+						Properties: dataDefault,
+						Vector:     newFactEmbedding32,
+					}
+					batcher.WithObjects(defaultAddObject)
+					objectsAddedToBatch++
+					s.logger.Infof("Fact ADDED to batch (default action) for speaker %s. Fact: \"%s...\"", currentSpeakerIDForLog, firstNChars(factContent, 50))
 				}
 			}
 		}
 
 		if progressChan != nil {
-			progressChan <- memory.ProgressUpdate{Processed: 1, Total: totalDocs}
+			progressChan <- memory.ProgressUpdate{Processed: (i + 1), Total: totalDocs}
 		}
 	}
 
-	// Flush any remaining objects in the batch after processing all documents
 	if objectsAddedToBatch > 0 {
-		s.logger.Info("Flushing batched objects to Weaviate...", "count", objectsAddedToBatch)
-		batchResponse, err := batcher.Do(ctx)
+		s.logger.Infof("Flushing batcher with %d objects at the end of Store method.", objectsAddedToBatch)
+		resp, err := batcher.Do(ctx)
 		if err != nil {
-			// Even if flushing fails, we should report progress for docs processed *before* this batch.
-			// The overall function will return an error.
-			return fmt.Errorf("flushing batch to Weaviate: %w", err)
+			s.logger.Errorf("Error final batch storing facts to Weaviate: %v", err)
+		} else {
+			s.logger.Info("Final fact batch storage call completed.")
 		}
-		var successfulFlushes, failedFlushes int
-		for _, res := range batchResponse {
-			if res.Result != nil && res.Result.Status != nil {
-				if *res.Result.Status == "SUCCESS" {
-					successfulFlushes++
+
+		var successCount, failureCount int
+		if resp != nil {
+			for itemIdx, res := range resp {
+				if res.Result != nil && res.Result.Status != nil && *res.Result.Status == "SUCCESS" {
+					successCount++
 				} else {
-					failedFlushes++
-					s.logger.Error("Failed to add object in batch", "id", res.ID, "status", *res.Result.Status, "errors", res.Result.Errors)
+					failureCount++
+					errorMsg := "unknown error during final batch item processing"
+					if res.Result != nil && res.Result.Errors != nil && len(res.Result.Errors.Error) > 0 {
+						errorMsg = res.Result.Errors.Error[0].Message
+					}
+					s.logger.Warnf("Failed to store a fact in final batch (Item %d). Error: %s.", itemIdx, errorMsg)
 				}
-			} else {
-				failedFlushes++
-				s.logger.Error("Failed to add object in batch, nil result or status", "id", res.ID)
 			}
-		}
-		s.logger.Info("Batch flush completed.", "successful", successfulFlushes, "failed", failedFlushes)
-		if failedFlushes > 0 {
-			return fmt.Errorf("some objects failed to be added during batch flush (%d failures)", failedFlushes)
+			s.logger.Infof("Final fact batch storage completed: %d successful, %d failed.", successCount, failureCount)
+		} else if err != nil {
+			s.logger.Warn("Batcher.Do() returned an error and a nil response. Cannot determine individual item statuses.")
+		} else {
+			s.logger.Info("Batcher.Do() returned no error and a nil response. Assuming batched items were processed if objectsAddedToBatch > 0.")
 		}
 	} else {
-		s.logger.Info("No objects to flush in batch.")
+		s.logger.Info("No objects were added to the batcher during this Store() call. Nothing to flush.")
 	}
 
-	s.logger.Info("All documents processed.")
+	s.logger.Info("Store method finished processing all documents.")
 	return nil
+}
+
+// Helper function to get first N float64 values for logging vector snippets
+func firstNFloats(v []float64, n int) []float64 {
+	if len(v) <= n {
+		return v
+	}
+	return v[:n]
+}
+
+// Helper function to get first N float32 values for logging vector snippets
+func firstNFloat32s(v []float32, n int) []float32 {
+	if len(v) <= n {
+		return v
+	}
+	return v[:n]
 }
 
 // firstNChars is a helper to get the first N characters of a string for logging.
@@ -425,330 +632,268 @@ func firstNChars(s string, n int) string {
 	return s[:n] + "..."
 }
 
-// Query searches documents in Weaviate using a query vector.
-func (s *WeaviateStorage) Query(ctx context.Context, query string) (memory.QueryResult, error) {
+// Query retrieves memories relevant to the query text.
+// For this iteration, it will do a simple semantic search.
+// Later, it will need to be adapted for speaker-specific queries if we store facts with speakerID.
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, options interface{}) (*memory.QueryResult, error) {
 	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return memory.QueryResult{}, fmt.Errorf("pre-query schema check failed: %w", err)
+		return nil, fmt.Errorf("failed to ensure schema before querying: %w", err)
 	}
 
-	queryVectorFloat64, err := s.aiService.Embedding(ctx, query, openAIEmbedModel)
+	var filterBySpeakerID string
+	if opts, ok := options.(map[string]interface{}); ok {
+		if speakerToFilter, okS := opts["speakerID"].(string); okS && speakerToFilter != "" {
+			filterBySpeakerID = speakerToFilter
+			s.logger.Info("Query results will be filtered in Go by speakerID", "speakerID", filterBySpeakerID)
+		}
+	}
+
+	s.logger.Info("Query method called", "query_text", queryText)
+
+	vector, err := s.aiService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to generate query vector: %w", err)
+		return nil, fmt.Errorf("failed to create embedding for query: %w", err)
+	}
+	queryVector32 := make([]float32, len(vector))
+	for i, val := range vector {
+		queryVector32[i] = float32(val)
 	}
 
-	queryVectorFloat32 := make([]float32, len(queryVectorFloat64))
-	for i, val := range queryVectorFloat64 {
-		queryVectorFloat32[i] = float32(val)
+	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
+
+	// Define the fields to retrieve - speakerID is NOT a top-level field here
+	contentField := graphql.Field{Name: contentProperty}
+	timestampField := graphql.Field{Name: timestampProperty}
+	metaField := graphql.Field{Name: metadataProperty} // metadataJson contains speakerID
+	tagsField := graphql.Field{Name: tagsProperty}
+	additionalFields := graphql.Field{
+		Name: "_additional",
+		Fields: []graphql.Field{
+			{Name: "id"},
+			{Name: "distance"},
+			// {Name: "vector"}, // Optionally retrieve vector
+		},
 	}
 
-	nearVector := s.client.GraphQL().
-		NearVectorArgBuilder().
-		WithVector(queryVectorFloat32)
-
-	fields := []graphql.Field{
-		{Name: contentProperty},
-		{Name: timestampProperty},
-		{Name: tagsProperty},
-		{Name: metadataProperty},
-		{Name: "_additional", Fields: []graphql.Field{{Name: "id"}, {Name: "distance"}}},
-	}
-
-	resp, err := s.client.GraphQL().Get().
+	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(className).
-		WithFields(fields...).
 		WithNearVector(nearVector).
-		WithLimit(10).
-		Do(ctx)
+		WithLimit(10). // Default limit, can be configured via options if needed
+		// NO WithWhere filter for speakerID at Weaviate level
+		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
 
+	resp, err := queryBuilder.Do(ctx)
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to execute GraphQL query with nearVector: %w", err)
+		return nil, fmt.Errorf("failed to execute Weaviate query: %w", err)
 	}
 
-	if resp.Errors != nil && len(resp.Errors) > 0 {
-		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
+	if len(resp.Errors) > 0 {
+		return nil, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
 	}
 
-	var queryResult memory.QueryResult
-
+	finalResults := []memory.TextDocument{}
 	data, ok := resp.Data["Get"].(map[string]interface{})
 	if !ok {
-		return memory.QueryResult{}, fmt.Errorf("unexpected GraphQL response data structure at Get level")
+		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
+		return &memory.QueryResult{Documents: finalResults}, nil
 	}
 
 	classData, ok := data[className].([]interface{})
 	if !ok {
-		s.logger.Debug("No results found or unexpected data type.", "class", className, "dataType", fmt.Sprintf("%T", data[className]))
-		return queryResult, nil
+		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", className)
+		return &memory.QueryResult{Documents: finalResults}, nil
 	}
+	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
 
 	for _, item := range classData {
-		itemMap, ok := item.(map[string]interface{})
-		if !ok {
-			s.logger.Warn("Skipping item, not a map", "itemType", fmt.Sprintf("%T", item))
+		obj, okMap := item.(map[string]interface{})
+		if !okMap {
+			s.logger.Warn("Retrieved item is not a map, skipping", "item", item)
 			continue
 		}
 
-		var doc memory.TextDocument
-		if content, ok := itemMap[contentProperty].(string); ok {
-			doc.Content = content
-			queryResult.Text = append(queryResult.Text, content)
-		}
+		content, _ := obj[contentProperty].(string)
+		metadataJSON, _ := obj[metadataProperty].(string)
 
-		if additional, ok := itemMap["_additional"].(map[string]interface{}); ok {
-			if id, okId := additional["id"].(string); okId {
-				doc.ID = id
-			}
-		}
-
-		if tsStr, ok := itemMap[timestampProperty].(string); ok {
-			if parsedTime, pErr := time.Parse(time.RFC3339, tsStr); pErr == nil {
-				doc.Timestamp = &parsedTime
+		var parsedTimestamp *time.Time
+		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
+			t, pErr := time.Parse(time.RFC3339, tsStr)
+			if pErr == nil {
+				parsedTimestamp = &t
 			} else {
-				s.logger.Warn("Error parsing timestamp", "docID", doc.ID, "error", pErr)
+				s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", pErr)
 			}
 		}
 
-		if tagsList, ok := itemMap[tagsProperty].([]interface{}); ok {
-			for _, tagInterface := range tagsList {
-				if tagStr, okT := tagInterface.(string); okT {
-					doc.Tags = append(doc.Tags, tagStr)
+		additional, _ := obj["_additional"].(map[string]interface{})
+		id, _ := additional["id"].(string)
+		// distanceFloat, _ := additional["distance"].(float64) // Distance not part of TextDocument
+
+		metaMap := make(map[string]string)
+		if metadataJSON != "" {
+			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
+				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
+			}
+		}
+
+		docSpeakerID := metaMap["speakerID"] // Get speakerID from the unmarshalled metadata
+
+		if filterBySpeakerID != "" && docSpeakerID != filterBySpeakerID {
+			s.logger.Debug("Document filtered out by speakerID mismatch", "doc_id", id, "doc_speaker_id", docSpeakerID, "filter_speaker_id", filterBySpeakerID)
+			continue // Skip this document
+		}
+
+		var tags []string
+		if tagsInterface, tagsOk := obj[tagsProperty].([]interface{}); tagsOk {
+			for _, tagInterfaceItem := range tagsInterface {
+				if tagStr, okTag := tagInterfaceItem.(string); okTag {
+					tags = append(tags, tagStr)
 				}
 			}
 		}
 
-		if metaJSONStr, ok := itemMap[metadataProperty].(string); ok {
-			var metadata map[string]string
-			if errJson := json.Unmarshal([]byte(metaJSONStr), &metadata); errJson == nil {
-				doc.Metadata = metadata
-			} else {
-				s.logger.Warn("Error unmarshalling metadata", "docID", doc.ID, "error", errJson)
-			}
-		}
-		queryResult.Documents = append(queryResult.Documents, doc)
+		finalResults = append(finalResults, memory.TextDocument{
+			ID:        id,
+			Content:   content,
+			Timestamp: parsedTimestamp,
+			Metadata:  metaMap, // This map contains the speakerID
+			Tags:      tags,
+		})
 	}
-	s.logger.Infof("Query processed. Found %d documents.", len(queryResult.Documents))
-	return queryResult, nil
+	s.logger.Info("Query processed successfully.", "num_results_returned_after_filtering", len(finalResults))
+	return &memory.QueryResult{Documents: finalResults}, nil
 }
 
-// searchExistingDocumentsByVector is an internal helper to find documents
-// in Weaviate similar to a given vector. It returns the raw documents,
-// a JSON string of these documents formatted for the LLM prompt (with temporary IDs),
-// and a map to translate temporary IDs back to actual Weaviate UUIDs.
-func (s *WeaviateStorage) searchExistingDocumentsByVector(ctx context.Context, vector []float32, limit int) ([]memory.TextDocument, string, map[string]string, error) {
-	s.logger.Debug("searchExistingDocumentsByVector called", "limit", limit)
-	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return nil, "", nil, fmt.Errorf("pre-searchExistingDocs schema check failed: %w", err)
-	}
-
-	nearVector := s.client.GraphQL().
-		NearVectorArgBuilder().
-		WithVector(vector)
-
-	// Define fields required for the LLM context and for constructing TextDocument
-	fields := []graphql.Field{
-		{Name: contentProperty},
-		// {Name: timestampProperty}, // May not be needed for LLM decision context, but could be useful
-		// {Name: tagsProperty},      // Same as above
-		// {Name: metadataProperty},  // Same as above
-		{Name: "_additional", Fields: []graphql.Field{{Name: "id"}}}, // Distance might be useful for logging/debugging
-	}
-
-	resp, err := s.client.GraphQL().Get().
-		WithClassName(className).
-		WithFields(fields...).
-		WithNearVector(nearVector).
-		WithLimit(limit).
-		Do(ctx)
-
-	if err != nil {
-		return nil, "", nil, fmt.Errorf("failed to execute GraphQL query in searchExistingDocumentsByVector: %w", err)
-	}
-
-	if resp.Errors != nil && len(resp.Errors) > 0 {
-		return nil, "", nil, fmt.Errorf("GraphQL query errors in searchExistingDocumentsByVector: %v", resp.Errors)
-	}
-
-	var retrievedDocs []memory.TextDocument
-	var docsForPrompt []map[string]interface{} // For building the JSON string for the LLM
-	tempIDToActualID := make(map[string]string)
-
-	data, ok := resp.Data["Get"].(map[string]interface{})
-	if !ok {
-		return nil, "", nil, fmt.Errorf("unexpected GraphQL response data structure at Get level (searchExisting)")
-	}
-
-	classData, ok := data[className].([]interface{})
-	if !ok {
-		s.logger.Debug("No results found or unexpected data type in searchExistingDocumentsByVector", "class", className, "dataType", fmt.Sprintf("%T", data[className]))
-		return retrievedDocs, "[]", tempIDToActualID, nil // Return empty results, not an error
-	}
-
-	for i, item := range classData {
-		itemMap, okMap := item.(map[string]interface{})
-		if !okMap {
-			s.logger.Warn("Skipping item in searchExistingDocumentsByVector, not a map", "itemType", fmt.Sprintf("%T", item))
-			continue
-		}
-
-		var doc memory.TextDocument
-		actualID := ""
-
-		if additional, okAdd := itemMap["_additional"].(map[string]interface{}); okAdd {
-			if idVal, okID := additional["id"].(string); okID {
-				doc.ID = idVal
-				actualID = idVal
-			}
-		}
-
-		if actualID == "" {
-			s.logger.Warn("Skipping item in searchExistingDocumentsByVector, missing actual ID")
-			continue
-		}
-
-		tempID := fmt.Sprintf("%d", i) // Simple temporary ID: "0", "1", "2", ...
-		tempIDToActualID[tempID] = actualID
-
-		docForPrompt := map[string]interface{}{
-			"id":   tempID, // Use temporary ID for the prompt
-			"text": "",     // Initialize text
-		}
-
-		if content, okContent := itemMap[contentProperty].(string); okContent {
-			doc.Content = content
-			docForPrompt["text"] = content
-		}
-
-		// We are only fetching minimal fields for the prompt (id, text) for now.
-		// If more fields (timestamp, tags, metadata) were fetched, they'd be parsed here into 'doc'.
-
-		retrievedDocs = append(retrievedDocs, doc)
-		docsForPrompt = append(docsForPrompt, docForPrompt)
-	}
-
-	jsonBytes, err := json.Marshal(docsForPrompt)
-	if err != nil {
-		return retrievedDocs, "", tempIDToActualID, fmt.Errorf("failed to marshal docsForPrompt to JSON: %w", err)
-	}
-
-	s.logger.Debug("searchExistingDocumentsByVector completed", "retrievedCount", len(retrievedDocs), "promptJsonLength", len(jsonBytes))
-	return retrievedDocs, string(jsonBytes), tempIDToActualID, nil
-}
-
-// GetByID retrieves a document from Weaviate by its ID.
+// GetByID retrieves a document by its Weaviate ID.
+// speakerID (if present) will be within the Metadata map after unmarshalling metadataJson.
 func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
-	s.logger.Debug("GetByID called", "id", id)
 	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
 		return nil, fmt.Errorf("pre-getbyid schema check failed: %w", err)
 	}
 
-	obj, err := s.client.Data().ObjectsGetter().
+	s.logger.Debugf("Attempting to get document by ID: %s", id)
+
+	result, err := s.client.Data().ObjectsGetter().
 		WithClassName(className).
 		WithID(id).
+		// No WithAdditionalParameters needed for ObjectsGetter for standard properties
 		Do(ctx)
 
 	if err != nil {
-		// Weaviate client returns an error if the object is not found, which includes a 404 status code.
-		// We can check for this specifically if we want to return a custom "not found" error vs. other errors.
-		// For now, just return the error as is.
-		return nil, fmt.Errorf("failed to get object %s: %w", id, err)
+		// Weaviate client might return a specific error for not found (e.g., status code 404 in the error details)
+		// For now, returning the generic error. Could inspect err for specific handling of "not found".
+		return nil, fmt.Errorf("getting document by ID '%s': %w", id, err)
 	}
 
-	if len(obj) == 0 {
-		// This case should ideally be covered by the error above from Weaviate if ID doesn't exist.
-		return nil, fmt.Errorf("object %s not found (no error from client, but empty result)", id) // Or a more specific typed error
+	if len(result) == 0 {
+		s.logger.Warnf("No document found with ID: %s (empty result array)", id)
+		return nil, nil // Or an error like fmt.Errorf("document with ID '%s' not found", id)
 	}
 
-	// Assuming obj[0] is our object since we queried by unique ID
-	properties, ok := obj[0].Properties.(map[string]interface{})
+	obj := result[0]
+	if obj.Properties == nil {
+		return nil, fmt.Errorf("document with ID '%s' has nil properties", id)
+	}
+
+	props, ok := obj.Properties.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("failed to cast properties for object %s", id)
+		return nil, fmt.Errorf("failed to cast properties to map[string]interface{} for ID '%s'", id)
 	}
 
-	doc := memory.TextDocument{ID: obj[0].ID.String()} // Use the ID returned by Weaviate
+	content, _ := props[contentProperty].(string)
+	docTimestampStr, _ := props[timestampProperty].(string)
+	tagsInterface, _ := props[tagsProperty].([]interface{})
+	metadataJSON, _ := props[metadataProperty].(string) // This string contains all metadata, including speakerID
 
-	if content, ok := properties[contentProperty].(string); ok {
-		doc.Content = content
-	}
-
-	if tsStr, ok := properties[timestampProperty].(string); ok {
-		if parsedTime, pErr := time.Parse(time.RFC3339, tsStr); pErr == nil {
-			doc.Timestamp = &parsedTime
+	var docTimestampP *time.Time
+	if docTimestampStr != "" {
+		parsedTime, pErr := time.Parse(time.RFC3339, docTimestampStr)
+		if pErr != nil {
+			s.logger.Warnf("Failed to parse timestamp for document ID '%s': %v. Setting to nil.", id, pErr)
 		} else {
-			s.logger.Warn("Error parsing timestamp during GetByID", "docID", doc.ID, "error", pErr)
+			docTimestampP = &parsedTime
 		}
 	}
 
-	if tagsList, ok := properties[tagsProperty].([]interface{}); ok {
-		for _, tagInterface := range tagsList {
-			if tagStr, okT := tagInterface.(string); okT {
-				doc.Tags = append(doc.Tags, tagStr)
-			}
+	var tags []string
+	for _, tagInterface := range tagsInterface {
+		if tagStr, okT := tagInterface.(string); okT {
+			tags = append(tags, tagStr)
 		}
 	}
 
-	if metaJSONStr, ok := properties[metadataProperty].(string); ok {
-		var metadata map[string]string
-		if errJson := json.Unmarshal([]byte(metaJSONStr), &metadata); errJson == nil {
-			doc.Metadata = metadata
-		} else {
-			s.logger.Warn("Error unmarshalling metadata during GetByID", "docID", doc.ID, "error", errJson)
+	metadataMap := make(map[string]string) // This will hold all metadata, including speakerID if present
+	if metadataJSON != "" {
+		if errJson := json.Unmarshal([]byte(metadataJSON), &metadataMap); errJson != nil {
+			s.logger.Warnf("Failed to unmarshal metadataJson for document ID '%s': %v. Metadata will be empty.", id, errJson)
+			// metadataMap will remain empty or partially filled if unmarshalling failed mid-way (unlikely for simple map[string]string)
 		}
 	}
 
-	s.logger.Info("Successfully retrieved document by ID", "id", id)
-	return &doc, nil
+	doc := &memory.TextDocument{
+		ID:        obj.ID.String(), // Use the ID from Weaviate's object, converting to string
+		Content:   content,
+		Timestamp: docTimestampP,
+		Tags:      tags,
+		Metadata:  metadataMap, // speakerID is now part of this map if it was stored
+	}
+
+	s.logger.Debugf("Successfully retrieved document by ID: %s. speakerID from metadata: '%s'", id, metadataMap["speakerID"])
+	return doc, nil
 }
 
-// Update modifies an existing document in Weaviate.
-// It will replace the document with the given ID with the new doc content, metadata, and vector.
+// Update updates an existing document in Weaviate.
+// speakerID (if present) is expected to be within doc.Metadata, which is marshalled to metadataJson.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	s.logger.Debug("Update called", "id", id)
 	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
 		return fmt.Errorf("pre-update schema check failed: %w", err)
 	}
 
-	properties := map[string]interface{}{
+	s.logger.Debugf("Attempting to update document ID: %s", id)
+
+	data := map[string]interface{}{
 		contentProperty: doc.Content,
 	}
+
 	if doc.Timestamp != nil {
-		properties[timestampProperty] = doc.Timestamp.Format(time.RFC3339)
+		data[timestampProperty] = doc.Timestamp.Format(time.RFC3339)
 	}
 	if len(doc.Tags) > 0 {
-		properties[tagsProperty] = doc.Tags
-	} else { // Ensure tags are explicitly set to empty if cleared, to overwrite previous tags
-		properties[tagsProperty] = []string{}
+		data[tagsProperty] = doc.Tags
+	} else {
+		data[tagsProperty] = []string{} // Explicitly clear tags if doc.Tags is empty
 	}
 
+	// All metadata, including speakerID, is expected to be in doc.Metadata.
+	// This map will be marshalled into the metadataJson field.
 	if len(doc.Metadata) > 0 {
-		metaJSON, errJson := json.Marshal(doc.Metadata)
-		if errJson != nil {
-			// Decide if this is a fatal error for the update or just a warning.
-			// For now, let's make it a warning and proceed without metadata if marshalling fails.
-			s.logger.Warn("Error marshalling metadata for update, proceeding without it.", "docID", id, "error", errJson)
-		} else {
-			properties[metadataProperty] = string(metaJSON)
+		metadataBytes, err := json.Marshal(doc.Metadata) // doc.Metadata should contain speakerID if it's set
+		if err != nil {
+			s.logger.Errorf("Failed to marshal metadata for document ID '%s': %v", id, err)
+			return fmt.Errorf("marshaling metadata for update: %w", err)
 		}
-	} else { // Ensure metadata is explicitly set if cleared
-		// Weaviate might treat null differently from an empty JSON string for text fields.
-		// Sending an empty map marshalled might be appropriate, or explicitly nullifying.
-		// For simplicity, if metadata is empty, we can marshal an empty map.
-		emptyMetaJson, _ := json.Marshal(map[string]string{})
-		properties[metadataProperty] = string(emptyMetaJson)
+		data[metadataProperty] = string(metadataBytes)
+		s.logger.Debugf("Updating doc %s, speakerID in marshalled metadata: '%s'", id, doc.Metadata["speakerID"])
+	} else {
+		data[metadataProperty] = "{}" // Store an empty JSON object string if no metadata
+		s.logger.Debugf("Updating doc %s with empty metadataJson", id)
 	}
 
 	updater := s.client.Data().Updater().
 		WithClassName(className).
 		WithID(id).
-		WithProperties(properties).
-		WithVector(vector) // Set the new vector
-	// WithMerge(false) is the default and means it's a PUT (replace)
+		WithProperties(data)
+
+	if len(vector) > 0 {
+		updater = updater.WithVector(vector)
+	}
 
 	err := updater.Do(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to update object %s: %w", id, err)
+		return fmt.Errorf("updating document ID '%s': %w", id, err)
 	}
 
-	s.logger.Info("Successfully updated document by ID", "id", id)
+	s.logger.Infof("Successfully updated document ID: %s", id)
 	return nil
 }
 

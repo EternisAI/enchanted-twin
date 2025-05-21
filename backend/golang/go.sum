@@ -1889,6 +1889,8 @@ github.com/weaviate/tiktoken-go v0.0.2 h1:lkwTMEoXSFSXxYvw1c44/xz3OOAh27L3+3vvNN
 github.com/weaviate/tiktoken-go v0.0.2/go.mod h1:u47qSckEGSi4sOcVJmUnd3xoHpDV9/5FDDi3KUCFUq4=
 github.com/weaviate/weaviate v1.30.3 h1:04myvGNWgvAGuGWGyOpNdP3D777fgOaaXJW9S2z2g+4=
 github.com/weaviate/weaviate v1.30.3/go.mod h1:d+GPvPsgoMmI7WRU0QwEbOuiZGf4umsfw7eVAeZNXY0=
+github.com/weaviate/weaviate-go-client/v4 v4.16.1 h1:jkDYuRCYly6zG2ngqTpv6z8azzbqiMUXcmaJHJmAV0Q=
+github.com/weaviate/weaviate-go-client/v4 v4.16.1/go.mod h1:XmoRpzNpWrTW5/TE07dUtxy5kMZbG3uAG/3b69nuwFk=
 github.com/willf/bitset v1.1.11 h1:N7Z7E9UvjW+sGsEl7k/SJrvY2reP1A07MrGuCjIOjRE=
 github.com/willf/bitset v1.1.11/go.mod h1:83CECat5yLh5zVOf4P1ErAgKA5UDvKtgyUABdr3+MjI=
 github.com/wk8/go-ordered-map/v2 v2.1.8 h1:5h/BUHu93oj4gIdvHHHGsScSTMijfx5PeYkE/fJgbpc=

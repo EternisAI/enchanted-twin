@@ -35,6 +35,7 @@ require (
 	github.com/temporalio/ui-server/v2 v2.37.2
 	github.com/vektah/gqlparser/v2 v2.5.27
 	github.com/weaviate/weaviate v1.30.3
+	github.com/weaviate/weaviate-go-client/v4 v4.16.1
 	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-133.3
