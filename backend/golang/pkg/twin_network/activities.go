@@ -3,8 +3,8 @@ package twin_network
 import (
 	"context"
 	"fmt"
+	"strconv"
 
-	"github.com/EternisAI/enchanted-twin/pkg/twin_network/graph/model"
 	openai "github.com/openai/openai-go"
 )
 
@@ -20,7 +20,7 @@ type QueryNetworkActivityInput struct {
 	Limit     int
 }
 
-func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) ([]model.NetworkMessage, error) {
+func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) ([]NetworkMessage, error) {
 	a.logger.Debug("Querying network activity",
 		"networkID", input.NetworkID,
 		"fromID", input.FromID,
@@ -32,7 +32,25 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 		return nil, fmt.Errorf("failed to fetch new messages: %w", err)
 	}
 
-	return allNewMessages, nil
+	networkMessages := make([]NetworkMessage, len(allNewMessages))
+	for i, msg := range allNewMessages {
+		id, err := strconv.ParseInt(msg.ID, 10, 64)
+		if err != nil {
+			a.logger.Error("Failed to parse message ID", "error", err, "id", msg.ID)
+			continue
+		}
+
+		networkMessages[i] = NetworkMessage{
+			ID:           id,
+			AuthorPubKey: msg.AuthorPubKey,
+			NetworkID:    msg.NetworkID,
+			Content:      msg.Content,
+			IsMine:       msg.IsMine,
+			Signature:    msg.Signature,
+		}
+	}
+
+	return networkMessages, nil
 }
 
 func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage) (string, error) {
