@@ -11,7 +11,7 @@ interface ToolCallProcessingProps {
 
 export default function ToolCallProcessing({ toolCalls }: ToolCallProcessingProps) {
   return (
-    <div className="flex flex-col gap-2 w-fit">
+    <div className="flex flex-col gap-2 w-full items-end">
       {toolCalls.map((toolCall) => {
         const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
         const isCompleted = toolCall.isCompleted
@@ -22,7 +22,7 @@ export default function ToolCallProcessing({ toolCalls }: ToolCallProcessingProp
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.95 }}
-            className="w-full"
+            className="w-fit"
           >
             <Badge
               variant="outline"

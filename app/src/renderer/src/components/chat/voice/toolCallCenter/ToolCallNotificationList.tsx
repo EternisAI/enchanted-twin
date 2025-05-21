@@ -11,7 +11,7 @@ export default function ToolCallNotificationList({ notifications }: ToolCallNoti
   const overlapSize = '-105px' // @TODO: make this dynamic based on the item size
 
   return (
-    <div className="relative flex flex-col gap-4 w-full min-h-[200px]">
+    <div className="relative flex flex-col gap-4 w-full min-h-[140px]">
       <AnimatePresence>
         {notifications.map((notification, index) => {
           const shouldOverlap = isOverlapping && index > 0

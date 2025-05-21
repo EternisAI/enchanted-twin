@@ -9,15 +9,16 @@ export interface VoiceVisualizerProps {
   getFreqData: () => Uint8Array
   className?: string
   particleCount?: number
+  assistantTextMessage?: string
 }
 
 export default function VoiceVisualizer({
   visualState,
   getFreqData,
   className,
-  particleCount = 12000
+  particleCount = 12000,
+  assistantTextMessage
 }: VoiceVisualizerProps) {
-  // Simple fill container without affecting layout
   return (
     <div
       className={className}
@@ -38,6 +39,12 @@ export default function VoiceVisualizer({
         </EffectComposer>
         <OrbitControls enableZoom={false} enablePan={false} />
       </Canvas>
+
+      {assistantTextMessage && (
+        <div className="absolute bottom-28 left-1/2 transform -translate-x-1/2 text-center text-primary text-md">
+          {assistantTextMessage}
+        </div>
+      )}
     </div>
   )
 }

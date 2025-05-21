@@ -172,6 +172,10 @@ subscription MessageAdded($chatId: ID!) {
       name
       isCompleted
       messageId
+      result {
+        content
+        imageUrls
+      }
     }
   }
 }
@@ -182,6 +186,10 @@ subscription ToolCallUpdated($chatId: ID!) {
     name
     isCompleted
     messageId
+    result {
+      content
+      imageUrls
+    }
   }
 }
 
