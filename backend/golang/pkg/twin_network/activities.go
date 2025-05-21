@@ -108,6 +108,8 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		Here is the latest information about your human's personality and identity:
 		
 		Thread ID: %s
+
+		Below is the conversation corresponding to the thread ID above on the twin network proposal.
 		%s`, messages[0].ThreadID, personality)),
 	}
 
