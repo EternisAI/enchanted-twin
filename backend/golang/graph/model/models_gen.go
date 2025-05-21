@@ -272,6 +272,7 @@ const (
 	MCPServerTypeSLACk      MCPServerType = "SLACK"
 	MCPServerTypeOther      MCPServerType = "OTHER"
 	MCPServerTypeScreenpipe MCPServerType = "SCREENPIPE"
+	MCPServerTypeEnchanted  MCPServerType = "ENCHANTED"
 )
 
 var AllMCPServerType = []MCPServerType{
@@ -280,11 +281,12 @@ var AllMCPServerType = []MCPServerType{
 	MCPServerTypeSLACk,
 	MCPServerTypeOther,
 	MCPServerTypeScreenpipe,
+	MCPServerTypeEnchanted,
 }
 
 func (e MCPServerType) IsValid() bool {
 	switch e {
-	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe:
+	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe, MCPServerTypeEnchanted:
 		return true
 	}
 	return false
