@@ -129,6 +129,7 @@ mutation CreateChat($name: String!, $voice: Boolean! = false) {
     id
     name
     createdAt
+    voice
   }
 }
 

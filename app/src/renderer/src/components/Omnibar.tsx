@@ -112,7 +112,7 @@ export const Omnibar = () => {
     } finally {
       closeOmnibar()
     }
-  }, [query, navigate, router, createChat, sendMessage, closeOmnibar])
+  }, [query, navigate, router, createChat, isVoiceMode, sendMessage, closeOmnibar])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
