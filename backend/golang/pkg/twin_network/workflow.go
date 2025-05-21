@@ -48,7 +48,7 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 
 	queryInput := QueryNetworkActivityInput{
 		NetworkID: input.NetworkID,
-		FromID:    strconv.FormatInt(resolvedLastMessageID, 10),
+		FromID:    strconv.FormatInt(resolvedLastMessageID-10, 10),
 		Limit:     30,
 	}
 	var allNewMessages []NetworkMessage
@@ -59,7 +59,16 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	workflow.GetLogger(ctx).Info("Retrieved new messages", "count", len(allNewMessages), "networkID", input.NetworkID)
 
 	if len(allNewMessages) > 0 {
-		activityInput.LastMessageID = allNewMessages[0].ID
+		lastMessageID := allNewMessages[0].ID
+
+		if lastMessageID == activityInput.LastMessageID {
+			workflow.GetLogger(ctx).Info("No new messages found", "networkID", input.NetworkID)
+			return &NetworkMonitorOutput{
+				ProcessedMessages: 0,
+				LastMessageID:     resolvedLastMessageID,
+			}, nil
+		}
+		activityInput.LastMessageID = lastMessageID
 
 		if !allNewMessages[0].IsMine {
 			var response string
