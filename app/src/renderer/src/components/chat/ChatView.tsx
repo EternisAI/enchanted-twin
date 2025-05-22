@@ -31,7 +31,6 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
       .reverse()
   })
 
-  console.log({ historicToolCalls })
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
     if (initialMessage && chat.messages.length === 0) {
@@ -194,6 +193,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
         historicToolCalls={historicToolCalls}
         onSendMessage={sendMessage}
         isWaitingTwinResponse={isWaitingTwinResponse}
+        error={error}
       />
     )
   }
@@ -226,7 +226,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
           />
         </div>
         <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
-          <VoiceModeSwitch voiceMode={isVoiceMode} setVoiceMode={toggleVoiceMode} />
+          <VoiceModeSwitch voiceMode={isVoiceMode} setVoiceMode={() => toggleVoiceMode(false)} />
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}
