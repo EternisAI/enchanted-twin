@@ -30,7 +30,7 @@ export default function ToolCallResult({ toolCalls }: ToolCallResultProps) {
             key={toolCall.id}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="flex flex-col gap-2"
+            className="flex flex-col gap-2 py-2"
           >
             {imageUrls.length > 0 && (
               <>

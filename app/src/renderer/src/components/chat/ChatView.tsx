@@ -194,6 +194,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
         historicToolCalls={historicToolCalls}
         onSendMessage={sendMessage}
         isWaitingTwinResponse={isWaitingTwinResponse}
+        error={error}
       />
     )
   }
