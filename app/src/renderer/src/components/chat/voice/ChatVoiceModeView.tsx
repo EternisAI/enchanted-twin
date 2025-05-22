@@ -9,6 +9,7 @@ import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
+import { getToolUrl } from '../config'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -66,14 +67,7 @@ export default function VoiceModeChatView({
   }, [isSpeaking])
 
   const currentToolCall = activeToolCalls.find((tc) => !tc.isCompleted)
-  const toolUrl = useMemo(() => {
-    if (currentToolCall?.name === 'generate_image') {
-      return 'image:https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/NotoSans_-_Frame_With_Picture_-_1F5BC.svg/330px-NotoSans_-_Frame_With_Picture_-_1F5BC.svg.png'
-    } else if (currentToolCall?.name === 'perplexity_ask') {
-      return 'image:https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Magnifying_glass_icon.svg/480px-Magnifying_glass_icon.svg.png'
-    }
-    return undefined
-  }, [currentToolCall])
+  const toolUrl = getToolUrl(currentToolCall?.name)
 
   return (
     <div className="flex h-full w-full items-center ">
@@ -89,7 +83,7 @@ export default function VoiceModeChatView({
             visualState={visualState}
             getFreqData={getFreqData}
             assistantTextMessage={lastAssistantMessage?.text ?? undefined}
-            tool={toolUrl}
+            toolUrl={toolUrl}
           />
         </motion.div>
 
@@ -114,9 +108,8 @@ export default function VoiceModeChatView({
             isWaitingTwinResponse={isLoading || isSpeaking}
             onSend={onSendMessage}
             onStop={stop}
-            hasReasoning={false}
             isReasonSelected={true}
-            voice
+            voiceMode
           />
         </div>
       </div>
