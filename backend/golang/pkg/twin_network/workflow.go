@@ -142,7 +142,8 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 			}
 		}
 
-		isOrganizer := authorPubKey == input.NetworkID
+		isOrganizer := authorPubKey == w.agentKey.PubKeyHex()
+
 		if !messages[0].IsMine {
 			var response string
 			err = workflow.ExecuteActivity(options, w.EvaluateMessage, messages, authorPubKey, isOrganizer).Get(ctx, &response)
