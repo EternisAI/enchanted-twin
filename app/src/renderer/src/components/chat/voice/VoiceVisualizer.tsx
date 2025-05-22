@@ -20,8 +20,7 @@ export interface VoiceVisualizerProps {
   className?: string
   particleCount?: number
   assistantTextMessage?: string
-  /** procedural ID (e.g. "perplexity_ask") or `"image:<url>"` or raw URL */
-  tool?: string
+  toolUrl?: string
 }
 
 /* ─────────────────── main component ─────────────────── */
@@ -32,7 +31,7 @@ export default function VoiceVisualizer({
   className,
   particleCount = 12_000,
   assistantTextMessage,
-  tool
+  toolUrl
 }: VoiceVisualizerProps) {
   return (
     <div
@@ -48,7 +47,7 @@ export default function VoiceVisualizer({
           visualState={visualState}
           particleCount={particleCount}
           getFreqData={getFreqData}
-          tool={tool}
+          tool={toolUrl}
         />
         <EffectComposer>
           <Bloom luminanceThreshold={0.3} intensity={1.2} />
