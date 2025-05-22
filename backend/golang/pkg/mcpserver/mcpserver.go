@@ -45,13 +45,18 @@ type service struct {
 // NewService creates a new MCPServerService.
 func NewService(ctx context.Context, logger *log.Logger, store *db.Store, registry tools.ToolRegistry) MCPService {
 	repo := repository.NewRepository(logger, store.DB())
+	config, err := config.LoadConfig(false)
+	if err != nil {
+		log.Error("Error loading config", "error", err)
+	}
 	service := &service{
+		config:           config,
 		repo:             repo,
 		connectedServers: []*ConnectedMCPServer{},
 		store:            store,
 		registry:         registry,
 	}
-	err := service.LoadMCP(ctx)
+	err = service.LoadMCP(ctx)
 	if err != nil {
 		log.Error("Error loading MCP servers", "error", err)
 	}
@@ -102,6 +107,9 @@ func (s *service) ConnectMCPServer(
 		case model.MCPServerTypeScreenpipe:
 			client = screenpipe.NewClient()
 		case model.MCPServerTypeEnchanted:
+			if s.config == nil {
+				return nil, fmt.Errorf("config is nil, cannot connect to Enchanted MCP server")
+			}
 			transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get transport: %w", err)
@@ -271,6 +279,10 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			case model.MCPServerTypeScreenpipe:
 				client = screenpipe.NewClient()
 			case model.MCPServerTypeEnchanted:
+				if s.config == nil {
+					log.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
+					continue
+				}
 				transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
 				if err != nil {
 					log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
