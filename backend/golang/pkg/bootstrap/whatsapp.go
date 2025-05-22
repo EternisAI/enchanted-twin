@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 
 	"github.com/charmbracelet/log"
@@ -16,18 +15,10 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
-func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, dbPath string) *whatsmeow.Client {
+func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
 	dbLog := &whatsapp.WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
 
-	dbDir := filepath.Dir(dbPath)
-	if dbDir != "." {
-		if err := os.MkdirAll(dbDir, 0o755); err != nil {
-			logger.Error("Failed to create WhatsApp database directory", "error", err)
-			panic(err)
-		}
-	}
-
-	container, err := sqlstore.New("sqlite3", "file:./whatsapp_store.db?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New("sqlite3", "file:./db/whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
 		logger.Error("Failed to create WhatsApp database", "error", err)
 		panic(err)
