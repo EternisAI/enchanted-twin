@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
@@ -51,12 +50,6 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 		authorPubKey := ""
 
 		for _, msg := range thread.Messages {
-			id, err := strconv.ParseInt(msg.ID, 10, 64)
-			if err != nil {
-				a.logger.Error("Failed to parse message ID", "error", err, "id", msg.ID)
-				continue
-			}
-
 			createdAt, err := time.Parse(time.RFC3339, msg.CreatedAt)
 			if err != nil {
 				a.logger.Error("Failed to parse message timestamp", "error", err, "createdAt", msg.CreatedAt)
@@ -68,7 +61,7 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 			}
 
 			threadMessages = append(threadMessages, NetworkMessage{
-				ID:           id,
+				ID:           msg.ID,
 				AuthorPubKey: msg.AuthorPubKey,
 				NetworkID:    msg.NetworkID,
 				Content:      msg.Content,

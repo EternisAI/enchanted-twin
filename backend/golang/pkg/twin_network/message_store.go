@@ -6,6 +6,8 @@ import (
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // NetworkMessage represents a single message published on the twin network.
@@ -15,7 +17,7 @@ type NetworkMessage struct {
 	NetworkID          string
 	Content            string
 	CreatedAt          time.Time
-	ID                 int64
+	ID                 string
 	ThreadID           string
 	ThreadAuthorPubKey string // The author/organizer of the thread
 	IsMine             bool
@@ -36,7 +38,6 @@ type MessageStore struct {
 	mu       sync.RWMutex
 	messages []NetworkMessage
 	threads  map[string]Thread // Map of ThreadID -> Thread
-	nextID   int64             // monotonically increasing counter for assigning message IDs
 }
 
 // NewMessageStore returns a ready-to-use empty MessageStore.
@@ -44,7 +45,6 @@ func NewMessageStore() *MessageStore {
 	return &MessageStore{
 		messages: make([]NetworkMessage, 0),
 		threads:  make(map[string]Thread),
-		nextID:   1,
 	}
 }
 
@@ -54,8 +54,7 @@ func (s *MessageStore) Add(msg NetworkMessage) {
 	defer s.mu.Unlock()
 
 	// Assign ID to message
-	msg.ID = s.nextID
-	s.nextID++
+	msg.ID = uuid.New().String()
 
 	if msg.ThreadID != "" {
 		thread, exists := s.threads[msg.ThreadID]
@@ -102,7 +101,7 @@ func (s *MessageStore) GetSince(networkID string, from time.Time, limit *int) []
 // String returns a human-readable representation of the message – suitable for
 // feeding directly into an LLM prompt.
 func (m NetworkMessage) String() string {
-	return fmt.Sprintf("Message[%d] from %s on network %s at %s: %s", m.ID, m.AuthorPubKey, m.NetworkID, m.CreatedAt.Format(time.RFC3339), m.Content)
+	return fmt.Sprintf("Message[%s] from %s on network %s at %s: %s", m.ID, m.AuthorPubKey, m.NetworkID, m.CreatedAt.Format(time.RFC3339), m.Content)
 }
 
 // GetThread returns a thread by its ID

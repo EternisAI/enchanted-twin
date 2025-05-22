@@ -6,7 +6,6 @@ package graph
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 
@@ -37,7 +36,7 @@ func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string,
 	r.Store.Add(msg)
 
 	return &model.NetworkMessage{
-		ID:           fmt.Sprintf("%d", msg.ID),
+		ID:           msg.ID,
 		AuthorPubKey: msg.AuthorPubKey,
 		NetworkID:    msg.NetworkID,
 		Content:      msg.Content,
@@ -59,7 +58,7 @@ func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, fr
 	threadMap := make(map[string][]*model.NetworkMessage)
 	for _, m := range msgs {
 		modelMsg := &model.NetworkMessage{
-			ID:           fmt.Sprintf("%d", m.ID),
+			ID:           m.ID,
 			AuthorPubKey: m.AuthorPubKey,
 			NetworkID:    m.NetworkID,
 			ThreadID:     m.ThreadID,
