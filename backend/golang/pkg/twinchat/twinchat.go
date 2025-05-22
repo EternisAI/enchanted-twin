@@ -360,7 +360,7 @@ func (s *Service) SendMessage(
 
 	// Index the conversation asynchronously
 	go func() {
-		err := s.IndexConversation(ctx, chatID)
+		err := s.IndexConversation(context.Background(), chatID)
 		if err != nil {
 			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
 		}
@@ -493,7 +493,10 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 
 	content := ""
 	for _, message := range messagesWindow {
-		content += fmt.Sprintf("%s: %s\n", message.Role, *message.Text)
+		if message.Role.String() == "system" {
+			continue
+		}
+		content += fmt.Sprintf("%s: %s\n", message.Role.String(), *message.Text)
 	}
 
 	prompt := fmt.Sprintf("The following conversation is between a human and an AI assistant:\n\n%s", content)
@@ -505,6 +508,8 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 			"source": "chat",
 		},
 	}
+
+	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
 
 	return s.memoryService.Store(ctx, []memory.TextDocument{doc}, nil)
 }
