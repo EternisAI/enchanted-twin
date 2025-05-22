@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	stderrs "errors"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -80,7 +79,7 @@ func main() {
 	if envs.OllamaBaseURL != "" {
 		baseURL, err := url.Parse(envs.OllamaBaseURL)
 		if err != nil {
-			logger.Error("Failed to parse Ollama base URL", slog.Any("error", err))
+			logger.Error("Failed to parse Ollama base URL", "error", err)
 		} else {
 			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
 		}
@@ -118,7 +117,7 @@ func main() {
 				if err == nil {
 					err = nc.Publish("whatsapp.qr_code", jsonData)
 					if err != nil {
-						logger.Error("Failed to publish WhatsApp QR code to NATS", slog.Any("error", err))
+						logger.Error("Failed to publish WhatsApp QR code to NATS", "error", err)
 					} else {
 						logger.Info("Published WhatsApp QR code to NATS")
 					}
@@ -150,7 +149,7 @@ func main() {
 				if err == nil {
 					err = nc.Publish("whatsapp.qr_code", jsonData)
 					if err != nil {
-						logger.Error("Failed to publish WhatsApp connection success to NATS", slog.Any("error", err))
+						logger.Error("Failed to publish WhatsApp connection success to NATS", "error", err)
 					} else {
 						logger.Info("Published WhatsApp connection success to NATS")
 					}
@@ -168,7 +167,7 @@ func main() {
 	}
 	defer func() {
 		if err := store.Close(); err != nil {
-			logger.Error("Error closing store", slog.Any("error", err))
+			logger.Error("Error closing store", "error", err)
 		}
 	}()
 
@@ -348,7 +347,7 @@ func main() {
 
 	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
 	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
-		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		logger.Error("Failed to bootstrap Weaviate server", "error", err)
 		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
 	}
 
@@ -370,7 +369,7 @@ func main() {
 		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
-			logger.Error("HTTP server error", slog.Any("error", err))
+			logger.Error("HTTP server error", "error", err)
 			panic(errors.Wrap(err, "Unable to start server"))
 		}
 	}()
@@ -458,7 +457,7 @@ func bootstrapTemporalWorker(
 
 	err := w.Start()
 	if err != nil {
-		input.logger.Error("Error starting worker", slog.Any("error", err))
+		input.logger.Error("Error starting worker", "error", err)
 		return nil, err
 	}
 
@@ -600,7 +599,7 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 	go func() {
 		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Weaviate serve error", slog.Any("error", err))
+			logger.Error("Weaviate serve error", "error", err)
 		}
 	}()
 
