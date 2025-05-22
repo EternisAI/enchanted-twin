@@ -230,9 +230,9 @@ func createSQLGenerationPrompt(
 	nlQuestion string,
 	uniqueSubs, uniquePrds, uniqueObjs []string,
 ) string {
-	subs := strings.Join(helpers.SafeSlice(uniqueSubs, 10), ", ")
+	subs := strings.Join(helpers.SafeFirstN(uniqueSubs, 10), ", ")
 	prds := strings.Join(uniquePrds, ", ")
-	objs := strings.Join(helpers.SafeSlice(uniqueObjs, 10), ", ")
+	objs := strings.Join(helpers.SafeFirstN(uniqueObjs, 10), ", ")
 
 	examples := ""
 	if len(uniqueSubs)+len(uniquePrds)+len(uniqueObjs) > 0 {

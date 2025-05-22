@@ -35,6 +35,7 @@ require (
 	github.com/temporalio/ui-server/v2 v2.37.2
 	github.com/vektah/gqlparser/v2 v2.5.27
 	github.com/weaviate/weaviate v1.30.3
+	github.com/weaviate/weaviate-go-client/v5 v5.1.0
 	go.mau.fi/whatsmeow v0.0.0-20250501130609-4c93ee4e6efa
 	go.temporal.io/sdk v1.34.0
 	go.temporal.io/server v1.28.0-133.3
@@ -108,7 +109,7 @@ require (
 	github.com/go-test/deep v1.1.1 // indirect
 	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/google/btree v1.0.1 // indirect
+	github.com/google/btree v1.1.3 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -142,7 +143,7 @@ require (
 	github.com/launchdarkly/go-server-sdk/v7 v7.8.0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
-	github.com/miekg/dns v1.1.31 // indirect
+	github.com/miekg/dns v1.1.43 // indirect
 	github.com/minio/md5-simd v1.1.2 // indirect
 	github.com/minio/minio-go/v7 v7.0.84 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
@@ -197,7 +198,6 @@ require (
 	go.mau.fi/libsignal v0.1.2 // indirect
 	go.mau.fi/util v0.8.6 // indirect
 	go.mongodb.org/mongo-driver v1.14.0 // indirect
-	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.33.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
