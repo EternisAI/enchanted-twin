@@ -58,7 +58,6 @@ func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, fr
 
 	threadMap := make(map[string][]*model.NetworkMessage)
 	for _, m := range msgs {
-
 		modelMsg := &model.NetworkMessage{
 			ID:           fmt.Sprintf("%d", m.ID),
 			AuthorPubKey: m.AuthorPubKey,
@@ -72,27 +71,39 @@ func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, fr
 		threadMap[m.ThreadID] = append(threadMap[m.ThreadID], modelMsg)
 	}
 
-	// Convert the map to a slice of NetworkThread
 	threads := make([]*model.NetworkThread, 0, len(threadMap))
 	for threadID, messages := range threadMap {
-		// Find latest message to use as updatedAt time for the thread
-		latestTime := fromTime
-		for _, msg := range messages {
-			msgTime, _ := time.Parse(time.RFC3339, msg.CreatedAt)
-			if msgTime.After(latestTime) {
-				latestTime = msgTime
+
+		var authorPubKey string
+		var updatedAt time.Time
+
+		threadData, exists := r.Store.GetThread(threadID)
+		if exists {
+
+			authorPubKey = threadData.AuthorPubKey
+			updatedAt = threadData.UpdatedAt
+		} else {
+
+			latestTime := fromTime
+			for _, msg := range messages {
+				msgTime, _ := time.Parse(time.RFC3339, msg.CreatedAt)
+				if msgTime.After(latestTime) {
+					latestTime = msgTime
+					authorPubKey = msg.AuthorPubKey
+				}
 			}
+			updatedAt = latestTime
 		}
 
 		thread := &model.NetworkThread{
-			ID:        threadID,
-			UpdatedAt: latestTime.Format(time.RFC3339),
-			Messages:  messages,
+			ID:           threadID,
+			AuthorPubKey: authorPubKey,
+			UpdatedAt:    updatedAt.Format(time.RFC3339),
+			Messages:     messages,
 		}
 		threads = append(threads, thread)
 	}
 
-	// Sort threads by updatedAt (most recent first)
 	sort.Slice(threads, func(i, j int) bool {
 		timeI, _ := time.Parse(time.RFC3339, threads[i].UpdatedAt)
 		timeJ, _ := time.Parse(time.RFC3339, threads[j].UpdatedAt)

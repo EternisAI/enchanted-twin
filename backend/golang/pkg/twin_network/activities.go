@@ -78,7 +78,7 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 	return threadsMap, nil
 }
 
-func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage) (string, error) {
+func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage, threadAuthor string) (string, error) {
 	if len(messages) == 0 {
 		return "", nil
 	}
@@ -138,7 +138,7 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	
 	Human profile (top decision factor):  
 	%s
-	`, messages[0].ThreadID, messages[0].AuthorPubKey, personality)
+	`, messages[0].ThreadID, threadAuthor, personality)
 
 	if userProfile.Name != nil {
 		systemPrompt += fmt.Sprintf("Human's name: %s\n", *userProfile.Name)

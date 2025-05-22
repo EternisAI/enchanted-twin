@@ -39,6 +39,7 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 			getNewMessages(networkID: $networkID, from: $from, limit: $limit) {
 				id
 				updatedAt
+				authorPubKey
 				messages {
 					id
 					authorPubKey

@@ -5,6 +5,7 @@ type NetworkThread {
   id: ID!
   updatedAt: DateTime!
   messages: [NetworkMessage!]!
+  authorPubKey: String!
 }
 
 """

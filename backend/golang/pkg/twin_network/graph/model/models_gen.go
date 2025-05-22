@@ -19,9 +19,10 @@ type NetworkMessage struct {
 }
 
 type NetworkThread struct {
-	ID        string            `json:"id"`
-	UpdatedAt string            `json:"updatedAt"`
-	Messages  []*NetworkMessage `json:"messages"`
+	ID           string            `json:"id"`
+	UpdatedAt    string            `json:"updatedAt"`
+	Messages     []*NetworkMessage `json:"messages"`
+	AuthorPubKey string            `json:"authorPubKey"`
 }
 
 type Query struct {
