@@ -31,7 +31,12 @@ export default function AccessibilityStatus() {
   const requestPermission = async () => {
     await window.api.accessibility.request()
     // TODO: make this smarter, so we detect changes in the accessibility settings
-    setTimeout(() => checkPermission(), 500)
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    checkPermission()
+
+    window.api.analytics.capture('permission_asked', {
+      name: 'accessibility'
+    })
   }
 
   const openSettings = async () => {

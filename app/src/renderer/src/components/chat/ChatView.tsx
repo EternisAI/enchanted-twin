@@ -21,6 +21,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [isReasonSelected, setIsReasonSelected] = useState(false)
   const [error, setError] = useState<string>('')
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
@@ -97,6 +98,9 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
       setIsWaitingTwinResponse(true)
       setShowSuggestions(false)
       setError('')
+      window.api.analytics.capture('message_sent', {
+        reasoning: isReasonSelected
+      })
     },
     (msg) => {
       console.error('SendMessage error', msg)
@@ -108,6 +112,9 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   useMessageSubscription(chat.id, (message) => {
     if (message.role !== Role.User) {
       upsertMessage(message)
+      window.api.analytics.capture('message_received', {
+        tools: message.toolCalls.map((tool) => tool.name)
+      })
     }
   })
 
@@ -200,6 +207,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
             onStop={() => {
               setIsWaitingTwinResponse(false)
             }}
+            isReasonSelected={isReasonSelected}
+            onReasonToggle={setIsReasonSelected}
           />
         </div>
       </div>

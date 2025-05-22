@@ -60,6 +60,7 @@ OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
 TELEGRAM_TOKEN=xxx \
 TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://08cace00a6a1a7bb1030eaf1bf3ba91a9759a91e-8080.dstack-prod6.phala.network/mcp \
+POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 make build-mac-silicon
 ```
 
@@ -80,6 +81,7 @@ OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
 TELEGRAM_TOKEN=xxx \
 TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://08cace00a6a1a7bb1030eaf1bf3ba91a9759a91e-8080.dstack-prod6.phala.network/mcp \
+POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 make build-all
 ```
 
@@ -100,6 +102,7 @@ OLLAMA_BASE_URL=https://enchanted.ngrok.pro \
 TELEGRAM_TOKEN=xxx \
 TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://08cace00a6a1a7bb1030eaf1bf3ba91a9759a91e-8080.dstack-prod6.phala.network/mcp \
+POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
 pnpm build-local:mac
 ```
 

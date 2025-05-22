@@ -55,6 +55,14 @@ func processListChannels(
 		}, // Adjust types as needed
 	}
 
+	if arguments.Limit > 50 {
+		params.Limit = 50
+	}
+
+	if arguments.Limit < 10 {
+		params.Limit = 10
+	}
+
 	channels, nextCursor, err := api.GetConversationsContext(ctx, params)
 	if err != nil {
 		fmt.Println("Error getting channels:", err)
