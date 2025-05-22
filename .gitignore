@@ -12,6 +12,7 @@ data_input/
 store.db*
 *.db-shm
 *.db-wal
+*.db
 
 texfrag
 
