@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { motion } from 'framer-motion'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
@@ -8,12 +8,13 @@ import VoiceVisualizer from './VoiceVisualizer'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
-import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 
 interface VoiceModeChatViewProps {
   chat: Chat
   messages: Message[]
+  activeToolCalls: ToolCall[]
+  historicToolCalls: ToolCall[]
   onSendMessage: (text: string, reasoning: boolean, voice: boolean) => void
   toggleVoiceMode: () => void
   isWaitingTwinResponse: boolean
@@ -22,12 +23,13 @@ interface VoiceModeChatViewProps {
 export default function VoiceModeChatView({
   chat,
   messages,
+  activeToolCalls,
+  historicToolCalls,
   onSendMessage,
   toggleVoiceMode
 }: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
   const triggeredRef = useRef(false)
-  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([])
 
   const lastAssistantMessage = useMemo(() => {
     if (!chat || messages.length === 0) return null
@@ -46,18 +48,6 @@ export default function VoiceModeChatView({
       triggeredRef.current = true
       speak(message.text ?? '')
     }
-  })
-
-  useToolCallUpdate(chat.id, (toolCall) => {
-    setActiveToolCalls((prev) => {
-      const existingIndex = prev.findIndex((tc) => tc.id === toolCall.id)
-      if (existingIndex !== -1) {
-        const updated = [...prev]
-        updated[existingIndex] = { ...updated[existingIndex], ...toolCall }
-        return updated
-      }
-      return [...prev, toolCall]
-    })
   })
 
   const visualState: 0 | 1 | 2 = isSpeaking ? 2 : isLoading ? 1 : 0
@@ -99,8 +89,7 @@ export default function VoiceModeChatView({
           tool={toolUrl}
         />
 
-        {/* @TODO: Splti active tool calls from last message and historic everything else */}
-        <ToolCallCenter activeToolCalls={activeToolCalls} />
+        <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
       </motion.div>
 
       <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
