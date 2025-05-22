@@ -7,6 +7,8 @@ import { useSendMessage } from '@renderer/hooks/useChat'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
+import VoiceModeChatView, { VoiceModeSwitch } from './voice/ChatVoiceModeView'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 interface ChatViewProps {
   chat: Chat
@@ -15,11 +17,21 @@ interface ChatViewProps {
 
 export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
+  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [isReasonSelected, setIsReasonSelected] = useState(false)
   const [error, setError] = useState<string>('')
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
+  const [historicToolCalls, setHistoricToolCalls] = useState<ToolCall[]>(() => {
+    return chat.messages
+      .map((message) => message.toolCalls)
+      .flat()
+      .reverse()
+  })
+
+  console.log({ historicToolCalls })
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
     if (initialMessage && chat.messages.length === 0) {
@@ -88,17 +100,21 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     })
   }
 
+  const handleSendMessage = (message: Message) => {
+    upsertMessage(message)
+    setIsWaitingTwinResponse(true)
+    setShowSuggestions(false)
+    setError('')
+    setHistoricToolCalls((prev) => [...activeToolCalls, ...prev])
+    setActiveToolCalls([])
+    window.api.analytics.capture('message_sent', {
+      reasoning: isReasonSelected
+    })
+  }
+
   const { sendMessage } = useSendMessage(
     chat.id,
-    (msg) => {
-      upsertMessage(msg)
-      setIsWaitingTwinResponse(true)
-      setShowSuggestions(false)
-      setError('')
-      window.api.analytics.capture('message_sent', {
-        reasoning: isReasonSelected
-      })
-    },
+    (msg) => handleSendMessage(msg),
     (msg) => {
       console.error('SendMessage error', msg)
       setError(msg.text ?? 'Error sending message')
@@ -144,6 +160,17 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
 
   useToolCallUpdate(chat.id, (toolCall) => {
     updateToolCallInMessage(toolCall)
+
+    // Update active tool calls
+    setActiveToolCalls((prev) => {
+      const existingIndex = prev.findIndex((tc) => tc.id === toolCall.id)
+      if (existingIndex !== -1) {
+        const updated = [...prev]
+        updated[existingIndex] = { ...updated[existingIndex], ...toolCall }
+        return updated
+      }
+      return [...prev, toolCall]
+    })
   })
 
   useEffect(() => {
@@ -151,29 +178,46 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     if (!mounted) {
       setMounted(true)
     }
-  }, [messages, mounted])
+  }, [messages, mounted, isVoiceMode])
 
   const handleSuggestionClick = (suggestion: string) => {
-    sendMessage(suggestion, false)
+    sendMessage(suggestion, false, isVoiceMode)
+  }
+
+  if (isVoiceMode) {
+    return (
+      <VoiceModeChatView
+        chat={chat}
+        toggleVoiceMode={toggleVoiceMode}
+        messages={messages}
+        activeToolCalls={activeToolCalls}
+        historicToolCalls={historicToolCalls}
+        onSendMessage={sendMessage}
+        isWaitingTwinResponse={isWaitingTwinResponse}
+      />
+    )
   }
 
   return (
-    <div className="flex flex-col h-full w-full">
-      <div className="flex-1 overflow-y-auto w-full">
-        <div className="flex flex-col items-center p-4 w-full">
-          <div className="w-full">
-            <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
-            {error && (
-              <div className="py-2 px-4 rounded-md border border-red-500 bg-red-500/10 text-red-500">
-                Error: {error}
-              </div>
-            )}
-            <div ref={bottomRef} />
+    <div className="flex flex-col h-full w-full items-center">
+      <div className="flex flex-1 flex-col w-full overflow-y-auto ">
+        <div className="flex w-full justify-center">
+          <div className="flex flex-col max-w-4xl items-center p-4 w-full">
+            <div className="w-full">
+              <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
+              {error && (
+                <div className="py-2 px-4 rounded-md border border-red-500 bg-red-500/10 text-red-500">
+                  Error: {error}
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
           </div>
         </div>
       </div>
+
       <div className="flex flex-col w-full items-center justify-center px-2">
-        <div className="w-full flex justify-center items-center relative">
+        <div className="w-full flex max-w-4xl justify-center items-center relative">
           <ChatSuggestions
             chatId={chat.id}
             visible={showSuggestions}
@@ -181,7 +225,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
             toggleVisibility={() => setShowSuggestions(!showSuggestions)}
           />
         </div>
-        <div className="pb-4 w-full max-w-4xl flex justify-center items-center ">
+        <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
+          <VoiceModeSwitch voiceMode={isVoiceMode} setVoiceMode={toggleVoiceMode} />
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}

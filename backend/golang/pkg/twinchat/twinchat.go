@@ -16,11 +16,13 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
@@ -28,6 +30,7 @@ type Service struct {
 	aiService        *ai.Service
 	storage          Storage
 	nc               *nats.Conn
+	memoryService    memory.Storage
 	logger           *log.Logger
 	completionsModel string
 	reasoningModel   string
@@ -40,6 +43,7 @@ func NewService(
 	aiService *ai.Service,
 	storage Storage,
 	nc *nats.Conn,
+	memoryService memory.Storage,
 	registry *tools.ToolMapRegistry,
 	userStorage *db.Store,
 	completionsModel string,
@@ -50,6 +54,7 @@ func NewService(
 		aiService:        aiService,
 		storage:          storage,
 		nc:               nc,
+		memoryService:    memoryService,
 		completionsModel: completionsModel,
 		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
@@ -88,32 +93,62 @@ func (s *Service) Execute(
 	return &response, nil
 }
 
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return "", err
+	}
+	var emailAccounts []string
+	if len(oauthTokens) > 0 {
+		for _, token := range oauthTokens {
+			emailAccounts = append(emailAccounts, token.Username)
+		}
+	}
+
+	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
+		UserName:      userProfile.Name,
+		Bio:           userProfile.Bio,
+		EmailAccounts: emailAccounts,
+		ChatID:        &chatID,
+		CurrentTime:   time.Now().Format(time.RFC3339),
+		IsVoice:       isVoice,
+	})
+	if err != nil {
+		return "", err
+	}
+	return systemPrompt, nil
+}
+
 func (s *Service) SendMessage(
 	ctx context.Context,
 	chatID string,
 	message string,
-	reasoning bool,
+	isReasoning bool,
+	isVoice bool,
 ) (*model.Message, error) {
+	now := time.Now()
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
 
-	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. When user asks something to be done every minute, every hour, every day, every week, every month, every year, you should use the `schedule_task` tool and construct cron expression. When calling `schedule_task` tool you must not include your human name in the task name, it is implicitly assumed that any message send to the chat will be sent to the human."
-	now := time.Now()
-	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now.Format(time.RFC3339))
-
-	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
 	if err != nil {
 		return nil, err
 	}
 
-	if userProfile.Name != nil {
-		systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
-	}
-	if userProfile.Bio != nil {
-		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
-	}
+	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+	// if userProfile.Name != nil {
+	// 	systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
+	// }
+	// if userProfile.Bio != nil {
+	// 	systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
+	// }
 
 	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
 	if err != nil {
@@ -227,8 +262,8 @@ func (s *Service) SendMessage(
 		"message_id": userMsgID,
 	}
 
-	s.logger.Info("Executing agent", "reasoning", reasoning)
-	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, reasoning)
+	s.logger.Info("Executing agent", "reasoning", isReasoning)
+	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -365,6 +400,14 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
+	// Index the conversation asynchronously
+	go func() {
+		err := s.IndexConversation(context.Background(), chatID)
+		if err != nil {
+			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
+		}
+	}()
+
 	return &model.Message{
 		ID:          idAssistant,
 		Text:        &response.Content,
@@ -479,4 +522,36 @@ func (s *Service) GetChatSuggestions(
 func (s *Service) Tools() []tools.Tool {
 	sendToChatTool := NewSendToChatTool(s.storage, s.nc)
 	return []tools.Tool{sendToChatTool}
+}
+
+func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
+	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
+	if err != nil {
+		return err
+	}
+
+	slidingWindow := 10
+	messagesWindow := helpers.SafeLastN(messages, slidingWindow)
+
+	content := ""
+	for _, message := range messagesWindow {
+		if message.Role.String() == "system" {
+			continue
+		}
+		content += fmt.Sprintf("%s: %s\n", message.Role.String(), *message.Text)
+	}
+
+	prompt := fmt.Sprintf("The following conversation is between a human and an AI assistant:\n\n%s", content)
+
+	doc := memory.TextDocument{
+		ID:      uuid.New().String(),
+		Content: prompt,
+		Metadata: map[string]string{
+			"source": "chat",
+		},
+	}
+
+	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
+
+	return s.memoryService.Store(ctx, []memory.TextDocument{doc}, nil)
 }
