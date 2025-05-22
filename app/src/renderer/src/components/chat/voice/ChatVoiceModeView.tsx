@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
@@ -17,6 +17,7 @@ interface VoiceModeChatViewProps {
   messages: Message[]
   initialMessage?: string
   toggleVoiceMode: () => void
+  isWaitingTwinResponse: boolean
 }
 
 export default function VoiceModeChatView({
@@ -95,6 +96,16 @@ export default function VoiceModeChatView({
     }
   }, [isSpeaking])
 
+  const currentToolCall = activeToolCalls.find((tc) => !tc.isCompleted)
+  const toolUrl = useMemo(() => {
+    if (currentToolCall?.name === 'generate_image') {
+      return 'image:https://upload.wikimedia.org/wikipedia/commons/thumb/5/54/NotoSans_-_Frame_With_Picture_-_1F5BC.svg/330px-NotoSans_-_Frame_With_Picture_-_1F5BC.svg.png'
+    } else if (currentToolCall?.name === 'perplexity_ask') {
+      return 'image:https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/Magnifying_glass_icon.svg/480px-Magnifying_glass_icon.svg.png'
+    }
+    return undefined
+  }, [currentToolCall])
+
   return (
     <div className="flex flex-col h-full w-full items-center relative">
       <motion.div
@@ -108,6 +119,7 @@ export default function VoiceModeChatView({
           visualState={visualState}
           getFreqData={getFreqData}
           assistantTextMessage={lastAssistantMessage?.text ?? undefined}
+          tool={toolUrl}
         />
 
         {/* @TODO: Splti active tool calls from last message and historic everything else */}

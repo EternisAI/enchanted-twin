@@ -159,7 +159,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
         chat={chat}
         toggleVoiceMode={toggleVoiceMode}
         messages={messages}
-        // isWaitingTwinResponse={isWaitingTwinResponse}
+        isWaitingTwinResponse={isWaitingTwinResponse}
         // error={error}
       />
     )
