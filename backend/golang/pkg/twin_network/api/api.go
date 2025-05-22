@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 
 	"github.com/EternisAI/enchanted-twin/pkg/twin_network/graph/model"
 )
@@ -175,10 +176,17 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 }
 
 func (a *TwinNetworkAPI) PostMessage(ctx context.Context, networkID string, threadID string, content string, authorPubKey string, signature string) error {
+	// If threadID is empty, generate a new UUID
+	if threadID == "" {
+		threadID = uuid.New().String()
+		a.logger.Debug("Generated new threadID for empty input", "threadID", threadID)
+	}
+
 	a.logger.Debug("Info message",
 		"networkID", networkID,
 		"content", content,
-		"authorPubKey", authorPubKey)
+		"authorPubKey", authorPubKey,
+		"threadID", threadID)
 
 	query := `
 		mutation PostMessage($networkID: String!, $content: String!, $authorPubKey: String!, $signature: String!, $threadID: String!) {

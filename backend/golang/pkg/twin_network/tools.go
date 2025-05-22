@@ -37,11 +37,9 @@ func (e *SendNetworkMessageTool) Execute(ctx context.Context, inputs map[string]
 		threadID = ""
 	}
 
-	// Strip the # character if present in the thread ID
 	originalThreadID := threadID
 	threadID = strings.TrimPrefix(threadID, "#")
 
-	// Add debug logging for thread ID processing
 	fmt.Printf("Twin Network: Processing thread ID from '%s' to '%s'\n", originalThreadID, threadID)
 
 	signature, err := e.agentKey.SignMessage(message)
@@ -77,7 +75,7 @@ func (e *SendNetworkMessageTool) Definition() openai.ChatCompletionToolParam {
 						"description": "The thread ID to send the message to. CRITICAL: When replying to a message from the twin network, you MUST copy the EXACT thread ID string from the original message. Look for 'thread id: #XXXX' in the conversation and use that exact value. DO NOT generate new thread IDs. Example: If you see 'thread id: #1234', you must use '#1234' as the thread_id parameter value. The # character will be automatically stripped internally when sending the message. Empty thread ID should only be used for completely new threads, never for replies.",
 					},
 				},
-				"required": []string{"message", "thread_id"},
+				"required": []string{"message"},
 			},
 		},
 	}
