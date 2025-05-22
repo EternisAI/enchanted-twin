@@ -54,7 +54,7 @@ export default function VoiceVisualizer({
       </Canvas>
 
       {assistantTextMessage && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 text-center text-primary text-md">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 max-w-xl text-center text-primary text-md overflow-hidden">
           {assistantTextMessage}
         </div>
       )}
