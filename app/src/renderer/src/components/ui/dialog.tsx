@@ -4,8 +4,23 @@ import { XIcon } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 // import { useManagedModalZIndex } from '@renderer/hooks/useManagedModalZIndex' // Removed
 
-function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />
+interface DialogContextProps {
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
+
+const DialogContext = React.createContext<DialogContextProps | undefined>(undefined)
+
+function Dialog({
+  open,
+  onOpenChange,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Root>) {
+  return (
+    <DialogContext.Provider value={{ open, onOpenChange }}>
+      <DialogPrimitive.Root data-slot="dialog" open={open} onOpenChange={onOpenChange} {...props} />
+    </DialogContext.Provider>
+  )
 }
 
 function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
@@ -26,8 +41,15 @@ function DialogOverlay(
     ...props
   }: React.ComponentProps<typeof DialogPrimitive.Overlay> /* & { dynamicZIndex?: number } */
 ) {
+  const context = React.useContext(DialogContext)
+  const handleClick = () => {
+    if (context?.open && context?.onOpenChange) {
+      context.onOpenChange(false)
+    }
+  }
   return (
     <DialogPrimitive.Overlay
+      onClick={handleClick}
       data-slot="dialog-overlay"
       className={cn(
         'data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 bg-black/50 backdrop-blur-sm',
