@@ -23,6 +23,15 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [isReasonSelected, setIsReasonSelected] = useState(false)
   const [error, setError] = useState<string>('')
+  const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
+  const [historicToolCalls, setHistoricToolCalls] = useState<ToolCall[]>(() => {
+    return chat.messages
+      .map((message) => message.toolCalls)
+      .flat()
+      .reverse()
+  })
+
+  console.log({ historicToolCalls })
   const [messages, setMessages] = useState<Message[]>(() => {
     // Handle first message optimistically
     if (initialMessage && chat.messages.length === 0) {
@@ -96,6 +105,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     setIsWaitingTwinResponse(true)
     setShowSuggestions(false)
     setError('')
+    setHistoricToolCalls((prev) => [...activeToolCalls, ...prev])
+    setActiveToolCalls([])
     window.api.analytics.capture('message_sent', {
       reasoning: isReasonSelected
     })
@@ -149,6 +160,17 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
 
   useToolCallUpdate(chat.id, (toolCall) => {
     updateToolCallInMessage(toolCall)
+
+    // Update active tool calls
+    setActiveToolCalls((prev) => {
+      const existingIndex = prev.findIndex((tc) => tc.id === toolCall.id)
+      if (existingIndex !== -1) {
+        const updated = [...prev]
+        updated[existingIndex] = { ...updated[existingIndex], ...toolCall }
+        return updated
+      }
+      return [...prev, toolCall]
+    })
   })
 
   useEffect(() => {
@@ -168,7 +190,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
         chat={chat}
         toggleVoiceMode={toggleVoiceMode}
         messages={messages}
-        // handleSendMessage={handleSendMessage}
+        activeToolCalls={activeToolCalls}
+        historicToolCalls={historicToolCalls}
         onSendMessage={sendMessage}
         isWaitingTwinResponse={isWaitingTwinResponse}
       />
