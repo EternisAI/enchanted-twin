@@ -17,8 +17,8 @@ import (
 func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sessionDoc memory.TextDocument) (string, *models.Object, error) {
 	s.logger.Infof("Processing fact for speaker %s: \"%s...\"", speakerID, firstNChars(factContent, 70))
 
-	queryOptions := map[string]interface{}{"speakerID": speakerID}
-	existingMemoriesResult, err := s.Query(ctx, factContent, queryOptions)
+	// queryOptions := map[string]interface{}{"speakerID": speakerID}
+	existingMemoriesResult, err := s.Query(ctx, factContent)
 	if err != nil {
 		s.logger.Errorf("Error querying existing memories for fact processing for speaker %s: %v. Fact: \"%s...\"", speakerID, err, firstNChars(factContent, 50))
 		return "", nil, fmt.Errorf("querying existing memories: %w", err)
@@ -26,7 +26,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 
 	existingMemoriesContentForPrompt := []string{}
 	existingMemoriesForPromptStr := "No existing relevant memories found."
-	if existingMemoriesResult != nil && len(existingMemoriesResult.Documents) > 0 {
+	if len(existingMemoriesResult.Documents) > 0 {
 		s.logger.Debugf("Retrieved %d existing memories for decision prompt for speaker %s.", len(existingMemoriesResult.Documents), speakerID)
 		for _, memDoc := range existingMemoriesResult.Documents {
 			memContext := fmt.Sprintf("ID: %s, Content: %s", memDoc.ID, memDoc.Content)
@@ -62,7 +62,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 	}
 
 	s.logger.Info("Calling LLM for Memory Update Decision.", "speaker", speakerID, "fact_snippet", firstNChars(factContent, 30))
-	llmDecisionResponse, err := s.aiService.Completions(ctx, decisionMessages, memoryDecisionToolsList, openAIChatModel)
+	llmDecisionResponse, err := s.completionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, openAIChatModel)
 	if err != nil {
 		s.logger.Errorf("Error calling OpenAI for memory update decision for speaker %s: %v. Fact: \"%s...\"", speakerID, err, firstNChars(factContent, 50))
 		return "", nil, fmt.Errorf("LLM decision for memory update: %w", err)
@@ -83,7 +83,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 	switch chosenToolName {
 	case AddMemoryToolName:
 		s.logger.Info("ACTION: ADD Memory", "speaker", speakerID)
-		newFactEmbedding64, embedErr := s.aiService.Embedding(ctx, factContent, openAIEmbedModel)
+		newFactEmbedding64, embedErr := s.embeddingsService.Embedding(ctx, factContent, openAIEmbedModel)
 		if embedErr != nil {
 			s.logger.Errorf("Error generating embedding for new fact (ADD), skipping for speaker %s: %v. Fact: \"%s...\"", speakerID, embedErr, firstNChars(factContent, 50))
 			return AddMemoryToolName, nil, fmt.Errorf("embedding for ADD failed: %w", embedErr) // Return action name but nil object due to error
@@ -144,7 +144,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 			return UpdateMemoryToolName, nil, fmt.Errorf("speaker ID mismatch for UPDATE on memory %s", updateArgs.MemoryID)
 		}
 
-		updatedEmbedding64, embedErr := s.aiService.Embedding(ctx, updateArgs.UpdatedMemory, openAIEmbedModel)
+		updatedEmbedding64, embedErr := s.embeddingsService.Embedding(ctx, updateArgs.UpdatedMemory, openAIEmbedModel)
 		if embedErr != nil {
 			s.logger.Error("Error generating embedding for updated memory (UPDATE)", "current_speaker", speakerID, "error", embedErr, "memory_id", updateArgs.MemoryID)
 			return UpdateMemoryToolName, nil, fmt.Errorf("embedding for UPDATE failed: %w", embedErr)

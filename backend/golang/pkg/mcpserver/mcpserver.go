@@ -39,8 +39,8 @@ type service struct {
 }
 
 // NewService creates a new MCPServerService.
-func NewService(ctx context.Context, store *db.Store, registry tools.ToolRegistry) MCPService {
-	repo := repository.NewRepository(log.Default(), store.DB())
+func NewService(ctx context.Context, logger *log.Logger, store *db.Store, registry tools.ToolRegistry) MCPService {
+	repo := repository.NewRepository(logger, store.DB())
 	service := &service{
 		repo:             repo,
 		connectedServers: []*ConnectedMCPServer{},

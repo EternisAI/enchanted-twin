@@ -33,6 +33,7 @@ import (
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
+	"github.com/weaviate/weaviate/entities/models"
 	"go.mau.fi/whatsmeow"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -40,6 +41,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -55,6 +57,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	weaviateAuth "github.com/weaviate/weaviate-go-client/v5/weaviate/auth"
 )
 
 func main() {
@@ -172,9 +176,33 @@ func main() {
 
 	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+	aiEmbeddingsService := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	mem := &memory.MockMemory{}
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		// Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
+		// Scheme: "http",
+		Host:   "pcpsisggqlosvuh0rtadkg.c0.us-west3.gcp.weaviate.cloud",
+		Scheme: "https",
+		AuthConfig: &weaviateAuth.ApiKey{
+			Value: "l8SzG9vo5c1JG7qBWxwAwyrkBkm8vqsrTbBq",
+		},
+	})
+	if err != nil {
+		logger.Error("Failed to create Weaviate client", "error", err)
+		panic(errors.Wrap(err, "Failed to create Weaviate client"))
+	}
+
+	if err := InitSchema(weaviateClient); err != nil {
+		logger.Error("Failed to initialize Weaviate schema", "error", err)
+		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
+	}
+
+	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
+	if err != nil {
+		logger.Error("Failed to create evolving memory", "error", err)
+		panic(errors.Wrap(err, "Failed to create evolving memory"))
+	}
 
 	whatsapp.TriggerConnect()
 
@@ -208,7 +236,7 @@ func main() {
 	}
 
 	// Initialize MCP Service with tool registry
-	mcpService := mcpserver.NewService(context.Background(), store, toolRegistry)
+	mcpService := mcpserver.NewService(context.Background(), logger, store, toolRegistry)
 
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
@@ -606,4 +634,60 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+// DefineMemorySchema creates the schema for the Memory class in Weaviate.
+func DefineMemorySchema(client *weaviate.Client) error {
+	className := "TextDocumentStoreBYOV"
+	classExists, err := ClassExists(client, className)
+	if err != nil {
+		return fmt.Errorf("checking if class %s exists: %w", className, err)
+	}
+	if classExists {
+		fmt.Printf("Class '%s' already exists.\n", className)
+		return nil
+	}
+
+	memoryClass := &models.Class{
+		Class: className,
+		Properties: []*models.Property{
+			{Name: "content", DataType: []string{"text"}},
+			{Name: "timestamp", DataType: []string{"date"}},
+			{Name: "tags", DataType: []string{"text[]"}},
+			{Name: "metadata_map", DataType: []string{"text"}},
+		},
+		Vectorizer: "none",
+		VectorIndexConfig: map[string]interface{}{
+			"distance": "cosine",
+		},
+	}
+
+	err = client.Schema().ClassCreator().WithClass(memoryClass).Do(context.Background())
+	if err != nil {
+		return fmt.Errorf("creating class %s: %w", className, err)
+	}
+	fmt.Printf("Class '%s' created successfully.\n", className)
+	return nil
+}
+
+// ClassExists checks if a class already exists in Weaviate.
+func ClassExists(client *weaviate.Client, className string) (bool, error) {
+	schema, err := client.Schema().Getter().Do(context.Background())
+	if err != nil {
+		return false, err
+	}
+	for _, class := range schema.Classes {
+		if class.Class == className {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// InitSchema defines all schemas
+func InitSchema(client *weaviate.Client) error {
+	if err := DefineMemorySchema(client); err != nil {
+		return err
+	}
+	return nil
 }

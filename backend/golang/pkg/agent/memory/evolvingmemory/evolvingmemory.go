@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -62,9 +61,10 @@ type ExtractFactsToolArguments struct {
 
 // WeaviateStorage implements the memory.Storage interface using Weaviate.
 type WeaviateStorage struct {
-	client    *weaviate.Client
-	logger    *log.Logger
-	aiService *ai.Service
+	client             *weaviate.Client
+	logger             *log.Logger
+	completionsService *ai.Service
+	embeddingsService  *ai.Service
 }
 
 // New creates a new WeaviateStorage instance.
@@ -72,31 +72,12 @@ type WeaviateStorage struct {
 // weaviateScheme is "http" or "https".
 // The logger is used for logging messages.
 // The aiService is used for generating embeddings.
-func New(weaviateHost string, weaviateScheme string, logger *log.Logger, aiService *ai.Service) (*WeaviateStorage, error) {
-	if logger == nil {
-		// Default charmbracelet logger if none provided
-		logger = log.NewWithOptions(os.Stderr, log.Options{
-			Prefix: "[WeaviateStorageDefault] ",
-			Level:  log.DebugLevel,
-		})
-	}
-	if aiService == nil {
-		return nil, fmt.Errorf("ai.Service cannot be nil")
-	}
-
-	cfg := weaviate.Config{
-		Host:   weaviateHost,
-		Scheme: weaviateScheme,
-	}
-	client, err := weaviate.NewClient(cfg)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create weaviate client: %w", err)
-	}
-
+func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Service, embeddingsService *ai.Service) (*WeaviateStorage, error) {
 	storage := &WeaviateStorage{
-		client:    client,
-		logger:    logger,
-		aiService: aiService,
+		client:             client,
+		logger:             logger,
+		completionsService: completionsService,
+		embeddingsService:  embeddingsService,
 	}
 
 	if err := storage.ensureSchemaExistsInternal(context.Background()); err != nil {

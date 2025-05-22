@@ -12,24 +12,24 @@ import (
 )
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string, options interface{}) (*memory.QueryResult, error) {
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
 	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ensure schema before querying: %w", err)
+		return memory.QueryResult{}, fmt.Errorf("failed to ensure schema before querying: %w", err)
 	}
 
-	var filterBySpeakerID string
-	if opts, ok := options.(map[string]interface{}); ok {
-		if speakerToFilter, okS := opts["speakerID"].(string); okS && speakerToFilter != "" {
-			filterBySpeakerID = speakerToFilter
-			s.logger.Info("Query results will be filtered in Go by speakerID", "speakerID", filterBySpeakerID)
-		}
-	}
+	// var filterBySpeakerID string
+	// if opts, ok := options.(map[string]interface{}); ok {
+	// 	if speakerToFilter, okS := opts["speakerID"].(string); okS && speakerToFilter != "" {
+	// 		filterBySpeakerID = speakerToFilter
+	// 		s.logger.Info("Query results will be filtered in Go by speakerID", "speakerID", filterBySpeakerID)
+	// 	}
+	// }
 
 	s.logger.Info("Query method called", "query_text", queryText)
 
-	vector, err := s.aiService.Embedding(ctx, queryText, openAIEmbedModel)
+	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create embedding for query: %w", err)
+		return memory.QueryResult{}, fmt.Errorf("failed to create embedding for query: %w", err)
 	}
 	queryVector32 := make([]float32, len(vector))
 	for i, val := range vector {
@@ -58,24 +58,24 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, options i
 
 	resp, err := queryBuilder.Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to execute Weaviate query: %w", err)
+		return memory.QueryResult{}, fmt.Errorf("failed to execute Weaviate query: %w", err)
 	}
 
 	if len(resp.Errors) > 0 {
-		return nil, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
+		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
 	}
 
 	finalResults := []memory.TextDocument{}
 	data, ok := resp.Data["Get"].(map[string]interface{})
 	if !ok {
 		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
-		return &memory.QueryResult{Documents: finalResults}, nil
+		return memory.QueryResult{Documents: finalResults}, nil
 	}
 
 	classData, ok := data[className].([]interface{})
 	if !ok {
 		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", className)
-		return &memory.QueryResult{Documents: finalResults}, nil
+		return memory.QueryResult{Documents: finalResults}, nil
 	}
 	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
 
@@ -109,12 +109,12 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, options i
 			}
 		}
 
-		docSpeakerID := metaMap["speakerID"]
+		// docSpeakerID := metaMap["speakerID"]
 
-		if filterBySpeakerID != "" && docSpeakerID != filterBySpeakerID {
-			s.logger.Debug("Document filtered out by speakerID mismatch", "doc_id", id, "doc_speaker_id", docSpeakerID, "filter_speaker_id", filterBySpeakerID)
-			continue
-		}
+		// if filterBySpeakerID != "" && docSpeakerID != filterBySpeakerID {
+		// 	s.logger.Debug("Document filtered out by speakerID mismatch", "doc_id", id, "doc_speaker_id", docSpeakerID, "filter_speaker_id", filterBySpeakerID)
+		// 	continue
+		// }
 
 		var tags []string
 		if tagsInterface, tagsOk := obj[tagsProperty].([]interface{}); tagsOk {
@@ -134,5 +134,5 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, options i
 		})
 	}
 	s.logger.Info("Query processed successfully.", "num_results_returned_after_filtering", len(finalResults))
-	return &memory.QueryResult{Documents: finalResults}, nil
+	return memory.QueryResult{Documents: finalResults}, nil
 }

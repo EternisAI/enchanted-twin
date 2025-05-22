@@ -84,7 +84,7 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 
 	s.logger.Debugf("Calling LLM for Speaker-Focused Fact Extraction (%s). Model: %s, Tools: %d tools", speakerID, openAIChatModel, len(factExtractionToolsList))
 
-	llmResponse, err := s.aiService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
+	llmResponse, err := s.completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
 	if err != nil {
 		s.logger.Errorf("LLM completion error during fact extraction for speaker %s in doc %s: %v", speakerID, sessionDoc.ID, err)
 		return nil, fmt.Errorf("LLM completion error for speaker %s, doc %s: %w", speakerID, sessionDoc.ID, err)
