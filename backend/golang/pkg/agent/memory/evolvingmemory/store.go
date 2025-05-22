@@ -7,6 +7,28 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
+// identifySpeakersInMetadata attempts to find specific speaker identifiers in document metadata.
+// Currently, it looks for "dataset_speaker_a" and "dataset_speaker_b".
+// It returns a slice of identified speaker strings. If no specific speakers are found,
+// it returns an empty slice.
+func (s *WeaviateStorage) identifySpeakersInMetadata(metadata map[string]string) []string {
+	var specificSpeakerCandidates []string
+	if speakerA, ok := metadata["dataset_speaker_a"]; ok && speakerA != "" {
+		specificSpeakerCandidates = append(specificSpeakerCandidates, speakerA)
+	}
+	if speakerB, ok := metadata["dataset_speaker_b"]; ok && speakerB != "" {
+		addSpeakerB := true
+		// Avoid adding B if it's the same as A and A was already added
+		if len(specificSpeakerCandidates) == 1 && specificSpeakerCandidates[0] == speakerB {
+			addSpeakerB = false
+		}
+		if addSpeakerB {
+			specificSpeakerCandidates = append(specificSpeakerCandidates, speakerB)
+		}
+	}
+	return specificSpeakerCandidates
+}
+
 // Store orchestrates the process of extracting facts from documents and updating memories.
 func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
 	defer func() {
@@ -28,40 +50,31 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 	for i, sessionDoc := range documents {
 		s.logger.Infof("Processing session document %d of %d. Session Doc ID (if any): '%s'", i+1, totalDocs, sessionDoc.ID)
 
-		var speakerIterationCandidates []string
-		if speakerA, ok := sessionDoc.Metadata["dataset_speaker_a"]; ok && speakerA != "" {
-			speakerIterationCandidates = append(speakerIterationCandidates, speakerA)
-		}
-		if speakerB, ok := sessionDoc.Metadata["dataset_speaker_b"]; ok && speakerB != "" {
-			addSpeakerB := true
-			if len(speakerIterationCandidates) == 1 && speakerIterationCandidates[0] == speakerB {
-				addSpeakerB = false
-			}
-			if addSpeakerB {
-				speakerIterationCandidates = append(speakerIterationCandidates, speakerB)
-			}
-		}
+		// Attempt to identify specific speakers using the helper method
+		specificSpeakerCandidates := s.identifySpeakersInMetadata(sessionDoc.Metadata)
 
-		if len(speakerIterationCandidates) > 0 {
-			s.logger.Debugf("Identified speaker iteration candidates: %v", speakerIterationCandidates)
+		var speakersToProcess []string
+		if len(specificSpeakerCandidates) > 0 {
+			speakersToProcess = specificSpeakerCandidates
+			s.logger.Debugf("Identified specific speakers: %v. Proceeding with speaker-specific processing.", speakersToProcess)
 		} else {
-			s.logger.Warn("Could not identify speakers from 'dataset_speaker_a' or 'dataset_speaker_b' in sessionDoc.Metadata. Fact extraction might be limited or speaker-agnostic.")
+			// No specific speakers found, set up for a single document-level processing pass.
+			// The empty string speakerID will signify document-level context to downstream functions.
+			speakersToProcess = []string{""}
+			s.logger.Infof("No specific speakers identified for session doc ID '%s'. Proceeding with document-level processing.", sessionDoc.ID)
 		}
 
-		if len(speakerIterationCandidates) == 0 {
-			s.logger.Warn("No speaker candidates identified for session doc ID '%s'. Skipping speaker-focused fact extraction for this document.", sessionDoc.ID)
-			if progressChan != nil {
-				progressChan <- memory.ProgressUpdate{
-					Processed: i + 1,
-					Total:     totalDocs,
-				}
+		// This loop will run once with speakerID="" if no specific speakers were found,
+		// or once for each specific speaker if they were identified.
+		for _, speakerID := range speakersToProcess {
+			logContextEntity := "Speaker" // Default to "Speaker"
+			logContextValue := speakerID
+
+			if speakerID == "" {
+				logContextEntity = "Document"
+				logContextValue = "<document_context>" // For clearer logging when speakerID is empty
 			}
-			continue
-		}
-
-		for _, speakerID := range speakerIterationCandidates {
-			currentSpeakerIDForLog := speakerID
-			s.logger.Infof("== Processing for Speaker: %s == (Session Doc %d of %d)", currentSpeakerIDForLog, i+1, totalDocs)
+			s.logger.Infof("== Processing for %s: %s == (Session Doc %d of %d)", logContextEntity, logContextValue, i+1, totalDocs)
 
 			docEventDateStr := "Unknown"
 			if sessionDoc.Timestamp != nil && !sessionDoc.Timestamp.IsZero() {
@@ -70,34 +83,34 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 
 			extractedFacts, err := s.extractFactsFromTextDocument(ctx, sessionDoc, speakerID, currentSystemDate, docEventDateStr)
 			if err != nil {
-				s.logger.Errorf("Error during fact extraction for speaker %s: %v. Skipping speaker.", currentSpeakerIDForLog, err)
+				s.logger.Errorf("Error during fact extraction for %s %s: %v. Skipping this processing unit.", logContextEntity, logContextValue, err)
 				continue
 			}
 			if len(extractedFacts) == 0 {
-				s.logger.Infof("No facts extracted for speaker %s. Skipping memory operations for this speaker.", currentSpeakerIDForLog)
+				s.logger.Infof("No facts extracted for %s %s. Skipping memory operations for this unit.", logContextEntity, logContextValue)
 				continue
 			}
-			s.logger.Infof("Total facts to process for speaker '%s': %d", currentSpeakerIDForLog, len(extractedFacts))
+			s.logger.Infof("Total facts to process for %s '%s': %d", logContextEntity, logContextValue, len(extractedFacts))
 
 			for factIdx, factContent := range extractedFacts {
 				if strings.TrimSpace(factContent) == "" {
-					s.logger.Debug("Skipping empty fact text.", "speaker", currentSpeakerIDForLog)
+					s.logger.Debug("Skipping empty fact text.", "context", logContextValue)
 					continue
 				}
-				s.logger.Infof("Processing fact %d for speaker %s: \"%s...\"", factIdx+1, currentSpeakerIDForLog, firstNChars(factContent, 70))
+				s.logger.Infof("Processing fact %d for %s %s: \"%s...\"", factIdx+1, logContextEntity, logContextValue, firstNChars(factContent, 70))
 
 				action, objectToAdd, err := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, sessionDoc)
 				if err != nil {
-					s.logger.Errorf("Error processing fact for speaker %s: %v. Fact: \"%s...\"", currentSpeakerIDForLog, err, firstNChars(factContent, 50))
+					s.logger.Errorf("Error processing fact for %s %s: %v. Fact: \"%s...\"", logContextEntity, logContextValue, err, firstNChars(factContent, 50))
 					continue
 				}
 
 				if action == AddMemoryToolName && objectToAdd != nil {
 					batcher.WithObjects(objectToAdd)
 					objectsAddedToBatch++
-					s.logger.Infof("Fact ADDED to batch for speaker %s. Fact: \"%s...\"", currentSpeakerIDForLog, firstNChars(factContent, 50))
+					s.logger.Infof("Fact ADDED to batch for %s %s. Fact: \"%s...\"", logContextEntity, logContextValue, firstNChars(factContent, 50))
 				} else if action != AddMemoryToolName {
-					s.logger.Infof("Action '%s' for speaker %s (Fact: \"%s...\") handled directly, not added to batch.", action, currentSpeakerIDForLog, firstNChars(factContent, 30))
+					s.logger.Infof("Action '%s' for %s %s (Fact: \"%s...\") handled directly, not added to batch.", action, logContextEntity, logContextValue, firstNChars(factContent, 30))
 				}
 			}
 		}

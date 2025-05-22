@@ -15,37 +15,48 @@ import (
 
 // updateMemories decides and executes memory operations (ADD, UPDATE, DELETE, NONE) for a given fact.
 func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sessionDoc memory.TextDocument) (string, *models.Object, error) {
-	s.logger.Infof("Processing fact for speaker %s: \"%s...\"", speakerID, firstNChars(factContent, 70))
+	logContextEntity := "Speaker"
+	logContextValue := speakerID
+	speakerPromptName := speakerID
 
-	// queryOptions := map[string]interface{}{"speakerID": speakerID}
-	existingMemoriesResult, err := s.Query(ctx, factContent)
+	if speakerID == "" {
+		logContextEntity = "Document"
+		logContextValue = "<document_context>"
+		speakerPromptName = "Content Source" // Generic term for prompts when no specific speaker
+	}
+
+	s.logger.Infof("Processing fact for %s %s: \"%s...\"", logContextEntity, logContextValue, firstNChars(factContent, 70))
+
+	// queryOptions := map[string]interface{}{"speakerID": speakerID} // Consider if query needs adaptation for speakerID == ""
+	existingMemoriesResult, err := s.Query(ctx, factContent) // Assuming Query is speaker-agnostic or handles "" speakerID appropriately
 	if err != nil {
-		s.logger.Errorf("Error querying existing memories for fact processing for speaker %s: %v. Fact: \"%s...\"", speakerID, err, firstNChars(factContent, 50))
+		s.logger.Errorf("Error querying existing memories for fact processing for %s %s: %v. Fact: \"%s...\"", logContextEntity, logContextValue, err, firstNChars(factContent, 50))
 		return "", nil, fmt.Errorf("querying existing memories: %w", err)
 	}
 
 	existingMemoriesContentForPrompt := []string{}
 	existingMemoriesForPromptStr := "No existing relevant memories found."
 	if len(existingMemoriesResult.Documents) > 0 {
-		s.logger.Debugf("Retrieved %d existing memories for decision prompt for speaker %s.", len(existingMemoriesResult.Documents), speakerID)
+		s.logger.Debugf("Retrieved %d existing memories for decision prompt for %s %s.", len(existingMemoriesResult.Documents), logContextEntity, logContextValue)
 		for _, memDoc := range existingMemoriesResult.Documents {
 			memContext := fmt.Sprintf("ID: %s, Content: %s", memDoc.ID, memDoc.Content)
+			// Potentially: memDoc.Metadata["speakerID"] could be displayed here if relevant to the LLM's decision
 			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
 		}
 		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
 	} else {
-		s.logger.Debug("No existing relevant memories found for this fact for speaker %s.", speakerID)
+		s.logger.Debugf("No existing relevant memories found for this fact for %s %s.", logContextEntity, logContextValue)
 	}
 
-	prompt := strings.ReplaceAll(DefaultUpdateMemoryPrompt, "{primary_speaker_name}", speakerID)
+	prompt := strings.ReplaceAll(DefaultUpdateMemoryPrompt, "{primary_speaker_name}", speakerPromptName)
 	prompt = strings.ReplaceAll(prompt, "{current_system_date}", currentSystemDate)
 	prompt = strings.ReplaceAll(prompt, "{document_event_date}", docEventDateStr)
 
 	var decisionPromptBuilder strings.Builder
 	decisionPromptBuilder.WriteString(prompt)
 	decisionPromptBuilder.WriteString("\n\nContext:\n")
-	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for %s (if any, related to the new fact):\n%s\n\n", speakerID, existingMemoriesForPromptStr))
-	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for %s:\n%s\n\n", speakerID, factContent))
+	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for %s (if any, related to the new fact):\n%s\n\n", speakerPromptName, existingMemoriesForPromptStr))
+	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for %s:\n%s\n\n", speakerPromptName, factContent))
 	decisionPromptBuilder.WriteString("Based on the guidelines and context, what action should be taken for the NEW FACT?")
 	fullDecisionPrompt := decisionPromptBuilder.String()
 
@@ -61,10 +72,10 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		addMemoryTool, updateMemoryTool, deleteMemoryTool, noneMemoryTool,
 	}
 
-	s.logger.Info("Calling LLM for Memory Update Decision.", "speaker", speakerID, "fact_snippet", firstNChars(factContent, 30))
+	s.logger.Info("Calling LLM for Memory Update Decision.", "context", logContextValue, "fact_snippet", firstNChars(factContent, 30))
 	llmDecisionResponse, err := s.completionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, openAIChatModel)
 	if err != nil {
-		s.logger.Errorf("Error calling OpenAI for memory update decision for speaker %s: %v. Fact: \"%s...\"", speakerID, err, firstNChars(factContent, 50))
+		s.logger.Errorf("Error calling OpenAI for memory update decision for %s %s: %v. Fact: \"%s...\"", logContextEntity, logContextValue, err, firstNChars(factContent, 50))
 		return "", nil, fmt.Errorf("LLM decision for memory update: %w", err)
 	}
 
@@ -74,18 +85,18 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 	if len(llmDecisionResponse.ToolCalls) > 0 {
 		chosenToolName = llmDecisionResponse.ToolCalls[0].Function.Name
 		toolArgsJSON = llmDecisionResponse.ToolCalls[0].Function.Arguments
-		s.logger.Infof("LLM chose memory action: '%s' for speaker %s. Fact: \"%s...\"", chosenToolName, speakerID, firstNChars(factContent, 30))
+		s.logger.Infof("LLM chose memory action: '%s' for %s %s. Fact: \"%s...\"", chosenToolName, logContextEntity, logContextValue, firstNChars(factContent, 30))
 	} else {
-		s.logger.Warn("LLM made no tool call for memory decision. Defaulting to ADD for safety.", "speaker", speakerID, "fact_snippet", firstNChars(factContent, 30))
+		s.logger.Warn("LLM made no tool call for memory decision. Defaulting to ADD for safety.", "context", logContextValue, "fact_snippet", firstNChars(factContent, 30))
 		chosenToolName = AddMemoryToolName // Default to ADD
 	}
 
 	switch chosenToolName {
 	case AddMemoryToolName:
-		s.logger.Info("ACTION: ADD Memory", "speaker", speakerID)
+		s.logger.Info("ACTION: ADD Memory", "context", logContextValue)
 		newFactEmbedding64, embedErr := s.embeddingsService.Embedding(ctx, factContent, openAIEmbedModel)
 		if embedErr != nil {
-			s.logger.Errorf("Error generating embedding for new fact (ADD), skipping for speaker %s: %v. Fact: \"%s...\"", speakerID, embedErr, firstNChars(factContent, 50))
+			s.logger.Errorf("Error generating embedding for new fact (ADD), skipping for %s %s: %v. Fact: \"%s...\"", logContextEntity, logContextValue, embedErr, firstNChars(factContent, 50))
 			return AddMemoryToolName, nil, fmt.Errorf("embedding for ADD failed: %w", embedErr) // Return action name but nil object due to error
 		}
 		newFactEmbedding32 := make([]float32, len(newFactEmbedding64))
@@ -99,11 +110,13 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 				factMetadata[k] = v
 			}
 		}
-		factMetadata["speakerID"] = speakerID
+		if speakerID != "" { // Only add speakerID to metadata if it's not empty
+			factMetadata["speakerID"] = speakerID
+		}
 
 		metadataBytes, jsonErr := json.Marshal(factMetadata)
 		if jsonErr != nil {
-			s.logger.Errorf("Error marshaling metadata for ADD for speaker %s: %v. Storing with empty metadata.", speakerID, jsonErr)
+			s.logger.Errorf("Error marshaling metadata for ADD for %s %s: %v. Storing with empty metadata.", logContextEntity, logContextValue, jsonErr)
 			metadataBytes = []byte("{}")
 		}
 
@@ -123,30 +136,43 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		return AddMemoryToolName, addObject, nil
 
 	case UpdateMemoryToolName:
-		s.logger.Info("ACTION: UPDATE Memory", "speaker", speakerID)
+		s.logger.Info("ACTION: UPDATE Memory", "context", logContextValue)
 		var updateArgs UpdateToolArguments // Assumes struct is in evolvingmemory.go
 		if err = json.Unmarshal([]byte(toolArgsJSON), &updateArgs); err != nil {
-			s.logger.Errorf("Error unmarshalling UPDATE arguments for speaker %s: %v. Args: %s", speakerID, err, toolArgsJSON)
+			s.logger.Errorf("Error unmarshalling UPDATE arguments for %s %s: %v. Args: %s", logContextEntity, logContextValue, err, toolArgsJSON)
 			return UpdateMemoryToolName, nil, fmt.Errorf("unmarshal UPDATE args: %w", err)
 		}
 		s.logger.Debugf("Parsed UPDATE arguments: ID=%s, UpdatedMemory (snippet)='%s', Reason='%s'", updateArgs.MemoryID, firstNChars(updateArgs.UpdatedMemory, 100), updateArgs.Reason)
 
 		originalDoc, getErr := s.GetByID(ctx, updateArgs.MemoryID) // GetByID is in evolvingmemory.go
 		if getErr != nil || originalDoc == nil {
-			s.logger.Errorf("Failed to get original document for UPDATE (ID: %s) for speaker %s: %v. Skipping update.", updateArgs.MemoryID, speakerID, getErr)
+			s.logger.Errorf("Failed to get original document for UPDATE (ID: %s) for %s %s: %v. Skipping update.", updateArgs.MemoryID, logContextEntity, logContextValue, getErr)
 			return UpdateMemoryToolName, nil, fmt.Errorf("get original for UPDATE failed: %w", getErr)
 		}
 
-		if originalDoc.Metadata["speakerID"] != "" && originalDoc.Metadata["speakerID"] != speakerID {
-			s.logger.Warn("LLM attempted to UPDATE a memory of a different/unspecified speaker. Skipping update.",
-				"target_id", updateArgs.MemoryID, "target_speaker_in_meta", originalDoc.Metadata["speakerID"],
-				"current_processing_speaker", speakerID)
-			return UpdateMemoryToolName, nil, fmt.Errorf("speaker ID mismatch for UPDATE on memory %s", updateArgs.MemoryID)
+		// Speaker/Context validation for UPDATE
+		originalSpeakerInMeta, originalSpeakerMetaExists := originalDoc.Metadata["speakerID"]
+
+		if speakerID == "" { // Current context is document-level
+			if originalSpeakerMetaExists && originalSpeakerInMeta != "" {
+				// Document-level context attempting to update a memory that has a specific speaker
+				s.logger.Warn("Document-level context attempted to UPDATE a memory with a specific speaker. Skipping update.",
+					"target_id", updateArgs.MemoryID, "target_speaker_in_meta", originalSpeakerInMeta)
+				return UpdateMemoryToolName, nil, fmt.Errorf("document-level context cannot update speaker-specific memory %s", updateArgs.MemoryID)
+			}
+		} else { // Current context is speaker-specific
+			if !originalSpeakerMetaExists || originalSpeakerInMeta != speakerID {
+				// Speaker-specific context attempting to update a memory that doesn't belong to them or is document-level
+				s.logger.Warn("Speaker-specific context attempted to UPDATE a memory of a different/unspecified speaker. Skipping update.",
+					"target_id", updateArgs.MemoryID, "target_speaker_in_meta", originalSpeakerInMeta, "original_speaker_meta_exists", originalSpeakerMetaExists,
+					"current_processing_speaker", speakerID)
+				return UpdateMemoryToolName, nil, fmt.Errorf("speaker ID mismatch or original speaker missing for UPDATE on memory %s", updateArgs.MemoryID)
+			}
 		}
 
 		updatedEmbedding64, embedErr := s.embeddingsService.Embedding(ctx, updateArgs.UpdatedMemory, openAIEmbedModel)
 		if embedErr != nil {
-			s.logger.Error("Error generating embedding for updated memory (UPDATE)", "current_speaker", speakerID, "error", embedErr, "memory_id", updateArgs.MemoryID)
+			s.logger.Errorf("Error generating embedding for updated memory (UPDATE) for %s %s: %v. Memory ID: %s", logContextEntity, logContextValue, embedErr, updateArgs.MemoryID)
 			return UpdateMemoryToolName, nil, fmt.Errorf("embedding for UPDATE failed: %w", embedErr)
 		}
 		updatedEmbedding32 := make([]float32, len(updatedEmbedding64))
@@ -158,7 +184,12 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		for k, v := range originalDoc.Metadata {
 			updatedFactMetadata[k] = v
 		}
-		updatedFactMetadata["speakerID"] = speakerID // Ensure current speakerID is set
+		// Manage speakerID in updated metadata
+		if speakerID != "" {
+			updatedFactMetadata["speakerID"] = speakerID // Ensure current speakerID is set
+		} else {
+			delete(updatedFactMetadata, "speakerID") // If document-level, ensure no speakerID is present
+		}
 
 		docToUpdate := memory.TextDocument{
 			ID:        updateArgs.MemoryID,
@@ -169,42 +200,68 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		if err = s.Update(ctx, updateArgs.MemoryID, docToUpdate, updatedEmbedding32); err != nil { // Update is in evolvingmemory.go
-			s.logger.Error("Error performing UPDATE operation", "current_speaker", speakerID, "error", err, "memory_id", updateArgs.MemoryID)
+			s.logger.Errorf("Error performing UPDATE operation for %s %s: %v. Memory ID: %s", logContextEntity, logContextValue, err, updateArgs.MemoryID)
 			return UpdateMemoryToolName, nil, fmt.Errorf("store UPDATE failed: %w", err)
 		} else {
-			s.logger.Infof("Fact UPDATED successfully for speaker %s. Memory ID: %s", speakerID, updateArgs.MemoryID)
+			s.logger.Infof("Fact UPDATED successfully for %s %s. Memory ID: %s", logContextEntity, logContextValue, updateArgs.MemoryID)
 		}
 		return UpdateMemoryToolName, nil, nil
 
 	case DeleteMemoryToolName:
-		s.logger.Info("ACTION: DELETE Memory", "speaker", speakerID)
+		// NOTE: Delete operations might also need speaker/context validation similar to UPDATE.
+		// For now, keeping it simpler: if LLM decides to delete, we proceed.
+		// Consider if a document-level context should be able to delete speaker-specific memories.
+		s.logger.Info("ACTION: DELETE Memory", "context", logContextValue)
 		var deleteArgs DeleteToolArguments // Assumes struct is in evolvingmemory.go
 		if err = json.Unmarshal([]byte(toolArgsJSON), &deleteArgs); err != nil {
-			s.logger.Errorf("Error unmarshalling DELETE arguments for speaker %s: %v. Args: %s", speakerID, err, toolArgsJSON)
+			s.logger.Errorf("Error unmarshalling DELETE arguments for %s %s: %v. Args: %s", logContextEntity, logContextValue, err, toolArgsJSON)
 			return DeleteMemoryToolName, nil, fmt.Errorf("unmarshal DELETE args: %w", err)
 		}
 		s.logger.Debugf("Parsed DELETE arguments: ID=%s, Reason='%s'", deleteArgs.MemoryID, deleteArgs.Reason)
 
+		// Speaker/Context validation for DELETE (similar to UPDATE)
+		originalDocForDelete, getDelErr := s.GetByID(ctx, deleteArgs.MemoryID)
+		if getDelErr != nil || originalDocForDelete == nil {
+			s.logger.Warnf("Failed to get original document for DELETE validation (ID: %s) for %s %s: %v. Proceeding with delete cautiously.", deleteArgs.MemoryID, logContextEntity, logContextValue, getDelErr)
+			// If we can't get the doc, we might still proceed with delete if LLM is trusted, or deny. For now, proceed.
+		} else {
+			originalSpeakerInMetaDel, originalSpeakerMetaExistsDel := originalDocForDelete.Metadata["speakerID"]
+			if speakerID == "" { // Current context is document-level
+				if originalSpeakerMetaExistsDel && originalSpeakerInMetaDel != "" {
+					s.logger.Warn("Document-level context attempted to DELETE a memory with a specific speaker. Skipping delete.",
+						"target_id", deleteArgs.MemoryID, "target_speaker_in_meta", originalSpeakerInMetaDel)
+					return DeleteMemoryToolName, nil, fmt.Errorf("document-level context cannot delete speaker-specific memory %s", deleteArgs.MemoryID)
+				}
+			} else { // Current context is speaker-specific
+				if !originalSpeakerMetaExistsDel || originalSpeakerInMetaDel != speakerID {
+					s.logger.Warn("Speaker-specific context attempted to DELETE a memory of a different/unspecified speaker. Skipping delete.",
+						"target_id", deleteArgs.MemoryID, "target_speaker_in_meta", originalSpeakerInMetaDel, "original_speaker_meta_exists", originalSpeakerMetaExistsDel,
+						"current_processing_speaker", speakerID)
+					return DeleteMemoryToolName, nil, fmt.Errorf("speaker ID mismatch or original speaker missing for DELETE on memory %s", deleteArgs.MemoryID)
+				}
+			}
+		}
+
 		if err = s.Delete(ctx, deleteArgs.MemoryID); err != nil { // Delete is in evolvingmemory.go
-			s.logger.Error("Error performing DELETE operation", "current_speaker", speakerID, "error", err, "memory_id", deleteArgs.MemoryID)
+			s.logger.Errorf("Error performing DELETE operation for %s %s: %v. Memory ID: %s", logContextEntity, logContextValue, err, deleteArgs.MemoryID)
 			return DeleteMemoryToolName, nil, fmt.Errorf("store DELETE failed: %w", err)
 		} else {
-			s.logger.Infof("Fact DELETED successfully for speaker %s. Memory ID: %s", speakerID, deleteArgs.MemoryID)
+			s.logger.Infof("Fact DELETED successfully for %s %s. Memory ID: %s", logContextEntity, logContextValue, deleteArgs.MemoryID)
 		}
 		return DeleteMemoryToolName, nil, nil
 
 	case NoneMemoryToolName:
-		s.logger.Info("ACTION: NONE", "speaker", speakerID)
+		s.logger.Info("ACTION: NONE", "context", logContextValue)
 		var noneArgs NoneToolArguments // Assumes struct is in evolvingmemory.go
 		if err = json.Unmarshal([]byte(toolArgsJSON), &noneArgs); err != nil {
-			s.logger.Warnf("Error unmarshalling NONE arguments for speaker %s: %v. Args: %s. Proceeding with NONE action.", speakerID, err, toolArgsJSON)
+			s.logger.Warnf("Error unmarshalling NONE arguments for %s %s: %v. Args: %s. Proceeding with NONE action.", logContextEntity, logContextValue, err, toolArgsJSON)
 			// Non-fatal, proceed with NONE
 		}
-		s.logger.Infof("LLM chose NONE action for fact for speaker %s. Reason: '%s'. Fact: \"%s...\"", speakerID, noneArgs.Reason, firstNChars(factContent, 50))
+		s.logger.Infof("LLM chose NONE action for fact for %s %s. Reason: '%s'. Fact: \"%s...\"", logContextEntity, logContextValue, noneArgs.Reason, firstNChars(factContent, 50))
 		return NoneMemoryToolName, nil, nil
 
 	default:
-		s.logger.Warn("LLM decision unrecognized or no tool called, and did not default to ADD earlier.", "chosen_tool", chosenToolName, "speaker", speakerID)
+		s.logger.Warn("LLM decision unrecognized or no tool called, and did not default to ADD earlier.", "chosen_tool", chosenToolName, "context", logContextValue)
 		// This case should ideally not be reached if default to ADD is handled prior to switch.
 		// However, as a fallback, treat as NONE to avoid unintended operations.
 		return NoneMemoryToolName, nil, fmt.Errorf("unrecognized tool choice: %s", chosenToolName)
