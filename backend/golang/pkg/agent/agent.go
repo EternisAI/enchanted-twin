@@ -69,10 +69,6 @@ func (a *Agent) Execute(
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 ) (AgentResponse, error) {
-	a.logger.Info("-----------------------------------")
-	a.logger.Info("-----------------------------------")
-	a.logger.Info("Executing agent")
-	a.logger.Info("Messages", "messages", messages)
 	currentStep := 0
 	responseContent := ""
 	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
