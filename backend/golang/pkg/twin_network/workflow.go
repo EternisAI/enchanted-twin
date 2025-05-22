@@ -62,8 +62,8 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		Limit:     30,
 	}
 
-	var threadMap map[string][]NetworkMessage
-	err := workflow.ExecuteActivity(options, w.QueryNetworkActivity, queryInput).Get(ctx, &threadMap)
+	var threads []ThreadInfo
+	err := workflow.ExecuteActivity(options, w.QueryNetworkActivity, queryInput).Get(ctx, &threads)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query network activity: %w", err)
 	}
@@ -71,7 +71,11 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	totalProcessedMessages := 0
 	latestTimestamp := resolvedLastTimestamp
 
-	for threadID, messages := range threadMap {
+	workflow.GetLogger(ctx).Info("Processing threads", "threads", threads)
+	for _, thread := range threads {
+		threadID := thread.ThreadID
+		messages := thread.Messages
+
 		workflow.GetLogger(ctx).Info("Processing thread", "threadID", threadID, "messageCount", len(messages), "networkID", input.NetworkID)
 
 		if len(messages) == 0 {
@@ -94,7 +98,7 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 			continue
 		}
 
-		authorPubKey := threadMap[threadID][0].AuthorPubKey
+		authorPubKey := thread.AuthorPubKey
 
 		if !messages[0].IsMine && chatID != "" {
 			var chatMessages []*model.Message
@@ -153,7 +157,7 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	} else {
 		workflow.GetLogger(ctx).Info("Processed messages across all threads",
 			"totalMessages", totalProcessedMessages,
-			"threadCount", len(threadMap),
+			"threadCount", len(threads),
 			"networkID", input.NetworkID)
 	}
 

@@ -59,13 +59,14 @@ func (s *MessageStore) Add(msg NetworkMessage) {
 	if msg.ThreadID != "" {
 		thread, exists := s.threads[msg.ThreadID]
 		if !exists {
+			// Creating a new thread - the creator is the thread author
 			s.threads[msg.ThreadID] = Thread{
 				ID:           msg.ThreadID,
 				AuthorPubKey: msg.AuthorPubKey,
 				UpdatedAt:    msg.CreatedAt,
 			}
 		} else {
-
+			// Only update the timestamp for existing threads, preserving the original author
 			thread.UpdatedAt = msg.CreatedAt
 			s.threads[msg.ThreadID] = thread
 		}

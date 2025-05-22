@@ -23,7 +23,14 @@ type QueryNetworkActivityInput struct {
 	Limit     int
 }
 
-func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) (map[string][]NetworkMessage, error) {
+type ThreadInfo struct {
+	AuthorPubKey string
+	ThreadID     string
+	ID           string
+	Messages     []NetworkMessage
+}
+
+func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) ([]ThreadInfo, error) {
 	a.logger.Debug("Querying network activity",
 		"networkID", input.NetworkID,
 		"fromTime", input.FromTime,
@@ -35,11 +42,12 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 		return nil, fmt.Errorf("failed to fetch new threads: %w", err)
 	}
 
-	threadsMap := make(map[string][]NetworkMessage)
+	threadsList := make([]ThreadInfo, 0, len(threads))
 
 	for _, thread := range threads {
 		threadID := thread.ID
 		threadMessages := make([]NetworkMessage, 0, len(thread.Messages))
+		authorPubKey := ""
 
 		for _, msg := range thread.Messages {
 			id, err := strconv.ParseInt(msg.ID, 10, 64)
@@ -54,6 +62,10 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 				continue
 			}
 
+			if authorPubKey == "" {
+				authorPubKey = msg.AuthorPubKey
+			}
+
 			threadMessages = append(threadMessages, NetworkMessage{
 				ID:           id,
 				AuthorPubKey: msg.AuthorPubKey,
@@ -66,16 +78,21 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 			})
 		}
 
-		// Sort messages by timestamp (oldest first)
 		if len(threadMessages) > 0 {
 			sort.Slice(threadMessages, func(i, j int) bool {
 				return threadMessages[i].CreatedAt.Before(threadMessages[j].CreatedAt)
 			})
-			threadsMap[threadID] = threadMessages
+
+			threadsList = append(threadsList, ThreadInfo{
+				AuthorPubKey: authorPubKey,
+				ThreadID:     threadID,
+				ID:           threadID,
+				Messages:     threadMessages,
+			})
 		}
 	}
 
-	return threadsMap, nil
+	return threadsList, nil
 }
 
 func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage, threadAuthor string) (string, error) {
