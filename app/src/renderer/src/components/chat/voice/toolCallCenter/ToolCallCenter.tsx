@@ -33,8 +33,8 @@ export default function ToolCallCenter({
       )} */}
 
       <motion.div
-        // className="fixed top-0 right-0 h-full w-72  border border-red-500"
-        className="h-full w-72 bg-background/80 backdrop-blur-sm"
+        className="fixed top-0 right-0 h-[75%] w-72"
+        // className="h-full w-72 bg-background/80 backdrop-blur-sm"
         // onMouseLeave={() => setIsShowing(false)}
         initial={{ x: '100%' }}
         animate={{ x: '0%' }}
