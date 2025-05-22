@@ -119,7 +119,7 @@ func (e *SendToChat) Definition() openai.ChatCompletionToolParam {
 				"properties": map[string]any{
 					"message": map[string]string{
 						"type":        "string",
-						"description": "The message to send to the user's chat, prefix all messages to the network with 'message from twin network'",
+						"description": "The message to send to the user's chat, prefix all messages to the network with 'message from twin network, thread id: #<thread_id>'",
 					},
 					"chat_id": map[string]string{
 						"type":        "string",

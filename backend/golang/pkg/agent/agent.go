@@ -69,6 +69,10 @@ func (a *Agent) Execute(
 	messages []openai.ChatCompletionMessageParamUnion,
 	currentTools []tools.Tool,
 ) (AgentResponse, error) {
+	a.logger.Info("-----------------------------------")
+	a.logger.Info("-----------------------------------")
+	a.logger.Info("Executing agent")
+	a.logger.Info("Messages", "messages", messages)
 	currentStep := 0
 	responseContent := ""
 	toolCalls := make([]openai.ChatCompletionMessageToolCall, 0)
@@ -124,6 +128,15 @@ func (a *Agent) Execute(
 			if err != nil {
 				a.logger.Error("Error unmarshalling tool call arguments", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments, "error", err)
 				return AgentResponse{}, err
+			}
+
+			// Add extra logging for thread_id in send_to_twin_network tool
+			if toolCall.Function.Name == "send_to_twin_network" {
+				if threadID, ok := args["thread_id"].(string); ok {
+					a.logger.Info("Thread ID being used for twin network", "thread_id", threadID, "has_hash_prefix", strings.HasPrefix(threadID, "#"))
+				} else {
+					a.logger.Warn("No thread_id found in send_to_twin_network call")
+				}
 			}
 
 			toolResult, err := tool.Execute(ctx, args)

@@ -61,60 +61,80 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		FromTime:  lookbackTime,
 		Limit:     30,
 	}
-	var allNewMessages []NetworkMessage
-	err := workflow.ExecuteActivity(options, w.QueryNetworkActivity, queryInput).Get(ctx, &allNewMessages)
+
+	var threadMap map[string][]NetworkMessage
+	err := workflow.ExecuteActivity(options, w.QueryNetworkActivity, queryInput).Get(ctx, &threadMap)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query network activity: %w", err)
 	}
-	workflow.GetLogger(ctx).Info("Retrieved new messages", "count", len(allNewMessages), "networkID", input.NetworkID)
 
-	if len(allNewMessages) > 0 {
-		lastTimestamp := allNewMessages[0].CreatedAt
+	totalProcessedMessages := 0
+	latestTimestamp := resolvedLastTimestamp
 
-		if !lastTimestamp.After(activityInput.LastTimestamp) {
-			workflow.GetLogger(ctx).Info("No new messages found", "networkID", input.NetworkID)
-			return &NetworkMonitorOutput{
-				ProcessedMessages: 0,
-				LastTimestamp:     resolvedLastTimestamp,
-				ChatID:            chatID,
-			}, nil
+	// Process each thread separately
+	for threadID, messages := range threadMap {
+		workflow.GetLogger(ctx).Info("Processing thread", "threadID", threadID, "messageCount", len(messages), "networkID", input.NetworkID)
+
+		if len(messages) == 0 {
+			continue
 		}
-		activityInput.LastTimestamp = lastTimestamp
 
-		if !allNewMessages[0].IsMine {
-			if chatID != "" {
-				var chatMessages []*model.Message
-				err := workflow.ExecuteActivity(options, w.GetChatMessages, chatID).Get(ctx, &chatMessages)
-				if err != nil {
-					workflow.GetLogger(ctx).Error("Failed to get chat messages", "error", err, "chatID", chatID)
-				} else {
-					workflow.GetLogger(ctx).Info("Retrieved chat messages", "count", len(chatMessages), "chatID", chatID)
+		// Find latest message timestamp in this thread
+		threadLatestTimestamp := messages[0].CreatedAt
+		for _, msg := range messages {
+			if msg.CreatedAt.After(threadLatestTimestamp) {
+				threadLatestTimestamp = msg.CreatedAt
+			}
+		}
 
-					if len(chatMessages) > 0 {
-						var lastUserMessage *model.Message
-						for i := len(chatMessages) - 1; i >= 0; i-- {
-							if chatMessages[i].Role == model.RoleUser {
-								lastUserMessage = chatMessages[i]
-								break
-							}
+		// Update overall latest timestamp
+		if threadLatestTimestamp.After(latestTimestamp) {
+			latestTimestamp = threadLatestTimestamp
+		}
+
+		// Skip thread if no new messages
+		if !threadLatestTimestamp.After(activityInput.LastTimestamp) {
+			workflow.GetLogger(ctx).Info("No new messages in thread", "threadID", threadID)
+			continue
+		}
+
+		// Get chat messages if needed
+		if !messages[0].IsMine && chatID != "" {
+			var chatMessages []*model.Message
+			err := workflow.ExecuteActivity(options, w.GetChatMessages, chatID).Get(ctx, &chatMessages)
+			if err != nil {
+				workflow.GetLogger(ctx).Error("Failed to get chat messages", "error", err, "chatID", chatID)
+			} else {
+				workflow.GetLogger(ctx).Info("Retrieved chat messages", "count", len(chatMessages), "chatID", chatID)
+
+				if len(chatMessages) > 0 {
+					var lastUserMessage *model.Message
+					for i := len(chatMessages) - 1; i >= 0; i-- {
+						if chatMessages[i].Role == model.RoleUser {
+							lastUserMessage = chatMessages[i]
+							break
 						}
+					}
 
-						if lastUserMessage != nil {
-							workflow.GetLogger(ctx).Info("Found user response in chat", "message", *lastUserMessage.Text)
-							allNewMessages = append([]NetworkMessage{
-								{
-									Content:   fmt.Sprintf("User response from chat: %s", *lastUserMessage.Text),
-									IsMine:    true,
-									CreatedAt: time.Now(),
-								},
-							}, allNewMessages...)
-						}
+					if lastUserMessage != nil {
+						workflow.GetLogger(ctx).Info("Found user response in chat", "message", *lastUserMessage.Text)
+						messages = append([]NetworkMessage{
+							{
+								Content:   fmt.Sprintf("User response from chat: %s", *lastUserMessage.Text),
+								IsMine:    true,
+								CreatedAt: time.Now(),
+								ThreadID:  threadID,
+							},
+						}, messages...)
 					}
 				}
 			}
+		}
 
+		// Skip evaluation if the last message is from the user
+		if !messages[0].IsMine {
 			var response string
-			err = workflow.ExecuteActivity(options, w.EvaluateMessage, allNewMessages).Get(ctx, &response)
+			err = workflow.ExecuteActivity(options, w.EvaluateMessage, messages).Get(ctx, &response)
 			if err != nil {
 				workflow.GetLogger(ctx).Error("Failed to evaluate messages", "error", err)
 			} else if response != "" {
@@ -126,20 +146,24 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 				}
 			}
 		} else {
-			workflow.GetLogger(ctx).Info("Skipping evaluation as the last message is from the user", "messageID", allNewMessages[0].ID)
+			workflow.GetLogger(ctx).Info("Skipping evaluation as the last message is from the user", "messageID", messages[0].ID)
 		}
+
+		totalProcessedMessages += len(messages)
+	}
+
+	if totalProcessedMessages == 0 {
+		workflow.GetLogger(ctx).Info("No new messages found in any thread", "networkID", input.NetworkID)
 	} else {
-		workflow.GetLogger(ctx).Info("No new messages found", "networkID", input.NetworkID)
-		return &NetworkMonitorOutput{
-			ProcessedMessages: 0,
-			LastTimestamp:     resolvedLastTimestamp,
-			ChatID:            chatID,
-		}, nil
+		workflow.GetLogger(ctx).Info("Processed messages across all threads",
+			"totalMessages", totalProcessedMessages,
+			"threadCount", len(threadMap),
+			"networkID", input.NetworkID)
 	}
 
 	output := NetworkMonitorOutput{
-		ProcessedMessages: len(allNewMessages),
-		LastTimestamp:     activityInput.LastTimestamp,
+		ProcessedMessages: totalProcessedMessages,
+		LastTimestamp:     latestTimestamp,
 		ChatID:            chatID,
 	}
 

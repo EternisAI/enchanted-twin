@@ -18,5 +18,11 @@ type NetworkMessage struct {
 	Signature    string `json:"signature"`
 }
 
+type NetworkThread struct {
+	ID        string            `json:"id"`
+	UpdatedAt string            `json:"updatedAt"`
+	Messages  []*NetworkMessage `json:"messages"`
+}
+
 type Query struct {
 }

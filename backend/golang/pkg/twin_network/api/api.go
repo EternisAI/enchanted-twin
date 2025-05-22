@@ -27,7 +27,7 @@ func NewTwinNetworkAPI(logger *log.Logger, networkServerURL string) *TwinNetwork
 	}
 }
 
-func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, fromTime time.Time, limit int) ([]model.NetworkMessage, error) {
+func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, fromTime time.Time, limit int) ([]*model.NetworkThread, error) {
 	a.logger.Debug("Fetching new messages",
 		"networkID", networkID,
 		"fromTime", fromTime,
@@ -37,13 +37,17 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 		query GetNewMessages($networkID: String!, $from: DateTime!, $limit: Int) {
 			getNewMessages(networkID: $networkID, from: $from, limit: $limit) {
 				id
-				authorPubKey
-				networkID
-				threadID
-				content
-				createdAt
-				isMine
-				signature
+				updatedAt
+				messages {
+					id
+					authorPubKey
+					networkID
+					threadID
+					content
+					createdAt
+					isMine
+					signature
+				}
 			}
 		}
 	`
@@ -107,15 +111,19 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 
 	var response struct {
 		Data struct {
-			GetNewMessages []struct {
-				ID           string    `json:"id"`
-				AuthorPubKey string    `json:"authorPubKey"`
-				NetworkID    string    `json:"networkID"`
-				ThreadID     string    `json:"threadID"`
-				Content      string    `json:"content"`
-				CreatedAt    time.Time `json:"createdAt"`
-				IsMine       bool      `json:"isMine"`
-				Signature    string    `json:"signature"`
+			GetNewMessages []*struct {
+				ID        string `json:"id"`
+				UpdatedAt string `json:"updatedAt"`
+				Messages  []struct {
+					ID           string    `json:"id"`
+					AuthorPubKey string    `json:"authorPubKey"`
+					NetworkID    string    `json:"networkID"`
+					ThreadID     string    `json:"threadID"`
+					Content      string    `json:"content"`
+					CreatedAt    time.Time `json:"createdAt"`
+					IsMine       bool      `json:"isMine"`
+					Signature    string    `json:"signature"`
+				} `json:"messages"`
 			} `json:"getNewMessages"`
 		} `json:"data"`
 		Errors []struct {
@@ -136,39 +144,49 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 		return nil, fmt.Errorf("GraphQL errors: %v", response.Errors)
 	}
 
-	messages := make([]model.NetworkMessage, len(response.Data.GetNewMessages))
-	for i, msg := range response.Data.GetNewMessages {
-		id, _ := strconv.ParseInt(msg.ID, 10, 64)
-		messages[i] = model.NetworkMessage{
-			ID:           strconv.FormatInt(id, 10),
-			AuthorPubKey: msg.AuthorPubKey,
-			NetworkID:    msg.NetworkID,
-			ThreadID:     msg.ThreadID,
-			Content:      msg.Content,
-			CreatedAt:    msg.CreatedAt.Format(time.RFC3339),
-			IsMine:       msg.IsMine,
-			Signature:    msg.Signature,
+	threads := make([]*model.NetworkThread, len(response.Data.GetNewMessages))
+	for i, thread := range response.Data.GetNewMessages {
+		messages := make([]*model.NetworkMessage, len(thread.Messages))
+		for j, msg := range thread.Messages {
+			id, _ := strconv.ParseInt(msg.ID, 10, 64)
+			messages[j] = &model.NetworkMessage{
+				ID:           strconv.FormatInt(id, 10),
+				AuthorPubKey: msg.AuthorPubKey,
+				NetworkID:    msg.NetworkID,
+				ThreadID:     msg.ThreadID,
+				Content:      msg.Content,
+				CreatedAt:    msg.CreatedAt.Format(time.RFC3339),
+				IsMine:       msg.IsMine,
+				Signature:    msg.Signature,
+			}
+		}
+
+		threads[i] = &model.NetworkThread{
+			ID:        thread.ID,
+			UpdatedAt: thread.UpdatedAt,
+			Messages:  messages,
 		}
 	}
 
-	a.logger.Info("Successfully retrieved messages",
-		"count", len(messages),
+	a.logger.Info("Successfully retrieved threads",
+		"count", len(threads),
 		"networkID", networkID)
-	return messages, nil
+	return threads, nil
 }
 
 func (a *TwinNetworkAPI) PostMessage(ctx context.Context, networkID string, threadID string, content string, authorPubKey string, signature string) error {
-	a.logger.Debug("Posting message",
+	a.logger.Debug("Info message",
 		"networkID", networkID,
 		"content", content,
 		"authorPubKey", authorPubKey)
 
 	query := `
-		mutation PostMessage($networkID: String!, $content: String!, $authorPubKey: String!, $signature: String!) {
-			postMessage(networkID: $networkID, content: $content, authorPubKey: $authorPubKey, signature: $signature) {
+		mutation PostMessage($networkID: String!, $content: String!, $authorPubKey: String!, $signature: String!, $threadID: String!) {
+			postMessage(networkID: $networkID, content: $content, authorPubKey: $authorPubKey, signature: $signature, threadID: $threadID) {
 				id
 				authorPubKey
 				networkID
+				threadID
 				content
 				createdAt
 				isMine
@@ -182,6 +200,7 @@ func (a *TwinNetworkAPI) PostMessage(ctx context.Context, networkID string, thre
 		"content":      content,
 		"authorPubKey": authorPubKey,
 		"signature":    signature,
+		"threadID":     threadID,
 	}
 
 	payload := map[string]interface{}{

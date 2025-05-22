@@ -7,6 +7,7 @@ package graph
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	twinnetwork "github.com/EternisAI/enchanted-twin/pkg/twin_network"
@@ -15,9 +16,13 @@ import (
 )
 
 // PostMessage is the resolver for the postMessage field.
-func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string, networkID string, threadID string, content string, signature string) (*model.NetworkMessage, error) {
-	if threadID == "" {
-		threadID = uuid.New().String()
+func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string, networkID string, threadID *string, content string, signature string) (*model.NetworkMessage, error) {
+	r.Logger.Info("Posting message", "authorPubKey", authorPubKey, "networkID", networkID, "threadID", threadID, "content", content, "signature", signature)
+	var threadIDStr string
+	if threadID == nil {
+		threadIDStr = uuid.New().String()
+	} else {
+		threadIDStr = *threadID
 	}
 
 	msg := twinnetwork.NetworkMessage{
@@ -26,22 +31,24 @@ func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string,
 		Content:      content,
 		CreatedAt:    time.Now().UTC(),
 		Signature:    signature,
-		ThreadID:     threadID,
+		ThreadID:     threadIDStr,
 	}
 
 	r.Store.Add(msg)
 
 	return &model.NetworkMessage{
+		ID:           fmt.Sprintf("%d", msg.ID),
 		AuthorPubKey: msg.AuthorPubKey,
 		NetworkID:    msg.NetworkID,
 		Content:      msg.Content,
+		ThreadID:     msg.ThreadID,
 		CreatedAt:    msg.CreatedAt.Format(time.RFC3339),
 		Signature:    msg.Signature,
 	}, nil
 }
 
 // GetNewMessages is the resolver for the getNewMessages field.
-func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, from string, limit *int) ([]*model.NetworkMessage, error) {
+func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, from string, limit *int) ([]*model.NetworkThread, error) {
 	fromTime, err := time.Parse(time.RFC3339, from)
 	if err != nil {
 		return nil, err
@@ -49,18 +56,50 @@ func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, fr
 
 	msgs := r.Store.GetSince(networkID, fromTime, limit)
 
-	out := make([]*model.NetworkMessage, len(msgs))
-	for i, m := range msgs {
-		out[i] = &model.NetworkMessage{
+	threadMap := make(map[string][]*model.NetworkMessage)
+	for _, m := range msgs {
+
+		modelMsg := &model.NetworkMessage{
 			ID:           fmt.Sprintf("%d", m.ID),
 			AuthorPubKey: m.AuthorPubKey,
 			NetworkID:    m.NetworkID,
+			ThreadID:     m.ThreadID,
 			Content:      m.Content,
 			CreatedAt:    m.CreatedAt.Format(time.RFC3339),
 			Signature:    m.Signature,
+			IsMine:       m.IsMine,
 		}
+		threadMap[m.ThreadID] = append(threadMap[m.ThreadID], modelMsg)
 	}
-	return out, nil
+
+	// Convert the map to a slice of NetworkThread
+	threads := make([]*model.NetworkThread, 0, len(threadMap))
+	for threadID, messages := range threadMap {
+		// Find latest message to use as updatedAt time for the thread
+		latestTime := fromTime
+		for _, msg := range messages {
+			msgTime, _ := time.Parse(time.RFC3339, msg.CreatedAt)
+			if msgTime.After(latestTime) {
+				latestTime = msgTime
+			}
+		}
+
+		thread := &model.NetworkThread{
+			ID:        threadID,
+			UpdatedAt: latestTime.Format(time.RFC3339),
+			Messages:  messages,
+		}
+		threads = append(threads, thread)
+	}
+
+	// Sort threads by updatedAt (most recent first)
+	sort.Slice(threads, func(i, j int) bool {
+		timeI, _ := time.Parse(time.RFC3339, threads[i].UpdatedAt)
+		timeJ, _ := time.Parse(time.RFC3339, threads[j].UpdatedAt)
+		return timeI.After(timeJ)
+	})
+
+	return threads, nil
 }
 
 // Mutation returns MutationResolver implementation.

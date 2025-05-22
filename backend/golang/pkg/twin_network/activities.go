@@ -3,6 +3,7 @@ package twin_network
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strconv"
 	"time"
 
@@ -22,47 +23,59 @@ type QueryNetworkActivityInput struct {
 	Limit     int
 }
 
-func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) ([]NetworkMessage, error) {
+func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) (map[string][]NetworkMessage, error) {
 	a.logger.Debug("Querying network activity",
 		"networkID", input.NetworkID,
 		"fromTime", input.FromTime,
 		"limit", input.Limit)
 
-	allNewMessages, err := a.twinNetworkAPI.GetNewMessages(ctx, input.NetworkID, input.FromTime, input.Limit)
+	threads, err := a.twinNetworkAPI.GetNewMessages(ctx, input.NetworkID, input.FromTime, input.Limit)
 	if err != nil {
-		a.logger.Error("Failed to fetch new messages", "error", err)
-		return nil, fmt.Errorf("failed to fetch new messages: %w", err)
+		a.logger.Error("Failed to fetch new threads", "error", err)
+		return nil, fmt.Errorf("failed to fetch new threads: %w", err)
 	}
 
-	networkMessages := make([]NetworkMessage, len(allNewMessages))
-	for i, msg := range allNewMessages {
-		myPubKey := a.agentKey.PubKeyHex()
+	threadsMap := make(map[string][]NetworkMessage)
 
-		id, err := strconv.ParseInt(msg.ID, 10, 64)
-		if err != nil {
-			a.logger.Error("Failed to parse message ID", "error", err, "id", msg.ID)
-			continue
+	for _, thread := range threads {
+		threadID := thread.ID
+		threadMessages := make([]NetworkMessage, 0, len(thread.Messages))
+
+		for _, msg := range thread.Messages {
+			id, err := strconv.ParseInt(msg.ID, 10, 64)
+			if err != nil {
+				a.logger.Error("Failed to parse message ID", "error", err, "id", msg.ID)
+				continue
+			}
+
+			createdAt, err := time.Parse(time.RFC3339, msg.CreatedAt)
+			if err != nil {
+				a.logger.Error("Failed to parse message timestamp", "error", err, "createdAt", msg.CreatedAt)
+				continue
+			}
+
+			threadMessages = append(threadMessages, NetworkMessage{
+				ID:           id,
+				AuthorPubKey: msg.AuthorPubKey,
+				NetworkID:    msg.NetworkID,
+				Content:      msg.Content,
+				IsMine:       msg.IsMine,
+				Signature:    msg.Signature,
+				CreatedAt:    createdAt,
+				ThreadID:     threadID,
+			})
 		}
 
-		createdAt, err := time.Parse(time.RFC3339, msg.CreatedAt)
-		if err != nil {
-			a.logger.Error("Failed to parse message timestamp", "error", err, "createdAt", msg.CreatedAt)
-			continue
-		}
-
-		networkMessages[i] = NetworkMessage{
-			ID:           id,
-			AuthorPubKey: msg.AuthorPubKey,
-			NetworkID:    msg.NetworkID,
-			Content:      msg.Content,
-			IsMine:       msg.AuthorPubKey == myPubKey,
-			Signature:    msg.Signature,
-			CreatedAt:    createdAt,
-			ThreadID:     msg.ThreadID,
+		// Sort messages by timestamp (oldest first)
+		if len(threadMessages) > 0 {
+			sort.Slice(threadMessages, func(i, j int) bool {
+				return threadMessages[i].CreatedAt.Before(threadMessages[j].CreatedAt)
+			})
+			threadsMap[threadID] = threadMessages
 		}
 	}
 
-	return networkMessages, nil
+	return threadsMap, nil
 }
 
 func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage) (string, error) {

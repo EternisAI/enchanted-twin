@@ -48,7 +48,7 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		PostMessage func(childComplexity int, authorPubKey string, networkID string, threadID string, content string, signature string) int
+		PostMessage func(childComplexity int, authorPubKey string, networkID string, threadID *string, content string, signature string) int
 	}
 
 	NetworkMessage struct {
@@ -62,16 +62,22 @@ type ComplexityRoot struct {
 		ThreadID     func(childComplexity int) int
 	}
 
+	NetworkThread struct {
+		ID        func(childComplexity int) int
+		Messages  func(childComplexity int) int
+		UpdatedAt func(childComplexity int) int
+	}
+
 	Query struct {
 		GetNewMessages func(childComplexity int, networkID string, from string, limit *int) int
 	}
 }
 
 type MutationResolver interface {
-	PostMessage(ctx context.Context, authorPubKey string, networkID string, threadID string, content string, signature string) (*model.NetworkMessage, error)
+	PostMessage(ctx context.Context, authorPubKey string, networkID string, threadID *string, content string, signature string) (*model.NetworkMessage, error)
 }
 type QueryResolver interface {
-	GetNewMessages(ctx context.Context, networkID string, from string, limit *int) ([]*model.NetworkMessage, error)
+	GetNewMessages(ctx context.Context, networkID string, from string, limit *int) ([]*model.NetworkThread, error)
 }
 
 type executableSchema struct {
@@ -103,7 +109,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.PostMessage(childComplexity, args["authorPubKey"].(string), args["networkID"].(string), args["threadID"].(string), args["content"].(string), args["signature"].(string)), true
+		return e.complexity.Mutation.PostMessage(childComplexity, args["authorPubKey"].(string), args["networkID"].(string), args["threadID"].(*string), args["content"].(string), args["signature"].(string)), true
 
 	case "NetworkMessage.authorPubKey":
 		if e.complexity.NetworkMessage.AuthorPubKey == nil {
@@ -160,6 +166,27 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.NetworkMessage.ThreadID(childComplexity), true
+
+	case "NetworkThread.id":
+		if e.complexity.NetworkThread.ID == nil {
+			break
+		}
+
+		return e.complexity.NetworkThread.ID(childComplexity), true
+
+	case "NetworkThread.messages":
+		if e.complexity.NetworkThread.Messages == nil {
+			break
+		}
+
+		return e.complexity.NetworkThread.Messages(childComplexity), true
+
+	case "NetworkThread.updatedAt":
+		if e.complexity.NetworkThread.UpdatedAt == nil {
+			break
+		}
+
+		return e.complexity.NetworkThread.UpdatedAt(childComplexity), true
 
 	case "Query.getNewMessages":
 		if e.complexity.Query.GetNewMessages == nil {
@@ -365,18 +392,18 @@ func (ec *executionContext) field_Mutation_postMessage_argsNetworkID(
 func (ec *executionContext) field_Mutation_postMessage_argsThreadID(
 	ctx context.Context,
 	rawArgs map[string]any,
-) (string, error) {
+) (*string, error) {
 	if _, ok := rawArgs["threadID"]; !ok {
-		var zeroVal string
+		var zeroVal *string
 		return zeroVal, nil
 	}
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("threadID"))
 	if tmp, ok := rawArgs["threadID"]; ok {
-		return ec.unmarshalNString2string(ctx, tmp)
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
 	}
 
-	var zeroVal string
+	var zeroVal *string
 	return zeroVal, nil
 }
 
@@ -652,7 +679,7 @@ func (ec *executionContext) _Mutation_postMessage(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().PostMessage(rctx, fc.Args["authorPubKey"].(string), fc.Args["networkID"].(string), fc.Args["threadID"].(string), fc.Args["content"].(string), fc.Args["signature"].(string))
+		return ec.resolvers.Mutation().PostMessage(rctx, fc.Args["authorPubKey"].(string), fc.Args["networkID"].(string), fc.Args["threadID"].(*string), fc.Args["content"].(string), fc.Args["signature"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1063,6 +1090,156 @@ func (ec *executionContext) fieldContext_NetworkMessage_signature(_ context.Cont
 	return fc, nil
 }
 
+func (ec *executionContext) _NetworkThread_id(ctx context.Context, field graphql.CollectedField, obj *model.NetworkThread) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NetworkThread_id(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNID2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_NetworkThread_id(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NetworkThread",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type ID does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NetworkThread_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.NetworkThread) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NetworkThread_updatedAt(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.UpdatedAt, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNDateTime2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_NetworkThread_updatedAt(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NetworkThread",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type DateTime does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NetworkThread_messages(ctx context.Context, field graphql.CollectedField, obj *model.NetworkThread) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NetworkThread_messages(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Messages, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.([]*model.NetworkMessage)
+	fc.Result = res
+	return ec.marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessageᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_NetworkThread_messages(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NetworkThread",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "id":
+				return ec.fieldContext_NetworkMessage_id(ctx, field)
+			case "authorPubKey":
+				return ec.fieldContext_NetworkMessage_authorPubKey(ctx, field)
+			case "networkID":
+				return ec.fieldContext_NetworkMessage_networkID(ctx, field)
+			case "threadID":
+				return ec.fieldContext_NetworkMessage_threadID(ctx, field)
+			case "content":
+				return ec.fieldContext_NetworkMessage_content(ctx, field)
+			case "createdAt":
+				return ec.fieldContext_NetworkMessage_createdAt(ctx, field)
+			case "isMine":
+				return ec.fieldContext_NetworkMessage_isMine(ctx, field)
+			case "signature":
+				return ec.fieldContext_NetworkMessage_signature(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type NetworkMessage", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Query_getNewMessages(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Query_getNewMessages(ctx, field)
 	if err != nil {
@@ -1089,9 +1266,9 @@ func (ec *executionContext) _Query_getNewMessages(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.NetworkMessage)
+	res := resTmp.([]*model.NetworkThread)
 	fc.Result = res
-	return ec.marshalNNetworkMessage2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkMessageᚄ(ctx, field.Selections, res)
+	return ec.marshalNNetworkThread2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkThreadᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_Query_getNewMessages(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -1103,23 +1280,13 @@ func (ec *executionContext) fieldContext_Query_getNewMessages(ctx context.Contex
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
 			switch field.Name {
 			case "id":
-				return ec.fieldContext_NetworkMessage_id(ctx, field)
-			case "authorPubKey":
-				return ec.fieldContext_NetworkMessage_authorPubKey(ctx, field)
-			case "networkID":
-				return ec.fieldContext_NetworkMessage_networkID(ctx, field)
-			case "threadID":
-				return ec.fieldContext_NetworkMessage_threadID(ctx, field)
-			case "content":
-				return ec.fieldContext_NetworkMessage_content(ctx, field)
-			case "createdAt":
-				return ec.fieldContext_NetworkMessage_createdAt(ctx, field)
-			case "isMine":
-				return ec.fieldContext_NetworkMessage_isMine(ctx, field)
-			case "signature":
-				return ec.fieldContext_NetworkMessage_signature(ctx, field)
+				return ec.fieldContext_NetworkThread_id(ctx, field)
+			case "updatedAt":
+				return ec.fieldContext_NetworkThread_updatedAt(ctx, field)
+			case "messages":
+				return ec.fieldContext_NetworkThread_messages(ctx, field)
 			}
-			return nil, fmt.Errorf("no field named %q was found under type NetworkMessage", field.Name)
+			return nil, fmt.Errorf("no field named %q was found under type NetworkThread", field.Name)
 		},
 	}
 	defer func() {
@@ -3349,6 +3516,55 @@ func (ec *executionContext) _NetworkMessage(ctx context.Context, sel ast.Selecti
 	return out
 }
 
+var networkThreadImplementors = []string{"NetworkThread"}
+
+func (ec *executionContext) _NetworkThread(ctx context.Context, sel ast.SelectionSet, obj *model.NetworkThread) graphql.Marshaler {
+	fields := graphql.CollectFields(ec.OperationContext, sel, networkThreadImplementors)
+
+	out := graphql.NewFieldSet(fields)
+	deferred := make(map[string]*graphql.FieldSet)
+	for i, field := range fields {
+		switch field.Name {
+		case "__typename":
+			out.Values[i] = graphql.MarshalString("NetworkThread")
+		case "id":
+			out.Values[i] = ec._NetworkThread_id(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "updatedAt":
+			out.Values[i] = ec._NetworkThread_updatedAt(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "messages":
+			out.Values[i] = ec._NetworkThread_messages(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		default:
+			panic("unknown field " + strconv.Quote(field.Name))
+		}
+	}
+	out.Dispatch(ctx)
+	if out.Invalids > 0 {
+		return graphql.Null
+	}
+
+	atomic.AddInt32(&ec.deferred, int32(len(deferred)))
+
+	for label, dfs := range deferred {
+		ec.processDeferredGroup(graphql.DeferredGroup{
+			Label:    label,
+			Path:     graphql.GetPath(ctx),
+			FieldSet: dfs,
+			Context:  ctx,
+		})
+	}
+
+	return out
+}
+
 var queryImplementors = []string{"Query"}
 
 func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) graphql.Marshaler {
@@ -3860,6 +4076,60 @@ func (ec *executionContext) marshalNNetworkMessage2ᚖgithubᚗcomᚋEternisAI�
 		return graphql.Null
 	}
 	return ec._NetworkMessage(ctx, sel, v)
+}
+
+func (ec *executionContext) marshalNNetworkThread2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkThreadᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.NetworkThread) graphql.Marshaler {
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNNetworkThread2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkThread(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
+}
+
+func (ec *executionContext) marshalNNetworkThread2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋpkgᚋtwin_networkᚋgraphᚋmodelᚐNetworkThread(ctx context.Context, sel ast.SelectionSet, v *model.NetworkThread) graphql.Marshaler {
+	if v == nil {
+		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
+			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
+		}
+		return graphql.Null
+	}
+	return ec._NetworkThread(ctx, sel, v)
 }
 
 func (ec *executionContext) unmarshalNString2string(ctx context.Context, v any) (string, error) {
