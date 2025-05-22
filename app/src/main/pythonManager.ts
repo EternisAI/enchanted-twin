@@ -74,8 +74,23 @@ export class KokoroBootstrap {
 
   private run(cmd: string, args: readonly string[], opts: RunOptions) {
     return new Promise<void>((resolve, reject) => {
-      log.info(`[${opts.label}] → ${cmd} ${args.join(' ')}`)
-      const p = spawn(cmd, args, { ...opts, stdio: 'inherit' })
+      log.info(`[Kokoro] [${opts.label}] → ${cmd} ${args.join(' ')}`)
+      const p = spawn(cmd, args, { ...opts, stdio: 'pipe' })
+
+      p.stdout?.on('data', (data) => {
+        const output = data.toString().trim()
+        if (output) {
+          log.info(`[Kokoro] [${opts.label}] ${output}`)
+        }
+      })
+
+      p.stderr?.on('data', (data) => {
+        const output = data.toString().trim()
+        if (output) {
+          log.error(`[Kokoro] [${opts.label}] ${output}`)
+        }
+      })
+
       p.once('error', reject)
       p.once('exit', (c) => (c === 0 ? resolve() : reject(new Error(`${opts.label} exit ${c}`))))
     })
@@ -117,7 +132,11 @@ export class KokoroBootstrap {
 
   /* ── install steps ──────────────────────────────────────────────────────── */
   private async ensureUv() {
-    if (await this.exists(this.UV_PATH, fsc.X_OK)) return
+    if (await this.exists(this.UV_PATH, fsc.X_OK)) {
+      log.info('[Kokoro] UV already installed')
+      return
+    }
+    log.info('[Kokoro] Installing UV package manager')
     await fs.promises.mkdir(this.USER_BIN, { recursive: true })
     await this.run('sh', ['-c', 'curl -LsSf https://astral.sh/uv/install.sh | sh'], {
       label: 'uv-install',
@@ -130,13 +149,19 @@ export class KokoroBootstrap {
   }
 
   private async ensureRepo() {
-    if (await this.exists(path.join(this.KOKORO_DIR, 'api'))) return
+    if (await this.exists(path.join(this.KOKORO_DIR, 'api'))) {
+      log.info('[Kokoro] Repository already exists')
+      return
+    }
+    log.info('[Kokoro] Downloading Kokoro repository')
     await fs.promises.rm(this.KOKORO_DIR, { recursive: true, force: true }).catch(() => {})
     await fs.promises.mkdir(this.KOKORO_DIR, { recursive: true })
 
     const zipTmp = path.join(tmpdir(), `kokoro-${Date.now()}.zip`)
     try {
+      log.info('[Kokoro] Downloading repository archive')
       await this.download(this.ZIP_URL, zipTmp)
+      log.info('[Kokoro] Extracting repository archive')
       await this.extractZipFlattened(zipTmp, this.KOKORO_DIR)
     } finally {
       await fs.promises.unlink(zipTmp).catch(() => {})
@@ -152,8 +177,14 @@ export class KokoroBootstrap {
       venvIs312 = /^version = 3\.12\./m.test(txt)
     }
 
-    /* Delete the whole dir if it is (a) missing or (b) the wrong version */
-    if (!venvIs312) {
+    if (venvIs312) {
+      log.info('[Kokoro] Virtual environment already exists with Python 3.12')
+      return
+    }
+
+    log.info('[Kokoro] Creating Python 3.12 virtual environment')
+    if (await this.exists(this.VENV_DIR)) {
+      log.info('[Kokoro] Removing existing virtual environment')
       await fs.promises.rm(this.VENV_DIR, { recursive: true, force: true }).catch(() => {})
     }
 
@@ -164,8 +195,12 @@ export class KokoroBootstrap {
 
   private async ensureDeps() {
     const stamp = path.join(this.VENV_DIR, '.kokoro-installed')
-    if (await this.exists(stamp)) return
+    if (await this.exists(stamp)) {
+      log.info('[Kokoro] Dependencies already installed')
+      return
+    }
 
+    log.info('[Kokoro] Installing Python dependencies')
     await this.run(this.UV_PATH, ['pip', 'install', '-e', '.'], {
       cwd: this.KOKORO_DIR,
       env: this.uvEnv(this.VENV_DIR),
@@ -173,6 +208,7 @@ export class KokoroBootstrap {
     })
 
     await fs.promises.writeFile(stamp, '')
+    log.info('[Kokoro] Dependencies installation completed')
   }
 
   private async startTts() {
@@ -209,12 +245,31 @@ export class KokoroBootstrap {
 
     /* start uvicorn */
     this.kokoroProc?.kill()
+    log.info('[Kokoro] Starting uvicorn server on port 45000')
     this.kokoroProc = spawn(
       this.pythonBin(),
       ['-m', 'uvicorn', 'api.src.main:app', '--host', '0.0.0.0', '--port', '45000'],
-      { cwd: this.KOKORO_DIR, env, stdio: 'inherit' }
+      { cwd: this.KOKORO_DIR, env, stdio: 'pipe' }
     )
-    this.kokoroProc.on('exit', () => (this.kokoroProc = null))
+
+    this.kokoroProc.stdout?.on('data', (data) => {
+      const output = data.toString().trim()
+      if (output) {
+        log.info(`[Kokoro] [uvicorn] ${output}`)
+      }
+    })
+
+    this.kokoroProc.stderr?.on('data', (data) => {
+      const output = data.toString().trim()
+      if (output) {
+        log.error(`[Kokoro] [uvicorn] ${output}`)
+      }
+    })
+
+    this.kokoroProc.on('exit', (code) => {
+      log.info(`[Kokoro] uvicorn server exited with code ${code}`)
+      this.kokoroProc = null
+    })
 
     const checkServer = () =>
       new Promise<boolean>((resolve) => {
@@ -225,21 +280,32 @@ export class KokoroBootstrap {
         req.on('error', () => resolve(false))
       })
 
+    log.info('[Kokoro] Waiting for server to become ready...')
     const start = Date.now()
     const timeout = 10 * 60 * 1000
+    let checkCount = 0
     while (Date.now() - start < timeout) {
       if (await checkServer()) {
+        log.info('[Kokoro] Server is ready and responding!')
         this.onProgress?.({ dependency: 'Kokoro', progress: 100, status: 'Completed' })
         this.latestProgress = { dependency: 'Kokoro', progress: 100, status: 'Completed' }
         return
       }
+      checkCount++
+      if (checkCount % 10 === 0) {
+        log.info(
+          `[Kokoro] Still waiting for server... (${Math.round((Date.now() - start) / 1000)}s elapsed)`
+        )
+      }
       await new Promise((r) => setTimeout(r, 1000))
     }
 
+    log.error('[Kokoro] Timed out waiting for server to start')
     throw new Error('Timed out waiting for Kokoro server to start')
   }
 
   async setup() {
+    log.info('[Kokoro] Starting Kokoro setup process')
     try {
       this.onProgress?.({
         dependency: 'Kokoro',
@@ -281,7 +347,7 @@ export class KokoroBootstrap {
       await this.startTts()
     } catch (e) {
       const error = e instanceof Error ? e.message : 'Unknown error occurred'
-      log.error('[KokoroBootstrap] failed', e)
+      log.error('[Kokoro] KokoroBootstrap failed', e)
       this.latestProgress = {
         dependency: 'Kokoro',
         progress: this.latestProgress.progress,
