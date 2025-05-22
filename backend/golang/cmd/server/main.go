@@ -58,7 +58,6 @@ import (
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
-	weaviateAuth "github.com/weaviate/weaviate-go-client/v5/weaviate/auth"
 )
 
 func main() {
@@ -179,24 +178,26 @@ func main() {
 	aiEmbeddingsService := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
+	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
+	}
+
 	weaviateClient, err := weaviate.NewClient(weaviate.Config{
-		// Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
-		// Scheme: "http",
-		Host:   "pcpsisggqlosvuh0rtadkg.c0.us-west3.gcp.weaviate.cloud",
-		Scheme: "https",
-		AuthConfig: &weaviateAuth.ApiKey{
-			Value: "l8SzG9vo5c1JG7qBWxwAwyrkBkm8vqsrTbBq",
-		},
+		Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
+		Scheme: "http",
 	})
 	if err != nil {
 		logger.Error("Failed to create Weaviate client", "error", err)
 		panic(errors.Wrap(err, "Failed to create Weaviate client"))
 	}
-
-	if err := InitSchema(weaviateClient); err != nil {
+	logger.Info("Weaviate client created")
+	if err := InitSchema(weaviateClient, logger); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
+	logger.Info("Weaviate schema initialized")
 
 	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
 	if err != nil {
@@ -359,12 +360,6 @@ func main() {
 			}
 		}
 	}()
-
-	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
-	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
-		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
-	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
@@ -637,14 +632,15 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 }
 
 // DefineMemorySchema creates the schema for the Memory class in Weaviate.
-func DefineMemorySchema(client *weaviate.Client) error {
-	className := "TextDocumentStoreBYOV"
+func DefineMemorySchema(client *weaviate.Client, logger *log.Logger) error {
+	className := evolvingmemory.ClassName
 	classExists, err := ClassExists(client, className)
 	if err != nil {
+		logger.Error("Failed to check if class exists", "error", err)
 		return fmt.Errorf("checking if class %s exists: %w", className, err)
 	}
 	if classExists {
-		fmt.Printf("Class '%s' already exists.\n", className)
+		logger.Info("Class already exists", "class_name", className)
 		return nil
 	}
 
@@ -664,9 +660,10 @@ func DefineMemorySchema(client *weaviate.Client) error {
 
 	err = client.Schema().ClassCreator().WithClass(memoryClass).Do(context.Background())
 	if err != nil {
+		logger.Error("Failed to create class", "error", err)
 		return fmt.Errorf("creating class %s: %w", className, err)
 	}
-	fmt.Printf("Class '%s' created successfully.\n", className)
+	logger.Info("Class '%s' created successfully.", className)
 	return nil
 }
 
@@ -685,8 +682,8 @@ func ClassExists(client *weaviate.Client, className string) (bool, error) {
 }
 
 // InitSchema defines all schemas
-func InitSchema(client *weaviate.Client) error {
-	if err := DefineMemorySchema(client); err != nil {
+func InitSchema(client *weaviate.Client, logger *log.Logger) error {
+	if err := DefineMemorySchema(client, logger); err != nil {
 		return err
 	}
 	return nil

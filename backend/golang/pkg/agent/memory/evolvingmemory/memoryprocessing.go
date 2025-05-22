@@ -116,7 +116,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		addObject := &models.Object{
-			Class:      className,
+			Class:      ClassName,
 			Properties: data,
 			Vector:     newFactEmbedding32,
 		}

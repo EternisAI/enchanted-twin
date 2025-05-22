@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	className         = "TextDocumentStoreBYOV"
+	ClassName         = "TextDocument"
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
 	tagsProperty      = "tags"
@@ -87,16 +87,16 @@ func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Ser
 }
 
 func (s *WeaviateStorage) ensureSchemaExistsInternal(ctx context.Context) error {
-	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(className).Do(ctx)
+	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 	if err != nil {
-		return fmt.Errorf("checking class existence for '%s': %w", className, err)
+		return fmt.Errorf("checking class existence for '%s': %w", ClassName, err)
 	}
 	if exists {
-		s.logger.Debugf("Class '%s' already exists.", className)
+		s.logger.Debugf("Class '%s' already exists.", ClassName)
 		return nil
 	}
 
-	s.logger.Infof("Class '%s' does not exist, creating it now.", className)
+	s.logger.Infof("Class '%s' does not exist, creating it now.", ClassName)
 	properties := []*models.Property{
 		{
 			Name:     contentProperty,
@@ -117,21 +117,21 @@ func (s *WeaviateStorage) ensureSchemaExistsInternal(ctx context.Context) error 
 	}
 
 	classObj := &models.Class{
-		Class:      className,
+		Class:      ClassName,
 		Properties: properties,
 		Vectorizer: "none",
 	}
 
 	err = s.client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
 	if err != nil {
-		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(className).Do(ctx)
+		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 		if checkErr == nil && existsAfterAttempt {
-			s.logger.Info("Class was created concurrently. Proceeding.", "class", className)
+			s.logger.Info("Class was created concurrently. Proceeding.", "class", ClassName)
 			return nil
 		}
-		return fmt.Errorf("creating class '%s': %w. Original error: %v", className, err, err)
+		return fmt.Errorf("creating class '%s': %w. Original error: %v", ClassName, err, err)
 	}
-	s.logger.Infof("Successfully created class '%s'", className)
+	s.logger.Infof("Successfully created class '%s'", ClassName)
 	return nil
 }
 
@@ -153,7 +153,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 	s.logger.Debugf("Attempting to get document by ID: %s", id)
 
 	result, err := s.client.Data().ObjectsGetter().
-		WithClassName(className).
+		WithClassName(ClassName).
 		WithID(id).
 		// No WithAdditionalParameters needed for ObjectsGetter for standard properties
 		Do(ctx)
@@ -258,7 +258,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	}
 
 	updater := s.client.Data().Updater().
-		WithClassName(className).
+		WithClassName(ClassName).
 		WithID(id).
 		WithProperties(data)
 
@@ -283,7 +283,7 @@ func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
 	}
 
 	err := s.client.Data().Deleter().
-		WithClassName(className).
+		WithClassName(ClassName).
 		WithID(id).
 		Do(ctx)
 	if err != nil {
@@ -298,31 +298,31 @@ func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
 
 // DeleteAll deletes the entire Weaviate class to ensure a clean state for testing.
 func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
-	s.logger.Warn("Attempting to DELETE ENTIRE CLASS for testing purposes.", "class", className)
+	s.logger.Warn("Attempting to DELETE ENTIRE CLASS for testing purposes.", "class", ClassName)
 
 	// Check if class exists before trying to delete
-	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(className).Do(ctx)
+	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 	if err != nil {
-		return fmt.Errorf("checking class existence before delete all for '%s': %w", className, err)
+		return fmt.Errorf("checking class existence before delete all for '%s': %w", ClassName, err)
 	}
 	if !exists {
-		s.logger.Info("Class does not exist, no need to delete.", "class", className)
+		s.logger.Info("Class does not exist, no need to delete.", "class", ClassName)
 		return nil
 	}
 
-	err = s.client.Schema().ClassDeleter().WithClassName(className).Do(ctx)
+	err = s.client.Schema().ClassDeleter().WithClassName(ClassName).Do(ctx)
 	if err != nil {
 		// It's possible the class was deleted by another process between the check and here.
 		// Or a genuine error occurred.
 		// Check existence again to be sure.
-		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(className).Do(ctx)
+		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 		if checkErr == nil && !existsAfterAttempt {
-			s.logger.Info("Class was deleted, possibly concurrently or by this attempt despite error.", "class", className)
+			s.logger.Info("Class was deleted, possibly concurrently or by this attempt despite error.", "class", ClassName)
 			return nil // Treat as success if it's gone
 		}
-		return fmt.Errorf("failed to delete class '%s': %w. Initial error: %v", className, err, err)
+		return fmt.Errorf("failed to delete class '%s': %w. Initial error: %v", ClassName, err, err)
 	}
-	s.logger.Info("Successfully deleted class for testing.", "class", className)
+	s.logger.Info("Successfully deleted class for testing.", "class", ClassName)
 	// The schema will be recreated on the next operation that requires it via ensureSchemaExistsInternal.
 	return nil
 }

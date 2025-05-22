@@ -51,7 +51,7 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	}
 
 	queryBuilder := s.client.GraphQL().Get().
-		WithClassName(className).
+		WithClassName(ClassName).
 		WithNearVector(nearVector).
 		WithLimit(10).
 		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
@@ -72,9 +72,9 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		return memory.QueryResult{Documents: finalResults}, nil
 	}
 
-	classData, ok := data[className].([]interface{})
+	classData, ok := data[ClassName].([]interface{})
 	if !ok {
-		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", className)
+		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
 		return memory.QueryResult{Documents: finalResults}, nil
 	}
 	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
