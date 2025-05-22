@@ -1,14 +1,16 @@
-import { useState, useEffect, useRef, useLayoutEffect } from "react"
-import { Button } from "../ui/button"
-import { ArrowBigUp, Lightbulb, X } from "lucide-react"
-import { motion, AnimatePresence } from "framer-motion"
-import { cn } from "../../lib/utils"
+import { useState, useEffect, useRef, useLayoutEffect } from 'react'
+import { Button } from '../ui/button'
+import { ArrowBigUp, Lightbulb, X } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { cn } from '../../lib/utils'
 
 type MessageInputProps = {
   onSend: (text: string, reasoning: boolean, voice: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
   hasReasoning?: boolean
+  isReasonSelected?: boolean
+  onReasonToggle?: (reasoningSelected: boolean) => void
   voice?: boolean
 }
 
@@ -16,10 +18,12 @@ export default function MessageInput({
   onSend,
   isWaitingTwinResponse,
   onStop,
+  isReasonSelected,
+  onReasonToggle,
   hasReasoning = true,
   voice = false
 }: MessageInputProps) {
-  const [text, setText] = useState("")
+  const [text, setText] = useState('')
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -27,11 +31,11 @@ export default function MessageInput({
     if (!text.trim() || isWaitingTwinResponse) return
     const isReasonSelected = true
     onSend(text, isReasonSelected, voice)
-    setText("")
+    setText('')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
@@ -40,7 +44,7 @@ export default function MessageInput({
   useLayoutEffect(() => {
     const textarea = textareaRef.current
     if (textarea) {
-      textarea.style.height = "auto"
+      textarea.style.height = 'auto'
       textarea.style.height = `${textarea.scrollHeight}px`
     }
   }, [text])
@@ -49,23 +53,23 @@ export default function MessageInput({
     if (textareaRef.current) {
       const target = e.target as Element
       // Focus if the click is not on the textarea itself or within a button element
-      if (target !== textareaRef.current && !target.closest("button")) {
+      if (target !== textareaRef.current && !target.closest('button')) {
         textareaRef.current.focus()
       }
     }
   }
 
   const toggleReason = () => {
-    // onReasonToggle(!isReasonSelected)
+    onReasonToggle?.(!isReasonSelected)
   }
 
   return (
     <motion.div
       layoutId="message-input-container"
       className={cn(
-        "flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xl w-full"
+        'flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-xl w-full'
       )}
-      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 30 }}
       onClick={handleClickContainer}
     >
       <div className="flex items-center gap-3 w-full">
@@ -85,10 +89,10 @@ export default function MessageInput({
           <Button
             onClick={toggleReason}
             className={cn(
-              "rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm"
-              // isReasonSelected
-              //   ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-              //   : ''
+              'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
+              isReasonSelected
+                ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+                : ''
             )}
             variant="outline"
           >
@@ -135,8 +139,8 @@ export function SendButton({
   return (
     <Button
       size="icon"
-      variant={isWaitingTwinResponse ? "destructive" : "default"}
-      className={cn("rounded-full transition-all duration-200 ease-in-out relative", className)}
+      variant={isWaitingTwinResponse ? 'destructive' : 'default'}
+      className={cn('rounded-full transition-all duration-200 ease-in-out relative', className)}
       onClick={isWaitingTwinResponse ? handleStop : onSend}
       disabled={!isWaitingTwinResponse && !text.trim()}
     >
@@ -147,7 +151,7 @@ export function SendButton({
             initial={{ scale: 0, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0, opacity: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
             className="absolute inset-0 flex items-center justify-center"
           >
             <X className="w-4 h-4" />
@@ -158,12 +162,12 @@ export function SendButton({
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -20, opacity: 0 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
+            transition={{ duration: 0.4, ease: 'easeOut' }}
             className="absolute inset-0 flex items-center justify-center"
           >
             <ArrowBigUp
               className="w-4 h-4"
-              fill={!isWaitingTwinResponse && !!text.trim() ? "currentColor" : "none"}
+              fill={!isWaitingTwinResponse && !!text.trim() ? 'currentColor' : 'none'}
             />
           </motion.div>
         )}
