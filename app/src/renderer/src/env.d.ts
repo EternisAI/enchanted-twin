@@ -89,6 +89,10 @@ interface IApi {
     getEnabled: () => Promise<boolean>
     setEnabled: (enabled: boolean) => Promise<void>
   }
+  voiceStore: {
+    get: (key: string) => unknown
+    set: (key: string, value: unknown) => void
+  }
 }
 
 interface ScreenpipeStatus {

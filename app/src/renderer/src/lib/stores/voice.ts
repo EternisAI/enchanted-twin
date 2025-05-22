@@ -8,20 +8,23 @@ interface VoiceStore {
 }
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
-  isVoiceMode: false,
+  isVoiceMode: window.api.voiceStore.get('isVoiceMode') as boolean,
   toggleVoiceMode: (toggleSidebar = true) => {
     const { setOpen } = useSidebarStore.getState()
     const { isVoiceMode } = get()
     if (toggleSidebar) {
       setOpen(isVoiceMode)
     }
-    set((state) => ({ isVoiceMode: !state.isVoiceMode }))
+    const newVoiceMode = !isVoiceMode
+    window.api.voiceStore.set('isVoiceMode', newVoiceMode)
+    set(() => ({ isVoiceMode: newVoiceMode }))
   },
   setVoiceMode: (isVoiceMode: boolean, toggleSidebar = true) => {
     if (toggleSidebar) {
       const { setOpen } = useSidebarStore.getState()
       setOpen(!isVoiceMode)
     }
+    window.api.voiceStore.set('isVoiceMode', isVoiceMode)
     set({ isVoiceMode })
   }
 }))
