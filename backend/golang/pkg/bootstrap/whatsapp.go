@@ -18,7 +18,7 @@ import (
 func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
 	dbLog := &whatsapp.WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
 
-	container, err := sqlstore.New("sqlite3", "file:./whatsapp_store.db?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New("sqlite3", "file:./db/whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
 		logger.Error("Failed to create WhatsApp database", "error", err)
 		panic(err)
