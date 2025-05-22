@@ -11,14 +11,13 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/store/sqlstore"
-	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
 func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) *whatsmeow.Client {
-	dbLog := waLog.Stdout("Database", "DEBUG", true)
+	dbLog := &whatsapp.WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
 	container, err := sqlstore.New("sqlite3", "file:whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
 		panic(err)
@@ -27,7 +26,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	if err != nil {
 		panic(err)
 	}
-	clientLog := waLog.Stdout("Client", "DEBUG", true)
+	clientLog := &whatsapp.WhatsmeowLoggerAdapter{Logger: logger, Module: "Client"}
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 	client.AddEventHandler(whatsapp.EventHandler(memoryStorage, logger, nc))
 

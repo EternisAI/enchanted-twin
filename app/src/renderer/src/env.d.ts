@@ -82,6 +82,17 @@ interface IApi {
       data: { dependency: string; status: string; progress: number; error?: string } | void
     ) => void
   ) => void
+  analytics: {
+    capture: (event: string, properties: Record<string, unknown>) => void
+    identify: (properties: Record<string, unknown>) => void
+    getDistinctId: () => string
+    getEnabled: () => Promise<boolean>
+    setEnabled: (enabled: boolean) => Promise<void>
+  }
+  voiceStore: {
+    get: (key: string) => unknown
+    set: (key: string, value: unknown) => void
+  }
 }
 
 interface ScreenpipeStatus {

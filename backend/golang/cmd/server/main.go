@@ -51,6 +51,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
@@ -80,7 +82,7 @@ func main() {
 	if envs.OllamaBaseURL != "" {
 		baseURL, err := url.Parse(envs.OllamaBaseURL)
 		if err != nil {
-			logger.Error("Failed to parse Ollama base URL", slog.Any("error", err))
+			logger.Error("Failed to parse Ollama base URL", "error", err)
 		} else {
 			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
 		}
@@ -118,7 +120,7 @@ func main() {
 				if err == nil {
 					err = nc.Publish("whatsapp.qr_code", jsonData)
 					if err != nil {
-						logger.Error("Failed to publish WhatsApp QR code to NATS", slog.Any("error", err))
+						logger.Error("Failed to publish WhatsApp QR code to NATS", "error", err)
 					} else {
 						logger.Info("Published WhatsApp QR code to NATS")
 					}
@@ -150,7 +152,7 @@ func main() {
 				if err == nil {
 					err = nc.Publish("whatsapp.qr_code", jsonData)
 					if err != nil {
-						logger.Error("Failed to publish WhatsApp connection success to NATS", slog.Any("error", err))
+						logger.Error("Failed to publish WhatsApp connection success to NATS", "error", err)
 					} else {
 						logger.Info("Published WhatsApp connection success to NATS")
 					}
@@ -168,7 +170,7 @@ func main() {
 	}
 	defer func() {
 		if err := store.Close(); err != nil {
-			logger.Error("Error closing store", slog.Any("error", err))
+			logger.Error("Error closing store", "error", err)
 		}
 	}()
 
@@ -314,6 +316,19 @@ func main() {
 	}
 	defer temporalWorker.Stop()
 
+	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
+		logger.Error("Failed to bootstrap periodic workflows", "error", err)
+		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
+	}
+
+	identitySvc := identity.NewIdentityService(temporalClient)
+	personality, err := identitySvc.GetPersonality(context.Background())
+	if err != nil {
+		logger.Error("Failed to get personality", "error", err)
+		panic(errors.Wrap(err, "Failed to get personality"))
+	}
+	logger.Info("Personality", "personality", personality)
+
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
 		Token:            envs.TelegramToken,
@@ -378,7 +393,7 @@ func main() {
 		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
-			logger.Error("HTTP server error", slog.Any("error", err))
+			logger.Error("HTTP server error", "error", err)
 			panic(errors.Wrap(err, "Unable to start server"))
 		}
 	}()
@@ -460,9 +475,13 @@ func bootstrapTemporalWorker(
 	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
 	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
+	// Register identity activities
+	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
+	identityActivities.RegisterWorkflowsAndActivities(w)
+
 	err := w.Start()
 	if err != nil {
-		input.logger.Error("Error starting worker", slog.Any("error", err))
+		input.logger.Error("Error starting worker", "error", err)
 		return nil, err
 	}
 
@@ -604,7 +623,7 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 	go func() {
 		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Weaviate serve error", slog.Any("error", err))
+			logger.Error("Weaviate serve error", "error", err)
 		}
 	}()
 
@@ -647,6 +666,14 @@ func ClassExists(client *weaviate.Client, className string) (bool, error) {
 func InitSchema(client *weaviate.Client, logger *log.Logger) error {
 	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
 		return err
+	}
+	return nil
+}
+
+func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}
 	return nil
 }

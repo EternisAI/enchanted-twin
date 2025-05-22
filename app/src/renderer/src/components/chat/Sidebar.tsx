@@ -30,6 +30,7 @@ import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '../ui/tooltip'
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 interface SidebarProps {
   chats: Chat[]
@@ -67,6 +68,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
   const { openOmnibar } = useOmnibarStore()
+  // const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const [showAllChats, setShowAllChats] = useState(false)
 
   const handleNewChat = () => {
@@ -192,6 +194,20 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           <span className="text-sm">Tasks</span>
         </Button>
 
+        {/* <Button
+          variant="outline"
+          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
+          onClick={() => {
+            if (!isVoiceMode) {
+              setSidebarOpen(false)
+            }
+            toggleVoiceMode()
+          }}
+        >
+          <Mic className="w-4 h-4 mr-2 text-muted-foreground" />
+          <span className="text-sm">Voice mode</span>
+        </Button> */}
+
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
           <AnimatePresence initial={false} mode="popLayout">
             <motion.div className="flex flex-col gap-2">
@@ -246,6 +262,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   const navigate = useNavigate()
   const router = useRouter()
+  const { setVoiceMode } = useVoiceStore()
   const [deleteChat] = useMutation(DeleteChatDocument, {
     refetchQueries: [GetChatsDocument],
     onError: (error) => {
@@ -294,46 +311,52 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         key={chat.id}
         disabled={isActive}
         to="/chat/$chatId"
+        onClick={() => {
+          setVoiceMode(chat.voice)
+        }}
         params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,
           'text-foreground': !isActive
         })}
+        onClick={() => {
+          window.api.analytics.capture('open_chat', {
+            method: 'ui'
+          })
+        }}
       >
         {chat.name || 'Untitled Chat'}
       </Link>
-      {
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
+      <AlertDialog>
+        <AlertDialogTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-destructive" />
+          </Button>
+        </AlertDialogTrigger>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete chat</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. It will permanently delete the chat.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Do not delete</AlertDialogCancel>
             <Button
-              variant="ghost"
-              size="icon"
-              className="ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 h-6 w-6"
+              variant="destructive"
+              onClick={() => {
+                deleteChat({ variables: { chatId: chat.id } })
+              }}
             >
-              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+              Delete
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Delete chat</AlertDialogTitle>
-              <AlertDialogDescription>
-                This action cannot be undone. It will permanently delete the chat.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Do not delete</AlertDialogCancel>
-              <Button
-                variant="destructive"
-                onClick={() => {
-                  deleteChat({ variables: { chatId: chat.id } })
-                }}
-              >
-                Delete
-              </Button>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      }
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </motion.div>
   )
 }

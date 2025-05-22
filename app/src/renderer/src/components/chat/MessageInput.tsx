@@ -5,20 +5,31 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
 
 type MessageInputProps = {
-  onSend: (text: string, reasoning: boolean) => void
+  onSend: (text: string, reasoning: boolean, voice: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
+  hasReasoning?: boolean
+  isReasonSelected: boolean
+  onReasonToggle?: (reasoningSelected: boolean) => void
+  voice?: boolean
 }
 
-export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: MessageInputProps) {
+export default function MessageInput({
+  onSend,
+  isWaitingTwinResponse,
+  onStop,
+  isReasonSelected,
+  onReasonToggle,
+  hasReasoning = true,
+  voice = false
+}: MessageInputProps) {
   const [text, setText] = useState('')
-  const [isReasonSelected, setIsReasonSelected] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
-    onSend(text, isReasonSelected)
+    onSend(text, isReasonSelected, voice)
     setText('')
   }
 
@@ -48,7 +59,7 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
   }
 
   const toggleReason = () => {
-    setIsReasonSelected(!isReasonSelected)
+    onReasonToggle?.(!isReasonSelected)
   }
 
   return (
@@ -68,24 +79,26 @@ export default function MessageInput({ onSend, isWaitingTwinResponse, onStop }: 
           onKeyDown={handleKeyDown}
           rows={1}
           autoFocus
-          placeholder="Type a message..."
+          placeholder="What are you thinking?"
           className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[15rem]"
         />
       </div>
       <div className="flex justify-end items-center gap-3">
-        <Button
-          onClick={toggleReason}
-          className={cn(
-            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
-            isReasonSelected
-              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-              : ''
-          )}
-          variant="outline"
-        >
-          <Lightbulb className="w-4 h-5" />
-          Reasoning
-        </Button>
+        {hasReasoning && (
+          <Button
+            onClick={toggleReason}
+            className={cn(
+              'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
+              isReasonSelected
+                ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+                : ''
+            )}
+            variant="outline"
+          >
+            <Lightbulb className="w-4 h-5" />
+            Reasoning
+          </Button>
+        )}
         <SendButton
           onSend={handleSend}
           isWaitingTwinResponse={isWaitingTwinResponse}

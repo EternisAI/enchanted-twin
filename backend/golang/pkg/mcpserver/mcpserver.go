@@ -13,10 +13,13 @@ import (
 
 	"github.com/charmbracelet/log"
 	mcp "github.com/metoro-io/mcp-golang"
+	mcptransport "github.com/metoro-io/mcp-golang/transport"
+	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/google"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/repository"
@@ -32,6 +35,7 @@ type ConnectedMCPServer struct {
 
 // service implements the MCPServerService interface.
 type service struct {
+	config           *config.Config
 	store            *db.Store
 	repo             repository.Repository
 	connectedServers []*ConnectedMCPServer
@@ -97,6 +101,17 @@ func (s *service) ConnectMCPServer(
 			}
 		case model.MCPServerTypeScreenpipe:
 			client = screenpipe.NewClient()
+		case model.MCPServerTypeEnchanted:
+			transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get transport: %w", err)
+			}
+			mcpClient := mcp.NewClient(transport)
+			_, err = mcpClient.Initialize(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
+			}
+			client = mcpClient
 		default:
 			return nil, fmt.Errorf("unsupported server type")
 		}
@@ -121,14 +136,18 @@ func (s *service) ConnectMCPServer(
 		return nil, fmt.Errorf("invalid MCP server name")
 	}
 
-	cmd := exec.Command(input.Command, input.Args...)
-	cmd.Env = os.Environ()
-	for _, env := range input.Envs {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
+	// Convert input.Envs from []*model.KeyValueInput to []*model.KeyValue
+	var transportEnvs []*model.KeyValue
+	if input.Envs != nil {
+		transportEnvs = make([]*model.KeyValue, len(input.Envs))
+		for i, kvInput := range input.Envs {
+			transportEnvs[i] = &model.KeyValue{Key: kvInput.Key, Value: kvInput.Value}
+		}
 	}
-	transport, err := GetTransport(cmd)
+
+	transport, err := GetTransportWithIO(ctx, input.Command, input.Args, transportEnvs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get transport: %w", err)
 	}
 
 	// Create the client using direct mcp.NewClient call to get Initialize method
@@ -251,6 +270,19 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				}
 			case model.MCPServerTypeScreenpipe:
 				client = screenpipe.NewClient()
+			case model.MCPServerTypeEnchanted:
+				transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
+				if err != nil {
+					log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
+					continue
+				}
+				mcpClient := mcp.NewClient(transport)
+				_, err = mcpClient.Initialize(ctx)
+				if err != nil {
+					log.Error("Error initializing MCP server", "server", server.Name, "error", err)
+					continue
+				}
+				client = mcpClient
 			default:
 				// nothing to do
 				continue
@@ -271,16 +303,10 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		if command == "docker" {
 			command = getDockerCommand()
 		}
-		cmd := exec.Command(command, server.Args...)
-
-		cmd.Env = os.Environ()
-		for _, env := range server.Envs {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
-		}
-
-		transport, err := GetTransport(cmd)
+		transport, err := GetTransportWithIO(ctx, command, server.Args, server.Envs)
 		if err != nil {
-			return err
+			log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
+			continue
 		}
 
 		// Create the client using direct mcp.NewClient call to get Initialize method
@@ -316,7 +342,7 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
 				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-				continue
+				break
 			}
 
 			if allTools == nil {
@@ -342,7 +368,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
 				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-				continue
+				break
 			}
 
 			if client_tools != nil && len(client_tools.Tools) > 0 {
@@ -437,24 +463,49 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 	s.registry = s.registry.Excluding(toolNames...)
 }
 
-func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
+// GetTransport creates a transport based on the server configuration.
+// It supports STDIN/STDOUT (stdio) and HTTPS protocols.
+// Assumes model.MCPServerTransportHTTPS and model.MCPServerTransportStdio constants exist in your model package.
+func GetTransportWithHTTP(
+	ctx context.Context,
+	serverURL *string,
+) (mcptransport.Transport, error) {
+	if serverURL == nil || *serverURL == "" {
+		return nil, fmt.Errorf("URL is required for HTTPS transport")
+	}
+	// mcphttp.NewHTTPClientTransport takes (baseURL string, client *stdhttp.Client)
+	// Using nil for the client will use http.DefaultClient.
+	return mcphttp.NewHTTPClientTransport(*serverURL), nil
+}
+
+func GetTransportWithIO(
+	ctx context.Context,
+	command string,
+	args []string,
+	envs []*model.KeyValue,
+) (mcptransport.Transport, error) {
+	effectiveCommand := command
+	if command == "docker" {
+		effectiveCommand = getDockerCommand()
+	}
+	cmd := exec.Command(effectiveCommand, args...)
+	cmd.Env = os.Environ()
+	for _, env := range envs {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
+	}
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating stdin pipe: %w", err)
 	}
-
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating stdout pipe: %w", err)
 	}
-
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error starting command for stdio transport: %w", err)
 	}
-
-	clientTransport := stdio.NewStdioServerTransportWithIO(stdout, stdin)
-
-	return clientTransport, nil
+	return stdio.NewStdioServerTransportWithIO(stdout, stdin), nil
 }
 
 func getDockerCommand() string {

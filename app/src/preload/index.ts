@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 import { MediaType } from '../main/mediaPermissions'
+import { voiceStore } from '../main/stores'
 
 const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -88,6 +89,19 @@ const api = {
     ) => void
   ) => {
     ipcRenderer.on(channel, (_, data) => callback(data))
+  },
+  analytics: {
+    capture: (event: string, properties: Record<string, unknown>) =>
+      ipcRenderer.invoke('analytics:capture', event, properties),
+    identify: (properties: Record<string, unknown>) =>
+      ipcRenderer.invoke('analytics:identify', properties),
+    getDistinctId: () => ipcRenderer.invoke('analytics:get-distinct-id'),
+    getEnabled: () => ipcRenderer.invoke('analytics:is-enabled'),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke('analytics:set-enabled', enabled)
+  },
+  voiceStore: {
+    get: (key: string) => voiceStore.get(key),
+    set: (key: string, value: unknown) => voiceStore.set(key, value)
   }
 }
 

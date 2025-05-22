@@ -45,6 +45,9 @@ export function HistoryChats({ chats, isActive, onClose, onShowSuggestions }: Hi
               animate={{ opacity: 1, y: 0 }}
               onClick={() => {
                 navigate({ to: `/chat/${chat.id}` })
+                window.api.analytics.capture('open_chat', {
+                  method: 'ui'
+                })
                 handleClose()
               }}
               className={`w-full text-left p-3 rounded-lg transition-colors ${

@@ -1,8 +1,6 @@
 import { app, BrowserWindow, session } from 'electron'
 import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
-import { existsSync, mkdirSync } from 'fs'
-import { join } from 'path'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
 import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
@@ -12,8 +10,9 @@ import { registerIpcHandlers } from './ipcHandlers'
 import { setupMenu } from './menuSetup'
 import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
-import { startGoServer, cleanupGoServer } from './goServer'
+import { cleanupGoServer, initializeGoServer } from './goServer'
 import { startKokoro, cleanupKokoro } from './kokoroManager'
+import { initializeAnalytics } from './analytics'
 
 const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
 
@@ -28,6 +27,8 @@ log.info(`Running in ${IS_PRODUCTION ? 'production' : 'development'} mode`)
 app.whenReady().then(async () => {
   log.info(`App version: ${app.getVersion()}`)
 
+  await initializeGoServer(IS_PRODUCTION, DEFAULT_BACKEND_PORT)
+
   const mainWindow = windowManager.createMainWindow()
   registerNotificationIpc(mainWindow)
   registerMediaPermissionHandlers(session.defaultSession)
@@ -35,38 +36,12 @@ app.whenReady().then(async () => {
   registerScreenpipeIpc()
   registerAccessibilityIpc()
   registerIpcHandlers()
+  initializeAnalytics()
 
   setupAutoUpdater()
   setupMenu()
 
-  const userDataPath = app.getPath('userData')
-  const dbDir = join(userDataPath, 'db')
-
-  if (!existsSync(dbDir)) {
-    try {
-      mkdirSync(dbDir, { recursive: true })
-      log.info(`Created database directory: ${dbDir}`)
-    } catch (err) {
-      log.error(`Failed to create database directory: ${err}`)
-    }
-  }
-
-  const dbPath = join(dbDir, 'enchanted-twin.db')
-  log.info(`Database path: ${dbPath}`)
-
   startKokoro(mainWindow)
-
-  const executable = process.platform === 'win32' ? 'enchanted-twin.exe' : 'enchanted-twin'
-  const goBinaryPath = !IS_PRODUCTION
-    ? join(__dirname, '..', '..', 'resources', executable)
-    : join(process.resourcesPath, 'resources', executable)
-
-  // Only start the Go server in production environment
-  if (IS_PRODUCTION) {
-    await startGoServer(goBinaryPath, userDataPath, dbPath, DEFAULT_BACKEND_PORT)
-  } else {
-    log.info('Running in development mode - packaged Go server not started')
-  }
 
   electronApp.setAppUserModelId('com.electron')
 

@@ -43,7 +43,7 @@ const (
 type SearchContentArguments struct {
 	Query       string `json:"q" jsonschema:"description=Search query to find in recorded content"`
 	ContentType string `json:"content_type,omitempty" jsonschema:"enum=all|ocr|audio|ui,description=Type of content to search: 'ocr' for screen text, 'audio' for spoken words, 'ui' for UI elements, or 'all' for everything,default=all"`
-	Limit       int    `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return,default=10"`
+	Limit       int    `json:"limit,omitempty" jsonschema:"description=Maximum number of results to return,default=10,minimum=10,maximum=50"`
 	Offset      int    `json:"offset,omitempty" jsonschema:"description=Number of results to skip (for pagination),default=0"`
 	StartTime   string `json:"start_time,omitempty" jsonschema:"format=date-time,description=Start time in ISO format UTC (e.g. 2024-01-01T00:00:00Z). Filter results from this time onward."`
 	EndTime     string `json:"end_time,omitempty" jsonschema:"format=date-time,description=End time in ISO format UTC (e.g. 2024-01-01T00:00:00Z). Filter results up to this time."`
@@ -120,8 +120,11 @@ func processSearchContent(
 	client *ScreenpipeClient,
 	arguments SearchContentArguments,
 ) ([]*mcp_golang.Content, error) {
-	if arguments.Limit < 10 || arguments.Limit > 100 {
+	if arguments.Limit < 10 {
 		arguments.Limit = 10
+	}
+	if arguments.Limit > 50 {
+		arguments.Limit = 50
 	}
 	resp, err := client.SearchContent(ctx, arguments)
 	if err != nil {
