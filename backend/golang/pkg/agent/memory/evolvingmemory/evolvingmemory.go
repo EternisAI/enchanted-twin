@@ -80,23 +80,21 @@ func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Ser
 		embeddingsService:  embeddingsService,
 	}
 
-	if err := storage.ensureSchemaExistsInternal(context.Background()); err != nil {
-		storage.logger.Warn("Failed to ensure schema during New(), will attempt on first operation.", "error", err)
-	}
 	return storage, nil
 }
 
-func (s *WeaviateStorage) ensureSchemaExistsInternal(ctx context.Context) error {
-	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
+func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) error {
+	ctx := context.Background()
+	exists, err := client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 	if err != nil {
 		return fmt.Errorf("checking class existence for '%s': %w", ClassName, err)
 	}
 	if exists {
-		s.logger.Debugf("Class '%s' already exists.", ClassName)
+		logger.Debugf("Class '%s' already exists.", ClassName)
 		return nil
 	}
 
-	s.logger.Infof("Class '%s' does not exist, creating it now.", ClassName)
+	logger.Infof("Class '%s' does not exist, creating it now.", ClassName)
 	properties := []*models.Property{
 		{
 			Name:     contentProperty,
@@ -120,18 +118,21 @@ func (s *WeaviateStorage) ensureSchemaExistsInternal(ctx context.Context) error 
 		Class:      ClassName,
 		Properties: properties,
 		Vectorizer: "none",
+		VectorIndexConfig: map[string]interface{}{
+			"distance": "cosine",
+		},
 	}
 
-	err = s.client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
+	err = client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
 	if err != nil {
-		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
+		existsAfterAttempt, checkErr := client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 		if checkErr == nil && existsAfterAttempt {
-			s.logger.Info("Class was created concurrently. Proceeding.", "class", ClassName)
+			logger.Info("Class was created concurrently. Proceeding.", "class", ClassName)
 			return nil
 		}
 		return fmt.Errorf("creating class '%s': %w. Original error: %v", ClassName, err, err)
 	}
-	s.logger.Infof("Successfully created class '%s'", ClassName)
+	logger.Infof("Successfully created class '%s'", ClassName)
 	return nil
 }
 
@@ -146,10 +147,6 @@ func firstNChars(s string, n int) string {
 // GetByID retrieves a document by its Weaviate ID.
 // speakerID (if present) will be within the Metadata map after unmarshalling metadataJson.
 func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
-	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return nil, fmt.Errorf("pre-getbyid schema check failed: %w", err)
-	}
-
 	s.logger.Debugf("Attempting to get document by ID: %s", id)
 
 	result, err := s.client.Data().ObjectsGetter().
@@ -223,10 +220,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 // Update updates an existing document in Weaviate.
 // speakerID (if present) is expected to be within doc.Metadata, which is marshaled to metadataJson.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return fmt.Errorf("pre-update schema check failed: %w", err)
-	}
-
 	s.logger.Debugf("Attempting to update document ID: %s", id)
 
 	data := map[string]interface{}{
@@ -277,11 +270,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 
 // Delete removes a document from Weaviate by its ID.
 func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
-	s.logger.Debug("Delete called", "id", id)
-	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return fmt.Errorf("pre-delete schema check failed: %w", err)
-	}
-
 	err := s.client.Data().Deleter().
 		WithClassName(ClassName).
 		WithID(id).

@@ -2,7 +2,6 @@ package evolvingmemory
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -15,10 +14,6 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 			close(progressChan)
 		}
 	}()
-
-	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return fmt.Errorf("pre-store schema check failed: %w", err)
-	}
 
 	batcher := s.client.Batch().ObjectsBatcher()
 	var objectsAddedToBatch int

@@ -33,7 +33,6 @@ import (
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
-	"github.com/weaviate/weaviate/entities/models"
 	"go.mau.fi/whatsmeow"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
@@ -631,42 +630,6 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	}
 }
 
-// DefineMemorySchema creates the schema for the Memory class in Weaviate.
-func DefineMemorySchema(client *weaviate.Client, logger *log.Logger) error {
-	className := evolvingmemory.ClassName
-	classExists, err := ClassExists(client, className)
-	if err != nil {
-		logger.Error("Failed to check if class exists", "error", err)
-		return fmt.Errorf("checking if class %s exists: %w", className, err)
-	}
-	if classExists {
-		logger.Info("Class already exists", "class_name", className)
-		return nil
-	}
-
-	memoryClass := &models.Class{
-		Class: className,
-		Properties: []*models.Property{
-			{Name: "content", DataType: []string{"text"}},
-			{Name: "timestamp", DataType: []string{"date"}},
-			{Name: "tags", DataType: []string{"text[]"}},
-			{Name: "metadata_map", DataType: []string{"text"}},
-		},
-		Vectorizer: "none",
-		VectorIndexConfig: map[string]interface{}{
-			"distance": "cosine",
-		},
-	}
-
-	err = client.Schema().ClassCreator().WithClass(memoryClass).Do(context.Background())
-	if err != nil {
-		logger.Error("Failed to create class", "error", err)
-		return fmt.Errorf("creating class %s: %w", className, err)
-	}
-	logger.Info("Class '%s' created successfully.", className)
-	return nil
-}
-
 // ClassExists checks if a class already exists in Weaviate.
 func ClassExists(client *weaviate.Client, className string) (bool, error) {
 	schema, err := client.Schema().Getter().Do(context.Background())
@@ -681,9 +644,8 @@ func ClassExists(client *weaviate.Client, className string) (bool, error) {
 	return false, nil
 }
 
-// InitSchema defines all schemas
 func InitSchema(client *weaviate.Client, logger *log.Logger) error {
-	if err := DefineMemorySchema(client, logger); err != nil {
+	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
 		return err
 	}
 	return nil

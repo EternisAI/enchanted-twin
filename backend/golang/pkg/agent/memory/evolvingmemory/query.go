@@ -13,10 +13,6 @@ import (
 
 // Query retrieves memories relevant to the query text.
 func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
-	if err := s.ensureSchemaExistsInternal(ctx); err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to ensure schema before querying: %w", err)
-	}
-
 	// var filterBySpeakerID string
 	// if opts, ok := options.(map[string]interface{}); ok {
 	// 	if speakerToFilter, okS := opts["speakerID"].(string); okS && speakerToFilter != "" {
