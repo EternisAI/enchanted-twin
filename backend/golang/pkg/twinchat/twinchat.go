@@ -21,6 +21,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
@@ -88,32 +89,62 @@ func (s *Service) Execute(
 	return &response, nil
 }
 
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return "", err
+	}
+	var emailAccounts []string
+	if len(oauthTokens) > 0 {
+		for _, token := range oauthTokens {
+			emailAccounts = append(emailAccounts, token.Username)
+		}
+	}
+
+	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
+		UserName:      userProfile.Name,
+		Bio:           userProfile.Bio,
+		EmailAccounts: emailAccounts,
+		ChatID:        &chatID,
+		CurrentTime:   time.Now().Format(time.RFC3339),
+		IsVoice:       isVoice,
+	})
+	if err != nil {
+		return "", err
+	}
+	return systemPrompt, nil
+}
+
 func (s *Service) SendMessage(
 	ctx context.Context,
 	chatID string,
 	message string,
-	reasoning bool,
+	isReasoning bool,
+	isVoice bool,
 ) (*model.Message, error) {
+	now := time.Now()
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
 
-	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists. When user asks something to be done every minute, every hour, every day, every week, every month, every year, you should use the `schedule_task` tool and construct cron expression. When calling `schedule_task` tool you must not include your human name in the task name, it is implicitly assumed that any message send to the chat will be sent to the human."
-	now := time.Now()
-	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now.Format(time.RFC3339))
-
-	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
 	if err != nil {
 		return nil, err
 	}
 
-	if userProfile.Name != nil {
-		systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
-	}
-	if userProfile.Bio != nil {
-		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
-	}
+	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+	// if userProfile.Name != nil {
+	// 	systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
+	// }
+	// if userProfile.Bio != nil {
+	// 	systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
+	// }
 
 	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
 	if err != nil {
@@ -227,8 +258,8 @@ func (s *Service) SendMessage(
 		"message_id": userMsgID,
 	}
 
-	s.logger.Info("Executing agent", "reasoning", reasoning)
-	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, reasoning)
+	s.logger.Info("Executing agent", "reasoning", isReasoning)
+	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
 	if err != nil {
 		return nil, err
 	}
