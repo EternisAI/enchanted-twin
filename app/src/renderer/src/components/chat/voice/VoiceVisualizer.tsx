@@ -1,7 +1,8 @@
-/* ─────────────────────────── VoiceVisualizer.tsx ───────────────────────────
-   • NEW:  orbit animation when toolBlend > 0
-   • NEW:  per-particle “wiggle” noise in the vertex shader (always active)
---------------------------------------------------------------------------- */
+/**
+ * VoiceVisualizer.tsx  – complete, ready-to-paste file
+ *
+ * Smooth state transitions, luxury-gold tool colour, and no white halo in light-mode.
+ */
 
 import { useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
@@ -12,16 +13,18 @@ import * as THREE from 'three'
 /* ─────────────────── public props ─────────────────── */
 
 export interface VoiceVisualizerProps {
+  /** 0 = idle   1 = tool morph / loading   2 = speaking */
   visualState: 0 | 1 | 2
+  /** supplies 256-bin FFT data each frame */
   getFreqData: () => Uint8Array
   className?: string
   particleCount?: number
   assistantTextMessage?: string
-  /**  procedural ID ("perplexity_ask"), or raw URL / "image:<url>"  */
+  /** procedural ID (e.g. "perplexity_ask") or `"image:<url>"` or raw URL */
   tool?: string
 }
 
-/* ─────────────────── top-level component ─────────────────── */
+/* ─────────────────── main component ─────────────────── */
 
 export default function VoiceVisualizer({
   visualState,
@@ -62,13 +65,15 @@ export default function VoiceVisualizer({
   )
 }
 
-/* ─────────────────── shape generators (same as before) ──────────────────── */
+/* ─────────────────── helper types ─────────────────── */
 
 type ShapeGenSync = (count: number) => Float32Array
 type ShapeGenAsync = (count: number) => Promise<Float32Array>
 type ShapeGen = ShapeGenSync | ShapeGenAsync
 
-/* magnifying glass */
+/* ─────────────────── shape generators ─────────────────── */
+
+/* magnifying-glass outline (for `perplexity_ask`) */
 const genMagnifyingGlass: ShapeGenSync = (n) => {
   const out = new Float32Array(n * 3)
   const ringN = Math.floor(n * 0.7)
@@ -88,7 +93,7 @@ const genMagnifyingGlass: ShapeGenSync = (n) => {
   return out
 }
 
-/* picture frame */
+/* simple picture-frame outline (for `generate_image`) */
 const genPictureFrame: ShapeGenSync = (n) => {
   const out = new Float32Array(n * 3)
   for (let i = 0; i < n; i++) {
@@ -102,7 +107,7 @@ const genPictureFrame: ShapeGenSync = (n) => {
   return out
 }
 
-/* bitmap → particles */
+/* sample opaque pixels from a bitmap URL */
 const genFromImage =
   (url: string, alpha = 128): ShapeGenAsync =>
   async (count) => {
@@ -113,8 +118,7 @@ const genFromImage =
       im.onerror = err
       im.src = url
     })
-    const w = img.width,
-      h = img.height
+    const { width: w, height: h } = img
     const c = document.createElement('canvas')
     c.width = w
     c.height = h
@@ -130,8 +134,8 @@ const genFromImage =
     const maxDim = Math.max(w, h)
     for (let i = 0; i < count; i++) {
       const [px, py] = pts[(Math.random() * pts.length) | 0]
-      const nx = (px - w / 2) / (maxDim / 2),
-        ny = -(py - h / 2) / (maxDim / 2)
+      const nx = (px - w / 2) / (maxDim / 2)
+      const ny = -(py - h / 2) / (maxDim / 2)
       out.set([nx, ny, 0], i * 3)
     }
     return out
@@ -155,16 +159,18 @@ function CubeParticles({
   getFreqData: () => Uint8Array
   tool?: string
 }) {
+  /* refs ------------------------------------------------- */
   const mesh = useRef<THREE.Points>(null!)
-  const sm = useRef(new Float32Array(256))
-  const toolBlend = useRef(tool ? 1 : 0)
+  const sm = useRef(new Float32Array(256)) // smoothed FFT bins
+  const stateSmoothRef = useRef<number>(visualState) // damped visual state
+  const toolBlend = useRef(tool ? 1 : 0) // damped tool morph
   const currentToolId = useRef<string | undefined>(undefined)
 
   /* ---------- FFT texture ---------- */
   const fftTex = useMemo(() => {
     const tex = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat)
-    tex.needsUpdate = true
     tex.minFilter = tex.magFilter = THREE.NearestFilter
+    tex.needsUpdate = true
     return tex
   }, [])
 
@@ -191,10 +197,11 @@ function CubeParticles({
     return g
   }, [particleCount])
 
-  /* ---------- tool change handler ---------- */
+  /* ---------- handle tool changes ---------- */
   useEffect(() => {
     if (tool === currentToolId.current) return
     currentToolId.current = tool
+
     let gen: ShapeGen
     if (!tool) {
       gen = () => geometry.getAttribute('aHome').array as Float32Array
@@ -205,9 +212,11 @@ function CubeParticles({
     } else {
       gen = () => geometry.getAttribute('aHome').array as Float32Array
     }
+
     const apply = (arr: Float32Array) => {
-      geometry.getAttribute('aTool').set(arr)
-      geometry.getAttribute('aTool').needsUpdate = true
+      const attr = geometry.getAttribute('aTool') as THREE.BufferAttribute
+      attr.copyArray(arr)
+      attr.needsUpdate = true
     }
     const maybe = gen(particleCount)
     maybe instanceof Promise ? maybe.then(apply).catch(console.error) : apply(maybe)
@@ -219,12 +228,13 @@ function CubeParticles({
     return {
       isDarkTheme: dark,
       idleCol: dark ? new THREE.Color(0.2, 0.4, 0.6) : new THREE.Color(0, 0, 0),
-      loadCol: dark ? new THREE.Color(0.5, 0.7, 1) : new THREE.Color(0.3, 0.6, 0.9),
+      /* 🟡 luxury gold for “tool / loading” */
+      loadCol: new THREE.Color(0xd4af37),
       speakCol: dark ? new THREE.Color(1, 0.5, 0.1) : new THREE.Color(0.8, 0, 0)
     }
   }, [])
 
-  /* ---------- material ---------- */
+  /* ---------- shader material ---------- */
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -241,22 +251,27 @@ function CubeParticles({
         fragmentShader,
         transparent: true,
         depthWrite: false,
+        alphaTest: 0.05, // ✨ kill low-alpha halo
         blending: isDarkTheme ? THREE.AdditiveBlending : THREE.NormalBlending
       }),
     [fftTex, idleCol, loadCol, speakCol, isDarkTheme]
   )
 
+  /* ---------- per-frame updates ---------- */
   useFrame(({ clock }, delta) => {
-    /* smooth fade-in/out of tool */
-    const target = tool ? 1 : 0
-    toolBlend.current = THREE.MathUtils.damp(toolBlend.current, target, 5, delta)
+    /* smooth visual state (≈350 ms) */
+    stateSmoothRef.current = THREE.MathUtils.damp(stateSmoothRef.current, visualState, 4, delta)
+    material.uniforms.uState.value = stateSmoothRef.current
+
+    /* smooth tool morph */
+    const toolTarget = tool ? 1 : 0
+    toolBlend.current = THREE.MathUtils.damp(toolBlend.current, toolTarget, 3, delta)
     material.uniforms.uToolBlend.value = toolBlend.current
 
-    /* 🌱   gentle buoyant motion (no big rotations)   */
-    const bob = 0.05 * Math.sin(clock.elapsedTime * 0.8) // ±0.05 units
-    mesh.current.position.set(0, bob, 0)
+    /* buoyant bob */
+    mesh.current.position.y = 0.05 * Math.sin(clock.elapsedTime * 0.8)
 
-    /* FFT ➜ texture */
+    /* FFT → texture (with 25 % lerp) */
     const fft = getFreqData()
     const img = fftTex.image.data as Uint8Array
     for (let i = 0; i < 256; i++) {
@@ -268,14 +283,14 @@ function CubeParticles({
     fftTex.needsUpdate = true
 
     material.uniforms.uTime.value = clock.elapsedTime
-    material.uniforms.uState.value = visualState
   })
+
   return <points ref={mesh} geometry={geometry} material={material} />
 }
 
 /* ─────────────────── shaders ─────────────────── */
 
-const vertexShader = /*glsl*/ `
+const vertexShader = /* glsl */ `
 uniform sampler2D uFFT;
 uniform float     uState;
 uniform float     uTime;
@@ -291,41 +306,41 @@ varying   vec3  vColor;
 
 void main(){
   /* state weights */
-  float wToolBase=smoothstep(0.,1.,uState)-smoothstep(1.,2.,uState);
-  float wSpeak   =smoothstep(1.,2.,uState);
-  float wTool    =max(wToolBase,uToolBlend);
+  float wToolBase = smoothstep(0.,1.,uState) - smoothstep(1.,2.,uState);
+  float wSpeak    = smoothstep(1.,2.,uState);
+  float wTool     = max(wToolBase, uToolBlend);
 
   /* base morph */
-  vec3 p=mix(aHome,aTool,wTool);
+  vec3 p = mix(aHome, aTool, wTool);
 
   /* tiny perpetual wiggle */
-  float jitter=0.02;
+  float jitter = 0.02;
   p.xy += vec2(
     sin(uTime*0.8 + aId*12.0)*jitter,
     cos(uTime*0.6 + aId*17.0)*jitter
   );
 
   /* audio punch on speak */
-  float amp=texture2D(uFFT,vec2((aId+0.5)/256.,0.)).r;
-  p=mix(p,p+normalize(p)*amp*3.,wSpeak);
+  float amp = texture2D(uFFT, vec2((aId+0.5)/256., 0.)).r;
+  p = mix(p, p + normalize(p)*amp*3., wSpeak);
 
   /* swirl while morphing */
-  float swirlW=wTool*(1.-wSpeak);
-  float ang   =atan(p.y,p.x)+uTime*0.25*swirlW;
-  float r     =length(p.xy);
-  p.xy        =vec2(cos(ang),sin(ang))*r;
+  float swirlW = wTool * (1. - wSpeak);
+  float ang    = atan(p.y, p.x) + uTime*0.25*swirlW;
+  float r      = length(p.xy);
+  p.xy         = vec2(cos(ang), sin(ang))*r;
 
-  gl_PointSize=max(2.,2.+amp*5.*wSpeak);
-  vColor=mix(mix(uIdleCol,uLoadCol,wTool),uSpeakCol,wSpeak);
-  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+  gl_PointSize = max(2., 2. + amp*5.*wSpeak);
+  vColor = mix(mix(uIdleCol, uLoadCol, wTool), uSpeakCol, wSpeak);
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.);
 }
 `
 
-const fragmentShader = /*glsl*/ `
+const fragmentShader = /* glsl */ `
 varying vec3 vColor;
 void main(){
-  float d=length(gl_PointCoord-0.5);
-  float a=smoothstep(0.5,0.,d);
-  gl_FragColor=vec4(vColor,a);
+  float d = length(gl_PointCoord - 0.5);
+  float a = smoothstep(0.5, 0., d);
+  gl_FragColor = vec4(vColor, a);
 }
 `
