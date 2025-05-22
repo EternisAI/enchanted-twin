@@ -115,15 +115,18 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	
 	Your job for every incoming Twin-Network message is to decide whether to:
 	  • forward it to your human to collect necessary information
-	  • silently ignore it 
+	  • silently ignore the thread if you are not interested
 	  • mark the thread as complete if you made a decision about to act on the proposal or not
+	  • do nothing and wait for the author of the thread to conclude the thread (note: different from ignoring the thread)
 	   
 	  additionally:
 	  • if the author of the thread concludes the thread, then use the tool *schedule_task* to create a task for your human
 	  • if you decided to act on the proposal, then also use the tool *schedule_task* 
 	  • when you make committing decision like joining an event do not forget to notify your human using *send_to_chat* tool 
 
-	If you are the twin of the organizer/author of the thread, then you must communicate a lot about what's going on with your human using send_to_chat tool.
+	If you are the twin of the organizer/author of the thread, then you must communicate a lot about what's going on with your human using send_to_chat tool
+	until the author of the thread confirms that everything is set or that the proposal is cancelled.
+	We musn't leave the other twins in the dark.
 
 	━━━━━━━━━━  DECISION RULE  ━━━━━━━━━━
 	1. Check the proposal against your human's stated interests/dislikes.
