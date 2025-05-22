@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -28,8 +27,9 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 		}
 	}
 
-	container, err := sqlstore.New("sqlite3", "file:"+dbPath+"?_foreign_keys=on", dbLog)
+	container, err := sqlstore.New("sqlite3", "file:./whatsapp_store.db?_foreign_keys=on", dbLog)
 	if err != nil {
+		logger.Error("Failed to create WhatsApp database", "error", err)
 		panic(err)
 	}
 	deviceStore, err := container.GetFirstDevice()
@@ -49,7 +49,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 		qrChan, _ := client.GetQRChannel(context.Background())
 		err = client.Connect()
 		if err != nil {
-			logger.Error("Error connecting to WhatsApp", slog.Any("error", err))
+			logger.Error("Error connecting to WhatsApp", "error", err)
 		}
 		for evt := range qrChan {
 			switch evt.Event {
@@ -85,7 +85,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 				})
 				err = whatsapp.PublishSyncStatus(nc, logger)
 				if err != nil {
-					logger.Error("Error publishing sync status", slog.Any("error", err))
+					logger.Error("Error publishing sync status", "error", err)
 				}
 
 			default:
@@ -95,7 +95,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	} else {
 		err = client.Connect()
 		if err != nil {
-			logger.Error("Error connecting to WhatsApp", slog.Any("error", err))
+			logger.Error("Error connecting to WhatsApp", "error", err)
 		} else {
 			qrEvent := whatsapp.QRCodeEvent{
 				Event: "success",
@@ -115,7 +115,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 			})
 			err = whatsapp.PublishSyncStatus(nc, logger)
 			if err != nil {
-				logger.Error("Error publishing sync status", slog.Any("error", err))
+				logger.Error("Error publishing sync status", "error", err)
 			}
 		}
 	}
