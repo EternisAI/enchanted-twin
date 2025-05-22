@@ -8,9 +8,13 @@ import { useNotifications } from '@renderer/hooks/NotificationsContextProvider'
 
 interface ToolCallCenterProps {
   activeToolCalls: ToolCall[]
+  historicToolCalls: ToolCall[]
 }
 
-export default function ToolCallCenter({ activeToolCalls }: ToolCallCenterProps) {
+export default function ToolCallCenter({
+  activeToolCalls,
+  historicToolCalls
+}: ToolCallCenterProps) {
   const [isShowing, setIsShowing] = useState(false)
   const { notifications } = useNotifications()
 
@@ -40,6 +44,10 @@ export default function ToolCallCenter({ activeToolCalls }: ToolCallCenterProps)
           <ToolCallProcessing toolCalls={activeToolCalls} />
           {notifications.length > 0 && <ToolCallNotificationList notifications={notifications} />}
           <ToolCallResult toolCalls={activeToolCalls} />
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-gray-500">Tool Call History</p>
+            <ToolCallResult toolCalls={historicToolCalls} />
+          </div>
         </div>
       </motion.div>
     </>

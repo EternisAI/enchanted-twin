@@ -21,6 +21,10 @@ query GetChats($first: Int!, $offset: Int!) {
         name
         isCompleted
         messageId
+        result {
+          content
+          imageUrls
+        }
       }
       toolResults
     }
@@ -44,6 +48,10 @@ query GetChat($id: ID!) {
         name
         isCompleted
         messageId
+        result {
+          content
+          imageUrls
+        }
       }
       toolResults
     }
@@ -145,6 +153,10 @@ mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!, $voice:
       id
       name
       isCompleted
+      result {
+        content
+        imageUrls
+      }
     }
   }
 }
