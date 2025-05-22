@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	stderrs "errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -30,6 +31,7 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	"go.mau.fi/whatsmeow"
@@ -39,6 +41,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
@@ -173,9 +176,35 @@ func main() {
 
 	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+	aiEmbeddingsService := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	mem := &memory.MockMemory{}
+	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
+	}
+
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
+		Scheme: "http",
+	})
+	if err != nil {
+		logger.Error("Failed to create Weaviate client", "error", err)
+		panic(errors.Wrap(err, "Failed to create Weaviate client"))
+	}
+	logger.Info("Weaviate client created")
+	if err := InitSchema(weaviateClient, logger); err != nil {
+		logger.Error("Failed to initialize Weaviate schema", "error", err)
+		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
+	}
+	logger.Info("Weaviate schema initialized")
+
+	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
+	if err != nil {
+		logger.Error("Failed to create evolving memory", "error", err)
+		panic(errors.Wrap(err, "Failed to create evolving memory"))
+	}
 
 	whatsapp.TriggerConnect()
 
@@ -209,7 +238,7 @@ func main() {
 	}
 
 	// Initialize MCP Service with tool registry
-	mcpService := mcpserver.NewService(context.Background(), store, toolRegistry)
+	mcpService := mcpserver.NewService(context.Background(), logger, store, toolRegistry)
 
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
@@ -238,6 +267,7 @@ func main() {
 		aiCompletionsService,
 		chatStorage,
 		nc,
+		mem,
 		toolRegistry,
 		store,
 		envs.CompletionsModel,
@@ -344,12 +374,6 @@ func main() {
 			}
 		}
 	}()
-
-	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
-	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
-		logger.Error("Failed to bootstrap Weaviate server", "error", err)
-		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
-	}
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
@@ -623,6 +647,27 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+// ClassExists checks if a class already exists in Weaviate.
+func ClassExists(client *weaviate.Client, className string) (bool, error) {
+	schema, err := client.Schema().Getter().Do(context.Background())
+	if err != nil {
+		return false, err
+	}
+	for _, class := range schema.Classes {
+		if class.Class == className {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func InitSchema(client *weaviate.Client, logger *log.Logger) error {
+	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
+		return err
+	}
+	return nil
 }
 
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {

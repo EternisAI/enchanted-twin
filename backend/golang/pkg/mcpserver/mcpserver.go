@@ -43,25 +43,18 @@ type service struct {
 }
 
 // NewService creates a new MCPServerService.
-func NewService(ctx context.Context, store *db.Store, registry tools.ToolRegistry) MCPService {
-	repo := repository.NewRepository(log.Default(), store.DB())
-	config, err := config.LoadConfig(false)
-	if err != nil {
-		log.Error("Error loading config", "error", err)
-	}
+func NewService(ctx context.Context, logger *log.Logger, store *db.Store, registry tools.ToolRegistry) MCPService {
+	repo := repository.NewRepository(logger, store.DB())
 	service := &service{
-		config:           config,
 		repo:             repo,
 		connectedServers: []*ConnectedMCPServer{},
 		store:            store,
 		registry:         registry,
 	}
-	go func() {
-		err := service.LoadMCP(ctx)
-		if err != nil {
-			log.Error("Error loading MCP servers", "error", err)
-		}
-	}()
+	err := service.LoadMCP(ctx)
+	if err != nil {
+		log.Error("Error loading MCP servers", "error", err)
+	}
 
 	return service
 }

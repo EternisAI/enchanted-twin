@@ -16,6 +16,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -29,6 +30,7 @@ type Service struct {
 	aiService        *ai.Service
 	storage          Storage
 	nc               *nats.Conn
+	memoryService    memory.Storage
 	logger           *log.Logger
 	completionsModel string
 	reasoningModel   string
@@ -41,6 +43,7 @@ func NewService(
 	aiService *ai.Service,
 	storage Storage,
 	nc *nats.Conn,
+	memoryService memory.Storage,
 	registry *tools.ToolMapRegistry,
 	userStorage *db.Store,
 	completionsModel string,
@@ -51,6 +54,7 @@ func NewService(
 		aiService:        aiService,
 		storage:          storage,
 		nc:               nc,
+		memoryService:    memoryService,
 		completionsModel: completionsModel,
 		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
@@ -396,6 +400,14 @@ func (s *Service) SendMessage(
 		return nil, err
 	}
 
+	// Index the conversation asynchronously
+	go func() {
+		err := s.IndexConversation(context.Background(), chatID)
+		if err != nil {
+			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
+		}
+	}()
+
 	return &model.Message{
 		ID:          idAssistant,
 		Text:        &response.Content,
@@ -510,4 +522,36 @@ func (s *Service) GetChatSuggestions(
 func (s *Service) Tools() []tools.Tool {
 	sendToChatTool := NewSendToChatTool(s.storage, s.nc)
 	return []tools.Tool{sendToChatTool}
+}
+
+func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
+	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
+	if err != nil {
+		return err
+	}
+
+	slidingWindow := 10
+	messagesWindow := helpers.SafeLastN(messages, slidingWindow)
+
+	content := ""
+	for _, message := range messagesWindow {
+		if message.Role.String() == "system" {
+			continue
+		}
+		content += fmt.Sprintf("%s: %s\n", message.Role.String(), *message.Text)
+	}
+
+	prompt := fmt.Sprintf("The following conversation is between a human and an AI assistant:\n\n%s", content)
+
+	doc := memory.TextDocument{
+		ID:      uuid.New().String(),
+		Content: prompt,
+		Metadata: map[string]string{
+			"source": "chat",
+		},
+	}
+
+	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
+
+	return s.memoryService.Store(ctx, []memory.TextDocument{doc}, nil)
 }
