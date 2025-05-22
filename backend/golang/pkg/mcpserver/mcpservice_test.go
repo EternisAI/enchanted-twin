@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	db "github.com/EternisAI/enchanted-twin/pkg/db"
@@ -16,13 +18,14 @@ func TestMCPService_GetTools(t *testing.T) {
 	t.Setenv("TELEGRAM_CHAT_SERVER", "1234567890")
 	ctx := context.Background()
 
+	logger := log.Default()
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
 		t.Fatalf("Failed to create db: %v", err)
 	}
 
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, db, toolRegistry)
+	s := NewService(ctx, logger, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server",
@@ -73,6 +76,7 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	t.Setenv("TELEGRAM_CHAT_SERVER", "1234567890")
 
 	ctx := context.Background()
+	logger := log.Default()
 
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
@@ -80,7 +84,7 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	}
 
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, db, toolRegistry)
+	s := NewService(ctx, logger, db, toolRegistry)
 
 	mcpServers, err := s.GetMCPServers(ctx)
 	if err != nil {

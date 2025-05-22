@@ -31,6 +31,7 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 	"go.mau.fi/whatsmeow"
@@ -56,7 +57,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 )
 
 func main() {
