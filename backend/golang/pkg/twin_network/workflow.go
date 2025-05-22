@@ -142,9 +142,10 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 			}
 		}
 
+		isOrganizer := authorPubKey == input.NetworkID
 		if !messages[0].IsMine {
 			var response string
-			err = workflow.ExecuteActivity(options, w.EvaluateMessage, messages, authorPubKey).Get(ctx, &response)
+			err = workflow.ExecuteActivity(options, w.EvaluateMessage, messages, authorPubKey, isOrganizer).Get(ctx, &response)
 			if err != nil {
 				workflow.GetLogger(ctx).Error("Failed to evaluate messages", "error", err)
 			} else if response != "" {

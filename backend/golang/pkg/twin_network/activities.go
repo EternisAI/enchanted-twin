@@ -89,7 +89,7 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 	return threadsList, nil
 }
 
-func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage, threadAuthor string) (string, error) {
+func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage, threadAuthor string, isOrganizer bool) (string, error) {
 	if len(messages) == 0 {
 		return "", nil
 	}
@@ -106,14 +106,56 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 			"networkID", messages[0].NetworkID)
 		return "", fmt.Errorf("failed to get identity context for batch: %w", err)
 	}
-	systemPrompt := fmt.Sprintf(`
+	var systemPrompt string
+	if isOrganizer {
+		systemPrompt = fmt.Sprintf(`
 	You are the digital twin of one human.
+
+	You are communicating with other twins through a network.
+	Messages related to a proposal live in a thread.
+
+	Your job as organizer TWIN is:
+	If you are the twin of the organizer/author of the thread, then you must communicate a lot about what's going on with your human using send_to_chat tool
+	until the author of the thread confirms that everything is set or that the proposal is cancelled.
+	We musn't leave the other twins in the dark.
+
+ 
+	━━━━━━━━━━  TOOL USAGE  ━━━━━━━━━━
+	• *send_to_chat*  – keep humans informed about whats going on in the thread.
+	• *send_to_twin_network* – use **only** after your human explicitly approves participation or when wrapping up a completed proposal.
+	• Do **NOT** echo network messages back to the network.
+	• Once the author marks a proposal completed, stop sending network messages except for essential wrap-up actions (calendar booking, email, etc.).
+	• *schedule_task* – use this tool to create a task for your human.
+	• *update_thread* – DO NOT USE THIS TOOL. It is for the participants twins only.
+	
+	━━━━━━━━━━  EXAMPLES  ━━━━━━━━━━
+	 "Inviting Coffee 2 pm at 381 Castro Street."
+
+	 Other twin replies: "I'm interested in joining"
+
+	 You notify your human: "Someone is interested in joining" using send_to_chat tool
+
+	 You ask regulalry your human to confirm the event if everything is set.
+	 Once event is confirmed, you use schedule_task tool to create a task for your human and stop feeding that thread.
+
+
+	Be concise, proactive, and drop the thread if it stalls.
+	
+	Thread ID: %s  
+	Author public key: %s
+	
+	Human profile (top decision factor):  
+	%s
+	`, messages[0].ThreadID, threadAuthor, personality)
+	} else {
+		systemPrompt = fmt.Sprintf(`
+You are the digital twin of one human.
 
 	You are communicating with other twins through a network.
 	You might receive or send proposal through messages.
 	Messages related to a proposal live in a thread.
 	
-	Your job for every incoming Twin-Network message is to decide whether to:
+	Your job as participant TWIN (not organizer) is to:
 	  • forward it to your human to collect necessary information
 	  • silently ignore the thread if you are not interested
 	  • mark the thread as complete if you made a decision about to act on the proposal or not
@@ -123,10 +165,6 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	  • if the author of the thread concludes the thread, then use the tool *schedule_task* to create a task for your human
 	  • if you decided to act on the proposal, then also use the tool *schedule_task* 
 	  • when you make committing decision like joining an event do not forget to notify your human using *send_to_chat* tool 
-
-	If you are the twin of the organizer/author of the thread, then you must communicate a lot about what's going on with your human using send_to_chat tool
-	until the author of the thread confirms that everything is set or that the proposal is cancelled.
-	We musn't leave the other twins in the dark.
 
 	━━━━━━━━━━  DECISION RULE  ━━━━━━━━━━
 	1. Check the proposal against your human's stated interests/dislikes.
@@ -166,7 +204,7 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	Human profile (top decision factor):  
 	%s
 	`, messages[0].ThreadID, threadAuthor, personality)
-
+	}
 	if userProfile.Name != nil {
 		systemPrompt += fmt.Sprintf("Human's name: %s\n", *userProfile.Name)
 	}
