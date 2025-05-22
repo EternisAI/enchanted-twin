@@ -15,49 +15,38 @@ import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 interface VoiceModeChatViewProps {
   chat: Chat
   messages: Message[]
-  initialMessage?: string
   toggleVoiceMode: () => void
+  handleSendMessage: (message: Message) => void
   isWaitingTwinResponse: boolean
 }
 
 export default function VoiceModeChatView({
   chat,
-  initialMessage,
   messages,
+  handleSendMessage,
   toggleVoiceMode
 }: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
   const triggeredRef = useRef(false)
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([])
 
-  const [lastAssistantMessage, setLastAssistantMessage] = useState<Message | null>(() => {
+  const lastAssistantMessage = useMemo(() => {
     if (!chat || messages.length === 0) return null
     const lastAssistantMessage = messages.filter((m) => m.role === Role.Assistant).pop()
     return lastAssistantMessage || null
-  })
+  }, [chat, messages])
 
-  const [lastUserMessage, setLastUserMessage] = useState<Message | null>(() => {
-    if (!chat) return null
-    if (messages.length > 0) {
-      const lastUserMessage = messages.filter((m) => m.role === Role.User).pop()
-      if (lastUserMessage) return lastUserMessage
-    }
+  const lastUserMessage = useMemo(() => {
+    if (!chat || messages.length === 0) return null
+    const lastUserMessage = messages.filter((m) => m.role === Role.User).pop()
+    return lastUserMessage || null
+  }, [chat, messages])
 
-    if (initialMessage && messages.length === 0) {
-      return {
-        id: `temp-${Date.now()}`,
-        text: initialMessage,
-        imageUrls: [],
-        role: Role.User,
-        toolCalls: [],
-        toolResults: [],
-        createdAt: new Date().toISOString()
-      }
-    }
-    return [...messages].reverse().find((m) => m.role === Role.User) ?? null
-  })
-
-  const { sendMessage: sendMessageRaw } = useSendMessage(chat.id, setLastUserMessage, () => {})
+  const { sendMessage: sendMessageRaw } = useSendMessage(
+    chat.id,
+    (msg) => handleSendMessage(msg),
+    () => {}
+  )
 
   const sendMessage = (text: string, reasoning: boolean) => {
     sendMessageRaw(text, reasoning, true)
@@ -67,7 +56,6 @@ export default function VoiceModeChatView({
     if (message.role === Role.Assistant) {
       triggeredRef.current = true
       speak(message.text ?? '')
-      setLastAssistantMessage(message)
     }
   })
 

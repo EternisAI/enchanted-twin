@@ -91,17 +91,19 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     })
   }
 
+  const handleSendMessage = (message: Message) => {
+    upsertMessage(message)
+    setIsWaitingTwinResponse(true)
+    setShowSuggestions(false)
+    setError('')
+    window.api.analytics.capture('message_sent', {
+      reasoning: isReasonSelected
+    })
+  }
+
   const { sendMessage } = useSendMessage(
     chat.id,
-    (msg) => {
-      upsertMessage(msg)
-      setIsWaitingTwinResponse(true)
-      setShowSuggestions(false)
-      setError('')
-      window.api.analytics.capture('message_sent', {
-        reasoning: isReasonSelected
-      })
-    },
+    (msg) => handleSendMessage(msg),
     (msg) => {
       console.error('SendMessage error', msg)
       setError(msg.text ?? 'Error sending message')
@@ -154,7 +156,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     if (!mounted) {
       setMounted(true)
     }
-  }, [messages, mounted])
+  }, [messages, mounted, isVoiceMode])
 
   const handleSuggestionClick = (suggestion: string) => {
     sendMessage(suggestion, false, isVoiceMode)
@@ -166,8 +168,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
         chat={chat}
         toggleVoiceMode={toggleVoiceMode}
         messages={messages}
+        handleSendMessage={handleSendMessage}
         isWaitingTwinResponse={isWaitingTwinResponse}
-        // error={error}
       />
     )
   }
