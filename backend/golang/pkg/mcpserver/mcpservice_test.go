@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	db "github.com/EternisAI/enchanted-twin/pkg/db"
@@ -19,13 +21,14 @@ func TestMCPService_GetTools(t *testing.T) {
 
 	ctx := context.Background()
 
+	logger := log.Default()
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
 		t.Fatalf("Failed to create db: %v", err)
 	}
 
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, db, toolRegistry)
+	s := NewService(ctx, logger, db, toolRegistry)
 
 	_, err = s.ConnectMCPServer(ctx, model.ConnectMCPServerInput{
 		Name:    "hello_world_mcp_server_" + time.Now().Format(time.RFC3339),
@@ -77,6 +80,7 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	t.Setenv("REASONING_MODEL", "gpt-4o-mini")
 
 	ctx := context.Background()
+	logger := log.Default()
 
 	db, err := db.NewStore(ctx, "./test.db")
 	if err != nil {
@@ -84,7 +88,7 @@ func TestMCPService_ExecuteTool(t *testing.T) {
 	}
 
 	toolRegistry := tools.NewRegistry()
-	s := NewService(ctx, db, toolRegistry)
+	s := NewService(ctx, logger, db, toolRegistry)
 
 	time.Sleep(1 * time.Second)
 

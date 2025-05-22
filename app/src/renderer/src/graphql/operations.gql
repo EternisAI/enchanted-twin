@@ -9,6 +9,7 @@ query GetChats($first: Int!, $offset: Int!) {
     id
     name
     createdAt
+    voice
     messages {
       id
       text
@@ -20,6 +21,10 @@ query GetChats($first: Int!, $offset: Int!) {
         name
         isCompleted
         messageId
+        result {
+          content
+          imageUrls
+        }
       }
       toolResults
     }
@@ -31,6 +36,7 @@ query GetChat($id: ID!) {
     id
     name
     createdAt
+    voice
     messages {
       id
       text
@@ -42,6 +48,10 @@ query GetChat($id: ID!) {
         name
         isCompleted
         messageId
+        result {
+          content
+          imageUrls
+        }
       }
       toolResults
     }
@@ -122,16 +132,17 @@ query GetSetupProgress {
   }
 }
 
-mutation CreateChat($name: String!) {
-  createChat(name: $name) {
+mutation CreateChat($name: String!, $voice: Boolean! = false) {
+  createChat(name: $name, voice: $voice) {
     id
     name
     createdAt
+    voice
   }
 }
 
-mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!) {
-  sendMessage(chatId: $chatId, text: $text, reasoning: $reasoning) {
+mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!, $voice: Boolean!) {
+  sendMessage(chatId: $chatId, text: $text, reasoning: $reasoning, voice: $voice) {
     id
     text
     role
@@ -142,6 +153,10 @@ mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!) {
       id
       name
       isCompleted
+      result {
+        content
+        imageUrls
+      }
     }
   }
 }
@@ -170,6 +185,10 @@ subscription MessageAdded($chatId: ID!) {
       name
       isCompleted
       messageId
+      result {
+        content
+        imageUrls
+      }
     }
   }
 }
@@ -180,6 +199,10 @@ subscription ToolCallUpdated($chatId: ID!) {
     name
     isCompleted
     messageId
+    result {
+      content
+      imageUrls
+    }
   }
 }
 

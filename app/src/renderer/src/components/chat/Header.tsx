@@ -1,16 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Input } from '@renderer/components/ui/input'
-import { Textarea } from '@renderer/components/ui/textarea'
-import {
-  AudioLines,
-  Calendar,
-  Search,
-  GraduationCap,
-  Telescope,
-  Lightbulb,
-  Brain
-} from 'lucide-react'
+import { Calendar, Search, GraduationCap, Telescope, Brain } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
 import {
@@ -23,13 +14,12 @@ import { toast } from 'sonner'
 import { client } from '@renderer/graphql/lib'
 import { ContextCard } from './ContextCard'
 import { cn } from '@renderer/lib/utils'
-import { Button } from '../ui/button'
-import { TooltipContent, TooltipTrigger, Tooltip, TooltipProvider } from '../ui/tooltip'
 import { useDebounce } from '@renderer/hooks/useDebounce'
 import { ScrollArea } from '../ui/scroll-area'
-import { SendButton } from './MessageInput'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
+import ChatInputBox from './ChatInputBox'
+import VoiceVisualizer from './voice/VoiceVisualizer'
 
-// Define expected search params type that matches routes/index.tsx
 interface IndexRouteSearch {
   focusInput?: string
 }
@@ -45,6 +35,7 @@ export function Header() {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
+  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const navigate = useNavigate()
   const router = useRouter()
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
@@ -157,7 +148,7 @@ export function Header() {
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: query }
+        variables: { name: query, voice: isVoiceMode }
       })
       const newChatId = createData?.createChat?.id
 
@@ -172,13 +163,20 @@ export function Header() {
           filter: (match) => match.routeId === '/chat/$chatId'
         })
 
-        sendMessage({ variables: { chatId: newChatId, text: query, reasoning: isReasonSelected } })
+        sendMessage({
+          variables: {
+            chatId: newChatId,
+            text: query,
+            reasoning: isReasonSelected,
+            voice: isVoiceMode
+          }
+        })
         setQuery('')
       }
     } catch (error) {
       console.error('Failed to create chat:', error)
     }
-  }, [query, navigate, createChat, sendMessage, router, isReasonSelected])
+  }, [query, navigate, createChat, sendMessage, router, isReasonSelected, isVoiceMode])
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
@@ -221,7 +219,7 @@ export function Header() {
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
     try {
       const { data: createData } = await createChat({
-        variables: { name: suggestion.name }
+        variables: { name: suggestion.name, voice: isVoiceMode }
       })
       const newChatId = createData?.createChat?.id
 
@@ -237,7 +235,12 @@ export function Header() {
         })
 
         sendMessage({
-          variables: { chatId: newChatId, text: suggestion.name, reasoning: isReasonSelected }
+          variables: {
+            chatId: newChatId,
+            text: suggestion.name,
+            reasoning: isReasonSelected,
+            voice: isVoiceMode
+          }
         })
         setQuery('')
       }
@@ -255,43 +258,71 @@ export function Header() {
       transition={{ type: 'spring', stiffness: 120, damping: 20 }}
       className="flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto px-4"
     >
-      <div className="flex flex-col items-center gap-4 w-full">
-        {isEditingName ? (
-          <motion.div
-            layout
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="w-full"
-          >
-            <Input
-              value={editedName}
-              onChange={(e) => setEditedName(e.target.value)}
-              onKeyDown={handleNameEditKeyDown}
-              onBlur={handleNameUpdate}
-              autoFocus
-              className="!text-2xl font-bold text-center"
-            />
+      {!isVoiceMode && (
+        <div className="flex flex-col items-center gap-4 w-full min-h-[160px]">
+          {isEditingName ? (
+            <motion.div
+              layout
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="w-full"
+            >
+              <Input
+                value={editedName}
+                onChange={(e) => setEditedName(e.target.value)}
+                onKeyDown={handleNameEditKeyDown}
+                onBlur={handleNameUpdate}
+                autoFocus
+                className="!text-2xl font-bold text-center"
+              />
+            </motion.div>
+          ) : (
+            <motion.h1
+              layout
+              className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
+              onClick={() => {
+                setEditedName(twinName)
+                setIsEditingName(true)
+              }}
+            >
+              {twinName}
+            </motion.h1>
+          )}
+          <motion.div layout>
+            <ContextCard />
           </motion.div>
-        ) : (
-          <motion.h1
-            layout
-            className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
-            onClick={() => {
-              setEditedName(twinName)
-              setIsEditingName(true)
-            }}
-          >
-            {twinName}
-          </motion.h1>
-        )}
-        <motion.div layout>
-          <ContextCard />
+        </div>
+      )}
+
+      {isVoiceMode && (
+        <motion.div
+          className="flex-1 w-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
+        >
+          <VoiceVisualizer
+            visualState={1}
+            getFreqData={() => new Uint8Array()}
+            className="min-w-60 min-h-40"
+          />
         </motion.div>
-      </div>
+      )}
 
       <motion.div layout className="relative w-full">
-        <form onSubmit={handleSubmit} className="relative w-full">
+        <ChatInputBox
+          query={query}
+          textareaRef={textareaRef}
+          isReasonSelected={isReasonSelected}
+          isVoiceMode={isVoiceMode}
+          onVoiceModeChange={toggleVoiceMode}
+          onInputChange={setQuery}
+          handleSubmit={handleSubmit}
+          setIsReasonSelected={setIsReasonSelected}
+          handleCreateChat={handleCreateChat}
+        />
+        {/* <form onSubmit={handleSubmit} className="relative w-full">
           <div className="flex items-center gap-6 p-1">
             <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border px-2">
               <Textarea
@@ -308,13 +339,18 @@ export function Header() {
                 className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
                 rows={1}
               />
-              <motion.div className="flex items-center self-end gap-1 pb-2">
+              <motion.div className="flex items-center self-end gap-2 pb-2">
                 <motion.div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          onClick={() => setIsReasonSelected(!isReasonSelected)}
+                          onClick={() => {
+                            if (isVoiceMode) {
+                              return
+                            }
+                            setIsReasonSelected(!isReasonSelected)
+                          }}
                           className={cn(
                             'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
                             isReasonSelected
@@ -322,31 +358,44 @@ export function Header() {
                               : ''
                           )}
                           variant="outline"
+                          // disabled={isVoiceMode}
                         >
-                          <Lightbulb className="w-4 h-5" />
+                          <Lightbulb className="w-4 h-4" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Reasoning</p>
+                        <p>Reasoning {isVoiceMode ? '(turn off voice mode to use)' : ''}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
                 </motion.div>
+
                 <motion.div>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
-                          variant="ghost"
+                          onClick={() => {
+                            toggleVoiceMode()
+                            if (isReasonSelected) {
+                              setIsReasonSelected(false)
+                            }
+                          }}
+                          variant="outline"
                           type="button"
                           size="icon"
-                          className="h-10 w-10 rounded-full"
+                          className={cn(
+                            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
+                            isVoiceMode
+                              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+                              : ''
+                          )}
                         >
                           <AudioLines className="h-5 w-5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>
-                        <p>Voice chat (coming soon)</p>
+                        <p>Voice chat {isVoiceMode ? '(enabled)' : '(click to enable)'}</p>
                       </TooltipContent>
                     </Tooltip>
                   </TooltipProvider>
@@ -360,7 +409,7 @@ export function Header() {
               </motion.div>
             </div>
           </div>
-        </form>
+        </form> */}
         <AnimatePresence mode="wait">
           <motion.div
             initial={{ opacity: 0, height: 0 }}

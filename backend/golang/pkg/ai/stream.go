@@ -53,7 +53,7 @@ func (s *Service) CompletionsStream(
 			if tc, ok := acc.JustFinishedToolCall(); ok {
 				s.logger.Debug("tool call", "tool call", tc)
 				toolCh <- openai.ChatCompletionMessageToolCall{
-					ID:   tc.Id,
+					ID:   tc.ID,
 					Type: "function",
 					Function: openai.ChatCompletionMessageToolCallFunction{
 						Name:      tc.Name,

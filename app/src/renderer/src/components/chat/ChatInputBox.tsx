@@ -1,0 +1,161 @@
+import React from 'react'
+import { Textarea } from '../ui/textarea'
+import { TooltipContent } from '../ui/tooltip'
+import { TooltipTrigger } from '../ui/tooltip'
+import { Tooltip } from '../ui/tooltip'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Button } from '../ui/button'
+import { CheckCheckIcon, Lightbulb, Mic } from 'lucide-react'
+import { cn } from '@renderer/lib/utils'
+import { SendButton } from './MessageInput'
+
+type ChatInputBoxProps = {
+  query: string
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>
+  onInputChange: (query: string) => void
+  handleSubmit: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
+  isReasonSelected: boolean
+  setIsReasonSelected: (isReasonSelected: boolean) => void
+  isVoiceMode: boolean
+  onVoiceModeChange: (toggleSidebar?: boolean) => void
+  handleCreateChat: () => void
+}
+
+export default function ChatInputBox({
+  query,
+  textareaRef,
+  isReasonSelected,
+  isVoiceMode,
+  onInputChange,
+  handleSubmit,
+  setIsReasonSelected,
+  handleCreateChat,
+  onVoiceModeChange
+}: ChatInputBoxProps) {
+  return (
+    <div className="flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-1.5">
+      <Textarea
+        ref={textareaRef}
+        value={query}
+        onChange={(e) => onInputChange(e.target.value)}
+        onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+          if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault()
+            handleSubmit(e)
+          }
+        }}
+        placeholder="What are you thinking?"
+        className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
+        rows={1}
+      />
+
+      <motion.div className="flex items-center gap-2">
+        {!isVoiceMode && (
+          <ReasoningButton
+            isSelected={isReasonSelected}
+            onClick={() => setIsReasonSelected(!isReasonSelected)}
+            disabled={isVoiceMode}
+          />
+        )}
+        {query.length > 0 ? (
+          <SendButton
+            className="w-9 h-9"
+            text={query}
+            onSend={handleCreateChat}
+            isWaitingTwinResponse={false}
+          />
+        ) : (
+          <VoiceModeButton
+            onClick={() => {
+              onVoiceModeChange(false)
+            }}
+            isVoiceMode={isVoiceMode}
+            // disabled={isVoiceMode}
+          />
+        )}
+      </motion.div>
+    </div>
+  )
+}
+
+interface ReasoningButtonProps {
+  isSelected: boolean
+  onClick: () => void
+  disabled?: boolean
+}
+
+function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          onClick={onClick}
+          className={cn(
+            '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
+            isSelected
+              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+              : '!bg-gray-200 dark:!bg-gray-800'
+          )}
+          variant="outline"
+          disabled={disabled}
+        >
+          <Lightbulb className="w-4 h-4" />
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Reasoning</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+interface VoiceModeButtonProps {
+  onClick: () => void
+  isVoiceMode?: boolean
+}
+
+export function VoiceModeButton({ onClick, isVoiceMode }: VoiceModeButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          onClick={onClick}
+          className={cn(
+            '!px-3 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none'
+          )}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            {isVoiceMode ? (
+              <motion.span
+                key="on"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2"
+              >
+                <CheckCheckIcon className="w-4 h-4" />
+                Voice mode ON
+              </motion.span>
+            ) : (
+              <motion.span
+                key="off"
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.2 }}
+                className="flex items-center gap-2"
+              >
+                <Mic className="w-4 h-4" />
+                Let&apos;s talk
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>{isVoiceMode ? 'Stop voice mode' : 'Start voice mode'}</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
