@@ -237,6 +237,7 @@ func main() {
 		aiCompletionsService,
 		chatStorage,
 		nc,
+		mem,
 		toolRegistry,
 		store,
 		envs.CompletionsModel,
