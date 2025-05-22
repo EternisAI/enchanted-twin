@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/openai/openai-go"
 	"github.com/weaviate/weaviate/entities/models"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
 // updateMemories decides and executes memory operations (ADD, UPDATE, DELETE, NONE) for a given fact.

@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
 // extractFactsFromTextDocument extracts facts for a given speaker from a text document.
