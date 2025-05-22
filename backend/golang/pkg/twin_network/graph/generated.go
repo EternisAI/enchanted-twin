@@ -48,7 +48,7 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		PostMessage func(childComplexity int, authorPubKey string, networkID string, content string, signature string) int
+		PostMessage func(childComplexity int, authorPubKey string, networkID string, threadID string, content string, signature string) int
 	}
 
 	NetworkMessage struct {
@@ -59,18 +59,19 @@ type ComplexityRoot struct {
 		IsMine       func(childComplexity int) int
 		NetworkID    func(childComplexity int) int
 		Signature    func(childComplexity int) int
+		ThreadID     func(childComplexity int) int
 	}
 
 	Query struct {
-		GetNewMessages func(childComplexity int, networkID string, fromID int, limit *int) int
+		GetNewMessages func(childComplexity int, networkID string, from string, limit *int) int
 	}
 }
 
 type MutationResolver interface {
-	PostMessage(ctx context.Context, authorPubKey string, networkID string, content string, signature string) (*model.NetworkMessage, error)
+	PostMessage(ctx context.Context, authorPubKey string, networkID string, threadID string, content string, signature string) (*model.NetworkMessage, error)
 }
 type QueryResolver interface {
-	GetNewMessages(ctx context.Context, networkID string, fromID int, limit *int) ([]*model.NetworkMessage, error)
+	GetNewMessages(ctx context.Context, networkID string, from string, limit *int) ([]*model.NetworkMessage, error)
 }
 
 type executableSchema struct {
@@ -102,7 +103,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.PostMessage(childComplexity, args["authorPubKey"].(string), args["networkID"].(string), args["content"].(string), args["signature"].(string)), true
+		return e.complexity.Mutation.PostMessage(childComplexity, args["authorPubKey"].(string), args["networkID"].(string), args["threadID"].(string), args["content"].(string), args["signature"].(string)), true
 
 	case "NetworkMessage.authorPubKey":
 		if e.complexity.NetworkMessage.AuthorPubKey == nil {
@@ -153,6 +154,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.NetworkMessage.Signature(childComplexity), true
 
+	case "NetworkMessage.threadID":
+		if e.complexity.NetworkMessage.ThreadID == nil {
+			break
+		}
+
+		return e.complexity.NetworkMessage.ThreadID(childComplexity), true
+
 	case "Query.getNewMessages":
 		if e.complexity.Query.GetNewMessages == nil {
 			break
@@ -163,7 +171,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.GetNewMessages(childComplexity, args["networkID"].(string), args["fromID"].(int), args["limit"].(*int)), true
+		return e.complexity.Query.GetNewMessages(childComplexity, args["networkID"].(string), args["from"].(string), args["limit"].(*int)), true
 
 	}
 	return 0, false
@@ -301,16 +309,21 @@ func (ec *executionContext) field_Mutation_postMessage_args(ctx context.Context,
 		return nil, err
 	}
 	args["networkID"] = arg1
-	arg2, err := ec.field_Mutation_postMessage_argsContent(ctx, rawArgs)
+	arg2, err := ec.field_Mutation_postMessage_argsThreadID(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["content"] = arg2
-	arg3, err := ec.field_Mutation_postMessage_argsSignature(ctx, rawArgs)
+	args["threadID"] = arg2
+	arg3, err := ec.field_Mutation_postMessage_argsContent(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["signature"] = arg3
+	args["content"] = arg3
+	arg4, err := ec.field_Mutation_postMessage_argsSignature(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["signature"] = arg4
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_postMessage_argsAuthorPubKey(
@@ -342,6 +355,24 @@ func (ec *executionContext) field_Mutation_postMessage_argsNetworkID(
 
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("networkID"))
 	if tmp, ok := rawArgs["networkID"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_postMessage_argsThreadID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	if _, ok := rawArgs["threadID"]; !ok {
+		var zeroVal string
+		return zeroVal, nil
+	}
+
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("threadID"))
+	if tmp, ok := rawArgs["threadID"]; ok {
 		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
@@ -421,11 +452,11 @@ func (ec *executionContext) field_Query_getNewMessages_args(ctx context.Context,
 		return nil, err
 	}
 	args["networkID"] = arg0
-	arg1, err := ec.field_Query_getNewMessages_argsFromID(ctx, rawArgs)
+	arg1, err := ec.field_Query_getNewMessages_argsFrom(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["fromID"] = arg1
+	args["from"] = arg1
 	arg2, err := ec.field_Query_getNewMessages_argsLimit(ctx, rawArgs)
 	if err != nil {
 		return nil, err
@@ -451,21 +482,21 @@ func (ec *executionContext) field_Query_getNewMessages_argsNetworkID(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Query_getNewMessages_argsFromID(
+func (ec *executionContext) field_Query_getNewMessages_argsFrom(
 	ctx context.Context,
 	rawArgs map[string]any,
-) (int, error) {
-	if _, ok := rawArgs["fromID"]; !ok {
-		var zeroVal int
+) (string, error) {
+	if _, ok := rawArgs["from"]; !ok {
+		var zeroVal string
 		return zeroVal, nil
 	}
 
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("fromID"))
-	if tmp, ok := rawArgs["fromID"]; ok {
-		return ec.unmarshalNInt2int(ctx, tmp)
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("from"))
+	if tmp, ok := rawArgs["from"]; ok {
+		return ec.unmarshalNDateTime2string(ctx, tmp)
 	}
 
-	var zeroVal int
+	var zeroVal string
 	return zeroVal, nil
 }
 
@@ -621,7 +652,7 @@ func (ec *executionContext) _Mutation_postMessage(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().PostMessage(rctx, fc.Args["authorPubKey"].(string), fc.Args["networkID"].(string), fc.Args["content"].(string), fc.Args["signature"].(string))
+		return ec.resolvers.Mutation().PostMessage(rctx, fc.Args["authorPubKey"].(string), fc.Args["networkID"].(string), fc.Args["threadID"].(string), fc.Args["content"].(string), fc.Args["signature"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -652,6 +683,8 @@ func (ec *executionContext) fieldContext_Mutation_postMessage(ctx context.Contex
 				return ec.fieldContext_NetworkMessage_authorPubKey(ctx, field)
 			case "networkID":
 				return ec.fieldContext_NetworkMessage_networkID(ctx, field)
+			case "threadID":
+				return ec.fieldContext_NetworkMessage_threadID(ctx, field)
 			case "content":
 				return ec.fieldContext_NetworkMessage_content(ctx, field)
 			case "createdAt":
@@ -798,6 +831,50 @@ func (ec *executionContext) _NetworkMessage_networkID(ctx context.Context, field
 }
 
 func (ec *executionContext) fieldContext_NetworkMessage_networkID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "NetworkMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _NetworkMessage_threadID(ctx context.Context, field graphql.CollectedField, obj *model.NetworkMessage) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_NetworkMessage_threadID(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.ThreadID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_NetworkMessage_threadID(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "NetworkMessage",
 		Field:      field,
@@ -1000,7 +1077,7 @@ func (ec *executionContext) _Query_getNewMessages(ctx context.Context, field gra
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetNewMessages(rctx, fc.Args["networkID"].(string), fc.Args["fromID"].(int), fc.Args["limit"].(*int))
+		return ec.resolvers.Query().GetNewMessages(rctx, fc.Args["networkID"].(string), fc.Args["from"].(string), fc.Args["limit"].(*int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1031,6 +1108,8 @@ func (ec *executionContext) fieldContext_Query_getNewMessages(ctx context.Contex
 				return ec.fieldContext_NetworkMessage_authorPubKey(ctx, field)
 			case "networkID":
 				return ec.fieldContext_NetworkMessage_networkID(ctx, field)
+			case "threadID":
+				return ec.fieldContext_NetworkMessage_threadID(ctx, field)
 			case "content":
 				return ec.fieldContext_NetworkMessage_content(ctx, field)
 			case "createdAt":
@@ -3222,6 +3301,11 @@ func (ec *executionContext) _NetworkMessage(ctx context.Context, sel ast.Selecti
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "threadID":
+			out.Values[i] = ec._NetworkMessage_threadID(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		case "content":
 			out.Values[i] = ec._NetworkMessage_content(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
@@ -3712,22 +3796,6 @@ func (ec *executionContext) unmarshalNID2string(ctx context.Context, v any) (str
 func (ec *executionContext) marshalNID2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
 	_ = sel
 	res := graphql.MarshalID(v)
-	if res == graphql.Null {
-		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
-			ec.Errorf(ctx, "the requested element is null which the schema does not allow")
-		}
-	}
-	return res
-}
-
-func (ec *executionContext) unmarshalNInt2int(ctx context.Context, v any) (int, error) {
-	res, err := graphql.UnmarshalInt(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalNInt2int(ctx context.Context, sel ast.SelectionSet, v int) graphql.Marshaler {
-	_ = sel
-	res := graphql.MarshalInt(v)
 	if res == graphql.Null {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "the requested element is null which the schema does not allow")

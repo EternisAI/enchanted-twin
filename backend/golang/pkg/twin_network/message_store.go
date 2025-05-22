@@ -48,18 +48,17 @@ func (s *MessageStore) Add(msg NetworkMessage) {
 
 // GetSince returns all messages that belong to the given networkID and were
 // created strictly after the provided timestamp.
-func (s *MessageStore) GetSince(networkID string, fromID int64, limit *int) []NetworkMessage {
+func (s *MessageStore) GetSince(networkID string, from time.Time, limit *int) []NetworkMessage {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	var out []NetworkMessage
 	for _, m := range s.messages {
-		if m.NetworkID == networkID && m.ID > fromID {
+		if m.NetworkID == networkID && m.CreatedAt.After(from) {
 			out = append(out, m)
 		}
 	}
 
-	// Sort messages by CreatedAt in descending order
 	sort.Slice(out, func(i, j int) bool {
 		return out[i].CreatedAt.After(out[j].CreatedAt)
 	})

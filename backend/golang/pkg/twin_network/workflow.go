@@ -3,7 +3,6 @@ package twin_network
 import (
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"go.temporal.io/sdk/workflow"
@@ -17,13 +16,13 @@ const (
 
 type NetworkMonitorInput struct {
 	NetworkID     string
-	LastMessageID int64
+	LastTimestamp time.Time
 	ChatID        string
 }
 
 type NetworkMonitorOutput struct {
 	ProcessedMessages int
-	LastMessageID     int64
+	LastTimestamp     time.Time
 	ChatID            string
 }
 
@@ -32,33 +31,34 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		StartToCloseTimeout: time.Minute,
 	})
 
-	var resolvedLastMessageID int64
+	var resolvedLastTimestamp time.Time
 	var chatID string
 
 	var lastCompletionOutput NetworkMonitorOutput
 	if workflow.HasLastCompletionResult(ctx) {
 		if err := workflow.GetLastCompletionResult(ctx, &lastCompletionOutput); err == nil {
-			resolvedLastMessageID = lastCompletionOutput.LastMessageID
+			resolvedLastTimestamp = lastCompletionOutput.LastTimestamp
 			chatID = lastCompletionOutput.ChatID
 		} else {
-			workflow.GetLogger(ctx).Error("NetworkMonitorWorkflow: Failed to get last completion result. Using current input's LastMessageID.", "error", err)
-			resolvedLastMessageID = input.LastMessageID
+			workflow.GetLogger(ctx).Error("NetworkMonitorWorkflow: Failed to get last completion result. Using current input's LastTimestamp.", "error", err)
+			resolvedLastTimestamp = input.LastTimestamp
 			chatID = input.ChatID
 		}
 	} else {
-		resolvedLastMessageID = input.LastMessageID
+		resolvedLastTimestamp = input.LastTimestamp
 		chatID = input.ChatID
 	}
 
 	activityInput := NetworkMonitorInput{
 		NetworkID:     input.NetworkID,
-		LastMessageID: resolvedLastMessageID,
+		LastTimestamp: resolvedLastTimestamp,
 		ChatID:        chatID,
 	}
 
+	lookbackTime := resolvedLastTimestamp.Add(-30 * time.Minute)
 	queryInput := QueryNetworkActivityInput{
 		NetworkID: input.NetworkID,
-		FromID:    strconv.FormatInt(resolvedLastMessageID-30, 10),
+		FromTime:  lookbackTime,
 		Limit:     30,
 	}
 	var allNewMessages []NetworkMessage
@@ -69,17 +69,17 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	workflow.GetLogger(ctx).Info("Retrieved new messages", "count", len(allNewMessages), "networkID", input.NetworkID)
 
 	if len(allNewMessages) > 0 {
-		lastMessageID := allNewMessages[0].ID
+		lastTimestamp := allNewMessages[0].CreatedAt
 
-		if lastMessageID == activityInput.LastMessageID {
+		if !lastTimestamp.After(activityInput.LastTimestamp) {
 			workflow.GetLogger(ctx).Info("No new messages found", "networkID", input.NetworkID)
 			return &NetworkMonitorOutput{
 				ProcessedMessages: 0,
-				LastMessageID:     resolvedLastMessageID,
+				LastTimestamp:     resolvedLastTimestamp,
 				ChatID:            chatID,
 			}, nil
 		}
-		activityInput.LastMessageID = lastMessageID
+		activityInput.LastTimestamp = lastTimestamp
 
 		if !allNewMessages[0].IsMine {
 			if chatID != "" {
@@ -103,8 +103,9 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 							workflow.GetLogger(ctx).Info("Found user response in chat", "message", *lastUserMessage.Text)
 							allNewMessages = append([]NetworkMessage{
 								{
-									Content: fmt.Sprintf("User response from chat: %s", *lastUserMessage.Text),
-									IsMine:  true,
+									Content:   fmt.Sprintf("User response from chat: %s", *lastUserMessage.Text),
+									IsMine:    true,
+									CreatedAt: time.Now(),
 								},
 							}, allNewMessages...)
 						}
@@ -131,14 +132,14 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		workflow.GetLogger(ctx).Info("No new messages found", "networkID", input.NetworkID)
 		return &NetworkMonitorOutput{
 			ProcessedMessages: 0,
-			LastMessageID:     resolvedLastMessageID,
+			LastTimestamp:     resolvedLastTimestamp,
 			ChatID:            chatID,
 		}, nil
 	}
 
 	output := NetworkMonitorOutput{
 		ProcessedMessages: len(allNewMessages),
-		LastMessageID:     activityInput.LastMessageID,
+		LastTimestamp:     activityInput.LastTimestamp,
 		ChatID:            chatID,
 	}
 

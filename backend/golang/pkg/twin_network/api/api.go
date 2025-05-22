@@ -27,35 +27,30 @@ func NewTwinNetworkAPI(logger *log.Logger, networkServerURL string) *TwinNetwork
 	}
 }
 
-func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, fromID string, limit int) ([]model.NetworkMessage, error) {
+func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, fromTime time.Time, limit int) ([]model.NetworkMessage, error) {
 	a.logger.Debug("Fetching new messages",
 		"networkID", networkID,
-		"fromID", fromID,
+		"fromTime", fromTime,
 		"limit", limit)
 
-	// Convert the fromID from string to int for GraphQL query
-	fromIDInt, err := strconv.ParseInt(fromID, 10, 64)
-	if err != nil {
-		a.logger.Error("Failed to parse fromID as integer", "error", err, "fromID", fromID)
-		return nil, fmt.Errorf("failed to parse fromID as integer: %w", err)
-	}
-
 	query := `
-		query GetNewMessages($networkID: String!, $fromID: Int!, $limit: Int) {
-			getNewMessages(networkID: $networkID, fromID: $fromID, limit: $limit) {
+		query GetNewMessages($networkID: String!, $from: DateTime!, $limit: Int) {
+			getNewMessages(networkID: $networkID, from: $from, limit: $limit) {
 				id
 				authorPubKey
 				networkID
+				threadID
 				content
 				createdAt
 				isMine
+				signature
 			}
 		}
 	`
 
 	variables := map[string]interface{}{
 		"networkID": networkID,
-		"fromID":    fromIDInt, // Now passing an integer instead of a string
+		"from":      fromTime.Format(time.RFC3339),
 		"limit":     limit,
 	}
 
@@ -116,9 +111,11 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 				ID           string    `json:"id"`
 				AuthorPubKey string    `json:"authorPubKey"`
 				NetworkID    string    `json:"networkID"`
+				ThreadID     string    `json:"threadID"`
 				Content      string    `json:"content"`
 				CreatedAt    time.Time `json:"createdAt"`
 				IsMine       bool      `json:"isMine"`
+				Signature    string    `json:"signature"`
 			} `json:"getNewMessages"`
 		} `json:"data"`
 		Errors []struct {
@@ -146,8 +143,11 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 			ID:           strconv.FormatInt(id, 10),
 			AuthorPubKey: msg.AuthorPubKey,
 			NetworkID:    msg.NetworkID,
+			ThreadID:     msg.ThreadID,
 			Content:      msg.Content,
 			CreatedAt:    msg.CreatedAt.Format(time.RFC3339),
+			IsMine:       msg.IsMine,
+			Signature:    msg.Signature,
 		}
 	}
 

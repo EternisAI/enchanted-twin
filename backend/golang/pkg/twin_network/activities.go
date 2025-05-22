@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	openai "github.com/openai/openai-go"
@@ -11,23 +12,23 @@ import (
 
 type MonitorNetworkActivityInput struct {
 	NetworkID     string
-	LastMessageID string
+	LastTimestamp time.Time
 	Messages      []NetworkMessage
 }
 
 type QueryNetworkActivityInput struct {
 	NetworkID string
-	FromID    string
+	FromTime  time.Time
 	Limit     int
 }
 
 func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input QueryNetworkActivityInput) ([]NetworkMessage, error) {
 	a.logger.Debug("Querying network activity",
 		"networkID", input.NetworkID,
-		"fromID", input.FromID,
+		"fromTime", input.FromTime,
 		"limit", input.Limit)
 
-	allNewMessages, err := a.twinNetworkAPI.GetNewMessages(ctx, input.NetworkID, input.FromID, input.Limit)
+	allNewMessages, err := a.twinNetworkAPI.GetNewMessages(ctx, input.NetworkID, input.FromTime, input.Limit)
 	if err != nil {
 		a.logger.Error("Failed to fetch new messages", "error", err)
 		return nil, fmt.Errorf("failed to fetch new messages: %w", err)
@@ -35,13 +36,19 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 
 	networkMessages := make([]NetworkMessage, len(allNewMessages))
 	for i, msg := range allNewMessages {
+		myPubKey := a.agentKey.PubKeyHex()
+
 		id, err := strconv.ParseInt(msg.ID, 10, 64)
 		if err != nil {
 			a.logger.Error("Failed to parse message ID", "error", err, "id", msg.ID)
 			continue
 		}
 
-		myPubKey := a.agentKey.PubKeyHex()
+		createdAt, err := time.Parse(time.RFC3339, msg.CreatedAt)
+		if err != nil {
+			a.logger.Error("Failed to parse message timestamp", "error", err, "createdAt", msg.CreatedAt)
+			continue
+		}
 
 		networkMessages[i] = NetworkMessage{
 			ID:           id,
@@ -50,6 +57,8 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 			Content:      msg.Content,
 			IsMine:       msg.AuthorPubKey == myPubKey,
 			Signature:    msg.Signature,
+			CreatedAt:    createdAt,
+			ThreadID:     msg.ThreadID,
 		}
 	}
 
@@ -81,8 +90,8 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	  • silently ignore it.
 	
 	━━━━━━━━━━  DECISION RULE  ━━━━━━━━━━
-	1. Check the proposal against your human’s stated interests/dislikes.
-	2. If it clearly conflicts with a dislike (e.g. “coffee” when bio says “I hate coffee”):
+	1. Check the proposal against your human's stated interests/dislikes.
+	2. If it clearly conflicts with a dislike (e.g. "coffee" when bio says "I hate coffee"):
 		 → IGNORE the message entirely.
 		 → Do **NOT** call *send_to_chat*.
 		 → Do **NOT** call *send_to_twin_network*.
@@ -98,10 +107,10 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	• Once the author marks a proposal completed, stop sending network messages except for essential wrap-up actions (calendar booking, email, etc.).
 	
 	━━━━━━━━━━  EXAMPLES  ━━━━━━━━━━
-	✘ Incoming: “Coffee 2 pm at 381 Castro Street.”
+	✘ Incoming: "Coffee 2 pm at 381 Castro Street."
 	   —> Ignore (no tools used).
 	
-	✔ Incoming: “Poker night Friday 8 pm.”
+	✔ Incoming: "Poker night Friday 8 pm."
 	   —> Use *send_to_chat* asking whether to join; if yes, reply on the network and schedule the event.
 	
 	Be concise, proactive, and drop the thread if it stalls.
@@ -114,10 +123,10 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	`, messages[0].ThreadID, messages[0].AuthorPubKey, personality)
 
 	if userProfile.Name != nil {
-		systemPrompt += fmt.Sprintf("Human’s name: %s\n", *userProfile.Name)
+		systemPrompt += fmt.Sprintf("Human's name: %s\n", *userProfile.Name)
 	}
 	if userProfile.Bio != nil {
-		systemPrompt += fmt.Sprintf("Human’s interests/bio: %s\n", *userProfile.Bio)
+		systemPrompt += fmt.Sprintf("Human's interests/bio: %s\n", *userProfile.Bio)
 	}
 
 	agentPubKey := a.agentKey.PubKeyHex()

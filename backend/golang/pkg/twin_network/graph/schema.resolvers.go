@@ -11,17 +11,24 @@ import (
 
 	twinnetwork "github.com/EternisAI/enchanted-twin/pkg/twin_network"
 	"github.com/EternisAI/enchanted-twin/pkg/twin_network/graph/model"
+	"github.com/google/uuid"
 )
 
 // PostMessage is the resolver for the postMessage field.
-func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string, networkID string, content string, signature string) (*model.NetworkMessage, error) {
+func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string, networkID string, threadID string, content string, signature string) (*model.NetworkMessage, error) {
+	if threadID == "" {
+		threadID = uuid.New().String()
+	}
+
 	msg := twinnetwork.NetworkMessage{
 		AuthorPubKey: authorPubKey,
 		NetworkID:    networkID,
 		Content:      content,
 		CreatedAt:    time.Now().UTC(),
 		Signature:    signature,
+		ThreadID:     threadID,
 	}
+
 	r.Store.Add(msg)
 
 	return &model.NetworkMessage{
@@ -34,8 +41,13 @@ func (r *mutationResolver) PostMessage(ctx context.Context, authorPubKey string,
 }
 
 // GetNewMessages is the resolver for the getNewMessages field.
-func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, fromID int, limit *int) ([]*model.NetworkMessage, error) {
-	msgs := r.Store.GetSince(networkID, int64(fromID), limit)
+func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, from string, limit *int) ([]*model.NetworkMessage, error) {
+	fromTime, err := time.Parse(time.RFC3339, from)
+	if err != nil {
+		return nil, err
+	}
+
+	msgs := r.Store.GetSince(networkID, fromTime, limit)
 
 	out := make([]*model.NetworkMessage, len(msgs))
 	for i, m := range msgs {

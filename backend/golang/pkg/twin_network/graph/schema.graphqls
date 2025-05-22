@@ -8,6 +8,7 @@ type NetworkMessage {
   id: ID!
   authorPubKey: String!
   networkID: String!
+  threadID: String!
   content: String!
   createdAt: DateTime!
   isMine: Boolean!
@@ -19,7 +20,7 @@ type Query {
   Returns all messages for the given network that were created strictly after
   the provided timestamp (RFC-3339 format).
   """
-  getNewMessages(networkID: String!, fromID: Int!, limit: Int): [NetworkMessage!]!
+  getNewMessages(networkID: String!, from: DateTime!, limit: Int): [NetworkMessage!]!
 }
 
 type Mutation {
@@ -28,5 +29,5 @@ type Mutation {
   Returns the created NetworkMessage.
   """
   
-  postMessage(authorPubKey: String!, networkID: String!, content: String!, signature: String!): NetworkMessage!
+  postMessage(authorPubKey: String!, networkID: String!, threadID: String, content: String!, signature: String!): NetworkMessage!
 } 
