@@ -5,7 +5,6 @@ import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graph
 import MessageInput from '../MessageInput'
 import { Switch } from '../../ui/switch'
 import VoiceVisualizer from './VoiceVisualizer'
-import { useSendMessage } from '@renderer/hooks/useChat'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
@@ -15,15 +14,15 @@ import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 interface VoiceModeChatViewProps {
   chat: Chat
   messages: Message[]
+  onSendMessage: (text: string, reasoning: boolean, voice: boolean) => void
   toggleVoiceMode: () => void
-  handleSendMessage: (message: Message) => void
   isWaitingTwinResponse: boolean
 }
 
 export default function VoiceModeChatView({
   chat,
   messages,
-  handleSendMessage,
+  onSendMessage,
   toggleVoiceMode
 }: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
@@ -41,16 +40,6 @@ export default function VoiceModeChatView({
     const lastUserMessage = messages.filter((m) => m.role === Role.User).pop()
     return lastUserMessage || null
   }, [chat, messages])
-
-  const { sendMessage: sendMessageRaw } = useSendMessage(
-    chat.id,
-    (msg) => handleSendMessage(msg),
-    () => {}
-  )
-
-  const sendMessage = (text: string, reasoning: boolean) => {
-    sendMessageRaw(text, reasoning, true)
-  }
 
   useMessageSubscription(chat.id, (message) => {
     if (message.role === Role.Assistant) {
@@ -119,9 +108,10 @@ export default function VoiceModeChatView({
         <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} />
         <MessageInput
           isWaitingTwinResponse={isLoading || isSpeaking}
-          onSend={sendMessage}
+          onSend={onSendMessage}
           onStop={stop}
           hasReasoning={false}
+          isReasonSelected={true}
           voice
         />
       </div>

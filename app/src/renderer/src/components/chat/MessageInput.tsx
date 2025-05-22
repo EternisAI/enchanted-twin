@@ -9,7 +9,7 @@ type MessageInputProps = {
   isWaitingTwinResponse: boolean
   onStop?: () => void
   hasReasoning?: boolean
-  isReasonSelected?: boolean
+  isReasonSelected: boolean
   onReasonToggle?: (reasoningSelected: boolean) => void
   voice?: boolean
 }
@@ -29,7 +29,6 @@ export default function MessageInput({
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
-    const isReasonSelected = true
     onSend(text, isReasonSelected, voice)
     setText('')
   }
