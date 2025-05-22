@@ -17,6 +17,7 @@ interface VoiceModeChatViewProps {
   historicToolCalls: ToolCall[]
   onSendMessage: (text: string, reasoning: boolean, voice: boolean) => void
   toggleVoiceMode: () => void
+  error: string
   isWaitingTwinResponse: boolean
 }
 
@@ -26,7 +27,8 @@ export default function VoiceModeChatView({
   activeToolCalls,
   historicToolCalls,
   onSendMessage,
-  toggleVoiceMode
+  toggleVoiceMode,
+  error
 }: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
   const triggeredRef = useRef(false)
@@ -74,36 +76,51 @@ export default function VoiceModeChatView({
   }, [currentToolCall])
 
   return (
-    <div className="flex flex-col h-full w-full items-center relative">
-      <motion.div
-        className="relative flex-1 w-full"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1 }}
-      >
-        <VoiceVisualizer
-          className="absolute inset-0"
-          visualState={visualState}
-          getFreqData={getFreqData}
-          assistantTextMessage={lastAssistantMessage?.text ?? undefined}
-          tool={toolUrl}
-        />
+    <div className="flex h-full w-full items-center ">
+      <div className="flex flex-col h-full w-full items-center relative">
+        <motion.div
+          className="relative flex-1 w-full"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 1 }}
+        >
+          <VoiceVisualizer
+            className="absolute inset-0"
+            visualState={visualState}
+            getFreqData={getFreqData}
+            assistantTextMessage={lastAssistantMessage?.text ?? undefined}
+            tool={toolUrl}
+          />
+        </motion.div>
 
-        <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
-      </motion.div>
-
-      <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
-        {lastUserMessage && <UserMessageBubble message={lastUserMessage} />}
-        <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} />
-        <MessageInput
-          isWaitingTwinResponse={isLoading || isSpeaking}
-          onSend={onSendMessage}
-          onStop={stop}
-          hasReasoning={false}
-          isReasonSelected={true}
-          voice
-        />
+        <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
+          {lastUserMessage && (
+            <motion.div
+              key={lastUserMessage.id}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              <UserMessageBubble message={lastUserMessage} />
+            </motion.div>
+          )}
+          {error && (
+            <div className="py-2 px-4 rounded-md border border-red-500 bg-red-500/10 text-red-500">
+              Error: {error}
+            </div>
+          )}
+          <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} />
+          <MessageInput
+            isWaitingTwinResponse={isLoading || isSpeaking}
+            onSend={onSendMessage}
+            onStop={stop}
+            hasReasoning={false}
+            isReasonSelected={true}
+            voice
+          />
+        </div>
       </div>
+      <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
     </div>
   )
 }
