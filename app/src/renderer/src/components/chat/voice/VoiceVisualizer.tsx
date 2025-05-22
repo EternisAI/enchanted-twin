@@ -141,7 +141,7 @@ function CubeParticles({
       mesh.current.rotation.z = prog * Math.PI * 2
       material.uniforms.uState.value = THREE.MathUtils.damp(
         material.uniforms.uState.value,
-        1,
+        2,
         5,
         delta
       )
