@@ -139,6 +139,41 @@ func (s *Service) SendMessage(
 	}
 
 	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+	// if userProfile.Name != nil {
+	// 	systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
+	// }
+	// if userProfile.Bio != nil {
+	// 	systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
+	// }
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return nil, err
+	}
+	if len(oauthTokens) > 0 {
+		systemPrompt += "You have following email accounts connected to your account: "
+		for _, token := range oauthTokens {
+			systemPrompt += fmt.Sprintf("%s, ", token.Username)
+		}
+	} else {
+		systemPrompt += "You have no email accounts connected to your account."
+	}
+
+	oauthTokens, err = s.userStorage.GetOAuthTokensArray(ctx, "twitter")
+	if err != nil {
+		return nil, err
+	}
+	if len(oauthTokens) > 0 {
+		systemPrompt += "When a request references the user's *feed* or *timeline*, the assistant " +
+			"MUST first call `list_feed_tweets`, paginate as needed, and may then " +
+			"client-side-filter the results. It MUST NOT call `search_tweets` in this " +
+			"scenario."
+	}
+
+	systemPrompt += fmt.Sprintf("Current date and time: %s.", time.Now().Format(time.RFC3339))
+	systemPrompt += fmt.Sprintf("Current Chat ID is %s.", chatID)
+
+	s.logger.Info("System prompt", "prompt", systemPrompt)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(

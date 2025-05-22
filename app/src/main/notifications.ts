@@ -4,6 +4,7 @@ import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 import { existsSync } from 'fs'
 import { exec } from 'child_process'
 import fetch from 'node-fetch'
+import { capture } from './analytics'
 
 export function notificationsSupported(): boolean {
   return Notification.isSupported()
@@ -96,6 +97,9 @@ async function showOsNotification(
   toast.on('click', () => {
     if (notification.link) {
       win.webContents.send('open-deeplink', notification.link)
+      capture('notification_clicked', {
+        platform: process.platform // @TODO: add as notification.platform once we have it
+      })
     }
   })
 
