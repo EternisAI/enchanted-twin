@@ -1,3 +1,4 @@
+// Owner: slimane@eternis.ai
 package twin_network
 
 import (
@@ -138,6 +139,7 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	• Do **NOT** echo network messages back to the network.
 	• Once the author marks a proposal completed, stop sending network messages except for essential wrap-up actions (calendar booking, email, etc.).
 	• *schedule_task* – use this tool to create a task for your human, all threads must be concluded before using this tool
+	• *update_thread* – use this tool to update the state of a thread, use this tool to mark a thread as completed or ignored. Only use this tool after the task is scheduled.
 	━━━━━━━━━━  EXAMPLES  ━━━━━━━━━━
 	✘ Incoming: "Coffee 2 pm at 381 Castro Street."
 	   —> Ignore (no tools used).
@@ -206,4 +208,17 @@ func (a *TwinNetworkWorkflow) GetChatMessages(ctx context.Context, chatID string
 	}
 
 	return messages, nil
+}
+
+// GetThreadState gets the state of a thread
+func (a *TwinNetworkWorkflow) GetThreadState(ctx context.Context, threadID string) (ThreadState, error) {
+	state, err := a.threadStore.GetThreadState(ctx, threadID)
+	if err != nil && err.Error() == "failed to get thread state: sql: no rows in result set" {
+		a.logger.Debug("Thread not found in store, initializing", "threadID", threadID)
+		if err := a.threadStore.SetThreadState(ctx, threadID, ThreadStateNone); err != nil {
+			return ThreadStateNone, err
+		}
+		return ThreadStateNone, nil
+	}
+	return state, err
 }

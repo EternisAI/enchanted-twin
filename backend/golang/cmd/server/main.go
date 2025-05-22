@@ -220,6 +220,11 @@ func main() {
 	if err := toolRegistry.Register(sendNetworkMessageTool); err != nil {
 		logger.Error("Failed to register send network message tool", "error", err)
 	}
+	threadStore := twin_network.NewThreadStore(store)
+	updateThreadStateTool := twin_network.NewUpdateThreadStateTool(threadStore)
+	if err := toolRegistry.Register(updateThreadStateTool); err != nil {
+		logger.Error("Failed to register update thread state tool", "error", err)
+	}
 
 	// Initialize MCP Service with tool registry
 	mcpService := mcpserver.NewService(context.Background(), store, toolRegistry)

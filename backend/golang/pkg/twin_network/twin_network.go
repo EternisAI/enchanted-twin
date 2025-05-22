@@ -1,3 +1,4 @@
+// Owner: slimane@eternis.ai
 package twin_network
 
 import (
@@ -19,7 +20,6 @@ type TwinNetworkWorkflow struct {
 	ai               *ai.Service
 	logger           *log.Logger
 	networkServerURL string
-	readNetworkTool  *ReadNetworkTool
 	agentKey         AgentKey
 	identityService  *identity.IdentityService
 	twinChatService  *twinchat.Service
@@ -27,6 +27,7 @@ type TwinNetworkWorkflow struct {
 	agent            *agent.Agent
 	toolRegistry     tools.ToolRegistry
 	twinNetworkAPI   api.TwinNetworkAPI
+	threadStore      *ThreadStore
 }
 
 type TwinNetworkWorkflowInput struct {
@@ -43,11 +44,12 @@ type TwinNetworkWorkflowInput struct {
 }
 
 func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow {
-	return &TwinNetworkWorkflow{
+	threadStore := NewThreadStore(input.UserStorage)
+
+	workflow := &TwinNetworkWorkflow{
 		ai:               input.AI,
 		logger:           input.Logger,
 		networkServerURL: input.NetworkServerURL,
-		readNetworkTool:  NewReadNetworkTool(input.Logger, input.AI, "gpt-4.1-mini"),
 		agentKey:         input.AgentKey,
 		identityService:  input.IdentityService,
 		twinChatService:  input.TwinChatService,
@@ -55,7 +57,16 @@ func NewTwinNetworkWorkflow(input TwinNetworkWorkflowInput) *TwinNetworkWorkflow
 		agent:            input.Agent,
 		toolRegistry:     input.ToolRegistry,
 		twinNetworkAPI:   *input.TwinNetworkAPI,
+		threadStore:      threadStore,
 	}
+
+	// Register the UpdateThreadStateTool with the agent
+	if input.Agent != nil && input.ToolRegistry != nil {
+		updateThreadTool := NewUpdateThreadStateTool(threadStore)
+		_ = input.ToolRegistry.Register(updateThreadTool)
+	}
+
+	return workflow
 }
 
 func (w *TwinNetworkWorkflow) ScheduleNetworkMonitor(logger *log.Logger, temporalClient client.Client) error {
@@ -106,6 +117,7 @@ func (a *TwinNetworkWorkflow) RegisterActivities(w interface{ RegisterActivity(i
 	w.RegisterActivity(a.EvaluateMessage)
 	w.RegisterActivity(a.QueryNetworkActivity)
 	w.RegisterActivity(a.GetChatMessages)
+	w.RegisterActivity(a.GetThreadState)
 }
 
 func (a *TwinNetworkWorkflow) RegisterWorkflows(w interface{ RegisterWorkflow(interface{}) }) {

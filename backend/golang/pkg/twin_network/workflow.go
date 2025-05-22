@@ -1,3 +1,4 @@
+// Owner: slimane@eternis.ai
 package twin_network
 
 import (
@@ -75,6 +76,15 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 	for _, thread := range threads {
 		threadID := thread.ThreadID
 		messages := thread.Messages
+
+		var threadState ThreadState
+		err := workflow.ExecuteActivity(options, w.GetThreadState, threadID).Get(ctx, &threadState)
+		if err != nil {
+			workflow.GetLogger(ctx).Error("Failed to get thread state", "error", err, "threadID", threadID)
+		} else if threadState == ThreadStateIgnored || threadState == ThreadStateCompleted {
+			workflow.GetLogger(ctx).Info("Skipping thread with state", "threadID", threadID, "state", threadState)
+			continue
+		}
 
 		workflow.GetLogger(ctx).Info("Processing thread", "threadID", threadID, "messageCount", len(messages), "networkID", input.NetworkID)
 

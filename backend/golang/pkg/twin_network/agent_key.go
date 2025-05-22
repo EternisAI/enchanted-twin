@@ -1,3 +1,5 @@
+// Owner: slimane@eternis.ai
+
 package twin_network
 
 import (
@@ -29,8 +31,6 @@ func DerivePublicKey(priv *ecdsa.PrivateKey) *ecdsa.PublicKey {
 }
 
 // GenerateRandomPublicKey generates a random public key by internally
-// creating a random private key and returning its corresponding public key.
-// It is exposed for convenience when no private key is required afterwards.
 func GenerateRandomPublicKey() (*ecdsa.PublicKey, error) {
 	priv, err := GenerateRandomPrivateKey()
 	if err != nil {
@@ -50,10 +50,6 @@ func NewRandomAgentPubKey() (*AgentKey, error) {
 		PublicKey:  &priv.PublicKey,
 	}, nil
 }
-
-// ******************************
-// * Local single-agent storage *
-// ******************************
 
 // For the current design we assume each running Twin agent owns exactly one
 // key-pair. We therefore keep a single instance in memory. In production you
@@ -127,7 +123,6 @@ func VerifyMessageSignature(msg string, signature string, pubKey *ecdsa.PublicKe
 		return false
 	}
 	hash := crypto.Keccak256([]byte(msg))
-	// crypto.VerifySignature expects the 64-byte RS pair without recovery id.
 	sigNoV, err := hex.DecodeString(signature)
 	if err != nil {
 		return false

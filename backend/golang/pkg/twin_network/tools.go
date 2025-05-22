@@ -1,3 +1,4 @@
+// Owner: slimane@eternis.ai
 package twin_network
 
 import (
@@ -76,6 +77,72 @@ func (e *SendNetworkMessageTool) Definition() openai.ChatCompletionToolParam {
 					},
 				},
 				"required": []string{"message"},
+			},
+		},
+	}
+}
+
+type UpdateThreadStateTool struct {
+	threadStore *ThreadStore
+}
+
+func NewUpdateThreadStateTool(threadStore *ThreadStore) *UpdateThreadStateTool {
+	return &UpdateThreadStateTool{
+		threadStore: threadStore,
+	}
+}
+
+func (t *UpdateThreadStateTool) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
+	threadID, ok := inputs["thread_id"].(string)
+	if !ok || threadID == "" {
+		return nil, errors.New("thread_id is required and must be a string")
+	}
+
+	stateStr, ok := inputs["state"].(string)
+	if !ok || stateStr == "" {
+		return nil, errors.New("state is required and must be a string")
+	}
+
+	var state ThreadState
+	switch stateStr {
+	case "ignored":
+		state = ThreadStateIgnored
+	case "completed":
+		state = ThreadStateCompleted
+	default:
+		return nil, fmt.Errorf("invalid state: %s (must be 'ignored' or 'completed')", stateStr)
+	}
+
+	if err := t.threadStore.SetThreadState(ctx, threadID, state); err != nil {
+		return nil, fmt.Errorf("failed to set thread state: %w", err)
+	}
+
+	return types.SimpleToolResult(fmt.Sprintf("Thread %s state updated to %s", threadID, state)), nil
+}
+
+func (t *UpdateThreadStateTool) Definition() openai.ChatCompletionToolParam {
+	return openai.ChatCompletionToolParam{
+		Type: "function",
+		Function: openai.FunctionDefinitionParam{
+			Name:        "twin_network_update_thread",
+			Description: param.NewOpt("This tool updates the state of a thread in the twin network"),
+			Parameters: openai.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"thread_id": map[string]string{
+						"content":     "string",
+						"description": "The thread ID to update the state for. CRITICAL: You must provide the exact thread ID from the message, strip the # if present.",
+					},
+					"state": map[string]string{
+						"content":     "string",
+						"description": "The state to set for the thread. Must be one of: 'ignored' or 'completed'. Use 'ignored' to hide a thread from future processing, or 'completed' to mark it as done. Only use 'completed' after scheduling a task.",
+					},
+					"reason": map[string]string{
+						"content":     "string",
+						"description": "The reason for the state change. This will be displayed to the user in the UI.",
+					},
+				},
+				"required": []string{"thread_id", "state", "reason"},
 			},
 		},
 	}
