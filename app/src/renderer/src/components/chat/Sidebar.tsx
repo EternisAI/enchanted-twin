@@ -312,18 +312,16 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         disabled={isActive}
         to="/chat/$chatId"
         onClick={() => {
-          setVoiceMode(chat.voice)
+          if (chat.voice) setVoiceMode(true)
+          window.api.analytics.capture('open_chat', {
+            method: 'ui'
+          })
         }}
         params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,
           'text-foreground': !isActive
         })}
-        onClick={() => {
-          window.api.analytics.capture('open_chat', {
-            method: 'ui'
-          })
-        }}
       >
         {chat.name || 'Untitled Chat'}
       </Link>
