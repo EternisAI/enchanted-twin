@@ -85,14 +85,31 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 	return threadsList, nil
 }
 
-func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []NetworkMessage, threadAuthor string, isOrganizer bool) (string, error) {
+type EvaluateMessageResult struct {
+	Response string
+	ChatID   string
+}
+
+type EvaluateMessageInput struct {
+	Messages      []NetworkMessage
+	ThreadAuthor  string
+	IsOrganizer   bool
+	CurrentChatID string
+}
+
+func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, input EvaluateMessageInput) (EvaluateMessageResult, error) {
+	messages := input.Messages
+	threadAuthor := input.ThreadAuthor
+	isOrganizer := input.IsOrganizer
+	currentChatID := input.CurrentChatID
+
 	if len(messages) == 0 {
-		return "", nil
+		return EvaluateMessageResult{}, nil
 	}
 
 	userProfile, err := a.userStorage.GetUserProfile(ctx)
 	if err != nil {
-		return "", err
+		return EvaluateMessageResult{}, err
 	}
 
 	personality, err := a.identityService.GetPersonality(ctx)
@@ -100,7 +117,7 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 		a.logger.Error("Failed to get identity context for batch processing",
 			"error", err,
 			"networkID", messages[0].NetworkID)
-		return "", fmt.Errorf("failed to get identity context for batch: %w", err)
+		return EvaluateMessageResult{}, fmt.Errorf("failed to get identity context for batch: %w", err)
 	}
 	var systemPrompt string
 	if isOrganizer {
@@ -139,10 +156,12 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 	
 	Thread ID: %s  
 	Author public key: %s
+
+	Current chat ID to talk with your human: %s
 	
 	Human profile (top decision factor):  
 	%s
-	`, messages[0].ThreadID, threadAuthor, personality)
+	`, messages[0].ThreadID, threadAuthor, currentChatID, personality)
 	} else {
 		systemPrompt = fmt.Sprintf(`
 You are the digital twin of one human.
@@ -197,10 +216,12 @@ You are the digital twin of one human.
 	
 	Thread ID: %s  
 	Author public key: %s
+
+	Current chat ID to talk with your human: %s
 	
 	Human profile (top decision factor):  
 	%s
-	`, messages[0].ThreadID, threadAuthor, personality)
+	`, messages[0].ThreadID, threadAuthor, currentChatID, personality)
 	}
 	if userProfile.Name != nil {
 		systemPrompt += fmt.Sprintf("Human's name: %s\n", *userProfile.Name)
@@ -215,7 +236,12 @@ You are the digital twin of one human.
 
 	for _, msg := range messages {
 
-		shortenedKey := msg.AuthorPubKey[:6]
+		var shortenedKey string
+		if len(msg.AuthorPubKey) > 6 {
+			shortenedKey = msg.AuthorPubKey[:6]
+		} else {
+			shortenedKey = msg.AuthorPubKey
+		}
 
 		a.logger.Debug("msg.AuthorPubKey", "msg.AuthorPubKey", msg.AuthorPubKey)
 		a.logger.Debug("threadAuthor", "threadAuthor", threadAuthor)
@@ -246,10 +272,22 @@ You are the digital twin of one human.
 	response, err := a.agent.Execute(ctx, nil, chatMessages, tools)
 	if err != nil {
 		a.logger.Error("Failed to execute agent", "error", err)
-		return "", fmt.Errorf("failed to execute agent: %w", err)
+		return EvaluateMessageResult{}, fmt.Errorf("failed to execute agent: %w", err)
 	}
 
-	return response.Content, nil
+	chatID := ""
+	if len(response.ToolResults) > 0 {
+		for _, toolResult := range response.ToolResults {
+			if toolResult.Tool() == "send_to_chat" {
+				chatID = toolResult.Params()["chat_id"].(string)
+			}
+		}
+	}
+
+	return EvaluateMessageResult{
+		Response: response.Content,
+		ChatID:   chatID,
+	}, nil
 }
 
 func (a *TwinNetworkWorkflow) GetChatMessages(ctx context.Context, chatID string) ([]*model.Message, error) {
@@ -269,10 +307,27 @@ func (a *TwinNetworkWorkflow) GetThreadState(ctx context.Context, threadID strin
 	state, err := a.threadStore.GetThreadState(ctx, threadID)
 	if err != nil && err.Error() == "failed to get thread state: sql: no rows in result set" {
 		a.logger.Debug("Thread not found in store, initializing", "threadID", threadID)
-		if err := a.threadStore.SetThreadState(ctx, threadID, ThreadStateNone); err != nil {
+		if err := a.threadStore.InitializeThread(ctx, threadID, ThreadStateNone); err != nil {
 			return ThreadStateNone, err
 		}
 		return ThreadStateNone, nil
 	}
 	return state, err
+}
+
+func (a *TwinNetworkWorkflow) SetThreadChatID(ctx context.Context, threadID string, chatID string) error {
+	err := a.threadStore.SetThreadChatID(ctx, threadID, chatID)
+	if err != nil {
+		a.logger.Error("Failed to set thread chat ID", "error", err, "threadID", threadID, "chatID", chatID)
+		return err
+	}
+	return nil
+}
+
+func (a *TwinNetworkWorkflow) GetThreadChatID(ctx context.Context, threadID string) (string, error) {
+	thread, err := a.threadStore.GetThread(ctx, threadID)
+	if err != nil {
+		return "", err
+	}
+	return thread.ChatID, nil
 }

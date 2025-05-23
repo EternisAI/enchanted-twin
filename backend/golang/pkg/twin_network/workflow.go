@@ -145,16 +145,35 @@ func (w *TwinNetworkWorkflow) NetworkMonitorWorkflow(ctx workflow.Context, input
 		isOrganizer := authorPubKey == w.agentKey.PubKeyHex()
 
 		if !messages[0].IsMine {
-			var response string
-			err = workflow.ExecuteActivity(options, w.EvaluateMessage, messages, authorPubKey, isOrganizer).Get(ctx, &response)
+			var result EvaluateMessageResult
+
+			var currentChatID string
+			err = workflow.ExecuteActivity(options, w.GetThreadChatID, threadID).Get(ctx, &currentChatID)
+			if err != nil {
+				workflow.GetLogger(ctx).Error("Failed to get thread chat ID", "error", err)
+			}
+
+			input := EvaluateMessageInput{
+				Messages:      messages,
+				ThreadAuthor:  authorPubKey,
+				IsOrganizer:   isOrganizer,
+				CurrentChatID: currentChatID,
+			}
+			err = workflow.ExecuteActivity(options, w.EvaluateMessage, input).Get(ctx, &result)
 			if err != nil {
 				workflow.GetLogger(ctx).Error("Failed to evaluate messages", "error", err)
-			} else if response != "" {
-				workflow.GetLogger(ctx).Info("Successfully evaluated messages", "response", response)
+			} else if result.Response != "" {
+				workflow.GetLogger(ctx).Info("Successfully evaluated messages", "response", result.Response)
 
-				if newChatID := w.extractChatIDFromResponse(response); newChatID != "" {
-					chatID = newChatID
-					workflow.GetLogger(ctx).Info("Updated chat ID from response", "chatID", chatID)
+				chatID = result.ChatID
+				workflow.GetLogger(ctx).Info("Updated chat ID from response", "chatID", chatID)
+
+				if currentChatID != "" {
+					continue
+				}
+				err = workflow.ExecuteActivity(options, w.SetThreadChatID, threadID, chatID).Get(ctx, nil)
+				if err != nil {
+					workflow.GetLogger(ctx).Error("Failed to set thread chat ID", "error", err)
 				}
 			}
 		} else {

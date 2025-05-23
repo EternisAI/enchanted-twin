@@ -118,6 +118,8 @@ func (a *TwinNetworkWorkflow) RegisterActivities(w interface{ RegisterActivity(i
 	w.RegisterActivity(a.QueryNetworkActivity)
 	w.RegisterActivity(a.GetChatMessages)
 	w.RegisterActivity(a.GetThreadState)
+	w.RegisterActivity(a.SetThreadChatID)
+	w.RegisterActivity(a.GetThreadChatID)
 }
 
 func (a *TwinNetworkWorkflow) RegisterWorkflows(w interface{ RegisterWorkflow(interface{}) }) {

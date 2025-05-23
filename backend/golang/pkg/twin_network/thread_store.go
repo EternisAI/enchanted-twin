@@ -29,6 +29,7 @@ type ThreadRecord struct {
 	ThreadID    string      `json:"thread_id"`
 	State       ThreadState `json:"state"`
 	LastUpdated time.Time   `json:"last_updated"`
+	ChatID      string      `json:"chat_id"`
 }
 
 // ThreadStore manages thread state for the client side
@@ -44,8 +45,53 @@ func NewThreadStore(store *db.Store) *ThreadStore {
 	}
 }
 
+func (ts *ThreadStore) GetThread(ctx context.Context, threadID string) (ThreadRecord, error) {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
+
+	return ts.getThreadUnlocked(ctx, threadID)
+}
+
+func (ts *ThreadStore) getThreadUnlocked(ctx context.Context, threadID string) (ThreadRecord, error) {
+	key := fmt.Sprintf("thread_state_%s", threadID)
+	value, err := ts.store.GetValue(ctx, key)
+	if err != nil {
+		return ThreadRecord{}, fmt.Errorf("failed to get thread state: %w", err)
+	}
+
+	if value == "" {
+		return ThreadRecord{}, fmt.Errorf("thread not found")
+	}
+
+	var record ThreadRecord
+	if err := json.Unmarshal([]byte(value), &record); err != nil {
+		return ThreadRecord{}, fmt.Errorf("failed to unmarshal thread record: %w", err)
+	}
+
+	return record, nil
+}
+
+func (ts *ThreadStore) SetThreadChatID(ctx context.Context, threadID string, chatID string) error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	thread, err := ts.getThreadUnlocked(ctx, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to get thread: %w", err)
+	}
+	thread.ChatID = chatID
+
+	recordJSON, err := json.Marshal(thread)
+	if err != nil {
+		return fmt.Errorf("failed to marshal thread record: %w", err)
+	}
+
+	key := fmt.Sprintf("thread_state_%s", threadID)
+	return ts.store.SetValue(ctx, key, string(recordJSON))
+}
+
 // SetThreadState updates the state of a thread
-func (ts *ThreadStore) SetThreadState(ctx context.Context, threadID string, state ThreadState) error {
+func (ts *ThreadStore) InitializeThread(ctx context.Context, threadID string, state ThreadState) error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 
@@ -53,9 +99,30 @@ func (ts *ThreadStore) SetThreadState(ctx context.Context, threadID string, stat
 		ThreadID:    threadID,
 		State:       state,
 		LastUpdated: time.Now(),
+		ChatID:      "",
 	}
 
 	recordJSON, err := json.Marshal(record)
+	if err != nil {
+		return fmt.Errorf("failed to marshal thread record: %w", err)
+	}
+
+	key := fmt.Sprintf("thread_state_%s", threadID)
+	return ts.store.SetValue(ctx, key, string(recordJSON))
+}
+
+func (ts *ThreadStore) SetThreadState(ctx context.Context, threadID string, state ThreadState) error {
+	ts.mu.Lock()
+	defer ts.mu.Unlock()
+
+	thread, err := ts.getThreadUnlocked(ctx, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to get thread: %w", err)
+	}
+	thread.State = state
+	thread.LastUpdated = time.Now()
+
+	recordJSON, err := json.Marshal(thread)
 	if err != nil {
 		return fmt.Errorf("failed to marshal thread record: %w", err)
 	}
@@ -69,11 +136,13 @@ func (ts *ThreadStore) GetThreadState(ctx context.Context, threadID string) (Thr
 	ts.mu.RLock()
 	defer ts.mu.RUnlock()
 
+	return ts.getThreadStateUnlocked(ctx, threadID)
+}
+
+func (ts *ThreadStore) getThreadStateUnlocked(ctx context.Context, threadID string) (ThreadState, error) {
 	key := fmt.Sprintf("thread_state_%s", threadID)
 	value, err := ts.store.GetValue(ctx, key)
 	if err != nil {
-		// If the error is "no rows in result set", it means the thread doesn't exist yet
-		// We'll just pass the error up to be handled by the caller
 		return ThreadStateNone, fmt.Errorf("failed to get thread state: %w", err)
 	}
 
@@ -104,7 +173,7 @@ func (ts *ThreadStore) GetAllThreadStates(ctx context.Context) (map[string]Threa
 		// Only process keys that start with thread_state_
 		if len(key) > 13 && key[:13] == "thread_state_" {
 			threadID := key[13:]
-			state, err := ts.GetThreadState(ctx, threadID)
+			state, err := ts.getThreadStateUnlocked(ctx, threadID)
 			if err != nil {
 				// Skip errors and continue
 				continue

@@ -51,6 +51,10 @@ func (e *ScheduleTask) Execute(ctx context.Context, inputs map[string]any) (type
 		return nil, errors.New("chat_id is required")
 	}
 
+	if cron == "" && delay <= 0 {
+		delay = 1.0
+	}
+
 	id := fmt.Sprintf("scheduled-task-%s-%s", toSnake(name), uuid.New().String())
 	opts := client.ScheduleOptions{
 		ID: id,
@@ -114,7 +118,7 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 					},
 					"delay": map[string]string{
 						"type":        "number",
-						"description": "The delay in seconds before the task is executed.",
+						"description": "The delay in seconds before the task is executed. Must be greater than 0 if no cron expression is provided. Defaults to 1 second if not specified.",
 					},
 					"cron": map[string]string{
 						"type":        "string",
@@ -125,7 +129,7 @@ func (e *ScheduleTask) Definition() openai.ChatCompletionToolParam {
 						"description": "The ID of the chat to send the message to. No chat_id specified would send the message to a new chat.",
 					},
 				},
-				"required": []string{"task", "delay", "name", "chat_id"},
+				"required": []string{"task", "name", "chat_id"},
 			},
 		},
 	}
