@@ -1,5 +1,13 @@
 import { useState } from 'react'
-import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from '../ui/dialog'
+import {
+  Dialog,
+  DialogTrigger,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+  DialogOverlay,
+  DialogPortal
+} from '../ui/dialog'
 import { VisuallyHidden } from '@radix-ui/react-visually-hidden'
 import { cn } from '@renderer/lib/utils'
 
@@ -18,19 +26,23 @@ export default function ImagePreview({ src, alt, thumbClassName, className }: Im
       <DialogTrigger asChild>
         <img src={src} alt={alt} className={cn('cursor-zoom-in', thumbClassName)} />
       </DialogTrigger>
-      <DialogContent
-        className={cn('p-0 g-transparent border-none w-full max-w-none rounded-xl', className)}
-      >
-        <VisuallyHidden>
-          <DialogTitle>{alt || 'Image preview'}</DialogTitle>
-        </VisuallyHidden>
-        <VisuallyHidden>
-          <DialogDescription>Preview of the selected image</DialogDescription>
-        </VisuallyHidden>
-        <div className="flex items-center justify-center">
-          <img src={src} alt={alt} className="object-contain rounded-xl" />
-        </div>
-      </DialogContent>
+      <DialogPortal>
+        <DialogOverlay onClick={() => setOpen(false)} />
+        <DialogContent
+          className={cn('p-0 bg-transparent border-none w-full max-w-none rounded-xl', className)}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <VisuallyHidden>
+            <DialogTitle>{alt || 'Image preview'}</DialogTitle>
+          </VisuallyHidden>
+          <VisuallyHidden>
+            <DialogDescription>Preview of the selected image</DialogDescription>
+          </VisuallyHidden>
+          <div className="flex items-center justify-center">
+            <img src={src} alt={alt} className="object-contain rounded-xl" />
+          </div>
+        </DialogContent>
+      </DialogPortal>
     </Dialog>
   )
 }
