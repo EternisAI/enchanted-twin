@@ -1,7 +1,11 @@
-/* ─────────────────────────── VoiceVisualizer.tsx ───────────────────────────
-   • NEW:  orbit animation when toolBlend > 0
-   • NEW:  per-particle “wiggle” noise in the vertex shader (always active)
---------------------------------------------------------------------------- */
+/**
+ * VoiceVisualizer.tsx
+ *
+ * • Luxury-gold tool icons
+ * • Smooth state transitions
+ * • No halo on light theme
+ * • Tool shape always shown ≥ 0.5 s, then fades smoothly
+ */
 
 import { useEffect, useMemo, useRef } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
@@ -9,7 +13,7 @@ import { EffectComposer, Bloom } from '@react-three/postprocessing'
 import { OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 
-/* ─────────────────── public props ─────────────────── */
+/* ──────────── public props ──────────── */
 
 export interface VoiceVisualizerProps {
   visualState: 0 | 1 | 2
@@ -17,11 +21,10 @@ export interface VoiceVisualizerProps {
   className?: string
   particleCount?: number
   assistantTextMessage?: string
-  /**  procedural ID ("perplexity_ask"), or raw URL / "image:<url>"  */
-  tool?: string
+  toolUrl?: string
 }
 
-/* ─────────────────── top-level component ─────────────────── */
+/* ──────────── main component ──────────── */
 
 export default function VoiceVisualizer({
   visualState,
@@ -29,7 +32,7 @@ export default function VoiceVisualizer({
   className,
   particleCount = 12_000,
   assistantTextMessage,
-  tool
+  toolUrl
 }: VoiceVisualizerProps) {
   return (
     <div
@@ -45,7 +48,7 @@ export default function VoiceVisualizer({
           visualState={visualState}
           particleCount={particleCount}
           getFreqData={getFreqData}
-          tool={tool}
+          tool={toolUrl}
         />
         <EffectComposer>
           <Bloom luminanceThreshold={0.3} intensity={1.2} />
@@ -54,7 +57,7 @@ export default function VoiceVisualizer({
       </Canvas>
 
       {assistantTextMessage && (
-        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 text-center text-primary text-md">
+        <div className="absolute bottom-28 left-1/2 -translate-x-1/2 max-w-xl text-center text-primary text-md overflow-hidden">
           {assistantTextMessage}
         </div>
       )}
@@ -62,47 +65,11 @@ export default function VoiceVisualizer({
   )
 }
 
-/* ─────────────────── shape generators (same as before) ──────────────────── */
-
+/* ──────────── helper types ──────────── */
 type ShapeGenSync = (count: number) => Float32Array
 type ShapeGenAsync = (count: number) => Promise<Float32Array>
 type ShapeGen = ShapeGenSync | ShapeGenAsync
 
-/* magnifying glass */
-const genMagnifyingGlass: ShapeGenSync = (n) => {
-  const out = new Float32Array(n * 3)
-  const ringN = Math.floor(n * 0.7)
-  const rOuter = 0.8,
-    rInner = 0.55
-  for (let i = 0; i < ringN; i++) {
-    const t = Math.random() * Math.PI * 2
-    const r = THREE.MathUtils.lerp(rInner, rOuter, Math.random())
-    out.set([Math.cos(t) * r, Math.sin(t) * r, 0], i * 3)
-  }
-  const start = new THREE.Vector2(rOuter * Math.SQRT1_2, -rOuter * Math.SQRT1_2)
-  const end = start.clone().add(new THREE.Vector2(0, -0.8))
-  for (let i = ringN; i < n; i++) {
-    const p = start.clone().lerp(end, Math.random())
-    out.set([p.x, p.y, 0], i * 3)
-  }
-  return out
-}
-
-/* picture frame */
-const genPictureFrame: ShapeGenSync = (n) => {
-  const out = new Float32Array(n * 3)
-  for (let i = 0; i < n; i++) {
-    const edge = i % 4
-    const t = Math.random() * 2 - 1
-    if (edge === 0) out.set([t, 1, 0], i * 3)
-    else if (edge === 1) out.set([1, t, 0], i * 3)
-    else if (edge === 2) out.set([t, -1, 0], i * 3)
-    else out.set([-1, t, 0], i * 3)
-  }
-  return out
-}
-
-/* bitmap → particles */
 const genFromImage =
   (url: string, alpha = 128): ShapeGenAsync =>
   async (count) => {
@@ -113,8 +80,7 @@ const genFromImage =
       im.onerror = err
       im.src = url
     })
-    const w = img.width,
-      h = img.height
+    const { width: w, height: h } = img
     const c = document.createElement('canvas')
     c.width = w
     c.height = h
@@ -130,19 +96,14 @@ const genFromImage =
     const maxDim = Math.max(w, h)
     for (let i = 0; i < count; i++) {
       const [px, py] = pts[(Math.random() * pts.length) | 0]
-      const nx = (px - w / 2) / (maxDim / 2),
-        ny = -(py - h / 2) / (maxDim / 2)
+      const nx = (px - w / 2) / (maxDim / 2)
+      const ny = -(py - h / 2) / (maxDim / 2)
       out.set([nx, ny, 0], i * 3)
     }
     return out
   }
 
-const TOOL_GENERATORS: Record<string, ShapeGen> = {
-  perplexity_ask: genMagnifyingGlass,
-  generate_image: genPictureFrame
-}
-
-/* ─────────────────── particle system ─────────────────── */
+/* ──────────── particle system ──────────── */
 
 function CubeParticles({
   visualState,
@@ -155,16 +116,23 @@ function CubeParticles({
   getFreqData: () => Uint8Array
   tool?: string
 }) {
+  /* refs ------------------------------------------------ */
   const mesh = useRef<THREE.Points>(null!)
   const sm = useRef(new Float32Array(256))
-  const toolBlend = useRef(tool ? 1 : 0)
-  const currentToolId = useRef<string | undefined>(undefined)
+  const homePosRef = useRef<Float32Array>(undefined) // original cube positions
+  const stateSmooth = useRef<number>(visualState)
+  const toolBlend = useRef(0)
+  const currentTool = useRef<string | undefined>(undefined) // what's currently shown
+  const displayTimer = useRef(0) // how long current shape has been shown
+  const pendingTool = useRef<string | undefined>(undefined) // what should be shown next
+  const isTransitioning = useRef(false)
+  const MIN_DISPLAY_TIME = 0.5 // minimum seconds to display tool
 
   /* ---------- FFT texture ---------- */
   const fftTex = useMemo(() => {
     const tex = new THREE.DataTexture(new Uint8Array(256 * 4), 256, 1, THREE.RGBAFormat)
-    tex.needsUpdate = true
     tex.minFilter = tex.magFilter = THREE.NearestFilter
+    tex.needsUpdate = true
     return tex
   }, [])
 
@@ -183,6 +151,7 @@ function CubeParticles({
       )
       ids[i] = i % 256
     }
+    homePosRef.current = home
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.BufferAttribute(home, 3))
     g.setAttribute('aHome', new THREE.BufferAttribute(home, 3))
@@ -191,27 +160,34 @@ function CubeParticles({
     return g
   }, [particleCount])
 
-  /* ---------- tool change handler ---------- */
-  useEffect(() => {
-    if (tool === currentToolId.current) return
-    currentToolId.current = tool
+  /* ---------- load tool shape into buffer ---------- */
+  const loadToolShape = (toolId: string | undefined) => {
+    if (!toolId) {
+      // Keep the current aTool buffer - don't modify it
+      // The shader will blend to home positions automatically
+      return
+    }
+
+    // choose generator
     let gen: ShapeGen
-    if (!tool) {
-      gen = () => geometry.getAttribute('aHome').array as Float32Array
-    } else if (tool.startsWith('image:') || /^(https?:|data:image)/.test(tool)) {
-      gen = genFromImage(tool.replace(/^image:/, ''))
-    } else if (TOOL_GENERATORS[tool]) {
-      gen = TOOL_GENERATORS[tool]
+    if (toolId.startsWith('image:') || /^(https?:|data:image)/.test(toolId)) {
+      gen = genFromImage(toolId.replace(/^image:/, ''))
     } else {
       gen = () => geometry.getAttribute('aHome').array as Float32Array
     }
+
     const apply = (arr: Float32Array) => {
-      geometry.getAttribute('aTool').set(arr)
-      geometry.getAttribute('aTool').needsUpdate = true
+      ;(geometry.getAttribute('aTool') as THREE.BufferAttribute).copyArray(arr).needsUpdate = true
     }
     const maybe = gen(particleCount)
     maybe instanceof Promise ? maybe.then(apply).catch(console.error) : apply(maybe)
-  }, [tool, particleCount, geometry])
+  }
+
+  /* ---------- handle tool changes ---------- */
+  useEffect(() => {
+    // Update pending tool whenever prop changes
+    pendingTool.current = tool
+  }, [tool])
 
   /* ---------- colours ---------- */
   const { isDarkTheme, idleCol, loadCol, speakCol } = useMemo(() => {
@@ -219,12 +195,12 @@ function CubeParticles({
     return {
       isDarkTheme: dark,
       idleCol: dark ? new THREE.Color(0.2, 0.4, 0.6) : new THREE.Color(0, 0, 0),
-      loadCol: dark ? new THREE.Color(0.5, 0.7, 1) : new THREE.Color(0.3, 0.6, 0.9),
+      loadCol: new THREE.Color(0xd4af37),
       speakCol: dark ? new THREE.Color(1, 0.5, 0.1) : new THREE.Color(0.8, 0, 0)
     }
   }, [])
 
-  /* ---------- material ---------- */
+  /* ---------- shader material ---------- */
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
@@ -241,22 +217,65 @@ function CubeParticles({
         fragmentShader,
         transparent: true,
         depthWrite: false,
+        alphaTest: 0.05,
         blending: isDarkTheme ? THREE.AdditiveBlending : THREE.NormalBlending
       }),
     [fftTex, idleCol, loadCol, speakCol, isDarkTheme]
   )
 
+  /* ---------- per-frame updates ---------- */
   useFrame(({ clock }, delta) => {
-    /* smooth fade-in/out of tool */
-    const target = tool ? 1 : 0
-    toolBlend.current = THREE.MathUtils.damp(toolBlend.current, target, 5, delta)
+    /* smooth state transitions */
+    stateSmooth.current = THREE.MathUtils.damp(stateSmooth.current, visualState, 4, delta)
+    material.uniforms.uState.value = stateSmooth.current
+
+    /* update display timer */
+    if (currentTool.current !== undefined) {
+      displayTimer.current += delta
+    }
+
+    /* check if we need to transition */
+    const needsTransition = pendingTool.current !== currentTool.current
+    const canTransition =
+      displayTimer.current >= MIN_DISPLAY_TIME || currentTool.current === undefined
+
+    if (needsTransition && canTransition && !isTransitioning.current) {
+      isTransitioning.current = true
+    }
+
+    /* handle transitions */
+    if (isTransitioning.current) {
+      const targetBlend = 0
+      toolBlend.current = THREE.MathUtils.damp(toolBlend.current, targetBlend, 5, delta)
+
+      // Once faded out, switch to new tool
+      if (toolBlend.current < 0.01) {
+        currentTool.current = pendingTool.current
+        displayTimer.current = 0
+
+        if (currentTool.current !== undefined) {
+          // Load and show new tool
+          loadToolShape(currentTool.current)
+          isTransitioning.current = false
+        } else {
+          // We're going back to cube, keep transitioning false
+          isTransitioning.current = false
+        }
+      }
+    } else {
+      // Not transitioning - maintain proper blend
+      const targetBlend = currentTool.current !== undefined ? 1 : 0
+      toolBlend.current = THREE.MathUtils.damp(toolBlend.current, targetBlend, 5, delta)
+    }
+
     material.uniforms.uToolBlend.value = toolBlend.current
 
-    /* 🌱   gentle buoyant motion (no big rotations)   */
-    const bob = 0.05 * Math.sin(clock.elapsedTime * 0.8) // ±0.05 units
-    mesh.current.position.set(0, bob, 0)
+    /* gentle bob */
+    if (mesh.current) {
+      mesh.current.position.y = 0.05 * Math.sin(clock.elapsedTime * 0.8)
+    }
 
-    /* FFT ➜ texture */
+    /* FFT → texture */
     const fft = getFreqData()
     const img = fftTex.image.data as Uint8Array
     for (let i = 0; i < 256; i++) {
@@ -266,16 +285,15 @@ function CubeParticles({
       img[j + 3] = 255
     }
     fftTex.needsUpdate = true
-
     material.uniforms.uTime.value = clock.elapsedTime
-    material.uniforms.uState.value = visualState
   })
+
   return <points ref={mesh} geometry={geometry} material={material} />
 }
 
-/* ─────────────────── shaders ─────────────────── */
+/* ──────────── shaders (unchanged) ──────────── */
 
-const vertexShader = /*glsl*/ `
+const vertexShader = /* glsl */ `
 uniform sampler2D uFFT;
 uniform float     uState;
 uniform float     uTime;
@@ -290,42 +308,72 @@ attribute float aId;
 varying   vec3  vColor;
 
 void main(){
-  /* state weights */
-  float wToolBase=smoothstep(0.,1.,uState)-smoothstep(1.,2.,uState);
-  float wSpeak   =smoothstep(1.,2.,uState);
-  float wTool    =max(wToolBase,uToolBlend);
+  // 1. Determine base particle position by blending between home and tool shapes
+  vec3 p_base = mix(aHome, aTool, uToolBlend);
+  vec3 p = p_base;
 
-  /* base morph */
-  vec3 p=mix(aHome,aTool,wTool);
+  // 2. Apply FFT displacement based on uState
+  float amp = texture2D(uFFT, vec2((aId + 0.5) / 256.0, 0.5)).r / 255.0;
 
-  /* tiny perpetual wiggle */
-  float jitter=0.02;
+  // Ensure displacement_dir is valid even if p_base is zero vector
+  vec3 displacement_dir = length(p_base) > 0.0001 ? normalize(p_base) : vec3(0.0, 0.0, 1.0);
+  if (length(p_base) < 0.0001 && length(aHome) > 0.0001) {
+      displacement_dir = normalize(aHome);
+  }
+
+  float idle_strength = 0.3;
+  float load_strength = 0.8;
+  float speak_strength = 2.5;
+  float displacement_strength;
+
+  if (uState < 1.0) {
+      displacement_strength = mix(idle_strength, load_strength, uState);
+  } else {
+      displacement_strength = mix(load_strength, speak_strength, uState - 1.0);
+  }
+  displacement_strength = max(0.0, displacement_strength);
+
+  p += displacement_dir * amp * displacement_strength;
+
+  // 3. Add jitter based on overall activity
+  float activityLevel = smoothstep(0.0, 0.1, uState);
+  float jitterAmount = activityLevel * 0.02;
   p.xy += vec2(
-    sin(uTime*0.8 + aId*12.0)*jitter,
-    cos(uTime*0.6 + aId*17.0)*jitter
+    sin(uTime * 0.8 + aId * 12.0) * jitterAmount,
+    cos(uTime * 0.6 + aId * 17.0) * jitterAmount
   );
 
-  /* audio punch on speak */
-  float amp=texture2D(uFFT,vec2((aId+0.5)/256.,0.)).r;
-  p=mix(p,p+normalize(p)*amp*3.,wSpeak);
+  // 4. Swirl effect
+  float speakReductionForSwirl = smoothstep(1.0, 1.8, uState);
+  float swirlActivation = uToolBlend * (1.0 - speakReductionForSwirl);
+  if (length(p.xy) > 0.01 && swirlActivation > 0.01) {
+    float ang = atan(p.y, p.x) + uTime * 0.25 * swirlActivation;
+    float r   = length(p.xy);
+    p.xy      = vec2(cos(ang), sin(ang)) * r;
+  }
 
-  /* swirl while morphing */
-  float swirlW=wTool*(1.-wSpeak);
-  float ang   =atan(p.y,p.x)+uTime*0.25*swirlW;
-  float r     =length(p.xy);
-  p.xy        =vec2(cos(ang),sin(ang))*r;
+  // 5. Point size
+  float speakFactorForPointSize = smoothstep(1.0, 2.0, uState);
+  gl_PointSize = max(2.0, 2.0 + amp * 255.0 * 5.0 * speakFactorForPointSize);
+  gl_PointSize = mix(gl_PointSize, max(1.0, gl_PointSize * 0.5), 1.0 - uToolBlend);
 
-  gl_PointSize=max(2.,2.+amp*5.*wSpeak);
-  vColor=mix(mix(uIdleCol,uLoadCol,wTool),uSpeakCol,wSpeak);
-  gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+  // 6. Color determination
+  vec3 color = uIdleCol;
+  color = mix(color, uLoadCol, uToolBlend);
+  float speakColorFactor = smoothstep(1.0, 2.0, uState);
+  color = mix(color, uSpeakCol, speakColorFactor);
+
+  vColor = color;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
 }
 `
 
-const fragmentShader = /*glsl*/ `
+const fragmentShader = /* glsl */ `
 varying vec3 vColor;
 void main(){
-  float d=length(gl_PointCoord-0.5);
-  float a=smoothstep(0.5,0.,d);
-  gl_FragColor=vec4(vColor,a);
+  float d = length(gl_PointCoord - 0.5);
+  float a = smoothstep(0.5, 0.35, d);
+  if (a < 0.01) discard;
+  gl_FragColor = vec4(vColor, a);
 }
 `

@@ -93,33 +93,38 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
             ))}
           </div>
         )}
-        <div className="flex flex-row items-center pt-2 gap-4 justify-between w-full">
-          <div className="flex flex-wrap gap-4 items-center">
-            {message.toolCalls.map((toolCall) => {
-              const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
+        <div className="flex flex-row items-center  gap-4 justify-between w-full">
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-4 items-center">
+              {message.toolCalls.map((toolCall) => {
+                const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
 
-              return (
-                <div
-                  key={toolCall.id}
-                  className={cn(
-                    'flex items-center gap-2',
-                    toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
-                  )}
-                >
-                  {toolCall.isCompleted ? (
-                    <Badge className="text-green-600 border-green-500" variant="outline">
-                      <CheckCircle className="h-4 w-4" />
-                      <span>{toolNameCompleted}</span>
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="border-gray-300">
-                      <LoaderIcon className="h-4 w-4 animate-spin" />
-                      <span>{toolNameInProgress}...</span>
-                    </Badge>
-                  )}
-                </div>
-              )
-            })}
+                return (
+                  <div
+                    key={toolCall.id}
+                    className={cn(
+                      'flex items-center gap-2 pt-2',
+                      toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
+                    )}
+                  >
+                    {toolCall.isCompleted ? (
+                      <Badge className="text-green-600 border-green-500" variant="outline">
+                        <CheckCircle className="h-4 w-4" />
+                        <span>{toolNameCompleted}</span>
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="border-gray-300">
+                        <LoaderIcon className="h-4 w-4 animate-spin" />
+                        <span>{toolNameInProgress}...</span>
+                      </Badge>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+            <div className="text-xs text-left text-muted-foreground ">
+              {new Date(message.createdAt).toLocaleTimeString()}
+            </div>
           </div>
           {replyText && replyText.trim() && (
             <span className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -146,9 +151,6 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
               )}
             </span>
           )}
-        </div>
-        <div className="text-xs text-muted-foreground ">
-          {new Date(message.createdAt).toLocaleTimeString()}
         </div>
       </div>
     </motion.div>

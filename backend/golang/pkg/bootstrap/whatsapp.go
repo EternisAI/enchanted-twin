@@ -30,7 +30,8 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	dbFilePath := filepath.Join(dbDir, "whatsapp_store.db")
 	container, err := sqlstore.New("sqlite3", "file:"+dbFilePath+"?_foreign_keys=on", dbLog)
 	if err != nil {
-		logger.Error("Failed to create WhatsApp database", "error", err, "dbFilePath", dbFilePath)
+		logger.Info("Failed to create WhatsApp database:", "dbFilePath", dbFilePath)
+		logger.Error("Failed to create WhatsApp database:", "error", err, "dbFilePath", dbFilePath)
 		panic(err)
 	}
 	deviceStore, err := container.GetFirstDevice()
