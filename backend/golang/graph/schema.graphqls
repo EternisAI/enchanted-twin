@@ -232,6 +232,7 @@ type MCPServerDefinition {
   type: MCPServerType!
   connected: Boolean!
   enabled: Boolean!
+  tools: [Tool!]
 }
 
 type Tool {

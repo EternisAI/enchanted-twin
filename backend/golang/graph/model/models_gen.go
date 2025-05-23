@@ -101,6 +101,7 @@ type MCPServerDefinition struct {
 	Type      MCPServerType `json:"type"`
 	Connected bool          `json:"connected"`
 	Enabled   bool          `json:"enabled"`
+	Tools     []*Tool       `json:"tools,omitempty"`
 }
 
 type Message struct {
