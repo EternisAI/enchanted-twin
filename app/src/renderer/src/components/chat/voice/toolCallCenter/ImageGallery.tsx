@@ -42,6 +42,7 @@ export default function ImageGallery({ images, initialIndex = 0, onClose }: Imag
       <DialogContent
         className="min-w-full w-full h-full p-0 border-none bg-background"
         aria-describedby={undefined}
+        onClick={onClose}
       >
         <button
           onClick={onClose}
@@ -50,7 +51,10 @@ export default function ImageGallery({ images, initialIndex = 0, onClose }: Imag
           <X className="h-8 w-8" />
         </button>
 
-        <div className="relative w-full h-full flex items-center justify-center">
+        <div
+          className="relative w-full h-full flex items-center justify-center"
+          onClick={(e) => e.stopPropagation()}
+        >
           {images.length > 1 && (
             <button
               onClick={previousImage}
