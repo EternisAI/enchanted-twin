@@ -115,9 +115,10 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 	var response struct {
 		Data struct {
 			GetNewMessages []*struct {
-				ID        string `json:"id"`
-				UpdatedAt string `json:"updatedAt"`
-				Messages  []struct {
+				ID           string `json:"id"`
+				UpdatedAt    string `json:"updatedAt"`
+				AuthorPubKey string `json:"authorPubKey"`
+				Messages     []struct {
 					ID           string    `json:"id"`
 					AuthorPubKey string    `json:"authorPubKey"`
 					NetworkID    string    `json:"networkID"`
@@ -165,9 +166,10 @@ func (a *TwinNetworkAPI) GetNewMessages(ctx context.Context, networkID string, f
 		}
 
 		threads[i] = &model.NetworkThread{
-			ID:        thread.ID,
-			UpdatedAt: thread.UpdatedAt,
-			Messages:  messages,
+			ID:           thread.ID,
+			UpdatedAt:    thread.UpdatedAt,
+			Messages:     messages,
+			AuthorPubKey: thread.AuthorPubKey,
 		}
 	}
 
