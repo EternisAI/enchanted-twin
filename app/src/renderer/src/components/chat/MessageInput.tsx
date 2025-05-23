@@ -1,17 +1,18 @@
 import { useState, useEffect, useRef, useLayoutEffect } from 'react'
 import { Button } from '../ui/button'
-import { ArrowBigUp, Lightbulb, X } from 'lucide-react'
+import { ArrowUp, Lightbulb, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '../../lib/utils'
+import { Tooltip, TooltipContent } from '../ui/tooltip'
+import { TooltipTrigger } from '@radix-ui/react-tooltip'
 
 type MessageInputProps = {
   onSend: (text: string, reasoning: boolean, voice: boolean) => void
   isWaitingTwinResponse: boolean
   onStop?: () => void
-  hasReasoning?: boolean
   isReasonSelected: boolean
   onReasonToggle?: (reasoningSelected: boolean) => void
-  voice?: boolean
+  voiceMode?: boolean
 }
 
 export default function MessageInput({
@@ -20,8 +21,7 @@ export default function MessageInput({
   onStop,
   isReasonSelected,
   onReasonToggle,
-  hasReasoning = true,
-  voice = false
+  voiceMode = false
 }: MessageInputProps) {
   const [text, setText] = useState('')
 
@@ -29,14 +29,18 @@ export default function MessageInput({
 
   const handleSend = () => {
     if (!text.trim() || isWaitingTwinResponse) return
-    onSend(text, isReasonSelected, voice)
+    onSend(text, isReasonSelected, voiceMode)
     setText('')
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      if (isWaitingTwinResponse) {
+        onStop?.()
+      } else {
+        handleSend()
+      }
     }
   }
 
@@ -80,31 +84,37 @@ export default function MessageInput({
           rows={1}
           autoFocus
           placeholder="What are you thinking?"
-          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[15rem]"
+          className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[12rem]"
         />
-      </div>
-      <div className="flex justify-end items-center gap-3">
-        {hasReasoning && (
-          <Button
-            onClick={toggleReason}
-            className={cn(
-              'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm',
-              isReasonSelected
-                ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-                : ''
-            )}
-            variant="outline"
-          >
-            <Lightbulb className="w-4 h-5" />
-            Reasoning
-          </Button>
-        )}
-        <SendButton
-          onSend={handleSend}
-          isWaitingTwinResponse={isWaitingTwinResponse}
-          onStop={onStop}
-          text={text}
-        />
+        <div className="flex justify-end items-center gap-3">
+          {!voiceMode && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={toggleReason}
+                  className={cn(
+                    'rounded-full transition-all shadow-none hover:shadow-lg !px-2.25 active:shadow-sm',
+                    isReasonSelected
+                      ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
+                      : ''
+                  )}
+                  variant="outline"
+                >
+                  <Lightbulb className="w-4 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Reasoning</p>
+              </TooltipContent>
+            </Tooltip>
+          )}
+          <SendButton
+            onSend={handleSend}
+            isWaitingTwinResponse={isWaitingTwinResponse}
+            onStop={onStop}
+            text={text}
+          />
+        </div>
       </div>
     </motion.div>
   )
@@ -164,7 +174,7 @@ export function SendButton({
             transition={{ duration: 0.4, ease: 'easeOut' }}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <ArrowBigUp
+            <ArrowUp
               className="w-4 h-4"
               fill={!isWaitingTwinResponse && !!text.trim() ? 'currentColor' : 'none'}
             />
