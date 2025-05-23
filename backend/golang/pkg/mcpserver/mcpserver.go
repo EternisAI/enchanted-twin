@@ -110,7 +110,13 @@ func (s *service) ConnectMCPServer(
 			if s.config == nil {
 				return nil, fmt.Errorf("config is nil, cannot connect to Enchanted MCP server")
 			}
-			transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
+
+			oauth, err := s.store.GetOAuthTokens(ctx, "google")
+			if err != nil {
+				return nil, fmt.Errorf("failed to get oauth tokens: %w", err)
+			}
+
+			transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL, &oauth.AccessToken)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get transport: %w", err)
 			}
@@ -210,8 +216,10 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 	}
 
 	connectedServerIds := []string{}
+	connectedServerMap := make(map[string]*ConnectedMCPServer)
 	for _, connectedServer := range s.connectedServers {
 		connectedServerIds = append(connectedServerIds, connectedServer.ID)
+		connectedServerMap[connectedServer.ID] = connectedServer
 	}
 
 	defaultServers := getDefaultMCPServers() // Get default servers
@@ -220,7 +228,7 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 
 	// Process servers from the repository
 	for _, mcpServer := range mcpservers {
-		mcpserversDefinitions = append(mcpserversDefinitions, &model.MCPServerDefinition{
+		mcpServerDefinition := &model.MCPServerDefinition{
 			ID:        mcpServer.ID,
 			Name:      mcpServer.Name,
 			Command:   mcpServer.Command,
@@ -229,7 +237,21 @@ func (s *service) GetMCPServers(ctx context.Context) ([]*model.MCPServerDefiniti
 			Connected: slices.Contains(connectedServerIds, mcpServer.ID),
 			Enabled:   mcpServer.Enabled,
 			Type:      mcpServer.Type,
-		})
+			Tools:     []*model.Tool{},
+		}
+
+		if connectedServerMap[mcpServer.ID] != nil {
+			mcpServerDefinition.Connected = true
+			mcpServerDefinition.Enabled = true
+
+			tools, err := getTools(ctx, connectedServerMap[mcpServer.ID])
+			if err != nil {
+				log.Error("Error getting tools for MCP server", "server", mcpServer.Name, "error", err)
+			}
+			mcpServerDefinition.Tools = tools
+		}
+
+		mcpserversDefinitions = append(mcpserversDefinitions, mcpServerDefinition)
 		existingTypes[string(mcpServer.Type)] = true // Mark type as existing
 	}
 
@@ -283,7 +305,13 @@ func (s *service) LoadMCP(ctx context.Context) error {
 					log.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
 					continue
 				}
-				transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
+				oauth, err := s.store.GetOAuthTokens(ctx, "google")
+				if err != nil {
+					log.Error("Error getting oauth tokens for MCP server", "server", server.Name, "error", err)
+					continue
+				}
+
+				transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL, &oauth.AccessToken)
 				if err != nil {
 					log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
 					continue
@@ -481,13 +509,18 @@ func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
 func GetTransportWithHTTP(
 	ctx context.Context,
 	serverURL *string,
+	accessToken *string,
 ) (mcptransport.Transport, error) {
 	if serverURL == nil || *serverURL == "" {
 		return nil, fmt.Errorf("URL is required for HTTPS transport")
 	}
 	// mcphttp.NewHTTPClientTransport takes (baseURL string, client *stdhttp.Client)
 	// Using nil for the client will use http.DefaultClient.
-	return mcphttp.NewHTTPClientTransport(*serverURL), nil
+	transport := mcphttp.NewHTTPClientTransport(*serverURL)
+	if accessToken != nil {
+		transport.WithHeader("Authorization", "Bearer "+*accessToken)
+	}
+	return transport, nil
 }
 
 func GetTransportWithIO(
@@ -582,4 +615,29 @@ func CapitalizeFirst(s string) string {
 		return string(firstRune) + restOfString
 	}
 	return string(firstRune)
+}
+
+func getTools(ctx context.Context, connectedServer *ConnectedMCPServer) ([]*model.Tool, error) {
+	allTools := []*model.Tool{}
+	cursor := ""
+	for {
+		client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
+		if err != nil {
+			log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
+			break
+		}
+
+		for _, tool := range client_tools.Tools {
+			allTools = append(allTools, &model.Tool{
+				Name:        tool.Name,
+				Description: *tool.Description,
+			})
+		}
+
+		if client_tools.NextCursor == nil || *client_tools.NextCursor == "" {
+			break
+		}
+		cursor = *client_tools.NextCursor
+	}
+	return allTools, nil
 }
