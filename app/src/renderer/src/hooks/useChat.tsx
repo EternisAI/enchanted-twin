@@ -22,7 +22,7 @@ export function useSendMessage(
     }
   })
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = async (text: string, reasoning: boolean, voice: boolean) => {
     const optimisticMessage: Message = {
       id: crypto.randomUUID(),
       text,
@@ -39,7 +39,9 @@ export function useSendMessage(
       await sendMessageMutation({
         variables: {
           chatId,
-          text
+          text,
+          reasoning,
+          voice
         }
       })
     } catch (error) {

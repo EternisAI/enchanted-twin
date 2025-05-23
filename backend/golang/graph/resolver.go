@@ -5,7 +5,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"go.temporal.io/sdk/client"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/root-v2"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -28,5 +27,6 @@ type Resolver struct {
 	MCPService             mcpserver.MCPService
 	DataProcessingWorkflow *workflows.DataProcessingWorkflows
 	TelegramService        *telegram.TelegramService
-	RootClient             *root.RootClient
+	WhatsAppQRCode         *string // Current WhatsApp QR code
+	WhatsAppConnected      bool    // WhatsApp connection status
 }

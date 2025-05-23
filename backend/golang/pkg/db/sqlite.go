@@ -77,6 +77,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE
 		);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
+		CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
 	`)
 	if err != nil {
 		return nil, err
@@ -95,6 +96,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			enabled BOOLEAN DEFAULT FALSE
 		);
 		CREATE INDEX IF NOT EXISTS idx_mcp_servers_id ON mcp_servers(id);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_mcp_servers_name ON mcp_servers(name);
 	`)
 	if err != nil {
 		return nil, err

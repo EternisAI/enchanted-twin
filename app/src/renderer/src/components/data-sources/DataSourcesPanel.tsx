@@ -24,12 +24,14 @@ import XformerlyTwitterIcon from '@renderer/assets/icons/x'
 import { DataSource, DataSourcesPanelProps, PendingDataSource, IndexedDataSource } from './types'
 import { toast } from 'sonner'
 import { gql } from '@apollo/client'
-import { DataSourceDialog } from './DataSourceDialog'
 import { Card } from '../ui/card'
 import OpenAI from '@renderer/assets/icons/openai'
 import { format } from 'date-fns'
 import { TooltipContent, TooltipTrigger } from '../ui/tooltip'
 import { Tooltip, TooltipProvider } from '@radix-ui/react-tooltip'
+import WhatsAppSync from './custom-view/WhatAppSync'
+import { DataSourceDialog } from './DataSourceDialog'
+import { Dialog, DialogContent } from '../ui/dialog'
 
 const ADD_DATA_SOURCE = gql`
   mutation AddDataSource($name: String!, $path: String!) {
@@ -69,7 +71,11 @@ const SUPPORTED_DATA_SOURCES: DataSource[] = [
     selectType: 'files',
     fileRequirement: 'Select WhatsApp SQLITE file',
     icon: <WhatsAppIcon className="h-4 w-4" />,
-    fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }]
+    fileFilters: [{ name: 'WhatsApp Database', extensions: ['db', 'sqlite'] }],
+    customView: {
+      name: 'QR Code',
+      component: <WhatsAppSync />
+    }
   },
   {
     name: 'Telegram',
@@ -136,7 +142,7 @@ const PendingDataSourceCard = ({
   if (!sourceDetails) return null
 
   return (
-    <div className="p-4 rounded-lg bg-card border h-full flex items-center justify-between gap-3">
+    <div className="p-4 rounded-lg h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         {sourceDetails.icon}
         <div>
@@ -181,7 +187,7 @@ const IndexedDataSourceCard = ({
     !source.isIndexed && (source.isProcessed ? (source.indexProgress ?? 0) > 0 : true)
 
   return (
-    <div className="p-4 rounded-lg bg-transparent border h-full flex items-center justify-between gap-3">
+    <div className="p-4 rounded-lg bg-transparent h-full flex items-center justify-between gap-3">
       <div className="flex items-center gap-3 w-full">
         <div className="flex shrink-0 items-center gap-2">{sourceDetails.icon}</div>
         <div className="flex flex-col gap-0 justify-start w-full">
@@ -359,6 +365,9 @@ export function DataSourcesPanel({
             path: source.path
           }
         })
+        window.api.analytics.capture('data_source_added', {
+          source: source.name
+        })
       }
       return true
     } catch (error) {
@@ -529,7 +538,7 @@ export function DataSourcesPanel({
           size="lg"
           onClick={handleStartIndexing}
           disabled={isIndexing || isProcessing || isNotStarted || !hasPendingDataSources}
-          className="w-full"
+          className="w-fit"
         >
           {isIndexing ? (
             <>
@@ -563,13 +572,18 @@ export function DataSourcesPanel({
         </div>
       )}
 
-      <DataSourceDialog
-        selectedSource={selectedSource}
-        onClose={() => setSelectedSource(null)}
-        pendingDataSources={pendingDataSources}
-        onFileSelect={handleFileSelect}
-        onAddSource={handleAddSource}
-      />
+      <Dialog open={!!selectedSource} onOpenChange={() => setSelectedSource(null)}>
+        <DialogContent className="fixed left-[50%] top-[50%] z-[200] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-center data-[state=open]:slide-in-from-center sm:rounded-lg">
+          <DataSourceDialog
+            selectedSource={selectedSource}
+            onClose={() => setSelectedSource(null)}
+            pendingDataSources={pendingDataSources}
+            onFileSelect={handleFileSelect}
+            onAddSource={handleAddSource}
+            customComponent={selectedSource?.customView ? selectedSource.customView : undefined}
+          />
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }

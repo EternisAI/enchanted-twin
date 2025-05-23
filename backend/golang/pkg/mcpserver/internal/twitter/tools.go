@@ -1,0 +1,359 @@
+package twitter
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+
+	"github.com/g8rswimmer/go-twitter/v2"
+	mcp_golang "github.com/metoro-io/mcp-golang"
+)
+
+const (
+	LIST_FEED_TOOL_NAME      = "list_feed_tweets"
+	POST_TWEET_TOOL_NAME     = "post_tweet"
+	SEARCH_TWEETS_TOOL_NAME  = "search_tweets"
+	LIST_BOOKMARKS_TOOL_NAME = "list_bookmarks"
+)
+
+const (
+	LIST_FEED_TOOL_DESCRIPTION      = "List the tweets from the feed of user. It returns chronologically list of tweets from most recent"
+	POST_TWEET_TOOL_DESCRIPTION     = "Post a tweet"
+	SEARCH_TWEETS_TOOL_DESCRIPTION  = "Search for tweets from all tweets using a keyword"
+	LIST_BOOKMARKS_TOOL_DESCRIPTION = "List the bookmarks of the user"
+)
+
+type User struct {
+	Data struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Username string `json:"username"`
+	} `json:"data"`
+}
+
+func GetUser(accessToken string) (*User, error) {
+	// Twitter API v2 endpoint for authenticated user
+	url := "https://api.twitter.com/2/users/me?user.fields=username,name"
+
+	// Create HTTP client and request
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		fmt.Printf("Error creating request: %v\n", err)
+		return nil, fmt.Errorf("error creating request: %v", err)
+	}
+
+	// Set Authorization header with user access token
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	// Send the request
+	resp, err := client.Do(req)
+	if err != nil {
+		fmt.Printf("Error making request: %v\n", err)
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	// Check response status
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		fmt.Printf("Error: %s, Response: %s\n", resp.Status, string(body))
+		return nil, fmt.Errorf("error getting user: %s", resp.Status)
+	}
+
+	// Read and parse the response
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("Error reading response: %v\n", err)
+		return nil, fmt.Errorf("error reading response: %v", err)
+	}
+
+	var user User
+	if err := json.Unmarshal(body, &user); err != nil {
+		fmt.Printf("Error parsing JSON: %v\n", err)
+		return nil, fmt.Errorf("error parsing JSON: %v", err)
+	}
+	return &user, nil
+}
+
+type ListFeedTweetsArguments struct {
+	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page, returned in the response"`
+	Limit           int    `json:"limit"            jsonschema:"required,description=The number of tweets to list, minimum 10, maximum 50"`
+}
+
+type PostTweetArguments struct {
+	Content string `json:"content" jsonschema:"required,description=The content of the tweet"`
+}
+
+type SearchTweetsArguments struct {
+	Query string `json:"query" jsonschema:"required,description=The query to search for"`
+	Limit int    `json:"limit" jsonschema:"required,description=The number of tweets to search for, minimum 10, maximum 50"`
+}
+
+type ListBookmarksArguments struct {
+	PaginationToken string `json:"pagination_token" jsonschema:"required,description=The pagination token to start the list from, empty if first page"`
+	Limit           int    `json:"limit"            jsonschema:"required,description=The number of bookmarks to list, minimum 10, maximum 50"`
+}
+
+type authorize struct {
+	Token string
+}
+
+func (a authorize) Add(req *http.Request) {
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", a.Token))
+}
+
+func processListFeedTweets(
+	ctx context.Context,
+	accessToken string,
+	arguments ListFeedTweetsArguments,
+) ([]*mcp_golang.Content, error) {
+	client := &twitter.Client{
+		Authorizer: authorize{
+			Token: accessToken,
+		},
+		Client: http.DefaultClient,
+		Host:   "https://api.twitter.com",
+	}
+
+	user, err := GetUser(accessToken)
+	if err != nil {
+		return nil, err
+	}
+
+	maxResults := 50
+	if arguments.Limit > 50 {
+		maxResults = arguments.Limit
+	}
+
+	feed, err := client.UserTweetReverseChronologicalTimeline(
+		ctx,
+		user.Data.ID,
+		twitter.UserTweetReverseChronologicalTimelineOpts{
+			MaxResults:      maxResults,
+			PaginationToken: arguments.PaginationToken,
+			TweetFields: []twitter.TweetField{
+				twitter.TweetFieldPublicMetrics,
+				twitter.TweetFieldCreatedAt,
+				twitter.TweetFieldAuthorID,
+			},
+			UserFields: []twitter.UserField{twitter.UserFieldUserName},
+			Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
+		},
+	)
+	if err != nil {
+		fmt.Println("Error getting feed:", err)
+		return nil, err
+	}
+
+	contents := []*mcp_golang.Content{}
+	users := feed.Raw.Includes.UsersByID()
+	for _, tweet := range feed.Raw.Tweets {
+		author, ok := users[tweet.AuthorID]
+		authorName := tweet.AuthorID
+		if ok {
+			authorName = author.UserName
+		}
+		tweetURL := fmt.Sprintf("https://x.com/%s/status/%s", authorName, tweet.ID)
+		contents = append(contents, &mcp_golang.Content{
+			Type: "text",
+			TextContent: &mcp_golang.TextContent{
+				Text: fmt.Sprintf(
+					"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+					tweet.Text,
+					tweet.CreatedAt,
+					tweet.AuthorID,
+					tweetURL,
+				),
+			},
+		})
+	}
+
+	contents = append(contents, &mcp_golang.Content{
+		Type: "text",
+		TextContent: &mcp_golang.TextContent{
+			Text: fmt.Sprintf("Next pagination token: %s", feed.Meta.NextToken),
+		},
+	})
+
+	return contents, nil
+}
+
+func processPostTweet(
+	ctx context.Context,
+	accessToken string,
+	_arguments PostTweetArguments,
+) ([]*mcp_golang.Content, error) {
+	client := &twitter.Client{
+		Authorizer: authorize{
+			Token: accessToken,
+		},
+		Client: http.DefaultClient,
+		Host:   "https://api.twitter.com",
+	}
+
+	_, err := client.CreateTweet(ctx, twitter.CreateTweetRequest{
+		Text: _arguments.Content,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return []*mcp_golang.Content{
+		{
+			Type: "text",
+			TextContent: &mcp_golang.TextContent{
+				Text: "Posted tweet successfully",
+			},
+		},
+	}, nil
+}
+
+func processSearchTweets(
+	ctx context.Context,
+	accessToken string,
+	arguments SearchTweetsArguments,
+) ([]*mcp_golang.Content, error) {
+	client := &twitter.Client{
+		Authorizer: authorize{
+			Token: accessToken,
+		},
+		Client: http.DefaultClient,
+		Host:   "https://api.twitter.com",
+	}
+
+	limit := 50
+	if arguments.Limit > 50 {
+		limit = arguments.Limit
+	}
+
+	search, err := client.TweetRecentSearch(ctx, arguments.Query, twitter.TweetRecentSearchOpts{
+		MaxResults: limit,
+		TweetFields: []twitter.TweetField{
+			twitter.TweetFieldPublicMetrics,
+			twitter.TweetFieldCreatedAt,
+			twitter.TweetFieldAuthorID,
+		},
+		UserFields: []twitter.UserField{twitter.UserFieldUserName},
+		Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	users := search.Raw.Includes.UsersByID()
+
+	contents := []*mcp_golang.Content{}
+	for _, tweet := range search.Raw.Tweets {
+		author, ok := users[tweet.AuthorID]
+		authorName := tweet.AuthorID
+		if ok {
+			authorName = author.UserName
+		}
+		tweetURL := fmt.Sprintf("https://x.com/%s/status/%s", authorName, tweet.ID)
+		contents = append(contents, &mcp_golang.Content{
+			Type: "text",
+			TextContent: &mcp_golang.TextContent{
+				Text: fmt.Sprintf(
+					"Tweet: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+					tweet.Text,
+					tweet.CreatedAt,
+					authorName,
+					tweetURL,
+				),
+			},
+		})
+	}
+
+	contents = append(contents, &mcp_golang.Content{
+		Type: "text",
+		TextContent: &mcp_golang.TextContent{
+			Text: fmt.Sprintf("Next pagination token: %s", search.Meta.NextToken),
+		},
+	})
+
+	return contents, nil
+}
+
+func processListBookmarks(
+	ctx context.Context,
+	accessToken string,
+	arguments ListBookmarksArguments,
+) ([]*mcp_golang.Content, error) {
+	client := &twitter.Client{
+		Authorizer: authorize{
+			Token: accessToken,
+		},
+		Client: http.DefaultClient,
+		Host:   "https://api.twitter.com",
+	}
+
+	user, err := GetUser(accessToken)
+	if err != nil {
+		return nil, err
+	}
+
+	paginationToken := ""
+	if arguments.PaginationToken != "" {
+		paginationToken = arguments.PaginationToken
+	}
+
+	limit := 50
+	if arguments.Limit > 50 {
+		limit = arguments.Limit
+	}
+
+	bookmarks, err := client.TweetBookmarksLookup(
+		ctx,
+		user.Data.ID,
+		twitter.TweetBookmarksLookupOpts{
+			MaxResults: limit,
+			Expansions: []twitter.Expansion{twitter.ExpansionAuthorID},
+			UserFields: []twitter.UserField{twitter.UserFieldUserName},
+			TweetFields: []twitter.TweetField{
+				twitter.TweetFieldPublicMetrics,
+				twitter.TweetFieldCreatedAt,
+				twitter.TweetFieldAuthorID,
+			},
+			PaginationToken: paginationToken,
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	users := bookmarks.Raw.Includes.UsersByID()
+
+	contents := []*mcp_golang.Content{}
+	for _, bookmark := range bookmarks.Raw.Tweets {
+		author, ok := users[bookmark.AuthorID]
+		authorName := bookmark.AuthorID
+		if ok {
+			authorName = author.UserName
+		}
+		bookmarkURL := fmt.Sprintf("https://x.com/%s/status/%s", authorName, bookmark.ID)
+		contents = append(contents, &mcp_golang.Content{
+			Type: "text",
+			TextContent: &mcp_golang.TextContent{
+				Text: fmt.Sprintf(
+					"Bookmark: %s\nCreated at: %s\nAuthor: %s\nLink: %s\n",
+					bookmark.Text,
+					bookmark.CreatedAt,
+					bookmark.AuthorID,
+					bookmarkURL,
+				),
+			},
+		})
+	}
+
+	contents = append(contents, &mcp_golang.Content{
+		Type: "text",
+		TextContent: &mcp_golang.TextContent{
+			Text: fmt.Sprintf("Next pagination token: %s", bookmarks.Meta.NextToken),
+		},
+	})
+
+	return contents, nil
+}

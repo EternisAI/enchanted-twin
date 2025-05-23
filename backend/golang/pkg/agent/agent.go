@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
@@ -22,6 +23,7 @@ type Agent struct {
 	nc               *nats.Conn
 	aiService        *ai.Service
 	CompletionsModel string
+	ReasoningModel   string
 	PreToolCallback  func(toolCall openai.ChatCompletionMessageToolCall)
 	PostToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult)
 }
@@ -31,6 +33,7 @@ func NewAgent(
 	nc *nats.Conn,
 	aiService *ai.Service,
 	completionsModel string,
+	reasoningModel string,
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 ) *Agent {
@@ -39,6 +42,7 @@ func NewAgent(
 		nc:               nc,
 		aiService:        aiService,
 		CompletionsModel: completionsModel,
+		ReasoningModel:   reasoningModel,
 		PreToolCallback:  preToolCallback,
 		PostToolCallback: postToolCallback,
 	}
@@ -49,6 +53,14 @@ type AgentResponse struct {
 	ToolCalls   []openai.ChatCompletionMessageToolCall
 	ToolResults []types.ToolResult
 	ImageURLs   []string
+}
+
+func (r AgentResponse) String() string {
+	imageURLS := strings.Join(r.ImageURLs, ",")
+	if len(imageURLS) > 0 {
+		return fmt.Sprintf("%s\nImages:%s", r.Content, imageURLS)
+	}
+	return r.Content
 }
 
 func (a *Agent) Execute(
@@ -95,14 +107,13 @@ func (a *Agent) Execute(
 		}
 
 		for _, toolCall := range completion.ToolCalls {
+			a.logger.Debug("Pre tool callback", "tool_call", toolCall)
 			if a.PreToolCallback != nil {
-				a.logger.Debug("Pre tool callback", "tool_call", toolCall)
 				a.PreToolCallback(toolCall)
 			}
 		}
-		// we send message with tool call
+
 		for _, toolCall := range completion.ToolCalls {
-			// we send message with tool call
 			tool, ok := toolsMap[toolCall.Function.Name]
 			if !ok {
 				return AgentResponse{}, fmt.Errorf("tool not found: %s", toolCall.Function.Name)
@@ -114,7 +125,6 @@ func (a *Agent) Execute(
 				a.logger.Error("Error unmarshalling tool call arguments", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments, "error", err)
 				return AgentResponse{}, err
 			}
-			args["origin"] = origin
 
 			toolResult, err := tool.Execute(ctx, args)
 			if err != nil {
@@ -122,15 +132,8 @@ func (a *Agent) Execute(
 				return AgentResponse{}, err
 			}
 
-			// send message with isCompleted true
+			a.logger.Debug("Post tool callback", "tool_call", toolCall, "result", toolResult)
 			if a.PostToolCallback != nil {
-				a.logger.Debug(
-					"Post tool callback",
-					"tool_call",
-					toolCall,
-					"tool_result",
-					toolResult,
-				)
 				a.PostToolCallback(toolCall, toolResult)
 			}
 

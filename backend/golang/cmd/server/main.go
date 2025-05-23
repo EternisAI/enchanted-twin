@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	stderrs "errors"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,8 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -20,21 +23,29 @@ import (
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/charmbracelet/log"
 	"github.com/go-chi/chi"
+	"github.com/go-openapi/loads"
 	"github.com/gorilla/websocket"
+	flags "github.com/jessevdk/go-flags"
+	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
 	ollamaapi "github.com/ollama/ollama/api"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
+	"github.com/weaviate/weaviate/adapters/handlers/rest"
+	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
+	"go.mau.fi/whatsmeow"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/graph"
-	"github.com/EternisAI/enchanted-twin/internal/service/docker"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/embeddingsmemory"
-	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/root-v2"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -42,15 +53,22 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
-	mcpRepository "github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 )
 
 func main() {
+	whatsappQRChan := whatsapp.GetQRChannel()
+	var currentWhatsAppQRCode *string
+	whatsAppConnected := false
+	var whatsappClient *whatsmeow.Client
+
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
@@ -66,35 +84,11 @@ func main() {
 	if envs.OllamaBaseURL != "" {
 		baseURL, err := url.Parse(envs.OllamaBaseURL)
 		if err != nil {
-			logger.Error("Failed to parse Ollama base URL", slog.Any("error", err))
+			logger.Error("Failed to parse Ollama base URL", "error", err)
 		} else {
 			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
 		}
 	}
-
-	// Start PostgreSQL
-	postgresCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	postgresService, err := bootstrapPostgres(postgresCtx, logger)
-	if err != nil {
-		logger.Error("Failed to start PostgreSQL", slog.Any("error", err))
-		panic(errors.Wrap(err, "Failed to start PostgreSQL"))
-	}
-
-	// Set up cleanup on shutdown
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
-		// Stop the container
-		if err := postgresService.Stop(shutdownCtx); err != nil {
-			logger.Error("Error stopping PostgreSQL", slog.Any("error", err))
-		}
-		// Remove the container to ensure clean state for next startup
-		if err := postgresService.Remove(shutdownCtx); err != nil {
-			logger.Error("Error removing PostgreSQL container", slog.Any("error", err))
-		}
-	}()
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -109,6 +103,68 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
+	go func() {
+		for evt := range whatsappQRChan {
+			switch evt.Event {
+			case "code":
+				qrCode := evt.Code
+				currentWhatsAppQRCode = &qrCode
+				whatsAppConnected = false
+				logger.Info("Received new WhatsApp QR code, length:", "length", len(qrCode))
+
+				qrCodeUpdate := map[string]interface{}{
+					"event":        "code",
+					"qr_code_data": qrCode,
+					"is_connected": false,
+					"timestamp":    time.Now().Format(time.RFC3339),
+				}
+				jsonData, err := json.Marshal(qrCodeUpdate)
+				if err == nil {
+					err = nc.Publish("whatsapp.qr_code", jsonData)
+					if err != nil {
+						logger.Error("Failed to publish WhatsApp QR code to NATS", "error", err)
+					} else {
+						logger.Info("Published WhatsApp QR code to NATS")
+					}
+				} else {
+					logger.Error("Failed to marshal WhatsApp QR code data", "error", err)
+				}
+			case "success":
+				whatsAppConnected = true
+				currentWhatsAppQRCode = nil
+				logger.Info("WhatsApp connection successful")
+
+				whatsapp.StartSync()
+				whatsapp.UpdateSyncStatus(whatsapp.SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
+				whatsapp.PublishSyncStatus(nc, logger) //nolint:errcheck
+
+				successUpdate := map[string]interface{}{
+					"event":        "success",
+					"qr_code_data": nil,
+					"is_connected": true,
+					"timestamp":    time.Now().Format(time.RFC3339),
+				}
+				jsonData, err := json.Marshal(successUpdate)
+				if err == nil {
+					err = nc.Publish("whatsapp.qr_code", jsonData)
+					if err != nil {
+						logger.Error("Failed to publish WhatsApp connection success to NATS", "error", err)
+					} else {
+						logger.Info("Published WhatsApp connection success to NATS")
+					}
+				} else {
+					logger.Error("Failed to marshal WhatsApp success data", "error", err)
+				}
+			}
+		}
+	}()
+
 	store, err := db.NewStore(context.Background(), envs.DBPath)
 	if err != nil {
 		logger.Error("Unable to create or initialize database", "error", err)
@@ -116,54 +172,88 @@ func main() {
 	}
 	defer func() {
 		if err := store.Close(); err != nil {
-			logger.Error("Error closing store", slog.Any("error", err))
+			logger.Error("Error closing store", "error", err)
 		}
 	}()
 
-	logger.Info("SQLite database initialized")
-
 	// Initialize the AI service singleton
-	aiCompletionsService, err := ai.NewOpenAIService(envs.OpenAIAPIKey, envs.OpenAIBaseURL, envs.TinfoilCompletionsEnclaveAndRepo, envs.UseTinfoilTEE)
+	aiCompletionsService, err := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL, envs.TinfoilCompletionsEnclaveAndRepo, envs.UseTinfoilTEE)
 	if err != nil {
 		logger.Error("Unable to create OpenAI service", "error", err)
 		panic(errors.Wrap(err, "Unable to create OpenAI service"))
 	}
-	aiEmbeddingsService, err := ai.NewOpenAIService(envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL, envs.TinfoilCompletionsEnclaveAndRepo, envs.UseTinfoilTEE)
+
+	completion, err := aiCompletionsService.ParamsCompletions(context.Background(), openai.ChatCompletionNewParams{
+		Model: "llama3-3-70b",
+		Messages: []openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage("Hello!"),
+		},
+		Tools: []openai.ChatCompletionToolParam{
+			{
+				Type: "function",
+				Function: openai.FunctionDefinitionParam{
+					Name:        "image_tool",
+					Description: param.NewOpt("This tool creates an image based on the user prompt"),
+					Parameters: openai.FunctionParameters{
+						"type": "object",
+						"properties": map[string]any{
+							"prompt": map[string]string{
+								"type": "string",
+							},
+						},
+						"required": []string{"prompt"},
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		logger.Error("Unable to get completion", "error", err)
+		panic(errors.Wrap(err, "Unable to get completion"))
+	}
+	logger.Info("Completion", "completion", completion)
+
+	aiEmbeddingsService, err := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL, envs.TinfoilCompletionsEnclaveAndRepo, envs.UseTinfoilTEE)
 	if err != nil {
 		logger.Error("Unable to create OpenAI embeddings service", "error", err)
 		panic(errors.Wrap(err, "Unable to create OpenAI embeddings service"))
 	}
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	// Ensure enchanted_twin database exists
-	if err := postgresService.WaitForReady(postgresCtx, 30*time.Second); err != nil {
-		logger.Error("Failed waiting for PostgreSQL to be ready", "error", err)
-		panic(errors.Wrap(err, "PostgreSQL failed to become ready"))
+	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
+		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
+		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
 	}
 
-	dbName := "enchanted_twin"
-	if err := postgresService.EnsureDatabase(postgresCtx, dbName); err != nil {
-		logger.Error("Failed to ensure database exists", "error", err)
-		panic(errors.Wrap(err, "Unable to ensure database exists"))
-	}
-	logger.Info(
-		"PostgreSQL listening at",
-		"connection",
-		postgresService.GetConnectionString(dbName),
-	)
-	recreateMemDb := false
-	mem, err := embeddingsmemory.NewEmbeddingsMemory(
-		&embeddingsmemory.Config{
-			Logger:              logger,
-			PgString:            postgresService.GetConnectionString(dbName),
-			AI:                  aiEmbeddingsService,
-			Recreate:            recreateMemDb,
-			EmbeddingsModelName: envs.EmbeddingsModel,
-		},
-	)
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
+		Scheme: "http",
+	})
 	if err != nil {
-		panic(errors.Wrap(err, "Unable to create memory"))
+		logger.Error("Failed to create Weaviate client", "error", err)
+		panic(errors.Wrap(err, "Failed to create Weaviate client"))
 	}
+	logger.Info("Weaviate client created")
+	if err := InitSchema(weaviateClient, logger); err != nil {
+		logger.Error("Failed to initialize Weaviate schema", "error", err)
+		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
+	}
+	logger.Info("Weaviate schema initialized")
+
+	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
+	if err != nil {
+		logger.Error("Failed to create evolving memory", "error", err)
+		panic(errors.Wrap(err, "Failed to create evolving memory"))
+	}
+
+	whatsapp.TriggerConnect()
+
+	whatsappClientChan := make(chan *whatsmeow.Client)
+	go func() {
+		client := bootstrap.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath)
+		whatsappClientChan <- client
+	}()
 
 	ttsSvc, err := bootstrapTTS(logger)
 	if err != nil {
@@ -182,13 +272,6 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
-	// Ensure the root workflow is running
-	rootClient := root.NewRootClient(temporalClient, logger)
-	if err := rootClient.EnsureRunRootWorkflow(context.Background()); err != nil {
-		logger.Error("Failed to ensure root workflow is running", "error", err)
-		logger.Error("Child workflows may not be able to start")
-	}
-
 	toolRegistry := tools.NewRegistry()
 
 	if err := toolRegistry.Register(memory.NewMemorySearchTool(logger, mem)); err != nil {
@@ -196,8 +279,7 @@ func main() {
 	}
 
 	// Initialize MCP Service with tool registry
-	mcpRepo := mcpRepository.NewRepository(logger, store.DB())
-	mcpService := mcpserver.NewService(context.Background(), *mcpRepo, store, toolRegistry)
+	mcpService := mcpserver.NewService(context.Background(), logger, store, toolRegistry)
 
 	// Register standard tools
 	standardTools := agent.RegisterStandardTools(
@@ -210,18 +292,29 @@ func main() {
 		envs.TelegramChatServer,
 	)
 
-	// Create TwinChat service with minimal dependencies
+	select {
+	case whatsappClient = <-whatsappClientChan:
+
+		if whatsappClient != nil {
+			whatsappTools := agent.RegisterWhatsAppTool(toolRegistry, logger, whatsappClient)
+			logger.Info("WhatsApp tools registered", "count", len(whatsappTools))
+		}
+	case <-time.After(1 * time.Second):
+		logger.Warn("Timed out waiting for WhatsApp client, continuing without WhatsApp tool")
+	}
+
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
 		chatStorage,
 		nc,
+		mem,
 		toolRegistry,
 		store,
 		envs.CompletionsModel,
+		envs.ReasoningModel,
 	)
 
-	// Register tools from the TwinChat service
 	providerTools := agent.RegisterToolProviders(toolRegistry, logger, twinChatService)
 	logger.Info("Standard tools registered", "count", len(standardTools))
 	logger.Info("Provider tools registered", "count", len(providerTools))
@@ -242,6 +335,8 @@ func main() {
 		toolRegistry.List(),
 	)
 
+	notificationsSvc := notifications.NewService(nc)
+
 	// Initialize and start the temporal worker
 	temporalWorker, err := bootstrapTemporalWorker(
 		&bootstrapTemporalWorkerInput{
@@ -253,14 +348,27 @@ func main() {
 			ollamaClient:         ollamaClient,
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
-			registry:             toolRegistry,
-			rootClient:           rootClient,
+			toolsRegistry:        toolRegistry,
+			notifications:        notificationsSvc,
 		},
 	)
 	if err != nil {
 		panic(errors.Wrap(err, "Unable to start temporal worker"))
 	}
 	defer temporalWorker.Stop()
+
+	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
+		logger.Error("Failed to bootstrap periodic workflows", "error", err)
+		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
+	}
+
+	identitySvc := identity.NewIdentityService(temporalClient)
+	personality, err := identitySvc.GetPersonality(context.Background())
+	if err != nil {
+		logger.Error("Failed to get personality", "error", err)
+		panic(errors.Wrap(err, "Failed to get personality"))
+	}
+	logger.Info("Personality", "personality", personality)
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -273,14 +381,14 @@ func main() {
 		AuthStorage:      store,
 		NatsClient:       nc,
 		ChatServerUrl:    envs.TelegramChatServer,
+		ToolsRegistry:    toolRegistry,
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
 	go func() {
-		ticker := time.NewTicker(10 * time.Second)
+		ticker := time.NewTicker(2 * time.Second)
 		defer ticker.Stop()
 
-		// Create a context that respects application shutdown
 		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer appCancel()
 
@@ -289,7 +397,6 @@ func main() {
 			case <-ticker.C:
 				chatUUID, err := telegramService.GetChatUUID(context.Background())
 				if err != nil {
-					logger.Error("Error getting chat UUID", slog.Any("error", err))
 					continue
 				}
 				err = telegramService.Subscribe(appCtx, chatUUID)
@@ -310,24 +417,24 @@ func main() {
 	}()
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
-		logger:          logger,
-		temporalClient:  temporalClient,
-		port:            envs.GraphqlPort,
-		twinChatService: *twinChatService,
-		natsClient:      nc,
-		store:           store,
-		aiService:       aiCompletionsService,
-		mcpService:      mcpService,
-		telegramService: telegramService,
-		rootClient:      rootClient,
+		logger:            logger,
+		temporalClient:    temporalClient,
+		port:              envs.GraphqlPort,
+		twinChatService:   *twinChatService,
+		natsClient:        nc,
+		store:             store,
+		aiService:         aiCompletionsService,
+		mcpService:        mcpService,
+		telegramService:   telegramService,
+		whatsAppQRCode:    currentWhatsAppQRCode,
+		whatsAppConnected: whatsAppConnected,
 	})
 
-	// Start HTTP server in a goroutine so it doesn't block signal handling
 	go func() {
 		logger.Info("Starting GraphQL HTTP server", "address", "http://localhost:"+envs.GraphqlPort)
 		err := http.ListenAndServe(":"+envs.GraphqlPort, router)
 		if err != nil && err != http.ErrServerClosed {
-			logger.Error("HTTP server error", slog.Any("error", err))
+			logger.Error("HTTP server error", "error", err)
 			panic(errors.Wrap(err, "Unable to start server"))
 		}
 	}()
@@ -335,31 +442,8 @@ func main() {
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
 
-	// Wait for termination signal
 	<-signalChan
 	logger.Info("Server shutting down...")
-}
-
-func bootstrapPostgres(
-	ctx context.Context,
-	logger *log.Logger,
-) (*bootstrap.PostgresService, error) {
-	// Get default options
-	options := bootstrap.DefaultPostgresOptions()
-
-	// Create and start PostgreSQL service
-	postgresService, err := bootstrap.NewPostgresService(logger, options)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create PostgreSQL service: %w", err)
-	}
-
-	logger.Info("Starting PostgreSQL service...")
-	err = postgresService.Start(ctx, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to start PostgreSQL service: %w", err)
-	}
-
-	return postgresService, nil
 }
 
 func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Client, error) {
@@ -368,11 +452,7 @@ func bootstrapTemporalServer(logger *log.Logger, envs *config.Config) (client.Cl
 	<-ready
 	logger.Info("Temporal server started")
 
-	temporalClient, err := bootstrap.CreateTemporalClient(
-		"localhost:7233",
-		bootstrap.TemporalNamespace,
-		"",
-	)
+	temporalClient, err := bootstrap.NewTemporalClient(logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "Unable to create temporal client")
 	}
@@ -389,35 +469,19 @@ type bootstrapTemporalWorkerInput struct {
 	nc                   *nats.Conn
 	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
-	registry             tools.ToolRegistry
+	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
-	rootClient           *root.RootClient
+	notifications        *notifications.Service
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
 	const (
-		kokoroDockerPort = 45000
-		ttsWsPort        = 45001
-		image            = "ghcr.io/remsky/kokoro-fastapi-cpu"
+		kokoroPort = 45000
+		ttsWsPort  = 45001
 	)
 
-	dockerSvc, err := docker.NewService(docker.ContainerOptions{
-		ImageName: image,
-		ImageTag:  "latest",
-		Ports:     map[string]string{fmt.Sprint(kokoroDockerPort): "8880"},
-		Detached:  true,
-	}, logger)
-	if err != nil {
-		logger.Error("docker service init", "error", err)
-		return nil, errors.Wrap(err, "docker service init")
-	}
-	if err := dockerSvc.RunContainer(context.Background()); err != nil {
-		logger.Error("docker run", "error", err)
-		return nil, errors.Wrap(err, "docker run")
-	}
-
 	engine := tts.Kokoro{
-		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroDockerPort),
+		Endpoint: fmt.Sprintf("http://localhost:%d/v1/audio/speech", kokoroPort),
 		Model:    "kokoro",
 		Voice:    "af_bella+af_heart",
 	}
@@ -443,22 +507,22 @@ func bootstrapTemporalWorker(
 	}
 	dataProcessingWorkflow.RegisterWorkflowsAndActivities(&w)
 
-	// Root workflow
-	input.rootClient.RegisterWorkflowsAndActivities(&w)
-
 	// Register auth activities
 	authActivities := auth.NewOAuthActivities(input.store)
 	authActivities.RegisterWorkflowsAndActivities(&w)
 
 	// Register the planned agent v2 workflow
-	agentActivities := plannedv2.NewAgentActivities(context.Background(), input.aiCompletionsService, input.registry)
-	agentActivities.RegisterPlannedAgentWorkflow(w, input.logger)
-	input.logger.Info("Registered planned agent workflow", "tools", input.registry.List())
+	aiAgent := agent.NewAgent(input.logger, input.nc, input.aiCompletionsService, input.envs.CompletionsModel, input.envs.ReasoningModel, nil, nil)
+	schedulerActivities := scheduler.NewTaskSchedulerActivities(input.logger, input.aiCompletionsService, aiAgent, input.toolsRegistry, input.envs.CompletionsModel, input.store, input.notifications)
+	schedulerActivities.RegisterWorkflowsAndActivities(w)
 
-	// Start the worker
+	// Register identity activities
+	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
+	identityActivities.RegisterWorkflowsAndActivities(w)
+
 	err := w.Start()
 	if err != nil {
-		input.logger.Error("Error starting worker", slog.Any("error", err))
+		input.logger.Error("Error starting worker", "error", err)
 		return nil, err
 	}
 
@@ -476,7 +540,8 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
-	rootClient             *root.RootClient
+	whatsAppQRCode         *string
+	whatsAppConnected      bool
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -488,7 +553,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		Debug:            false,
 	}).Handler)
 
-	srv := handler.New(gqlSchema(&graph.Resolver{
+	resolver := &graph.Resolver{
 		Logger:                 input.logger,
 		TemporalClient:         input.temporalClient,
 		TwinChatService:        input.twinChatService,
@@ -497,8 +562,13 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		AiService:              input.aiService,
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
-		RootClient:             input.rootClient, // root.NewRootClient(input.temporalClient, input.logger),
-	}))
+		TelegramService:        input.telegramService,
+		WhatsAppQRCode:         input.whatsAppQRCode,
+		WhatsAppConnected:      input.whatsAppConnected,
+	}
+
+	srv := handler.New(gqlSchema(resolver))
+
 	srv.AddTransport(transport.SSE{})
 	srv.AddTransport(transport.POST{})
 	srv.AddTransport(transport.Options{})
@@ -548,4 +618,103 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 		Resolvers: input,
 	}
 	return graph.NewExecutableSchema(config)
+}
+
+func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+	err := os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
+	}
+	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to load swagger spec")
+	}
+
+	api := operations.NewWeaviateAPI(swaggerSpec)
+	api.Logger = func(s string, i ...any) {
+		logger.Debug(s, i...)
+	}
+	server := rest.NewServer(api)
+
+	server.EnabledListeners = []string{"http"}
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to convert port to int")
+	}
+	server.Port = p
+
+	parser := flags.NewParser(server, flags.Default)
+	parser.ShortDescription = "Weaviate"
+	server.ConfigureFlags()
+	for _, optsGroup := range api.CommandLineOptionsGroups {
+		_, err := parser.AddGroup(optsGroup.ShortDescription, optsGroup.LongDescription, optsGroup.Options)
+		if err != nil {
+			return nil, errors.Wrap(err, "Failed to add flag group")
+		}
+	}
+
+	if _, err := parser.Parse(); err != nil {
+		if fe, ok := err.(*flags.Error); ok && fe.Type == flags.ErrHelp {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	server.ConfigureAPI()
+
+	go func() {
+		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
+			logger.Error("Weaviate serve error", "error", err)
+		}
+	}()
+
+	go func() {
+		<-ctx.Done()
+		_ = server.Shutdown()
+	}()
+
+	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("weaviate did not become ready in time on %s", readyURL)
+		}
+
+		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			return server, nil
+		}
+
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// ClassExists checks if a class already exists in Weaviate.
+func ClassExists(client *weaviate.Client, className string) (bool, error) {
+	schema, err := client.Schema().Getter().Do(context.Background())
+	if err != nil {
+		return false, err
+	}
+	for _, class := range schema.Classes {
+		if class.Class == className {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func InitSchema(client *weaviate.Client, logger *log.Logger) error {
+	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
+		return err
+	}
+	return nil
+}
+
+func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create identity personality workflow")
+	}
+	return nil
 }

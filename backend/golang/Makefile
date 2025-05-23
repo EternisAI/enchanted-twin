@@ -15,10 +15,13 @@ release:
 	GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
 
 lint:
-	golangci-lint run
+	golangci-lint run --fix
 
 test:
 	go test ./...
 
 gqlgen:
 	go run github.com/99designs/gqlgen generate
+
+run-telegram-chat:
+	go run cmd/telegram_chat_server/main.go

@@ -48,6 +48,7 @@ type Chat {
   name: String!
   messages: [Message!]! @goField(forceResolver: true)
   createdAt: DateTime!
+  voice: Boolean!
 }
 
 type Message {
@@ -96,7 +97,16 @@ type Query {
   getChatSuggestions(chatId: ID!): [ChatSuggestionsCategory!]!
   getMCPServers: [MCPServerDefinition!]!
   getTools: [Tool!]!
+  getWhatsAppStatus: WhatsAppStatus!
   getAgentTasks: [AgentTask!]!
+  getSetupProgress: [SetupProgress!]!
+}
+
+type SetupProgress {
+  name: String!
+  progress: Float!
+  status: String!
+  required: Boolean!
 }
 
 type Mutation {
@@ -108,8 +118,13 @@ type Mutation {
   completeOAuthFlow(state: String!, authCode: String!): String!
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
-  createChat(name: String!): Chat!
-  sendMessage(chatId: ID!, text: String!): Message!
+  createChat(name: String!, voice: Boolean! = False): Chat!
+  sendMessage(
+    chatId: ID!
+    text: String!
+    reasoning: Boolean! = False
+    voice: Boolean! = False
+  ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
@@ -117,7 +132,9 @@ type Mutation {
   connectMCPServer(input: ConnectMCPServerInput!): Boolean!
   sendTelegramMessage(chatUUID: ID!, text: String!): Boolean!
   deleteAgentTask(id: ID!): Boolean!
+  updateAgentTask(id: ID!, notify: Boolean!): Boolean!
   removeMCPServer(id: String!): Boolean!
+  startWhatsAppConnection: Boolean!
 }
 
 type Subscription {
@@ -127,6 +144,14 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
+  whatsAppSyncStatus: WhatsAppSyncStatus!
+}
+
+type WhatsAppSyncStatus {
+  isSyncing: Boolean!
+  isCompleted: Boolean!
+  error: String
+  statusMessage: String
 }
 
 type DataSource {
@@ -176,6 +201,7 @@ enum MCPServerType {
   SLACK
   OTHER
   SCREENPIPE
+  ENCHANTED
 }
 
 input ConnectMCPServerInput {
@@ -222,6 +248,21 @@ type AppNotification {
   link: String
 }
 
+# WhatsApp integration
+type WhatsAppStatus {
+  isConnected: Boolean!
+  qrCodeData: String
+  statusMessage: String!
+}
+
+# WhatsApp QR code update for subscription
+type WhatsAppQRCodeUpdate {
+  qrCodeData: String
+  event: String!
+  timestamp: DateTime!
+  isConnected: Boolean!
+}
+
 type AgentTask {
   id: ID!
   name: String!
@@ -232,4 +273,7 @@ type AgentTask {
   completedAt: DateTime
   terminatedAt: DateTime
   output: String
+  upcomingRuns: [DateTime!]!
+  previousRuns: [DateTime!]!
+  notify: Boolean!
 }

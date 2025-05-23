@@ -3,21 +3,25 @@
 package model
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"strconv"
 )
 
 type AgentTask struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
-	Schedule     string  `json:"schedule"`
-	Plan         *string `json:"plan,omitempty"`
-	CreatedAt    string  `json:"createdAt"`
-	UpdatedAt    string  `json:"updatedAt"`
-	CompletedAt  *string `json:"completedAt,omitempty"`
-	TerminatedAt *string `json:"terminatedAt,omitempty"`
-	Output       *string `json:"output,omitempty"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	Schedule     string   `json:"schedule"`
+	Plan         *string  `json:"plan,omitempty"`
+	CreatedAt    string   `json:"createdAt"`
+	UpdatedAt    string   `json:"updatedAt"`
+	CompletedAt  *string  `json:"completedAt,omitempty"`
+	TerminatedAt *string  `json:"terminatedAt,omitempty"`
+	Output       *string  `json:"output,omitempty"`
+	UpcomingRuns []string `json:"upcomingRuns"`
+	PreviousRuns []string `json:"previousRuns"`
+	Notify       bool     `json:"notify"`
 }
 
 type AppNotification struct {
@@ -34,6 +38,7 @@ type Chat struct {
 	Name      string     `json:"name"`
 	Messages  []*Message `json:"messages"`
 	CreatedAt string     `json:"createdAt"`
+	Voice     bool       `json:"voice"`
 }
 
 type ChatSuggestionsCategory struct {
@@ -136,6 +141,13 @@ type OAuthStatus struct {
 type Query struct {
 }
 
+type SetupProgress struct {
+	Name     string  `json:"name"`
+	Progress float64 `json:"progress"`
+	Status   string  `json:"status"`
+	Required bool    `json:"required"`
+}
+
 type Subscription struct {
 }
 
@@ -167,6 +179,26 @@ type UserProfile struct {
 	Bio                  *string         `json:"bio,omitempty"`
 	IndexingStatus       *IndexingStatus `json:"indexingStatus,omitempty"`
 	ConnectedDataSources []*DataSource   `json:"connectedDataSources"`
+}
+
+type WhatsAppQRCodeUpdate struct {
+	QRCodeData  *string `json:"qrCodeData,omitempty"`
+	Event       string  `json:"event"`
+	Timestamp   string  `json:"timestamp"`
+	IsConnected bool    `json:"isConnected"`
+}
+
+type WhatsAppStatus struct {
+	IsConnected   bool    `json:"isConnected"`
+	QRCodeData    *string `json:"qrCodeData,omitempty"`
+	StatusMessage string  `json:"statusMessage"`
+}
+
+type WhatsAppSyncStatus struct {
+	IsSyncing     bool    `json:"isSyncing"`
+	IsCompleted   bool    `json:"isCompleted"`
+	Error         *string `json:"error,omitempty"`
+	StatusMessage *string `json:"statusMessage,omitempty"`
 }
 
 type IndexingState string
@@ -218,6 +250,20 @@ func (e IndexingState) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
 }
 
+func (e *IndexingState) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e IndexingState) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
+}
+
 type MCPServerType string
 
 const (
@@ -226,6 +272,7 @@ const (
 	MCPServerTypeSLACk      MCPServerType = "SLACK"
 	MCPServerTypeOther      MCPServerType = "OTHER"
 	MCPServerTypeScreenpipe MCPServerType = "SCREENPIPE"
+	MCPServerTypeEnchanted  MCPServerType = "ENCHANTED"
 )
 
 var AllMCPServerType = []MCPServerType{
@@ -234,11 +281,12 @@ var AllMCPServerType = []MCPServerType{
 	MCPServerTypeSLACk,
 	MCPServerTypeOther,
 	MCPServerTypeScreenpipe,
+	MCPServerTypeEnchanted,
 }
 
 func (e MCPServerType) IsValid() bool {
 	switch e {
-	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe:
+	case MCPServerTypeTwitter, MCPServerTypeGoogle, MCPServerTypeSLACk, MCPServerTypeOther, MCPServerTypeScreenpipe, MCPServerTypeEnchanted:
 		return true
 	}
 	return false
@@ -263,6 +311,20 @@ func (e *MCPServerType) UnmarshalGQL(v any) error {
 
 func (e MCPServerType) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *MCPServerType) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e MCPServerType) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type Role string
@@ -304,4 +366,18 @@ func (e *Role) UnmarshalGQL(v any) error {
 
 func (e Role) MarshalGQL(w io.Writer) {
 	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *Role) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e Role) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }

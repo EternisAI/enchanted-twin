@@ -59,9 +59,18 @@ function ChatRouteComponent() {
   const { data, error } = Route.useLoaderData()
   const { initialMessage } = Route.useSearch()
 
-  //   if (loading) return <div className="p-4">Loading chat...</div>
   if (!data) return <div className="p-4">Invalid chat ID.</div>
   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
 
-  return <ChatView key={data.id} chat={data} initialMessage={initialMessage} />
+  return (
+    <div className="flex flex-col h-full flex-1 w-full">
+      <div className="flex-1 overflow-hidden w-full">
+        <div className="flex flex-col items-center h-full w-full">
+          <div className="w-full mx-auto h-full">
+            <ChatView key={data.id} chat={data} initialMessage={initialMessage} />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
 }

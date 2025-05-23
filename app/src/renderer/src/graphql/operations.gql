@@ -9,6 +9,7 @@ query GetChats($first: Int!, $offset: Int!) {
     id
     name
     createdAt
+    voice
     messages {
       id
       text
@@ -20,6 +21,10 @@ query GetChats($first: Int!, $offset: Int!) {
         name
         isCompleted
         messageId
+        result {
+          content
+          imageUrls
+        }
       }
       toolResults
     }
@@ -31,6 +36,7 @@ query GetChat($id: ID!) {
     id
     name
     createdAt
+    voice
     messages {
       id
       text
@@ -42,6 +48,10 @@ query GetChat($id: ID!) {
         name
         isCompleted
         messageId
+        result {
+          content
+          imageUrls
+        }
       }
       toolResults
     }
@@ -102,6 +112,7 @@ query GetAgentTasks {
     completedAt
     terminatedAt
     output
+    notify
   }
 }
 
@@ -112,16 +123,26 @@ query GetTools {
   }
 }
 
-mutation CreateChat($name: String!) {
-  createChat(name: $name) {
-    id
+query GetSetupProgress {
+  getSetupProgress {
     name
-    createdAt
+    status
+    progress
+    required
   }
 }
 
-mutation SendMessage($chatId: ID!, $text: String!) {
-  sendMessage(chatId: $chatId, text: $text) {
+mutation CreateChat($name: String!, $voice: Boolean! = false) {
+  createChat(name: $name, voice: $voice) {
+    id
+    name
+    createdAt
+    voice
+  }
+}
+
+mutation SendMessage($chatId: ID!, $text: String!, $reasoning: Boolean!, $voice: Boolean!) {
+  sendMessage(chatId: $chatId, text: $text, reasoning: $reasoning, voice: $voice) {
     id
     text
     role
@@ -132,6 +153,10 @@ mutation SendMessage($chatId: ID!, $text: String!) {
       id
       name
       isCompleted
+      result {
+        content
+        imageUrls
+      }
     }
   }
 }
@@ -160,6 +185,10 @@ subscription MessageAdded($chatId: ID!) {
       name
       isCompleted
       messageId
+      result {
+        content
+        imageUrls
+      }
     }
   }
 }
@@ -170,6 +199,10 @@ subscription ToolCallUpdated($chatId: ID!) {
     name
     isCompleted
     messageId
+    result {
+      content
+      imageUrls
+    }
   }
 }
 
@@ -210,6 +243,14 @@ subscription MessageStream($chatId: ID!) {
   }
 }
 
+subscription WhatsAppSyncStatus {
+  whatsAppSyncStatus {
+    isSyncing
+    isCompleted
+    error
+    statusMessage
+  }
+}
 mutation AddDataSource($name: String!, $path: String!) {
   addDataSource(name: $name, path: $path)
 }
@@ -233,10 +274,26 @@ mutation DeleteAgentTask($id: ID!) {
   deleteAgentTask(id: $id)
 }
 
+mutation UpdateAgentTask($id: ID!, $notify: Boolean!) {
+  updateAgentTask(id: $id, notify: $notify)
+}
+
 mutation ConnectMCPServer($input: ConnectMCPServerInput!) {
   connectMCPServer(input: $input)
 }
 
 mutation RemoveMCPServer($id: String!) {
   removeMCPServer(id: $id)
+}
+
+query GetWhatsAppStatus {
+  getWhatsAppStatus {
+    isConnected
+    qrCodeData
+    statusMessage
+  }
+}
+
+mutation StartWhatsAppConnection {
+  startWhatsAppConnection
 }

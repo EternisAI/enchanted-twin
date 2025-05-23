@@ -1,0 +1,100 @@
+'use client'
+import { useEffect, useState } from 'react'
+import { DetailCard } from './DetailCard'
+import { CheckCircle2, XCircle, AlertCircle, HelpCircle, PersonStanding } from 'lucide-react'
+
+type AccessibilityStatusType = 'granted' | 'denied' | 'unavailable' | 'error' | 'loading'
+
+export default function AccessibilityStatus() {
+  const [status, setStatus] = useState<AccessibilityStatusType>('loading')
+  const [isLoading, setIsLoading] = useState<boolean>(true)
+
+  const checkPermission = async () => {
+    try {
+      setIsLoading(true)
+      const accessibilityStatus = await window.api.accessibility.getStatus()
+      setStatus(accessibilityStatus as AccessibilityStatusType)
+    } catch (error) {
+      console.error('Error checking accessibility permission:', error)
+      setStatus('error')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    checkPermission()
+    const interval = setInterval(checkPermission, 5000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const requestPermission = async () => {
+    await window.api.accessibility.request()
+    // TODO: make this smarter, so we detect changes in the accessibility settings
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    checkPermission()
+
+    window.api.analytics.capture('permission_asked', {
+      name: 'accessibility'
+    })
+  }
+
+  const openSettings = async () => {
+    // Assuming there's a generic way to open OS settings, similar to notifications
+    // If not, this might need adjustment based on how accessibility settings are opened
+    window.api.openSettings() // Reuse the same API for now
+  }
+
+  const getStatusConfig = () => {
+    switch (status) {
+      case 'loading':
+        return {
+          icon: HelpCircle,
+          color: 'text-muted-foreground',
+          label: 'Loading'
+        }
+      case 'granted':
+        return {
+          icon: CheckCircle2,
+          color: 'text-green-500',
+          label: 'Granted'
+        }
+      case 'denied':
+        return {
+          icon: XCircle,
+          color: 'text-red-500',
+          label: 'Denied'
+        }
+      case 'unavailable':
+        return {
+          icon: AlertCircle,
+          color: 'text-yellow-500',
+          label: 'Unavailable'
+        }
+      case 'error':
+      default:
+        return {
+          icon: XCircle,
+          color: 'text-red-500',
+          label: 'Error'
+        }
+    }
+  }
+
+  const statusInfo = getStatusConfig()
+  const buttonLabel = status === 'denied' || status === 'error' ? 'Request' : 'Settings'
+  const handleButtonClick =
+    status === 'denied' || status === 'error' ? requestPermission : openSettings
+
+  return (
+    <DetailCard
+      title="Accessibility"
+      IconComponent={PersonStanding}
+      statusInfo={statusInfo}
+      buttonLabel={buttonLabel}
+      onButtonClick={handleButtonClick}
+      isLoading={isLoading}
+      explanation="Required for global keyboard shortcuts and system-wide features."
+    />
+  )
+}

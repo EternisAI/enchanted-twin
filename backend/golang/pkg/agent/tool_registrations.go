@@ -2,9 +2,10 @@ package agent
 
 import (
 	"github.com/charmbracelet/log"
+	"go.mau.fi/whatsmeow"
 	"go.temporal.io/sdk/client"
 
-	plannedv2 "github.com/EternisAI/enchanted-twin/pkg/agent/planned-v2"
+	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -25,30 +26,18 @@ func CreateStandardTools(
 ) []tools.Tool {
 	standardTools := []tools.Tool{}
 
-	// Add workflow immediate tools
-	standardTools = append(standardTools, tools.WorkflowImmediateTools()...)
-
-	// Create basic tools
-	standardTools = append(standardTools, &tools.ImageTool{})
-
-	// Memory tools are now registered directly in main
-
 	// Create Telegram tool if token is available
 	if telegramToken != "" && store != nil {
 		telegramTool := tools.NewTelegramTool(logger, telegramToken, store, telegramChatServerUrl)
 		standardTools = append(standardTools, telegramTool)
 	}
 
-	// Create Twitter tool if store is available
-	if store != nil {
-		twitterTool := tools.NewTwitterTool(*store)
-		standardTools = append(standardTools, twitterTool)
-	}
-
-	// Create PlannedAgentTool if temporal client is available
 	if temporalClient != nil && completionsModel != "" {
-		plannedAgentTool := plannedv2.NewExecutePlanTool(logger, temporalClient, completionsModel)
-		standardTools = append(standardTools, plannedAgentTool)
+		scheduledTaskTool := &schedulerTools.ScheduleTask{
+			Logger:         logger,
+			TemporalClient: temporalClient,
+		}
+		standardTools = append(standardTools, scheduledTaskTool)
 	}
 
 	return standardTools
@@ -111,6 +100,45 @@ func RegisterToolProviders(
 	}
 	if len(registeredTools) > 0 {
 		logger.Info("Registered tools from providers", "count", len(registeredTools))
+	}
+
+	return registeredTools
+}
+
+// RegisterMCPTools registers MCP tools with the registry.
+// This function takes a slice of MCP tools and registers them.
+// Returns the list of successfully registered tools.
+func RegisterMCPTools(registry tools.ToolRegistry, mcpTools []tools.Tool) []tools.Tool {
+	registeredTools := []tools.Tool{}
+
+	for _, tool := range mcpTools {
+		if err := registry.Register(tool); err == nil {
+			registeredTools = append(registeredTools, tool)
+		}
+	}
+
+	return registeredTools
+}
+
+// RegisterWhatsAppTool registers the WhatsApp messaging tool with the registry.
+// Returns the registered tool if successful.
+func RegisterWhatsAppTool(
+	registry tools.ToolRegistry,
+	logger *log.Logger,
+	client *whatsmeow.Client,
+) []tools.Tool {
+	registeredTools := []tools.Tool{}
+
+	if client != nil {
+		whatsappTool := tools.NewWhatsAppTool(logger, client)
+		if err := registry.Register(whatsappTool); err == nil {
+			registeredTools = append(registeredTools, whatsappTool)
+			logger.Info("WhatsApp tool registered successfully")
+		} else {
+			logger.Warn("Failed to register WhatsApp tool", "error", err)
+		}
+	} else {
+		logger.Warn("WhatsApp client is nil, not registering WhatsApp tool")
 	}
 
 	return registeredTools

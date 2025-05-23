@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
@@ -21,9 +23,10 @@ type Config struct {
 
 type Service struct {
 	client *openai.Client
+	logger *log.Logger
 }
 
-func NewOpenAIService(apiKey string, baseUrl string, enclaveAndRepo string, useTinfoilTEE bool) (*Service, error) {
+func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string, enclaveAndRepo string, useTinfoilTEE bool) (*Service, error) {
 	var client openai.Client
 
 	if useTinfoilTEE {
@@ -33,14 +36,16 @@ func NewOpenAIService(apiKey string, baseUrl string, enclaveAndRepo string, useT
 		}
 		enclave := enclaveAndRepoParts[0]
 		repo := enclaveAndRepoParts[1]
-		client, err := tinfoil.NewClientWithParams(enclave, repo,
-			option.WithAPIKey(apiKey),
+		logger.Info("Using Tinfoil", "enclave", enclave, "repo", repo)
+		client, err := tinfoil.NewClientWithParams("llama3-3-70b.model.tinfoil.sh", "tinfoilsh/confidential-llama3-3-70b",
+			option.WithAPIKey("tk_mbwbcgNZTBnOWQmyC9VE53lRVlnKxjvo1tocLs5f5KsQLDWA"),
 		)
 		if err != nil {
 			return nil, err
 		}
 		return &Service{
 			client: client.Client,
+			logger: logger,
 		}, nil
 	}
 
@@ -61,7 +66,7 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
 		Messages: messages,
-		Model:    model,
+		Model:    "llama3-3-70b",
 		Tools:    tools,
 	})
 }

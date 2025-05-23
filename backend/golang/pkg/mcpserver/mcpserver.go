@@ -6,20 +6,26 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
+	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/log"
 	mcp "github.com/metoro-io/mcp-golang"
+	mcptransport "github.com/metoro-io/mcp-golang/transport"
+	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
 	"github.com/metoro-io/mcp-golang/transport/stdio"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/google"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/repository"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/screenpipe"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/slack"
-	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/twitter"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/google"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/screenpipe"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/slack"
+	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/twitter"
 )
 
 type ConnectedMCPServer struct {
@@ -29,6 +35,7 @@ type ConnectedMCPServer struct {
 
 // service implements the MCPServerService interface.
 type service struct {
+	config           *config.Config
 	store            *db.Store
 	repo             repository.Repository
 	connectedServers []*ConnectedMCPServer
@@ -36,17 +43,24 @@ type service struct {
 }
 
 // NewService creates a new MCPServerService.
-func NewService(ctx context.Context, repo repository.Repository, store *db.Store, registry tools.ToolRegistry) MCPService {
+func NewService(ctx context.Context, logger *log.Logger, store *db.Store, registry tools.ToolRegistry) MCPService {
+	repo := repository.NewRepository(logger, store.DB())
+	config, err := config.LoadConfig(false)
+	if err != nil {
+		log.Error("Error loading config", "error", err)
+	}
 	service := &service{
+		config:           config,
 		repo:             repo,
 		connectedServers: []*ConnectedMCPServer{},
 		store:            store,
 		registry:         registry,
 	}
-	err := service.LoadMCP(ctx)
+	err = service.LoadMCP(ctx)
 	if err != nil {
 		log.Error("Error loading MCP servers", "error", err)
 	}
+
 	return service
 }
 
@@ -58,13 +72,22 @@ func (s *service) ConnectMCPServer(
 	// Here you might add validation or other business logic before calling the repo
 	enabled := true
 
+	name := input.Name
+	if input.Type != model.MCPServerTypeOther {
+		name = CapitalizeFirst(input.Type.String())
+	}
+
+	mcpServer, err := s.repo.GetMCPServerByName(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if mcpServer != nil {
+		return nil, fmt.Errorf("mcp server with name %s already exists", name)
+	}
+
 	if input.Type != model.MCPServerTypeOther {
 		input.Command = "npx"
-
-		mcpServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
-		if err != nil {
-			return nil, err
-		}
 
 		var client MCPClient
 
@@ -83,8 +106,27 @@ func (s *service) ConnectMCPServer(
 			}
 		case model.MCPServerTypeScreenpipe:
 			client = screenpipe.NewClient()
+		case model.MCPServerTypeEnchanted:
+			if s.config == nil {
+				return nil, fmt.Errorf("config is nil, cannot connect to Enchanted MCP server")
+			}
+			transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get transport: %w", err)
+			}
+			mcpClient := mcp.NewClient(transport)
+			_, err = mcpClient.Initialize(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
+			}
+			client = mcpClient
 		default:
 			return nil, fmt.Errorf("unsupported server type")
+		}
+		input.Name = CapitalizeFirst(input.Type.String())
+		mcpServer, err = s.repo.AddMCPServer(ctx, &input, &enabled)
+		if err != nil {
+			return nil, err
 		}
 
 		s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
@@ -98,19 +140,22 @@ func (s *service) ConnectMCPServer(
 		return mcpServer, nil
 	}
 
-	mcpServer, err := s.repo.AddMCPServer(ctx, &input, &enabled)
-	if err != nil {
-		return nil, err
+	if !checkMCPServerValid(input) {
+		return nil, fmt.Errorf("invalid MCP server name")
 	}
 
-	cmd := exec.Command(mcpServer.Command, mcpServer.Args...)
-	cmd.Env = os.Environ()
-	for _, env := range mcpServer.Envs {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
+	// Convert input.Envs from []*model.KeyValueInput to []*model.KeyValue
+	var transportEnvs []*model.KeyValue
+	if input.Envs != nil {
+		transportEnvs = make([]*model.KeyValue, len(input.Envs))
+		for i, kvInput := range input.Envs {
+			transportEnvs[i] = &model.KeyValue{Key: kvInput.Key, Value: kvInput.Value}
+		}
 	}
-	transport, err := GetTransport(cmd)
+
+	transport, err := GetTransportWithIO(ctx, input.Command, input.Args, transportEnvs)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get transport: %w", err)
 	}
 
 	// Create the client using direct mcp.NewClient call to get Initialize method
@@ -124,15 +169,37 @@ func (s *service) ConnectMCPServer(
 	// Use the initialized client as an MCPClient interface
 	client := mcpClient
 
+	// Register tools with the registry
+	s.registerMCPTools(ctx, client)
+
+	mcpServer, err = s.repo.AddMCPServer(ctx, &input, &enabled)
+	if err != nil {
+		return nil, err
+	}
+
 	s.connectedServers = append(s.connectedServers, &ConnectedMCPServer{
 		ID:     mcpServer.ID,
 		Client: client,
 	})
 
-	// Register tools with the registry
-	s.registerMCPTools(ctx, client)
-
 	return mcpServer, nil
+}
+
+// ConnectMCPServerIfNotExists connects a new MCP server if it doesn't exist.
+func (s *service) ConnectMCPServerIfNotExists(
+	ctx context.Context,
+	input model.ConnectMCPServerInput,
+) (*model.MCPServer, error) {
+	mcpServer, err := s.repo.GetMCPServerByType(ctx, input.Type)
+	if err != nil {
+		return nil, err
+	}
+
+	if mcpServer != nil {
+		return mcpServer, nil
+	}
+
+	return s.ConnectMCPServer(ctx, input)
 }
 
 // GetMCPServers retrieves all MCP servers using the repository.
@@ -211,6 +278,23 @@ func (s *service) LoadMCP(ctx context.Context) error {
 				}
 			case model.MCPServerTypeScreenpipe:
 				client = screenpipe.NewClient()
+			case model.MCPServerTypeEnchanted:
+				if s.config == nil {
+					log.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
+					continue
+				}
+				transport, err := GetTransportWithHTTP(ctx, &s.config.EnchantedMcpURL)
+				if err != nil {
+					log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
+					continue
+				}
+				mcpClient := mcp.NewClient(transport)
+				_, err = mcpClient.Initialize(ctx)
+				if err != nil {
+					log.Error("Error initializing MCP server", "server", server.Name, "error", err)
+					continue
+				}
+				client = mcpClient
 			default:
 				// nothing to do
 				continue
@@ -227,16 +311,14 @@ func (s *service) LoadMCP(ctx context.Context) error {
 			continue
 		}
 
-		cmd := exec.Command(server.Command, server.Args...)
-
-		cmd.Env = os.Environ()
-		for _, env := range server.Envs {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
+		command := server.Command
+		if command == "docker" {
+			command = getDockerCommand()
 		}
-
-		transport, err := GetTransport(cmd)
+		transport, err := GetTransportWithIO(ctx, command, server.Args, server.Envs)
 		if err != nil {
-			return err
+			log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
+			continue
 		}
 
 		// Create the client using direct mcp.NewClient call to get Initialize method
@@ -272,7 +354,7 @@ func (s *service) GetTools(ctx context.Context) ([]mcp.ToolRetType, error) {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
 				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-				continue
+				break
 			}
 
 			if allTools == nil {
@@ -298,7 +380,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 			client_tools, err := connectedServer.Client.ListTools(ctx, &cursor)
 			if err != nil {
 				log.Warn("Error getting tools for client", "clientID", connectedServer.ID, "error", err)
-				continue
+				break
 			}
 
 			if client_tools != nil && len(client_tools.Tools) > 0 {
@@ -319,11 +401,7 @@ func (s *service) GetInternalTools(ctx context.Context) ([]tools.Tool, error) {
 }
 
 func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
-	err := s.repo.DeleteMCPServer(ctx, id)
-	if err != nil {
-		return err
-	}
-
+	var client MCPClient
 	// Remove the server from the connected servers
 	for i, connectedServer := range s.connectedServers {
 		if connectedServer.ID == id {
@@ -332,8 +410,16 @@ func (s *service) RemoveMCPServer(ctx context.Context, id string) error {
 			} else {
 				s.connectedServers = s.connectedServers[:i]
 			}
+			client = connectedServer.Client
 			break
 		}
+	}
+
+	s.deregisterMCPTools(ctx, client)
+
+	err := s.repo.DeleteMCPServer(ctx, id)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -371,22 +457,129 @@ func (s *service) registerMCPTools(ctx context.Context, client MCPClient) {
 	}
 }
 
-func GetTransport(cmd *exec.Cmd) (*stdio.StdioServerTransport, error) {
+func (s *service) deregisterMCPTools(ctx context.Context, client MCPClient) {
+	if s.registry == nil {
+		return
+	}
+	cursor := ""
+	tools, err := client.ListTools(ctx, &cursor)
+	if err != nil {
+		log.Warn("Error getting tools from MCP client", "error", err)
+		return
+	}
+
+	toolNames := make([]string, 0, len(tools.Tools))
+	for _, tool := range tools.Tools {
+		toolNames = append(toolNames, tool.Name)
+	}
+	s.registry = s.registry.Excluding(toolNames...)
+}
+
+// GetTransport creates a transport based on the server configuration.
+// It supports STDIN/STDOUT (stdio) and HTTPS protocols.
+// Assumes model.MCPServerTransportHTTPS and model.MCPServerTransportStdio constants exist in your model package.
+func GetTransportWithHTTP(
+	ctx context.Context,
+	serverURL *string,
+) (mcptransport.Transport, error) {
+	if serverURL == nil || *serverURL == "" {
+		return nil, fmt.Errorf("URL is required for HTTPS transport")
+	}
+	// mcphttp.NewHTTPClientTransport takes (baseURL string, client *stdhttp.Client)
+	// Using nil for the client will use http.DefaultClient.
+	return mcphttp.NewHTTPClientTransport(*serverURL), nil
+}
+
+func GetTransportWithIO(
+	ctx context.Context,
+	command string,
+	args []string,
+	envs []*model.KeyValue,
+) (mcptransport.Transport, error) {
+	effectiveCommand := command
+	if command == "docker" {
+		effectiveCommand = getDockerCommand()
+	}
+	cmd := exec.Command(effectiveCommand, args...)
+	cmd.Env = os.Environ()
+	for _, env := range envs {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", env.Key, env.Value))
+	}
+
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating stdin pipe: %w", err)
 	}
-
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error creating stdout pipe: %w", err)
 	}
-
 	if err := cmd.Start(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("error starting command for stdio transport: %w", err)
+	}
+	return stdio.NewStdioServerTransportWithIO(stdout, stdin), nil
+}
+
+func getDockerCommand() string {
+	var dockerCommand string
+	path, err := exec.LookPath("docker")
+	if err != nil {
+		commonPaths := []string{
+			"/usr/local/bin/docker",
+			"/usr/bin/docker",
+			filepath.Join(os.Getenv("HOME"), ".local/bin/docker"),
+		}
+		for _, p := range commonPaths {
+			if _, err := os.Stat(p); err == nil {
+				path = p
+				break
+			}
+		}
+	}
+	if path != "" {
+		dockerCommand = path
+	} else {
+		dockerCommand = "docker"
 	}
 
-	clientTransport := stdio.NewStdioServerTransportWithIO(stdout, stdin)
+	return dockerCommand
+}
 
-	return clientTransport, nil
+func checkMCPServerValid(input model.ConnectMCPServerInput) bool {
+	if strings.EqualFold(input.Name, model.MCPServerTypeGoogle.String()) {
+		return false
+	}
+
+	if strings.EqualFold(input.Name, model.MCPServerTypeTwitter.String()) {
+		return false
+	}
+
+	if strings.EqualFold(input.Name, model.MCPServerTypeSLACk.String()) {
+		return false
+	}
+
+	if strings.EqualFold(input.Name, model.MCPServerTypeScreenpipe.String()) {
+		return false
+	}
+
+	if input.Name == "" {
+		return false
+	}
+
+	return true
+}
+
+// CapitalizeFirst capitalizes the first rune of a string
+// and converts the rest of the runes to lowercase.
+func CapitalizeFirst(s string) string {
+	if len(s) == 0 {
+		return ""
+	}
+	runes := []rune(s)
+	firstRune := unicode.ToUpper(runes[0])
+	if len(runes) > 1 {
+		restOfString := strings.ToLower(string(runes[1:]))
+		return string(firstRune) + restOfString
+	}
+	return string(firstRune)
 }

@@ -16,11 +16,13 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
@@ -28,8 +30,10 @@ type Service struct {
 	aiService        *ai.Service
 	storage          Storage
 	nc               *nats.Conn
+	memoryService    memory.Storage
 	logger           *log.Logger
 	completionsModel string
+	reasoningModel   string
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
 }
@@ -39,16 +43,20 @@ func NewService(
 	aiService *ai.Service,
 	storage Storage,
 	nc *nats.Conn,
+	memoryService memory.Storage,
 	registry *tools.ToolMapRegistry,
 	userStorage *db.Store,
 	completionsModel string,
+	reasoningModel string,
 ) *Service {
 	return &Service{
 		logger:           logger,
 		aiService:        aiService,
 		storage:          storage,
 		nc:               nc,
+		memoryService:    memoryService,
 		completionsModel: completionsModel,
+		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
 		userStorage:      userStorage,
 	}
@@ -61,77 +69,120 @@ func (s *Service) Execute(
 	preToolCallback func(toolCall openai.ChatCompletionMessageToolCall),
 	postToolCallback func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult),
 	onDelta func(agent.StreamDelta),
+	reasoning bool,
 ) (*agent.AgentResponse, error) {
 	agent := agent.NewAgent(
 		s.logger,
 		s.nc,
 		s.aiService,
 		s.completionsModel,
+		s.reasoningModel,
 		preToolCallback,
 		postToolCallback,
 	)
 
 	// Get the tool list from the registry
-	toolsList := []tools.Tool{}
-	// TODO: move immediate workflow tools to separate registry
-	for _, name := range s.toolRegistry.Excluding("sleep", "sleep_until").List() {
-		if tool, exists := s.toolRegistry.Get(name); exists {
-			toolsList = append(toolsList, tool)
-		}
-	}
+	toolsList := s.toolRegistry.Excluding("send_to_chat").GetAll()
 
 	// TODO(cosmic): pass origin to agent
-	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta)
+	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, reasoning)
 	if err != nil {
 		return nil, err
 	}
-	s.logger.Debug(
-		"Agent response",
-		"content",
-		response.Content,
-		"tool_calls",
-		len(response.ToolCalls),
-		"tool_results",
-		len(response.ToolResults),
-	)
 
 	return &response, nil
+}
+
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return "", err
+	}
+	var emailAccounts []string
+	if len(oauthTokens) > 0 {
+		for _, token := range oauthTokens {
+			emailAccounts = append(emailAccounts, token.Username)
+		}
+	}
+
+	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
+		UserName:      userProfile.Name,
+		Bio:           userProfile.Bio,
+		EmailAccounts: emailAccounts,
+		ChatID:        &chatID,
+		CurrentTime:   time.Now().Format(time.RFC3339),
+		IsVoice:       isVoice,
+	})
+	if err != nil {
+		return "", err
+	}
+	return systemPrompt, nil
 }
 
 func (s *Service) SendMessage(
 	ctx context.Context,
 	chatID string,
 	message string,
+	isReasoning bool,
+	isVoice bool,
 ) (*model.Message, error) {
+	now := time.Now()
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {
 		return nil, err
 	}
 
-	systemPrompt := "You are a personal assistant and digital twin of a human. Your goal is to help your human in any way possible and help them to improve themselves. You are smart and wise and aim understand your human at a deep level. When you are asked to search the web, you should use the `perplexity_ask` tool if it exists."
-	now := time.Now().Format(time.RFC3339)
-	systemPrompt += fmt.Sprintf("\n\nCurrent system time: %s.\n", now)
-
-	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
 	if err != nil {
 		return nil, err
 	}
 
-	if userProfile.Name != nil {
-		systemPrompt += fmt.Sprintf("User name: %s. ", *userProfile.Name)
+	s.logger.Info("System prompt", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+	// if userProfile.Name != nil {
+	// 	systemPrompt += fmt.Sprintf("Name of your human: %s. ", *userProfile.Name)
+	// }
+	// if userProfile.Bio != nil {
+	// 	systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
+	// }
+
+	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return nil, err
 	}
-	if userProfile.Bio != nil {
-		systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
+	if len(oauthTokens) > 0 {
+		systemPrompt += "You have following email accounts connected to your account: "
+		for _, token := range oauthTokens {
+			systemPrompt += fmt.Sprintf("%s, ", token.Username)
+		}
+	} else {
+		systemPrompt += "You have no email accounts connected to your account."
 	}
+
+	oauthTokens, err = s.userStorage.GetOAuthTokensArray(ctx, "twitter")
+	if err != nil {
+		return nil, err
+	}
+	if len(oauthTokens) > 0 {
+		systemPrompt += "When a request references the user's *feed* or *timeline*, the assistant " +
+			"MUST first call `list_feed_tweets`, paginate as needed, and may then " +
+			"client-side-filter the results. It MUST NOT call `search_tweets` in this " +
+			"scenario."
+	}
+
+	systemPrompt += fmt.Sprintf("Current date and time: %s.", time.Now().Format(time.RFC3339))
+	systemPrompt += fmt.Sprintf("Current Chat ID is %s.", chatID)
+
+	s.logger.Info("System prompt", "prompt", systemPrompt)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
 		messageHistory,
 		openai.SystemMessage(systemPrompt),
-	)
-	messageHistory = append(
-		messageHistory,
-		openai.SystemMessage(fmt.Sprintf("Current date and time:%s  and timestamp:%d", time.Now().Format(time.RFC3339), time.Now().Unix())),
 	)
 	for _, message := range messages {
 		openaiMessage, err := ToOpenAIMessage(*message)
@@ -211,7 +262,8 @@ func (s *Service) SendMessage(
 		"message_id": userMsgID,
 	}
 
-	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta)
+	s.logger.Info("Executing agent", "reasoning", isReasoning)
+	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +319,7 @@ func (s *Service) SendMessage(
 		ChatID:       chatID,
 		Text:         message,
 		Role:         model.RoleUser.String(),
-		CreatedAtStr: createdAt,
+		CreatedAtStr: now.Format(time.RFC3339Nano),
 	}
 
 	// Add to database
@@ -304,13 +356,12 @@ func (s *Service) SendMessage(
 		ChatID:       chatID,
 		Text:         response.Content,
 		Role:         model.RoleAssistant.String(),
-		CreatedAtStr: time.Now().Format(time.RFC3339),
+		CreatedAtStr: time.Now().Format(time.RFC3339Nano),
 	}
+
 	if len(response.ToolCalls) > 0 {
 		toolCalls := make([]model.ToolCall, 0)
 		for _, toolCall := range response.ToolCalls {
-			s.logger.Info("Tool call", "name", toolCall.Function.Name, "args", toolCall.Function.Arguments)
-
 			toolCall := model.ToolCall{
 				ID:          toolCall.ID,
 				Name:        toolCall.Function.Name,
@@ -348,6 +399,14 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
+
+	// Index the conversation asynchronously
+	go func() {
+		err := s.IndexConversation(context.Background(), chatID)
+		if err != nil {
+			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
+		}
+	}()
 
 	return &model.Message{
 		ID:          idAssistant,
@@ -397,13 +456,13 @@ func (s *Service) GetChatSuggestions(
 		conversationContext += fmt.Sprintf("%s: %s\n\n", message.Role, *message.Text)
 	}
 
-	isntruction := fmt.Sprintf(
+	instruction := fmt.Sprintf(
 		"Generate 3 chat suggestions that user might ask for each of the category based on the chat history. Category names: Ask (should be questions about the content, should predict what user might wanna do next). Search (should be a plausible search based on the content). Research (should be a plausible research question based on the content).\n\n\nConversation history:\n%s",
 		conversationContext,
 	)
 
 	messages := []openai.ChatCompletionMessageParamUnion{
-		openai.UserMessage(isntruction),
+		openai.UserMessage(instruction),
 	}
 
 	tool := openai.ChatCompletionToolParam{
@@ -460,25 +519,39 @@ func (s *Service) GetChatSuggestions(
 	return suggestionsList, nil
 }
 
-// Tools returns the tools provided by the TwinChat service.
 func (s *Service) Tools() []tools.Tool {
-	if s.storage == nil || s.nc == nil {
-		return []tools.Tool{}
+	sendToChatTool := NewSendToChatTool(s.storage, s.nc)
+	return []tools.Tool{sendToChatTool}
+}
+
+func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
+	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
+	if err != nil {
+		return err
 	}
 
-	// Create and return the ChatMessageTool
-	// Get the repository object from the storage
-	repo, ok := s.storage.(*repository.Repository)
-	if !ok {
-		s.logger.Error("Failed to cast storage to repository.Repository")
-		return []tools.Tool{}
+	slidingWindow := 10
+	messagesWindow := helpers.SafeLastN(messages, slidingWindow)
+
+	content := ""
+	for _, message := range messagesWindow {
+		if message.Role.String() == "system" {
+			continue
+		}
+		content += fmt.Sprintf("%s: %s\n", message.Role.String(), *message.Text)
 	}
 
-	chatMessageTool := &ChatMessageTool{
-		logger:  s.logger,
-		storage: *repo,
-		nc:      s.nc,
+	prompt := fmt.Sprintf("The following conversation is between a human and an AI assistant:\n\n%s", content)
+
+	doc := memory.TextDocument{
+		ID:      uuid.New().String(),
+		Content: prompt,
+		Metadata: map[string]string{
+			"source": "chat",
+		},
 	}
 
-	return []tools.Tool{chatMessageTool}
+	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
+
+	return s.memoryService.Store(ctx, []memory.TextDocument{doc}, nil)
 }
