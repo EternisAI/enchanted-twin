@@ -3,51 +3,45 @@ import { motion } from 'framer-motion'
 
 import MessageInput from '@renderer/components/chat/MessageInput'
 import { UserMessageBubble } from '@renderer/components/chat/Message'
-import { CreateChatDocument, Message, Role } from '@renderer/graphql/generated/graphql'
+import { Message, Role } from '@renderer/graphql/generated/graphql'
 import { useTTS } from '@renderer/hooks/useTTS'
-import { useMutation } from '@apollo/client'
-import { toast } from 'sonner'
+import { Animation, OnboardingDoneAnimation } from './Animations'
 
-const QUESTIONS = [
+type Ask = (answers: string[]) => string
+
+type Step = {
+  ask: Ask
+  key: string
+}
+
+const STEPS: Step[] = [
   {
-    question: 'What is your name?'
+    key: 'name',
+    ask: () => 'Hello! What is your name?'
   },
   {
-    question: 'What is your dog name?'
+    key: 'intro',
+    ask: (a) =>
+      `Nice to meet you, ${a[0] || 'friend'}. ` +
+      'Tell me one thing that captures who you are—hobby, passion, fun fact... your call!'
   },
   {
-    question: 'What is your favorite color?'
+    key: 'sport',
+    ask: () => `Great! And what is your favourite sport?`
   },
   {
-    question: 'What is your favorite food?'
-  },
-  {
-    question: 'What is your favorite animal?'
+    key: 'end',
+    ask: (a) => `Awesome. Thank you, ${a[0] || 'friend'}, we're done and ready to go!`
   }
 ]
 
-const HAS_USER_ONBOARDED = false // we should store using electron-store
-
 export default function VoiceOnboardingContainer() {
   const installationStatus = useKokoroInstallationStatus()
-  console.log(installationStatus)
-  //   const [createChat, { loading: isCreatingChat }] = useMutation(CreateChatDocument, {
-  //     onCompleted: (data) => {
-  //       toast.success('Chat created successfully')
-  //       setChatId(data.createChat.id)
-  //     }
-  //   })
-  //   const [chatId, setChatId] = useState<string | null>(null)
 
-  //   useEffect(() => {
-  //     if (HAS_USER_ONBOARDED || chatId) return
-  //     createChat({
-  //       variables: {
-  //         name: 'Onboarding',
-  //         voice: true
-  //       }
-  //     })
-  //   }, [createChat, chatId])
+  const areDependenciesReady =
+    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
+
+  console.log('areDependenciesReady', areDependenciesReady)
 
   return (
     <div
@@ -56,63 +50,57 @@ export default function VoiceOnboardingContainer() {
         background: 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
       }}
     >
-      <VoiceOnboarding />
+      {areDependenciesReady ? (
+        <VoiceOnboarding />
+      ) : (
+        <div className="flex flex-col justify-center items-center h-full gap-4">
+          <div className="w-24 h-24 border-4 border-white border-t-transparent rounded-full animate-spin " />
+          <p className="text-white text-lg text-center">Adding dependencies...</p>
+          <p className="text-white text-md text-center">
+            {installationStatus.status} - {installationStatus.progress}%
+          </p>
+        </div>
+      )}
     </div>
   )
 }
 
 function VoiceOnboarding() {
-  // @TODO: We should check if kokoro is fully setup and ready to use
+  const { speak, stop, isSpeaking } = useTTS()
 
-  const { speak, stop, isSpeaking, isLoading } = useTTS()
-
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0)
+  const [stepIdx, setStepIdx] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
+  const [triggerAnimation, setTriggerAnimation] = useState(false)
 
-  const currentQuestion = QUESTIONS[currentQuestionIndex]
-  const progress = answers.length / QUESTIONS.length
+  const currentPrompt = useMemo(() => STEPS[stepIdx].ask(answers), [stepIdx, answers])
+
+  const progress = (answers.length + 1) / STEPS.length
 
   useEffect(() => {
-    console.log('speaking')
-    speak(QUESTIONS[0].question)
+    speak(currentPrompt)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // user message
-  //   const { sendMessage } = useSendMessage(
-  //     chatId,
-  //     (msg) => {
-  //       setAnswers([...answers, msg.text ?? ''])
-  //       setCurrentQuestionIndex(currentQuestionIndex + 1)
-  //     },
-  //     (msg) => {
-  //       console.error('SendMessage error', msg)
-  //       toast.error('Error sending message')
-  //       //   setError(msg.text ?? 'Error sending message')
-  //       //   setIsWaitingTwinResponse(false)
-  //     }
-  //   )
-
-  //   useMessageSubscription(chatId, (message) => {
-  //     if (message.role !== Role.User) {
-  //       window.api.analytics.capture('onboarding_message_received', {
-  //         question: currentQuestion.question,
-  //         answer: message.text ?? ''
-  //       })
-  //       speak(message.text ?? '')
-  //     }
-  //   })
-
   const handleSendMessage = async (text: string) => {
-    setAnswers([...answers, text])
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    if (currentQuestionIndex === QUESTIONS.length - 1) {
-      toast.success('Onboarding completed')
+    const nextAnswers = [...answers, text]
+    setAnswers(nextAnswers)
+
+    const nextIdx = stepIdx + 1
+    if (nextIdx === STEPS.length - 1) {
+      const finalPrompt = STEPS[nextIdx].ask(nextAnswers)
+      speak(finalPrompt)
+
+      setStepIdx(nextIdx)
+      setTimeout(() => {
+        setTriggerAnimation(true)
+      }, 5000) // Some time to let the user hear the final message as we dont have a way to know when the message is done yet
       return
     }
-    await speak(QUESTIONS[currentQuestionIndex + 1].question)
-    console.log('spoke')
-    setCurrentQuestionIndex(currentQuestionIndex + 1)
+
+    const nextPrompt = STEPS[nextIdx].ask(nextAnswers)
+    speak(nextPrompt)
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    setStepIdx(nextIdx)
   }
 
   const lastAnswer: Message | null = useMemo(() => {
@@ -133,14 +121,40 @@ function VoiceOnboarding() {
 
   return (
     <div className="w-full h-full flex flex-col justify-between items-center">
-      {/* <Animation /> */}
+      {triggerAnimation && <OnboardingDoneAnimation />}
+
+      <motion.div
+        className="w-full relative"
+        initial={{ opacity: 0, scale: 0.8 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
+      >
+        <Animation run={true} /> {/* TODO: We could use isSpeaking to run */}
+      </motion.div>
+
       <div></div>
+
       <div className="w-full flex flex-col items-center gap-6">
-        <p className="text-white text-lg text-center max-w-xl break-words">
-          {currentQuestion.question}
-        </p>
-        <MiddleProgressBar progress={progress} />
+        <motion.p
+          key={stepIdx}
+          className="text-white text-lg text-center max-w-xl break-words"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut', delay: stepIdx === 0 ? 1.2 : 0.2 }}
+        >
+          {currentPrompt}
+        </motion.p>
+
+        <motion.div
+          className="w-full relative"
+          initial={{ opacity: 0, scaleX: 0 }}
+          animate={{ opacity: 1, scaleX: 1 }}
+          transition={{ duration: 0.6, ease: 'easeOut', delay: 0 }}
+        >
+          <MiddleProgressBar progress={progress} />
+        </motion.div>
       </div>
+
       <div className="w-xl pb-12 flex flex-col gap-4">
         {lastAnswer && (
           <motion.div
@@ -152,27 +166,21 @@ function VoiceOnboarding() {
             <UserMessageBubble message={lastAnswer} />
           </motion.div>
         )}
-        <MessageInput
-          onSend={handleSendMessage}
-          isWaitingTwinResponse={isSpeaking}
-          isReasonSelected={false}
-          voiceMode
-          onStop={stop}
-        />
-      </div>
-    </div>
-  )
-}
 
-function Animation() {
-  return (
-    <div className="absolute top-[200px] left-0 w-screen h-screen flex justify-center items-end overflow-hidden">
-      <div className="absolute bottom-0 w-[600px] h-[600px] bg-white/10 rounded-full animate-subtle-scale"></div>
-      <div className="absolute bottom-0 w-[500px] h-[500px] bg-white/10 rounded-full animate-subtle-scale"></div>
-      <div className="absolute bottom-0 w-[400px] h-[400px] bg-white/10 rounded-full animate-subtle-scale"></div>
-      <div className="absolute bottom-0 w-[300px] h-[300px] bg-white/10 rounded-full animate-subtle-scale"></div>
-      <div className="absolute bottom-0 w-[200px] h-[200px] bg-white/10 rounded-full animate-subtle-scale"></div>
-      <div className="absolute bottom-0 w-[100px] h-[100px] bg-white/10 rounded-full animate-subtle-scale"></div>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut', delay: 0.8 }}
+        >
+          <MessageInput
+            onSend={handleSendMessage}
+            isWaitingTwinResponse={isSpeaking}
+            isReasonSelected={false}
+            voiceMode
+            onStop={stop}
+          />
+        </motion.div>
+      </div>
     </div>
   )
 }
@@ -186,7 +194,7 @@ interface InstallationStatus {
 
 function useKokoroInstallationStatus() {
   const [installationStatus, setInstallationStatus] = useState<InstallationStatus>({
-    dependency: 'Kokoro',
+    dependency: 'TTS',
     progress: 0,
     status: 'Not started'
   })
