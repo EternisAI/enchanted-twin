@@ -47,17 +47,13 @@ func (a *TwinNetworkWorkflow) QueryNetworkActivity(ctx context.Context, input Qu
 	for _, thread := range threads {
 		threadID := thread.ID
 		threadMessages := make([]NetworkMessage, 0, len(thread.Messages))
-		authorPubKey := ""
+		authorPubKey := thread.AuthorPubKey
 
 		for _, msg := range thread.Messages {
 			createdAt, err := time.Parse(time.RFC3339, msg.CreatedAt)
 			if err != nil {
 				a.logger.Error("Failed to parse message timestamp", "error", err, "createdAt", msg.CreatedAt)
 				continue
-			}
-
-			if authorPubKey == "" {
-				authorPubKey = msg.AuthorPubKey
 			}
 
 			threadMessages = append(threadMessages, NetworkMessage{
@@ -163,7 +159,7 @@ You are the digital twin of one human.
 	   
 	  additionally:
 	  • if the author of the thread concludes the thread, then use the tool *schedule_task* to create a task for your human
-	  • if you decided to act on the proposal, then also use the tool *schedule_task* 
+	  • if you decided to act on the proposal, then also use the tool *schedule_task* and use *send_to_twin_network* to notify the network that you are joining the event
 	  • when you make committing decision like joining an event do not forget to notify your human using *send_to_chat* tool 
 
 	━━━━━━━━━━  DECISION RULE  ━━━━━━━━━━
@@ -218,10 +214,21 @@ You are the digital twin of one human.
 	userMessage := fmt.Sprintf("Thread ID: %s. ", messages[0].ThreadID)
 
 	for _, msg := range messages {
-		if msg.AuthorPubKey == agentPubKey {
-			userMessage += fmt.Sprintf("[%s](You) %s.\n", msg.AuthorPubKey, msg.Content)
+
+		shortenedKey := msg.AuthorPubKey[:6]
+
+		a.logger.Debug("msg.AuthorPubKey", "msg.AuthorPubKey", msg.AuthorPubKey)
+		a.logger.Debug("threadAuthor", "threadAuthor", threadAuthor)
+		a.logger.Debug("agentPubKey", "agentPubKey", agentPubKey)
+
+		if msg.AuthorPubKey == threadAuthor && msg.AuthorPubKey == agentPubKey {
+			userMessage += fmt.Sprintf("[%s](You/Organizer) %s.\n", shortenedKey, msg.Content)
+		} else if msg.AuthorPubKey == threadAuthor {
+			userMessage += fmt.Sprintf("[%s](Organizer) %s.\n", shortenedKey, msg.Content)
+		} else if msg.AuthorPubKey == agentPubKey {
+			userMessage += fmt.Sprintf("[%s](You) %s.\n", shortenedKey, msg.Content)
 		} else {
-			userMessage += fmt.Sprintf("[%s] %s.\n", msg.AuthorPubKey, msg.Content)
+			userMessage += fmt.Sprintf("[%s] (Participant) %s.\n", shortenedKey, msg.Content)
 		}
 	}
 
