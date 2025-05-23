@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { ToolCall } from '@renderer/graphql/generated/graphql'
 import ToolCallProcessing from './ToolCallProcessing'
 import ToolCallResult from './ToolCallResult'
+import { useEffect, useState } from 'react'
 
 interface ToolCallCenterProps {
   activeToolCalls: ToolCall[]
@@ -12,14 +13,16 @@ export default function ToolCallCenter({
   activeToolCalls,
   historicToolCalls
 }: ToolCallCenterProps) {
-  // const [isShowing, setIsShowing] = useState(false)
+  const [isShowing, setIsShowing] = useState(false)
   // const { notifications } = useNotifications()
 
-  // useEffect(() => {
-  //   if (activeToolCalls.length > 0) {
-  //     setIsShowing(true)
-  //   }
-  // }, [activeToolCalls.length])
+  useEffect(() => {
+    if (activeToolCalls.length > 0 || historicToolCalls.length > 0) {
+      setIsShowing(true)
+    }
+  }, [activeToolCalls.length, historicToolCalls.length])
+
+  if (!isShowing) return null
 
   return (
     <>
@@ -43,10 +46,12 @@ export default function ToolCallCenter({
           <ToolCallProcessing toolCalls={activeToolCalls} />
           {/* {notifications.length > 0 && <ToolCallNotificationList notifications={notifications} />} */}
           <ToolCallResult toolCalls={activeToolCalls} />
-          <div className="flex flex-col gap-2">
-            <p className="text-sm text-gray-500">Tool Call History</p>
-            <ToolCallResult toolCalls={historicToolCalls} />
-          </div>
+          {historicToolCalls.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-gray-500">Tool Call History</p>
+              <ToolCallResult toolCalls={historicToolCalls} />
+            </div>
+          )}
         </div>
       </motion.div>
     </>
