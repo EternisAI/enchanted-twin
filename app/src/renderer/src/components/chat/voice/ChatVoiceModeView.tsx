@@ -85,6 +85,7 @@ export default function VoiceModeChatView({
             assistantTextMessage={lastAssistantMessage?.text ?? undefined}
             toolUrl={toolUrl}
           />
+          <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
         </motion.div>
 
         <div className="w-full max-w-4xl flex flex-col gap-4 px-2 pb-4">
@@ -113,7 +114,6 @@ export default function VoiceModeChatView({
           />
         </div>
       </div>
-      <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
     </div>
   )
 }
