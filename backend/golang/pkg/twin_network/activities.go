@@ -121,10 +121,10 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, messages []Ne
 
  
 	━━━━━━━━━━  TOOL USAGE  ━━━━━━━━━━
-	• *send_to_chat*  – keep human systematically informed about whats going on in the thread.
+	• *send_to_chat*  – keep human systematically informed about whats going on in the thread. No need to update if the messages are from the organizer himself which means you.
 	• *send_to_twin_network* – use **only** after your human explicitly approves participation or when wrapping up a completed proposal.
 	• Do **NOT** echo network messages back to the network.
-	• *schedule_task* – use this tool to create a task for your human.
+	• *schedule_task* – use this tool to create a task for your human. If possible use calendar tool instead.
 	• *update_thread* – DO NOT USE THIS TOOL to ignore the thread. It is for the participants twins only.
 	• Once the author marks a proposal completed, stop sending network messages except for essential wrap-up actions (calendar booking, email, etc.).
 	
@@ -184,7 +184,7 @@ You are the digital twin of one human.
 	• *send_to_twin_network* – use **only** after your human explicitly approves participation or when wrapping up a completed proposal.
 	• Do **NOT** echo network messages back to the network.
 	• Once the author marks a proposal completed, stop sending network messages except for essential wrap-up actions (calendar booking, email, etc.).
-	• *schedule_task* – use this tool to create a task for your human, all threads must be concluded before using this tool
+	• *schedule_task* – use this tool to create a task for your human, all threads must be concluded before using this tool. If possible use calendar tool instead.
 	• *update_thread* – use this tool to update the state of a thread, use this tool to mark a thread as completed or ignored. Only use this tool after the task is scheduled.
 	
 	━━━━━━━━━━  EXAMPLES  ━━━━━━━━━━
