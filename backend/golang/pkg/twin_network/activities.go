@@ -7,8 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/graph/model"
 	openai "github.com/openai/openai-go"
+
+	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 type MonitorNetworkActivityInput struct {
@@ -129,11 +130,11 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, input Evaluat
 
 	Your job as organizer TWIN is:
 	If you are the twin of the organizer/author of the thread, then you must communicate a lot about what's going on with your human using send_to_chat tool
-	until the author of the thread confirms that everything is set or that the proposal is cancelled.
+	until the author of the thread confirms that everything is set or that the proposal is canceled.
 	We mustn't leave the other twins in the dark.
 
 	MANDATORY: When thread reaches completion (confirmed or finalized), you MUST schedule the event/task using schedule_task tool.
-	This is NON-NEGOTIABLE unless the plan is explicitly cancelled.
+	This is NON-NEGOTIABLE unless the plan is explicitly canceled.
 
  
 	━━━━━━━━━━  TOOL USAGE  ━━━━━━━━━━
@@ -146,7 +147,7 @@ func (a *TwinNetworkWorkflow) EvaluateMessage(ctx context.Context, input Evaluat
 	
 	━━━━━━━━━━  MANDATORY SCHEDULING RULE  ━━━━━━━━━━
 	• EVERY confirmed plan MUST result in a scheduled task/calendar event
-	• NO EXCEPTIONS unless explicitly cancelled by your human
+	• NO EXCEPTIONS unless explicitly canceled by your human
 	• Even tentative plans should be scheduled with appropriate notes
 	• Schedule BEFORE marking thread as complete
 	
@@ -260,7 +261,6 @@ You are the digital twin of one human.
 	userMessage := fmt.Sprintf("Thread ID: %s. ", messages[0].ThreadID)
 
 	for _, msg := range messages {
-
 		var shortenedKey string
 		if len(msg.AuthorPubKey) > 6 {
 			shortenedKey = msg.AuthorPubKey[:6]
@@ -327,7 +327,7 @@ func (a *TwinNetworkWorkflow) GetChatMessages(ctx context.Context, chatID string
 	return messages, nil
 }
 
-// GetThreadState gets the state of a thread
+// GetThreadState gets the state of a thread.
 func (a *TwinNetworkWorkflow) GetThreadState(ctx context.Context, threadID string) (ThreadState, error) {
 	state, err := a.threadStore.GetThreadState(ctx, threadID)
 	if err != nil && err.Error() == "failed to get thread state: sql: no rows in result set" {

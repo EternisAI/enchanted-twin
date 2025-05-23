@@ -9,9 +9,10 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/uuid"
+
 	twinnetwork "github.com/EternisAI/enchanted-twin/pkg/twin_network"
 	"github.com/EternisAI/enchanted-twin/pkg/twin_network/graph/model"
-	"github.com/google/uuid"
 )
 
 // PostMessage is the resolver for the postMessage field.
@@ -72,17 +73,14 @@ func (r *queryResolver) GetNewMessages(ctx context.Context, networkID string, fr
 
 	threads := make([]*model.NetworkThread, 0, len(threadMap))
 	for threadID, messages := range threadMap {
-
 		var authorPubKey string
 		var updatedAt time.Time
 
 		threadData, exists := r.Store.GetThread(threadID)
 		if exists {
-
 			authorPubKey = threadData.AuthorPubKey
 			updatedAt = threadData.UpdatedAt
 		} else {
-
 			latestTime := fromTime
 			for _, msg := range messages {
 				msgTime, _ := time.Parse(time.RFC3339, msg.CreatedAt)

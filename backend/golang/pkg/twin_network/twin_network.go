@@ -5,6 +5,9 @@ import (
 	"context"
 	"time"
 
+	"github.com/charmbracelet/log"
+	"go.temporal.io/sdk/client"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -12,8 +15,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/twin_network/api"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
-	"github.com/charmbracelet/log"
-	"go.temporal.io/sdk/client"
 )
 
 type TwinNetworkWorkflow struct {
@@ -96,7 +97,7 @@ func (w *TwinNetworkWorkflow) ScheduleNetworkMonitor(logger *log.Logger, tempora
 		Spec: client.ScheduleSpec{
 			Intervals: []client.ScheduleIntervalSpec{
 				{
-					Every: time.Second * 50,
+					Every: time.Second * 20,
 				},
 			},
 		},

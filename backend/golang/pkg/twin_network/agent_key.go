@@ -30,7 +30,7 @@ func DerivePublicKey(priv *ecdsa.PrivateKey) *ecdsa.PublicKey {
 	return &priv.PublicKey
 }
 
-// GenerateRandomPublicKey generates a random public key by internally
+// GenerateRandomPublicKey generates a random public key by internally.
 func GenerateRandomPublicKey() (*ecdsa.PublicKey, error) {
 	priv, err := GenerateRandomPrivateKey()
 	if err != nil {

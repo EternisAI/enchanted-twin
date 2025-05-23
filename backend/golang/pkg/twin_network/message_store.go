@@ -24,7 +24,7 @@ type NetworkMessage struct {
 	Signature          string
 }
 
-// Thread represents a conversation thread in the twin network
+// Thread represents a conversation thread in the twin network.
 type Thread struct {
 	ID           string
 	AuthorPubKey string
@@ -102,7 +102,7 @@ func (m NetworkMessage) String() string {
 	return fmt.Sprintf("Message[%s] from %s on network %s at %s: %s", m.ID, m.AuthorPubKey, m.NetworkID, m.CreatedAt.Format(time.RFC3339), m.Content)
 }
 
-// GetThread returns a thread by its ID
+// GetThread returns a thread by its ID.
 func (s *MessageStore) GetThread(threadID string) (Thread, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -111,7 +111,7 @@ func (s *MessageStore) GetThread(threadID string) (Thread, bool) {
 	return thread, exists
 }
 
-// GetAllThreads returns all threads
+// GetAllThreads returns all threads.
 func (s *MessageStore) GetAllThreads() []Thread {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

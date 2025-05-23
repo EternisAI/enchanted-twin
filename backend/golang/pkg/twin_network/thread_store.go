@@ -12,7 +12,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// ThreadState represents the state of a thread
+// ThreadState represents the state of a thread.
 type ThreadState string
 
 const (
@@ -21,10 +21,10 @@ const (
 	ThreadStateCompleted ThreadState = "completed"
 )
 
-// ErrThreadNotFound is returned when a thread is not found
+// ErrThreadNotFound is returned when a thread is not found.
 var ErrThreadNotFound = errors.New("thread not found")
 
-// ThreadRecord stores information about a thread state
+// ThreadRecord stores information about a thread state.
 type ThreadRecord struct {
 	ThreadID    string      `json:"thread_id"`
 	State       ThreadState `json:"state"`
@@ -32,13 +32,13 @@ type ThreadRecord struct {
 	ChatID      string      `json:"chat_id"`
 }
 
-// ThreadStore manages thread state for the client side
+// ThreadStore manages thread state for the client side.
 type ThreadStore struct {
 	mu    sync.RWMutex
 	store *db.Store
 }
 
-// NewThreadStore creates a new thread store
+// NewThreadStore creates a new thread store.
 func NewThreadStore(store *db.Store) *ThreadStore {
 	return &ThreadStore{
 		store: store,
@@ -90,7 +90,7 @@ func (ts *ThreadStore) SetThreadChatID(ctx context.Context, threadID string, cha
 	return ts.store.SetValue(ctx, key, string(recordJSON))
 }
 
-// SetThreadState updates the state of a thread
+// SetThreadState updates the state of a thread.
 func (ts *ThreadStore) InitializeThread(ctx context.Context, threadID string, state ThreadState) error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
@@ -131,7 +131,7 @@ func (ts *ThreadStore) SetThreadState(ctx context.Context, threadID string, stat
 	return ts.store.SetValue(ctx, key, string(recordJSON))
 }
 
-// GetThreadState retrieves the state of a thread
+// GetThreadState retrieves the state of a thread.
 func (ts *ThreadStore) GetThreadState(ctx context.Context, threadID string) (ThreadState, error) {
 	ts.mu.RLock()
 	defer ts.mu.RUnlock()
@@ -158,7 +158,7 @@ func (ts *ThreadStore) getThreadStateUnlocked(ctx context.Context, threadID stri
 	return record.State, nil
 }
 
-// GetAllThreadStates retrieves all thread states
+// GetAllThreadStates retrieves all thread states.
 func (ts *ThreadStore) GetAllThreadStates(ctx context.Context) (map[string]ThreadState, error) {
 	ts.mu.RLock()
 	defer ts.mu.RUnlock()
@@ -185,7 +185,7 @@ func (ts *ThreadStore) GetAllThreadStates(ctx context.Context) (map[string]Threa
 	return result, nil
 }
 
-// DeleteThreadState removes a thread state
+// DeleteThreadState removes a thread state.
 func (ts *ThreadStore) DeleteThreadState(ctx context.Context, threadID string) error {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
