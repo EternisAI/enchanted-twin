@@ -96,7 +96,7 @@ func (w *TwinNetworkWorkflow) ScheduleNetworkMonitor(logger *log.Logger, tempora
 		Spec: client.ScheduleSpec{
 			Intervals: []client.ScheduleIntervalSpec{
 				{
-					Every: time.Second * 20,
+					Every: time.Second * 50,
 				},
 			},
 		},
