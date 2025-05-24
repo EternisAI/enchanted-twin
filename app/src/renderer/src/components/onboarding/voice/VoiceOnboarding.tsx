@@ -3,9 +3,10 @@ import { motion } from 'framer-motion'
 
 import MessageInput from '@renderer/components/chat/MessageInput'
 import { UserMessageBubble } from '@renderer/components/chat/Message'
-import { Message, Role } from '@renderer/graphql/generated/graphql'
+import { Message, Role, UpdateProfileDocument } from '@renderer/graphql/generated/graphql'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { Animation, OnboardingDoneAnimation } from './Animations'
+import { useMutation } from '@apollo/client'
 
 type Ask = (answers: string[]) => string
 
@@ -72,6 +73,8 @@ function VoiceOnboarding() {
   const [answers, setAnswers] = useState<string[]>([])
   const [triggerAnimation, setTriggerAnimation] = useState(false)
 
+  const [updateProfile] = useMutation(UpdateProfileDocument)
+
   const currentPrompt = useMemo(() => STEPS[stepIdx].ask(answers), [stepIdx, answers])
 
   const progress = (answers.length + 1) / STEPS.length
@@ -90,6 +93,14 @@ function VoiceOnboarding() {
       const finalPrompt = STEPS[nextIdx].ask(nextAnswers)
       speak(finalPrompt)
 
+      await updateProfile({
+        variables: {
+          input: {
+            name: nextAnswers[0],
+            bio: answers.map((a) => a.trim()).join(', ') // @TODO: Improve this structuring it better after we have the final questions
+          }
+        }
+      })
       setStepIdx(nextIdx)
       setTimeout(() => {
         setTriggerAnimation(true)
