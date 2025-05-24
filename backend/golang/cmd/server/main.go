@@ -248,18 +248,17 @@ func main() {
 		panic(errors.Wrap(err, "Failed to register schedule task tool"))
 	}
 
-	select {
-	case whatsappClient = <-whatsappClientChan:
+	go func() {
+		logger.Info("Waiting for WhatsApp client to register tool...")
+		whatsappClient = <-whatsappClientChan
 		if whatsappClient != nil {
 			if err := toolRegistry.Register(waTools.NewWhatsAppTool(logger, whatsappClient)); err != nil {
 				logger.Error("Failed to register WhatsApp tool", "error", err)
-				panic(errors.Wrap(err, "Failed to register WhatsApp tool"))
+			} else {
+				logger.Info("WhatsApp tools registered")
 			}
-			logger.Info("WhatsApp tools registered")
 		}
-	case <-time.After(1 * time.Second):
-		logger.Warn("Timed out waiting for WhatsApp client, continuing without WhatsApp tool")
-	}
+	}()
 
 	twinChatService := twinchat.NewService(
 		logger,
