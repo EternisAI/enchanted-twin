@@ -259,11 +259,13 @@ func main() {
 			}
 		}
 	}()
- 
 
 	telegramTool := telegram.NewTelegramTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
-	toolRegistry.Register(telegramTool)
- 
+	err = toolRegistry.Register(telegramTool)
+	if err != nil {
+		logger.Error("Failed to register telegram tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register telegram tool"))
+	}
 
 	twinChatService := twinchat.NewService(
 		logger,
