@@ -260,6 +260,9 @@ func main() {
 		}
 	}()
 
+	telegramTool := telegram.NewTelegramTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+	toolRegistry.Register(telegramTool)
+
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
