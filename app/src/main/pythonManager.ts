@@ -287,8 +287,8 @@ export class KokoroBootstrap {
     while (Date.now() - start < timeout) {
       if (await checkServer()) {
         log.info('[Kokoro] Server is ready and responding!')
-        this.onProgress?.({ dependency: 'Kokoro', progress: 100, status: 'Completed' })
-        this.latestProgress = { dependency: 'Kokoro', progress: 100, status: 'Completed' }
+        this.onProgress?.({ dependency: 'Kokoro', progress: 100, status: 'Running' })
+        this.latestProgress = { dependency: 'Kokoro', progress: 100, status: 'Running' }
         return
       }
       checkCount++

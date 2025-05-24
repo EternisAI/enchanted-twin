@@ -1,16 +1,23 @@
+// Owner: slim@eternis.ai
 package whatsapp
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/nats-io/nats.go"
 	"github.com/samber/lo"
+	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
@@ -337,13 +344,15 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 			processedItems := 0
 
+			documents := []memory.TextDocument{}
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
-					err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
+					document, err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
 					if err != nil {
 						logger.Error("Error processing WhatsApp contact", "error", err)
 					} else {
 						logger.Info("WhatsApp contact stored successfully", "pushname", *pushname.Pushname)
+						documents = append(documents, document)
 					}
 
 					addContact(*pushname.ID, *pushname.Pushname)
@@ -418,7 +427,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						toName = "me"
 					}
 
-					err := dataprocessing_whatsapp.ProcessHistoricalMessage(
+					document, err := dataprocessing_whatsapp.ProcessHistoricalMessage(
 						ctx,
 						memoryStorage,
 						content,
@@ -429,6 +438,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					if err != nil {
 						logger.Error("Error processing historical WhatsApp message", "error", err)
 					} else {
+						documents = append(documents, document)
 						logger.Info("Historical WhatsApp message stored successfully")
 					}
 
@@ -453,6 +463,13 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				logger.Info("Finished processing conversation",
 					"chat_id", chatID,
 					"messages", processedConversationMessages)
+			}
+
+			logger.Info("Storing WhatsApp contacts and messages", "contacts", totalContacts, "messages", totalMessages)
+			progressChan := make(chan memory.ProgressUpdate, 1)
+			err = memoryStorage.Store(ctx, documents, progressChan)
+			if err != nil {
+				logger.Error("Error storing WhatsApp contacts", "error", err)
 			}
 
 			UpdateSyncStatus(SyncStatus{
@@ -510,15 +527,137 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
+			document, err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
 			if err != nil {
 				logger.Error("Error processing WhatsApp message", "error", err)
 			} else {
 				logger.Info("WhatsApp message stored successfully")
 			}
 
+			progressChan := make(chan memory.ProgressUpdate, 1)
+			err = memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+			if err != nil {
+				logger.Error("Error storing WhatsApp message", "error", err)
+			}
+
 		default:
 			logger.Info("Received unhandled event", "event", evt)
 		}
 	}
+}
+
+func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, dbPath string) *whatsmeow.Client {
+	dbLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
+
+	dbDir := filepath.Dir(dbPath)
+	if dbDir != "." {
+		if err := os.MkdirAll(dbDir, 0o755); err != nil {
+			logger.Error("Failed to create WhatsApp database directory", "error", err)
+			panic(err)
+		}
+	}
+
+	dbFilePath := filepath.Join(dbDir, "whatsapp_store.db")
+	container, err := sqlstore.New("sqlite3", "file:"+dbFilePath+"?_foreign_keys=on", dbLog)
+	if err != nil {
+		logger.Info("Failed to create WhatsApp database:", "dbFilePath", dbFilePath)
+		logger.Error("Failed to create WhatsApp database:", "error", err, "dbFilePath", dbFilePath)
+		panic(err)
+	}
+	deviceStore, err := container.GetFirstDevice()
+	if err != nil {
+		panic(err)
+	}
+	clientLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Client"}
+	client := whatsmeow.NewClient(deviceStore, clientLog)
+	client.AddEventHandler(EventHandler(memoryStorage, logger, nc))
+
+	logger.Info("Waiting for WhatsApp connection signal...")
+	connectChan := GetConnectChannel()
+	<-connectChan
+	logger.Info("Received signal to start WhatsApp connection")
+
+	if client.Store.ID == nil {
+		qrChan, _ := client.GetQRChannel(context.Background())
+		err = client.Connect()
+		if err != nil {
+			logger.Error("Error connecting to WhatsApp", "error", err)
+		}
+		for evt := range qrChan {
+			switch evt.Event {
+			case "code":
+				qrEvent := QRCodeEvent{
+					Event: evt.Event,
+					Code:  evt.Code,
+				}
+				SetLatestQREvent(qrEvent)
+				whatsappQRChan := GetQRChannel()
+				select {
+				case whatsappQRChan <- qrEvent:
+				default:
+					logger.Warn("Warning: QR channel buffer full, dropping event")
+				}
+				logger.Info("Received new WhatsApp QR code", "qr_code", evt.Code)
+			case "success":
+				qrEvent := QRCodeEvent{
+					Event: "success",
+					Code:  "",
+				}
+				SetLatestQREvent(qrEvent)
+				GetQRChannel() <- qrEvent
+				logger.Info("WhatsApp connection successful")
+
+				StartSync()
+				UpdateSyncStatus(SyncStatus{
+					IsSyncing:      true,
+					IsCompleted:    false,
+					ProcessedItems: 0,
+					TotalItems:     0,
+					StatusMessage:  "Waiting for history sync to begin",
+				})
+				err = PublishSyncStatus(nc, logger)
+				if err != nil {
+					logger.Error("Error publishing sync status", "error", err)
+				}
+
+			default:
+				logger.Info("Login event", "event", evt.Event)
+			}
+		}
+	} else {
+		err = client.Connect()
+		if err != nil {
+			logger.Error("Error connecting to WhatsApp", "error", err)
+		} else {
+			qrEvent := QRCodeEvent{
+				Event: "success",
+				Code:  "",
+			}
+			SetLatestQREvent(qrEvent)
+			GetQRChannel() <- qrEvent
+			logger.Info("Already logged in, reusing session")
+
+			StartSync()
+			UpdateSyncStatus(SyncStatus{
+				IsSyncing:      true,
+				IsCompleted:    false,
+				ProcessedItems: 0,
+				TotalItems:     0,
+				StatusMessage:  "Waiting for history sync to begin",
+			})
+			err = PublishSyncStatus(nc, logger)
+			if err != nil {
+				logger.Error("Error publishing sync status", "error", err)
+			}
+		}
+	}
+
+	go func() {
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+		<-c
+		client.Disconnect()
+	}()
+
+	return client
 }

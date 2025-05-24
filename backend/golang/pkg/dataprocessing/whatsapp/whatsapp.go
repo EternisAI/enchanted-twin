@@ -213,9 +213,9 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 }
 
 // ProcessNewMessage processes a new WhatsApp message and stores it in memory.
-func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) error {
+func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) (memory.TextDocument, error) {
 	if message == "" {
-		return fmt.Errorf("empty message content")
+		return memory.TextDocument{}, fmt.Errorf("empty message content")
 	}
 
 	timestamp := time.Now()
@@ -233,27 +233,20 @@ func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, messag
 		},
 	}
 
-	progressChan := make(chan memory.ProgressUpdate, 1)
-
-	err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
-	if err != nil {
-		return fmt.Errorf("failed to store WhatsApp message: %w", err)
-	}
-
-	return nil
+	return document, nil
 }
 
 // ProcessNewContact stores a WhatsApp contact in memory.
-func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) error {
+func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) (memory.TextDocument, error) {
 	if contactName == "" || contactID == "" {
-		return fmt.Errorf("empty contact information")
+		return memory.TextDocument{}, fmt.Errorf("empty contact information")
 	}
 
 	timestamp := time.Now()
 
 	document := memory.TextDocument{
 		ID:        fmt.Sprintf("whatsapp-contact-%d", time.Now().UnixNano()),
-		Content:   contactName,
+		Content:   fmt.Sprintf("Whatsapp Contact name: %s. Contact ID: %s.", contactName, contactID),
 		Timestamp: &timestamp,
 		Tags:      []string{"whatsapp", "contact"},
 		Metadata: map[string]string{
@@ -264,20 +257,13 @@ func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contac
 		},
 	}
 
-	progressChan := make(chan memory.ProgressUpdate, 1)
-
-	err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
-	if err != nil {
-		return fmt.Errorf("failed to store WhatsApp contact: %w", err)
-	}
-
-	return nil
+	return document, nil
 }
 
 // ProcessHistoricalMessage processes a historical WhatsApp message and stores it in memory.
-func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) error {
+func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) (memory.TextDocument, error) {
 	if message == "" {
-		return fmt.Errorf("empty message content")
+		return memory.TextDocument{}, fmt.Errorf("empty message content")
 	}
 
 	var timestamp time.Time
@@ -301,12 +287,12 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 		},
 	}
 
-	progressChan := make(chan memory.ProgressUpdate, 1)
-
-	err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
-	if err != nil {
-		return fmt.Errorf("failed to store historical WhatsApp message: %w", err)
-	}
-
-	return nil
+	return document, nil
 }
+
+//	progressChan := make(chan memory.ProgressUpdate, 1)
+
+// err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+// if err != nil {
+// 	return fmt.Errorf("failed to store historical WhatsApp message: %w", err)
+// }

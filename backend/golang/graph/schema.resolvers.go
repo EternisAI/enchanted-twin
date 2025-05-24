@@ -492,7 +492,6 @@ func (r *queryResolver) GetWhatsAppStatus(ctx context.Context) (*model.WhatsAppS
 			qrCodeData = &latestQREvent.Code
 		}
 	} else {
-		// Fallback to resolver's stored values
 		qrCodeData = r.WhatsAppQRCode
 	}
 
