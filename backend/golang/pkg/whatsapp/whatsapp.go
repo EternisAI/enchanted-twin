@@ -338,13 +338,15 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 			processedItems := 0
 
+			documents := []memory.TextDocument{}
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
-					err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
+					document, err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
 					if err != nil {
 						logger.Error("Error processing WhatsApp contact", "error", err)
 					} else {
 						logger.Info("WhatsApp contact stored successfully", "pushname", *pushname.Pushname)
+						documents = append(documents, document)
 					}
 
 					addContact(*pushname.ID, *pushname.Pushname)
@@ -419,7 +421,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						toName = "me"
 					}
 
-					err := dataprocessing_whatsapp.ProcessHistoricalMessage(
+					document, err := dataprocessing_whatsapp.ProcessHistoricalMessage(
 						ctx,
 						memoryStorage,
 						content,
@@ -430,6 +432,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					if err != nil {
 						logger.Error("Error processing historical WhatsApp message", "error", err)
 					} else {
+						documents = append(documents, document)
 						logger.Info("Historical WhatsApp message stored successfully")
 					}
 
@@ -454,6 +457,13 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				logger.Info("Finished processing conversation",
 					"chat_id", chatID,
 					"messages", processedConversationMessages)
+			}
+
+			logger.Info("Storing WhatsApp contacts and messages", "contacts", totalContacts, "messages", totalMessages)
+			progressChan := make(chan memory.ProgressUpdate, 1)
+			err = memoryStorage.Store(ctx, documents, progressChan)
+			if err != nil {
+				logger.Error("Error storing WhatsApp contacts", "error", err)
 			}
 
 			UpdateSyncStatus(SyncStatus{
@@ -511,11 +521,17 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
-			err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
+			document, err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
 			if err != nil {
 				logger.Error("Error processing WhatsApp message", "error", err)
 			} else {
 				logger.Info("WhatsApp message stored successfully")
+			}
+
+			progressChan := make(chan memory.ProgressUpdate, 1)
+			err = memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+			if err != nil {
+				logger.Error("Error storing WhatsApp message", "error", err)
 			}
 
 		default:
