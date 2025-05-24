@@ -260,13 +260,6 @@ func main() {
 		}
 	}()
 
-	telegramTool := telegram.NewTelegramTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
-	err = toolRegistry.Register(telegramTool)
-	if err != nil {
-		logger.Error("Failed to register telegram tool", "error", err)
-		panic(errors.Wrap(err, "Failed to register telegram tool"))
-	}
-
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
@@ -374,6 +367,14 @@ func main() {
 					continue
 				}
 				err = telegramService.Subscribe(appCtx, chatUUID)
+
+				logger.Info("Registering telegram tool", "chatUUID", chatUUID)
+				telegramTool := telegram.NewTelegramTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+				err = toolRegistry.Register(telegramTool)
+				if err == fmt.Errorf("tool '%s' is already registered", telegramTool.Definition().Function.Name) {
+				} else {
+					logger.Error("Failed to register telegram tool", "error", err)
+				}
 
 				if err == nil {
 				} else if stderrs.Is(err, telegram.ErrSubscriptionNilTextMessage) {
