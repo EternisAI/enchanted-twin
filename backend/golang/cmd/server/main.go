@@ -240,15 +240,21 @@ func main() {
 		logger.Error("Failed to register memory search tool", "error", err)
 	}
 
-	toolRegistry.Register(&schedulerTools.ScheduleTask{
+	if err := toolRegistry.Register(&schedulerTools.ScheduleTask{
 		Logger:         logger,
 		TemporalClient: temporalClient,
-	})
+	}); err != nil {
+		logger.Error("Failed to register schedule task tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register schedule task tool"))
+	}
 
 	select {
 	case whatsappClient = <-whatsappClientChan:
 		if whatsappClient != nil {
-			toolRegistry.Register(waTools.NewWhatsAppTool(logger, whatsappClient))
+			if err := toolRegistry.Register(waTools.NewWhatsAppTool(logger, whatsappClient)); err != nil {
+				logger.Error("Failed to register WhatsApp tool", "error", err)
+				panic(errors.Wrap(err, "Failed to register WhatsApp tool"))
+			}
 			logger.Info("WhatsApp tools registered")
 		}
 	case <-time.After(1 * time.Second):
@@ -268,7 +274,11 @@ func main() {
 	)
 
 	sendToChatTool := twinchat.NewSendToChatTool(chatStorage, nc)
-	toolRegistry.Register(sendToChatTool)
+	err = toolRegistry.Register(sendToChatTool)
+	if err != nil {
+		logger.Error("Failed to register send to chat tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register send to chat tool"))
+	}
 
 	// Initialize MCP Service with tool registry
 	mcpService := mcpserver.NewService(context.Background(), logger, store, toolRegistry)
