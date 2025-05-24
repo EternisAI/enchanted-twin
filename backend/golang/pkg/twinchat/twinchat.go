@@ -519,11 +519,6 @@ func (s *Service) GetChatSuggestions(
 	return suggestionsList, nil
 }
 
-func (s *Service) Tools() []tools.Tool {
-	sendToChatTool := NewSendToChatTool(s.storage, s.nc)
-	return []tools.Tool{sendToChatTool}
-}
-
 func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
 	if err != nil {

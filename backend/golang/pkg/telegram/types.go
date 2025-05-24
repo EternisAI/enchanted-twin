@@ -1,4 +1,4 @@
-package types
+package telegram
 
 const (
 	// TelegramEnabled is the flag to enable telegram.

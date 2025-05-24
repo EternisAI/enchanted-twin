@@ -253,7 +253,7 @@ func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contac
 
 	document := memory.TextDocument{
 		ID:        fmt.Sprintf("whatsapp-contact-%d", time.Now().UnixNano()),
-		Content:   contactName,
+		Content:   fmt.Sprintf("Whatsapp Contact name: %s. Contact ID: %s.", contactName, contactID),
 		Timestamp: &timestamp,
 		Tags:      []string{"whatsapp", "contact"},
 		Metadata: map[string]string{

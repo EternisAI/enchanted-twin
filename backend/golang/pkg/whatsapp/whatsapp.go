@@ -1,3 +1,4 @@
+// Owner: slim@eternis.ai
 package whatsapp
 
 import (
