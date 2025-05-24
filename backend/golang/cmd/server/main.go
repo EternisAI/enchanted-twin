@@ -44,6 +44,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
+	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -59,6 +60,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
 
 func main() {
@@ -210,7 +212,7 @@ func main() {
 
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
-		client := bootstrap.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath)
+		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath)
 		whatsappClientChan <- client
 	}()
 
@@ -231,36 +233,32 @@ func main() {
 		panic(errors.Wrap(err, "Unable to start temporal server"))
 	}
 
+	// Tools
 	toolRegistry := tools.NewRegistry()
 
 	if err := toolRegistry.Register(memory.NewMemorySearchTool(logger, mem)); err != nil {
 		logger.Error("Failed to register memory search tool", "error", err)
 	}
 
-	// Initialize MCP Service with tool registry
-	mcpService := mcpserver.NewService(context.Background(), logger, store, toolRegistry)
-
-	// Register standard tools
-	standardTools := agent.RegisterStandardTools(
-		toolRegistry,
-		logger,
-		envs.TelegramToken,
-		store,
-		temporalClient,
-		envs.CompletionsModel,
-		envs.TelegramChatServer,
-	)
-
-	select {
-	case whatsappClient = <-whatsappClientChan:
-
-		if whatsappClient != nil {
-			whatsappTools := agent.RegisterWhatsAppTool(toolRegistry, logger, whatsappClient)
-			logger.Info("WhatsApp tools registered", "count", len(whatsappTools))
-		}
-	case <-time.After(1 * time.Second):
-		logger.Warn("Timed out waiting for WhatsApp client, continuing without WhatsApp tool")
+	if err := toolRegistry.Register(&schedulerTools.ScheduleTask{
+		Logger:         logger,
+		TemporalClient: temporalClient,
+	}); err != nil {
+		logger.Error("Failed to register schedule task tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register schedule task tool"))
 	}
+
+	go func() {
+		logger.Info("Waiting for WhatsApp client to register tool...")
+		whatsappClient = <-whatsappClientChan
+		if whatsappClient != nil {
+			if err := toolRegistry.Register(waTools.NewWhatsAppTool(logger, whatsappClient)); err != nil {
+				logger.Error("Failed to register WhatsApp tool", "error", err)
+			} else {
+				logger.Info("WhatsApp tools registered")
+			}
+		}
+	}()
 
 	twinChatService := twinchat.NewService(
 		logger,
@@ -274,9 +272,15 @@ func main() {
 		envs.ReasoningModel,
 	)
 
-	providerTools := agent.RegisterToolProviders(toolRegistry, logger, twinChatService)
-	logger.Info("Standard tools registered", "count", len(standardTools))
-	logger.Info("Provider tools registered", "count", len(providerTools))
+	sendToChatTool := twinchat.NewSendToChatTool(chatStorage, nc)
+	err = toolRegistry.Register(sendToChatTool)
+	if err != nil {
+		logger.Error("Failed to register send to chat tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register send to chat tool"))
+	}
+
+	// Initialize MCP Service with tool registry
+	mcpService := mcpserver.NewService(context.Background(), logger, store, toolRegistry)
 
 	// MCP tools are automatically registered by the MCP service
 	mcpTools, err := mcpService.GetInternalTools(context.Background())
@@ -293,6 +297,10 @@ func main() {
 		"names",
 		toolRegistry.List(),
 	)
+
+	for _, toolName := range toolRegistry.List() {
+		logger.Info("Tool registered", "name", toolName)
+	}
 
 	notificationsSvc := notifications.NewService(nc)
 

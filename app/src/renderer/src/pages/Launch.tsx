@@ -36,7 +36,7 @@ export default function LaunchScreen() {
     const requiredItems = setupData.filter((item) => item.required)
 
     const allRequiredComplete = requiredItems.every(
-      (item) => item.status.toLowerCase() === 'Completed'
+      (item) => item.status.toLowerCase() === 'Running'
     )
 
     if (allRequiredComplete || requiredItems.length === 0) {
