@@ -367,6 +367,18 @@ func main() {
 					continue
 				}
 				err = telegramService.Subscribe(appCtx, chatUUID)
+				if err != nil {
+					logger.Error("Failed to subscribe to telegram", "error", err)
+					continue
+				}
+
+				logger.Info("Registering telegram tool", "chatUUID", chatUUID)
+				telegramTool := telegram.NewTelegramTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+				err = toolRegistry.Register(telegramTool)
+				if err == fmt.Errorf("tool '%s' is already registered", telegramTool.Definition().Function.Name) {
+				} else {
+					logger.Error("Failed to register telegram tool", "error", err)
+				}
 
 				if err == nil {
 				} else if stderrs.Is(err, telegram.ErrSubscriptionNilTextMessage) {
