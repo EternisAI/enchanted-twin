@@ -66,15 +66,14 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 		}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
 
-	telegramEnabled, err2 := GetTelegramEnabled(ctx, t.Store)
+	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
 
-	if err2 != nil || telegramEnabled != "true" {
-		t.Logger.Info("telegram is not enabled", "error", err2)
+	if err != nil || telegramEnabled != "true" {
 
 		chatURL := GetChatURL(TelegramBotName, chatUUID)
-		qr, qErr := generateQRCodePNGDataURL(chatURL)
-		if qErr != nil {
-			t.Logger.Error("failed to generate QR code,", "error", qErr)
+		qr, err := generateQRCodePNGDataURL(chatURL)
+		if err != nil {
+			t.Logger.Error("failed to generate QR code,", "error", err)
 		}
 
 		return &agenttypes.StructuredToolResult{
@@ -160,10 +159,9 @@ func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (
 		}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
 
-	telegramEnabled, err2 := GetTelegramEnabled(ctx, t.Store)
+	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
 
-	if err2 != nil || telegramEnabled != "true" {
-		t.Logger.Info("telegram is not enabled", "error", err2)
+	if err != nil || telegramEnabled != "true" {
 
 		chatURL := GetChatURL(TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
