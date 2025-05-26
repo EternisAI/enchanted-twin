@@ -75,7 +75,7 @@ func main() {
 		TimeFormat:      time.Kitchen,
 	})
 
-	envs, _ := config.LoadConfig(true)
+	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 
