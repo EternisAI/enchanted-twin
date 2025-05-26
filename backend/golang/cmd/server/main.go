@@ -668,6 +668,9 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 		_ = server.Shutdown()
 	}()
 
+	// Give the server a moment to start listening before beginning readiness checks
+	time.Sleep(100 * time.Millisecond)
+
 	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
 	deadline := time.Now().Add(15 * time.Second)
 	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "15s")
@@ -687,27 +690,34 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 		resp, err := http.DefaultClient.Do(req)
 
 		if err != nil {
-			if checkCount%10 == 0 {
+			// Log connection errors more frequently for better debugging
+			if checkCount <= 5 || checkCount%5 == 0 {
 				logger.Debug("Weaviate readiness check failed",
 					"error", err,
 					"attempt", checkCount,
 					"elapsed", time.Since(startTime))
 			}
 		} else {
+			// Always close the response body to prevent resource leaks
+			defer func() {
+				if resp != nil && resp.Body != nil {
+					resp.Body.Close() //nolint:errcheck
+				}
+			}()
+
 			if resp.StatusCode == http.StatusOK {
 				logger.Info("Weaviate server is ready",
 					"elapsed", time.Since(startTime),
 					"checks_performed", checkCount)
-				resp.Body.Close() //nolint:errcheck
 				return server, nil
 			} else {
-				if checkCount%10 == 0 {
+				// Log non-OK status responses more frequently for better debugging
+				if checkCount <= 5 || checkCount%5 == 0 {
 					logger.Debug("Weaviate not ready yet",
 						"status_code", resp.StatusCode,
 						"attempt", checkCount,
 						"elapsed", time.Since(startTime))
 				}
-				resp.Body.Close() //nolint:errcheck
 			}
 		}
 
