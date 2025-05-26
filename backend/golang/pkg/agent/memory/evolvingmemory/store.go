@@ -10,14 +10,6 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 )
 
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // identifySpeakersInMetadata attempts to find specific speaker identifiers in document metadata.
 // Currently, it looks for "dataset_speaker_a" and "dataset_speaker_b".
 // It returns a slice of identified speaker strings. If no specific speakers are found,
