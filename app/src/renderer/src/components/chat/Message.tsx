@@ -1,7 +1,15 @@
 import { Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
+import {
+  Brain,
+  CheckCircle,
+  ChevronRight,
+  Lightbulb,
+  LoaderIcon,
+  Volume2,
+  VolumeOff
+} from 'lucide-react'
 import { extractReasoningAndReply, formatToolName } from './config'
 import { Badge } from '../ui/badge'
 import ImagePreview from './ImagePreview'
@@ -53,6 +61,8 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
     [message.text]
   )
 
+  const isStillThinking = thinkingText?.trim() !== '' && !replyText
+
   return (
     <motion.div
       className="flex justify-start"
@@ -65,9 +75,31 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
           <Collapsible className="flex flex-col gap-2 pb-2">
             <CollapsibleTrigger className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer hover:underline group">
               <ChevronRight className="h-4 w-4 transition-transform group-data-[state=open]:rotate-90" />
-              <span className="font-medium flex items-center gap-1">
-                <Lightbulb className="w-4 h-5" /> Reasoning
-              </span>
+
+              {isStillThinking ? (
+                <motion.div
+                  variants={{
+                    animate: {
+                      scale: [1, 1.02, 1],
+                      opacity: [0.7, 1, 0.7],
+                      transition: {
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: 'easeInOut'
+                      }
+                    }
+                  }}
+                  animate="animate"
+                  className="font-medium flex items-center gap-1"
+                >
+                  <Brain className="h-4 w-4" />
+                  Reasoning...
+                </motion.div>
+              ) : (
+                <span className="font-medium flex items-center gap-1">
+                  <Lightbulb className="w-4 h-5" /> Reasoning
+                </span>
+              )}
             </CollapsibleTrigger>
             <CollapsibleContent
               className={cn(
