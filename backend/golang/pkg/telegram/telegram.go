@@ -789,7 +789,8 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					s.LastMessages = append(s.LastMessages, *newMessage)
 
 					telegramEnabled, err := GetTelegramEnabled(ctx, s.Store)
-					if err == nil && telegramEnabled != "true" {
+
+					if telegramEnabled != "true" {
 						err := s.Store.SetValue(ctx, TelegramEnabled, fmt.Sprintf("%t", true))
 						if err != nil {
 							s.Logger.Error("Error setting telegram enabled", "error", err)
@@ -943,8 +944,10 @@ func GetTelegramEnabled(ctx context.Context, store *db.Store) (string, error) {
 
 func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *TelegramService, logger *log.Logger, toolRegistry *tools.ToolMapRegistry, store *db.Store, envs *config.Config) {
 	for {
+
 		telegramEnabled, errTelegramEnabled := GetTelegramEnabled(context.Background(), store)
 		_, exists := toolRegistry.Get("telegram_send_message")
+
 		if errTelegramEnabled == nil && telegramEnabled == "true" && !exists {
 			telegramTool, err := NewTelegramSendMessageTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
 			if err == nil {
