@@ -664,7 +664,7 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 	go func() {
 		<-ctx.Done()
-		logger.Debug("Context cancelled, shutting down Weaviate server")
+		logger.Debug("Context canceled, shutting down Weaviate server")
 		_ = server.Shutdown()
 	}()
 
@@ -698,7 +698,7 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 				logger.Info("Weaviate server is ready",
 					"elapsed", time.Since(startTime),
 					"checks_performed", checkCount)
-				resp.Body.Close()
+				resp.Body.Close() //nolint:errcheck
 				return server, nil
 			} else {
 				if checkCount%10 == 0 {
@@ -707,7 +707,7 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 						"attempt", checkCount,
 						"elapsed", time.Since(startTime))
 				}
-				resp.Body.Close()
+				resp.Body.Close() //nolint:errcheck
 			}
 		}
 
