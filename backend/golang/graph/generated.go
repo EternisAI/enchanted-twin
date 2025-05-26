@@ -129,6 +129,7 @@ type ComplexityRoot struct {
 		Envs      func(childComplexity int) int
 		ID        func(childComplexity int) int
 		Name      func(childComplexity int) int
+		Tools     func(childComplexity int) int
 		Type      func(childComplexity int) int
 	}
 
@@ -697,6 +698,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.MCPServerDefinition.Name(childComplexity), true
+
+	case "MCPServerDefinition.tools":
+		if e.complexity.MCPServerDefinition.Tools == nil {
+			break
+		}
+
+		return e.complexity.MCPServerDefinition.Tools(childComplexity), true
 
 	case "MCPServerDefinition.type":
 		if e.complexity.MCPServerDefinition.Type == nil {
@@ -4675,6 +4683,53 @@ func (ec *executionContext) fieldContext_MCPServerDefinition_enabled(_ context.C
 	return fc, nil
 }
 
+func (ec *executionContext) _MCPServerDefinition_tools(ctx context.Context, field graphql.CollectedField, obj *model.MCPServerDefinition) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_MCPServerDefinition_tools(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.Tools, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.([]*model.Tool)
+	fc.Result = res
+	return ec.marshalOTool2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_MCPServerDefinition_tools(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "MCPServerDefinition",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			switch field.Name {
+			case "name":
+				return ec.fieldContext_Tool_name(ctx, field)
+			case "description":
+				return ec.fieldContext_Tool_description(ctx, field)
+			}
+			return nil, fmt.Errorf("no field named %q was found under type Tool", field.Name)
+		},
+	}
+	return fc, nil
+}
+
 func (ec *executionContext) _Message_id(ctx context.Context, field graphql.CollectedField, obj *model.Message) (ret graphql.Marshaler) {
 	fc, err := ec.fieldContext_Message_id(ctx, field)
 	if err != nil {
@@ -6888,6 +6943,8 @@ func (ec *executionContext) fieldContext_Query_getMCPServers(_ context.Context, 
 				return ec.fieldContext_MCPServerDefinition_connected(ctx, field)
 			case "enabled":
 				return ec.fieldContext_MCPServerDefinition_enabled(ctx, field)
+			case "tools":
+				return ec.fieldContext_MCPServerDefinition_tools(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type MCPServerDefinition", field.Name)
 		},
@@ -11662,6 +11719,8 @@ func (ec *executionContext) _MCPServerDefinition(ctx context.Context, sel ast.Se
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "tools":
+			out.Values[i] = ec._MCPServerDefinition_tools(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -14461,6 +14520,53 @@ func (ec *executionContext) marshalOString2ᚖstring(ctx context.Context, sel as
 	_ = ctx
 	res := graphql.MarshalString(*v)
 	return res
+}
+
+func (ec *executionContext) marshalOTool2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Tool) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	var wg sync.WaitGroup
+	isLen1 := len(v) == 1
+	if !isLen1 {
+		wg.Add(len(v))
+	}
+	for i := range v {
+		i := i
+		fc := &graphql.FieldContext{
+			Index:  &i,
+			Result: &v[i],
+		}
+		ctx := graphql.WithFieldContext(ctx, fc)
+		f := func(i int) {
+			defer func() {
+				if r := recover(); r != nil {
+					ec.Error(ctx, ec.Recover(ctx, r))
+					ret = nil
+				}
+			}()
+			if !isLen1 {
+				defer wg.Done()
+			}
+			ret[i] = ec.marshalNTool2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐTool(ctx, sel, v[i])
+		}
+		if isLen1 {
+			f(i)
+		} else {
+			go f(i)
+		}
+
+	}
+	wg.Wait()
+
+	for _, e := range ret {
+		if e == graphql.Null {
+			return graphql.Null
+		}
+	}
+
+	return ret
 }
 
 func (ec *executionContext) marshalOToolCallResult2ᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐToolCallResult(ctx context.Context, sel ast.SelectionSet, v *model.ToolCallResult) graphql.Marshaler {

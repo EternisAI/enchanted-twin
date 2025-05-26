@@ -19,6 +19,7 @@ export default function ImagePreview({ src, alt, thumbClassName, className }: Im
         <img src={src} alt={alt} className={cn('cursor-zoom-in', thumbClassName)} />
       </DialogTrigger>
       <DialogContent
+        onClick={() => setOpen(false)}
         className={cn('p-0 g-transparent border-none w-full max-w-none rounded-xl', className)}
       >
         <VisuallyHidden>
@@ -27,7 +28,7 @@ export default function ImagePreview({ src, alt, thumbClassName, className }: Im
         <VisuallyHidden>
           <DialogDescription>Preview of the selected image</DialogDescription>
         </VisuallyHidden>
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center" onClick={e => e.stopPropagation()}>
           <img src={src} alt={alt} className="object-contain rounded-xl" />
         </div>
       </DialogContent>

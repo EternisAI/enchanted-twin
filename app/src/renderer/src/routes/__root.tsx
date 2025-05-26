@@ -21,10 +21,6 @@ import {
 } from '@renderer/components/ui/tooltip'
 import { useSidebarStore } from '@renderer/lib/stores/sidebar'
 
-function DevBadge() {
-  return <span className="text-xs font-bold text-muted-foreground">⚠️ DEVELOPMENT VERSION</span>
-}
-
 function RootComponent() {
   const omnibar = useOmnibarStore()
   const { isOpen: sidebarOpen, setOpen: setSidebarOpen } = useSidebarStore()
@@ -81,7 +77,7 @@ function RootComponent() {
         >
           <AdminKeyboardShortcuts />
           <motion.div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm">
-            {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '}
+            {/* {process.env.NODE_ENV === 'development' ? <DevBadge /> : ' '} */}
           </motion.div>
           <div className="fixed top-0 right-0 z-50 h-8 no-drag">
             <GlobalIndexingStatus />

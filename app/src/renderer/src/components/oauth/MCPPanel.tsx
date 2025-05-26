@@ -2,13 +2,15 @@ import { useMutation, useQuery } from '@apollo/client'
 import {
   GetMcpServersDocument,
   GetToolsDocument,
-  RemoveMcpServerDocument
+  RemoveMcpServerDocument,
+  McpServerType
 } from '@renderer/graphql/generated/graphql'
 import MCPServerItem from './MCPServerItem'
 import { Card } from '../ui/card'
 import { Plug } from 'lucide-react'
 import { toast } from 'sonner'
 import ConnectMCPServerButton from './MCPConnectServerButton'
+import { useEffect, useMemo } from 'react'
 
 export default function MCPPanel({ header = true }: { header?: boolean }) {
   const { data: toolsData } = useQuery(GetToolsDocument)
@@ -25,7 +27,37 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
     }
   })
 
-  const mcpServers = data?.getMCPServers || []
+  const allMcpServers = useMemo(() => data?.getMCPServers || [], [data])
+
+  // Enchanted server is only allowed if Google is connected
+
+  const hasGoogleConnected = useMemo(
+    () => allMcpServers.some((server) => server.type === McpServerType.Google && server.connected),
+    [allMcpServers]
+  )
+
+  useEffect(() => {
+    if (allMcpServers.length === 0) return
+
+    const enchantedServer = allMcpServers.find(
+      (server) => server.type === McpServerType.Enchanted && server.connected
+    )
+
+    if (enchantedServer && !hasGoogleConnected) {
+      deleteMcpServer({ variables: { id: enchantedServer.id } })
+    }
+  }, [allMcpServers, hasGoogleConnected, deleteMcpServer])
+
+  const mcpServers = useMemo(
+    () =>
+      allMcpServers.filter((server) => {
+        if (server.type === McpServerType.Enchanted && !hasGoogleConnected) {
+          return false
+        }
+        return true
+      }),
+    [allMcpServers, hasGoogleConnected]
+  )
 
   console.log('toolsData', toolsData)
 
