@@ -30,7 +30,6 @@ export default function MCPPanel({ header = true }: { header?: boolean }) {
   const allMcpServers = useMemo(() => data?.getMCPServers || [], [data])
 
   // Enchanted server is only allowed if Google is connected
-
   const hasGoogleConnected = useMemo(
     () => allMcpServers.some((server) => server.type === McpServerType.Google && server.connected),
     [allMcpServers]
