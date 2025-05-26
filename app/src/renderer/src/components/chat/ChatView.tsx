@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
-import ChatSuggestions from './ChatSuggestions'
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import { useSendMessage } from '@renderer/hooks/useChat'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
@@ -20,7 +19,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const [mounted, setMounted] = useState(false)
   const [isWaitingTwinResponse, setIsWaitingTwinResponse] = useState(false)
-  const [showSuggestions, setShowSuggestions] = useState(false)
+  // const [showSuggestions, setShowSuggestions] = useState(false)
   const [isReasonSelected, setIsReasonSelected] = useState(false)
   const [error, setError] = useState<string>('')
   const [activeToolCalls, setActiveToolCalls] = useState<ToolCall[]>([]) // current message
@@ -102,7 +101,7 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
   const handleSendMessage = (message: Message) => {
     upsertMessage(message)
     setIsWaitingTwinResponse(true)
-    setShowSuggestions(false)
+    // setShowSuggestions(false)
     setError('')
     setHistoricToolCalls((prev) => [...activeToolCalls, ...prev])
     setActiveToolCalls([])
@@ -179,9 +178,9 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
     }
   }, [messages, mounted, isVoiceMode])
 
-  const handleSuggestionClick = (suggestion: string) => {
-    sendMessage(suggestion, false, isVoiceMode)
-  }
+  // const handleSuggestionClick = (suggestion: string) => {
+  //   sendMessage(suggestion, false, isVoiceMode)
+  // }
 
   if (isVoiceMode) {
     return (
@@ -217,14 +216,14 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
       </div>
 
       <div className="flex flex-col w-full items-center justify-center px-2">
-        <div className="w-full flex max-w-4xl justify-center items-center relative">
+        {/* <div className="w-full flex max-w-4xl justify-center items-center relative">
           <ChatSuggestions
             chatId={chat.id}
             visible={showSuggestions}
             onSuggestionClick={handleSuggestionClick}
             toggleVisibility={() => setShowSuggestions(!showSuggestions)}
           />
-        </div>
+        </div> */}
         <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
           <VoiceModeSwitch voiceMode={isVoiceMode} setVoiceMode={() => toggleVoiceMode(false)} />
           <MessageInput

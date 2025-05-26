@@ -9,7 +9,7 @@ import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
-import { getToolUrl } from '../config'
+import { extractReasoningAndReply, getToolUrl } from '../config'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -34,11 +34,11 @@ export default function VoiceModeChatView({
   const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
   const triggeredRef = useRef(false)
 
-  const lastAssistantMessage = useMemo(() => {
-    if (!chat || messages.length === 0) return null
-    const lastAssistantMessage = messages.filter((m) => m.role === Role.Assistant).pop()
-    return lastAssistantMessage || null
-  }, [chat, messages])
+  // const lastAssistantMessage = useMemo(() => {
+  //   if (!chat || messages.length === 0) return null
+  //   const lastAssistantMessage = messages.filter((m) => m.role === Role.Assistant).pop()
+  //   return lastAssistantMessage || null
+  // }, [chat, messages])
 
   const lastUserMessage = useMemo(() => {
     if (!chat || messages.length === 0) return null
@@ -49,7 +49,8 @@ export default function VoiceModeChatView({
   useMessageSubscription(chat.id, (message) => {
     if (message.role === Role.Assistant) {
       triggeredRef.current = true
-      speak(message.text ?? '')
+      const { replyText } = extractReasoningAndReply(message.text ?? '')
+      speak(replyText ?? '')
     }
   })
 
@@ -82,7 +83,6 @@ export default function VoiceModeChatView({
             className="absolute inset-0"
             visualState={visualState}
             getFreqData={getFreqData}
-            assistantTextMessage={lastAssistantMessage?.text ?? undefined}
             toolUrl={toolUrl}
           />
           <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
