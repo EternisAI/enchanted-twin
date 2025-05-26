@@ -202,10 +202,10 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
       <div className="flex flex-1 flex-col w-full overflow-y-auto ">
         <div className="flex w-full justify-center">
           <div className="flex flex-col max-w-4xl items-center p-4 w-full">
-            <div className="w-full">
+            <div className="w-full flex flex-col gap-2">
               <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
               {error && (
-                <div className="py-2 px-4 rounded-md border border-red-500 bg-red-500/10 text-red-500">
+                <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">
                   Error: {error}
                 </div>
               )}
