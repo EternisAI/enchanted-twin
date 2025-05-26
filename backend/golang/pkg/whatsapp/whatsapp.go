@@ -316,17 +316,8 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 	return func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.HistorySync:
-			logger.Info("Received WhatsApp history sync")
+
 			StartSync()
-
-			logger.Info("Conversations", "length", len(v.Data.Conversations))
-			logger.Info("Pushnames", "length", len(v.Data.Pushnames))
-
-			// TEST: to remove
-			// if len(v.Data.Conversations) == 0 {
-			// 	logger.Info("No conversations found, skipping sync")
-			// 	return
-			// }
 
 			totalContacts := len(v.Data.Pushnames)
 			totalMessages := 0
@@ -354,8 +345,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 			processedItems := 0
 
-			// Process contacts
-			logger.Info("Starting contact processing", "total_contacts", totalContacts)
 			contactDocuments := []memory.TextDocument{}
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
@@ -385,7 +374,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					}
 				}
 			}
-			logger.Info("Completed contact processing", "processed_contacts", len(v.Data.Pushnames))
 
 			progressChan := make(chan memory.ProgressUpdate, 1)
 
@@ -397,8 +385,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 			}
 
-			// Process conversations
-			logger.Info("Starting conversation processing", "total_conversations", len(v.Data.Conversations), "total_messages", totalMessages)
 			conversationDocuments := []memory.TextDocument{}
 			for i, conversation := range v.Data.Conversations {
 				if conversation.ID == nil {
@@ -486,9 +472,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					}
 				}
 
-				logger.Info("Completed conversation", "chat_id", chatID, "processed_messages", processedConversationMessages)
 			}
-			logger.Info("Completed conversation processing", "total_conversation_documents", len(conversationDocuments))
 
 			go func() {
 				for update := range progressChan {
@@ -501,9 +485,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}()
 
 			if len(conversationDocuments) > 0 {
-				logger.Info("Conversation documents", "count", len(conversationDocuments))
 
-				logger.Info("Storing WhatsApp conversation documents using Store...")
 				err = memoryStorage.Store(ctx, conversationDocuments, progressChan)
 				if err != nil {
 					logger.Error("Error storing WhatsApp conversation documents", "error", err)
@@ -522,7 +504,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			if err != nil {
 				logger.Error("Error publishing sync status", "error", err)
 			}
-			logger.Info("WhatsApp history sync completed", "total_processed", processedItems)
 
 		case *events.Message:
 
