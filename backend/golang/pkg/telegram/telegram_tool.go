@@ -69,7 +69,6 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
 
 	if err != nil || telegramEnabled != "true" {
-
 		chatURL := GetChatURL(TelegramBotName, chatUUID)
 		qr, err := generateQRCodePNGDataURL(chatURL)
 		if err != nil {
@@ -162,7 +161,6 @@ func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (
 	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
 
 	if err != nil || telegramEnabled != "true" {
-
 		chatURL := GetChatURL(TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
 		if qErr != nil {
