@@ -194,20 +194,6 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           <span className="text-sm">Tasks</span>
         </Button>
 
-        {/* <Button
-          variant="outline"
-          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-2"
-          onClick={() => {
-            if (!isVoiceMode) {
-              setSidebarOpen(false)
-            }
-            toggleVoiceMode()
-          }}
-        >
-          <Mic className="w-4 h-4 mr-2 text-muted-foreground" />
-          <span className="text-sm">Voice mode</span>
-        </Button> */}
-
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
           <AnimatePresence initial={false} mode="popLayout">
             <motion.div className="flex flex-col gap-2">

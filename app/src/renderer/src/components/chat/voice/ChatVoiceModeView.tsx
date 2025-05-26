@@ -135,10 +135,10 @@ export function VoiceModeSwitch({
           setVoiceMode(!voiceMode)
         }}
       >
-        Voice Mode
+        Voice Output
       </Switch>
       <label className="text-sm" htmlFor="voiceMode">
-        Voice Mode
+        Voice Output
       </label>
     </div>
   )

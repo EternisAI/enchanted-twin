@@ -30,7 +30,7 @@ const UPDATE_PROFILE = gql`
   }
 `
 
-export function Header() {
+export function Home() {
   const { data: profile, refetch: refetchProfile } = useQuery(GetProfileDocument)
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
@@ -251,6 +251,23 @@ export function Header() {
 
   const twinName = profile?.profile?.name || 'Your Twin'
 
+  if (isVoiceMode) {
+    return (
+      <ChatHomeVoiceOutput
+        query={query}
+        textareaRef={textareaRef}
+        isReasonSelected={isReasonSelected}
+        isVoiceMode={isVoiceMode}
+        toggleVoiceMode={toggleVoiceMode}
+        handleSubmit={handleSubmit}
+        setQuery={setQuery}
+        setIsReasonSelected={setIsReasonSelected}
+        handleCreateChat={handleCreateChat}
+        onVoiceModeChange={toggleVoiceMode}
+      />
+    )
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.98 }}
@@ -258,57 +275,40 @@ export function Header() {
       transition={{ type: 'spring', stiffness: 120, damping: 20 }}
       className="flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto px-4"
     >
-      {!isVoiceMode && (
-        <div className="flex flex-col items-center gap-4 w-full min-h-[160px]">
-          {isEditingName ? (
-            <motion.div
-              layout
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="w-full"
-            >
-              <Input
-                value={editedName}
-                onChange={(e) => setEditedName(e.target.value)}
-                onKeyDown={handleNameEditKeyDown}
-                onBlur={handleNameUpdate}
-                autoFocus
-                className="!text-2xl font-bold text-center"
-              />
-            </motion.div>
-          ) : (
-            <motion.h1
-              layout
-              className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
-              onClick={() => {
-                setEditedName(twinName)
-                setIsEditingName(true)
-              }}
-            >
-              {twinName}
-            </motion.h1>
-          )}
-          <motion.div layout>
-            <ContextCard />
+      <div className="flex flex-col items-center gap-4 w-full min-h-[160px]">
+        {isEditingName ? (
+          <motion.div
+            layout
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="w-full"
+          >
+            <Input
+              value={editedName}
+              onChange={(e) => setEditedName(e.target.value)}
+              onKeyDown={handleNameEditKeyDown}
+              onBlur={handleNameUpdate}
+              autoFocus
+              className="!text-2xl font-bold text-center"
+            />
           </motion.div>
-        </div>
-      )}
-
-      {isVoiceMode && (
-        <motion.div
-          className="flex-1 w-full"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1 }}
-        >
-          <VoiceVisualizer
-            visualState={1}
-            getFreqData={() => new Uint8Array()}
-            className="min-w-60 min-h-40"
-          />
+        ) : (
+          <motion.h1
+            layout
+            className="text-2xl font-bold cursor-pointer hover:text-gray-600 transition-all text-center"
+            onClick={() => {
+              setEditedName(twinName)
+              setIsEditingName(true)
+            }}
+          >
+            {twinName}
+          </motion.h1>
+        )}
+        <motion.div layout>
+          <ContextCard />
         </motion.div>
-      )}
+      </div>
 
       <motion.div layout className="relative w-full">
         <ChatInputBox
@@ -322,94 +322,7 @@ export function Header() {
           setIsReasonSelected={setIsReasonSelected}
           handleCreateChat={handleCreateChat}
         />
-        {/* <form onSubmit={handleSubmit} className="relative w-full">
-          <div className="flex items-center gap-6 p-1">
-            <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border px-2">
-              <Textarea
-                ref={textareaRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSubmit(e)
-                  }
-                }}
-                placeholder="Start a new chat..."
-                className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
-                rows={1}
-              />
-              <motion.div className="flex items-center self-end gap-2 pb-2">
-                <motion.div>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() => {
-                            if (isVoiceMode) {
-                              return
-                            }
-                            setIsReasonSelected(!isReasonSelected)
-                          }}
-                          className={cn(
-                            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
-                            isReasonSelected
-                              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-                              : ''
-                          )}
-                          variant="outline"
-                          // disabled={isVoiceMode}
-                        >
-                          <Lightbulb className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Reasoning {isVoiceMode ? '(turn off voice mode to use)' : ''}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
 
-                <motion.div>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() => {
-                            toggleVoiceMode()
-                            if (isReasonSelected) {
-                              setIsReasonSelected(false)
-                            }
-                          }}
-                          variant="outline"
-                          type="button"
-                          size="icon"
-                          className={cn(
-                            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
-                            isVoiceMode
-                              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-                              : ''
-                          )}
-                        >
-                          <AudioLines className="h-5 w-5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Voice chat {isVoiceMode ? '(enabled)' : '(click to enable)'}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
-                <SendButton
-                  className="w-10 h-10"
-                  text={query}
-                  onSend={handleCreateChat}
-                  isWaitingTwinResponse={false}
-                />
-              </motion.div>
-            </div>
-          </div>
-        </form> */}
         <AnimatePresence mode="wait">
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -501,6 +414,65 @@ export function Header() {
           </motion.div>
         </AnimatePresence>
       </motion.div>
+    </motion.div>
+  )
+}
+
+type ChatHomeVoiceOutputProps = {
+  query: string
+  textareaRef: React.RefObject<HTMLTextAreaElement | null>
+  isReasonSelected: boolean
+  isVoiceMode: boolean
+  onVoiceModeChange: () => void
+  toggleVoiceMode: () => void
+  handleSubmit: (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => void
+  setQuery: (query: string) => void
+  setIsReasonSelected: (isReasonSelected: boolean) => void
+  handleCreateChat: () => void
+}
+
+function ChatHomeVoiceOutput({
+  query,
+  textareaRef,
+  isReasonSelected,
+  isVoiceMode,
+  toggleVoiceMode,
+  handleSubmit,
+  setQuery,
+  setIsReasonSelected,
+  handleCreateChat
+}: ChatHomeVoiceOutputProps) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ type: 'spring', stiffness: 120, damping: 20 }}
+      className="flex flex-col items-center justify-center gap-6 w-full h-full"
+    >
+      <motion.div
+        className="flex-1 w-full"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 1 }}
+      >
+        <VoiceVisualizer
+          visualState={1}
+          getFreqData={() => new Uint8Array()}
+          className="min-w-60 min-h-40"
+        />
+      </motion.div>
+
+      <ChatInputBox
+        query={query}
+        textareaRef={textareaRef}
+        isReasonSelected={isReasonSelected}
+        isVoiceMode={isVoiceMode}
+        onVoiceModeChange={toggleVoiceMode}
+        onInputChange={setQuery}
+        handleSubmit={handleSubmit}
+        setIsReasonSelected={setIsReasonSelected}
+        handleCreateChat={handleCreateChat}
+      />
     </motion.div>
   )
 }
