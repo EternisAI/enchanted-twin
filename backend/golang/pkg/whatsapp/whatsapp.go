@@ -339,7 +339,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				logger.Error("Error publishing sync status", "error", err)
 			}
 
-			// Extend context timeout to handle large datasets
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 

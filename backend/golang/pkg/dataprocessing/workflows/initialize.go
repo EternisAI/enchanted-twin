@@ -437,7 +437,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Documents", "whatsapp", len(documents))
 
-			// Separate contact documents from conversational documents
 			var contactDocs []memory.TextDocument
 			var conversationalDocs []memory.TextDocument
 
@@ -451,7 +450,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 
 			w.Logger.Info("Separated documents", "contacts", len(contactDocs), "conversational", len(conversationalDocs))
 
-			// Store contact documents as raw data
 			if len(contactDocs) > 0 {
 				err = w.Memory.StoreRawData(ctx, contactDocs, progressChan)
 				if err != nil {
@@ -460,7 +458,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				w.Logger.Info("Stored contact documents as raw data", "count", len(contactDocs))
 			}
 
-			// Store conversational documents with fact extraction
 			if len(conversationalDocs) > 0 {
 				err = w.Memory.Store(ctx, conversationalDocs, progressChan)
 				if err != nil {
