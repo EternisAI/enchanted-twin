@@ -11,8 +11,11 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -24,6 +27,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -759,9 +763,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 				}
 
 				if response.Type == "data" {
-					// s.Logger.Info("telegramenabled", "Received data", "response", response)
 					if response.Payload.Data.TelegramMessageAdded.Text == nil {
-						// s.Logger.Info("telegramenabled", "Received nil text message")
 						exitErr = ErrSubscriptionNilTextMessage
 						return
 					}
@@ -780,19 +782,18 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 						continue
 					}
 
+					if newMessage == nil {
+						continue
+					}
+
 					s.LastMessages = append(s.LastMessages, *newMessage)
 
-					if newMessage.Chat.ID != 0 {
-						fmt.Println("Setting telegram enabled to true")
-						telegramEnabled, err := GetTelegramEnabled(ctx, s.Store)
+					telegramEnabled, _ := GetTelegramEnabled(ctx, s.Store)
+
+					if telegramEnabled != "true" {
+						err := s.Store.SetValue(ctx, TelegramEnabled, fmt.Sprintf("%t", true))
 						if err != nil {
-							s.Logger.Info("telegramenabled", "Error getting telegram enabled", "error", err)
-						}
-						if telegramEnabled != "true" {
-							err := s.Store.SetValue(ctx, TelegramEnabled, fmt.Sprintf("%t", true))
-							if err != nil {
-								s.Logger.Error("Error setting telegram enabled", "error", err)
-							}
+							s.Logger.Error("Error setting telegram enabled", "error", err)
 						}
 					}
 
@@ -939,4 +940,56 @@ func GetTelegramEnabled(ctx context.Context, store *db.Store) (string, error) {
 		return "", fmt.Errorf("error getting telegram enabled: %w", err)
 	}
 	return telegramEnabled, nil
+}
+
+func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *TelegramService, logger *log.Logger, toolRegistry *tools.ToolMapRegistry, store *db.Store, envs *config.Config) {
+	for {
+		telegramEnabled, errTelegramEnabled := GetTelegramEnabled(context.Background(), store)
+		_, exists := toolRegistry.Get("telegram_send_message")
+
+		if errTelegramEnabled == nil && telegramEnabled == "true" && !exists {
+			telegramTool, err := NewTelegramSendMessageTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+			if err == nil {
+				err = toolRegistry.Register(telegramTool)
+				if err == nil {
+					return
+				}
+			} else {
+				logger.Error("Error creating telegram send message tool", "error", err)
+			}
+		}
+		time.Sleep(2 * time.Second)
+	}
+}
+
+func SubscribePoller(telegramService *TelegramService, logger *log.Logger) {
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer appCancel()
+
+	for {
+		select {
+		case <-ticker.C:
+
+			chatUUID, err := telegramService.GetChatUUID(context.Background())
+			if err != nil {
+				continue
+			}
+			err = telegramService.Subscribe(appCtx, chatUUID)
+
+			if err == nil {
+			} else if errors.Is(err, ErrSubscriptionNilTextMessage) {
+			} else if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				if appCtx.Err() != nil {
+					return
+				}
+			}
+
+		case <-appCtx.Done():
+			logger.Info("Stopping Telegram subscription poller due to application shutdown signal")
+			return
+		}
+	}
 }

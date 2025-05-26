@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	stderrs "errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -260,6 +259,15 @@ func main() {
 		}
 	}()
 
+	telegramTool, err := telegram.NewTelegramSetupTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to create telegram setup tool"))
+	}
+	err = toolRegistry.Register(telegramTool)
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to register telegram tool"))
+	}
+
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
@@ -352,48 +360,8 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-
-		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer appCancel()
-
-		for {
-			select {
-			case <-ticker.C:
-				chatUUID, err := telegramService.GetChatUUID(context.Background())
-				if err != nil {
-					continue
-				}
-				err = telegramService.Subscribe(appCtx, chatUUID)
-				if err != nil {
-					logger.Error("Failed to subscribe to telegram", "error", err)
-					continue
-				}
-
-				logger.Info("Registering telegram tool", "chatUUID", chatUUID)
-				telegramTool := telegram.NewTelegramTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
-				err = toolRegistry.Register(telegramTool)
-				if err == fmt.Errorf("tool '%s' is already registered", telegramTool.Definition().Function.Name) {
-				} else {
-					logger.Error("Failed to register telegram tool", "error", err)
-				}
-
-				if err == nil {
-				} else if stderrs.Is(err, telegram.ErrSubscriptionNilTextMessage) {
-				} else if stderrs.Is(err, context.Canceled) || stderrs.Is(err, context.DeadlineExceeded) {
-					if appCtx.Err() != nil {
-						return
-					}
-				}
-
-			case <-appCtx.Done():
-				logger.Info("Stopping Telegram subscription poller due to application shutdown signal")
-				return
-			}
-		}
-	}()
+	go telegram.SubscribePoller(telegramService, logger)
+	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, store, envs)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
