@@ -19,6 +19,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
+	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver/internal/google"
@@ -56,6 +57,7 @@ func NewService(ctx context.Context, logger *log.Logger, store *db.Store, regist
 		store:            store,
 		registry:         registry,
 	}
+
 	err = service.LoadMCP(ctx)
 	if err != nil {
 		log.Error("Error loading MCP servers", "error", err)
@@ -109,6 +111,11 @@ func (s *service) ConnectMCPServer(
 		case model.MCPServerTypeEnchanted:
 			if s.config == nil {
 				return nil, fmt.Errorf("config is nil, cannot connect to Enchanted MCP server")
+			}
+			// In case there is google oauth token, refresh it
+			_, err := auth.RefreshOAuthToken(ctx, log.Default(), s.store, "google")
+			if err != nil {
+				return nil, fmt.Errorf("failed to refresh oauth tokens: %w", err)
 			}
 
 			oauth, err := s.store.GetOAuthTokens(ctx, "google")
@@ -305,6 +312,12 @@ func (s *service) LoadMCP(ctx context.Context) error {
 					log.Error("Config is nil, cannot connect to Enchanted MCP server", "server", server.Name)
 					continue
 				}
+				// In case there is google oauth token, refresh it
+				_, err := auth.RefreshOAuthToken(ctx, log.Default(), s.store, "google")
+				if err != nil {
+					log.Error("Error refreshing oauth tokens", "error", err)
+				}
+
 				oauth, err := s.store.GetOAuthTokens(ctx, "google")
 				if err != nil {
 					log.Error("Error getting oauth tokens for MCP server", "server", server.Name, "error", err)
