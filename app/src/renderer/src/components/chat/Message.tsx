@@ -1,15 +1,7 @@
 import { Message } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
-import {
-  Brain,
-  CheckCircle,
-  ChevronRight,
-  Lightbulb,
-  LoaderIcon,
-  Volume2,
-  VolumeOff
-} from 'lucide-react'
+import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
 import { extractReasoningAndReply, formatToolName } from './config'
 import { Badge } from '../ui/badge'
 import ImagePreview from './ImagePreview'
@@ -92,7 +84,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                   animate="animate"
                   className="font-medium flex items-center gap-1"
                 >
-                  <Brain className="h-4 w-4" />
+                  <Lightbulb className="h-4 w-4" />
                   Reasoning...
                 </motion.div>
               ) : (
