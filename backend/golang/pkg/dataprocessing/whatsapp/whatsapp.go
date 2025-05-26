@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -296,3 +297,61 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 // if err != nil {
 // 	return fmt.Errorf("failed to store historical WhatsApp message: %w", err)
 // }
+
+// IsValidConversationalContent checks if a WhatsApp document contains conversational content
+// suitable for fact extraction, preventing hallucination on metadata and contact info
+func IsValidConversationalContent(doc memory.TextDocument) bool {
+	content := strings.TrimSpace(doc.Content)
+
+	// 1. Check if it's a contact document (tag-based)
+	for _, tag := range doc.Tags {
+		if tag == "contact" {
+			return false
+		}
+	}
+
+	// 2. Check for WhatsApp-specific metadata patterns that indicate non-conversational content
+	metadataPatterns := []string{
+		"Contact name:",
+		"Contact ID:",
+		"Phone number:",
+		"Email:",
+		"Contact:",
+		"Whatsapp Contact",
+		"Telegram Contact",
+		"@s.whatsapp.net",
+		"@c.us",
+		"@gmail.com",
+		"@yahoo.com",
+		"@hotmail.com",
+		"@outlook.com",
+	}
+
+	for _, pattern := range metadataPatterns {
+		if strings.Contains(content, pattern) {
+			return false
+		}
+	}
+
+	// 3. Check minimum content length for meaningful conversation
+	if len(content) < 20 {
+		return false
+	}
+
+	// 4. Check if content has conversational structure (speaker: message format)
+	lines := strings.Split(content, "\n")
+	conversationalLines := 0
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if strings.Contains(trimmedLine, ":") && len(trimmedLine) > 10 {
+			// Check if it looks like "Speaker: message" format
+			parts := strings.SplitN(trimmedLine, ":", 2)
+			if len(parts) == 2 && len(strings.TrimSpace(parts[1])) > 3 {
+				conversationalLines++
+			}
+		}
+	}
+
+	// Require at least one conversational line for fact extraction
+	return conversationalLines > 0
+}

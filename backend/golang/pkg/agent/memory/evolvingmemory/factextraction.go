@@ -13,10 +13,11 @@ import (
 
 // extractFactsFromTextDocument extracts facts for a given speaker from a text document.
 func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sessionDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
-	s.logger.Infof("== Starting Fact Extraction for Speaker: %s == (Session Doc ID: '%s')", speakerID, sessionDoc.ID)
+	// s.logger.Infof("== Starting Fact Extraction for Speaker: %s == (Session Doc ID: '%s')", speakerID, sessionDoc.ID)
+	s.logger.Infof("Document content for fact extraction: %s", sessionDoc.Content)
 
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
-		extractFactsTool, // This will now correctly refer to the one in tools.go
+		extractFactsTool,
 	}
 
 	sysPrompt := strings.ReplaceAll(SpeakerFocusedFactExtractionPrompt, "{primary_speaker_name}", speakerID)
@@ -33,22 +34,46 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 		},
 	}
 
-	conversationLines := strings.Split(strings.TrimSpace(sessionDoc.Content), "\\n")
+	s.logger.Infof("Parsing conversation lines from document content...")
+	conversationLines := strings.Split(strings.TrimSpace(sessionDoc.Content), "\n")
+	s.logger.Infof("Split document into %d conversation lines", len(conversationLines))
+
 	parsedTurnsCount := 0
-	for _, line := range conversationLines {
+	for i, line := range conversationLines {
 		trimmedLine := strings.TrimSpace(line)
 		if trimmedLine == "" {
+			s.logger.Debugf("Skipping empty line %d", i)
 			continue
 		}
+
 		parts := strings.SplitN(trimmedLine, ":", 2)
-		if len(parts) < 2 {
-			s.logger.Warnf("Skipping malformed line (no speaker colon): '%s' for speaker %s in doc %s", trimmedLine, speakerID, sessionDoc.ID)
-			continue
+		var turnSpeaker, turnText string
+
+		if len(parts) >= 2 {
+
+			turnSpeaker = strings.TrimSpace(parts[0])
+			turnText = strings.TrimSpace(parts[1])
+		} else {
+			if fromSpeaker, exists := sessionDoc.Metadata["from"]; exists && fromSpeaker != "" {
+				turnSpeaker = fromSpeaker
+				turnText = trimmedLine
+				s.logger.Debugf("Using metadata speaker '%s' for line without colon: '%s'", turnSpeaker, trimmedLine)
+			} else {
+				if speakerID != "" {
+					turnSpeaker = speakerID
+					turnText = trimmedLine
+
+				} else {
+					s.logger.Warnf("Skipping malformed line (no speaker colon and no metadata): '%s' for speaker %s in doc %s", trimmedLine, speakerID, sessionDoc.ID)
+					continue
+				}
+			}
 		}
-		turnSpeaker := strings.TrimSpace(parts[0])
-		turnText := strings.TrimSpace(parts[1])
+
+		s.logger.Debugf("Parsed speaker: '%s', text: '%s'", turnSpeaker, turnText)
 
 		if turnText == "" {
+			s.logger.Debugf("Skipping line with empty text")
 			continue
 		}
 
@@ -56,6 +81,7 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 		fullTurnContent := fmt.Sprintf("%s: %s", turnSpeaker, turnText)
 
 		if turnSpeaker == speakerID { // User's turn for the LLM context
+
 			llmMsgs = append(llmMsgs, openai.ChatCompletionMessageParamUnion{
 				OfUser: &openai.ChatCompletionUserMessageParam{
 					Content: openai.ChatCompletionUserMessageParamContentUnion{
@@ -63,7 +89,8 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 					},
 				},
 			})
-		} else { // Other speaker's turn, context for LLM
+		} else {
+			s.logger.Debugf("Adding assistant message for speaker %s", turnSpeaker)
 			llmMsgs = append(llmMsgs, openai.ChatCompletionMessageParamUnion{
 				OfAssistant: &openai.ChatCompletionAssistantMessageParam{
 					Content: openai.ChatCompletionAssistantMessageParamContentUnion{
@@ -77,9 +104,9 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 	if parsedTurnsCount == 0 && len(conversationLines) > 0 {
 		s.logger.Warnf("No valid turns were parsed from %d conversation lines for speaker %s in doc %s. LLM might not have sufficient context.", len(conversationLines), speakerID, sessionDoc.ID)
 	}
-	if len(llmMsgs) <= 1 { // Only system prompt
+	if len(llmMsgs) <= 1 {
 		s.logger.Warnf("llmMsgs only contains system prompt for speaker %s in doc %s. No conversational turns added. Skipping LLM call for fact extraction.", speakerID, sessionDoc.ID)
-		return []string{}, nil // No error, but no facts
+		return []string{}, nil
 	}
 
 	s.logger.Debugf("Calling LLM for Speaker-Focused Fact Extraction (%s). Model: %s, Tools: %d tools", speakerID, openAIChatModel, len(factExtractionToolsList))
@@ -90,14 +117,24 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 		return nil, fmt.Errorf("LLM completion error for speaker %s, doc %s: %w", speakerID, sessionDoc.ID, err)
 	}
 
+	s.logger.Infof("LLM response received for speaker %s. Tool calls: %d", speakerID, len(llmResponse.ToolCalls))
+	if len(llmResponse.ToolCalls) == 0 {
+		s.logger.Infof("LLM response content (no tool calls): %s", llmResponse.Content)
+	}
+
 	var extractedFacts []string
 	if len(llmResponse.ToolCalls) > 0 {
-		for _, toolCall := range llmResponse.ToolCalls {
+		for i, toolCall := range llmResponse.ToolCalls {
+			s.logger.Infof("Processing tool call %d: %s", i+1, toolCall.Function.Name)
 			if toolCall.Function.Name == ExtractFactsToolName {
+				s.logger.Infof("EXTRACT_FACTS tool call arguments: %s", toolCall.Function.Arguments)
 				var args ExtractFactsToolArguments // Assumes this struct is defined in evolvingmemory.go
 				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
 					extractedFacts = append(extractedFacts, args.Facts...)
 					s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from doc %s.", len(args.Facts), speakerID, sessionDoc.ID)
+					for j, fact := range args.Facts {
+						s.logger.Infof("Extracted fact %d: %s", j+1, fact)
+					}
 				} else {
 					s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from doc %s: %v. Arguments: %s", speakerID, sessionDoc.ID, err, toolCall.Function.Arguments)
 				}
@@ -109,5 +146,6 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 		s.logger.Info("LLM response for fact extraction for speaker %s from doc %s did not contain tool calls. No facts extracted by tool.", speakerID, sessionDoc.ID)
 	}
 
+	s.logger.Infof("Fact extraction completed for speaker %s. Total facts extracted: %d", speakerID, len(extractedFacts))
 	return extractedFacts, nil
 }

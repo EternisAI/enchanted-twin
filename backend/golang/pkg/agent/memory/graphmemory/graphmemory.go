@@ -83,7 +83,13 @@ type Fact struct {
 	Obj         string // Object
 }
 
-func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument) error {
+func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
+	defer func() {
+		if progressChan != nil {
+			close(progressChan)
+		}
+	}()
+
 	if len(documents) == 0 {
 		return nil
 	}
@@ -113,6 +119,43 @@ func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument
 	}
 	m.logger.Info("Processed entries", "entries", len(entriesToProcess), "facts", totalFacts)
 
+	// Send progress updates
+	if progressChan != nil {
+		for i := range documents {
+			progressChan <- memory.ProgressUpdate{Processed: i + 1, Total: len(documents)}
+		}
+	}
+
+	return nil
+}
+
+// StoreRawData stores documents directly without fact extraction processing
+func (m *GraphMemory) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
+	defer func() {
+		if progressChan != nil {
+			close(progressChan)
+		}
+	}()
+
+	if len(documents) == 0 {
+		return nil
+	}
+
+	// Prepare entries and store them in the database without fact extraction
+	m.logger.Info("Preparing text entries for raw storage", "documents", len(documents))
+	_, err := m.prepareTextEntries(ctx, documents)
+	if err != nil {
+		return err
+	}
+
+	// Send progress updates
+	if progressChan != nil {
+		for i := range documents {
+			progressChan <- memory.ProgressUpdate{Processed: i + 1, Total: len(documents)}
+		}
+	}
+
+	m.logger.Info("Raw data storage completed", "documents", len(documents))
 	return nil
 }
 

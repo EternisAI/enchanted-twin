@@ -35,5 +35,6 @@ type ProgressUpdate struct {
 
 type Storage interface {
 	Store(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error
+	StoreRawData(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error
 	Query(ctx context.Context, query string) (QueryResult, error)
 }

@@ -199,3 +199,13 @@ func (m *EmbeddingsMemory) storeDocuments(
 
 	return tx.Commit()
 }
+
+// StoreRawData stores documents directly without any processing.
+// For EmbeddingsMemory, this is the same as Store since we don't do fact extraction.
+func (m *EmbeddingsMemory) StoreRawData(
+	ctx context.Context,
+	documents []memory.TextDocument,
+	progressChan chan<- memory.ProgressUpdate,
+) error {
+	return m.Store(ctx, documents, progressChan)
+}

@@ -436,12 +436,42 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "whatsapp", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
+
+			// Separate contact documents from conversational documents
+			var contactDocs []memory.TextDocument
+			var conversationalDocs []memory.TextDocument
+
+			for _, doc := range documents {
+				if whatsapp.IsValidConversationalContent(doc) {
+					conversationalDocs = append(conversationalDocs, doc)
+				} else {
+					contactDocs = append(contactDocs, doc)
+				}
 			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
+
+			w.Logger.Info("Separated documents", "contacts", len(contactDocs), "conversational", len(conversationalDocs))
+
+			// Store contact documents as raw data
+			if len(contactDocs) > 0 {
+				err = w.Memory.StoreRawData(ctx, contactDocs, progressChan)
+				if err != nil {
+					return IndexDataActivityResponse{}, err
+				}
+				w.Logger.Info("Stored contact documents as raw data", "count", len(contactDocs))
+			}
+
+			// Store conversational documents with fact extraction
+			if len(conversationalDocs) > 0 {
+				err = w.Memory.Store(ctx, conversationalDocs, progressChan)
+				if err != nil {
+					return IndexDataActivityResponse{}, err
+				}
+				w.Logger.Info("Stored conversational documents with fact extraction", "count", len(conversationalDocs))
+			}
+
+			w.Logger.Info("Indexed all WhatsApp documents", "total", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
+
 		case "chatgpt":
 			documents, err := chatgpt.ToDocuments(records)
 			if err != nil {
