@@ -41,10 +41,14 @@ jobs:
           go-version: "1.24.2"
 
       - name: Check secrets are injected
+        env:
+          COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
+          EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
         run: |
-          for v in COMPLETIONS_API_KEY EMBEDDINGS_API_KEY TELEGRAM_TOKEN; do
-            echo "$v length: ${#v}"
-          done
+          echo "COMPLETIONS_API_KEY length: ${#COMPLETIONS_API_KEY}"
+          echo "EMBEDDINGS_API_KEY length: ${#EMBEDDINGS_API_KEY}"
+          echo "TELEGRAM_TOKEN length: ${#TELEGRAM_TOKEN}"
 
       - name: Install dependencies
         working-directory: app
