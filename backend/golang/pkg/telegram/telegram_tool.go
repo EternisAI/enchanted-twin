@@ -1,4 +1,4 @@
-package tools
+package telegram
 
 import (
 	"context"
@@ -12,8 +12,6 @@ import (
 
 	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	apptypes "github.com/EternisAI/enchanted-twin/types"
 )
 
 type TelegramTool struct {
@@ -57,7 +55,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agent
 		}, fmt.Errorf("message parameter is required and must be a string")
 	}
 
-	chatUUID, err := t.Store.GetValue(ctx, apptypes.TelegramChatUUIDKey)
+	chatUUID, err := t.Store.GetValue(ctx, TelegramChatUUIDKey)
 	if err != nil || chatUUID == "" {
 		t.Logger.Error("error getting chat UUID", "error", err)
 		return &agenttypes.StructuredToolResult{
@@ -68,13 +66,13 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agent
 	}
 
 	fmt.Println("chatUUID", chatUUID)
-	telegramEnabled, err2 := helpers.GetTelegramEnabled(ctx, t.Store)
+	telegramEnabled, err2 := GetTelegramEnabled(ctx, t.Store)
 
 	fmt.Println("telegramEnabled", telegramEnabled)
 	if err2 != nil || telegramEnabled != "true" {
 		t.Logger.Info("telegram is not enabled", "error", err2)
 
-		chatURL := helpers.GetChatURL(apptypes.TelegramBotName, chatUUID)
+		chatURL := GetChatURL(TelegramBotName, chatUUID)
 		qr, qErr := generateQRCodePNGDataURL(chatURL)
 		if qErr != nil {
 			t.Logger.Error("failed to generate QR code,", "error", qErr)
@@ -93,7 +91,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agent
 		}, nil
 	}
 
-	_, err = helpers.PostMessage(ctx, chatUUID, message, t.ChatServerUrl)
+	_, err = PostMessage(ctx, chatUUID, message, t.ChatServerUrl)
 	if err != nil {
 		t.Logger.Error("failed to send message", "error", err)
 		return &agenttypes.StructuredToolResult{

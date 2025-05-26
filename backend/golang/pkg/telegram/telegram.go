@@ -20,13 +20,11 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent"
+	agent "github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/helpers"
-	types "github.com/EternisAI/enchanted-twin/types"
 )
 
 var ErrSubscriptionNilTextMessage = errors.New("subscription stopped due to nil text message")
@@ -256,7 +254,7 @@ func (s *TelegramService) CreateChat(
 }
 
 func (s *TelegramService) GetChatID(ctx context.Context) (int, error) {
-	chatUUID, err := s.Store.GetValue(ctx, types.TelegramChatUUIDKey)
+	chatUUID, err := s.Store.GetValue(ctx, TelegramChatUUIDKey)
 	if err != nil {
 		return 0, err
 	}
@@ -283,7 +281,7 @@ func (s *TelegramService) GetChatIDFromChatUUID(
 }
 
 func (s *TelegramService) GetChatUUID(ctx context.Context) (string, error) {
-	chatUUID, err := s.Store.GetValue(ctx, types.TelegramChatUUIDKey)
+	chatUUID, err := s.Store.GetValue(ctx, TelegramChatUUIDKey)
 	if err != nil {
 		return "", err
 	}
@@ -325,7 +323,7 @@ func (s *TelegramService) Execute(
 }
 
 func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, error) {
-	lastUpdateID, err := s.Store.GetValue(ctx, types.TelegramLastUpdateIDKey)
+	lastUpdateID, err := s.Store.GetValue(ctx, TelegramLastUpdateIDKey)
 	if err != nil {
 		lastUpdateID = "0"
 	}
@@ -337,7 +335,7 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 
 	url := fmt.Sprintf(
 		"%s/bot%s/getUpdates?offset=%d&limit=10",
-		types.TelegramAPIBase,
+		TelegramAPIBase,
 		s.Token,
 		lastUpdateIDInt,
 	)
@@ -384,7 +382,7 @@ func (s *TelegramService) GetLatestMessages(ctx context.Context) ([]Message, err
 		}
 	}
 
-	err = s.Store.SetValue(ctx, types.TelegramLastUpdateIDKey, strconv.Itoa(lastUpdateIDInt))
+	err = s.Store.SetValue(ctx, TelegramLastUpdateIDKey, strconv.Itoa(lastUpdateIDInt))
 	if err != nil {
 		s.Logger.Error("Failed to store last update ID", "error", err)
 	}
@@ -413,7 +411,7 @@ func (s *TelegramService) TransformToOpenAIMessages(
 }
 
 func (s *TelegramService) SendMessage(ctx context.Context, chatID int, message string) error {
-	url := fmt.Sprintf("%s/bot%s/sendMessage", types.TelegramAPIBase, s.Token)
+	url := fmt.Sprintf("%s/bot%s/sendMessage", TelegramAPIBase, s.Token)
 	body := map[string]any{
 		"chat_id":    chatID,
 		"text":       message,
@@ -786,12 +784,12 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 					if newMessage.Chat.ID != 0 {
 						fmt.Println("Setting telegram enabled to true")
-						telegramEnabled, err := helpers.GetTelegramEnabled(ctx, s.Store)
+						telegramEnabled, err := GetTelegramEnabled(ctx, s.Store)
 						if err != nil {
 							s.Logger.Info("telegramenabled", "Error getting telegram enabled", "error", err)
 						}
 						if telegramEnabled != "true" {
-							err := s.Store.SetValue(ctx, types.TelegramEnabled, fmt.Sprintf("%t", true))
+							err := s.Store.SetValue(ctx, TelegramEnabled, fmt.Sprintf("%t", true))
 							if err != nil {
 								s.Logger.Error("Error setting telegram enabled", "error", err)
 							}
@@ -808,7 +806,7 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 					}
 
 					if agentResponse.Content != "" {
-						_, err := helpers.PostMessage(
+						_, err := PostMessage(
 							ctx,
 							chatUUID,
 							agentResponse.Content,
@@ -859,4 +857,86 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 		return err
 	}
+}
+
+func GetChatURL(botName string, chatUUID string) string {
+	return fmt.Sprintf("https://t.me/%s?start=%s", botName, chatUUID)
+}
+
+func PostMessage(
+	ctx context.Context,
+	chatUUID string,
+	message string,
+	chatServerUrl string,
+) (interface{}, error) {
+	client := &http.Client{}
+	mutationPayload := map[string]interface{}{
+		"query": `
+			mutation SendTelegramMessage($chatUUID: ID!, $text: String!) {
+				sendTelegramMessage(chatUUID: $chatUUID, text: $text)
+			}
+		`,
+		"variables": map[string]interface{}{
+			"chatUUID": chatUUID,
+			"text":     message,
+		},
+		"operationName": "SendTelegramMessage",
+	}
+	mutationBody, err := json.Marshal(mutationPayload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal GraphQL mutation payload: %v", err)
+	}
+
+	gqlURL := chatServerUrl
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		gqlURL,
+		bytes.NewBuffer(mutationBody),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GraphQL request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send GraphQL mutation request: %v", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read response body: %v", err)
+		}
+		return nil, fmt.Errorf(
+			"GraphQL mutation request failed: status %v, body: %v",
+			resp.StatusCode,
+			string(bodyBytes),
+		)
+	}
+
+	var gqlResponse struct {
+		Data   interface{} `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&gqlResponse)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode GraphQL mutation response: %v", err)
+	}
+	return gqlResponse, nil
+}
+
+func GetTelegramEnabled(ctx context.Context, store *db.Store) (string, error) {
+	telegramEnabled, err := store.GetValue(ctx, TelegramEnabled)
+	if err != nil {
+		return "", fmt.Errorf("error getting telegram enabled: %w", err)
+	}
+	return telegramEnabled, nil
 }
