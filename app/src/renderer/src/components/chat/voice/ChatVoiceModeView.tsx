@@ -57,8 +57,8 @@ export default function VoiceModeChatView({
   const visualState: 0 | 1 | 2 = isSpeaking ? 2 : isLoading ? 1 : 0
 
   useEffect(() => {
-    console.log({ isSpeaking, isLoading })
-  }, [isSpeaking, isLoading])
+    return () => stop()
+  }, [stop])
 
   /* when audio actually starts, drop loading state */
   useEffect(() => {
