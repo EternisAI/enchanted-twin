@@ -24,9 +24,7 @@ func (s *Source) Name() string {
 	return "whatsapp"
 }
 
-// ReadWhatsAppDB reads the WhatsApp database and returns Records.
 func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
-	// Open the database
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
@@ -36,7 +34,7 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			log.Printf("Error closing database: %v", err)
 		}
 	}()
-	// Query all messages from ZWAMESSAGE table
+
 	query := `SELECT 
 		m.Z_PK, m.ZISFROMME, m.ZCHATSESSION, m.ZMESSAGEINFO, m.ZMESSAGEDATE, m.ZSENTDATE,
 		m.ZFROMJID, m.ZTEXT, m.ZTOJID,
@@ -291,13 +289,6 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 	return document, nil
 }
 
-//	progressChan := make(chan memory.ProgressUpdate, 1)
-
-// err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
-// if err != nil {
-// 	return fmt.Errorf("failed to store historical WhatsApp message: %w", err)
-// }
-
 // IsValidConversationalContent checks if a WhatsApp document contains conversational content
 // suitable for fact extraction, preventing hallucination on metadata and contact info.
 func IsValidConversationalContent(doc memory.TextDocument) bool {
@@ -310,7 +301,6 @@ func IsValidConversationalContent(doc memory.TextDocument) bool {
 		}
 	}
 
-	// 2. Check for WhatsApp-specific metadata patterns that indicate non-conversational content
 	metadataPatterns := []string{
 		"Contact name:",
 		"Contact ID:",
@@ -333,12 +323,10 @@ func IsValidConversationalContent(doc memory.TextDocument) bool {
 		}
 	}
 
-	// 3. Check minimum content length for meaningful conversation
 	if len(content) < 20 {
 		return false
 	}
 
-	// 4. Check if content has conversational structure (speaker: message format)
 	lines := strings.Split(content, "\n")
 	conversationalLines := 0
 	for _, line := range lines {
@@ -352,6 +340,5 @@ func IsValidConversationalContent(doc memory.TextDocument) bool {
 		}
 	}
 
-	// Require at least one conversational line for fact extraction
 	return conversationalLines > 0
 }
