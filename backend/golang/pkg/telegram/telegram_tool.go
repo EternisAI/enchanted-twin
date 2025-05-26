@@ -188,7 +188,7 @@ func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (
 		ToolName:   "telegram_setup",
 		ToolParams: input,
 		Output: map[string]any{
-			"content": fmt.Sprintf("Message sent successfully to chat %s", chatUUID),
+			"content": fmt.Sprintf("Telegram is already set up and ready to use for chat %s", chatUUID),
 		},
 	}, nil
 }
