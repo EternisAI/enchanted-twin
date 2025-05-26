@@ -3,7 +3,7 @@ import { createFileRoute, redirect } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
 import { GetChatsDocument } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
-import { Header } from '@renderer/components/chat/Header'
+import { Home } from '@renderer/components/chat/ChatHome'
 
 // Define expected search params for this route
 interface IndexRouteSearch {
@@ -15,15 +15,15 @@ function IndexComponent() {
 
   return (
     <motion.div className="flex-1 flex flex-col items-center justify-center p-6">
-      <motion.div className="w-full max-w-4xl">
+      <motion.div className="w-full max-w-4xl h-full">
         <motion.div
           layout
-          className="flex flex-col items-center gap-4"
+          className="flex flex-col justify-center items-center gap-4 h-full"
           transition={{
             layout: { duration: 0.3, ease: [0.4, 0, 0.2, 1] }
           }}
         >
-          <Header />
+          <Home />
         </motion.div>
       </motion.div>
 
