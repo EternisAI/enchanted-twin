@@ -299,7 +299,7 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 // }
 
 // IsValidConversationalContent checks if a WhatsApp document contains conversational content
-// suitable for fact extraction, preventing hallucination on metadata and contact info
+// suitable for fact extraction, preventing hallucination on metadata and contact info.
 func IsValidConversationalContent(doc memory.TextDocument) bool {
 	content := strings.TrimSpace(doc.Content)
 

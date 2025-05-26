@@ -129,7 +129,7 @@ func (m *GraphMemory) Store(ctx context.Context, documents []memory.TextDocument
 	return nil
 }
 
-// StoreRawData stores documents directly without fact extraction processing
+// StoreRawData stores documents directly without fact extraction processing.
 func (m *GraphMemory) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
 	defer func() {
 		if progressChan != nil {

@@ -471,7 +471,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						}
 					}
 				}
-
 			}
 
 			go func() {
@@ -485,7 +484,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}()
 
 			if len(conversationDocuments) > 0 {
-
 				err = memoryStorage.Store(ctx, conversationDocuments, progressChan)
 				if err != nil {
 					logger.Error("Error storing WhatsApp conversation documents", "error", err)

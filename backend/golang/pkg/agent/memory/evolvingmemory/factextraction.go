@@ -50,7 +50,6 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 		var turnSpeaker, turnText string
 
 		if len(parts) >= 2 {
-
 			turnSpeaker = strings.TrimSpace(parts[0])
 			turnText = strings.TrimSpace(parts[1])
 		} else {
@@ -62,7 +61,6 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 				if speakerID != "" {
 					turnSpeaker = speakerID
 					turnText = trimmedLine
-
 				} else {
 					s.logger.Warnf("Skipping malformed line (no speaker colon and no metadata): '%s' for speaker %s in doc %s", trimmedLine, speakerID, sessionDoc.ID)
 					continue
@@ -81,7 +79,6 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 		fullTurnContent := fmt.Sprintf("%s: %s", turnSpeaker, turnText)
 
 		if turnSpeaker == speakerID { // User's turn for the LLM context
-
 			llmMsgs = append(llmMsgs, openai.ChatCompletionMessageParamUnion{
 				OfUser: &openai.ChatCompletionUserMessageParam{
 					Content: openai.ChatCompletionUserMessageParamContentUnion{
