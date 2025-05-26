@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/weaviate/weaviate/entities/models"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
 // identifySpeakersInMetadata attempts to find specific speaker identifiers in document metadata.
@@ -171,8 +172,6 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 				}
 			}
 			s.logger.Infof("Final fact batch storage completed: %d successful, %d failed.", successCount, failureCount)
-		} else if err != nil {
-			s.logger.Warn("Batcher.Do() returned an error and a nil response. Cannot determine individual item statuses.")
 		} else {
 			s.logger.Info("Batcher.Do() returned no error and a nil response. Assuming batched items were processed if objectsAddedToBatch > 0.")
 		}
@@ -186,7 +185,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 	return nil
 }
 
-// StoreRawData stores documents directly without fact extraction processing
+// StoreRawData stores documents directly without fact extraction processing.
 func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
 	defer func() {
 		if progressChan != nil {
@@ -207,7 +206,6 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 	}
 
 	for i, doc := range documents {
-
 		vector, err := s.embeddingsService.Embedding(ctx, doc.Content, openAIEmbedModel)
 		if err != nil {
 			s.logger.Errorf("Error generating embedding for document %s: %v", doc.ID, err)
