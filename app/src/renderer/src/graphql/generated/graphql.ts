@@ -127,6 +127,7 @@ export type McpServerDefinition = {
   envs?: Maybe<Array<KeyValue>>;
   id: Scalars['String']['output'];
   name: Scalars['String']['output'];
+  tools?: Maybe<Array<Tool>>;
   type: McpServerType;
 };
 
