@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"encoding/json"
 	"os"
+	"sort"
 
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/pkg/errors"
 )
 
@@ -37,6 +39,15 @@ func ReadJSONL[T any](filePath string) ([]T, error) {
 
 	if err := scanner.Err(); err != nil {
 		return nil, errors.Wrap(err, "scanner error")
+	}
+
+	if len(results) > 0 {
+		if records, ok := any(results).([]types.Record); ok {
+			sort.Slice(records, func(i, j int) bool {
+				return records[i].Timestamp.Before(records[j].Timestamp)
+			})
+			results = any(records).([]T)
+		}
 	}
 
 	return results, nil
