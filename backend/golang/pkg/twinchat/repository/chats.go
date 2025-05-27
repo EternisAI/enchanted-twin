@@ -24,7 +24,7 @@ func (r *Repository) GetChat(ctx context.Context, id string) (model.Chat, error)
 		}
 	}()
 
-	query := "SELECT id, name, created_at FROM chats WHERE id = ?"
+	query := "SELECT id, name, voice, created_at FROM chats WHERE id = ?"
 
 	var chatDB ChatDB
 	err = tx.GetContext(ctx, &chatDB, query, id)
@@ -80,7 +80,7 @@ func (r *Repository) GetChatByName(ctx context.Context, name string) (model.Chat
 		}
 	}()
 
-	query := "SELECT id, name, created_at FROM chats WHERE name = ? ORDER BY created_at DESC LIMIT 1"
+	query := "SELECT id, name, voice, created_at FROM chats WHERE name = ? ORDER BY created_at DESC LIMIT 1"
 
 	var chatDB ChatDB
 	err = tx.GetContext(ctx, &chatDB, query, name)
@@ -138,6 +138,7 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	SELECT
 		c.id,
 		c.name,
+		c.voice,
 		c.created_at,
 		COALESCE(MAX(m.created_at), c.created_at) AS last_message_at
 	FROM   chats AS c
@@ -168,7 +169,7 @@ func (r *Repository) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	return chats, nil
 }
 
-func (r *Repository) CreateChat(ctx context.Context, name string) (model.Chat, error) {
+func (r *Repository) CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error) {
 	// Start a transaction to ensure consistency
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -185,12 +186,13 @@ func (r *Repository) CreateChat(ctx context.Context, name string) (model.Chat, e
 	chat := model.Chat{
 		ID:        uuid.New().String(),
 		Name:      name,
+		Voice:     voice,
 		CreatedAt: time.Now().Format(time.RFC3339),
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO chats (id, name, created_at) VALUES (?, ?, ?)
-	`, chat.ID, chat.Name, chat.CreatedAt)
+		INSERT INTO chats (id, name, voice, created_at) VALUES (?, ?, ?, ?)
+	`, chat.ID, chat.Name, chat.Voice, chat.CreatedAt)
 	if err != nil {
 		return model.Chat{}, fmt.Errorf("failed to create chat: %w", err)
 	}
