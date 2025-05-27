@@ -21,6 +21,11 @@ func ReadJSONL[T any](filePath string) ([]T, error) {
 
 	var results []T
 	scanner := bufio.NewScanner(file)
+
+	const maxCapacity = 10 * 1024 * 1024
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
+
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		var item T
