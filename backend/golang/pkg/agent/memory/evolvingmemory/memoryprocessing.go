@@ -14,7 +14,7 @@ import (
 )
 
 // updateMemories decides and executes memory operations (ADD, UPDATE, DELETE, NONE) for a given fact.
-func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sessionDoc memory.TextDocument) (string, *models.Object, error) {
+func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, convDoc memory.ConversationDocument) (string, *models.Object, error) {
 	logContextEntity := "Speaker"
 	logContextValue := speakerID
 	speakerPromptName := speakerID
@@ -36,11 +36,11 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 
 	existingMemoriesContentForPrompt := []string{}
 	existingMemoriesForPromptStr := "No existing relevant memories found."
-	if len(existingMemoriesResult.Documents) > 0 {
-		s.logger.Debugf("Retrieved %d existing memories for decision prompt for %s %s.", len(existingMemoriesResult.Documents), logContextEntity, logContextValue)
-		for _, memDoc := range existingMemoriesResult.Documents {
-			memContext := fmt.Sprintf("ID: %s, Content: %s", memDoc.ID, memDoc.Content)
-			// Potentially: memDoc.Metadata["speakerID"] could be displayed here if relevant to the LLM's decision
+	if len(existingMemoriesResult.Facts) > 0 {
+		s.logger.Debugf("Retrieved %d existing memories for decision prompt for %s %s.", len(existingMemoriesResult.Facts), logContextEntity, logContextValue)
+		for _, memFact := range existingMemoriesResult.Facts {
+			memContext := fmt.Sprintf("ID: %s, Content: %s", memFact.ID, memFact.Content)
+			// Potentially: memFact.Metadata["speakerID"] could be displayed here if relevant to the LLM's decision
 			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
 		}
 		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
@@ -48,9 +48,9 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		s.logger.Debugf("No existing relevant memories found for this fact for %s %s.", logContextEntity, logContextValue)
 	}
 
-	prompt := strings.ReplaceAll(DefaultUpdateMemoryPrompt, "{primary_speaker_name}", speakerPromptName)
-	prompt = strings.ReplaceAll(prompt, "{current_system_date}", currentSystemDate)
-	prompt = strings.ReplaceAll(prompt, "{document_event_date}", docEventDateStr)
+	prompt := strings.ReplaceAll(MemoryUpdatePrompt, "{speaker_name}", speakerPromptName)
+	prompt = strings.ReplaceAll(prompt, "{existing_memories}", existingMemoriesForPromptStr)
+	prompt = strings.ReplaceAll(prompt, "{new_fact}", factContent)
 
 	var decisionPromptBuilder strings.Builder
 	decisionPromptBuilder.WriteString(prompt)
@@ -105,10 +105,8 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		factMetadata := make(map[string]string)
-		for k, v := range sessionDoc.Metadata {
-			if k != "dataset_speaker_a" && k != "dataset_speaker_b" { // Filter out helper metadata
-				factMetadata[k] = v
-			}
+		for k, v := range convDoc.Metadata {
+			factMetadata[k] = v
 		}
 		if speakerID != "" { // Only add speakerID to metadata if it's not empty
 			factMetadata["speakerID"] = speakerID
@@ -124,8 +122,11 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 			contentProperty:  factContent,
 			metadataProperty: string(metadataBytes),
 		}
-		if sessionDoc.Timestamp != nil {
-			data[timestampProperty] = sessionDoc.Timestamp.Format(time.RFC3339)
+		// Use conversation date for timestamp
+		if docEventDateStr != "Unknown" {
+			if parsedTime, parseErr := time.Parse("2006-01-02", docEventDateStr); parseErr == nil {
+				data[timestampProperty] = parsedTime.Format(time.RFC3339)
+			}
 		}
 
 		addObject := &models.Object{
@@ -191,10 +192,18 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 			delete(updatedFactMetadata, "speakerID") // If document-level, ensure no speakerID is present
 		}
 
+		// Parse conversation date for timestamp
+		var updateTimestamp *time.Time
+		if docEventDateStr != "Unknown" {
+			if parsedTime, parseErr := time.Parse("2006-01-02", docEventDateStr); parseErr == nil {
+				updateTimestamp = &parsedTime
+			}
+		}
+
 		docToUpdate := memory.TextDocument{
 			ID:        updateArgs.MemoryID,
 			Content:   updateArgs.UpdatedMemory,
-			Timestamp: sessionDoc.Timestamp, // Update timestamp to the current sessionDoc's timestamp
+			Timestamp: updateTimestamp,
 			Metadata:  updatedFactMetadata,
 			Tags:      originalDoc.Tags, // Preserve original tags unless LLM specifies changes
 		}
