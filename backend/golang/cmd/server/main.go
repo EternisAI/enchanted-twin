@@ -51,6 +51,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/friend"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
@@ -338,6 +339,7 @@ func main() {
 			aiCompletionsService: aiCompletionsService,
 			toolsRegistry:        toolRegistry,
 			notifications:        notificationsSvc,
+			twinchatService:      twinChatService,
 		},
 	)
 	if err != nil {
@@ -432,6 +434,7 @@ type bootstrapTemporalWorkerInput struct {
 	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
 	notifications        *notifications.Service
+	twinchatService      *twinchat.Service
 }
 
 func bootstrapTTS(logger *log.Logger) (*tts.Service, error) {
@@ -480,6 +483,14 @@ func bootstrapTemporalWorker(
 	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
 
+	friendService := friend.NewFriendService(friend.FriendServiceConfig{
+		Logger:          input.logger,
+		MemoryService:   input.memory,
+		IdentityService: identity.NewIdentityService(input.temporalClient),
+		TwinchatService: input.twinchatService,
+		AiService:       input.aiCompletionsService,
+	})
+	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 	err := w.Start()
 	if err != nil {
 		input.logger.Error("Error starting worker", "error", err)
