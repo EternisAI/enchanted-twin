@@ -356,6 +356,9 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			continue
 		}
 
+		w.Logger.Info("Processing data source", "dataSource", dataSourceDB.Name)
+		w.Logger.Info("Processed path", "processedPath", *dataSourceDB.ProcessedPath)
+
 		records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
 		if err != nil {
 			return IndexDataActivityResponse{}, err
@@ -443,16 +446,23 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
 		case "chatgpt":
-			documents, err := chatgpt.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
+			batchSize := 20
+			for i := 0; i < len(records); i += batchSize {
+				batch := records[i:min(i+batchSize, len(records))]
+				documents, err := chatgpt.ToDocuments(batch)
+				if err != nil {
+					return IndexDataActivityResponse{}, err
+				}
+
+				w.Logger.Info("Storing documents", "documents", documents[0])
+
+				err = w.Memory.Store(ctx, documents, progressChan)
+				if err != nil {
+					return IndexDataActivityResponse{}, err
+				}
+				w.Logger.Info("Indexed documents", "documents", len(documents))
+
 			}
-			w.Logger.Info("Documents", "chatgpt", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
 		case "misc":
 			documents, err := misc.ToDocuments(records)
