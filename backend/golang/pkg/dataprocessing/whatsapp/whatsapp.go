@@ -276,7 +276,7 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 		ID:        fmt.Sprintf("whatsapp-history-%d", time.Now().UnixNano()),
 		Content:   message,
 		Timestamp: &timestamp,
-		Tags:      []string{"whatsapp", "message", "historical"},
+		Tags:      []string{"whatsapp", "message", "conversation"},
 		Metadata: map[string]string{
 			"from":     fromName,
 			"to":       toName,
