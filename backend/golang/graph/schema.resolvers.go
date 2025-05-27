@@ -198,7 +198,7 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 
 // CreateChat is the resolver for the createChat field.
 func (r *mutationResolver) CreateChat(ctx context.Context, name string, voice bool) (*model.Chat, error) {
-	chat, err := r.TwinChatService.CreateChat(ctx, name)
+	chat, err := r.TwinChatService.CreateChat(ctx, name, voice)
 	if err != nil {
 		return nil, err
 	}
