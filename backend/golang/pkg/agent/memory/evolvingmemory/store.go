@@ -6,8 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/weaviate/weaviate/entities/models"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
 // identifySpeakersInMetadata attempts to find specific speaker identifiers in document metadata.
