@@ -10,7 +10,7 @@ import { OnboardingLayout } from './OnboardingLayout'
 import { Card } from '../ui/card'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import MCPServerItem from '../oauth/MCPServerItem'
 
@@ -102,8 +102,8 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   if (!hasGoogleConnected) {
     return (
       <OnboardingLayout
-        title="Connect your Google account"
-        subtitle="First, you need to connect your Google account to continue"
+        title="Beta Access"
+        subtitle="Login with Google for Beta access. All your data stays local and access to your Google account is only possible by you."
       >
         <div className="flex flex-col gap-6 items-center">
           <MCPServerItem
@@ -120,14 +120,6 @@ export default function InvitationGate({ children }: { children: React.ReactNode
             }}
             onRemove={() => {}}
           />
-          <Card className="p-4 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
-            <div className="flex items-center gap-3">
-              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-              <p className="text-sm text-blue-800 dark:text-blue-200">
-                Please connect your Google account above to proceed with the setup.
-              </p>
-            </div>
-          </Card>
         </div>
       </OnboardingLayout>
     )
@@ -168,14 +160,14 @@ export default function InvitationGate({ children }: { children: React.ReactNode
         </form>
       </Card>
 
-      <Card className="p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
+      {/* <Card className="p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
         <div className="flex items-center gap-3">
           <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
           <p className="text-sm text-amber-800 dark:text-amber-200">
             Don&apos;t have an invite code? Contact support to request access.
           </p>
         </div>
-      </Card>
+      </Card> */}
     </OnboardingLayout>
   )
 }
