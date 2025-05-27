@@ -132,9 +132,21 @@ func (s *Service) SendMessage(
 	isVoice bool,
 ) (*model.Message, error) {
 	now := time.Now()
-	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
-	if err != nil {
-		return nil, err
+
+	messages := make([]*model.Message, 0)
+	if chatID == "" {
+		chat, err := s.storage.CreateChat(ctx, "New chat")
+		if err != nil {
+			return nil, err
+		}
+		s.logger.Info("Created new chat", "chat_id", chat.ID)
+		chatID = chat.ID
+	} else {
+		messages_, err := s.storage.GetMessagesByChatId(ctx, chatID)
+		if err != nil {
+			return nil, err
+		}
+		messages = messages_
 	}
 
 	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)

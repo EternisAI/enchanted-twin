@@ -46,22 +46,22 @@ func (s *FriendService) FriendWorkflow(ctx workflow.Context, input *FriendWorkfl
 	}
 	output.PokeMessageSent = true
 
-	var pictureDescription string
-	err = workflow.ExecuteActivity(ctx, s.GenerateMemoryPicture).Get(ctx, &pictureDescription)
-	if err != nil {
-		logger.Error("Failed to generate memory picture", "error", err)
+	// var pictureDescription string
+	// err = workflow.ExecuteActivity(ctx, s.GenerateMemoryPicture).Get(ctx, &pictureDescription)
+	// if err != nil {
+	// 	logger.Error("Failed to generate memory picture", "error", err)
 
-		logger.Warn("Continuing without memory picture")
-	} else {
-		err = workflow.ExecuteActivity(ctx, s.SendMemoryPicture, pictureDescription).Get(ctx, nil)
-		if err != nil {
-			logger.Error("Failed to send memory picture", "error", err)
+	// 	logger.Warn("Continuing without memory picture")
+	// } else {
+	// 	err = workflow.ExecuteActivity(ctx, s.SendMemoryPicture, pictureDescription).Get(ctx, nil)
+	// 	if err != nil {
+	// 		logger.Error("Failed to send memory picture", "error", err)
 
-			logger.Warn("Failed to send memory picture, but poke message was sent successfully")
-		} else {
-			output.MemoryPictureSent = true
-		}
-	}
+	// 		logger.Warn("Failed to send memory picture, but poke message was sent successfully")
+	// 	} else {
+	// 		output.MemoryPictureSent = true
+	// 	}
+	// }
 
 	return output, nil
 }
