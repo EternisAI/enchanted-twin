@@ -75,7 +75,7 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context) (string, error)
 
 	messages := []ai.Message{
 		{
-			Role:    ai.MessageRoleUser,
+			Role:    ai.MessageRoleSystem,
 			Content: prompt,
 		},
 	}
@@ -93,7 +93,7 @@ func (s *FriendService) SendPokeMessage(ctx context.Context, message string) err
 		return fmt.Errorf("twinchat service not available")
 	}
 
-	_, err := s.twinchatService.SendMessage(ctx, "", message, false, false)
+	_, err := s.twinchatService.SendAssistantMessage(ctx, "", message)
 	if err != nil {
 		return fmt.Errorf("failed to send poke message: %w", err)
 	}
