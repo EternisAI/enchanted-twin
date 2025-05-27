@@ -314,3 +314,8 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 	// The schema will be recreated on the next operation that requires it via ensureSchemaExistsInternal.
 	return nil
 }
+
+// StoreConversations is an alias for Store to maintain backward compatibility
+func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
+	return s.Store(ctx, documents, progressChan)
+}

@@ -65,13 +65,13 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	data, ok := resp.Data["Get"].(map[string]interface{})
 	if !ok {
 		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
-		return memory.QueryResult{Documents: finalResults}, nil
+		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
 	}
 
 	classData, ok := data[ClassName].([]interface{})
 	if !ok {
 		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
-		return memory.QueryResult{Documents: finalResults}, nil
+		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
 	}
 	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
 
@@ -130,5 +130,5 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		})
 	}
 	s.logger.Info("Query processed successfully.", "num_results_returned_after_filtering", len(finalResults))
-	return memory.QueryResult{Documents: finalResults}, nil
+	return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
 }

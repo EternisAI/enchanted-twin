@@ -19,7 +19,7 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sess
 		extractFactsTool, // This will now correctly refer to the one in tools.go
 	}
 
-	sysPrompt := strings.ReplaceAll(SpeakerFocusedFactExtractionPrompt, "{primary_speaker_name}", speakerID)
+	sysPrompt := strings.ReplaceAll(FactExtractionPrompt, "{speaker_name}", speakerID)
 	sysPrompt = strings.ReplaceAll(sysPrompt, "{current_system_date}", currentSystemDate)
 	sysPrompt = strings.ReplaceAll(sysPrompt, "{document_event_date}", docEventDateStr)
 
