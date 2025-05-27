@@ -33,6 +33,8 @@ const savedTheme = (() => {
   }
 })()
 
+const isFeatureGateEnabled = import.meta.env.VITE_FEATURE_GATE === 'true'
+
 function App() {
   return (
     <ThemeProvider defaultTheme={savedTheme}>
@@ -40,9 +42,16 @@ function App() {
         <ApolloClientProvider>
           <div className="flex flex-col h-full w-full">
             <Toaster position="bottom-right" />
-            <InvitationGate>
+            {/* <InvitationGate>
               <RouterProvider router={router} />
-            </InvitationGate>
+            </InvitationGate> */}
+            {isFeatureGateEnabled ? (
+              <InvitationGate>
+                <RouterProvider router={router} />
+              </InvitationGate>
+            ) : (
+              <RouterProvider router={router} />
+            )}
           </div>
         </ApolloClientProvider>
       </TTSProvider>
