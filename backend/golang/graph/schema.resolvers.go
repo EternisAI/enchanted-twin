@@ -380,6 +380,11 @@ func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, e
 	}
 }
 
+// Activate is the resolver for the activate field.
+func (r *mutationResolver) Activate(ctx context.Context, inviteCode string) (bool, error) {
+	return auth.Activate(ctx, r.Logger, r.Store, inviteCode)
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
@@ -635,6 +640,11 @@ func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupPro
 		results = append(results, &progress)
 	}
 	return results, nil
+}
+
+// WhitelistStatus is the resolver for the whitelistStatus field.
+func (r *queryResolver) WhitelistStatus(ctx context.Context) (bool, error) {
+	return auth.IsWhitelisted(ctx, r.Logger, r.Store)
 }
 
 // MessageAdded is the resolver for the messageAdded field.
