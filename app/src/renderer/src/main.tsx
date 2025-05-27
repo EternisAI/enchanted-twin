@@ -11,6 +11,7 @@ import { ApolloClientProvider } from './graphql/provider'
 import { ThemeProvider } from './lib/theme'
 import { TTSProvider } from './lib/ttsProvider'
 import { routeTree } from '@renderer/routeTree.gen'
+import InvitationGate from './components/onboarding/InvitationGate'
 
 const router = createRouter({
   routeTree,
@@ -33,26 +34,16 @@ const savedTheme = (() => {
 })()
 
 function App() {
-  // const [setIsLaunchComplete] = useState(false)
-
-  // useEffect(() => {
-  //   window.api.onLaunch('launch-complete', () => {
-  //     setIsLaunchComplete(true)
-  //   })
-  // }, [])
-
   return (
     <ThemeProvider defaultTheme={savedTheme}>
       <TTSProvider>
         <ApolloClientProvider>
-          {/* {isLaunchComplete ? ( */}
-          <>
-            <RouterProvider router={router} />
+          <div className="flex flex-col h-full w-full">
             <Toaster position="bottom-right" />
-          </>
-          {/* ) : (
-            <LaunchScreen />
-          )} */}
+            <InvitationGate>
+              <RouterProvider router={router} />
+            </InvitationGate>
+          </div>
         </ApolloClientProvider>
       </TTSProvider>
     </ThemeProvider>
