@@ -6,9 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/weaviate/weaviate/entities/models"
-
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/weaviate/weaviate/entities/models"
 )
 
 // identifySpeakersInMetadata attempts to find specific speaker identifiers in document metadata.
@@ -41,25 +40,20 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 		}
 	}()
 
-	s.logger.Info("=== EVOLVINGMEMORY STORE DEBUG START ===")
-	s.logger.Info("Store method called", "total_documents", len(documents))
-
 	batcher := s.client.Batch().ObjectsBatcher()
 	var objectsAddedToBatch int
 
 	totalDocs := len(documents)
 	if totalDocs == 0 {
-		s.logger.Info("No documents to process, returning early")
 		return nil
 	}
 
 	currentSystemDate := getCurrentDateForPrompt()
-	s.logger.Info("Processing documents", "system_date", currentSystemDate)
 
 	for i, sessionDoc := range documents {
-		s.logger.Infof("=== Processing document %d/%d ===", i+1, totalDocs)
-		s.logger.Infof("Document tags: %v", sessionDoc.Tags)
+		s.logger.Infof("Processing session document %d of %d. Session Doc ID (if any): '%s'", i+1, totalDocs, sessionDoc.ID)
 
+		// Attempt to identify specific speakers using the helper method
 		specificSpeakerCandidates := s.identifySpeakersInMetadata(sessionDoc.Metadata)
 
 		var speakersToProcess []string
@@ -72,8 +66,6 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 			speakersToProcess = []string{""}
 			s.logger.Infof("No specific speakers identified for session doc ID '%s'. Proceeding with document-level processing.", sessionDoc.ID)
 		}
-
-		s.logger.Infof("Speakers to process: %v", speakersToProcess)
 
 		// This loop will run once with speakerID="" if no specific speakers were found,
 		// or once for each specific speaker if they were identified.
@@ -91,31 +83,17 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 			if sessionDoc.Timestamp != nil && !sessionDoc.Timestamp.IsZero() {
 				docEventDateStr = sessionDoc.Timestamp.Format("2006-01-02")
 			}
-			s.logger.Infof("Document event date: %s", docEventDateStr)
 
-			s.logger.Infof("Starting fact extraction for %s %s...", logContextEntity, logContextValue)
 			extractedFacts, err := s.extractFactsFromTextDocument(ctx, sessionDoc, speakerID, currentSystemDate, docEventDateStr)
 			if err != nil {
 				s.logger.Errorf("Error during fact extraction for %s %s: %v. Skipping this processing unit.", logContextEntity, logContextValue, err)
 				continue
 			}
-			s.logger.Infof("Fact extraction completed. Extracted %d facts for %s %s", len(extractedFacts), logContextEntity, logContextValue)
-
 			if len(extractedFacts) == 0 {
 				s.logger.Infof("No facts extracted for %s %s. Skipping memory operations for this unit.", logContextEntity, logContextValue)
 				continue
 			}
 			s.logger.Infof("Total facts to process for %s '%s': %d", logContextEntity, logContextValue, len(extractedFacts))
-
-			// Log the extracted facts
-			for factIdx, factContent := range extractedFacts {
-				if factIdx < 3 { // Log first 3 facts
-					s.logger.Infof("Extracted fact %d: %s", factIdx+1, factContent)
-				}
-			}
-			if len(extractedFacts) > 3 {
-				s.logger.Infof("... and %d more facts", len(extractedFacts)-3)
-			}
 
 			for factIdx, factContent := range extractedFacts {
 				if strings.TrimSpace(factContent) == "" {
@@ -145,14 +123,11 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 		}
 	}
 
-	s.logger.Infof("Finished processing all %d documents. Objects added to batch: %d", totalDocs, objectsAddedToBatch)
-
 	if objectsAddedToBatch > 0 {
 		s.logger.Infof("Flushing batcher with %d objects at the end of Store method.", objectsAddedToBatch)
 		resp, err := batcher.Do(ctx)
 		if err != nil {
 			s.logger.Errorf("Error final batch storing facts to Weaviate: %v", err)
-			return err
 		} else {
 			s.logger.Info("Final fact batch storage call completed.")
 		}
@@ -172,16 +147,16 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 				}
 			}
 			s.logger.Infof("Final fact batch storage completed: %d successful, %d failed.", successCount, failureCount)
+		} else if err != nil {
+			s.logger.Warn("Batcher.Do() returned an error and a nil response. Cannot determine individual item statuses.")
 		} else {
 			s.logger.Info("Batcher.Do() returned no error and a nil response. Assuming batched items were processed if objectsAddedToBatch > 0.")
 		}
 	} else {
 		s.logger.Info("No objects were added to the batcher during this Store() call. Nothing to flush.")
-		s.logger.Warn("WARNING: No facts were extracted from any of the documents. This might indicate an issue with fact extraction.")
 	}
 
 	s.logger.Info("Store method finished processing all documents.")
-	s.logger.Info("=== EVOLVINGMEMORY STORE DEBUG END ===")
 	return nil
 }
 
