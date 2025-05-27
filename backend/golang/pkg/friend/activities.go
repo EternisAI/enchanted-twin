@@ -143,7 +143,7 @@ func (s *FriendService) SendMemoryPicture(ctx context.Context, chatID, pictureDe
 
 	message := fmt.Sprintf("I was thinking about this memory and created a picture for you: %s", pictureDescription)
 
-	_, err := s.twinchatService.SendMessage(ctx, chatID, message, false, false)
+	_, err := s.twinchatService.SendAssistantMessage(ctx, chatID, message)
 	if err != nil {
 		return fmt.Errorf("failed to send memory picture: %w", err)
 	}
