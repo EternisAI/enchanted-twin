@@ -439,12 +439,39 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "whatsapp", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
+
+			var contactDocs []memory.TextDocument
+			var conversationalDocs []memory.TextDocument
+
+			for _, doc := range documents {
+				if whatsapp.IsValidConversationalContent(doc) {
+					conversationalDocs = append(conversationalDocs, doc)
+				} else {
+					contactDocs = append(contactDocs, doc)
+				}
 			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
+
+			w.Logger.Info("Separated documents", "contacts", len(contactDocs), "conversational", len(conversationalDocs))
+
+			if len(contactDocs) > 0 {
+				err = w.Memory.StoreRawData(ctx, contactDocs, progressChan)
+				if err != nil {
+					return IndexDataActivityResponse{}, err
+				}
+				w.Logger.Info("Stored contact documents as raw data", "count", len(contactDocs))
+			}
+
+			if len(conversationalDocs) > 0 {
+				err = w.Memory.Store(ctx, conversationalDocs, progressChan)
+				if err != nil {
+					return IndexDataActivityResponse{}, err
+				}
+				w.Logger.Info("Stored conversational documents with fact extraction", "count", len(conversationalDocs))
+			}
+
+			w.Logger.Info("Indexed all WhatsApp documents", "total", len(documents))
 			dataSourcesResponse[i].IsIndexed = true
+
 		case "chatgpt":
 			batchSize := 20
 			for j := 0; j < len(records); j += batchSize {
