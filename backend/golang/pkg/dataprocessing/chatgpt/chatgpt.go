@@ -57,6 +57,11 @@ type ChatGPTDataSource struct {
 	inputPath string
 }
 
+type ConversationMessage struct {
+	Role string
+	Text string
+}
+
 func New(inputPath string) *ChatGPTDataSource {
 	return &ChatGPTDataSource{
 		inputPath: inputPath,
@@ -83,26 +88,28 @@ func (s *ChatGPTDataSource) ProcessFileConversations(
 
 	var records []types.Record
 
-	fmt.Println(conversations)
-
 	for _, conversation := range conversations {
 		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
 		if err != nil {
 			continue
 		}
 
-		for _, message := range conversation.Mapping {
-			if message.Message == nil {
+		var messages []ConversationMessage
+
+		for _, messageNode := range conversation.Mapping {
+			if messageNode.Message == nil {
 				continue
 			}
 
-			if message.Message.Author.Role == "tool" {
+			if messageNode.Message.Author.Role == "tool" {
 				continue
 			}
-			content := message.Message.Content
+
+			content := messageNode.Message.Content
 			if content.ContentType != "text" {
 				continue
 			}
+
 			var textContentBuilder strings.Builder
 			for _, part := range content.Parts {
 				if strPart, ok := part.(string); ok {
@@ -111,20 +118,32 @@ func (s *ChatGPTDataSource) ProcessFileConversations(
 			}
 			extractedText := textContentBuilder.String()
 
-			role := message.Message.Author.Role
+			if extractedText == "" {
+				continue
+			}
 
-			conversationData := map[string]any{
-				"title": conversation.Title,
-				"text":  extractedText,
-				"role":  role,
-			}
-			record := types.Record{
-				Data:      conversationData,
-				Timestamp: timestamp,
-				Source:    s.Name(),
-			}
-			records = append(records, record)
+			role := messageNode.Message.Author.Role
+			messages = append(messages, ConversationMessage{
+				Role: role,
+				Text: extractedText,
+			})
 		}
+
+		if len(messages) == 0 {
+			continue
+		}
+
+		conversationData := map[string]any{
+			"title":    conversation.Title,
+			"messages": messages,
+		}
+
+		record := types.Record{
+			Data:      conversationData,
+			Timestamp: timestamp,
+			Source:    s.Name(),
+		}
+		records = append(records, record)
 	}
 
 	return records, nil
@@ -179,16 +198,62 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			return ""
 		}
 
-		message := getString("text")
-		role := getString("role")
+		title := getString("title")
+
+		var conversationBuilder strings.Builder
+
+		if messagesInterface, ok := record.Data["messages"]; ok {
+			switch messages := messagesInterface.(type) {
+			case []ConversationMessage:
+
+				for _, message := range messages {
+					conversationBuilder.WriteString(message.Role)
+					conversationBuilder.WriteString(": ")
+					conversationBuilder.WriteString(message.Text)
+					conversationBuilder.WriteString("\n\n")
+				}
+			case []interface{}:
+
+				for _, msgInterface := range messages {
+					if msgMap, ok := msgInterface.(map[string]interface{}); ok {
+						role := ""
+						text := ""
+						if roleVal, ok := msgMap["Role"]; ok {
+							if roleStr, ok := roleVal.(string); ok {
+								role = roleStr
+							}
+						}
+						if textVal, ok := msgMap["Text"]; ok {
+							if textStr, ok := textVal.(string); ok {
+								text = textStr
+							}
+						}
+						if role != "" && text != "" {
+							conversationBuilder.WriteString(role)
+							conversationBuilder.WriteString(": ")
+							conversationBuilder.WriteString(text)
+							conversationBuilder.WriteString("\n\n")
+						}
+					}
+				}
+			}
+		}
+
+		conversationText := conversationBuilder.String()
+		if conversationText == "" {
+			continue
+		}
+
+		explainer := "This document is a ChatGPT conversation log between user and assistant.\n\n"
+		fullContent := explainer + conversationText
 
 		textDocuments = append(textDocuments, memory.TextDocument{
-			Content:   message,
+			Content:   fullContent,
 			Timestamp: &record.Timestamp,
-			Tags:      []string{"chat", "chatgpt"},
+			Tags:      []string{"chat", "chatgpt", "conversation"},
 			Metadata: map[string]string{
-				"type":   "message",
-				"role":   role,
+				"type":   "conversation",
+				"title":  title,
 				"source": "chatgpt",
 			},
 		})
