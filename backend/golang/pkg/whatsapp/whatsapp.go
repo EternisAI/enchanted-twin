@@ -22,6 +22,7 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 )
 
@@ -109,10 +110,6 @@ func GetConnectChannel() chan struct{} {
 		ConnectChan = make(chan struct{}, 1)
 	})
 	return ConnectChan
-}
-
-func TriggerConnect() {
-	GetConnectChannel() <- struct{}{}
 }
 
 func GetSyncStatus() SyncStatus {
@@ -254,7 +251,6 @@ func addContact(jid, name string) {
 			Jid:  jid,
 			Name: name,
 		})
-		fmt.Printf("Added contact to persistent store: %s - %s\n", jid, name)
 	}
 }
 
@@ -312,12 +308,12 @@ func formatDetailedProgressMessage(totalContacts, processedMessages, totalMessag
 	return strings.Join(parts, " and ")
 }
 
-func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn) func(interface{}) {
+func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, config *config.Config) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.HistorySync:
+
 			StartSync()
-			logger.Info("Received WhatsApp history sync", "contacts", len(v.Data.Pushnames))
 
 			totalContacts := len(v.Data.Pushnames)
 			totalMessages := 0
@@ -339,12 +335,12 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				logger.Error("Error publishing sync status", "error", err)
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 			defer cancel()
 
 			processedItems := 0
 
-			documents := []memory.TextDocument{}
+			contactDocuments := []memory.TextDocument{}
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
 					document, err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
@@ -352,7 +348,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						logger.Error("Error processing WhatsApp contact", "error", err)
 					} else {
 						logger.Info("WhatsApp contact stored successfully", "pushname", *pushname.Pushname)
-						documents = append(documents, document)
+						contactDocuments = append(contactDocuments, document)
 					}
 
 					addContact(*pushname.ID, *pushname.Pushname)
@@ -374,8 +370,18 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 			}
 
-			for _, conversation := range v.Data.Conversations {
+			if len(contactDocuments) > 0 {
+				logger.Info("Storing WhatsApp contacts using StoreRawData...")
+				err = memoryStorage.StoreRawData(ctx, contactDocuments, nil)
+				if err != nil {
+					logger.Error("Error storing WhatsApp contacts", "error", err)
+				}
+			}
+
+			conversationDocuments := []memory.TextDocument{}
+			for i, conversation := range v.Data.Conversations {
 				if conversation.ID == nil {
+					logger.Warn("Skipping conversation with nil ID", "conversation_index", i)
 					continue
 				}
 
@@ -438,8 +444,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					if err != nil {
 						logger.Error("Error processing historical WhatsApp message", "error", err)
 					} else {
-						documents = append(documents, document)
-						logger.Info("Historical WhatsApp message stored successfully")
+						conversationDocuments = append(conversationDocuments, document)
 					}
 
 					processedItems++
@@ -459,19 +464,16 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						}
 					}
 				}
-
-				logger.Info("Finished processing conversation",
-					"chat_id", chatID,
-					"messages", processedConversationMessages)
 			}
 
-			logger.Info("Storing WhatsApp contacts and messages", "contacts", totalContacts, "messages", totalMessages)
-			progressChan := make(chan memory.ProgressUpdate, 1)
-			err = memoryStorage.Store(ctx, documents, progressChan)
-			if err != nil {
-				logger.Error("Error storing WhatsApp contacts", "error", err)
+			if len(conversationDocuments) > 0 {
+				err = memoryStorage.Store(ctx, conversationDocuments, nil)
+				if err != nil {
+					logger.Error("Error storing WhatsApp conversation documents", "error", err)
+				} else {
+					logger.Info("WhatsApp conversation documents storage completed successfully", "count", len(conversationDocuments))
+				}
 			}
-
 			UpdateSyncStatus(SyncStatus{
 				IsCompleted:    true,
 				IsSyncing:      false,
@@ -483,7 +485,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			if err != nil {
 				logger.Error("Error publishing sync status", "error", err)
 			}
-			logger.Info("WhatsApp history sync completed", "total_processed", processedItems)
 
 		case *events.Message:
 
@@ -524,7 +525,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 			toName := v.Info.Chat.User
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 			defer cancel()
 
 			document, err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
@@ -534,8 +535,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				logger.Info("WhatsApp message stored successfully")
 			}
 
-			progressChan := make(chan memory.ProgressUpdate, 1)
-			err = memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+			err = memoryStorage.Store(ctx, []memory.TextDocument{document}, nil)
 			if err != nil {
 				logger.Error("Error storing WhatsApp message", "error", err)
 			}
@@ -546,7 +546,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 	}
 }
 
-func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, dbPath string) *whatsmeow.Client {
+func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, dbPath string, config *config.Config) *whatsmeow.Client {
 	dbLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
 
 	dbDir := filepath.Dir(dbPath)
@@ -570,7 +570,7 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	}
 	clientLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Client"}
 	client := whatsmeow.NewClient(deviceStore, clientLog)
-	client.AddEventHandler(EventHandler(memoryStorage, logger, nc))
+	client.AddEventHandler(EventHandler(memoryStorage, logger, nc, config))
 
 	logger.Info("Waiting for WhatsApp connection signal...")
 	connectChan := GetConnectChannel()

@@ -61,6 +61,7 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		CREATE TABLE IF NOT EXISTS chats (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
+			voice BOOLEAN NOT NULL DEFAULT FALSE,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_chats_id ON chats(id);
