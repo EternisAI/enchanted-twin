@@ -4,7 +4,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	stderrs "errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -76,7 +75,7 @@ func main() {
 		TimeFormat:      time.Kitchen,
 	})
 
-	envs, _ := config.LoadConfig(true)
+	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
 
@@ -182,11 +181,17 @@ func main() {
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	logger.Info("Starting Weaviate bootstrap process", "path", weaviatePath, "port", envs.WeaviatePort)
+	weaviateBootstrapStart := time.Now()
+
 	if _, err := bootstrapWeaviateServer(context.Background(), logger, envs.WeaviatePort, weaviatePath); err != nil {
 		logger.Error("Failed to bootstrap Weaviate server", slog.Any("error", err))
 		panic(errors.Wrap(err, "Failed to bootstrap Weaviate server"))
 	}
+	logger.Info("Weaviate server bootstrap completed", "elapsed", time.Since(weaviateBootstrapStart))
 
+	logger.Info("Creating Weaviate client")
+	clientCreateStart := time.Now()
 	weaviateClient, err := weaviate.NewClient(weaviate.Config{
 		Host:   fmt.Sprintf("localhost:%s", envs.WeaviatePort),
 		Scheme: "http",
@@ -195,18 +200,25 @@ func main() {
 		logger.Error("Failed to create Weaviate client", "error", err)
 		panic(errors.Wrap(err, "Failed to create Weaviate client"))
 	}
-	logger.Info("Weaviate client created")
+	logger.Info("Weaviate client created", "elapsed", time.Since(clientCreateStart))
+
+	logger.Info("Initializing Weaviate schema")
+	schemaInitStart := time.Now()
 	if err := InitSchema(weaviateClient, logger); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
-	logger.Info("Weaviate schema initialized")
+	logger.Info("Weaviate schema initialized", "elapsed", time.Since(schemaInitStart))
 
+	logger.Info("Creating evolving memory instance")
+	memoryCreateStart := time.Now()
 	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
 	if err != nil {
 		logger.Error("Failed to create evolving memory", "error", err)
 		panic(errors.Wrap(err, "Failed to create evolving memory"))
 	}
+	logger.Info("Evolving memory created", "elapsed", time.Since(memoryCreateStart))
+	logger.Info("Total Weaviate setup completed", "total_elapsed", time.Since(weaviateBootstrapStart))
 
 	whatsapp.TriggerConnect()
 
@@ -259,6 +271,15 @@ func main() {
 			}
 		}
 	}()
+
+	telegramTool, err := telegram.NewTelegramSetupTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to create telegram setup tool"))
+	}
+	err = toolRegistry.Register(telegramTool)
+	if err != nil {
+		panic(errors.Wrap(err, "Failed to register telegram tool"))
+	}
 
 	twinChatService := twinchat.NewService(
 		logger,
@@ -352,48 +373,8 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
-	go func() {
-		ticker := time.NewTicker(2 * time.Second)
-		defer ticker.Stop()
-
-		appCtx, appCancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer appCancel()
-
-		for {
-			select {
-			case <-ticker.C:
-				chatUUID, err := telegramService.GetChatUUID(context.Background())
-				if err != nil {
-					continue
-				}
-				err = telegramService.Subscribe(appCtx, chatUUID)
-				if err != nil {
-					logger.Error("Failed to subscribe to telegram", "error", err)
-					continue
-				}
-
-				logger.Info("Registering telegram tool", "chatUUID", chatUUID)
-				telegramTool := telegram.NewTelegramTool(logger, envs.TelegramToken, store, envs.TelegramChatServer)
-				err = toolRegistry.Register(telegramTool)
-				if err == fmt.Errorf("tool '%s' is already registered", telegramTool.Definition().Function.Name) {
-				} else {
-					logger.Error("Failed to register telegram tool", "error", err)
-				}
-
-				if err == nil {
-				} else if stderrs.Is(err, telegram.ErrSubscriptionNilTextMessage) {
-				} else if stderrs.Is(err, context.Canceled) || stderrs.Is(err, context.DeadlineExceeded) {
-					if appCtx.Err() != nil {
-						return
-					}
-				}
-
-			case <-appCtx.Done():
-				logger.Info("Stopping Telegram subscription poller due to application shutdown signal")
-				return
-			}
-		}
-	}()
+	go telegram.SubscribePoller(telegramService, logger)
+	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, store, envs)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
@@ -600,48 +581,81 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 }
 
 func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
+	startTime := time.Now()
+	logger.Info("Starting Weaviate server bootstrap", "port", port, "dataPath", dataPath)
+
+	if _, err := os.Stat(dataPath); os.IsNotExist(err) {
+		logger.Info("Creating Weaviate data directory", "path", dataPath)
+		if err := os.MkdirAll(dataPath, 0o755); err != nil {
+			return nil, errors.Wrap(err, "Failed to create Weaviate data directory")
+		}
+		logger.Info("Weaviate data directory created", "elapsed", time.Since(startTime))
+	} else {
+		logger.Info("Weaviate data directory exists", "path", dataPath, "elapsed", time.Since(startTime))
+	}
+
+	logger.Debug("Setting PERSISTENCE_DATA_PATH environment variable", "path", dataPath)
 	err := os.Setenv("PERSISTENCE_DATA_PATH", dataPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
 	}
+
+	logger.Debug("Loading Weaviate swagger specification")
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to load swagger spec")
 	}
+	logger.Debug("Swagger specification loaded", "elapsed", time.Since(startTime))
 
+	logger.Debug("Creating Weaviate API instance")
 	api := operations.NewWeaviateAPI(swaggerSpec)
 	api.Logger = func(s string, i ...any) {
 		logger.Debug(s, i...)
 	}
 	server := rest.NewServer(api)
+	logger.Debug("Weaviate API and server created", "elapsed", time.Since(startTime))
 
+	logger.Debug("Configuring Weaviate server", "port", port)
 	server.EnabledListeners = []string{"http"}
 	p, err := strconv.Atoi(port)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to convert port to int")
 	}
 	server.Port = p
+	logger.Debug("Server port configured", "port", p, "elapsed", time.Since(startTime))
 
+	logger.Debug("Setting up command line parser")
 	parser := flags.NewParser(server, flags.Default)
 	parser.ShortDescription = "Weaviate"
 	server.ConfigureFlags()
-	for _, optsGroup := range api.CommandLineOptionsGroups {
+	logger.Debug("Command line flags configured", "elapsed", time.Since(startTime))
+
+	logger.Debug("Adding command line option groups")
+	for i, optsGroup := range api.CommandLineOptionsGroups {
+		logger.Debug("Adding option group", "index", i, "description", optsGroup.ShortDescription)
 		_, err := parser.AddGroup(optsGroup.ShortDescription, optsGroup.LongDescription, optsGroup.Options)
 		if err != nil {
 			return nil, errors.Wrap(err, "Failed to add flag group")
 		}
 	}
+	logger.Debug("All option groups added", "elapsed", time.Since(startTime))
 
+	logger.Debug("Parsing command line arguments")
 	if _, err := parser.Parse(); err != nil {
 		if fe, ok := err.(*flags.Error); ok && fe.Type == flags.ErrHelp {
 			return nil, nil
 		}
 		return nil, err
 	}
+	logger.Debug("Command line arguments parsed", "elapsed", time.Since(startTime))
 
+	logger.Debug("Configuring Weaviate API")
 	server.ConfigureAPI()
+	logger.Info("Weaviate API configured", "elapsed", time.Since(startTime))
 
+	logger.Info("Starting Weaviate server goroutine")
 	go func() {
+		logger.Debug("Weaviate server.Serve() starting")
 		if err := server.Serve(); err != nil && err != http.ErrServerClosed {
 			logger.Error("Weaviate serve error", "error", err)
 		}
@@ -649,20 +663,61 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 	go func() {
 		<-ctx.Done()
+		logger.Debug("Context canceled, shutting down Weaviate server")
 		_ = server.Shutdown()
 	}()
 
+	// Give the server a moment to start listening before beginning readiness checks
+	time.Sleep(100 * time.Millisecond)
+
 	readyURL := fmt.Sprintf("http://localhost:%d/v1/.well-known/ready", p)
 	deadline := time.Now().Add(15 * time.Second)
+	logger.Info("Waiting for Weaviate to become ready", "url", readyURL, "timeout", "15s")
+
+	checkCount := 0
 	for {
+		checkCount++
 		if time.Now().After(deadline) {
+			logger.Error("Weaviate readiness timeout",
+				"url", readyURL,
+				"elapsed", time.Since(startTime),
+				"checks_performed", checkCount)
 			return nil, fmt.Errorf("weaviate did not become ready in time on %s", readyURL)
 		}
 
 		req, _ := http.NewRequestWithContext(ctx, http.MethodGet, readyURL, nil)
 		resp, err := http.DefaultClient.Do(req)
-		if err == nil && resp.StatusCode == http.StatusOK {
-			return server, nil
+
+		if err != nil {
+			// Log connection errors more frequently for better debugging
+			if checkCount <= 5 || checkCount%5 == 0 {
+				logger.Debug("Weaviate readiness check failed",
+					"error", err,
+					"attempt", checkCount,
+					"elapsed", time.Since(startTime))
+			}
+		} else {
+			// Always close the response body to prevent resource leaks
+			defer func() {
+				if resp != nil && resp.Body != nil {
+					resp.Body.Close() //nolint:errcheck
+				}
+			}()
+
+			if resp.StatusCode == http.StatusOK {
+				logger.Info("Weaviate server is ready",
+					"elapsed", time.Since(startTime),
+					"checks_performed", checkCount)
+				return server, nil
+			} else {
+				// Log non-OK status responses more frequently for better debugging
+				if checkCount <= 5 || checkCount%5 == 0 {
+					logger.Debug("Weaviate not ready yet",
+						"status_code", resp.StatusCode,
+						"attempt", checkCount,
+						"elapsed", time.Since(startTime))
+				}
+			}
 		}
 
 		time.Sleep(200 * time.Millisecond)
@@ -684,9 +739,14 @@ func ClassExists(client *weaviate.Client, className string) (bool, error) {
 }
 
 func InitSchema(client *weaviate.Client, logger *log.Logger) error {
+	logger.Debug("Starting schema initialization")
+	start := time.Now()
+
 	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
 		return err
 	}
+
+	logger.Debug("Schema initialization completed", "elapsed", time.Since(start))
 	return nil
 }
 

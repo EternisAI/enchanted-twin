@@ -30,7 +30,7 @@ const UPDATE_PROFILE = gql`
   }
 `
 
-export function Header() {
+export function Home() {
   const { data: profile, refetch: refetchProfile } = useQuery(GetProfileDocument)
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
@@ -256,10 +256,17 @@ export function Header() {
       initial={{ opacity: 0, scale: 0.98 }}
       animate={{ opacity: 1, scale: 1 }}
       transition={{ type: 'spring', stiffness: 120, damping: 20 }}
-      className="flex flex-col items-center justify-center gap-6 w-full max-w-2xl mx-auto px-4"
+      className="flex flex-col w-full max-w-2xl mx-auto px-4 h-full justify-center"
     >
       {!isVoiceMode && (
-        <div className="flex flex-col items-center gap-4 w-full min-h-[160px]">
+        <motion.div
+          key="header"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.3, ease: 'linear' }}
+          className="flex flex-col items-center gap-4 w-full py-8"
+        >
           {isEditingName ? (
             <motion.div
               layout
@@ -292,15 +299,17 @@ export function Header() {
           <motion.div layout>
             <ContextCard />
           </motion.div>
-        </div>
+        </motion.div>
       )}
 
       {isVoiceMode && (
         <motion.div
-          className="flex-1 w-full"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 1 }}
+          key="voice-visualizer"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.8 }}
+          transition={{ duration: 0.3, ease: 'linear' }}
+          className="flex-1 w-full flex items-center justify-center min-h-[300px]"
         >
           <VoiceVisualizer
             visualState={1}
@@ -310,7 +319,13 @@ export function Header() {
         </motion.div>
       )}
 
-      <motion.div layout className="relative w-full">
+      <motion.div
+        layout="position"
+        transition={{
+          layout: { duration: 0.3, ease: 'linear' }
+        }}
+        className="relative w-full"
+      >
         <ChatInputBox
           query={query}
           textareaRef={textareaRef}
@@ -322,137 +337,26 @@ export function Header() {
           setIsReasonSelected={setIsReasonSelected}
           handleCreateChat={handleCreateChat}
         />
-        {/* <form onSubmit={handleSubmit} className="relative w-full">
-          <div className="flex items-center gap-6 p-1">
-            <div className="rounded-xl transition-all duration-300 focus-within:shadow-xl hover:shadow-xl relative z-10 flex items-center gap-2 flex-1 bg-card hover:bg-card/80 border px-2">
-              <Textarea
-                ref={textareaRef}
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                onKeyDown={(e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault()
-                    handleSubmit(e)
-                  }
-                }}
-                placeholder="Start a new chat..."
-                className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
-                rows={1}
-              />
-              <motion.div className="flex items-center self-end gap-2 pb-2">
-                <motion.div>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() => {
-                            if (isVoiceMode) {
-                              return
-                            }
-                            setIsReasonSelected(!isReasonSelected)
-                          }}
-                          className={cn(
-                            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
-                            isReasonSelected
-                              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-                              : ''
-                          )}
-                          variant="outline"
-                          // disabled={isVoiceMode}
-                        >
-                          <Lightbulb className="w-4 h-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Reasoning {isVoiceMode ? '(turn off voice mode to use)' : ''}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
 
-                <motion.div>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          onClick={() => {
-                            toggleVoiceMode()
-                            if (isReasonSelected) {
-                              setIsReasonSelected(false)
-                            }
-                          }}
-                          variant="outline"
-                          type="button"
-                          size="icon"
-                          className={cn(
-                            'rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none',
-                            isVoiceMode
-                              ? 'text-orange-500 !bg-orange-100/50 dark:!bg-orange-300/20 ring-orange-200 border-orange-200'
-                              : ''
-                          )}
-                        >
-                          <AudioLines className="h-5 w-5" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Voice chat {isVoiceMode ? '(enabled)' : '(click to enable)'}</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </motion.div>
-                <SendButton
-                  className="w-10 h-10"
-                  text={query}
-                  onSend={handleCreateChat}
-                  isWaitingTwinResponse={false}
-                />
-              </motion.div>
-            </div>
-          </div>
-        </form> */}
         <AnimatePresence mode="wait">
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 296 }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{
-              opacity: { duration: 0.15 },
-              height: { duration: 0.2, ease: 'easeOut' }
-            }}
-            className="relative w-full overflow-hidden"
-          >
-            <div className="h-4" />
-            <div className="bg-background/90 backdrop-blur-sm">
-              <ScrollArea className="h-[280px]">
-                {debouncedQuery ? (
-                  <>
-                    {filteredChats.map((chat, index) => (
-                      <motion.button
-                        key={chat.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        transition={{ duration: 0.15, delay: index * 0.03 }}
-                        type="button"
-                        onClick={() => {
-                          navigate({ to: `/chat/${chat.id}` })
-                          setQuery('')
-                        }}
-                        className={cn(
-                          'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
-                          'hover:bg-muted/80',
-                          selectedIndex === index && 'bg-primary/10 text-primary'
-                        )}
-                      >
-                        <span className="truncate">{chat.name}</span>
-                      </motion.button>
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    {suggestions.map((chat, index) => {
-                      const Icon = 'icon' in chat ? chat.icon : Brain
-                      const isEmphasized = 'emphasized' in chat && chat.emphasized
-                      return (
+          {!isVoiceMode && (
+            <motion.div
+              key="suggestions"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 296 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{
+                opacity: { duration: 0.2 },
+                height: { duration: 0.3, ease: 'easeOut' }
+              }}
+              className="relative w-full overflow-hidden"
+            >
+              <div className="h-4" />
+              <div className="bg-background/90 backdrop-blur-sm">
+                <ScrollArea className="h-[280px]">
+                  {debouncedQuery ? (
+                    <>
+                      {filteredChats.map((chat, index) => (
                         <motion.button
                           key={chat.id}
                           initial={{ opacity: 0 }}
@@ -460,45 +364,72 @@ export function Header() {
                           transition={{ duration: 0.15, delay: index * 0.03 }}
                           type="button"
                           onClick={() => {
-                            if (chat.id.startsWith('dummy')) {
-                              handleSuggestionClick(chat)
-                            } else {
-                              navigate({ to: `/chat/${chat.id}` })
-                              setQuery('')
-                            }
+                            navigate({ to: `/chat/${chat.id}` })
+                            setQuery('')
                           }}
                           className={cn(
                             'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
                             'hover:bg-muted/80',
-                            selectedIndex === index && 'bg-primary/10 text-primary',
-                            isEmphasized &&
-                              'relative before:absolute before:inset-0 before:rounded-'
+                            selectedIndex === index && 'bg-primary/10 text-primary'
                           )}
                         >
-                          <Icon
+                          <span className="truncate">{chat.name}</span>
+                        </motion.button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {suggestions.map((chat, index) => {
+                        const Icon = 'icon' in chat ? chat.icon : Brain
+                        const isEmphasized = 'emphasized' in chat && chat.emphasized
+                        return (
+                          <motion.button
+                            key={chat.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            transition={{ duration: 0.15, delay: index * 0.03 }}
+                            type="button"
+                            onClick={() => {
+                              if (chat.id.startsWith('dummy')) {
+                                handleSuggestionClick(chat)
+                              } else {
+                                navigate({ to: `/chat/${chat.id}` })
+                                setQuery('')
+                              }
+                            }}
                             className={cn(
-                              'h-4 w-4 relative z-10',
-                              isEmphasized
-                                ? 'text-indigo-800 dark:text-indigo-400'
-                                : 'text-muted-foreground'
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              'truncate relative z-10',
-                              isEmphasized && 'font-medium text-indigo-800 dark:text-indigo-200'
+                              'flex w-full items-center gap-2 px-3 py-2 text-left text-sm rounded-md',
+                              'hover:bg-muted/80',
+                              selectedIndex === index && 'bg-primary/10 text-primary',
+                              isEmphasized &&
+                                'relative before:absolute before:inset-0 before:rounded-'
                             )}
                           >
-                            {chat.name}
-                          </span>
-                        </motion.button>
-                      )
-                    })}
-                  </>
-                )}
-              </ScrollArea>
-            </div>
-          </motion.div>
+                            <Icon
+                              className={cn(
+                                'h-4 w-4 relative z-10',
+                                isEmphasized
+                                  ? 'text-indigo-800 dark:text-indigo-400'
+                                  : 'text-muted-foreground'
+                              )}
+                            />
+                            <span
+                              className={cn(
+                                'truncate relative z-10',
+                                isEmphasized && 'font-medium text-indigo-800 dark:text-indigo-200'
+                              )}
+                            >
+                              {chat.name}
+                            </span>
+                          </motion.button>
+                        )
+                      })}
+                    </>
+                  )}
+                </ScrollArea>
+              </div>
+            </motion.div>
+          )}
         </AnimatePresence>
       </motion.div>
     </motion.div>

@@ -625,28 +625,28 @@ func TestToDocuments(t *testing.T) {
 	metadata := docs[0].Metadata
 	assert.Equal(t, "direct_message", metadata["type"])
 
-	// Check like
-	expectedTimestamp2, _ := time.Parse(time.RFC3339, "2025-04-18T17:21:50-06:00")
-	assert.Equal(t, "A verified internet scales humanity", docs[1].Content)
-	assert.Equal(t, &expectedTimestamp2, docs[1].Timestamp)
-	assert.Equal(t, []string{"social", "x", "like"}, docs[1].Tags)
-	assert.Equal(t, map[string]string{
-		"type":   "like",
-		"id":     "12345",
-		"url":    "",
-		"source": "x",
-	}, docs[1].Metadata)
-
-	// Check tweet
+	// Check tweet (now second after sorting by timestamp)
 	expectedTimestamp3, _ := time.Parse(time.RFC3339, "2025-03-25T16:32:58Z")
-	assert.Equal(t, "@ChopJurassic @ReallyAmerican1 yes you do", docs[2].Content)
-	assert.Equal(t, &expectedTimestamp3, docs[2].Timestamp)
-	assert.Equal(t, []string{"social", "x", "tweet"}, docs[2].Tags)
+	assert.Equal(t, "@ChopJurassic @ReallyAmerican1 yes you do", docs[1].Content)
+	assert.Equal(t, &expectedTimestamp3, docs[1].Timestamp)
+	assert.Equal(t, []string{"social", "x", "tweet"}, docs[1].Tags)
 	assert.Equal(t, map[string]string{
 		"type":          "tweet",
 		"id":            "1904572225459806695",
 		"favoriteCount": "0",
 		"retweetCount":  "0",
 		"source":        "x",
+	}, docs[1].Metadata)
+
+	// Check like (now third after sorting by timestamp)
+	expectedTimestamp2, _ := time.Parse(time.RFC3339, "2025-04-18T17:21:50-06:00")
+	assert.Equal(t, "A verified internet scales humanity", docs[2].Content)
+	assert.Equal(t, &expectedTimestamp2, docs[2].Timestamp)
+	assert.Equal(t, []string{"social", "x", "like"}, docs[2].Tags)
+	assert.Equal(t, map[string]string{
+		"type":   "like",
+		"id":     "12345",
+		"url":    "",
+		"source": "x",
 	}, docs[2].Metadata)
 }

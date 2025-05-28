@@ -19,6 +19,20 @@ export function useSendMessage(
           }
         }
       })
+    },
+    onError(error) {
+      console.error('Error sending message', error)
+      const errorMessage: Message = {
+        id: `error-${Date.now()}`,
+        text: error instanceof Error ? error.message : 'Error sending message',
+        role: Role.Assistant,
+        imageUrls: [],
+        toolCalls: [],
+        toolResults: [],
+        createdAt: new Date().toISOString()
+      }
+
+      onError(errorMessage)
     }
   })
 

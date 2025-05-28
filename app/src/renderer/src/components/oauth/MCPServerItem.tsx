@@ -79,7 +79,7 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
     }
   }
 
-  const handleConnectEnchantedMCP = async () => {
+  const handleConnectMcpServer = async () => {
     const { data } = await connectMCPServer({
       variables: {
         input: {
@@ -131,8 +131,9 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   const handleEnableToolsToggle = async (enabled: boolean) => {
-    if (server.type === McpServerType.Enchanted) {
-      handleConnectEnchantedMCP()
+    // Enchanted and Screenpipe are handled by the backend without OAuth
+    if (server.type === McpServerType.Enchanted || server.type === McpServerType.Screenpipe) {
+      handleConnectMcpServer()
       return
     }
 
@@ -147,7 +148,12 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   useEffect(() => {
-    if (server.type === 'OTHER') return
+    if (
+      server.type === 'OTHER' ||
+      server.type === McpServerType.Enchanted ||
+      server.type === McpServerType.Screenpipe
+    )
+      return
 
     window.api.onOAuthCallback(async ({ code, state }) => {
       if (!authStateId) {

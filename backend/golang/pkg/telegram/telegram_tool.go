@@ -14,18 +14,19 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-type TelegramTool struct {
+type TelegramSendMessageTool struct {
 	Logger        *log.Logger
 	Token         string
 	Store         *db.Store
 	ChatServerUrl string
 }
 
-func NewTelegramTool(logger *log.Logger, token string, store *db.Store, chatServerUrl string) *TelegramTool {
+func NewTelegramSendMessageTool(logger *log.Logger, token string, store *db.Store, chatServerUrl string) (*TelegramSendMessageTool, error) {
 	if token == "" {
 		logger.Error("TELEGRAM_TOKEN environment variable not set")
+		return nil, fmt.Errorf("TELEGRAM_TOKEN environment variable not set")
 	}
-	return &TelegramTool{Logger: logger, Token: token, Store: store, ChatServerUrl: chatServerUrl}
+	return &TelegramSendMessageTool{Logger: logger, Token: token, Store: store, ChatServerUrl: chatServerUrl}, nil
 }
 
 func generateQRCodePNGDataURL(data string) (string, error) {
@@ -37,7 +38,7 @@ func generateQRCodePNGDataURL(data string) (string, error) {
 	return "data:image/png;base64," + b64, nil
 }
 
-func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agenttypes.ToolResult, error) {
+func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]any) (agenttypes.ToolResult, error) {
 	if t.Token == "" {
 		return &agenttypes.StructuredToolResult{
 			ToolName:   "telegram",
@@ -65,17 +66,13 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agent
 		}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
 
-	fmt.Println("chatUUID", chatUUID)
-	telegramEnabled, err2 := GetTelegramEnabled(ctx, t.Store)
+	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
 
-	fmt.Println("telegramEnabled", telegramEnabled)
-	if err2 != nil || telegramEnabled != "true" {
-		t.Logger.Info("telegram is not enabled", "error", err2)
-
+	if err != nil || telegramEnabled != "true" {
 		chatURL := GetChatURL(TelegramBotName, chatUUID)
-		qr, qErr := generateQRCodePNGDataURL(chatURL)
-		if qErr != nil {
-			t.Logger.Error("failed to generate QR code,", "error", qErr)
+		qr, err := generateQRCodePNGDataURL(chatURL)
+		if err != nil {
+			t.Logger.Error("failed to generate QR code,", "error", err)
 		}
 
 		return &agenttypes.StructuredToolResult{
@@ -110,7 +107,7 @@ func (t *TelegramTool) Execute(ctx context.Context, input map[string]any) (agent
 	}, nil
 }
 
-func (t *TelegramTool) Definition() openai.ChatCompletionToolParam {
+func (t *TelegramSendMessageTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
@@ -123,6 +120,82 @@ func (t *TelegramTool) Definition() openai.ChatCompletionToolParam {
 				},
 				"required": []string{"message"},
 			},
+		},
+	}
+}
+
+type TelegramSetupTool struct {
+	Logger        *log.Logger
+	Token         string
+	Store         *db.Store
+	ChatServerUrl string
+}
+
+func NewTelegramSetupTool(logger *log.Logger, token string, store *db.Store, chatServerUrl string) (*TelegramSetupTool, error) {
+	if token == "" {
+		logger.Error("TELEGRAM_TOKEN environment variable not set")
+		return nil, fmt.Errorf("TELEGRAM_TOKEN environment variable not set")
+	}
+	return &TelegramSetupTool{Logger: logger, Token: token, Store: store, ChatServerUrl: chatServerUrl}, nil
+}
+
+func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (agenttypes.ToolResult, error) {
+	if t.Token == "" {
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "telegram",
+			ToolParams: input,
+			ToolError:  "telegram token not set",
+		}, fmt.Errorf("telegram token not set")
+	}
+
+	chatUUID, err := t.Store.GetValue(ctx, TelegramChatUUIDKey)
+	if err != nil || chatUUID == "" {
+		t.Logger.Error("error getting chat UUID", "error", err)
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "telegram",
+			ToolParams: input,
+			ToolError:  fmt.Sprintf("error getting chat UUID: %v", err),
+		}, fmt.Errorf("error getting chat UUID: %w", err)
+	}
+
+	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
+
+	if err != nil || telegramEnabled != "true" {
+		chatURL := GetChatURL(TelegramBotName, chatUUID)
+		qr, qErr := generateQRCodePNGDataURL(chatURL)
+		if qErr != nil {
+			t.Logger.Error("failed to generate QR code,", "error", qErr)
+		}
+
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "telegram",
+			ToolParams: input,
+			Output: map[string]any{
+				"content": fmt.Sprintf(
+					"You need to start the conversation first. Open %s or scan the QR code below.",
+					chatURL,
+				),
+				"images": []string{qr},
+			},
+		}, nil
+	}
+
+	return &agenttypes.StructuredToolResult{
+		ToolName:   "telegram_setup",
+		ToolParams: input,
+		Output: map[string]any{
+			"content": fmt.Sprintf("Telegram is already set up and ready to use for chat %s", chatUUID),
+		},
+	}, nil
+}
+
+func (t *TelegramSetupTool) Definition() openai.ChatCompletionToolParam {
+	return openai.ChatCompletionToolParam{
+		Type: "function",
+		Function: openai.FunctionDefinitionParam{
+			Name:        "telegram_setup",
+			Description: param.NewOpt("Setup the Telegram chat by sending a QR code"),
+			Parameters:  openai.FunctionParameters{},
 		},
 	}
 }
