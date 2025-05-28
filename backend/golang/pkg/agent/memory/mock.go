@@ -4,11 +4,11 @@ import "context"
 
 type MockMemory struct{}
 
-func (m *MockMemory) Store(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error {
+func (m *MockMemory) Store(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error {
 	return nil
 }
 
-func (m *MockMemory) StoreRawData(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error {
+func (m *MockMemory) StoreRawData(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error {
 	return nil
 }
 
