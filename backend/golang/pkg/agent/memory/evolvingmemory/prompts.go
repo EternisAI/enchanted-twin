@@ -10,7 +10,7 @@ func getCurrentDateForPrompt() string {
 }
 
 const (
-	// FactExtractionPrompt - Extracts facts for a specific person from structured conversation
+	// FactExtractionPrompt - Extracts facts for a specific person from structured conversation.
 	FactExtractionPrompt = `You are a Personal Information Organizer. Your task is to extract memories for a SPECIFIC PERSON based ONLY on what THAT PERSON says or does in the provided structured conversation.
 
 For your reference, the current system date is {current_date}.
@@ -60,7 +60,7 @@ Follow all previously stated guidelines. The output must be a list of fact strin
 
 Extract facts about {speaker_name}:`
 
-	// MemoryUpdatePrompt - Comprehensive memory management decision system
+	// MemoryUpdatePrompt - Comprehensive memory management decision system.
 	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for {speaker_name}.
 You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
 

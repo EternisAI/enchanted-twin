@@ -8,7 +8,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// ParseStructuredConversationFromJSON parses a JSON string into a ConversationDocument
+// ParseStructuredConversationFromJSON parses a JSON string into a ConversationDocument.
 func ParseStructuredConversationFromJSON(jsonData []byte) (*memory.ConversationDocument, error) {
 	var doc memory.ConversationDocument
 	if err := json.Unmarshal(jsonData, &doc); err != nil {
@@ -22,7 +22,7 @@ func ParseStructuredConversationFromJSON(jsonData []byte) (*memory.ConversationD
 	return &doc, nil
 }
 
-// ValidateConversationDocument validates a ConversationDocument for required fields and consistency
+// ValidateConversationDocument validates a ConversationDocument for required fields and consistency.
 func ValidateConversationDocument(doc *memory.ConversationDocument) error {
 	if doc.ID == "" {
 		return fmt.Errorf("document ID is required")
@@ -84,7 +84,7 @@ func ValidateConversationDocument(doc *memory.ConversationDocument) error {
 	return nil
 }
 
-// CreateExampleConversationDocument creates an example ConversationDocument for testing/documentation
+// CreateExampleConversationDocument creates an example ConversationDocument for testing/documentation.
 func CreateExampleConversationDocument() *memory.ConversationDocument {
 	now := time.Now()
 	return &memory.ConversationDocument{
@@ -129,12 +129,12 @@ func CreateExampleConversationDocument() *memory.ConversationDocument {
 	}
 }
 
-// ConversationDocumentToJSON converts a ConversationDocument to JSON string
+// ConversationDocumentToJSON converts a ConversationDocument to JSON string.
 func ConversationDocumentToJSON(doc *memory.ConversationDocument) ([]byte, error) {
 	return json.MarshalIndent(doc, "", "  ")
 }
 
-// BatchParseStructuredConversations parses multiple JSON conversations from a slice of JSON byte arrays
+// BatchParseStructuredConversations parses multiple JSON conversations from a slice of JSON byte arrays.
 func BatchParseStructuredConversations(jsonDataSlice [][]byte) ([]*memory.ConversationDocument, []error) {
 	docs := make([]*memory.ConversationDocument, 0, len(jsonDataSlice))
 	errors := make([]error, 0)

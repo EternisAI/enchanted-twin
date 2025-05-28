@@ -11,7 +11,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// ExampleUsageStructuredConversations demonstrates how to use the new structured conversation format
+// ExampleUsageStructuredConversations demonstrates how to use the new structured conversation format.
 func ExampleUsageStructuredConversations(storage *WeaviateStorage) error {
 	ctx := context.Background()
 
@@ -65,7 +65,7 @@ func ExampleUsageStructuredConversations(storage *WeaviateStorage) error {
 	return nil
 }
 
-// CreateComplexExampleConversation creates a more complex example with multiple people
+// CreateComplexExampleConversation creates a more complex example with multiple people.
 func CreateComplexExampleConversation() *memory.ConversationDocument {
 	now := time.Now()
 	return &memory.ConversationDocument{
@@ -126,7 +126,7 @@ func CreateComplexExampleConversation() *memory.ConversationDocument {
 	}
 }
 
-// DemonstrateFormatComparison shows the difference between old and new formats
+// DemonstrateFormatComparison shows the difference between old and new formats.
 func DemonstrateFormatComparison() {
 	fmt.Println("=== FORMAT COMPARISON ===")
 	fmt.Println()
@@ -160,7 +160,7 @@ func DemonstrateFormatComparison() {
 	fmt.Println("✓ JSON schema-friendly")
 }
 
-// LoggerExample shows how to set up logging for the new format
+// LoggerExample shows how to set up logging for the new format.
 func LoggerExample() *log.Logger {
 	logger := log.NewWithOptions(os.Stderr, log.Options{
 		ReportCaller:    true,
