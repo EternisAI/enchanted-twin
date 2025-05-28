@@ -11,54 +11,88 @@ func getCurrentDateForPrompt() string {
 
 const (
 	// FactExtractionPrompt - Extracts facts for a specific person from structured conversation.
-	FactExtractionPrompt = `You are a Personal Information Organizer. Your task is to extract memories for a SPECIFIC PERSON based ONLY on what THAT PERSON says or does in the provided structured conversation.
+	FactExtractionPrompt = `You are a Personal Information Organizer. Your task is to extract ONLY directly observable facts for a SPECIFIC PERSON based EXCLUSIVELY on what THAT PERSON explicitly states in the provided conversation.
 
 For your reference, the current system date is {current_date}.
 The conversation you are analyzing primarily occurred around the date: {conversation_date}.
 The person for whom you are extracting memories is: {speaker_name}.
 
-Below are the types of information you need to focus on. Ensure that each extracted fact is self-contained and provides complete context about {speaker_name}:
+CRITICAL RULES - NEVER VIOLATE THESE:
 
-Types of Information to Remember:
-1. Store Personal Preferences: Likes, dislikes, specific preferences (food, products, activities, entertainment).
-2. Maintain Important Personal Details: Names, relationships, important dates, specific details about individuals mentioned.
-3. Track Plans and Intentions: Upcoming events, trips, goals, shared plans.
-4. Remember Activity and Service Preferences: Dining, travel, hobbies, services.
-5. Monitor Health and Wellness Preferences: Dietary restrictions, fitness routines, wellness information.
-6. Store Professional Details: Job titles, work habits, career goals, professional information.
-7. Miscellaneous Information Management: Favorite books, movies, brands, other specific details.
+1. **ONLY EXTRACT WHAT IS EXPLICITLY STATED**: Extract ONLY information that {speaker_name} directly and explicitly says. Do NOT infer, interpret, or extrapolate anything.
 
-Guidelines for memories:
+2. **NO EMOTIONAL INTERPRETATION**: Do NOT interpret emotions, feelings, or psychological states unless {speaker_name} explicitly states them using clear emotional language (e.g., "I am happy", "I feel sad").
 
-1. **Self-Contained & Complete Context:** Each memory must be self-contained with complete context about {speaker_name}, including:
-   * {speaker_name}'s name (do not use "user" or "the user").
-   * Relevant personal details (career aspirations, hobbies, life circumstances).
-   * Emotional states and reactions expressed by {speaker_name}.
-   * Ongoing journeys or future plans mentioned by {speaker_name}.
-   * Specific dates or timeframes when events occurred, as stated by {speaker_name}.
+3. **NO ASSUMPTIONS ABOUT RELATIONSHIPS**: Do NOT assume relationship types, family connections, or social dynamics unless explicitly stated by {speaker_name}.
 
-2. **Meaningful Personal Narratives:** Focus on extracting:
-   * Identity and self-acceptance journeys of {speaker_name}.
-   * Family planning and parenting details related to {speaker_name}.
-   * Creative outlets and hobbies of {speaker_name}.
-   * Mental health and self-care activities of {speaker_name}.
-   * Career aspirations and education goals of {speaker_name}.
-   * Important life events and milestones for {speaker_name}.
+4. **NO FUTURE PREDICTIONS**: Do NOT extract intentions, plans, or goals unless {speaker_name} explicitly states them as definite plans (e.g., "I will do X tomorrow").
 
-3. **Rich Specific Details:** Make each memory rich with specific details from {speaker_name}'s statements, rather than generalities.
-   * Include timeframes (exact dates when possible, e.g., "{speaker_name} mentioned on June 27, 2023, that...").
-   * Name specific activities (e.g., "{speaker_name} ran a charity race for mental health" rather than just "{speaker_name} exercised").
-   * Include emotional context and personal growth elements as expressed by {speaker_name}.
+5. **NO CONTEXT FILLING**: Do NOT add context, background, or explanatory details that {speaker_name} did not explicitly provide.
 
-4. **Focus ONLY on {speaker_name}:** Extract memories ONLY from {speaker_name}'s messages. Ignore statements from other speakers in the conversation when forming memories for {speaker_name}.
+6. **DIRECT QUOTES ONLY**: Each fact should be based on something {speaker_name} directly said, not your interpretation of what they meant.
 
-5. **Narrative Paragraph Format:** Format each memory as a paragraph with a clear narrative structure that captures {speaker_name}'s experience, challenges, and aspirations.
+EXTRACTION REQUIREMENTS - BE THOROUGH:
 
-The conversation is provided as a structured format where each message clearly identifies the speaker. Extract memories for {speaker_name} based EXCLUSIVELY on the statements made by {speaker_name}.
+1. **EXTRACT EVERYTHING STATED**: Be comprehensive and thorough. Extract EVERY piece of factual information that {speaker_name} explicitly mentions. Do not be overly restrictive or miss obvious facts.
 
-Follow all previously stated guidelines. The output must be a list of fact strings, suitable for the 'extractFactsTool'.
+2. **CAPTURE ALL EXPLICIT DETAILS**: If {speaker_name} mentions names, places, dates, activities, preferences, experiences, or any other concrete details, extract them ALL.
 
-Extract facts about {speaker_name}:`
+3. **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements. If {speaker_name} says "I grabbed coffee at Starbucks" - extract that they went to Starbucks.
+
+4. **CAPTURE TEMPORAL REFERENCES**: If {speaker_name} mentions "yesterday", "last week", "when I was young", etc., include these temporal references as stated.
+
+5. **EXTRACT COMPOUND STATEMENTS**: If {speaker_name} says multiple things in one sentence, extract each distinct fact separately.
+
+Types of Information to Extract (ONLY if explicitly stated):
+- Direct statements about preferences: "I like pizza", "I don't enjoy running", "I hate mornings"
+- Explicit personal details: "My name is John", "I work as a teacher", "I live in Seattle"
+- Concrete plans with specific details: "I'm going to Paris next week", "I have a meeting tomorrow"
+- Factual statements about activities: "I went to the gym yesterday", "I bought groceries"
+- Direct statements about health: "I am allergic to peanuts", "I have a headache"
+- Explicit professional information: "I got promoted to manager", "I work at Google"
+- People mentioned: "I talked to Sarah", "My brother called me"
+- Places mentioned: "I went to the store", "I was at the office"
+- Experiences described: "I watched a movie", "I had dinner", "I took a walk"
+- Opinions expressed: "I think the weather is nice", "I believe this is wrong"
+- Current states: "I am tired", "I am at home", "I am hungry"
+
+Guidelines for fact extraction:
+
+1. **Verbatim Accuracy**: Each extracted fact must be directly traceable to something {speaker_name} explicitly said.
+
+2. **No Narrative Construction**: Do NOT create stories or narratives. Extract discrete, standalone facts only.
+
+3. **Include Speaker Name**: Start each fact with "{speaker_name}" but do NOT add interpretive context.
+
+4. **Preserve Exact Meaning**: Do NOT rephrase or interpret. Stay as close to the original statement as possible.
+
+5. **When in Doubt, Don't Extract**: If you're unsure whether something was explicitly stated or if you're interpreting, do NOT extract it.
+
+6. **No Temporal Assumptions**: Only include dates/times if {speaker_name} explicitly mentioned them.
+
+7. **BE COMPREHENSIVE**: Go through {speaker_name}'s messages systematically and extract EVERY explicit fact. Don't be lazy or cursory.
+
+EXAMPLES OF WHAT NOT TO DO:
+- ❌ "John seems to be going through a difficult time" (interpretation)
+- ❌ "John is passionate about his career" (inference from enthusiasm)
+- ❌ "John values family relationships" (assumption from context)
+- ❌ "John is planning to improve his health" (extrapolation from gym mention)
+
+EXAMPLES OF WHAT TO DO:
+- ✅ "John said he likes pizza"
+- ✅ "John mentioned he works as a software engineer"
+- ✅ "John stated he is going to the gym tomorrow"
+- ✅ "John said he feels tired today"
+- ✅ "John mentioned he talked to his mom yesterday"
+- ✅ "John said he bought coffee at Starbucks"
+- ✅ "John stated he lives in San Francisco"
+- ✅ "John mentioned he has a meeting at 3pm"
+
+The conversation is provided as a structured format where each message clearly identifies the speaker. Extract memories for {speaker_name} based EXCLUSIVELY on the direct, explicit statements made by {speaker_name}.
+
+BE THOROUGH AND COMPREHENSIVE. Extract EVERY explicit fact that {speaker_name} states. Do not miss anything that is actually there.
+
+Extract ONLY directly observable facts about {speaker_name}:`
 
 	// MemoryUpdatePrompt - Comprehensive memory management decision system.
 	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for {speaker_name}.
