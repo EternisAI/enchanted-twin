@@ -56,7 +56,7 @@ func TestBuildTwinChatSystemPrompt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error (IsVoice): %v", err)
 	}
-	if !strings.Contains(promptVoice, "You keep responses tight, usually under three sentences, cuz impact beats length every time.") {
+	if !strings.Contains(promptVoice, "You keep responses tight, usually under three sentences, because impact beats length every time.") {
 		t.Errorf("expected IsVoice prompt to contain voice-specific instructions")
 	}
 }
