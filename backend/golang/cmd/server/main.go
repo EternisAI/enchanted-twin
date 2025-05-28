@@ -489,6 +489,7 @@ func bootstrapTemporalWorker(
 		IdentityService: identity.NewIdentityService(input.temporalClient),
 		TwinchatService: input.twinchatService,
 		AiService:       input.aiCompletionsService,
+		ToolRegistry:    input.toolsRegistry,
 	})
 	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 	err := w.Start()

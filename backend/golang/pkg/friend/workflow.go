@@ -30,38 +30,42 @@ func (s *FriendService) FriendWorkflow(ctx workflow.Context, input *FriendWorkfl
 
 	output := FriendWorkflowOutput{}
 
-	var pokeMessage string
-	err := workflow.ExecuteActivity(ctx, s.GeneratePokeMessage).Get(ctx, &pokeMessage)
-	if err != nil {
-		logger.Error("Failed to generate poke message", "error", err)
-		output.Error = err.Error()
-		return output, err
-	}
-
-	err = workflow.ExecuteActivity(ctx, s.SendPokeMessage, pokeMessage).Get(ctx, nil)
-	if err != nil {
-		logger.Error("Failed to send poke message", "error", err)
-		output.Error = err.Error()
-		return output, err
-	}
-	output.PokeMessageSent = true
-
-	// var pictureDescription string
-	// err = workflow.ExecuteActivity(ctx, s.GenerateMemoryPicture).Get(ctx, &pictureDescription)
+	// var pokeMessage string
+	// err := workflow.ExecuteActivity(ctx, s.GeneratePokeMessage).Get(ctx, &pokeMessage)
 	// if err != nil {
-	// 	logger.Error("Failed to generate memory picture", "error", err)
-
-	// 	logger.Warn("Continuing without memory picture")
-	// } else {
-	// 	err = workflow.ExecuteActivity(ctx, s.SendMemoryPicture, pictureDescription).Get(ctx, nil)
-	// 	if err != nil {
-	// 		logger.Error("Failed to send memory picture", "error", err)
-
-	// 		logger.Warn("Failed to send memory picture, but poke message was sent successfully")
-	// 	} else {
-	// 		output.MemoryPictureSent = true
-	// 	}
+	// 	logger.Error("Failed to generate poke message", "error", err)
+	// 	output.Error = err.Error()
+	// 	return output, err
 	// }
+
+	// err = workflow.ExecuteActivity(ctx, s.SendPokeMessage, pokeMessage).Get(ctx, nil)
+	// if err != nil {
+	// 	logger.Error("Failed to send poke message", "error", err)
+	// 	output.Error = err.Error()
+	// 	return output, err
+	// }
+	// output.PokeMessageSent = true
+
+	var pictureDescription string
+	err := workflow.ExecuteActivity(ctx, s.GenerateMemoryPicture).Get(ctx, &pictureDescription)
+	if err != nil {
+		logger.Error("Failed to generate memory picture", "error", err)
+
+		logger.Warn("Continuing without memory picture")
+	} else {
+		input := SendMemoryPictureInput{
+			ChatID:             "",
+			PictureDescription: pictureDescription,
+		}
+		err = workflow.ExecuteActivity(ctx, s.SendMemoryPicture, input).Get(ctx, nil)
+		if err != nil {
+			logger.Error("Failed to send memory picture", "error", err)
+
+			logger.Warn("Failed to send memory picture, but poke message was sent successfully")
+		} else {
+			output.MemoryPictureSent = true
+		}
+	}
 
 	return output, nil
 }

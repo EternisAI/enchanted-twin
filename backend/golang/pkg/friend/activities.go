@@ -136,18 +136,61 @@ func (s *FriendService) GenerateMemoryPicture(ctx context.Context) (string, erro
 	return response.Content, nil
 }
 
-func (s *FriendService) SendMemoryPicture(ctx context.Context, chatID, pictureDescription string) error {
+type SendMemoryPictureInput struct {
+	ChatID             string
+	PictureDescription string
+}
+
+func (s *FriendService) SendMemoryPicture(ctx context.Context, input SendMemoryPictureInput) error {
 	if s.twinchatService == nil {
 		return fmt.Errorf("twinchat service not available")
 	}
 
-	message := fmt.Sprintf("I was thinking about this memory and created a picture for you: %s", pictureDescription)
-
-	_, err := s.twinchatService.SendAssistantMessage(ctx, chatID, message)
-	if err != nil {
-		return fmt.Errorf("failed to send memory picture: %w", err)
+	if s.toolRegistry == nil {
+		return fmt.Errorf("tool registry not available")
 	}
 
-	s.logger.Info("Memory picture sent successfully", "chat_id", chatID)
+	tool, exists := s.toolRegistry.Get("generate_image")
+	if !exists {
+		return fmt.Errorf("generate_image tool not found")
+	}
+	s.logger.Info("Found generate_image tool", "tool_type", fmt.Sprintf("%T", tool))
+
+	toolResult, err := s.toolRegistry.Execute(ctx, "generate_image", map[string]any{
+		"prompt": input.PictureDescription,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to generate image: %w", err)
+	}
+
+	imageURLs := toolResult.ImageURLs()
+	s.logger.Info("Extracted image URLs", "imageURLs", imageURLs, "count", len(imageURLs))
+	if len(imageURLs) == 0 {
+		return fmt.Errorf("no image URLs returned from generate_image tool")
+	}
+
+	// Send message with the generated image
+	s.logger.Info("Sending memory picture with image", "image_urls", imageURLs)
+
+	message := fmt.Sprintf("I was thinking about this memory and created a picture for you: %s", input.PictureDescription)
+
+	// Use the send_to_chat tool to send the message with image URLs
+	_, err = s.toolRegistry.Execute(ctx, "send_to_chat", map[string]any{
+		"message":    message,
+		"chat_id":    input.ChatID,
+		"image_urls": []any{imageURLs[0]},
+	})
+	if err != nil {
+		s.logger.Error("Failed to send message with image via send_to_chat tool", "error", err)
+		// Fallback to regular message without image
+		_, err := s.twinchatService.SendAssistantMessage(ctx, input.ChatID, message)
+		if err != nil {
+			return fmt.Errorf("failed to send fallback memory picture message: %w", err)
+		}
+		s.logger.Info("Memory picture message sent (without image)", "chat_id", input.ChatID)
+		return nil
+	}
+
+	s.logger.Info("Memory picture sent successfully with image", "chat_id", input.ChatID, "image_count", len(imageURLs))
 	return nil
 }

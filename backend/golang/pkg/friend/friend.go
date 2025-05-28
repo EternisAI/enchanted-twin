@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
@@ -21,6 +22,7 @@ type FriendService struct {
 	identityService *identity.IdentityService
 	twinchatService *twinchat.Service
 	memoryService   memory.Storage
+	toolRegistry    tools.ToolRegistry
 }
 
 type FriendServiceConfig struct {
@@ -29,6 +31,7 @@ type FriendServiceConfig struct {
 	IdentityService *identity.IdentityService
 	TwinchatService *twinchat.Service
 	MemoryService   memory.Storage
+	ToolRegistry    tools.ToolRegistry
 }
 
 func NewFriendService(config FriendServiceConfig) *FriendService {
@@ -38,6 +41,7 @@ func NewFriendService(config FriendServiceConfig) *FriendService {
 		identityService: config.IdentityService,
 		twinchatService: config.TwinchatService,
 		memoryService:   config.MemoryService,
+		toolRegistry:    config.ToolRegistry,
 	}
 }
 
@@ -49,5 +53,5 @@ func (s *FriendService) RegisterWorkflowsAndActivities(worker *worker.Worker, te
 	(*worker).RegisterActivity(s.GenerateMemoryPicture)
 	(*worker).RegisterActivity(s.SendMemoryPicture)
 
-	helpers.CreateScheduleIfNotExists(s.logger, temporalClient, "friend-workflow", 10*time.Second, s.FriendWorkflow, []any{&FriendWorkflowInput{}})
+	helpers.CreateScheduleIfNotExists(s.logger, temporalClient, "friend-workflow", 20*time.Second, s.FriendWorkflow, []any{&FriendWorkflowInput{}})
 }
