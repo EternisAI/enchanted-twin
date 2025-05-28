@@ -112,10 +112,6 @@ func GetConnectChannel() chan struct{} {
 	return ConnectChan
 }
 
-func TriggerConnect() {
-	GetConnectChannel() <- struct{}{}
-}
-
 func GetSyncStatus() SyncStatus {
 	syncStatusLock.RLock()
 	defer syncStatusLock.RUnlock()
