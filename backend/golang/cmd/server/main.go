@@ -224,7 +224,7 @@ func main() {
 
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
-		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath)
+		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath, envs)
 		whatsappClientChan <- client
 	}()
 
