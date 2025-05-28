@@ -427,8 +427,8 @@ func (s *Service) GetChat(ctx context.Context, chatID string) (model.Chat, error
 	return s.storage.GetChat(ctx, chatID)
 }
 
-func (s *Service) CreateChat(ctx context.Context, name string) (model.Chat, error) {
-	return s.storage.CreateChat(ctx, name)
+func (s *Service) CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error) {
+	return s.storage.CreateChat(ctx, name, voice)
 }
 
 func (s *Service) GetMessagesByChatId(

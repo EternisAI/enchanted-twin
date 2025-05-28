@@ -19,7 +19,7 @@ import (
 
 type chatStore interface {
 	AddMessageToChat(ctx context.Context, msg repository.Message) (string, error)
-	CreateChat(ctx context.Context, name string) (model.Chat, error)
+	CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error)
 }
 
 type sendToChat struct {
