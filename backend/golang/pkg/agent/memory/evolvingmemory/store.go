@@ -34,13 +34,7 @@ func (s *WeaviateStorage) identifySpeakersInMetadata(metadata map[string]string)
 }
 
 // Store orchestrates the process of extracting facts from documents and updating memories.
-func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
-	defer func() {
-		if progressChan != nil {
-			close(progressChan)
-		}
-	}()
-
+func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocument, progressCallback memory.ProgressCallback) error {
 	batcher := s.client.Batch().ObjectsBatcher()
 	var objectsAddedToBatch int
 
@@ -54,7 +48,6 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 	for i, sessionDoc := range documents {
 		s.logger.Infof("Processing session document %d of %d. Session Doc ID (if any): '%s'", i+1, totalDocs, sessionDoc.ID)
 
-		// Attempt to identify specific speakers using the helper method
 		specificSpeakerCandidates := s.identifySpeakersInMetadata(sessionDoc.Metadata)
 
 		var speakersToProcess []string
@@ -62,21 +55,17 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 			speakersToProcess = specificSpeakerCandidates
 			s.logger.Debugf("Identified specific speakers: %v. Proceeding with speaker-specific processing.", speakersToProcess)
 		} else {
-			// No specific speakers found, set up for a single document-level processing pass.
-			// The empty string speakerID will signify document-level context to downstream functions.
 			speakersToProcess = []string{""}
 			s.logger.Infof("No specific speakers identified for session doc ID '%s'. Proceeding with document-level processing.", sessionDoc.ID)
 		}
 
-		// This loop will run once with speakerID="" if no specific speakers were found,
-		// or once for each specific speaker if they were identified.
 		for _, speakerID := range speakersToProcess {
-			logContextEntity := "Speaker" // Default to "Speaker"
+			logContextEntity := "Speaker"
 			logContextValue := speakerID
 
 			if speakerID == "" {
 				logContextEntity = "Document"
-				logContextValue = "<document_context>" // For clearer logging when speakerID is empty
+				logContextValue = "<document_context>"
 			}
 			s.logger.Infof("== Processing for %s: %s == (Session Doc %d of %d)", logContextEntity, logContextValue, i+1, totalDocs)
 
@@ -119,8 +108,8 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 			}
 		}
 
-		if progressChan != nil {
-			progressChan <- memory.ProgressUpdate{Processed: (i + 1), Total: totalDocs}
+		if progressCallback != nil {
+			progressCallback(i+1, totalDocs)
 		}
 	}
 
@@ -162,13 +151,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 }
 
 // StoreRawData stores documents directly without fact extraction processing.
-func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
-	defer func() {
-		if progressChan != nil {
-			close(progressChan)
-		}
-	}()
-
+func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressCallback memory.ProgressCallback) error {
 	s.logger.Info("=== EVOLVINGMEMORY STORE RAW DATA START ===")
 	s.logger.Info("StoreRawData method called", "total_documents", len(documents))
 
@@ -226,8 +209,8 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 		objectsAddedToBatch++
 		s.logger.Infof("Document %s added to batch for raw storage", doc.ID)
 
-		if progressChan != nil {
-			progressChan <- memory.ProgressUpdate{Processed: (i + 1), Total: totalDocs}
+		if progressCallback != nil {
+			progressCallback(i+1, totalDocs)
 		}
 	}
 

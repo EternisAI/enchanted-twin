@@ -33,8 +33,10 @@ type ProgressUpdate struct {
 	Total     int
 }
 
+type ProgressCallback func(processed, total int)
+
 type Storage interface {
-	Store(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error
-	StoreRawData(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error
+	Store(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error
+	StoreRawData(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error
 	Query(ctx context.Context, query string) (QueryResult, error)
 }
