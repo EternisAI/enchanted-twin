@@ -599,10 +599,6 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
 	}
-	err = os.Setenv("DISK_USE_READONLY_PERCENTAGE", "99")
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to set DISK_USE_READONLY_PERCENTAGE")
-	}
 
 	logger.Debug("Loading Weaviate swagger specification")
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
