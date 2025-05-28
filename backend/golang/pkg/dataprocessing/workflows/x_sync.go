@@ -165,7 +165,7 @@ func (w *DataProcessingWorkflows) XIndexActivity(
 	}
 	w.Logger.Info("X", "tweets", len(documents))
 	progressChan := make(chan memory.ProgressUpdate, 10)
-	err = w.Memory.Store(ctx, documents, progressChan)
+	err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}

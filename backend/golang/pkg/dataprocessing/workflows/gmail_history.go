@@ -252,7 +252,7 @@ func (w *DataProcessingWorkflows) GmailHistoryIndexActivity(
 	}
 
 	progressChan := make(chan memory.ProgressUpdate, 10)
-	err = w.Memory.Store(ctx, documents, progressChan)
+	err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err
 	}

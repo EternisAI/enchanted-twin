@@ -467,7 +467,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 			logger.Info("Storing WhatsApp contacts and messages", "contacts", totalContacts, "messages", totalMessages)
 			progressChan := make(chan memory.ProgressUpdate, 1)
-			err = memoryStorage.Store(ctx, documents, progressChan)
+			err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				logger.Error("Error storing WhatsApp contacts", "error", err)
 			}
@@ -535,7 +535,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			progressChan := make(chan memory.ProgressUpdate, 1)
-			err = memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
+			err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{document}), progressChan)
 			if err != nil {
 				logger.Error("Error storing WhatsApp message", "error", err)
 			}
