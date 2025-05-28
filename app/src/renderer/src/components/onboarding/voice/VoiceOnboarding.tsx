@@ -173,6 +173,7 @@ function VoiceOnboarding() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, ease: 'easeOut' }}
+            className="z-1"
           >
             <UserMessageBubble message={lastAnswer} />
           </motion.div>
@@ -182,6 +183,7 @@ function VoiceOnboarding() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut', delay: 0.8 }}
+          className="z-1"
         >
           <MessageInput
             onSend={handleSendMessage}
