@@ -4,8 +4,11 @@ import (
 	"bufio"
 	"encoding/json"
 	"os"
+	"sort"
 
 	"github.com/pkg/errors"
+
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func ReadJSONL[T any](filePath string) ([]T, error) {
@@ -21,6 +24,11 @@ func ReadJSONL[T any](filePath string) ([]T, error) {
 
 	var results []T
 	scanner := bufio.NewScanner(file)
+
+	const maxCapacity = 10 * 1024 * 1024
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
+
 	for scanner.Scan() {
 		line := scanner.Bytes()
 		var item T
@@ -32,6 +40,18 @@ func ReadJSONL[T any](filePath string) ([]T, error) {
 
 	if err := scanner.Err(); err != nil {
 		return nil, errors.Wrap(err, "scanner error")
+	}
+
+	if len(results) > 0 {
+		if records, ok := any(results).([]types.Record); ok {
+			sort.Slice(records, func(i, j int) bool {
+				return records[i].Timestamp.Before(records[j].Timestamp)
+			})
+			results, ok = any(records).([]T)
+			if !ok {
+				return nil, errors.New("failed to convert records to []T")
+			}
+		}
 	}
 
 	return results, nil

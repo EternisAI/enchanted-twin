@@ -599,7 +599,6 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to set PERSISTENCE_DATA_PATH")
 	}
-	logger.Debug("PERSISTENCE_DATA_PATH set", "elapsed", time.Since(startTime))
 
 	logger.Debug("Loading Weaviate swagger specification")
 	swaggerSpec, err := loads.Embedded(rest.SwaggerJSON, rest.FlatSwaggerJSON)
