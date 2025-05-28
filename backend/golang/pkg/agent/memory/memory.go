@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Document interface that both TextDocument and ConversationDocument implement
+// Document interface that both TextDocument and ConversationDocument implement.
 type Document interface {
 	GetID() string
 	GetContent() string
@@ -22,14 +22,14 @@ type Document interface {
 	AsText() (*TextDocument, bool)
 }
 
-// ConversationMessage represents a single message in a conversation
+// ConversationMessage represents a single message in a conversation.
 type ConversationMessage struct {
 	Speaker string    `json:"speaker"`
 	Content string    `json:"content"`
 	Time    time.Time `json:"time"`
 }
 
-// StructuredConversation represents the explicit conversation format
+// StructuredConversation represents the explicit conversation format.
 type StructuredConversation struct {
 	Source       string                `json:"source"`
 	People       []string              `json:"people"`
@@ -37,7 +37,7 @@ type StructuredConversation struct {
 	Conversation []ConversationMessage `json:"conversation"`
 }
 
-// ConversationDocument represents a document containing structured conversation data
+// ConversationDocument represents a document containing structured conversation data.
 type ConversationDocument struct {
 	ID           string                 `json:"id"`
 	Conversation StructuredConversation `json:"conversation"`
@@ -45,7 +45,7 @@ type ConversationDocument struct {
 	Metadata     map[string]string      `json:"metadata,omitempty"`
 }
 
-// Document interface implementation for ConversationDocument
+// Document interface implementation for ConversationDocument.
 func (cd *ConversationDocument) GetID() string {
 	return cd.ID
 }
@@ -91,7 +91,7 @@ func (cd *ConversationDocument) AsText() (*TextDocument, bool) {
 	return cd.ToTextDocument(), true
 }
 
-// ToTextDocument converts a ConversationDocument to the legacy TextDocument format
+// ToTextDocument converts a ConversationDocument to the legacy TextDocument format.
 func (cd *ConversationDocument) ToTextDocument() *TextDocument {
 	var content strings.Builder
 
@@ -122,7 +122,7 @@ func (cd *ConversationDocument) ToTextDocument() *TextDocument {
 	}
 }
 
-// TextDocument represents a legacy document format used internally by storage
+// TextDocument represents a legacy document format used internally by storage.
 type TextDocument struct {
 	ID        string
 	Content   string
@@ -131,7 +131,7 @@ type TextDocument struct {
 	Metadata  map[string]string
 }
 
-// Document interface implementation for TextDocument
+// Document interface implementation for TextDocument.
 func (td *TextDocument) GetID() string {
 	return td.ID
 }
@@ -164,7 +164,7 @@ func (td *TextDocument) AsText() (*TextDocument, bool) {
 	return td, true
 }
 
-// MemoryFact represents an extracted fact about a person
+// MemoryFact represents an extracted fact about a person.
 type MemoryFact struct {
 	ID        string            `json:"id"`
 	Speaker   string            `json:"speaker"`
@@ -184,7 +184,7 @@ type ProgressUpdate struct {
 	Total     int `json:"total"`
 }
 
-// Storage interface for the memory system
+// Storage interface for the memory system.
 type Storage interface {
 	Store(ctx context.Context, documents []Document, progressChan chan<- ProgressUpdate) error
 	Query(ctx context.Context, query string) (QueryResult, error)
@@ -192,7 +192,7 @@ type Storage interface {
 
 // Helper functions to convert slices to Document interface
 
-// TextDocumentsToDocuments converts a slice of TextDocument to a slice of Document
+// TextDocumentsToDocuments converts a slice of TextDocument to a slice of Document.
 func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
 	docs := make([]Document, len(textDocs))
 	for i := range textDocs {
@@ -201,7 +201,7 @@ func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
 	return docs
 }
 
-// ConversationDocumentsToDocuments converts a slice of ConversationDocument to a slice of Document
+// ConversationDocumentsToDocuments converts a slice of ConversationDocument to a slice of Document.
 func ConversationDocumentsToDocuments(convDocs []ConversationDocument) []Document {
 	docs := make([]Document, len(convDocs))
 	for i := range convDocs {
