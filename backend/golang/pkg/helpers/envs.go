@@ -41,7 +41,6 @@ func LoadEnvFile(maxDepth int) error {
 
 func GetEnv(key, defaultValue string) string {
 	value := os.Getenv(key)
-	fmt.Printf("key: %s, value: %s\n", key, value)
 	if value == "" {
 		return defaultValue
 	}

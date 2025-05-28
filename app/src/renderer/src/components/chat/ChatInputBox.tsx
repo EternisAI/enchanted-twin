@@ -5,7 +5,7 @@ import { TooltipTrigger } from '../ui/tooltip'
 import { Tooltip } from '../ui/tooltip'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Button } from '../ui/button'
-import { CheckCheckIcon, Lightbulb, Mic } from 'lucide-react'
+import { AudioLines, Lightbulb, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { SendButton } from './MessageInput'
 
@@ -33,7 +33,7 @@ export default function ChatInputBox({
   onVoiceModeChange
 }: ChatInputBoxProps) {
   return (
-    <div className="flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-1.5">
+    <div className="flex items-center gap-2 w-full border border-gray-200 dark:border-gray-800 rounded-lg px-2.5 py-0">
       <Textarea
         ref={textareaRef}
         value={query}
@@ -45,7 +45,7 @@ export default function ChatInputBox({
           }
         }}
         placeholder="What are you thinking?"
-        className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[58px] bg-transparent"
+        className="!text-base flex-1 border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 py-4 pl-2 pr-1 resize-none overflow-y-hidden min-h-[50px] bg-transparent"
         rows={1}
       />
 
@@ -57,22 +57,24 @@ export default function ChatInputBox({
             disabled={isVoiceMode}
           />
         )}
-        {query.length > 0 ? (
+
+        {(query.length > 0 || isVoiceMode) && (
           <SendButton
             className="w-9 h-9"
             text={query}
             onSend={handleCreateChat}
             isWaitingTwinResponse={false}
           />
-        ) : (
-          <VoiceModeButton
+        )}
+
+        {!isVoiceMode && query.length === 0 && (
+          <EnableVoiceModeButton
             onClick={() => {
               onVoiceModeChange(false)
             }}
-            isVoiceMode={isVoiceMode}
-            // disabled={isVoiceMode}
           />
         )}
+        {isVoiceMode && <DisableVoiceModeButton onClick={() => onVoiceModeChange(false)} />}
       </motion.div>
     </div>
   )
@@ -111,50 +113,68 @@ function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps
 
 interface VoiceModeButtonProps {
   onClick: () => void
-  isVoiceMode?: boolean
 }
 
-export function VoiceModeButton({ onClick, isVoiceMode }: VoiceModeButtonProps) {
+export function EnableVoiceModeButton({ onClick }: VoiceModeButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           onClick={onClick}
           className={cn(
-            '!px-3 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none'
+            '!px-4.5 relative rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none'
           )}
         >
           <AnimatePresence mode="wait" initial={false}>
-            {isVoiceMode ? (
-              <motion.span
-                key="on"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2"
-              >
-                <CheckCheckIcon className="w-4 h-4" />
-                Voice mode ON
-              </motion.span>
-            ) : (
-              <motion.span
-                key="off"
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-                transition={{ duration: 0.2 }}
-                className="flex items-center gap-2"
-              >
-                <Mic className="w-4 h-4" />
-                Let&apos;s talk
-              </motion.span>
-            )}
+            <motion.span
+              key="off"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.2 }}
+              className="flex items-center gap-2"
+            >
+              <AudioLines className="w-4 h-4" />
+              Voice Output
+            </motion.span>
           </AnimatePresence>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{isVoiceMode ? 'Stop voice mode' : 'Start voice mode'}</p>
+        <p>Listen to output</p>
+      </TooltipContent>
+    </Tooltip>
+  )
+}
+
+export function DisableVoiceModeButton({ onClick }: VoiceModeButtonProps) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          onClick={onClick}
+          variant="outline"
+          className={cn(
+            '!px-4.5 relative rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none'
+          )}
+          // variant={isVoiceMode ? 'outline' : 'default'}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key="stop"
+              initial={{ scale: 0, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0, opacity: 0 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="absolute inset-0 flex items-center justify-center"
+            >
+              <X className="w-5 h-5" />
+            </motion.div>
+          </AnimatePresence>
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>
+        <p>Stop voice output</p>
       </TooltipContent>
     </Tooltip>
   )

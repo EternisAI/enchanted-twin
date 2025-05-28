@@ -36,6 +36,14 @@ func getDefaultMCPServers() map[model.MCPServerType]*model.MCPServer {
 			Enabled: enabled,
 			Type:    model.MCPServerTypeEnchanted,
 		},
+		model.MCPServerTypeScreenpipe: {
+			ID:      "screenpipe",
+			Name:    "Screenpipe",
+			Command: "npx",
+			Args:    []string{},
+			Enabled: enabled,
+			Type:    model.MCPServerTypeScreenpipe,
+		},
 		model.MCPServerTypeSLACk: {
 			ID:      "slack",
 			Name:    "Slack",
