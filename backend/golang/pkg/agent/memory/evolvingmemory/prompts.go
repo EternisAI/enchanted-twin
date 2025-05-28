@@ -35,43 +35,51 @@ Conversation Text:
 
 	// New Speaker-Focused Fact Extraction Prompt.
 	SpeakerFocusedFactExtractionPrompt = `
-You are a Personal Information Organizer. Your task is to extract memories for a SPECIFIC PERSON based ONLY on what THAT PERSON says or does in the provided text.
+You are a Personal Information Organizer. Your task is to extract simple, factual information that is explicitly stated by the PrimarySpeaker in the provided text.
+
+IMPORTANT RULES:
+1. Extract ONLY facts that are directly and explicitly stated by the PrimarySpeaker
+2. Do NOT create stories, narratives, or infer information not present in the text
+3. Do NOT assume emotional states, journeys, or personal growth
+4. If the text contains only contact information or metadata, extract only the basic facts present
+5. If no clear facts are stated by the PrimarySpeaker, return an empty list
+
 For your reference, the current system date is {current_system_date}.
 The PrimarySpeaker for whom you are extracting memories is: {primary_speaker_name}.
 The conversation you are analyzing primarily occurred around the date: {document_event_date}.
 
-Guidelines for memories:
+Guidelines for fact extraction:
 
-1.  **Self-Contained & Complete Context:** Each memory must be self-contained with complete context about the PrimarySpeaker, including:
-    *   The PrimarySpeaker's name (do not use "user" or "the user").
-    *   Relevant personal details (career aspirations, hobbies, life circumstances).
-    *   Emotional states and reactions expressed by the PrimarySpeaker.
-    *   Ongoing journeys or future plans mentioned by the PrimarySpeaker.
-    *   Specific dates or timeframes when events occurred, as stated by the PrimarySpeaker.
+1. **Simple Factual Statements Only:** Extract only clear, direct statements such as:
+   * Basic personal information explicitly mentioned
+   * Activities or preferences directly stated
+   * Factual details about work, location, or interests
+   * Specific events or plans mentioned by the PrimarySpeaker
 
-2.  **Meaningful Personal Narratives:** Focus on extracting:
-    *   Identity and self-acceptance journeys of the PrimarySpeaker.
-    *   Family planning and parenting details related to the PrimarySpeaker.
-    *   Creative outlets and hobbies of the PrimarySpeaker.
-    *   Mental health and self-care activities of the PrimarySpeaker.
-    *   Career aspirations and education goals of the PrimarySpeaker.
-    *   Important life events and milestones for the PrimarySpeaker.
+2. **Contact Information:** If the text contains contact information:
+   * Extract only the basic contact details present
+   * Do NOT invent personal details, activities, or characteristics
+   * Example: "Contact name is John Smith" (if explicitly stated)
 
-3.  **Rich Specific Details:** Make each memory rich with specific details from the PrimarySpeaker's statements, rather than generalities.
-    *   Include timeframes (exact dates when possible, e.g., "{primary_speaker_name} mentioned on June 27, 2023, that...").
-    *   Name specific activities (e.g., "{primary_speaker_name} ran a charity race for mental health" rather than just "{primary_speaker_name} exercised").
-    *   Include emotional context and personal growth elements as expressed by the PrimarySpeaker.
+3. **Format Requirements:**
+   * Each fact should be a simple, complete sentence
+   * Include the PrimarySpeaker's name in each fact for context
+   * Use only information directly present in the text
+   * Do NOT add timeframes unless explicitly mentioned
+   * Do NOT add emotional context unless explicitly stated
 
-4.  **Focus ONLY on PrimarySpeaker:** Extract memories ONLY from the PrimarySpeaker's messages. Ignore statements from other speakers in the conversation when forming memories for the PrimarySpeaker.
+4. **What NOT to extract:**
+   * Assumed personality traits or characteristics
+   * Inferred activities or hobbies not mentioned
+   * Emotional states or personal growth journeys
+   * Family planning or life goals unless explicitly stated
+   * Any information not directly present in the text
 
-5.  **Narrative Paragraph Format:** Format each memory as a paragraph with a clear narrative structure that captures the PrimarySpeaker's experience, challenges, and aspirations.
+The conversation history has been provided as a series of messages. Extract facts ONLY from statements made by {primary_speaker_name}.
 
-// Updated instructions for structured message history:
-The conversation history has been provided as a series of messages. You are to extract memories for {primary_speaker_name} based EXCLUSIVELY on the statements made by {primary_speaker_name} (which appear as 'user' role messages in the dialog).
+If the provided text does not contain conversational content or explicit statements from {primary_speaker_name}, return an empty list of facts.
 
-Follow all previously stated guidelines. The output must be a list of fact strings, suitable for the 'extractFactsTool'.
-
-Extracted memories for {primary_speaker_name}:
+Extracted facts for {primary_speaker_name}:
 `
 
 	// New QA System Prompt, inspired by memzero's MEMORY_ANSWER_PROMPT and its usage.
