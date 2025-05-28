@@ -225,10 +225,10 @@ func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, messag
 		Timestamp: &timestamp,
 		Tags:      []string{"whatsapp", "message"},
 		Metadata: map[string]string{
-			"from":     fromName,
-			"to":       toName,
-			"type":     "message",
-			"platform": "whatsapp",
+			"from":   fromName,
+			"to":     toName,
+			"type":   "message",
+			"source": "whatsapp",
 		},
 	}
 
@@ -252,7 +252,7 @@ func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contac
 			"contact_id": contactID,
 			"name":       contactName,
 			"type":       "contact",
-			"platform":   "whatsapp",
+			"source":     "whatsapp",
 		},
 	}
 
@@ -278,11 +278,10 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 		Timestamp: &timestamp,
 		Tags:      []string{"whatsapp", "message", "conversation"},
 		Metadata: map[string]string{
-			"from":     fromName,
-			"to":       toName,
-			"type":     "message",
-			"platform": "whatsapp",
-			"source":   "history_sync",
+			"from":   fromName,
+			"to":     toName,
+			"type":   "message",
+			"source": "whatsapp",
 		},
 	}
 
