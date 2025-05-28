@@ -6,8 +6,9 @@ import (
 	"os"
 	"sort"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/pkg/errors"
+
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func ReadJSONL[T any](filePath string) ([]T, error) {
@@ -46,7 +47,10 @@ func ReadJSONL[T any](filePath string) ([]T, error) {
 			sort.Slice(records, func(i, j int) bool {
 				return records[i].Timestamp.Before(records[j].Timestamp)
 			})
-			results = any(records).([]T)
+			results, ok = any(records).([]T)
+			if !ok {
+				return nil, errors.New("failed to convert records to []T")
+			}
 		}
 	}
 

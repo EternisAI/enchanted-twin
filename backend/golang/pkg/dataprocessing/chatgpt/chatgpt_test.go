@@ -2,15 +2,18 @@ package chatgpt
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func TestSimpleConversationProcessing(t *testing.T) {
@@ -143,13 +146,18 @@ func TestConversationToDocuments(t *testing.T) {
 	assert.Equal(t, expectedContent, doc.Content)
 }
 
-// writeRecordsToJSONL writes records to a JSONL file (simplified version for testing)
+// writeRecordsToJSONL writes records to a JSONL file (simplified version for testing).
 func writeRecordsToJSONL(records []types.Record, filePath string) error {
 	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			err = errors.Wrap(err, "failed to close file")
+			fmt.Println("failed to close file", err)
+		}
+	}()
 
 	for _, record := range records {
 		jsonRecord := struct {

@@ -447,8 +447,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			dataSourcesResponse[i].IsIndexed = true
 		case "chatgpt":
 			batchSize := 20
-			for i := 0; i < len(records); i += batchSize {
-				batch := records[i:min(i+batchSize, len(records))]
+			for j := 0; j < len(records); j += batchSize {
+				batch := records[j:min(j+batchSize, len(records))]
 				documents, err := chatgpt.ToDocuments(batch)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
@@ -461,7 +461,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 					return IndexDataActivityResponse{}, err
 				}
 				w.Logger.Info("Indexed documents", "documents", len(documents))
-
 			}
 			dataSourcesResponse[i].IsIndexed = true
 		case "misc":
