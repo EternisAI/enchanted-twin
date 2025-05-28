@@ -387,7 +387,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "slack", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -400,7 +400,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "telegram", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -412,7 +412,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "x", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -424,7 +424,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "gmail", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -436,7 +436,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "whatsapp", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -448,7 +448,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "chatgpt", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -460,7 +460,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "misc", len(documents))
-			err = w.Memory.Store(ctx, documents, progressChan)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}

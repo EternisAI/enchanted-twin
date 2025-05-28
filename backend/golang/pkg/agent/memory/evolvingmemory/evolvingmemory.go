@@ -317,5 +317,5 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 
 // StoreConversations is an alias for Store to maintain backward compatibility
 func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
-	return s.Store(ctx, documents, progressChan)
+	return s.Store(ctx, memory.ConversationDocumentsToDocuments(documents), progressChan)
 }

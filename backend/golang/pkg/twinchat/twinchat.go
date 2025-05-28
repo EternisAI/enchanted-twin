@@ -548,5 +548,5 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 
 	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
 
-	return s.memoryService.Store(ctx, []memory.TextDocument{doc}, nil)
+	return s.memoryService.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{doc}), nil)
 }

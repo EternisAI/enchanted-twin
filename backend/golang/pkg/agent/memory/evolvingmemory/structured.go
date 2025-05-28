@@ -13,90 +13,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// StoreStructured processes structured conversations and extracts facts for each speaker
-func (s *WeaviateStorage) StoreStructured(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
-	defer func() {
-		if progressChan != nil {
-			close(progressChan)
-		}
-	}()
-
-	batcher := s.client.Batch().ObjectsBatcher()
-	var objectsAddedToBatch int
-
-	totalDocs := len(documents)
-	if totalDocs == 0 {
-		return nil
-	}
-
-	currentDate := getCurrentDateForPrompt()
-
-	for i, convDoc := range documents {
-		s.logger.Infof("Processing conversation %d of %d. ID: '%s'", i+1, totalDocs, convDoc.ID)
-
-		// Get conversation date from first message
-		conversationDate := "Unknown"
-		if len(convDoc.Conversation.Conversation) > 0 {
-			conversationDate = convDoc.Conversation.Conversation[0].Time.Format("2006-01-02")
-		}
-
-		// Process each speaker in the conversation
-		for _, speaker := range convDoc.Conversation.People {
-			s.logger.Infof("== Extracting facts for speaker: %s ==", speaker)
-
-			facts, err := s.extractFactsForSpeaker(ctx, convDoc, speaker, currentDate, conversationDate)
-			if err != nil {
-				s.logger.Errorf("Error extracting facts for speaker %s: %v", speaker, err)
-				continue
-			}
-
-			if len(facts) == 0 {
-				s.logger.Infof("No facts extracted for speaker %s", speaker)
-				continue
-			}
-
-			s.logger.Infof("Extracted %d facts for speaker %s", len(facts), speaker)
-
-			// Process each fact through memory management
-			for _, fact := range facts {
-				action, objectToAdd, err := s.processFactForSpeaker(ctx, fact, speaker, currentDate, conversationDate, convDoc)
-				if err != nil {
-					s.logger.Errorf("Error processing fact for speaker %s: %v", speaker, err)
-					continue
-				}
-
-				if action == AddMemoryToolName && objectToAdd != nil {
-					batcher.WithObjects(objectToAdd)
-					objectsAddedToBatch++
-					s.logger.Infof("Fact ADDED to batch for speaker %s", speaker)
-				} else {
-					s.logger.Infof("Action '%s' for speaker %s handled directly", action, speaker)
-				}
-			}
-		}
-
-		if progressChan != nil {
-			progressChan <- memory.ProgressUpdate{Processed: i + 1, Total: totalDocs}
-		}
-	}
-
-	// Batch commit
-	if objectsAddedToBatch > 0 {
-		s.logger.Infof("Committing batch with %d facts", objectsAddedToBatch)
-		resp, err := batcher.Do(ctx)
-		if err != nil {
-			s.logger.Errorf("Error committing batch: %v", err)
-			return fmt.Errorf("batch commit failed: %w", err)
-		}
-
-		successCount, failureCount := s.processBatchResponse(resp)
-		s.logger.Infof("Batch completed: %d successful, %d failed", successCount, failureCount)
-	}
-
-	s.logger.Info("Store completed")
-	return nil
-}
-
 // extractFactsForSpeaker extracts facts about a specific speaker from the conversation
 func (s *WeaviateStorage) extractFactsForSpeaker(ctx context.Context, convDoc memory.ConversationDocument, speaker string, currentDate string, conversationDate string) ([]string, error) {
 	// Build conversation context for the LLM
@@ -198,6 +114,7 @@ func (s *WeaviateStorage) processFactForSpeaker(ctx context.Context, fact string
 	}
 
 	toolCall := response.ToolCalls[0]
+
 	switch toolCall.Function.Name {
 	case AddMemoryToolName:
 		return s.handleAddMemory(ctx, fact, speaker, convDoc)
@@ -206,9 +123,10 @@ func (s *WeaviateStorage) processFactForSpeaker(ctx context.Context, fact string
 	case DeleteMemoryToolName:
 		return s.handleDeleteMemory(ctx, toolCall.Function.Arguments, speaker)
 	case NoneMemoryToolName:
+		s.logger.Info("No memory action needed")
 		return NoneMemoryToolName, nil, nil
 	default:
-		s.logger.Warnf("Unknown tool: %s, defaulting to ADD", toolCall.Function.Name)
+		s.logger.Warnf("Unknown tool call: %s, defaulting to ADD", toolCall.Function.Name)
 		return s.handleAddMemory(ctx, fact, speaker, convDoc)
 	}
 }
@@ -320,21 +238,6 @@ func (s *WeaviateStorage) handleDeleteMemory(ctx context.Context, argsJSON strin
 	}
 
 	return DeleteMemoryToolName, nil, nil
-}
-
-// processBatchResponse processes the batch response and returns success/failure counts
-func (s *WeaviateStorage) processBatchResponse(resp []models.ObjectsGetResponse) (int, int) {
-	var successCount, failureCount int
-	if resp != nil {
-		for _, res := range resp {
-			if res.Result != nil && res.Result.Status != nil && *res.Result.Status == "SUCCESS" {
-				successCount++
-			} else {
-				failureCount++
-			}
-		}
-	}
-	return successCount, failureCount
 }
 
 // mustMarshalJSON marshals to JSON or returns empty object string

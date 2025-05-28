@@ -8,6 +8,20 @@ import (
 	"time"
 )
 
+// Document interface that both TextDocument and ConversationDocument implement
+type Document interface {
+	GetID() string
+	GetContent() string
+	GetTimestamp() *time.Time
+	GetTags() []string
+	GetMetadata() map[string]string
+
+	// Type discrimination methods
+	IsConversation() bool
+	AsConversation() (*ConversationDocument, bool)
+	AsText() (*TextDocument, bool)
+}
+
 // ConversationMessage represents a single message in a conversation
 type ConversationMessage struct {
 	Speaker string    `json:"speaker"`
@@ -29,6 +43,52 @@ type ConversationDocument struct {
 	Conversation StructuredConversation `json:"conversation"`
 	Tags         []string               `json:"tags,omitempty"`
 	Metadata     map[string]string      `json:"metadata,omitempty"`
+}
+
+// Document interface implementation for ConversationDocument
+func (cd *ConversationDocument) GetID() string {
+	return cd.ID
+}
+
+func (cd *ConversationDocument) GetContent() string {
+	var content strings.Builder
+	for _, msg := range cd.Conversation.Conversation {
+		content.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content))
+	}
+	return strings.TrimSpace(content.String())
+}
+
+func (cd *ConversationDocument) GetTimestamp() *time.Time {
+	if len(cd.Conversation.Conversation) > 0 {
+		return &cd.Conversation.Conversation[0].Time
+	}
+	return nil
+}
+
+func (cd *ConversationDocument) GetTags() []string {
+	return cd.Tags
+}
+
+func (cd *ConversationDocument) GetMetadata() map[string]string {
+	metadata := make(map[string]string)
+	for k, v := range cd.Metadata {
+		metadata[k] = v
+	}
+	metadata["source"] = cd.Conversation.Source
+	metadata["user"] = cd.Conversation.User
+	return metadata
+}
+
+func (cd *ConversationDocument) IsConversation() bool {
+	return true
+}
+
+func (cd *ConversationDocument) AsConversation() (*ConversationDocument, bool) {
+	return cd, true
+}
+
+func (cd *ConversationDocument) AsText() (*TextDocument, bool) {
+	return cd.ToTextDocument(), true
 }
 
 // ToTextDocument converts a ConversationDocument to the legacy TextDocument format
@@ -71,6 +131,39 @@ type TextDocument struct {
 	Metadata  map[string]string
 }
 
+// Document interface implementation for TextDocument
+func (td *TextDocument) GetID() string {
+	return td.ID
+}
+
+func (td *TextDocument) GetContent() string {
+	return td.Content
+}
+
+func (td *TextDocument) GetTimestamp() *time.Time {
+	return td.Timestamp
+}
+
+func (td *TextDocument) GetTags() []string {
+	return td.Tags
+}
+
+func (td *TextDocument) GetMetadata() map[string]string {
+	return td.Metadata
+}
+
+func (td *TextDocument) IsConversation() bool {
+	return false
+}
+
+func (td *TextDocument) AsConversation() (*ConversationDocument, bool) {
+	return nil, false
+}
+
+func (td *TextDocument) AsText() (*TextDocument, bool) {
+	return td, true
+}
+
 // MemoryFact represents an extracted fact about a person
 type MemoryFact struct {
 	ID        string            `json:"id"`
@@ -93,6 +186,26 @@ type ProgressUpdate struct {
 
 // Storage interface for the memory system
 type Storage interface {
-	Store(ctx context.Context, documents []ConversationDocument, progressChan chan<- ProgressUpdate) error
+	Store(ctx context.Context, documents []Document, progressChan chan<- ProgressUpdate) error
 	Query(ctx context.Context, query string) (QueryResult, error)
+}
+
+// Helper functions to convert slices to Document interface
+
+// TextDocumentsToDocuments converts a slice of TextDocument to a slice of Document
+func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
+	docs := make([]Document, len(textDocs))
+	for i := range textDocs {
+		docs[i] = &textDocs[i]
+	}
+	return docs
+}
+
+// ConversationDocumentsToDocuments converts a slice of ConversationDocument to a slice of Document
+func ConversationDocumentsToDocuments(convDocs []ConversationDocument) []Document {
+	docs := make([]Document, len(convDocs))
+	for i := range convDocs {
+		docs[i] = &convDocs[i]
+	}
+	return docs
 }
