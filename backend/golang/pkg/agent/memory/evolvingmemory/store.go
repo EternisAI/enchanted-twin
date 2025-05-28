@@ -2,8 +2,11 @@ package evolvingmemory
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
+
+	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
@@ -200,5 +203,110 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 	}
 
 	s.logger.Info("Store method finished processing all documents.")
+	return nil
+}
+
+// StoreRawData stores documents directly without fact extraction processing.
+func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
+	defer func() {
+		if progressChan != nil {
+			close(progressChan)
+		}
+	}()
+
+	s.logger.Info("=== EVOLVINGMEMORY STORE RAW DATA START ===")
+	s.logger.Info("StoreRawData method called", "total_documents", len(documents))
+
+	batcher := s.client.Batch().ObjectsBatcher()
+	var objectsAddedToBatch int
+
+	totalDocs := len(documents)
+	if totalDocs == 0 {
+		s.logger.Info("No documents to process, returning early")
+		return nil
+	}
+
+	for i, doc := range documents {
+		vector, err := s.embeddingsService.Embedding(ctx, doc.Content, openAIEmbedModel)
+		if err != nil {
+			s.logger.Errorf("Error generating embedding for document %s: %v", doc.ID, err)
+			continue
+		}
+
+		vector32 := make([]float32, len(vector))
+		for j, val := range vector {
+			vector32[j] = float32(val)
+		}
+
+		data := map[string]interface{}{
+			contentProperty: doc.Content,
+		}
+
+		if doc.Timestamp != nil {
+			data[timestampProperty] = doc.Timestamp.Format(time.RFC3339)
+		}
+
+		if len(doc.Tags) > 0 {
+			data[tagsProperty] = doc.Tags
+		}
+
+		if len(doc.Metadata) > 0 {
+			metadataBytes, err := json.Marshal(doc.Metadata)
+			if err != nil {
+				s.logger.Errorf("Error marshaling metadata for document %s: %v", doc.ID, err)
+				continue
+			}
+			data[metadataProperty] = string(metadataBytes)
+		} else {
+			data[metadataProperty] = "{}"
+		}
+
+		obj := &models.Object{
+			Class:      ClassName,
+			Properties: data,
+			Vector:     vector32,
+		}
+
+		batcher.WithObjects(obj)
+		objectsAddedToBatch++
+		s.logger.Infof("Document %s added to batch for raw storage", doc.ID)
+
+		if progressChan != nil {
+			progressChan <- memory.ProgressUpdate{Processed: (i + 1), Total: totalDocs}
+		}
+	}
+
+	if objectsAddedToBatch > 0 {
+		s.logger.Infof("Flushing batcher with %d objects for raw data storage.", objectsAddedToBatch)
+		resp, err := batcher.Do(ctx)
+		if err != nil {
+			s.logger.Errorf("Error batch storing raw data to Weaviate: %v", err)
+			return err
+		} else {
+			s.logger.Info("Raw data batch storage call completed.")
+		}
+
+		var successCount, failureCount int
+		if resp != nil {
+			for itemIdx, res := range resp {
+				if res.Result != nil && res.Result.Status != nil && *res.Result.Status == "SUCCESS" {
+					successCount++
+				} else {
+					failureCount++
+					errorMsg := "unknown error during raw data batch item processing"
+					if res.Result != nil && res.Result.Errors != nil && len(res.Result.Errors.Error) > 0 {
+						errorMsg = res.Result.Errors.Error[0].Message
+					}
+					s.logger.Warnf("Failed to store raw data in batch (Item %d). Error: %s.", itemIdx, errorMsg)
+				}
+			}
+			s.logger.Infof("Raw data batch storage completed: %d successful, %d failed.", successCount, failureCount)
+		}
+	} else {
+		s.logger.Info("No objects were added to the batcher during this StoreRawData() call. Nothing to flush.")
+	}
+
+	s.logger.Info("StoreRawData method finished processing all documents.")
+	s.logger.Info("=== EVOLVINGMEMORY STORE RAW DATA END ===")
 	return nil
 }
