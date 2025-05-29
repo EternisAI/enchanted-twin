@@ -18,14 +18,19 @@ jobs:
         id: code-review
         uses: anthropics/claude-code-action@beta
         with:
-          # Define the review focus areas
-          direct_prompt: "Review the PR changes. Focus on code quality, potential bugs, and performance issues. Suggest improvements where appropriate."
-
-          # Limited tools for safer review operations
-          allowed_tools: "Bash(git diff --name-only HEAD~1),Bash(git diff HEAD~1),View,GlobTool,GrepTool"
-
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          timeout_minutes: "10"
+          direct_prompt: |
+            Please review this pull request and provide comprehensive feedback.
 
-          model: "claude-sonnet-4-20250514"
+            Focus on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Performance considerations
+            - Security implications
+            - Test coverage
+            - Documentation updates if needed
+
+            Provide constructive feedback with specific suggestions for improvement.
+            Use inline comments to highlight specific areas of concern.

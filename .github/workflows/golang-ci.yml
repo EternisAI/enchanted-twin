@@ -3,8 +3,12 @@ name: Go CI
 on:
   push:
     branches: [main, master]
+    paths:
+      - "backend/golang/**"
   pull_request:
     branches: [main, master]
+    paths:
+      - "backend/golang/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
