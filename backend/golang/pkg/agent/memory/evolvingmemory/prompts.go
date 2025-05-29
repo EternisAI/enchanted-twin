@@ -76,45 +76,41 @@ CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
 - DO NOT make personality judgments or deep psychological interpretations`
 
 	// TextDocumentFactExtractionPrompt - Extract facts about a person from any text content.
-	TextDocumentFactExtractionPrompt = `You are a Personal Information Organizer. Extract comprehensive facts about {speaker_name} from the provided text content.
+	TextDocumentFactExtractionPrompt = `You are a Personal Information Organizer. Extract comprehensive facts about the primary user from the provided text content.
 
-For your reference, the current system date is {current_date}.
-The content you are analyzing primarily occurred around the date: {content_date}.
-You are looking for facts about: {speaker_name}.
-
-EXTRACT FACTS ABOUT {speaker_name} FROM ANY TEXT CONTENT:
+EXTRACT FACTS ABOUT THE PRIMARY USER FROM ANY TEXT CONTENT:
 
 The text content may be:
-- Written BY {speaker_name} (emails, messages, posts they wrote)
-- Written ABOUT {speaker_name} (articles, reports, mentions by others)
-- Content that MENTIONS {speaker_name} (news, documents, conversations)
-- Any text containing information related to {speaker_name}
+- Written BY the primary user (emails, messages, posts they wrote)
+- Written ABOUT the primary user (articles, reports, mentions by others)
+- Content that MENTIONS the primary user (news, documents, conversations)
+- Any text containing information related to the primary user
 
-1. **DIRECT FACTS about {speaker_name}**:
-   - Personal information mentioned about {speaker_name}
-   - Actions {speaker_name} took or plans to take
-   - Preferences, opinions, feelings attributed to {speaker_name}
-   - Experiences {speaker_name} had or described
-   - Professional details, work-related information about {speaker_name}
-   - Health, physical states, or conditions of {speaker_name}
-   - Relationships, family, friends of {speaker_name}
-   - Places {speaker_name} visited or is associated with
-   - Activities, hobbies, interests of {speaker_name}
+1. **DIRECT FACTS about the primary user**:
+   - Personal information mentioned about the primary user
+   - Actions the primary user took or plans to take
+   - Preferences, opinions, feelings attributed to the primary user
+   - Experiences the primary user had or described
+   - Professional details, work-related information about the primary user
+   - Health, physical states, or conditions of the primary user
+   - Relationships, family, friends of the primary user
+   - Places the primary user visited or is associated with
+   - Activities, hobbies, interests of the primary user
 
-2. **CONTEXTUAL FACTS about {speaker_name}**:
-   - Social context and relationships involving {speaker_name}
-   - Temporal references and timing of events related to {speaker_name}
-   - Plans, goals, or intentions attributed to {speaker_name}
-   - Reactions of {speaker_name} to events or situations
-   - Decision-making patterns shown by {speaker_name}
-   - Communication style and patterns of {speaker_name}
+2. **CONTEXTUAL FACTS about the primary user**:
+   - Social context and relationships involving the primary user
+   - Temporal references and timing of events related to the primary user
+   - Plans, goals, or intentions attributed to the primary user
+   - Reactions of the primary user to events or situations
+   - Decision-making patterns shown by the primary user
+   - Communication style and patterns of the primary user
 
 EXTRACTION APPROACH:
-1. **Be Thorough**: Scan the entire text for ANY mention or reference to {speaker_name}
-2. **Include Details**: Extract names, places, dates, activities, preferences related to {speaker_name}
-3. **Multiple Sources**: The text may mention {speaker_name} from different perspectives (first-person, third-person, quoted)
-4. **Preserve Attribution**: Note whether facts are stated by {speaker_name} or about {speaker_name} by others
-5. **Temporal Context**: Include time references related to {speaker_name} when mentioned
+1. **Be Thorough**: Scan the entire text for ANY mention or reference to the primary user
+2. **Include Details**: Extract names, places, dates, activities, preferences related to the primary user
+3. **Multiple Sources**: The text may mention the primary user from different perspectives (first-person, third-person, quoted)
+4. **Preserve Attribution**: Note whether facts are stated by the primary user or about the primary user by others
+5. **Temporal Context**: Include time references related to the primary user when mentioned
 
 GUIDELINES:
 - **COMPREHENSIVE**: Extract ALL relevant facts thoroughly - don't miss details
@@ -147,7 +143,7 @@ FACT CATEGORIES TO EXTRACT:
 - Educational background and learning experiences`
 
 	// MemoryUpdatePrompt - Comprehensive memory management decision system.
-	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for {speaker_name}.
+	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for the primary user.
 You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
 
 Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
@@ -164,21 +160,21 @@ There are specific guidelines to select which operation to perform:
         [
             {
                 "id" : "0",
-                "text" : "{speaker_name} is a software engineer"
+                "text" : "The primary user is a software engineer"
             }
         ]
-    - Retrieved facts: ["{speaker_name}'s name is John"]
+    - Retrieved facts: ["The primary user's name is John"]
     - New Memory:
         {
             "memory" : [
                 {
                     "id" : "0",
-                    "text" : "{speaker_name} is a software engineer",
+                    "text" : "The primary user is a software engineer",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "{speaker_name}'s name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "ADD"
                 }
             ]
@@ -186,45 +182,45 @@ There are specific guidelines to select which operation to perform:
 
 2. **Update**: If the retrieved facts contain information that is already present in the memory but the information is totally different, then you have to update it. 
 If the retrieved fact contains information that conveys the same thing as the elements present in the memory, then you have to keep the fact which has the most information. 
-Example (a) -- if the memory contains "{speaker_name} likes to play cricket" and the retrieved fact is "{speaker_name} loves to play cricket with friends", then update the memory with the retrieved facts.
-Example (b) -- if the memory contains "{speaker_name} likes cheese pizza" and the retrieved fact is "{speaker_name} loves cheese pizza", then you do not need to update it because they convey the same information.
+Example (a) -- if the memory contains "The primary user likes to play cricket" and the retrieved fact is "The primary user loves to play cricket with friends", then update the memory with the retrieved facts.
+Example (b) -- if the memory contains "The primary user likes cheese pizza" and the retrieved fact is "The primary user loves cheese pizza", then you do not need to update it because they convey the same information.
 Please keep in mind while updating you have to keep the same ID.
 - **Example**:
     - Old Memory:
         [
             {
                 "id" : "0",
-                "text" : "{speaker_name} really likes cheese pizza"
+                "text" : "The primary user really likes cheese pizza"
             },
             {
                 "id" : "1",
-                "text" : "{speaker_name} is a software engineer"
+                "text" : "The primary user is a software engineer"
             },
             {
                 "id" : "2",
-                "text" : "{speaker_name} likes to play cricket"
+                "text" : "The primary user likes to play cricket"
             }
         ]
-    - Retrieved facts: ["{speaker_name} loves chicken pizza", "{speaker_name} loves to play cricket with friends"]
+    - Retrieved facts: ["The primary user loves chicken pizza", "The primary user loves to play cricket with friends"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "{speaker_name} loves cheese and chicken pizza",
+                    "text" : "The primary user loves cheese and chicken pizza",
                     "event" : "UPDATE",
-                    "old_memory" : "{speaker_name} really likes cheese pizza"
+                    "old_memory" : "The primary user really likes cheese pizza"
                 },
                 {
                     "id" : "1",
-                    "text" : "{speaker_name} is a software engineer",
+                    "text" : "The primary user is a software engineer",
                     "event" : "NONE"
                 },
                 {
                     "id" : "2",
-                    "text" : "{speaker_name} loves to play cricket with friends",
+                    "text" : "The primary user loves to play cricket with friends",
                     "event" : "UPDATE",
-                    "old_memory" : "{speaker_name} likes to play cricket"
+                    "old_memory" : "The primary user likes to play cricket"
                 }
             ]
         }
@@ -235,25 +231,25 @@ Please keep in mind while updating you have to keep the same ID.
         [
             {
                 "id" : "0",
-                "text" : "{speaker_name}'s name is John"
+                "text" : "The primary user's name is John"
             },
             {
                 "id" : "1",
-                "text" : "{speaker_name} loves cheese pizza"
+                "text" : "The primary user loves cheese pizza"
             }
         ]
-    - Retrieved facts: ["{speaker_name} dislikes cheese pizza"]
+    - Retrieved facts: ["The primary user dislikes cheese pizza"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "{speaker_name}'s name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "{speaker_name} loves cheese pizza",
+                    "text" : "The primary user loves cheese pizza",
                     "event" : "DELETE"
                 }
         ]
@@ -265,37 +261,27 @@ Please keep in mind while updating you have to keep the same ID.
         [
             {
                 "id" : "0",
-                "text" : "{speaker_name}'s name is John"
+                "text" : "The primary user's name is John"
             },
             {
                 "id" : "1",
-                "text" : "{speaker_name} loves cheese pizza"
+                "text" : "The primary user loves cheese pizza"
             }
         ]
-    - Retrieved facts: ["{speaker_name}'s name is John"]
+    - Retrieved facts: ["The primary user's name is John"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "{speaker_name}'s name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "{speaker_name} loves cheese pizza",
+                    "text" : "The primary user loves cheese pizza",
                     "event" : "NONE"
                 }
             ]
-        }
-
-Context for {speaker_name}:
-
-Existing memories:
-{existing_memories}
-
-New fact to consider:
-{new_fact}
-
-Based on the guidelines and context, what action should be taken for the NEW FACT?`
+        }`
 )

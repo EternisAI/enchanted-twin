@@ -17,12 +17,10 @@ import (
 func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, convDoc memory.ConversationDocument) (string, *models.Object, error) {
 	logContextEntity := "Speaker"
 	logContextValue := speakerID
-	speakerPromptName := speakerID
 
 	if speakerID == "" {
 		logContextEntity = "Document"
 		logContextValue = "<document_context>"
-		speakerPromptName = "Content Source" // Generic term for prompts when no specific speaker
 	}
 
 	s.logger.Infof("Processing fact for %s %s: \"%s...\"", logContextEntity, logContextValue, firstNChars(factContent, 70))
@@ -48,15 +46,11 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		s.logger.Debugf("No existing relevant memories found for this fact for %s %s.", logContextEntity, logContextValue)
 	}
 
-	prompt := strings.ReplaceAll(MemoryUpdatePrompt, "{speaker_name}", speakerPromptName)
-	prompt = strings.ReplaceAll(prompt, "{existing_memories}", existingMemoriesForPromptStr)
-	prompt = strings.ReplaceAll(prompt, "{new_fact}", factContent)
-
 	var decisionPromptBuilder strings.Builder
-	decisionPromptBuilder.WriteString(prompt)
+	decisionPromptBuilder.WriteString(MemoryUpdatePrompt)
 	decisionPromptBuilder.WriteString("\n\nContext:\n")
-	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for %s (if any, related to the new fact):\n%s\n\n", speakerPromptName, existingMemoriesForPromptStr))
-	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for %s:\n%s\n\n", speakerPromptName, factContent))
+	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for the primary user (if any, related to the new fact):\n%s\n\n", existingMemoriesForPromptStr))
+	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for the primary user:\n%s\n\n", factContent))
 	decisionPromptBuilder.WriteString("Based on the guidelines and context, what action should be taken for the NEW FACT?")
 	fullDecisionPrompt := decisionPromptBuilder.String()
 
