@@ -131,20 +131,3 @@ func CreateExampleConversationDocument() *memory.ConversationDocument {
 func ConversationDocumentToJSON(doc *memory.ConversationDocument) ([]byte, error) {
 	return json.MarshalIndent(doc, "", "  ")
 }
-
-// BatchParseStructuredConversations parses multiple JSON conversations from a slice of JSON byte arrays.
-func BatchParseStructuredConversations(jsonDataSlice [][]byte) ([]*memory.ConversationDocument, []error) {
-	docs := make([]*memory.ConversationDocument, 0, len(jsonDataSlice))
-	errors := make([]error, 0)
-
-	for i, jsonData := range jsonDataSlice {
-		doc, err := ParseStructuredConversationFromJSON(jsonData)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("document %d: %w", i, err))
-			continue
-		}
-		docs = append(docs, doc)
-	}
-
-	return docs, errors
-}

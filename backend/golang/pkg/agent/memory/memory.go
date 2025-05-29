@@ -43,10 +43,19 @@ func (cd *ConversationDocument) ID() string {
 
 func (cd *ConversationDocument) Content() string {
 	var content strings.Builder
+	hasContent := false // Track if any substantive content is added
 	for _, msg := range cd.Conversation {
-		content.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content))
+		trimmedMsgContent := strings.TrimSpace(msg.Content)
+		if trimmedMsgContent == "" {
+			continue // Skip messages with only whitespace content
+		}
+		content.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, trimmedMsgContent)) // Use trimmed content
+		hasContent = true
 	}
-	return strings.TrimSpace(content.String())
+	if !hasContent {
+		return "" // If no messages had real content, return empty string
+	}
+	return strings.TrimSpace(content.String()) // Final trim for the whole block
 }
 
 func (cd *ConversationDocument) Timestamp() *time.Time {
