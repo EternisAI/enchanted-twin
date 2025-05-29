@@ -2,41 +2,21 @@ package evolvingmemory
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// identifySpeakersInMetadata attempts to find specific speaker identifiers in document metadata.
-// Currently, it looks for "dataset_speaker_a" and "dataset_speaker_b".
-// It returns a slice of identified speaker strings. If no specific speakers are found,
-// it returns an empty slice.
-func (s *WeaviateStorage) identifySpeakersInMetadata(metadata map[string]string) []string {
-	var specificSpeakerCandidates []string
-	if speakerA, ok := metadata["dataset_speaker_a"]; ok && speakerA != "" {
-		specificSpeakerCandidates = append(specificSpeakerCandidates, speakerA)
-	}
-	if speakerB, ok := metadata["dataset_speaker_b"]; ok && speakerB != "" {
-		addSpeakerB := true
-		// Avoid adding B if it's the same as A and A was already added
-		if len(specificSpeakerCandidates) == 1 && specificSpeakerCandidates[0] == speakerB {
-			addSpeakerB = false
-		}
-		if addSpeakerB {
-			specificSpeakerCandidates = append(specificSpeakerCandidates, speakerB)
-		}
-	}
-	return specificSpeakerCandidates
-}
-
-// Store orchestrates the process of extracting facts from documents and updating memories.
-func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocument, progressCallback memory.ProgressCallback) error {
+// Store handles unified Document interface with internal type routing.
+func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
+	s.logger.Info("=== MEMORY STORE START ===")
 	batcher := s.client.Batch().ObjectsBatcher()
-	var objectsAddedToBatch int
+	var totalObjectsAddedToBatch int
 
 	totalDocs := len(documents)
 	if totalDocs == 0 {
@@ -45,67 +25,71 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 
 	currentSystemDate := getCurrentDateForPrompt()
 
-	for i, sessionDoc := range documents {
-		s.logger.Infof("Processing session document %d of %d. Session Doc ID (if any): '%s'", i+1, totalDocs, sessionDoc.ID)
+	for i, doc := range documents {
+		s.logger.Infof("Processing document %d of %d. Doc ID: '%s'", i+1, totalDocs, doc.ID())
 
-		specificSpeakerCandidates := s.identifySpeakersInMetadata(sessionDoc.Metadata)
+		timestamp := doc.Timestamp()
+		if timestamp == nil {
+			now := time.Now()
+			timestamp = &now
+		}
+		docEventDateStr := timestamp.Format("2006-01-02")
 
-		var speakersToProcess []string
-		if len(specificSpeakerCandidates) > 0 {
-			speakersToProcess = specificSpeakerCandidates
-			s.logger.Debugf("Identified specific speakers: %v. Proceeding with speaker-specific processing.", speakersToProcess)
-		} else {
-			speakersToProcess = []string{""}
-			s.logger.Infof("No specific speakers identified for session doc ID '%s'. Proceeding with document-level processing.", sessionDoc.ID)
+		// Route to appropriate processing based on document type
+		var objectsForThisDoc []*models.Object
+		var err error
+
+		switch typedDoc := doc.(type) {
+		case *memory.ConversationDocument:
+			s.logger.Infof("Processing ConversationDocument '%s' with Rich Context Extraction", doc.ID())
+
+			// Process conversation once for the primary user only
+			// The conversation fact extraction already handles extracting facts about ALL participants
+			primaryUserID := typedDoc.User
+			if primaryUserID == "" {
+				s.logger.Warnf("ConversationDocument %s has no primary user specified, skipping", doc.ID())
+				continue
+			}
+
+			speakerObjects, speakerErr := s.processConversationForSpeaker(
+				ctx,
+				*typedDoc,
+				primaryUserID,
+				currentSystemDate,
+				docEventDateStr,
+			)
+			if speakerErr != nil {
+				s.logger.Errorf("Error processing ConversationDocument %s for primary user %s: %v", doc.ID(), primaryUserID, speakerErr)
+				continue
+			}
+			objectsForThisDoc = speakerObjects
+
+		case *memory.TextDocument:
+			s.logger.Infof("Processing TextDocument '%s' with Text Extraction", doc.ID())
+
+			speakerID := "user"
+			objectsForThisDoc, err = s.processTextDocumentForSpeaker(
+				ctx,
+				*typedDoc,
+				speakerID,
+				currentSystemDate,
+				docEventDateStr,
+			)
+			if err != nil {
+				s.logger.Errorf("Error processing TextDocument %s for speaker %s: %v", doc.ID(), speakerID, err)
+			}
+
+		default:
+			s.logger.Warnf("Unknown document type for document %s, skipping", doc.ID())
+			continue
 		}
 
-		for _, speakerID := range speakersToProcess {
-			logContextEntity := "Speaker"
-			logContextValue := speakerID
-
-			if speakerID == "" {
-				logContextEntity = "Document"
-				logContextValue = "<document_context>"
-			}
-			s.logger.Infof("== Processing for %s: %s == (Session Doc %d of %d)", logContextEntity, logContextValue, i+1, totalDocs)
-
-			docEventDateStr := "Unknown"
-			if sessionDoc.Timestamp != nil && !sessionDoc.Timestamp.IsZero() {
-				docEventDateStr = sessionDoc.Timestamp.Format("2006-01-02")
-			}
-
-			extractedFacts, err := s.extractFactsFromTextDocument(ctx, sessionDoc, speakerID, currentSystemDate, docEventDateStr)
-			if err != nil {
-				s.logger.Errorf("Error during fact extraction for %s %s: %v. Skipping this processing unit.", logContextEntity, logContextValue, err)
-				continue
-			}
-			if len(extractedFacts) == 0 {
-				s.logger.Infof("No facts extracted for %s %s. Skipping memory operations for this unit.", logContextEntity, logContextValue)
-				continue
-			}
-			s.logger.Infof("Total facts to process for %s '%s': %d", logContextEntity, logContextValue, len(extractedFacts))
-
-			for factIdx, factContent := range extractedFacts {
-				if strings.TrimSpace(factContent) == "" {
-					s.logger.Debug("Skipping empty fact text.", "context", logContextValue)
-					continue
-				}
-				s.logger.Infof("Processing fact %d for %s %s: \"%s...\"", factIdx+1, logContextEntity, logContextValue, firstNChars(factContent, 70))
-
-				action, objectToAdd, err := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, sessionDoc)
-				if err != nil {
-					s.logger.Errorf("Error processing fact for %s %s: %v. Fact: \"%s...\"", logContextEntity, logContextValue, err, firstNChars(factContent, 50))
-					continue
-				}
-
-				if action == AddMemoryToolName && objectToAdd != nil {
-					batcher.WithObjects(objectToAdd)
-					objectsAddedToBatch++
-					s.logger.Infof("Fact ADDED to batch for %s %s. Fact: \"%s...\"", logContextEntity, logContextValue, firstNChars(factContent, 50))
-				} else if action != AddMemoryToolName {
-					s.logger.Infof("Action '%s' for %s %s (Fact: \"%s...\") handled directly, not added to batch.", action, logContextEntity, logContextValue, firstNChars(factContent, 30))
-				}
-			}
+		if len(objectsForThisDoc) > 0 {
+			batcher.WithObjects(objectsForThisDoc...)
+			totalObjectsAddedToBatch += len(objectsForThisDoc)
+			s.logger.Infof("%d object(s) from document %s added to batch.", len(objectsForThisDoc), doc.ID())
+		} else if err == nil {
+			s.logger.Infof("No objects to add to batch from document %s.", doc.ID())
 		}
 
 		if progressCallback != nil {
@@ -113,8 +97,9 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 		}
 	}
 
-	if objectsAddedToBatch > 0 {
-		s.logger.Infof("Flushing batcher with %d objects at the end of Store method.", objectsAddedToBatch)
+	// Batch flushing logic
+	if totalObjectsAddedToBatch > 0 {
+		s.logger.Infof("Flushing batcher with %d objects at the end of Store method.", totalObjectsAddedToBatch)
 		resp, err := batcher.Do(ctx)
 		if err != nil {
 			s.logger.Errorf("Error final batch storing facts to Weaviate: %v", err)
@@ -140,7 +125,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 		} else if err != nil {
 			s.logger.Warn("Batcher.Do() returned an error and a nil response. Cannot determine individual item statuses.")
 		} else {
-			s.logger.Info("Batcher.Do() returned no error and a nil response. Assuming batched items were processed if objectsAddedToBatch > 0.")
+			s.logger.Info("Batcher.Do() returned no error and a nil response. Assuming batched items were processed if totalObjectsAddedToBatch > 0.")
 		}
 	} else {
 		s.logger.Info("No objects were added to the batcher during this Store() call. Nothing to flush.")
@@ -150,7 +135,105 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 	return nil
 }
 
-// StoreRawData stores documents directly without fact extraction processing.
+// processTextDocumentForSpeaker handles text document processing using the TextDocument prompt.
+func (s *WeaviateStorage) processTextDocumentForSpeaker(
+	ctx context.Context,
+	textDoc memory.TextDocument,
+	speakerID string,
+	currentSystemDate string,
+	docEventDateStr string,
+) ([]*models.Object, error) {
+	var objectsToAdd []*models.Object
+
+	extractedFacts, err := s.extractFactsFromTextDocument(ctx, textDoc, speakerID, currentSystemDate, docEventDateStr)
+	if err != nil {
+		s.logger.Errorf("Text fact extraction failed for speaker %s, doc ID %s: %v", speakerID, textDoc.ID(), err)
+		return nil, err
+	}
+
+	if len(extractedFacts) == 0 {
+		s.logger.Infof("No facts extracted for speaker %s, text doc ID %s.", speakerID, textDoc.ID())
+		return nil, nil
+	}
+	s.logger.Infof("Extracted %d facts for speaker %s, text doc ID %s.", len(extractedFacts), speakerID, textDoc.ID())
+
+	for factIdx, factContent := range extractedFacts {
+		if strings.TrimSpace(factContent) == "" {
+			s.logger.Debugf("Skipping empty fact text for speaker %s, text doc ID %s.", speakerID, textDoc.ID())
+			continue
+		}
+		s.logger.Infof("Processing fact %d/%d for speaker %s, text doc ID %s: \\\"%s...\\\"",
+			factIdx+1, len(extractedFacts), speakerID, textDoc.ID(), firstNChars(factContent, 70))
+
+		action, objectToAdd, updateErr := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, &textDoc, true)
+		if updateErr != nil {
+			s.logger.Errorf("Error updating memories for fact for speaker %s, text doc ID %s: %v. Fact: \\\"%s...\\\"",
+				speakerID, textDoc.ID(), updateErr, firstNChars(factContent, 50))
+			continue
+		}
+
+		if action == AddMemoryToolName && objectToAdd != nil {
+			objectsToAdd = append(objectsToAdd, objectToAdd)
+			s.logger.Infof("Fact marked for ADDITION to batch for speaker %s, text doc ID %s. Fact: \\\"%s...\\\"",
+				speakerID, textDoc.ID(), firstNChars(factContent, 50))
+		} else if action != AddMemoryToolName {
+			s.logger.Infof("Action '%s' for speaker %s, text doc ID %s (Fact: \\\"%s...\\\") handled, not adding to batch.",
+				action, speakerID, textDoc.ID(), firstNChars(factContent, 30))
+		}
+	}
+	return objectsToAdd, nil
+}
+
+// processConversationForSpeaker handles fact extraction and memory updates for a given conversation and speaker.
+func (s *WeaviateStorage) processConversationForSpeaker(
+	ctx context.Context,
+	convDoc memory.ConversationDocument,
+	speakerID string,
+	currentSystemDate string,
+	docEventDateStr string,
+) ([]*models.Object, error) {
+	var objectsToAdd []*models.Object
+
+	extractedFacts, err := s.extractFactsFromConversation(ctx, convDoc, speakerID, currentSystemDate, docEventDateStr)
+	if err != nil {
+		s.logger.Errorf("Rich conversation fact extraction failed for speaker %s, doc ID %s: %v", speakerID, convDoc.ID(), err)
+		return nil, err
+	}
+
+	if len(extractedFacts) == 0 {
+		s.logger.Infof("No facts extracted for speaker %s, conversation doc ID %s.", speakerID, convDoc.ID())
+		return nil, nil
+	}
+	s.logger.Infof("Extracted %d facts for speaker %s, conversation doc ID %s.", len(extractedFacts), speakerID, convDoc.ID())
+
+	for factIdx, factContent := range extractedFacts {
+		if strings.TrimSpace(factContent) == "" {
+			s.logger.Debugf("Skipping empty fact text for speaker %s, conversation doc ID %s.", speakerID, convDoc.ID())
+			continue
+		}
+		s.logger.Infof("Processing fact %d/%d for speaker %s, conversation doc ID %s: \\\"%s...\\\"",
+			factIdx+1, len(extractedFacts), speakerID, convDoc.ID(), firstNChars(factContent, 70))
+
+		action, objectToAdd, updateErr := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, &convDoc, false)
+		if updateErr != nil {
+			s.logger.Errorf("Error updating memories for fact for speaker %s, conversation doc ID %s: %v. Fact: \\\"%s...\\\"",
+				speakerID, convDoc.ID(), updateErr, firstNChars(factContent, 50))
+			continue
+		}
+
+		if action == AddMemoryToolName && objectToAdd != nil {
+			objectsToAdd = append(objectsToAdd, objectToAdd)
+			s.logger.Infof("Fact marked for ADDITION to batch for speaker %s, conversation doc ID %s. Fact: \\\"%s...\\\"",
+				speakerID, convDoc.ID(), firstNChars(factContent, 50))
+		} else if action != AddMemoryToolName {
+			s.logger.Infof("Action '%s' for speaker %s, conversation doc ID %s (Fact: \\\"%s...\\\") handled, not adding to batch.",
+				action, speakerID, convDoc.ID(), firstNChars(factContent, 30))
+		}
+	}
+	return objectsToAdd, nil
+}
+
+// StoreRawData stores documents directly without fact extraction processing (internal method).
 func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressCallback memory.ProgressCallback) error {
 	s.logger.Info("=== EVOLVINGMEMORY STORE RAW DATA START ===")
 	s.logger.Info("StoreRawData method called", "total_documents", len(documents))
@@ -164,10 +247,14 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 		return nil
 	}
 
-	for i, doc := range documents {
-		vector, err := s.embeddingsService.Embedding(ctx, doc.Content, openAIEmbedModel)
+	for i := range documents { // Iterate by index to get pointers
+		doc := &documents[i] // doc is *memory.TextDocument
+		vector, err := s.embeddingsService.Embedding(ctx, doc.Content(), openAIEmbedModel)
 		if err != nil {
-			s.logger.Errorf("Error generating embedding for document %s: %v", doc.ID, err)
+			s.logger.Errorf("Error generating embedding for document %s: %v", doc.ID(), err)
+			if progressCallback != nil {
+				progressCallback(i+1, totalDocs) // Call progress on error before continue
+			}
 			continue
 		}
 
@@ -177,37 +264,36 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 		}
 
 		data := map[string]interface{}{
-			contentProperty: doc.Content,
+			contentProperty: doc.Content(),
 		}
 
-		if doc.Timestamp != nil {
-			data[timestampProperty] = doc.Timestamp.Format(time.RFC3339)
+		originalTimestamp := doc.Timestamp()
+		if originalTimestamp != nil {
+			data[timestampProperty] = originalTimestamp.Format(time.RFC3339)
 		}
 
-		if len(doc.Tags) > 0 {
-			data[tagsProperty] = doc.Tags
+		originalTags := doc.Tags()
+		if len(originalTags) > 0 {
+			data[tagsProperty] = originalTags
 		}
 
-		if len(doc.Metadata) > 0 {
-			metadataBytes, err := json.Marshal(doc.Metadata)
-			if err != nil {
-				s.logger.Errorf("Error marshaling metadata for document %s: %v", doc.ID, err)
-				continue
-			}
-			data[metadataProperty] = string(metadataBytes)
+		originalMetadata := doc.Metadata()
+		if len(originalMetadata) > 0 {
+			data[metadataProperty] = originalMetadata
 		} else {
 			data[metadataProperty] = "{}"
 		}
 
 		obj := &models.Object{
 			Class:      ClassName,
-			Properties: data,
+			ID:         strfmt.UUID(doc.ID()),
 			Vector:     vector32,
+			Properties: data,
 		}
 
 		batcher.WithObjects(obj)
 		objectsAddedToBatch++
-		s.logger.Infof("Document %s added to batch for raw storage", doc.ID)
+		s.logger.Infof("Processed and added document %s to batch (%d/%d)", doc.ID(), i+1, totalDocs)
 
 		if progressCallback != nil {
 			progressCallback(i+1, totalDocs)
@@ -215,13 +301,11 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 	}
 
 	if objectsAddedToBatch > 0 {
-		s.logger.Infof("Flushing batcher with %d objects for raw data storage.", objectsAddedToBatch)
+		s.logger.Infof("Flushing batcher with %d objects at the end of StoreRawData method.", objectsAddedToBatch)
 		resp, err := batcher.Do(ctx)
 		if err != nil {
 			s.logger.Errorf("Error batch storing raw data to Weaviate: %v", err)
-			return err
-		} else {
-			s.logger.Info("Raw data batch storage call completed.")
+			return fmt.Errorf("raw data batch storage error: %w", err)
 		}
 
 		var successCount, failureCount int
@@ -231,20 +315,20 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 					successCount++
 				} else {
 					failureCount++
-					errorMsg := "unknown error during raw data batch item processing"
+					errorMsg := "unknown error"
 					if res.Result != nil && res.Result.Errors != nil && len(res.Result.Errors.Error) > 0 {
 						errorMsg = res.Result.Errors.Error[0].Message
 					}
-					s.logger.Warnf("Failed to store raw data in batch (Item %d). Error: %s.", itemIdx, errorMsg)
+					s.logger.Warnf("Failed to store raw document in batch (Item %d). Error: %s.", itemIdx, errorMsg)
 				}
 			}
 			s.logger.Infof("Raw data batch storage completed: %d successful, %d failed.", successCount, failureCount)
 		}
 	} else {
-		s.logger.Info("No objects were added to the batcher during this StoreRawData() call. Nothing to flush.")
+		s.logger.Info("No objects were added to the raw data batcher. Nothing to flush.")
 	}
 
-	s.logger.Info("StoreRawData method finished processing all documents.")
+	s.logger.Info("StoreRawData method finished.")
 	s.logger.Info("=== EVOLVINGMEMORY STORE RAW DATA END ===")
 	return nil
 }

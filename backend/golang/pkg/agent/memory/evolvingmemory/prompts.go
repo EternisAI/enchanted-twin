@@ -10,105 +10,141 @@ func getCurrentDateForPrompt() string {
 }
 
 const (
-	// SpeakerAgnosticFactRetrievalPrompt was FactRetrievalPrompt. It's session-level, not speaker-focused.
-	// NOTE: "{document_event_date}" and "{current_system_date}" will be dynamically replaced in Go.
-	SpeakerAgnosticFactRetrievalPrompt = `You are a Personal Information Organizer, specialized in accurately storing facts, user memories, and preferences. Your primary role is to extract relevant pieces of information from conversations and organize them into distinct, manageable facts. This allows for easy retrieval and personalization in future interactions.
+	// ConversationFactExtractionPrompt - Conversation-specific fact extraction.
+	ConversationFactExtractionPrompt = `You are a Personal Conversation Analyzer. Extract comprehensive facts about "primaryUser" and other participants from the provided conversation JSON.
 
-The conversation you are analyzing primarily occurred around the date: {document_event_date}.
-For your reference, the current system date is {current_system_date}.
+EXTRACT FACTS FOR:
 
-Below are the types of information you need to focus on. Ensure that each extracted fact is self-contained and provides complete context, including who the fact is about (e.g., "Melanie enjoys pottery" not "User enjoys pottery").
+1. **PRIMARY FOCUS - primaryUser** (extract extensively):
+   
+   DIRECT FACTS about primaryUser:
+   - What primaryUser explicitly stated, said, or mentioned
+   - Actions primaryUser described taking or plans to take  
+   - Preferences, opinions, feelings primaryUser expressed
+   - Personal information primaryUser shared
+   - Experiences primaryUser described
 
-Types of Information to Remember:
-1. Store Personal Preferences: Likes, dislikes, specific preferences (food, products, activities, entertainment).
-2. Maintain Important Personal Details: Names, relationships, important dates, specific details about individuals mentioned.
-3. Track Plans and Intentions: Upcoming events, trips, goals, shared plans.
-4. Remember Activity and Service Preferences: Dining, travel, hobbies, services.
-5. Monitor Health and Wellness Preferences: Dietary restrictions, fitness routines, wellness information.
-6. Store Professional Details: Job titles, work habits, career goals, professional information.
-7. Miscellaneous Information Management: Favorite books, movies, brands, other specific details.
+   INTERACTION FACTS involving primaryUser:
+   - How other participants responded to primaryUser's messages
+   - What primaryUser was responding to or reacting to
+   - Social dynamics involving primaryUser in this conversation
+   - Agreements, disagreements, or collaborations with primaryUser
+   - Questions asked TO primaryUser or BY primaryUser
 
-Extract all relevant facts from the conversation text below. Ensure each fact is a complete, self-contained statement.
-Conversation Text:
-{conversation_text}
-`
+   CONVERSATION FACTS about primaryUser:
+   - primaryUser's role in the conversation (initiator, participant, responder, etc.)
+   - Outcomes, decisions, or plans that emerged involving primaryUser
+   - The conversation's tone or mood as it relates to primaryUser
+   - Any unresolved topics or follow-ups involving primaryUser
 
-	// New Speaker-Focused Fact Extraction Prompt.
-	SpeakerFocusedFactExtractionPrompt = `
-You are a Personal Information Organizer. Your task is to extract simple, factual information that is explicitly stated by the PrimarySpeaker in the provided text.
+2. **SECONDARY FOCUS - Other Participants** (extract important details):
+   
+   FACTS about other speakers:
+   - Personal information they shared (work, family, interests, etc.)
+   - Their preferences, opinions, and experiences mentioned
+   - Their relationship context with primaryUser
+   - Plans, activities, or commitments they mentioned
+   - Their responses and reactions in the conversation
+   - Any significant life events or updates they shared
 
-IMPORTANT RULES:
-1. Extract ONLY facts that are directly and explicitly stated by the PrimarySpeaker
-2. Do NOT create stories, narratives, or infer information not present in the text
-3. Do NOT assume emotional states, journeys, or personal growth
-4. If the text contains only contact information or metadata, extract only the basic facts present
-5. If no clear facts are stated by the PrimarySpeaker, return an empty list
+   RELATIONSHIP FACTS:
+   - How each person relates to primaryUser
+   - Social dynamics between all participants
+   - Shared experiences or connections mentioned
+   - Communication patterns and relationship indicators
 
-For your reference, the current system date is {current_system_date}.
-The PrimarySpeaker for whom you are extracting memories is: {primary_speaker_name}.
-The conversation you are analyzing primarily occurred around the date: {document_event_date}.
+CONVERSATION CONTEXT:
+- The overall purpose, theme, or topic of this conversation
+- Group dynamics and social context
+- Outcomes, decisions, or plans that emerged
+- Any unresolved topics or follow-ups
 
-Guidelines for fact extraction:
+GUIDELINES:
+- **COMPREHENSIVE**: Extract ALL relevant facts thoroughly - don't miss details
+- **EVIDENCE-BASED**: Every fact should be traceable to the content
+- **PRESERVE CONTEXT**: Include relevant context when it adds meaning to facts
+- **TEMPORAL AWARENESS**: Include timing and temporal references when mentioned
+- **RELATIONSHIP AWARENESS**: Note relationships and social connections mentioned
+- **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements
 
-1. **Simple Factual Statements Only:** Extract only clear, direct statements such as:
-   * Basic personal information explicitly mentioned
-   * Activities or preferences directly stated
-   * Factual details about work, location, or interests
-   * Specific events or plans mentioned by the PrimarySpeaker
+CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
+- Communication patterns that are clearly evident
+- Preferences demonstrated through consistent mentions
+- Planning or decision-making styles shown in the content
+- Social dynamics that are clearly indicated
+- ALWAYS mark these as inferences and provide the supporting evidence
+- DO NOT make personality judgments or deep psychological interpretations`
 
-2. **Contact Information:** If the text contains contact information:
-   * Extract only the basic contact details present
-   * Do NOT invent personal details, activities, or characteristics
-   * Example: "Contact name is John Smith" (if explicitly stated)
+	// TextFactExtractionPrompt - Extract facts about a person from any text content.
+	TextFactExtractionPrompt = `You are a Personal Information Organizer. Extract comprehensive facts about the primary user from the provided text content.
 
-3. **Format Requirements:**
-   * Each fact should be a simple, complete sentence
-   * Include the PrimarySpeaker's name in each fact for context
-   * Use only information directly present in the text
-   * Do NOT add timeframes unless explicitly mentioned
-   * Do NOT add emotional context unless explicitly stated
+EXTRACT FACTS ABOUT THE PRIMARY USER FROM ANY TEXT CONTENT:
 
-4. **What NOT to extract:**
-   * Assumed personality traits or characteristics
-   * Inferred activities or hobbies not mentioned
-   * Emotional states or personal growth journeys
-   * Family planning or life goals unless explicitly stated
-   * Any information not directly present in the text
+The text content may be:
+- Written BY the primary user (emails, messages, posts they wrote)
+- Written ABOUT the primary user (articles, reports, mentions by others)
+- Content that MENTIONS the primary user (news, documents, conversations)
+- Any text containing information related to the primary user
 
-The conversation history has been provided as a series of messages. Extract facts ONLY from statements made by {primary_speaker_name}.
+1. **DIRECT FACTS about the primary user**:
+   - Personal information mentioned about the primary user
+   - Actions the primary user took or plans to take
+   - Preferences, opinions, feelings attributed to the primary user
+   - Experiences the primary user had or described
+   - Professional details, work-related information about the primary user
+   - Health, physical states, or conditions of the primary user
+   - Relationships, family, friends of the primary user
+   - Places the primary user visited or is associated with
+   - Activities, hobbies, interests of the primary user
 
-If the provided text does not contain conversational content or explicit statements from {primary_speaker_name}, return an empty list of facts.
+2. **CONTEXTUAL FACTS about the primary user**:
+   - Social context and relationships involving the primary user
+   - Temporal references and timing of events related to the primary user
+   - Plans, goals, or intentions attributed to the primary user
+   - Reactions of the primary user to events or situations
+   - Decision-making patterns shown by the primary user
+   - Communication style and patterns of the primary user
 
-Extracted facts for {primary_speaker_name}:
-`
+EXTRACTION APPROACH:
+1. **Be Thorough**: Scan the entire text for ANY mention or reference to the primary user
+2. **Include Details**: Extract names, places, dates, activities, preferences related to the primary user
+3. **Multiple Sources**: The text may mention the primary user from different perspectives (first-person, third-person, quoted)
+4. **Preserve Attribution**: Note whether facts are stated by the primary user or about the primary user by others
+5. **Temporal Context**: Include time references related to the primary user when mentioned
 
-	// New QA System Prompt, inspired by memzero's MEMORY_ANSWER_PROMPT and its usage.
-	SpeakerFocusedQASystemPrompt = `You are an expert at answering questions. Your task is to provide accurate and concise answers to the USER'S QUESTION based SOLELY on the provided MEMORIES for each speaker.
+GUIDELINES:
+- **COMPREHENSIVE**: Extract ALL relevant facts thoroughly - don't miss details
+- **EVIDENCE-BASED**: Every fact should be traceable to the content
+- **PRESERVE CONTEXT**: Include relevant context when it adds meaning to facts
+- **TEMPORAL AWARENESS**: Include timing and temporal references when mentioned
+- **RELATIONSHIP AWARENESS**: Note relationships and social connections mentioned
+- **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements
 
-Guidelines:
-- Extract relevant information from the memories provided for {speaker1_name} and {speaker2_name} to answer the USER'S QUESTION.
-- If the provided memories do not contain sufficient information to answer the question, state that you cannot answer based on the provided memories for these speakers.
-- Ensure that the answers are clear, concise, and directly address the USER'S QUESTION.
-- Do not use any prior knowledge.
+CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
+- Communication patterns that are clearly evident
+- Preferences demonstrated through consistent mentions
+- Planning or decision-making styles shown in the content
+- Social dynamics that are clearly indicated
+- ALWAYS mark these as inferences and provide the supporting evidence
+- DO NOT make personality judgments or deep psychological interpretations
 
-MEMORIES for {speaker1_name} (related to the question):
-{{.Speaker1Memories}}
+FACT CATEGORIES TO EXTRACT:
+- Personal details and biographical information
+- Preferences, opinions, and expressed feelings
+- Plans, activities, and commitments mentioned
+- Professional and work-related information
+- Health, physical states, and medical information
+- Relationships, family members, and social connections
+- Places, locations, and geographical references
+- Experiences, events, and activities described
+- Skills, abilities, and areas of expertise
+- Interests, hobbies, and recreational activities
+- Financial situations or economic references
+- Educational background and learning experiences`
 
-MEMORIES for {speaker2_name} (related to the question):
-{{.Speaker2Memories}}
-
-USER'S QUESTION:
-{{.Question}}
-
-Your Answer:
-`
-
-	// DefaultUpdateMemoryPrompt is the base prompt for the LLM to decide how to update memory.
-	// The calling Go function will append context (existing memories, new facts) and final tool-use instructions.
-	DefaultUpdateMemoryPrompt = `You are a smart memory manager which controls the memory of a system.
+	// ConversationMemoryUpdatePrompt - Comprehensive memory management decision system for conversations.
+	ConversationMemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for the primary user.
 You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
-
-Based on the above four operations, the memory will change.
 
 Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
 - ADD: Add it to the memory as a new element
@@ -118,107 +154,102 @@ Compare newly retrieved facts with the existing memory. For each new fact, decid
 
 There are specific guidelines to select which operation to perform:
 
-1. **Add**: If the retrieved facts contain new information not present in the memory, then you have to add it by generating a new ID in the id field.
+1. **Add**: If the retrieved facts contain new information not present in the memory, then you have to add it.
 - **Example**:
     - Old Memory:
         [
             {
                 "id" : "0",
-                "text" : "User is a software engineer"
+                "text" : "The primary user is a software engineer"
             }
         ]
-    - Retrieved facts: ["Name is John"]
+    - Retrieved facts: ["The primary user's name is John"]
     - New Memory:
         {
             "memory" : [
                 {
                     "id" : "0",
-                    "text" : "User is a software engineer",
+                    "text" : "The primary user is a software engineer",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "Name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "ADD"
                 }
             ]
-
         }
 
 2. **Update**: If the retrieved facts contain information that is already present in the memory but the information is totally different, then you have to update it. 
 If the retrieved fact contains information that conveys the same thing as the elements present in the memory, then you have to keep the fact which has the most information. 
-Example (a) -- if the memory contains "User likes to play cricket" and the retrieved fact is "Loves to play cricket with friends", then update the memory with the retrieved facts.
-Example (b) -- if the memory contains "Likes cheese pizza" and the retrieved fact is "Loves cheese pizza", then you do not need to update it because they convey the same information.
-If the direction is to update the memory, then you have to update it.
+Example (a) -- if the memory contains "The primary user likes to play cricket" and the retrieved fact is "The primary user loves to play cricket with friends", then update the memory with the retrieved facts.
+Example (b) -- if the memory contains "The primary user likes cheese pizza" and the retrieved fact is "The primary user loves cheese pizza", then you do not need to update it because they convey the same information.
 Please keep in mind while updating you have to keep the same ID.
-Please note to return the IDs in the output from the input IDs only and do not generate any new ID.
 - **Example**:
     - Old Memory:
         [
             {
                 "id" : "0",
-                "text" : "I really like cheese pizza"
+                "text" : "The primary user really likes cheese pizza"
             },
             {
                 "id" : "1",
-                "text" : "User is a software engineer"
+                "text" : "The primary user is a software engineer"
             },
             {
                 "id" : "2",
-                "text" : "User likes to play cricket"
+                "text" : "The primary user likes to play cricket"
             }
         ]
-    - Retrieved facts: ["Loves chicken pizza", "Loves to play cricket with friends"]
+    - Retrieved facts: ["The primary user loves chicken pizza", "The primary user loves to play cricket with friends"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "Loves cheese and chicken pizza",
+                    "text" : "The primary user loves cheese and chicken pizza",
                     "event" : "UPDATE",
-                    "old_memory" : "I really like cheese pizza"
+                    "old_memory" : "The primary user really likes cheese pizza"
                 },
                 {
                     "id" : "1",
-                    "text" : "User is a software engineer",
+                    "text" : "The primary user is a software engineer",
                     "event" : "NONE"
                 },
                 {
                     "id" : "2",
-                    "text" : "Loves to play cricket with friends",
+                    "text" : "The primary user loves to play cricket with friends",
                     "event" : "UPDATE",
-                    "old_memory" : "User likes to play cricket"
+                    "old_memory" : "The primary user likes to play cricket"
                 }
             ]
         }
 
-
-3. **Delete**: If the retrieved facts contain information that contradicts the information present in the memory, then you have to delete it. Or if the direction is to delete the memory, then you have to delete it.
-Please note to return the IDs in the output from the input IDs only and do not generate any new ID.
+3. **Delete**: If the retrieved facts contain information that contradicts the information present in the memory, then you have to delete it.
 - **Example**:
     - Old Memory:
         [
             {
                 "id" : "0",
-                "text" : "Name is John"
+                "text" : "The primary user's name is John"
             },
             {
                 "id" : "1",
-                "text" : "Loves cheese pizza"
+                "text" : "The primary user loves cheese pizza"
             }
         ]
-    - Retrieved facts: ["Dislikes cheese pizza"]
+    - Retrieved facts: ["The primary user dislikes cheese pizza"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "Name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "Loves cheese pizza",
+                    "text" : "The primary user loves cheese pizza",
                     "event" : "DELETE"
                 }
         ]
@@ -230,28 +261,72 @@ Please note to return the IDs in the output from the input IDs only and do not g
         [
             {
                 "id" : "0",
-                "text" : "Name is John"
+                "text" : "The primary user's name is John"
             },
             {
                 "id" : "1",
-                "text" : "Loves cheese pizza"
+                "text" : "The primary user loves cheese pizza"
             }
         ]
-    - Retrieved facts: ["Name is John"]
+    - Retrieved facts: ["The primary user's name is John"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "Name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "Loves cheese pizza",
+                    "text" : "The primary user loves cheese pizza",
                     "event" : "NONE"
                 }
             ]
-        }
-`
+        }`
+
+	// TextMemoryUpdatePrompt - Memory management optimized for text document context.
+	TextMemoryUpdatePrompt = `You are a smart memory manager controlling the memory system for a user based on text content.
+You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
+
+CONTEXT: You are processing facts extracted from text content (emails, articles, notes, documents) that may be:
+- Written BY the user (their own content)
+- Written ABOUT the user (content mentioning them)
+- Content that REFERENCES the user (documents, reports, conversations)
+
+Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
+- ADD: Add it to the memory as a new element
+- UPDATE: Update an existing memory element
+- DELETE: Delete an existing memory element  
+- NONE: Make no change (if the fact is already present or irrelevant)
+
+DECISION GUIDELINES:
+
+1. **Add**: If the retrieved facts contain new information not present in the memory.
+- Add facts about the user's preferences, activities, relationships, work, etc.
+- Add factual information mentioned about the user
+- Add temporal information (events, plans, experiences)
+
+2. **Update**: If the retrieved facts contain more detailed or current information than existing memories.
+- Update with more specific details when available
+- Update outdated information with current facts
+- Combine related information when it adds context
+- Preserve the same memory ID when updating
+
+3. **Delete**: If the retrieved facts directly contradict existing memories.
+- Remove information that is explicitly contradicted
+- Delete outdated facts when newer information conflicts
+- Remove information that is proven incorrect
+
+4. **No Change**: If the retrieved facts are already captured in existing memories.
+- Skip duplicate information
+- Ignore facts that don't add new value
+- Leave unchanged when information is equivalent
+
+PROCESSING NOTES:
+- Consider that text content may reference the user in first, second, or third person
+- Facts may be stated directly or implied from context
+- Temporal context matters - newer information may override older facts
+- Preserve important relationship and professional information
+- Focus on actionable and meaningful facts about the user`
 )

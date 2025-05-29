@@ -511,7 +511,7 @@ func TestToDocuments(t *testing.T) {
 	expectedTime, _ := time.Parse(time.RFC3339, "2025-02-25T09:46:33Z")
 
 	// Test content separately since it's a string comparison
-	if !strings.Contains(doc.Content, "Welcome aboard, testuser!") {
+	if !strings.Contains(doc.Content(), "Welcome aboard, testuser!") {
 		t.Errorf("Expected content to contain 'Welcome aboard, testuser!'")
 	}
 
@@ -521,7 +521,7 @@ func TestToDocuments(t *testing.T) {
 		got      interface{}
 		expected interface{}
 	}{
-		{"Timestamp", doc.Timestamp.UTC(), expectedTime.UTC()},
+		{"Timestamp", doc.Timestamp().UTC(), expectedTime.UTC()},
 	}
 
 	for _, tt := range tests {
@@ -534,12 +534,12 @@ func TestToDocuments(t *testing.T) {
 
 	// Test Tags
 	expectedTags := []string{"google", "email"}
-	if len(doc.Tags) != len(expectedTags) {
-		t.Errorf("Expected %d tags, got %d", len(expectedTags), len(doc.Tags))
+	if len(doc.Tags()) != len(expectedTags) {
+		t.Errorf("Expected %d tags, got %d", len(expectedTags), len(doc.Tags()))
 	}
 	for _, tag := range expectedTags {
 		found := false
-		for _, gotTag := range doc.Tags {
+		for _, gotTag := range doc.Tags() {
 			if gotTag == tag {
 				found = true
 				break
@@ -557,11 +557,11 @@ func TestToDocuments(t *testing.T) {
 		"subject": "Welcome to the Platform",
 		"source":  "email",
 	}
-	if len(doc.Metadata) != len(expectedMetadata) {
-		t.Errorf("Expected %d metadata entries, got %d", len(expectedMetadata), len(doc.Metadata))
+	if len(doc.Metadata()) != len(expectedMetadata) {
+		t.Errorf("Expected %d metadata entries, got %d", len(expectedMetadata), len(doc.Metadata()))
 	}
 	for key, value := range expectedMetadata {
-		if gotValue, ok := doc.Metadata[key]; !ok {
+		if gotValue, ok := doc.Metadata()[key]; !ok {
 			t.Errorf("Expected metadata key '%s' not found", key)
 		} else if gotValue != value {
 			t.Errorf("For metadata key '%s', expected value '%s', got '%s'", key, value, gotValue)
