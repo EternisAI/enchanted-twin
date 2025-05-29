@@ -8,9 +8,11 @@ import { Button } from '../ui/button'
 import { AudioLines, Lightbulb, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { SendButton } from './MessageInput'
+import { toast } from 'sonner'
 
 type ChatInputBoxProps = {
   query: string
+  isVoiceInstalled: boolean
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onInputChange: (query: string) => void
   handleSubmit: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
@@ -25,6 +27,7 @@ export default function ChatInputBox({
   query,
   textareaRef,
   isReasonSelected,
+  isVoiceInstalled,
   isVoiceMode,
   onInputChange,
   handleSubmit,
@@ -57,7 +60,6 @@ export default function ChatInputBox({
             disabled={isVoiceMode}
           />
         )}
-
         {(query.length > 0 || isVoiceMode) && (
           <SendButton
             className="w-9 h-9"
@@ -66,15 +68,20 @@ export default function ChatInputBox({
             isWaitingTwinResponse={false}
           />
         )}
-
         {!isVoiceMode && query.length === 0 && (
           <EnableVoiceModeButton
             onClick={() => {
               onVoiceModeChange(false)
             }}
+            isVoiceInstalled={isVoiceInstalled}
           />
         )}
-        {isVoiceMode && <DisableVoiceModeButton onClick={() => onVoiceModeChange(false)} />}
+        {isVoiceMode && (
+          <DisableVoiceModeButton
+            onClick={() => onVoiceModeChange(false)}
+            isVoiceInstalled={isVoiceInstalled}
+          />
+        )}
       </motion.div>
     </div>
   )
@@ -112,15 +119,22 @@ function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps
 }
 
 interface VoiceModeButtonProps {
+  isVoiceInstalled: boolean
   onClick: () => void
 }
 
-export function EnableVoiceModeButton({ onClick }: VoiceModeButtonProps) {
+export function EnableVoiceModeButton({ onClick, isVoiceInstalled }: VoiceModeButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          onClick={onClick}
+          onClick={() => {
+            if (isVoiceInstalled) {
+              onClick()
+            } else {
+              toast.error('Voice dependencies installation in progress')
+            }
+          }}
           className={cn(
             '!px-4.5 relative rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none'
           )}
@@ -141,7 +155,7 @@ export function EnableVoiceModeButton({ onClick }: VoiceModeButtonProps) {
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Listen to output</p>
+        <p>{isVoiceInstalled ? 'Listen to output' : 'Installing voice dependencies...'}</p>
       </TooltipContent>
     </Tooltip>
   )
