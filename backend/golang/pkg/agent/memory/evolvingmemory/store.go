@@ -2,10 +2,10 @@ package evolvingmemory
 
 import (
 	"context"
-	"encoding/json"
 	"strings"
 	"time"
 
+	"github.com/go-openapi/strfmt"
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -30,16 +30,10 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 	currentSystemDate := getCurrentDateForPrompt()
 
 	for i, doc := range documents {
-		s.logger.Infof("Processing document %d of %d. ID: '%s'", i+1, totalDocs, doc.GetID())
+		s.logger.Infof("Processing document %d of %d. ID: '%s'", i+1, totalDocs, doc.ID())
 
 		// Handle different document types
-		if doc.IsConversation() {
-			convDoc, ok := doc.AsConversation()
-			if !ok {
-				s.logger.Errorf("Document claims to be conversation but conversion failed. ID: '%s'", doc.GetID())
-				continue
-			}
-
+		if convDoc, ok := doc.(*memory.ConversationDocument); ok {
 			// Get conversation date from first message
 			docEventDateStr := "Unknown"
 			if len(convDoc.Conversation.Conversation) > 0 {
@@ -87,18 +81,12 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 					}
 				}
 			}
-		} else {
+		} else if textDoc, ok := doc.(*memory.TextDocument); ok {
 			// Handle TextDocument - convert to ConversationDocument for processing
-			textDoc, ok := doc.AsText()
-			if !ok {
-				s.logger.Errorf("Document is not conversation but conversion to text failed. ID: '%s'", doc.GetID())
-				continue
-			}
-
-			s.logger.Infof("Processing text document as single-speaker conversation. ID: '%s'", textDoc.ID)
+			s.logger.Infof("Processing text document as single-speaker conversation. ID: '%s'", textDoc.ID())
 
 			// Convert TextDocument to a simple ConversationDocument for processing
-			timestamp := textDoc.GetTimestamp()
+			timestamp := textDoc.Timestamp()
 			if timestamp == nil {
 				now := time.Now()
 				timestamp = &now
@@ -106,22 +94,22 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 
 			// Create a simple conversation with the content as a single message
 			// Use "user" as the default speaker for text documents
-			convDoc := memory.ConversationDocument{
-				ID: textDoc.ID,
+			convDocFromText := memory.ConversationDocument{
+				FieldID: textDoc.ID(),
 				Conversation: memory.StructuredConversation{
-					Source: textDoc.GetMetadata()["source"],
+					Source: textDoc.Metadata()["source"],
 					People: []string{"user"},
 					User:   "user",
 					Conversation: []memory.ConversationMessage{
 						{
 							Speaker: "user",
-							Content: textDoc.Content,
+							Content: textDoc.Content(),
 							Time:    *timestamp,
 						},
 					},
 				},
-				Tags:     textDoc.Tags,
-				Metadata: textDoc.Metadata,
+				FieldTags:     textDoc.Tags(),
+				FieldMetadata: textDoc.Metadata(),
 			}
 
 			docEventDateStr := timestamp.Format("2006-01-02")
@@ -130,38 +118,40 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 			speakerID := "user"
 			s.logger.Infof("== Processing text document for Speaker: %s == (Document %d of %d)", speakerID, i+1, totalDocs)
 
-			extractedFacts, err := s.extractFactsFromConversation(ctx, convDoc, speakerID, currentSystemDate, docEventDateStr)
+			extractedFacts, err := s.extractFactsFromConversation(ctx, convDocFromText, speakerID, currentSystemDate, docEventDateStr)
 			if err != nil {
-				s.logger.Errorf("Error during fact extraction for text document %s: %v. Skipping.", textDoc.ID, err)
+				s.logger.Errorf("Error during fact extraction for text document %s: %v. Skipping.", textDoc.ID(), err)
 				continue
 			}
 			if len(extractedFacts) == 0 {
-				s.logger.Infof("No facts extracted for text document %s. Skipping memory operations.", textDoc.ID)
+				s.logger.Infof("No facts extracted for text document %s. Skipping memory operations.", textDoc.ID())
 				continue
 			}
-			s.logger.Infof("Total facts to process for text document '%s': %d", textDoc.ID, len(extractedFacts))
+			s.logger.Infof("Total facts to process for text document '%s': %d", textDoc.ID(), len(extractedFacts))
 
 			for factIdx, factContent := range extractedFacts {
 				if strings.TrimSpace(factContent) == "" {
-					s.logger.Debug("Skipping empty fact text.", "document", textDoc.ID)
+					s.logger.Debug("Skipping empty fact text.", "document", textDoc.ID())
 					continue
 				}
-				s.logger.Infof("Processing fact %d for text document %s: \"%s...\"", factIdx+1, textDoc.ID, firstNChars(factContent, 70))
+				s.logger.Infof("Processing fact %d for text document %s: \"%s...\"", factIdx+1, textDoc.ID(), firstNChars(factContent, 70))
 
-				action, objectToAdd, err := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, convDoc)
+				action, objectToAdd, err := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, convDocFromText)
 				if err != nil {
-					s.logger.Errorf("Error processing fact for text document %s: %v. Fact: \"%s...\"", textDoc.ID, err, firstNChars(factContent, 50))
+					s.logger.Errorf("Error processing fact for text document %s: %v. Fact: \"%s...\"", textDoc.ID(), err, firstNChars(factContent, 50))
 					continue
 				}
 
 				if action == AddMemoryToolName && objectToAdd != nil {
 					batcher.WithObjects(objectToAdd)
 					objectsAddedToBatch++
-					s.logger.Infof("Fact ADDED to batch for text document %s. Fact: \"%s...\"", textDoc.ID, firstNChars(factContent, 50))
+					s.logger.Infof("Fact ADDED to batch for text document %s. Fact: \"%s...\"", textDoc.ID(), firstNChars(factContent, 50))
 				} else if action != AddMemoryToolName {
-					s.logger.Infof("Action '%s' for text document %s (Fact: \"%s...\") handled directly, not added to batch.", action, textDoc.ID, firstNChars(factContent, 30))
+					s.logger.Infof("Action '%s' for text document %s (Fact: \"%s...\") handled directly, not added to batch.", action, textDoc.ID(), firstNChars(factContent, 30))
 				}
 			}
+		} else {
+			s.logger.Warnf("Document with ID '%s' is neither a ConversationDocument nor a TextDocument. Skipping.", doc.ID())
 		}
 
 		if progressChan != nil {
@@ -227,9 +217,9 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 	}
 
 	for i, doc := range documents {
-		vector, err := s.embeddingsService.Embedding(ctx, doc.Content, openAIEmbedModel)
+		vector, err := s.embeddingsService.Embedding(ctx, doc.Content(), openAIEmbedModel)
 		if err != nil {
-			s.logger.Errorf("Error generating embedding for document %s: %v", doc.ID, err)
+			s.logger.Errorf("Error generating embedding for document %s: %v", doc.ID(), err)
 			continue
 		}
 
@@ -239,37 +229,36 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 		}
 
 		data := map[string]interface{}{
-			contentProperty: doc.Content,
+			contentProperty: doc.Content(),
 		}
 
-		if doc.Timestamp != nil {
-			data[timestampProperty] = doc.Timestamp.Format(time.RFC3339)
+		originalTimestamp := doc.Timestamp()
+		if originalTimestamp != nil {
+			data[timestampProperty] = originalTimestamp.Format(time.RFC3339)
 		}
 
-		if len(doc.Tags) > 0 {
-			data[tagsProperty] = doc.Tags
+		originalTags := doc.Tags()
+		if len(originalTags) > 0 {
+			data[tagsProperty] = originalTags
 		}
 
-		if len(doc.Metadata) > 0 {
-			metadataBytes, err := json.Marshal(doc.Metadata)
-			if err != nil {
-				s.logger.Errorf("Error marshaling metadata for document %s: %v", doc.ID, err)
-				continue
-			}
-			data[metadataProperty] = string(metadataBytes)
+		originalMetadata := doc.Metadata()
+		if len(originalMetadata) > 0 {
+			data[metadataProperty] = originalMetadata
 		} else {
 			data[metadataProperty] = "{}"
 		}
 
 		obj := &models.Object{
 			Class:      ClassName,
-			Properties: data,
+			ID:         strfmt.UUID(doc.ID()),
 			Vector:     vector32,
+			Properties: data,
 		}
 
 		batcher.WithObjects(obj)
 		objectsAddedToBatch++
-		s.logger.Infof("Document %s added to batch for raw storage", doc.ID)
+		s.logger.Infof("Processed and added document %s to batch (%d/%d)", doc.ID(), i+1, totalDocs)
 
 		if progressChan != nil {
 			progressChan <- memory.ProgressUpdate{Processed: (i + 1), Total: totalDocs}
@@ -277,11 +266,10 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 	}
 
 	if objectsAddedToBatch > 0 {
-		s.logger.Infof("Flushing batcher with %d objects for raw data storage.", objectsAddedToBatch)
+		s.logger.Infof("Flushing batcher with %d objects at the end of StoreRawData method.", objectsAddedToBatch)
 		resp, err := batcher.Do(ctx)
 		if err != nil {
 			s.logger.Errorf("Error batch storing raw data to Weaviate: %v", err)
-			return err
 		} else {
 			s.logger.Info("Raw data batch storage call completed.")
 		}
@@ -293,20 +281,24 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 					successCount++
 				} else {
 					failureCount++
-					errorMsg := "unknown error during raw data batch item processing"
+					errorMsg := "unknown error during batch item processing"
 					if res.Result != nil && res.Result.Errors != nil && len(res.Result.Errors.Error) > 0 {
 						errorMsg = res.Result.Errors.Error[0].Message
 					}
-					s.logger.Warnf("Failed to store raw data in batch (Item %d). Error: %s.", itemIdx, errorMsg)
+					s.logger.Warnf("Failed to store raw data item in batch (Item %d). Error: %s.", itemIdx, errorMsg)
 				}
 			}
 			s.logger.Infof("Raw data batch storage completed: %d successful, %d failed.", successCount, failureCount)
+		} else if err != nil {
+			s.logger.Warn("StoreRawData: Batcher.Do() returned an error and a nil response.")
+		} else {
+			s.logger.Info("StoreRawData: Batcher.Do() returned no error and a nil response.")
 		}
 	} else {
-		s.logger.Info("No objects were added to the batcher during this StoreRawData() call. Nothing to flush.")
+		s.logger.Info("No raw data objects were added to the batcher. Nothing to flush.")
 	}
 
-	s.logger.Info("StoreRawData method finished processing all documents.")
+	s.logger.Info("StoreRawData method finished.")
 	s.logger.Info("=== EVOLVINGMEMORY STORE RAW DATA END ===")
 	return nil
 }

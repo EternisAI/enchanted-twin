@@ -539,9 +539,9 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	prompt := fmt.Sprintf("The following conversation is between a human and an AI assistant:\n\n%s", content)
 
 	doc := memory.TextDocument{
-		ID:      uuid.New().String(),
-		Content: prompt,
-		Metadata: map[string]string{
+		FieldID:      uuid.New().String(),
+		FieldContent: prompt,
+		FieldMetadata: map[string]string{
 			"source": "chat",
 		},
 	}

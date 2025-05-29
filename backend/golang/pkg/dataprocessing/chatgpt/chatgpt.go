@@ -248,10 +248,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 		fullContent := explainer + conversationText
 
 		textDocuments = append(textDocuments, memory.TextDocument{
-			Content:   fullContent,
-			Timestamp: &record.Timestamp,
-			Tags:      []string{"chat", "chatgpt", "conversation"},
-			Metadata: map[string]string{
+			FieldContent:   fullContent,
+			FieldTimestamp: &record.Timestamp,
+			FieldTags:      []string{"chat", "chatgpt", "conversation"},
+			FieldMetadata: map[string]string{
 				"type":   "conversation",
 				"title":  title,
 				"source": "chatgpt",

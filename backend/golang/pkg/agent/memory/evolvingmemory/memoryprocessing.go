@@ -105,7 +105,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		factMetadata := make(map[string]string)
-		for k, v := range convDoc.Metadata {
+		for k, v := range convDoc.Metadata() {
 			factMetadata[k] = v
 		}
 		if speakerID != "" { // Only add speakerID to metadata if it's not empty
@@ -152,7 +152,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		// Speaker/Context validation for UPDATE
-		originalSpeakerInMeta, originalSpeakerMetaExists := originalDoc.Metadata["speakerID"]
+		originalSpeakerInMeta, originalSpeakerMetaExists := originalDoc.Metadata()["speakerID"]
 
 		if speakerID == "" { // Current context is document-level
 			if originalSpeakerMetaExists && originalSpeakerInMeta != "" {
@@ -182,7 +182,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		updatedFactMetadata := make(map[string]string)
-		for k, v := range originalDoc.Metadata {
+		for k, v := range originalDoc.Metadata() {
 			updatedFactMetadata[k] = v
 		}
 		// Manage speakerID in updated metadata
@@ -201,11 +201,11 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		docToUpdate := memory.TextDocument{
-			ID:        updateArgs.MemoryID,
-			Content:   updateArgs.UpdatedMemory,
-			Timestamp: updateTimestamp,
-			Metadata:  updatedFactMetadata,
-			Tags:      originalDoc.Tags, // Preserve original tags unless LLM specifies changes
+			FieldID:        updateArgs.MemoryID,
+			FieldContent:   updateArgs.UpdatedMemory,
+			FieldTimestamp: updateTimestamp,
+			FieldMetadata:  updatedFactMetadata,
+			FieldTags:      originalDoc.Tags(), // Use Tags() method to access tags
 		}
 
 		if err = s.Update(ctx, updateArgs.MemoryID, docToUpdate, updatedEmbedding32); err != nil { // Update is in evolvingmemory.go
@@ -234,7 +234,8 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 			s.logger.Warnf("Failed to get original document for DELETE validation (ID: %s) for %s %s: %v. Proceeding with delete cautiously.", deleteArgs.MemoryID, logContextEntity, logContextValue, getDelErr)
 			// If we can't get the doc, we might still proceed with delete if LLM is trusted, or deny. For now, proceed.
 		} else {
-			originalSpeakerInMetaDel, originalSpeakerMetaExistsDel := originalDocForDelete.Metadata["speakerID"]
+			// Use FieldMetadata() method to access metadata
+			originalSpeakerInMetaDel, originalSpeakerMetaExistsDel := originalDocForDelete.Metadata()["speakerID"]
 			if speakerID == "" { // Current context is document-level
 				if originalSpeakerMetaExistsDel && originalSpeakerInMetaDel != "" {
 					s.logger.Warn("Document-level context attempted to DELETE a memory with a specific speaker. Skipping delete.",
