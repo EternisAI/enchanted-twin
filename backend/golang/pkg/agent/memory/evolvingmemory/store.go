@@ -35,10 +35,17 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 		}
 		docEventDateStr := timestamp.Format("2006-01-02")
 
-		source := "unknown"
-		if md := sessionDoc.Metadata(); md != nil {
-			if srcVal, ok := md["source"]; ok {
-				source = srcVal
+		// Attempt to retrieve the source from the document's metadata.
+		// This is a common pattern but might need adjustment based on actual Document implementations.
+		source := sessionDoc.Source() // Use the Source() method directly
+		// TODO: The following block is for backward compatibility with older data that might have source in metadata.
+		// This should be removed once data is migrated or after a suitable grace period.
+		if source == "" { // Fallback if Source() returns empty (e.g. for older data or other doc types)
+			source = "unknown"
+			if md := sessionDoc.Metadata(); md != nil {
+				if srcVal, ok := md["source"]; ok {
+					source = srcVal
+				}
 			}
 		}
 
