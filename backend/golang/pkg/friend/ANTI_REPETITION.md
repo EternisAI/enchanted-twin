@@ -19,7 +19,7 @@ doc := memory.TextDocument{
     Tags:      []string{"sent_message", activityType},
     Metadata: map[string]string{
         "type":          "friend",           // Identifies friend messages
-        "activity_type": activityType,       // "poke_message" or "memory_picture"
+        "activity_type": activityType,       // "poke_message", "memory_picture", or "question"
         "sent_at":       now.Format(time.RFC3339),
     },
 }
@@ -91,6 +91,42 @@ func (s *FriendService) SendPokeMessage(ctx context.Context, message string) err
 ### Memory Pictures
 
 Similar integration for memory picture messages, checking similarity before sending and storing after successful send.
+
+### Questions
+
+```go
+func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInput) error {
+    question, err := s.GetRandomQuestion(ctx)
+    if err != nil {
+        return fmt.Errorf("failed to get random question: %w", err)
+    }
+
+    // Check for similarity before sending
+    isSimilar, err := s.CheckForSimilarMessages(ctx, question)
+    if err != nil {
+        s.logger.Error("Failed to check for similar messages", "error", err)
+    }
+
+    if isSimilar {
+        s.logger.Info("Skipping question due to similarity with previous messages")
+        return nil
+    }
+
+    // Send the question
+    _, err = s.twinchatService.SendAssistantMessage(ctx, input.ChatID, question)
+    if err != nil {
+        return fmt.Errorf("failed to send question: %w", err)
+    }
+
+    // Store the sent question for future similarity checks
+    err = s.StoreSentMessage(ctx, question, "question")
+    if err != nil {
+        s.logger.Error("Failed to store sent question", "error", err)
+    }
+
+    return nil
+}
+```
 
 ## Benefits
 

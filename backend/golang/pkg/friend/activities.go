@@ -317,7 +317,8 @@ type GenerateRandomWaitOutput struct {
 }
 
 type SelectRandomActivityInput struct {
-	AvailableActivities []string `json:"available_activities"`
+	AvailableActivities []string       `json:"available_activities"`
+	ActivityWeights     map[string]int `json:"activity_weights,omitempty"`
 }
 
 type SelectRandomActivityOutput struct {
@@ -358,12 +359,95 @@ func (s *FriendService) SelectRandomActivity(ctx context.Context, input SelectRa
 		return SelectRandomActivityOutput{}, fmt.Errorf("no activities available for selection")
 	}
 
-	selectedIndex := rand.Intn(len(input.AvailableActivities))
-	selectedActivity := input.AvailableActivities[selectedIndex]
+	// If no weights provided, use equal weights
+	if len(input.ActivityWeights) == 0 {
+		selectedIndex := rand.Intn(len(input.AvailableActivities))
+		selectedActivity := input.AvailableActivities[selectedIndex]
 
-	s.logger.Info("Selected random activity", "activity", selectedActivity, "from_options", input.AvailableActivities)
+		s.logger.Info("Selected random activity (equal weights)", "activity", selectedActivity, "from_options", input.AvailableActivities)
+		return SelectRandomActivityOutput{
+			SelectedActivity: selectedActivity,
+		}, nil
+	}
+
+	// Build weighted pool
+	var weightedPool []string
+	for _, activity := range input.AvailableActivities {
+		weight := input.ActivityWeights[activity]
+		if weight <= 0 {
+			weight = 1 // Default weight if not specified or invalid
+		}
+
+		// Add activity to pool 'weight' number of times
+		for i := 0; i < weight; i++ {
+			weightedPool = append(weightedPool, activity)
+		}
+	}
+
+	if len(weightedPool) == 0 {
+		return SelectRandomActivityOutput{}, fmt.Errorf("weighted pool is empty")
+	}
+
+	selectedIndex := rand.Intn(len(weightedPool))
+	selectedActivity := weightedPool[selectedIndex]
+
+	s.logger.Info("Selected weighted random activity",
+		"activity", selectedActivity,
+		"weights", input.ActivityWeights,
+		"pool_size", len(weightedPool),
+		"from_options", input.AvailableActivities)
 
 	return SelectRandomActivityOutput{
 		SelectedActivity: selectedActivity,
 	}, nil
+}
+
+type SendQuestionInput struct {
+	ChatID string `json:"chat_id"`
+}
+
+func (s *FriendService) GetRandomQuestion(ctx context.Context) (string, error) {
+	if len(QuestionTable) == 0 {
+		return "", fmt.Errorf("no questions available in question table")
+	}
+
+	randomIndex := rand.Intn(len(QuestionTable))
+	question := QuestionTable[randomIndex]
+
+	s.logger.Info("Selected random question", "question", question, "index", randomIndex)
+	return question, nil
+}
+
+func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInput) error {
+	question, err := s.GetRandomQuestion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get random question: %w", err)
+	}
+
+	isSimilar, err := s.CheckForSimilarMessages(ctx, question)
+	if err != nil {
+		s.logger.Error("Failed to check for similar messages", "error", err)
+	}
+
+	if isSimilar {
+		s.logger.Info("Skipping question due to similarity with previous messages")
+		return nil
+	}
+
+	if s.twinchatService == nil {
+		return fmt.Errorf("twinchat service not available")
+	}
+
+	_, err = s.twinchatService.SendAssistantMessage(ctx, input.ChatID, question)
+	if err != nil {
+		return fmt.Errorf("failed to send question: %w", err)
+	}
+
+	err = s.StoreSentMessage(ctx, question, "question")
+	if err != nil {
+		s.logger.Error("Failed to store sent question", "error", err)
+	}
+
+	s.logger.Info("Question sent successfully", "chat_id", input.ChatID, "question", question)
+	return nil
 }

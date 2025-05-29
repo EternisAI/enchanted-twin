@@ -19,6 +19,7 @@ type ActivityType string
 const (
 	ActivityTypePokeMessage   ActivityType = "poke_message"
 	ActivityTypeMemoryPicture ActivityType = "memory_picture"
+	ActivityTypeQuestion      ActivityType = "question"
 )
 
 type FriendWorkflowInput struct {
@@ -30,6 +31,7 @@ type FriendWorkflowOutput struct {
 	ActivityType        ActivityType `json:"activity_type"`
 	PokeMessageSent     bool         `json:"poke_message_sent"`
 	MemoryPictureSent   bool         `json:"memory_picture_sent"`
+	QuestionSent        bool         `json:"question_sent"`
 	UserResponseTracked bool         `json:"user_response_tracked"`
 	ChatID              string       `json:"chat_id"`
 	Error               string       `json:"error,omitempty"`
@@ -89,10 +91,17 @@ func (s *FriendService) FriendWorkflow(ctx workflow.Context, input *FriendWorkfl
 		return output, err
 	}
 
-	availableActivities := []string{string(ActivityTypePokeMessage), string(ActivityTypeMemoryPicture)}
+	availableActivities := []string{string(ActivityTypePokeMessage), string(ActivityTypeMemoryPicture), string(ActivityTypeQuestion)}
+	activityWeights := map[string]int{
+		string(ActivityTypePokeMessage):   3,
+		string(ActivityTypeMemoryPicture): 1,
+		string(ActivityTypeQuestion):      5,
+	}
+
 	var activityOutput SelectRandomActivityOutput
 	err = workflow.ExecuteActivity(ctx, s.SelectRandomActivity, SelectRandomActivityInput{
 		AvailableActivities: availableActivities,
+		ActivityWeights:     activityWeights,
 	}).Get(ctx, &activityOutput)
 	if err != nil {
 		logger.Error("Failed to select random activity", "error", err)
@@ -110,6 +119,8 @@ func (s *FriendService) FriendWorkflow(ctx workflow.Context, input *FriendWorkfl
 		err = s.executePokeMessageActivity(ctx, input, &output, identity, memories)
 	case ActivityTypeMemoryPicture:
 		err = s.executeMemoryPictureActivity(ctx, input, &output, identity, memories)
+	case ActivityTypeQuestion:
+		err = s.executeQuestionActivity(ctx, input, &output)
 	}
 
 	if err != nil {
@@ -180,6 +191,21 @@ func (s *FriendService) executeMemoryPictureActivity(ctx workflow.Context, input
 		return err
 	}
 	output.MemoryPictureSent = true
+
+	return nil
+}
+
+func (s *FriendService) executeQuestionActivity(ctx workflow.Context, input *FriendWorkflowInput, output *FriendWorkflowOutput) error {
+	logger := workflow.GetLogger(ctx)
+
+	err := workflow.ExecuteActivity(ctx, s.SendQuestion, SendQuestionInput{
+		ChatID: input.ChatID,
+	}).Get(ctx, nil)
+	if err != nil {
+		logger.Error("Failed to send question", "error", err)
+		return err
+	}
+	output.QuestionSent = true
 
 	return nil
 }

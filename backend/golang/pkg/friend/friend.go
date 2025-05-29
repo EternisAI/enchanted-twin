@@ -64,6 +64,8 @@ func (s *FriendService) RegisterWorkflowsAndActivities(worker *worker.Worker, te
 	(*worker).RegisterActivity(s.SelectRandomActivity)
 	(*worker).RegisterActivity(s.StoreSentMessage)
 	(*worker).RegisterActivity(s.CheckForSimilarMessages)
+	(*worker).RegisterActivity(s.GetRandomQuestion)
+	(*worker).RegisterActivity(s.SendQuestion)
 
 	err := helpers.CreateScheduleIfNotExists(s.logger, temporalClient, "friend-workflow", 20*time.Second, s.FriendWorkflow, []any{&FriendWorkflowInput{}})
 	if err != nil {
