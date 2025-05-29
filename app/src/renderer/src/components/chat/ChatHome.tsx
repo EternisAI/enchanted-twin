@@ -19,6 +19,7 @@ import { ScrollArea } from '../ui/scroll-area'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import ChatInputBox from './ChatInputBox'
 import VoiceVisualizer from './voice/VoiceVisualizer'
+import useKokoroInstallationStatus from '@renderer/hooks/useDepencyStatus'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -56,6 +57,10 @@ export function Home() {
   const filteredChats = chats.filter((chat) =>
     chat.name.toLowerCase().includes(debouncedQuery.toLowerCase())
   )
+
+  const { installationStatus } = useKokoroInstallationStatus()
+  const isVoiceInstalled =
+    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
 
   const dummySuggestions = [
     // {
@@ -327,6 +332,7 @@ export function Home() {
         className="relative w-full"
       >
         <ChatInputBox
+          isVoiceInstalled={isVoiceInstalled}
           query={query}
           textareaRef={textareaRef}
           isReasonSelected={isReasonSelected}
