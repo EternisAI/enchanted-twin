@@ -60,7 +60,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 			}
 
 		case *memory.TextDocument:
-			s.logger.Infof("Processing TextDocument '%s' with Legacy Text Extraction", doc.ID())
+			s.logger.Infof("Processing TextDocument '%s' with Text Extraction", doc.ID())
 
 			speakerID := "user"
 			objectsForThisDoc, err = s.processTextDocumentForSpeaker(
@@ -130,7 +130,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 	return nil
 }
 
-// processTextDocumentForSpeaker handles legacy text document processing using the TextDocument prompt.
+// processTextDocumentForSpeaker handles text document processing using the TextDocument prompt.
 func (s *WeaviateStorage) processTextDocumentForSpeaker(
 	ctx context.Context,
 	textDoc memory.TextDocument,
@@ -142,7 +142,7 @@ func (s *WeaviateStorage) processTextDocumentForSpeaker(
 
 	extractedFacts, err := s.extractFactsFromTextDocument(ctx, textDoc, speakerID, currentSystemDate, docEventDateStr)
 	if err != nil {
-		s.logger.Errorf("Legacy text fact extraction failed for speaker %s, doc ID %s: %v", speakerID, textDoc.ID(), err)
+		s.logger.Errorf("Text fact extraction failed for speaker %s, doc ID %s: %v", speakerID, textDoc.ID(), err)
 		return nil, err
 	}
 

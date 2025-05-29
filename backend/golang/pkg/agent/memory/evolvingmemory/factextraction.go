@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/openai/openai-go"
 
@@ -97,18 +96,13 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 	return extractedFacts, nil
 }
 
-// extractFactsFromTextDocument extracts facts from legacy text documents.
+// extractFactsFromTextDocument extracts facts from text documents.
 func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
-	s.logger.Infof("== Starting Legacy Text Fact Extraction for Speaker: %s == (Document ID: '%s')", speakerID, textDoc.ID())
+	s.logger.Infof("== Starting Text Fact Extraction for Speaker: %s == (Document ID: '%s')", speakerID, textDoc.ID())
 
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
-
-	// Use the legacy TextDocument prompt (still needs templating for legacy support)
-	sysPrompt := strings.ReplaceAll(TextDocumentFactExtractionPrompt, "{speaker_name}", speakerID)
-	sysPrompt = strings.ReplaceAll(sysPrompt, "{current_date}", currentSystemDate)
-	sysPrompt = strings.ReplaceAll(sysPrompt, "{content_date}", docEventDateStr)
 
 	content := textDoc.Content()
 	if content == "" {
@@ -117,15 +111,15 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, text
 	}
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(sysPrompt),
+		openai.SystemMessage(TextDocumentFactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
-	s.logger.Debugf("Calling LLM for Legacy Text Fact Extraction (%s). Model: %s, Tools: %d tools", speakerID, openAIChatModel, len(factExtractionToolsList))
+	s.logger.Debugf("Calling LLM for Text Fact Extraction (%s). Model: %s, Tools: %d tools", speakerID, openAIChatModel, len(factExtractionToolsList))
 
 	llmResponse, err := s.completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
 	if err != nil {
-		s.logger.Errorf("LLM completion error during legacy text fact extraction for speaker %s in document %s: %v", speakerID, textDoc.ID(), err)
+		s.logger.Errorf("LLM completion error during text fact extraction for speaker %s in document %s: %v", speakerID, textDoc.ID(), err)
 		return nil, fmt.Errorf("LLM completion error for speaker %s, document %s: %w", speakerID, textDoc.ID(), err)
 	}
 
@@ -141,11 +135,11 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, text
 					s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from text document %s: %v. Arguments: %s", speakerID, textDoc.ID(), err, toolCall.Function.Arguments)
 				}
 			} else {
-				s.logger.Warnf("LLM called an unexpected tool '%s' during legacy text fact extraction for speaker %s from text document %s.", toolCall.Function.Name, speakerID, textDoc.ID())
+				s.logger.Warnf("LLM called an unexpected tool '%s' during text fact extraction for speaker %s from text document %s.", toolCall.Function.Name, speakerID, textDoc.ID())
 			}
 		}
 	} else {
-		s.logger.Info("LLM response for legacy text fact extraction for speaker %s from text document %s did not contain tool calls. No facts extracted by tool.", speakerID, textDoc.ID())
+		s.logger.Info("LLM response for text fact extraction for speaker %s from text document %s did not contain tool calls. No facts extracted by tool.", speakerID, textDoc.ID())
 	}
 
 	return extractedFacts, nil

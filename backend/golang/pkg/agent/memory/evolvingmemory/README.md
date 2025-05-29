@@ -2,7 +2,7 @@
 
 ## TL;DR for Contributors 🚀
 
-The memory system now uses a **unified `Document` interface** that supports both legacy text documents and structured conversations. This means:
+The memory system now uses a **unified `Document` interface** that supports both text documents and structured conversations. This means:
 
 - ✅ **All existing code continues to work** (backward compatibility)
 - ✅ **New structured conversation data gets rich processing** with facts about all participants
@@ -41,7 +41,7 @@ case *memory.ConversationDocument:
     // Rich conversation processing: extracts facts about primaryUser AND other participants
     facts := s.extractFactsFromConversation(ctx, *typedDoc, speakerID, currentDate, docDate)
 case *memory.TextDocument:
-    // Legacy text processing: simple fact extraction
+    // Text processing: fact extraction from unstructured content
     facts := s.extractFactsFromTextDocument(ctx, *typedDoc, speakerID, currentDate, docDate)
 }
 ```
@@ -50,7 +50,7 @@ case *memory.TextDocument:
 
 ## Overview
 
-The memory system uses a **unified `Document` interface** that allows both `TextDocument` (legacy) and `ConversationDocument` (structured) to be stored and processed seamlessly. This provides:
+The memory system uses a **unified `Document` interface** that allows both `TextDocument` and `ConversationDocument` (structured) to be stored and processed seamlessly. This provides:
 
 - ✅ **Backward Compatibility**: Existing text-based ingestion continues to work
 - ✅ **Forward Compatibility**: New structured conversation data gets rich processing
@@ -76,7 +76,7 @@ type Document interface {
 
 ## Document Types
 
-### TextDocument (Legacy) 
+### TextDocument
 **Use for:** Single-author content, unstructured text, quick integration
 
 ```go
@@ -353,11 +353,11 @@ func ProcessDataSource(rawData []byte) []memory.ConversationDocument {
 ### Storage Calls
 
 ```go
-// Before (old way - still works!)
+// Text processing (continues to work!)
 textDocs := processDataAsText(data)
 err := storage.Store(ctx, memory.TextDocumentsToDocuments(textDocs), nil)
 
-// After (new way - when ready)
+// Conversation processing (when structured data available)
 convDocs := processDataAsConversations(data)  
 err := storage.Store(ctx, memory.ConversationDocumentsToDocuments(convDocs), nil)
 ```
@@ -412,7 +412,7 @@ The memory system used to be over-engineered with complex context building, temp
 
 ### After (Simple) ✅  
 - **One function**: `normalizeAndFormatConversation()`
-- **Static prompt**: No templating whatsoever
+- **Static prompt**: No templating for conversations
 - **JSON marshal**: Direct conversion of conversation structure
 - **~30 lines** vs 150+ lines before
 

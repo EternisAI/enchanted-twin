@@ -87,34 +87,7 @@ func (cd *ConversationDocument) Source() string {
 	return cd.FieldSource
 }
 
-// ToTextDocument converts a ConversationDocument to the legacy TextDocument format.
-func (cd *ConversationDocument) ToTextDocument() *TextDocument {
-	// Use the timestamp of the first message if available
-	var timestamp *time.Time
-	if len(cd.Conversation) > 0 {
-		timestamp = &cd.Conversation[0].Time
-	}
-
-	// Copy metadata and add conversation-specific metadata
-	metadata := make(map[string]string)
-	if cd.FieldMetadata != nil {
-		for k, v := range cd.FieldMetadata {
-			metadata[k] = v
-		}
-	}
-	metadata["user"] = cd.User // User remains in metadata for TextDocument
-
-	return &TextDocument{
-		FieldID:        cd.FieldID,
-		FieldContent:   cd.Content(), // Simplified to use Content() method
-		FieldTimestamp: timestamp,
-		FieldSource:    cd.FieldSource, // Added: Populate top-level FieldSource
-		FieldTags:      cd.FieldTags,
-		FieldMetadata:  metadata,
-	}
-}
-
-// TextDocument represents a legacy document format used internally by storage.
+// TextDocument represents a document format used internally by storage.
 type TextDocument struct {
 	FieldID        string            `json:"id"`
 	FieldContent   string            `json:"content"`
