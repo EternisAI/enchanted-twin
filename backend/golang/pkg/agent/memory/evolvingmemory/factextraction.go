@@ -117,7 +117,7 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, text
 	}
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(TextDocumentFactExtractionPrompt),
+		openai.SystemMessage(TextFactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
