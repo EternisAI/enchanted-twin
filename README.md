@@ -61,6 +61,7 @@ TELEGRAM_TOKEN=xxx \
 TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://08cace00a6a1a7bb1030eaf1bf3ba91a9759a91e-8080.dstack-prod6.phala.network/mcp \
 POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
+INVITE_SERVER_URL=http://52.90.4.74:8080 \
 make build-mac-silicon
 ```
 
@@ -82,6 +83,7 @@ TELEGRAM_TOKEN=xxx \
 TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://afb4264d05208988909faf4b50978b747a1eb019-8080.dstack-prod7.phala.network/mcp \
 POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
+INVITE_SERVER_URL=http://52.90.4.74:8080 \
 make build-all
 ```
 
@@ -103,6 +105,7 @@ TELEGRAM_TOKEN=xxx \
 TELEGRAM_CHAT_SERVER=http://54.82.31.213:8080/query \
 ENCHANTED_MCP_URL=https://afb4264d05208988909faf4b50978b747a1eb019-8080.dstack-prod7.phala.network/mcp \
 POSTHOG_API_KEY=phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8 \
+INVITE_SERVER_URL=http://52.90.4.74:8080 \
 pnpm build-local:mac
 ```
 
