@@ -85,6 +85,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           ENCHANTED_MCP_URL: https://afb4264d05208988909faf4b50978b747a1eb019-8080.dstack-prod7.phala.network/mcp
           POSTHOG_API_KEY: phc_z8xhkNCHHUClOYiQ79nLsMeY7rxbWqCpI8KQUmmcKd8
+          INVITE_SERVER_URL: http://52.90.4.74:8080
         run: make build-mac-silicon
 
       - name: Upload release artifacts to GitHub
