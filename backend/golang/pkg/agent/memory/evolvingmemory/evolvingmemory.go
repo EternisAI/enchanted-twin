@@ -197,7 +197,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		}
 	}
 
-	metadataMap := make(map[string]string) // This will hold all metadata, including speakerID if present
+	metadataMap := make(map[string]string) // This will hold all metadata, including speakerID if it was stored
 	if metadataJSON != "" {
 		if errJson := json.Unmarshal([]byte(metadataJSON), &metadataMap); errJson != nil {
 			s.logger.Warnf("Failed to unmarshal metadataJson for document ID '%s': %v. Metadata will be empty.", id, errJson)
@@ -206,11 +206,11 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 	}
 
 	doc := &memory.TextDocument{
-		ID:        obj.ID.String(), // Use the ID from Weaviate's object, converting to string
-		Content:   content,
-		Timestamp: docTimestampP,
-		Tags:      tags,
-		Metadata:  metadataMap, // speakerID is now part of this map if it was stored
+		FieldID:        obj.ID.String(), // Use the ID from Weaviate's object, converting to string
+		FieldContent:   content,
+		FieldTimestamp: docTimestampP,
+		FieldTags:      tags,
+		FieldMetadata:  metadataMap, // speakerID is now part of this map if it was stored
 	}
 
 	s.logger.Debugf("Successfully retrieved document by ID: %s. speakerID from metadata: '%s'", id, metadataMap["speakerID"])
@@ -223,28 +223,28 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	s.logger.Debugf("Attempting to update document ID: %s", id)
 
 	data := map[string]interface{}{
-		contentProperty: doc.Content,
+		contentProperty: doc.FieldContent,
 	}
 
-	if doc.Timestamp != nil {
-		data[timestampProperty] = doc.Timestamp.Format(time.RFC3339)
+	if doc.FieldTimestamp != nil {
+		data[timestampProperty] = doc.FieldTimestamp.Format(time.RFC3339)
 	}
-	if len(doc.Tags) > 0 {
-		data[tagsProperty] = doc.Tags
+	if len(doc.FieldTags) > 0 {
+		data[tagsProperty] = doc.FieldTags
 	} else {
 		data[tagsProperty] = []string{} // Explicitly clear tags if doc.Tags is empty
 	}
 
 	// All metadata, including speakerID, is expected to be in doc.Metadata.
 	// This map will be marshaled into the metadataJson field.
-	if len(doc.Metadata) > 0 {
-		metadataBytes, err := json.Marshal(doc.Metadata) // doc.Metadata should contain speakerID if it's set
+	if len(doc.FieldMetadata) > 0 {
+		metadataBytes, err := json.Marshal(doc.FieldMetadata)
 		if err != nil {
 			s.logger.Errorf("Failed to marshal metadata for document ID '%s': %v", id, err)
 			return fmt.Errorf("marshaling metadata for update: %w", err)
 		}
 		data[metadataProperty] = string(metadataBytes)
-		s.logger.Debugf("Updating doc %s, speakerID in marshaled metadata: '%s'", id, doc.Metadata["speakerID"])
+		s.logger.Debugf("Updating doc %s, speakerID in marshaled metadata: '%s'", id, doc.FieldMetadata["speakerID"])
 	} else {
 		data[metadataProperty] = "{}" // Store an empty JSON object string if no metadata
 		s.logger.Debugf("Updating doc %s with empty metadataJson", id)

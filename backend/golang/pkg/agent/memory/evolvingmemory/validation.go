@@ -24,7 +24,7 @@ func ParseStructuredConversationFromJSON(jsonData []byte) (*memory.ConversationD
 
 // ValidateConversationDocument validates a ConversationDocument for required fields and consistency.
 func ValidateConversationDocument(doc *memory.ConversationDocument) error {
-	if doc.ID == "" {
+	if doc.ID() == "" {
 		return fmt.Errorf("document ID is required")
 	}
 
@@ -88,7 +88,7 @@ func ValidateConversationDocument(doc *memory.ConversationDocument) error {
 func CreateExampleConversationDocument() *memory.ConversationDocument {
 	now := time.Now()
 	return &memory.ConversationDocument{
-		ID: "example_conversation_001",
+		FieldID: "example_conversation_001",
 		Conversation: memory.StructuredConversation{
 			Source: "chat_app",
 			People: []string{"Alice", "Bob"},
@@ -121,8 +121,8 @@ func CreateExampleConversationDocument() *memory.ConversationDocument {
 				},
 			},
 		},
-		Tags: []string{"food", "recommendations", "casual"},
-		Metadata: map[string]string{
+		FieldTags: []string{"food", "recommendations", "casual"},
+		FieldMetadata: map[string]string{
 			"session_type": "casual_chat",
 			"platform":     "messaging_app",
 		},

@@ -122,11 +122,11 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		}
 
 		finalResults = append(finalResults, memory.TextDocument{
-			ID:        id,
-			Content:   content,
-			Timestamp: parsedTimestamp,
-			Metadata:  metaMap,
-			Tags:      tags,
+			FieldID:        id,
+			FieldContent:   content,
+			FieldTimestamp: parsedTimestamp,
+			FieldMetadata:  metaMap,
+			FieldTags:      tags,
 		})
 	}
 	s.logger.Info("Query processed successfully.", "num_results_returned_after_filtering", len(finalResults))

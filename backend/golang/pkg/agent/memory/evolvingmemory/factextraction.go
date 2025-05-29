@@ -13,7 +13,7 @@ import (
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
 func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
-	s.logger.Infof("== Starting Fact Extraction for Speaker: %s == (Conversation ID: '%s')", speakerID, convDoc.ID)
+	s.logger.Infof("== Starting Fact Extraction for Speaker: %s == (Conversation ID: '%s')", speakerID, convDoc.ID())
 
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
@@ -38,7 +38,7 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 	}
 
 	if parsedTurnsCount == 0 {
-		s.logger.Warnf("No valid turns found in conversation for speaker %s in conversation %s.", speakerID, convDoc.ID)
+		s.logger.Warnf("No valid turns found in conversation for speaker %s in conversation %s.", speakerID, convDoc.ID())
 		return []string{}, nil
 	}
 
@@ -53,8 +53,8 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 
 	llmResponse, err := s.completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
 	if err != nil {
-		s.logger.Errorf("LLM completion error during fact extraction for speaker %s in conversation %s: %v", speakerID, convDoc.ID, err)
-		return nil, fmt.Errorf("LLM completion error for speaker %s, conversation %s: %w", speakerID, convDoc.ID, err)
+		s.logger.Errorf("LLM completion error during fact extraction for speaker %s in conversation %s: %v", speakerID, convDoc.ID(), err)
+		return nil, fmt.Errorf("LLM completion error for speaker %s, conversation %s: %w", speakerID, convDoc.ID(), err)
 	}
 
 	var extractedFacts []string
@@ -64,16 +64,16 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 				var args ExtractFactsToolArguments
 				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
 					extractedFacts = append(extractedFacts, args.Facts...)
-					s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from conversation %s.", len(args.Facts), speakerID, convDoc.ID)
+					s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from conversation %s.", len(args.Facts), speakerID, convDoc.ID())
 				} else {
-					s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from conversation %s: %v. Arguments: %s", speakerID, convDoc.ID, err, toolCall.Function.Arguments)
+					s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from conversation %s: %v. Arguments: %s", speakerID, convDoc.ID(), err, toolCall.Function.Arguments)
 				}
 			} else {
-				s.logger.Warnf("LLM called an unexpected tool '%s' during fact extraction for speaker %s from conversation %s.", toolCall.Function.Name, speakerID, convDoc.ID)
+				s.logger.Warnf("LLM called an unexpected tool '%s' during fact extraction for speaker %s from conversation %s.", toolCall.Function.Name, speakerID, convDoc.ID())
 			}
 		}
 	} else {
-		s.logger.Info("LLM response for fact extraction for speaker %s from conversation %s did not contain tool calls. No facts extracted by tool.", speakerID, convDoc.ID)
+		s.logger.Info("LLM response for fact extraction for speaker %s from conversation %s did not contain tool calls. No facts extracted by tool.", speakerID, convDoc.ID())
 	}
 
 	return extractedFacts, nil

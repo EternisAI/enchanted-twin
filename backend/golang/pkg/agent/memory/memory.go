@@ -1,4 +1,4 @@
-// Owner: johan@eternis.ai
+// Owner: dmitry@eternis.ai
 package memory
 
 import (
@@ -10,16 +10,11 @@ import (
 
 // Document interface that both TextDocument and ConversationDocument implement.
 type Document interface {
-	GetID() string
-	GetContent() string
-	GetTimestamp() *time.Time
-	GetTags() []string
-	GetMetadata() map[string]string
-
-	// Type discrimination methods
-	IsConversation() bool
-	AsConversation() (*ConversationDocument, bool)
-	AsText() (*TextDocument, bool)
+	ID() string
+	Content() string
+	Timestamp() *time.Time
+	Tags() []string
+	Metadata() map[string]string
 }
 
 // ConversationMessage represents a single message in a conversation.
@@ -39,18 +34,18 @@ type StructuredConversation struct {
 
 // ConversationDocument represents a document containing structured conversation data.
 type ConversationDocument struct {
-	ID           string                 `json:"id"`
-	Conversation StructuredConversation `json:"conversation"`
-	Tags         []string               `json:"tags,omitempty"`
-	Metadata     map[string]string      `json:"metadata,omitempty"`
+	FieldID       string                 `json:"id"`
+	Conversation  StructuredConversation `json:"conversation"`
+	FieldTags     []string               `json:"tags,omitempty"`
+	FieldMetadata map[string]string      `json:"metadata,omitempty"`
 }
 
 // Document interface implementation for ConversationDocument.
-func (cd *ConversationDocument) GetID() string {
-	return cd.ID
+func (cd *ConversationDocument) ID() string {
+	return cd.FieldID
 }
 
-func (cd *ConversationDocument) GetContent() string {
+func (cd *ConversationDocument) Content() string {
 	var content strings.Builder
 	for _, msg := range cd.Conversation.Conversation {
 		content.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content))
@@ -58,37 +53,25 @@ func (cd *ConversationDocument) GetContent() string {
 	return strings.TrimSpace(content.String())
 }
 
-func (cd *ConversationDocument) GetTimestamp() *time.Time {
+func (cd *ConversationDocument) Timestamp() *time.Time {
 	if len(cd.Conversation.Conversation) > 0 {
 		return &cd.Conversation.Conversation[0].Time
 	}
 	return nil
 }
 
-func (cd *ConversationDocument) GetTags() []string {
-	return cd.Tags
+func (cd *ConversationDocument) Tags() []string {
+	return cd.FieldTags
 }
 
-func (cd *ConversationDocument) GetMetadata() map[string]string {
+func (cd *ConversationDocument) Metadata() map[string]string {
 	metadata := make(map[string]string)
-	for k, v := range cd.Metadata {
+	for k, v := range cd.FieldMetadata {
 		metadata[k] = v
 	}
 	metadata["source"] = cd.Conversation.Source
 	metadata["user"] = cd.Conversation.User
 	return metadata
-}
-
-func (cd *ConversationDocument) IsConversation() bool {
-	return true
-}
-
-func (cd *ConversationDocument) AsConversation() (*ConversationDocument, bool) {
-	return cd, true
-}
-
-func (cd *ConversationDocument) AsText() (*TextDocument, bool) {
-	return cd.ToTextDocument(), true
 }
 
 // ToTextDocument converts a ConversationDocument to the legacy TextDocument format.
@@ -107,61 +90,49 @@ func (cd *ConversationDocument) ToTextDocument() *TextDocument {
 
 	// Copy metadata and add conversation-specific metadata
 	metadata := make(map[string]string)
-	for k, v := range cd.Metadata {
+	for k, v := range cd.FieldMetadata {
 		metadata[k] = v
 	}
 	metadata["source"] = cd.Conversation.Source
 	metadata["user"] = cd.Conversation.User
 
 	return &TextDocument{
-		ID:        cd.ID,
-		Content:   strings.TrimSpace(content.String()),
-		Timestamp: timestamp,
-		Tags:      cd.Tags,
-		Metadata:  metadata,
+		FieldID:        cd.FieldID,
+		FieldContent:   strings.TrimSpace(content.String()),
+		FieldTimestamp: timestamp,
+		FieldTags:      cd.FieldTags,
+		FieldMetadata:  metadata,
 	}
 }
 
 // TextDocument represents a legacy document format used internally by storage.
 type TextDocument struct {
-	ID        string
-	Content   string
-	Timestamp *time.Time
-	Tags      []string
-	Metadata  map[string]string
+	FieldID        string            `json:"id"`
+	FieldContent   string            `json:"content"`
+	FieldTimestamp *time.Time        `json:"timestamp"`
+	FieldTags      []string          `json:"tags,omitempty"`
+	FieldMetadata  map[string]string `json:"metadata,omitempty"`
 }
 
 // Document interface implementation for TextDocument.
-func (td *TextDocument) GetID() string {
-	return td.ID
+func (td *TextDocument) ID() string {
+	return td.FieldID
 }
 
-func (td *TextDocument) GetContent() string {
-	return td.Content
+func (td *TextDocument) Content() string {
+	return td.FieldContent
 }
 
-func (td *TextDocument) GetTimestamp() *time.Time {
-	return td.Timestamp
+func (td *TextDocument) Timestamp() *time.Time {
+	return td.FieldTimestamp
 }
 
-func (td *TextDocument) GetTags() []string {
-	return td.Tags
+func (td *TextDocument) Tags() []string {
+	return td.FieldTags
 }
 
-func (td *TextDocument) GetMetadata() map[string]string {
-	return td.Metadata
-}
-
-func (td *TextDocument) IsConversation() bool {
-	return false
-}
-
-func (td *TextDocument) AsConversation() (*ConversationDocument, bool) {
-	return nil, false
-}
-
-func (td *TextDocument) AsText() (*TextDocument, bool) {
-	return td, true
+func (td *TextDocument) Metadata() map[string]string {
+	return td.FieldMetadata
 }
 
 // MemoryFact represents an extracted fact about a person.
