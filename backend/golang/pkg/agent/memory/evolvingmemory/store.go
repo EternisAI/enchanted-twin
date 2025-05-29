@@ -56,17 +56,15 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocu
 		}
 
 		convDocFromText := memory.ConversationDocument{
-			FieldID: sessionDoc.ID(),
-			Conversation: memory.StructuredConversation{
-				Source: source, // Use fetched source
-				People: []string{"user"},
-				User:   "user",
-				Conversation: []memory.ConversationMessage{
-					{
-						Speaker: "user",
-						Content: sessionDoc.Content(),
-						Time:    *timestamp,
-					},
+			FieldID:     sessionDoc.ID(),
+			FieldSource: source, // Use fetched source
+			People:      []string{"user"},
+			User:        "user",
+			Conversation: []memory.ConversationMessage{
+				{
+					Speaker: "user",
+					Content: sessionDoc.Content(),
+					Time:    *timestamp,
 				},
 			},
 			FieldTags:     sessionDoc.Tags(),
