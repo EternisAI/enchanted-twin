@@ -3,7 +3,6 @@ package memory
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -49,7 +48,10 @@ func (cd *ConversationDocument) Content() string {
 		if trimmedMsgContent == "" {
 			continue // Skip messages with only whitespace content
 		}
-		content.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, trimmedMsgContent)) // Use trimmed content
+		content.WriteString(msg.Speaker)
+		content.WriteString(": ")
+		content.WriteString(trimmedMsgContent)
+		content.WriteString("\n")
 		hasContent = true
 	}
 	if !hasContent {

@@ -32,7 +32,7 @@ func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string
 	normalized.User = "primaryUser"
 
 	// Just JSON marshal the whole thing
-	jsonBytes, err := json.MarshalIndent(normalized, "", "  ")
+	jsonBytes, err := json.Marshal(normalized)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal conversation: %w", err)
 	}
