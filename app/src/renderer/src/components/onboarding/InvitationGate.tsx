@@ -87,11 +87,8 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   if (mcpLoading || whitelistLoading) {
     return (
       <div className="flex justify-center py-8 w-full">
-        <OnboardingLayout
-          title="Initializing Enchanted"
-          subtitle="Please wait while we check your status"
-        >
-          <div className="flex justify-center py-8 w-full">
+        <OnboardingLayout title="Initializing Enchanted" subtitle="Checking whitelist status...">
+          <div className="flex justify-center py-0 w-full text-primary">
             <Loader2 className="h-8 w-8 animate-spin" />
           </div>
         </OnboardingLayout>
