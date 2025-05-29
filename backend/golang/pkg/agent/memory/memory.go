@@ -15,6 +15,7 @@ type Document interface {
 	Timestamp() *time.Time
 	Tags() []string
 	Metadata() map[string]string
+	Source() string
 }
 
 // ConversationMessage represents a single message in a conversation.
@@ -24,20 +25,15 @@ type ConversationMessage struct {
 	Time    time.Time `json:"time"`
 }
 
-// StructuredConversation represents the explicit conversation format.
-type StructuredConversation struct {
-	Source       string                `json:"source"`
-	People       []string              `json:"people"`
-	User         string                `json:"user"`
-	Conversation []ConversationMessage `json:"conversation"`
-}
-
 // ConversationDocument represents a document containing structured conversation data.
 type ConversationDocument struct {
-	FieldID       string                 `json:"id"`
-	Conversation  StructuredConversation `json:"conversation"`
-	FieldTags     []string               `json:"tags,omitempty"`
-	FieldMetadata map[string]string      `json:"metadata,omitempty"`
+	FieldID       string                `json:"id"`
+	FieldSource   string                `json:"source"`       // Merged from StructuredConversation
+	People        []string              `json:"people"`       // Merged from StructuredConversation
+	User          string                `json:"user"`         // Merged from StructuredConversation
+	Conversation  []ConversationMessage `json:"conversation"` // Merged from StructuredConversation
+	FieldTags     []string              `json:"tags,omitempty"`
+	FieldMetadata map[string]string     `json:"metadata,omitempty"`
 }
 
 // Document interface implementation for ConversationDocument.
@@ -47,15 +43,15 @@ func (cd *ConversationDocument) ID() string {
 
 func (cd *ConversationDocument) Content() string {
 	var content strings.Builder
-	for _, msg := range cd.Conversation.Conversation {
+	for _, msg := range cd.Conversation {
 		content.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content))
 	}
 	return strings.TrimSpace(content.String())
 }
 
 func (cd *ConversationDocument) Timestamp() *time.Time {
-	if len(cd.Conversation.Conversation) > 0 {
-		return &cd.Conversation.Conversation[0].Time
+	if len(cd.Conversation) > 0 {
+		return &cd.Conversation[0].Time
 	}
 	return nil
 }
@@ -66,39 +62,43 @@ func (cd *ConversationDocument) Tags() []string {
 
 func (cd *ConversationDocument) Metadata() map[string]string {
 	metadata := make(map[string]string)
-	for k, v := range cd.FieldMetadata {
-		metadata[k] = v
+	if cd.FieldMetadata != nil {
+		for k, v := range cd.FieldMetadata {
+			metadata[k] = v
+		}
 	}
-	metadata["source"] = cd.Conversation.Source
-	metadata["user"] = cd.Conversation.User
+	metadata["source"] = cd.FieldSource
+	metadata["user"] = cd.User
+	// Add people to metadata if needed, for now, it's directly accessible
+	// metadata["people"] = strings.Join(cd.People, ", ")
 	return metadata
+}
+
+func (cd *ConversationDocument) Source() string {
+	return cd.FieldSource
 }
 
 // ToTextDocument converts a ConversationDocument to the legacy TextDocument format.
 func (cd *ConversationDocument) ToTextDocument() *TextDocument {
-	var content strings.Builder
-
-	for _, msg := range cd.Conversation.Conversation {
-		content.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content))
-	}
-
 	// Use the timestamp of the first message if available
 	var timestamp *time.Time
-	if len(cd.Conversation.Conversation) > 0 {
-		timestamp = &cd.Conversation.Conversation[0].Time
+	if len(cd.Conversation) > 0 {
+		timestamp = &cd.Conversation[0].Time
 	}
 
 	// Copy metadata and add conversation-specific metadata
 	metadata := make(map[string]string)
-	for k, v := range cd.FieldMetadata {
-		metadata[k] = v
+	if cd.FieldMetadata != nil {
+		for k, v := range cd.FieldMetadata {
+			metadata[k] = v
+		}
 	}
-	metadata["source"] = cd.Conversation.Source
-	metadata["user"] = cd.Conversation.User
+	metadata["source"] = cd.FieldSource // Use direct field
+	metadata["user"] = cd.User          // Use direct field
 
 	return &TextDocument{
 		FieldID:        cd.FieldID,
-		FieldContent:   strings.TrimSpace(content.String()),
+		FieldContent:   cd.Content(), // Simplified to use Content() method
 		FieldTimestamp: timestamp,
 		FieldTags:      cd.FieldTags,
 		FieldMetadata:  metadata,
@@ -132,7 +132,20 @@ func (td *TextDocument) Tags() []string {
 }
 
 func (td *TextDocument) Metadata() map[string]string {
+	// Ensure metadata is not nil, especially if "source" might be missing
+	if td.FieldMetadata == nil {
+		return make(map[string]string)
+	}
 	return td.FieldMetadata
+}
+
+func (td *TextDocument) Source() string {
+	if td.FieldMetadata != nil {
+		if source, ok := td.FieldMetadata["source"]; ok {
+			return source
+		}
+	}
+	return "" // Return empty string if source is not found
 }
 
 // MemoryFact represents an extracted fact about a person.
@@ -169,7 +182,9 @@ type Storage interface {
 func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
 	docs := make([]Document, len(textDocs))
 	for i := range textDocs {
-		docs[i] = &textDocs[i]
+		// Create a new variable for the address operation to avoid capturing loop variable
+		doc := textDocs[i]
+		docs[i] = &doc
 	}
 	return docs
 }
@@ -178,7 +193,9 @@ func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
 func ConversationDocumentsToDocuments(convDocs []ConversationDocument) []Document {
 	docs := make([]Document, len(convDocs))
 	for i := range convDocs {
-		docs[i] = &convDocs[i]
+		// Create a new variable for the address operation to avoid capturing loop variable
+		doc := convDocs[i]
+		docs[i] = &doc
 	}
 	return docs
 }

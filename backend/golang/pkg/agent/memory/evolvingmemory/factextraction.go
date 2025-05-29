@@ -28,7 +28,7 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 	var conversationBuilder strings.Builder
 	parsedTurnsCount := 0
 
-	for _, msg := range convDoc.Conversation.Conversation {
+	for _, msg := range convDoc.Conversation {
 		if strings.TrimSpace(msg.Content) == "" {
 			continue
 		}
