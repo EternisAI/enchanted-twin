@@ -255,11 +255,11 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 		textDocuments = append(textDocuments, memory.TextDocument{
 			FieldContent:   fullContent,
 			FieldTimestamp: &record.Timestamp,
+			FieldSource:    "chatgpt",
 			FieldTags:      []string{"chat", "chatgpt", "conversation"},
 			FieldMetadata: map[string]string{
-				"type":   "conversation",
-				"title":  title,
-				"source": "chatgpt",
+				"type":  "conversation",
+				"title": title,
 			},
 		})
 	}
