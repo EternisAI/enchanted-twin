@@ -9,6 +9,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -163,7 +164,7 @@ func (w *DataProcessingWorkflows) XIndexActivity(
 		return XIndexActivityResponse{}, err
 	}
 	w.Logger.Info("X", "tweets", len(documents))
-	err = w.Memory.Store(ctx, documents, nil)
+	err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), nil)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}

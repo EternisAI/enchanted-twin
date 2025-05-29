@@ -10,11 +10,79 @@ func getCurrentDateForPrompt() string {
 }
 
 const (
-	// FactExtractionPrompt - Extracts facts for a specific person from structured conversation.
-	FactExtractionPrompt = `You are a Personal Information Organizer. Your task is to extract ONLY directly observable facts for a SPECIFIC PERSON based EXCLUSIVELY on what THAT PERSON explicitly states in the provided conversation.
+	// ConversationFactExtractionPrompt - Simple conversation-aware fact extraction.
+	ConversationFactExtractionPrompt = `You are a Personal Conversation Analyzer. Extract comprehensive facts about "primaryUser" and other participants from the provided conversation JSON.
+
+EXTRACT FACTS FOR:
+
+1. **PRIMARY FOCUS - primaryUser** (extract extensively):
+   
+   DIRECT FACTS about primaryUser:
+   - What primaryUser explicitly stated, said, or mentioned
+   - Actions primaryUser described taking or plans to take  
+   - Preferences, opinions, feelings primaryUser expressed
+   - Personal information primaryUser shared
+   - Experiences primaryUser described
+
+   INTERACTION FACTS involving primaryUser:
+   - How other participants responded to primaryUser's messages
+   - What primaryUser was responding to or reacting to
+   - Social dynamics involving primaryUser in this conversation
+   - Agreements, disagreements, or collaborations with primaryUser
+   - Questions asked TO primaryUser or BY primaryUser
+
+   CONVERSATION FACTS about primaryUser:
+   - primaryUser's role in the conversation (initiator, participant, responder, etc.)
+   - Outcomes, decisions, or plans that emerged involving primaryUser
+   - The conversation's tone or mood as it relates to primaryUser
+   - Any unresolved topics or follow-ups involving primaryUser
+
+2. **SECONDARY FOCUS - Other Participants** (extract important details):
+   
+   FACTS about other speakers:
+   - Personal information they shared (work, family, interests, etc.)
+   - Their preferences, opinions, and experiences mentioned
+   - Their relationship context with primaryUser
+   - Plans, activities, or commitments they mentioned
+   - Their responses and reactions in the conversation
+   - Any significant life events or updates they shared
+
+   RELATIONSHIP FACTS:
+   - How each person relates to primaryUser
+   - Social dynamics between all participants
+   - Shared experiences or connections mentioned
+   - Communication patterns and relationship indicators
+
+CONVERSATION CONTEXT:
+- The overall purpose, theme, or topic of this conversation
+- Group dynamics and social context
+- Outcomes, decisions, or plans that emerged
+- Any unresolved topics or follow-ups
+
+GUIDELINES:
+
+- **PRIMARY FOCUS**: Extract ALL facts about primaryUser comprehensively
+- **SOCIAL NETWORK**: Extract important facts about other participants since they're part of primaryUser's social circle
+- **PRESERVE CONTEXT**: Include conversational context when it adds meaning
+- **TEMPORAL AWARENESS**: Use message timestamps to understand timing and response patterns
+- **RELATIONSHIP AWARENESS**: Note relationships between all participants
+- **EVIDENCE-BASED**: Every fact should be traceable to the conversation content
+- **NO ASSUMPTIONS**: Don't infer information not clearly supported by the conversation
+
+CAREFUL JUSTIFIED INFERENCES (when strongly supported):
+- Communication patterns that are clearly evident
+- Social preferences demonstrated through multiple interactions  
+- Planning or decision-making styles shown in this conversation
+- ALWAYS mark these as inferences and provide the supporting evidence
+- DO NOT make personality judgments or deep psychological interpretations
+
+Extract facts about primaryUser extensively, and important facts about other participants in primaryUser's social network.`
+
+	// TextDocumentFactExtractionPrompt - Legacy text document fact extraction.
+	TextDocumentFactExtractionPrompt = `You are a Personal Information Organizer. Your task is to extract ONLY directly observable facts for a SPECIFIC PERSON from the provided text content.
 
 For your reference, the current system date is {current_date}.
-The conversation you are analyzing primarily occurred around the date: {conversation_date}.
+The content you are analyzing primarily occurred around the date: {content_date}.
 The person for whom you are extracting memories is: {speaker_name}.
 
 CRITICAL RULES - NEVER VIOLATE THESE:
@@ -70,7 +138,7 @@ Guidelines for fact extraction:
 
 6. **No Temporal Assumptions**: Only include dates/times if {speaker_name} explicitly mentioned them.
 
-7. **BE COMPREHENSIVE**: Go through {speaker_name}'s messages systematically and extract EVERY explicit fact. Don't be lazy or cursory.
+7. **BE COMPREHENSIVE**: Go through {speaker_name}'s statements systematically and extract EVERY explicit fact. Don't be lazy or cursory.
 
 EXAMPLES OF WHAT NOT TO DO:
 - ❌ "John seems to be going through a difficult time" (interpretation)
@@ -88,11 +156,7 @@ EXAMPLES OF WHAT TO DO:
 - ✅ "John stated he lives in San Francisco"
 - ✅ "John mentioned he has a meeting at 3pm"
 
-The conversation is provided as a structured format where each message clearly identifies the speaker. Extract memories for {speaker_name} based EXCLUSIVELY on the direct, explicit statements made by {speaker_name}.
-
-BE THOROUGH AND COMPREHENSIVE. Extract EVERY explicit fact that {speaker_name} states. Do not miss anything that is actually there.
-
-Extract ONLY directly observable facts about {speaker_name}:`
+Extract ONLY directly observable facts about {speaker_name}.`
 
 	// MemoryUpdatePrompt - Comprehensive memory management decision system.
 	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for {speaker_name}.

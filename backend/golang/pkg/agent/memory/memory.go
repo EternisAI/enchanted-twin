@@ -176,8 +176,7 @@ type ProgressUpdate struct {
 type ProgressCallback func(processed, total int)
 
 type Storage interface {
-	Store(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error
-	StoreRawData(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error
+	Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
 	Query(ctx context.Context, query string) (QueryResult, error)
 }
 
