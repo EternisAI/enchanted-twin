@@ -14,7 +14,7 @@ import (
 )
 
 // updateMemories decides and executes memory operations (ADD, UPDATE, DELETE, NONE) for a given fact.
-func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, convDoc memory.ConversationDocument) (string, *models.Object, error) {
+func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sourceDoc memory.Document, isFromTextDocument bool) (string, *models.Object, error) {
 	logContextEntity := "Speaker"
 	logContextValue := speakerID
 
@@ -47,7 +47,16 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 	}
 
 	var decisionPromptBuilder strings.Builder
-	decisionPromptBuilder.WriteString(MemoryUpdatePrompt)
+
+	// Use appropriate prompt based on document type
+	if isFromTextDocument {
+		decisionPromptBuilder.WriteString(TextMemoryUpdatePrompt)
+		s.logger.Debugf("Using TextMemoryUpdatePrompt for %s %s", logContextEntity, logContextValue)
+	} else {
+		decisionPromptBuilder.WriteString(ConversationMemoryUpdatePrompt)
+		s.logger.Debugf("Using ConversationMemoryUpdatePrompt for %s %s", logContextEntity, logContextValue)
+	}
+
 	decisionPromptBuilder.WriteString("\n\nContext:\n")
 	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for the primary user (if any, related to the new fact):\n%s\n\n", existingMemoriesForPromptStr))
 	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for the primary user:\n%s\n\n", factContent))
@@ -99,7 +108,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		factMetadata := make(map[string]string)
-		for k, v := range convDoc.Metadata() {
+		for k, v := range sourceDoc.Metadata() {
 			factMetadata[k] = v
 		}
 		if speakerID != "" { // Only add speakerID to metadata if it's not empty

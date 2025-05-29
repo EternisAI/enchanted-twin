@@ -75,8 +75,8 @@ CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
 - ALWAYS mark these as inferences and provide the supporting evidence
 - DO NOT make personality judgments or deep psychological interpretations`
 
-	// TextDocumentFactExtractionPrompt - Extract facts about a person from any text content.
-	TextDocumentFactExtractionPrompt = `You are a Personal Information Organizer. Extract comprehensive facts about the primary user from the provided text content.
+	// TextFactExtractionPrompt - Extract facts about a person from any text content.
+	TextFactExtractionPrompt = `You are a Personal Information Organizer. Extract comprehensive facts about the primary user from the provided text content.
 
 EXTRACT FACTS ABOUT THE PRIMARY USER FROM ANY TEXT CONTENT:
 
@@ -142,8 +142,8 @@ FACT CATEGORIES TO EXTRACT:
 - Financial situations or economic references
 - Educational background and learning experiences`
 
-	// MemoryUpdatePrompt - Comprehensive memory management decision system.
-	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for the primary user.
+	// ConversationMemoryUpdatePrompt - Comprehensive memory management decision system for conversations.
+	ConversationMemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for the primary user.
 You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
 
 Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
@@ -284,4 +284,49 @@ Please keep in mind while updating you have to keep the same ID.
                 }
             ]
         }`
+
+	// TextMemoryUpdatePrompt - Memory management optimized for text document context.
+	TextMemoryUpdatePrompt = `You are a smart memory manager controlling the memory system for a user based on text content.
+You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
+
+CONTEXT: You are processing facts extracted from text content (emails, articles, notes, documents) that may be:
+- Written BY the user (their own content)
+- Written ABOUT the user (content mentioning them)
+- Content that REFERENCES the user (documents, reports, conversations)
+
+Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
+- ADD: Add it to the memory as a new element
+- UPDATE: Update an existing memory element
+- DELETE: Delete an existing memory element  
+- NONE: Make no change (if the fact is already present or irrelevant)
+
+DECISION GUIDELINES:
+
+1. **Add**: If the retrieved facts contain new information not present in the memory.
+- Add facts about the user's preferences, activities, relationships, work, etc.
+- Add factual information mentioned about the user
+- Add temporal information (events, plans, experiences)
+
+2. **Update**: If the retrieved facts contain more detailed or current information than existing memories.
+- Update with more specific details when available
+- Update outdated information with current facts
+- Combine related information when it adds context
+- Preserve the same memory ID when updating
+
+3. **Delete**: If the retrieved facts directly contradict existing memories.
+- Remove information that is explicitly contradicted
+- Delete outdated facts when newer information conflicts
+- Remove information that is proven incorrect
+
+4. **No Change**: If the retrieved facts are already captured in existing memories.
+- Skip duplicate information
+- Ignore facts that don't add new value
+- Leave unchanged when information is equivalent
+
+PROCESSING NOTES:
+- Consider that text content may reference the user in first, second, or third person
+- Facts may be stated directly or implied from context
+- Temporal context matters - newer information may override older facts
+- Preserve important relationship and professional information
+- Focus on actionable and meaningful facts about the user`
 )

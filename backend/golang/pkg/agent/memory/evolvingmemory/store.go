@@ -157,23 +157,6 @@ func (s *WeaviateStorage) processTextDocumentForSpeaker(
 	}
 	s.logger.Infof("Extracted %d facts for speaker %s, text doc ID %s.", len(extractedFacts), speakerID, textDoc.ID())
 
-	// Convert TextDocument to ConversationDocument for updateMemories compatibility
-	convDocFromText := memory.ConversationDocument{
-		FieldID:     textDoc.ID(),
-		FieldSource: textDoc.Source(),
-		People:      []string{speakerID},
-		User:        speakerID,
-		Conversation: []memory.ConversationMessage{
-			{
-				Speaker: speakerID,
-				Content: textDoc.Content(),
-				Time:    *textDoc.Timestamp(),
-			},
-		},
-		FieldTags:     textDoc.Tags(),
-		FieldMetadata: textDoc.Metadata(),
-	}
-
 	for factIdx, factContent := range extractedFacts {
 		if strings.TrimSpace(factContent) == "" {
 			s.logger.Debugf("Skipping empty fact text for speaker %s, text doc ID %s.", speakerID, textDoc.ID())
@@ -182,7 +165,7 @@ func (s *WeaviateStorage) processTextDocumentForSpeaker(
 		s.logger.Infof("Processing fact %d/%d for speaker %s, text doc ID %s: \\\"%s...\\\"",
 			factIdx+1, len(extractedFacts), speakerID, textDoc.ID(), firstNChars(factContent, 70))
 
-		action, objectToAdd, updateErr := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, convDocFromText)
+		action, objectToAdd, updateErr := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, &textDoc, true)
 		if updateErr != nil {
 			s.logger.Errorf("Error updating memories for fact for speaker %s, text doc ID %s: %v. Fact: \\\"%s...\\\"",
 				speakerID, textDoc.ID(), updateErr, firstNChars(factContent, 50))
@@ -231,7 +214,7 @@ func (s *WeaviateStorage) processConversationForSpeaker(
 		s.logger.Infof("Processing fact %d/%d for speaker %s, conversation doc ID %s: \\\"%s...\\\"",
 			factIdx+1, len(extractedFacts), speakerID, convDoc.ID(), firstNChars(factContent, 70))
 
-		action, objectToAdd, updateErr := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, convDoc)
+		action, objectToAdd, updateErr := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, &convDoc, false)
 		if updateErr != nil {
 			s.logger.Errorf("Error updating memories for fact for speaker %s, conversation doc ID %s: %v. Fact: \\\"%s...\\\"",
 				speakerID, convDoc.ID(), updateErr, firstNChars(factContent, 50))
