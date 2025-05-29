@@ -7,11 +7,6 @@ on:
 jobs:
   code-review:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: read
-      issues: read
-      id-token: write
     steps:
       # Check out the code to allow git diff operations
       - name: Checkout code
