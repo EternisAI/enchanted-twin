@@ -12,7 +12,7 @@ import { toast } from 'sonner'
 
 type ChatInputBoxProps = {
   query: string
-  isVoiceInstalled: boolean
+  isVoiceReady: boolean
   textareaRef: React.RefObject<HTMLTextAreaElement | null>
   onInputChange: (query: string) => void
   handleSubmit: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void
@@ -27,7 +27,7 @@ export default function ChatInputBox({
   query,
   textareaRef,
   isReasonSelected,
-  isVoiceInstalled,
+  isVoiceReady,
   isVoiceMode,
   onInputChange,
   handleSubmit,
@@ -73,13 +73,13 @@ export default function ChatInputBox({
             onClick={() => {
               onVoiceModeChange(false)
             }}
-            isVoiceInstalled={isVoiceInstalled}
+            isVoiceReady={isVoiceReady}
           />
         )}
         {isVoiceMode && (
           <DisableVoiceModeButton
             onClick={() => onVoiceModeChange(false)}
-            isVoiceInstalled={isVoiceInstalled}
+            isVoiceReady={isVoiceReady}
           />
         )}
       </motion.div>
@@ -119,17 +119,17 @@ function ReasoningButton({ isSelected, onClick, disabled }: ReasoningButtonProps
 }
 
 interface VoiceModeButtonProps {
-  isVoiceInstalled: boolean
+  isVoiceReady: boolean
   onClick: () => void
 }
 
-export function EnableVoiceModeButton({ onClick, isVoiceInstalled }: VoiceModeButtonProps) {
+export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
           onClick={() => {
-            if (isVoiceInstalled) {
+            if (isVoiceReady) {
               onClick()
             } else {
               toast.error('Voice dependencies installation in progress')
@@ -155,7 +155,7 @@ export function EnableVoiceModeButton({ onClick, isVoiceInstalled }: VoiceModeBu
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{isVoiceInstalled ? 'Listen to output' : 'Installing voice dependencies...'}</p>
+        <p>{isVoiceReady ? 'Listen to output' : 'Installing voice dependencies...'}</p>
       </TooltipContent>
     </Tooltip>
   )

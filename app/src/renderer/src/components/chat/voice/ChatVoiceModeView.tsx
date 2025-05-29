@@ -10,7 +10,7 @@ import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 import { extractReasoningAndReply, getToolUrl } from '../config'
-import useKokoroInstallationStatus from '@renderer/hooks/useDepencyStatus'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Tooltip } from '@renderer/components/ui/tooltip'
 import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
 
@@ -129,9 +129,7 @@ export function VoiceModeSwitch({
   voiceMode: boolean
   setVoiceMode: (voiceMode: boolean) => void
 }) {
-  const { installationStatus } = useKokoroInstallationStatus()
-  const isVoiceInstalled =
-    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
+  const { isVoiceReady } = useDependencyStatus()
 
   return (
     <Tooltip>
@@ -145,7 +143,7 @@ export function VoiceModeSwitch({
               onCheckedChange={() => {
                 setVoiceMode(!voiceMode)
               }}
-              disabled={!voiceMode && !isVoiceInstalled}
+              disabled={!voiceMode && !isVoiceReady}
             />
             <label className="text-sm" htmlFor="voiceMode">
               Voice Output
@@ -153,7 +151,7 @@ export function VoiceModeSwitch({
           </div>
         </TooltipTrigger>
       </div>
-      <TooltipContent>{isVoiceInstalled ? '' : 'Installing dependencies...'}</TooltipContent>
+      <TooltipContent>{isVoiceReady ? '' : 'Installing dependencies...'}</TooltipContent>
     </Tooltip>
   )
 }

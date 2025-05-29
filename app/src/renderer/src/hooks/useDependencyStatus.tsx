@@ -9,7 +9,7 @@ interface InstallationStatus {
   error?: string
 }
 
-export default function useKokoroInstallationStatus() {
+export default function useDependencyStatus() {
   const [installationStatus, setInstallationStatus] = useState<InstallationStatus>({
     dependency: 'TTS',
     progress: 0,
@@ -42,5 +42,8 @@ export default function useKokoroInstallationStatus() {
     }
   }, [])
 
-  return { installationStatus }
+  const isVoiceReady =
+    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
+
+  return { installationStatus, isVoiceReady }
 }

@@ -7,7 +7,7 @@ import { Message, Role, UpdateProfileDocument } from '@renderer/graphql/generate
 import { useTTS } from '@renderer/hooks/useTTS'
 import { Animation, OnboardingDoneAnimation } from './Animations'
 import { useMutation } from '@apollo/client'
-import useKokoroInstallationStatus from '@renderer/hooks/useDepencyStatus'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { useTheme } from '@renderer/lib/theme'
 
 type Ask = (answers: string[]) => string
@@ -39,13 +39,10 @@ const STEPS: Step[] = [
 ]
 
 export default function VoiceOnboardingContainer() {
-  const { installationStatus } = useKokoroInstallationStatus()
+  const { installationStatus, isVoiceReady } = useDependencyStatus()
   const { theme } = useTheme()
 
-  const areDependenciesReady =
-    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
-
-  console.log('areDependenciesReady', areDependenciesReady)
+  console.log('isVoiceReady', isVoiceReady)
 
   return (
     <div
@@ -57,7 +54,7 @@ export default function VoiceOnboardingContainer() {
             : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
       }}
     >
-      {areDependenciesReady ? (
+      {isVoiceReady ? (
         <VoiceOnboarding />
       ) : (
         <div className="flex flex-col justify-center items-center h-full gap-4">
