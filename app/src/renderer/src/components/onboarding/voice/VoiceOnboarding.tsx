@@ -7,6 +7,8 @@ import { Message, Role, UpdateProfileDocument } from '@renderer/graphql/generate
 import { useTTS } from '@renderer/hooks/useTTS'
 import { Animation, OnboardingDoneAnimation } from './Animations'
 import { useMutation } from '@apollo/client'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
+import { useTheme } from '@renderer/lib/theme'
 
 type Ask = (answers: string[]) => string
 
@@ -37,21 +39,22 @@ const STEPS: Step[] = [
 ]
 
 export default function VoiceOnboardingContainer() {
-  const installationStatus = useKokoroInstallationStatus()
+  const { installationStatus, isVoiceReady } = useDependencyStatus()
+  const { theme } = useTheme()
 
-  const areDependenciesReady =
-    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
-
-  console.log('areDependenciesReady', areDependenciesReady)
+  console.log('isVoiceReady', isVoiceReady)
 
   return (
     <div
       className="w-full h-full"
       style={{
-        background: 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
+        background:
+          theme === 'light'
+            ? 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
+            : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
       }}
     >
-      {areDependenciesReady ? (
+      {isVoiceReady ? (
         <VoiceOnboarding />
       ) : (
         <div className="flex flex-col justify-center items-center h-full gap-4">
@@ -110,7 +113,6 @@ function VoiceOnboarding() {
 
     const nextPrompt = STEPS[nextIdx].ask(nextAnswers)
     speak(nextPrompt)
-    await new Promise((resolve) => setTimeout(resolve, 3000))
     setStepIdx(nextIdx)
   }
 
@@ -140,7 +142,7 @@ function VoiceOnboarding() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
       >
-        <Animation run={true} /> {/* TODO: We could use isSpeaking to run */}
+        <Animation run={isSpeaking} />
       </motion.div>
 
       <div></div>
@@ -196,49 +198,6 @@ function VoiceOnboarding() {
       </div>
     </div>
   )
-}
-
-interface InstallationStatus {
-  dependency: string
-  progress: number
-  status: string
-  error?: string
-}
-
-function useKokoroInstallationStatus() {
-  const [installationStatus, setInstallationStatus] = useState<InstallationStatus>({
-    dependency: 'TTS',
-    progress: 0,
-    status: 'Not started'
-  })
-
-  const fetchCurrentState = async () => {
-    try {
-      const currentState = await window.api.launch.getCurrentState()
-      if (currentState) {
-        setInstallationStatus(currentState)
-      }
-    } catch (error) {
-      console.error('Failed to fetch current state:', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchCurrentState()
-
-    const removeListener = window.api.launch.onProgress((data) => {
-      console.log('Launch progress update received:', data)
-      setInstallationStatus(data)
-    })
-
-    window.api.launch.notifyReady()
-
-    return () => {
-      removeListener()
-    }
-  }, [])
-
-  return installationStatus
 }
 
 // Progress is 0 to 1
