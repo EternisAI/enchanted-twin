@@ -640,7 +640,7 @@ func TestToDocuments(t *testing.T) {
 		"favoriteCount": "0",
 		"retweetCount":  "0",
 		"source":        "x",
-	}, metadata)
+	}, documents[1].Metadata())
 
 	// Check like (now third after sorting by timestamp)
 	expectedTimestamp2, _ := time.Parse(time.RFC3339, "2025-04-18T17:21:50-06:00")
@@ -654,5 +654,5 @@ func TestToDocuments(t *testing.T) {
 		"id":     "12345",
 		"url":    "",
 		"source": "x",
-	}, metadata)
+	}, documents[2].Metadata())
 }
