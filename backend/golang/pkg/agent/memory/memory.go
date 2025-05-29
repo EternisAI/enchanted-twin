@@ -102,13 +102,13 @@ func (cd *ConversationDocument) ToTextDocument() *TextDocument {
 			metadata[k] = v
 		}
 	}
-	metadata["source"] = cd.FieldSource // Use direct field
-	metadata["user"] = cd.User          // Use direct field
+	metadata["user"] = cd.User // User remains in metadata for TextDocument
 
 	return &TextDocument{
 		FieldID:        cd.FieldID,
 		FieldContent:   cd.Content(), // Simplified to use Content() method
 		FieldTimestamp: timestamp,
+		FieldSource:    cd.FieldSource, // Added: Populate top-level FieldSource
 		FieldTags:      cd.FieldTags,
 		FieldMetadata:  metadata,
 	}
@@ -119,6 +119,7 @@ type TextDocument struct {
 	FieldID        string            `json:"id"`
 	FieldContent   string            `json:"content"`
 	FieldTimestamp *time.Time        `json:"timestamp"`
+	FieldSource    string            `json:"source,omitempty"`
 	FieldTags      []string          `json:"tags,omitempty"`
 	FieldMetadata  map[string]string `json:"metadata,omitempty"`
 }
@@ -141,20 +142,15 @@ func (td *TextDocument) Tags() []string {
 }
 
 func (td *TextDocument) Metadata() map[string]string {
-	// Ensure metadata is not nil, especially if "source" might be missing
+	// Ensure metadata is not nil
 	if td.FieldMetadata == nil {
 		return make(map[string]string)
 	}
-	return td.FieldMetadata
+	return td.FieldMetadata // Source is no longer guaranteed to be in metadata; use Source() method
 }
 
 func (td *TextDocument) Source() string {
-	if td.FieldMetadata != nil {
-		if source, ok := td.FieldMetadata["source"]; ok {
-			return source
-		}
-	}
-	return "" // Return empty string if source is not found
+	return td.FieldSource // Now returns the top-level field
 }
 
 // MemoryFact represents an extracted fact about a person.
