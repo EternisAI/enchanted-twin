@@ -141,10 +141,10 @@ func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocu
 		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
 
 		textDocuments = append(textDocuments, memory.TextDocument{
-			Content:   message,
-			Timestamp: &record.Timestamp,
-			Tags:      []string{"social", "slack", "chat"},
-			Metadata: map[string]string{
+			FieldContent:   message,
+			FieldTimestamp: &record.Timestamp,
+			FieldTags:      []string{"social", "slack", "chat"},
+			FieldMetadata: map[string]string{
 				"type":           "message",
 				"channelName":    channelName,
 				"authorUsername": authorUsername,

@@ -559,10 +559,10 @@ func ToDocuments(recs []types.Record) ([]memory.TextDocument, error) {
 			continue
 		}
 		out = append(out, memory.TextDocument{
-			Content:   get("content"),
-			Timestamp: &r.Timestamp,
-			Tags:      []string{"google", "email"},
-			Metadata: map[string]string{
+			FieldContent:   get("content"),
+			FieldTimestamp: &r.Timestamp,
+			FieldTags:      []string{"google", "email"},
+			FieldMetadata: map[string]string{
 				"source":  "email",
 				"from":    get("from"),
 				"to":      get("to"),
