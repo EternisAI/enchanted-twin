@@ -5,9 +5,10 @@
 The memory system now uses a **unified `Document` interface** that supports both legacy text documents and structured conversations. This means:
 
 - ✅ **All existing code continues to work** (backward compatibility)
-- ✅ **New structured conversation data gets rich processing** 
+- ✅ **New structured conversation data gets rich processing** with facts about all participants
 - ✅ **Data sources can be upgraded gradually** (no big bang migration)
 - ✅ **Type-safe at compile time** (Go interfaces FTW)
+- ✅ **Ultra-simple implementation** - JSON marshaling, static prompts, no over-engineering
 
 ### Quick Start
 
@@ -31,17 +32,17 @@ err := storage.Store(ctx, allDocs, nil)
 
 #### Processing Documents
 
+The system automatically routes documents based on type:
+
 ```go
-for _, doc := range documents {
-    if doc.IsConversation() {
-        conv, _ := doc.AsConversation()
-        // Rich conversation processing: speaker analysis, relationships, etc.
-        processConversation(conv)
-    } else {
-        text, _ := doc.AsText()
-        // Simple text processing: keywords, sentiment, etc.
-        processText(text)
-    }
+// Internal routing in Store method:
+switch typedDoc := doc.(type) {
+case *memory.ConversationDocument:
+    // Rich conversation processing: extracts facts about primaryUser AND other participants
+    facts := s.extractFactsFromConversation(ctx, *typedDoc, speakerID, currentDate, docDate)
+case *memory.TextDocument:
+    // Legacy text processing: simple fact extraction
+    facts := s.extractFactsFromTextDocument(ctx, *typedDoc, speakerID, currentDate, docDate)
 }
 ```
 
@@ -53,8 +54,10 @@ The memory system uses a **unified `Document` interface** that allows both `Text
 
 - ✅ **Backward Compatibility**: Existing text-based ingestion continues to work
 - ✅ **Forward Compatibility**: New structured conversation data gets rich processing
+- ✅ **Social Network Extraction**: Facts about primaryUser AND their contacts/friends
 - ✅ **Gradual Migration**: Data sources can be upgraded one-by-one to structured format
 - ✅ **Type Safety**: Go interfaces ensure compile-time safety
+- ✅ **Simple Implementation**: No over-engineering, just JSON marshaling and static prompts
 
 ## Document Interface
 
@@ -62,16 +65,12 @@ All documents implement this unified interface:
 
 ```go
 type Document interface {
-    GetID() string
-    GetContent() string              // Flattened content for search
-    GetTimestamp() *time.Time
-    GetTags() []string
-    GetMetadata() map[string]string
-    
-    // Type discrimination methods
-    IsConversation() bool
-    AsConversation() (*ConversationDocument, bool)
-    AsText() (*TextDocument, bool)
+    ID() string
+    Content() string              // Flattened content for search
+    Timestamp() *time.Time
+    Tags() []string
+    Metadata() map[string]string
+    Source() string
 }
 ```
 
@@ -82,11 +81,12 @@ type Document interface {
 
 ```go
 type TextDocument struct {
-    ID        string            `json:"id"`
-    Content   string            `json:"content"`
-    Timestamp *time.Time        `json:"timestamp,omitempty"`
-    Tags      []string          `json:"tags,omitempty"`
-    Metadata  map[string]string `json:"metadata,omitempty"`
+    FieldID        string            `json:"id"`
+    FieldContent   string            `json:"content"`
+    FieldTimestamp *time.Time        `json:"timestamp"`
+    FieldSource    string            `json:"source,omitempty"`
+    FieldTags      []string          `json:"tags,omitempty"`
+    FieldMetadata  map[string]string `json:"metadata,omitempty"`
 }
 ```
 
@@ -102,17 +102,13 @@ type TextDocument struct {
 
 ```go
 type ConversationDocument struct {
-    ID           string                 `json:"id"`
-    Conversation StructuredConversation `json:"conversation"`
-    Tags         []string               `json:"tags,omitempty"`
-    Metadata     map[string]string      `json:"metadata,omitempty"`
-}
-
-type StructuredConversation struct {
-    Source       string                `json:"source"`        // "whatsapp", "slack", etc.
-    People       []string              `json:"people"`        // All participants
-    User         string                `json:"user"`          // Primary user
-    Conversation []ConversationMessage `json:"conversation"`  // Messages
+    FieldID       string                `json:"id"`
+    FieldSource   string                `json:"source"`       // "whatsapp", "slack", etc.
+    People        []string              `json:"people"`       // All participants
+    User          string                `json:"user"`         // Primary user
+    Conversation  []ConversationMessage `json:"conversation"` // Messages
+    FieldTags     []string              `json:"tags,omitempty"`
+    FieldMetadata map[string]string     `json:"metadata,omitempty"`
 }
 
 type ConversationMessage struct {
@@ -135,7 +131,7 @@ The unified storage interface accepts any document type:
 
 ```go
 type Storage interface {
-    Store(ctx context.Context, documents []Document, progressChan chan<- ProgressUpdate) error
+    Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
     Query(ctx context.Context, query string) (QueryResult, error)
 }
 ```
@@ -147,36 +143,97 @@ Convert slices to the unified interface:
 ```go
 // Convert TextDocument slice
 docs := memory.TextDocumentsToDocuments(textDocs)
-err := storage.Store(ctx, docs, progressChan)
+err := storage.Store(ctx, docs, nil)
 
 // Convert ConversationDocument slice  
 docs := memory.ConversationDocumentsToDocuments(convDocs)
-err := storage.Store(ctx, docs, progressChan)
+err := storage.Store(ctx, docs, nil)
 ```
 
-## Processing Logic
+## Processing Logic (Simplified!)
 
-The memory system automatically handles both document types:
+The memory system automatically handles both document types with **ultra-simple** processing:
 
 ```go
-func (s *WeaviateStorage) Store(ctx context.Context, documents []Document, progressChan chan<- ProgressUpdate) error {
+func (s *WeaviateStorage) Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error {
     for _, doc := range documents {
-        if doc.IsConversation() {
-            // Rich conversation processing
-            convDoc, _ := doc.AsConversation()
-            facts := s.extractFactsFromConversation(ctx, *convDoc, currentDate)
-            s.updateMemories(ctx, facts, *convDoc)
-        } else {
-            // Simple text processing
-            textDoc, _ := doc.AsText()
-            // Convert to simple conversation for consistent processing
-            simpleConv := convertTextToSimpleConversation(*textDoc)
-            facts := s.extractFactsFromConversation(ctx, simpleConv, currentDate)
-            s.updateMemories(ctx, facts, simpleConv)
+        switch typedDoc := doc.(type) {
+        case *memory.ConversationDocument:
+            // Rich conversation processing - extracts facts about ALL participants
+            conversationJSON, _ := normalizeAndFormatConversation(*typedDoc)
+            // Send JSON + static prompt to LLM - no templating, no complex context building
+            facts := s.extractFactsFromConversation(ctx, *typedDoc, speakerID, currentDate, docDate)
+            
+        case *memory.TextDocument:
+            // Legacy text processing
+            facts := s.extractFactsFromTextDocument(ctx, *typedDoc, speakerID, currentDate, docDate)
         }
     }
 }
 ```
+
+### Conversation Processing Details
+
+**What makes it simple:**
+1. **Normalize**: Replace primary user name with "primaryUser" 
+2. **JSON Marshal**: Convert entire conversation to clean JSON
+3. **Static Prompt**: No templating, no complex context building
+4. **LLM Call**: Send JSON + prompt, get facts about ALL participants
+
+```go
+// Ultra-simple conversation processing
+func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string, error) {
+    // Replace primary user name with "primaryUser"
+    normalized := replaceUserNames(convDoc)
+    
+    // Just JSON marshal the whole thing - done!
+    return json.MarshalIndent(normalized, "", "  ")
+}
+```
+
+**What the LLM receives:**
+```json
+{
+  "id": "chat_001",
+  "source": "whatsapp", 
+  "people": ["primaryUser", "Alice", "Bob"],
+  "user": "primaryUser",
+  "conversation": [
+    {
+      "speaker": "primaryUser",
+      "content": "Hey everyone, want to grab dinner?",
+      "time": "2024-01-14T14:30:15Z"
+    },
+    {
+      "speaker": "Alice", 
+      "content": "Sure! Where were you thinking?",
+      "time": "2024-01-14T14:31:02Z"
+    }
+  ]
+}
+```
+
+### Fact Extraction (Comprehensive Social Network)
+
+The system extracts facts about **ALL participants**, not just the primary user:
+
+**🔥 PRIMARY FOCUS - primaryUser** (extensive):
+- Direct facts: what they said, felt, planned, experienced
+- Interaction facts: how others responded to them
+- Conversation facts: their role, outcomes involving them
+
+**👥 SECONDARY FOCUS - Other Participants** (important details):
+- Personal info they shared (work, family, interests)
+- Their preferences, opinions, experiences
+- Their relationship context with primaryUser
+- Plans, activities, commitments they mentioned
+- Life events and updates they shared
+
+**🤝 RELATIONSHIP FACTS**:
+- How each person relates to primaryUser
+- Social dynamics between all participants
+- Shared experiences or connections
+- Communication patterns
 
 ## Migration Strategy
 
@@ -186,6 +243,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []Document, progr
 - [x] Update storage to accept `[]Document`
 - [x] Add helper conversion functions
 - [x] Update all existing callers
+- [x] Simplify fact extraction (remove over-engineering)
 
 ### Phase 2: Gradual Data Source Migration (Future)
 Upgrade data sources one-by-one to produce `ConversationDocument`:
@@ -210,10 +268,10 @@ func ProcessWhatsApp(data []byte) []memory.ConversationDocument {
 5. **Telegram** → Chat-based conversations
 
 ### Phase 3: Enhanced Processing (Future)
-- Speaker-specific fact extraction
-- Conversation context analysis
-- Relationship mapping between participants
+- Advanced relationship mapping
 - Temporal conversation analysis
+- Cross-conversation participant tracking
+- Sentiment analysis per participant
 
 ## Benefits by Document Type
 
@@ -222,10 +280,11 @@ func ProcessWhatsApp(data []byte) []memory.ConversationDocument {
 | Backward Compatible | ✅ | ✅ |
 | Quick Integration | ✅ | ⚠️ Requires parsing |
 | Speaker Analysis | ❌ | ✅ |
-| Conversation Context | ❌ | ✅ |
+| Social Network Facts | ❌ | ✅ |
 | Relationship Tracking | ❌ | ✅ |
 | Temporal Analysis | ❌ | ✅ |
 | Rich Fact Extraction | ⚠️ Basic | ✅ Advanced |
+| Implementation Complexity | ✅ Simple | ✅ Simple (now!) |
 
 ### TextDocument Processing
 - ✅ Backward compatible
@@ -235,10 +294,12 @@ func ProcessWhatsApp(data []byte) []memory.ConversationDocument {
 
 ### ConversationDocument Processing  
 - ✅ Rich speaker-specific facts
+- ✅ **Social network extraction** (facts about all participants)
 - ✅ Conversation context preservation
 - ✅ Multi-participant relationship tracking
 - ✅ Temporal message analysis
 - ✅ Source-aware processing
+- ✅ **Ultra-simple implementation** (no over-engineering)
 
 ## Usage Examples
 
@@ -257,29 +318,7 @@ convDocs := []memory.ConversationDocument{whatsappConv, slackThread}
 docs = append(docs, memory.ConversationDocumentsToDocuments(convDocs)...)
 
 // Store everything together
-err := storage.Store(ctx, docs, progressChan)
-```
-
-### Type-Specific Processing
-
-```go
-for _, doc := range documents {
-    if doc.IsConversation() {
-        conv, _ := doc.AsConversation()
-        log.Printf("Processing conversation with %d participants", len(conv.Conversation.People))
-        
-        // Rich conversation analysis
-        for _, msg := range conv.Conversation.Conversation {
-            analyzeSpeakerSentiment(msg.Speaker, msg.Content)
-        }
-    } else {
-        text, _ := doc.AsText()
-        log.Printf("Processing text document: %s", text.ID)
-        
-        // Simple text analysis
-        extractKeywords(text.Content)
-    }
-}
+err := storage.Store(ctx, docs, nil)
 ```
 
 ### Data Source Integration Patterns
@@ -289,7 +328,7 @@ for _, doc := range documents {
 func ProcessDataSource(rawData []byte) []memory.TextDocument {
     // Quick and dirty: flatten to text
     return []memory.TextDocument{
-        {ID: "doc1", Content: "flattened content"},
+        {FieldID: "doc1", FieldContent: "flattened content"},
     }
 }
 
@@ -298,15 +337,13 @@ func ProcessDataSource(rawData []byte) []memory.ConversationDocument {
     // Parse structure: speakers, timing, etc.
     return []memory.ConversationDocument{
         {
-            ID: "conv1",
-            Conversation: memory.StructuredConversation{
-                Source: "my_platform",
-                People: []string{"Alice", "Bob"},
-                User: "Alice",
-                Conversation: []memory.ConversationMessage{
-                    {Speaker: "Alice", Content: "Hello", Time: time.Now()},
-                    {Speaker: "Bob", Content: "Hi there", Time: time.Now()},
-                },
+            FieldID: "conv1",
+            FieldSource: "my_platform",
+            People: []string{"Alice", "Bob"},
+            User: "Alice",
+            Conversation: []memory.ConversationMessage{
+                {Speaker: "Alice", Content: "Hello", Time: time.Now()},
+                {Speaker: "Bob", Content: "Hi there", Time: time.Now()},
             },
         },
     }
@@ -323,39 +360,6 @@ err := storage.Store(ctx, memory.TextDocumentsToDocuments(textDocs), nil)
 // After (new way - when ready)
 convDocs := processDataAsConversations(data)  
 err := storage.Store(ctx, memory.ConversationDocumentsToDocuments(convDocs), nil)
-```
-
-### Type-Safe Processing
-
-```go
-func processDocument(doc memory.Document) error {
-    // Always safe - no casting needed
-    id := doc.GetID()
-    content := doc.GetContent()
-    
-    // Type-specific processing
-    if doc.IsConversation() {
-        conv, ok := doc.AsConversation()
-        if !ok {
-            return fmt.Errorf("failed to convert to conversation")
-        }
-        
-        // Rich processing
-        for _, msg := range conv.Conversation.Conversation {
-            analyzeSpeaker(msg.Speaker, msg.Content)
-        }
-    } else {
-        text, ok := doc.AsText()
-        if !ok {
-            return fmt.Errorf("failed to convert to text")
-        }
-        
-        // Simple processing
-        extractKeywords(text.Content)
-    }
-    
-    return nil
-}
 ```
 
 ## Best Practices
@@ -378,9 +382,10 @@ func processDocument(doc memory.Document) error {
 
 1. **Type Checking**:
    ```go
-   if doc.IsConversation() {
+   switch typedDoc := doc.(type) {
+   case *memory.ConversationDocument:
        // Handle rich conversation logic
-   } else {
+   case *memory.TextDocument:
        // Handle simple text logic
    }
    ```
@@ -393,240 +398,41 @@ func processDocument(doc memory.Document) error {
    - Batch process documents of the same type when possible
    - Use type discrimination efficiently
 
-## Error Handling
+## What We Simplified
 
-```go
-// Safe type conversion
-if conv, ok := doc.AsConversation(); ok {
-    // Process conversation
-    processConversation(conv)
-} else if text, ok := doc.AsText(); ok {
-    // Process text
-    processText(text)
-} else {
-    return fmt.Errorf("unknown document type")
-}
-```
+The memory system used to be over-engineered with complex context building, template replacement, and elaborate data structures. **We fixed that!**
 
-## Future Enhancements
+### Before (Complex) ❌
+- `ConversationContext` struct with 8+ fields
+- `EnrichedMessage` with timing calculations
+- `buildConversationContext()` - 50+ lines of complexity
+- Template replacement with 10+ variables
+- Custom text formatting
+- JSON marshaling of complex context objects
 
-The interface-based approach enables future document types:
+### After (Simple) ✅  
+- **One function**: `normalizeAndFormatConversation()`
+- **Static prompt**: No templating whatsoever
+- **JSON marshal**: Direct conversion of conversation structure
+- **~30 lines** vs 150+ lines before
 
-- `EmailThreadDocument` - Rich email threading
-- `VideoCallDocument` - Transcribed video calls  
-- `DocumentCollectionDocument` - Related document sets
-- `TimelineDocument` - Chronological event sequences
-
-Each new type would implement the `Document` interface and get automatic storage support.
-
----
-
-## ConversationDocument Format Details
-
-### Core Structure
-
-```json
-{
-  "id": "unique_conversation_identifier",
-  "conversation": {
-    "source": "source_system_name",
-    "people": ["person1", "person2", "..."],
-    "user": "primary_user_name",
-    "conversation": [
-      {
-        "speaker": "speaker_name",
-        "content": "message_content",
-        "time": "2024-01-15T10:30:00Z"
-      }
-    ]
-  },
-  "tags": ["tag1", "tag2"],
-  "metadata": {
-    "key": "value"
-  }
-}
-```
-
-### Field Descriptions
-
-#### Root Level
-- `id` (string, required): Unique identifier for the conversation document
-- `conversation` (object, required): The structured conversation data
-- `tags` (array, optional): Tags for categorization
-- `metadata` (object, optional): Additional key-value metadata
-
-#### Conversation Object
-- `source` (string, required): Identifier for the source system (e.g., "slack", "discord", "whatsapp")
-- `people` (array, required): List of all participants in the conversation
-- `user` (string, required): The primary user (must be included in the `people` array)
-- `conversation` (array, required): Array of conversation messages
-
-#### Message Object
-- `speaker` (string, required): Name of the message sender (must be in `people` array)
-- `content` (string, required): The message content
-- `time` (timestamp, required): When the message was sent (RFC3339 format)
-
-## Benefits Over Previous Format
-
-### Old Format Issues
-```
-Content: "Alice: I love pizza\\nBob: Me too\\nAlice: Especially margherita"
-Metadata: {"dataset_speaker_a": "Alice", "dataset_speaker_b": "Bob"}
-```
-
-**Problems:**
-- Implicit parsing with `\\n` and `:` separators
-- No per-message timestamps
-- Limited to 2 speakers
-- Error-prone parsing
-- No source tracking
-- Ambiguous speaker identification
-
-### New Format Advantages
-
-✅ **Explicit Structure**: No parsing required, direct JSON access  
-✅ **Per-Message Timestamps**: Precise timing information  
-✅ **Multiple Speakers**: Support for any number of participants  
-✅ **Validation**: Built-in validation ensures data integrity  
-✅ **Source Tracking**: Clear identification of conversation origin  
-✅ **User Identification**: Explicit primary user designation  
-✅ **Schema-Friendly**: Compatible with JSON Schema validation  
-✅ **Extensible**: Easy to add new fields without breaking changes  
-
-## Detailed Examples
-
-### Basic Two-Person Conversation
-
-```json
-{
-  "id": "chat_001",
-  "conversation": {
-    "source": "messaging_app",
-    "people": ["Alice", "Bob"],
-    "user": "Alice",
-    "conversation": [
-      {
-        "speaker": "Alice",
-        "content": "Hey, want to grab lunch?",
-        "time": "2024-01-15T12:00:00Z"
-      },
-      {
-        "speaker": "Bob",
-        "content": "Sure! How about that new pizza place?",
-        "time": "2024-01-15T12:01:00Z"
-      },
-      {
-        "speaker": "Alice",
-        "content": "Perfect! I love pizza. See you at 1pm?",
-        "time": "2024-01-15T12:02:00Z"
-      }
-    ]
-  },
-  "tags": ["food", "plans"],
-  "metadata": {
-    "platform": "whatsapp",
-    "session_type": "casual_chat"
-  }
-}
-```
-
-### Multi-Person Group Chat
-
-```json
-{
-  "id": "team_standup_001",
-  "conversation": {
-    "source": "slack",
-    "people": ["Alice", "Bob", "Charlie", "Diana"],
-    "user": "Alice",
-    "conversation": [
-      {
-        "speaker": "Alice",
-        "content": "Good morning team! Ready for standup?",
-        "time": "2024-01-15T09:00:00Z"
-      },
-      {
-        "speaker": "Bob",
-        "content": "Yes! I finished the API integration yesterday.",
-        "time": "2024-01-15T09:01:00Z"
-      },
-      {
-        "speaker": "Charlie",
-        "content": "Great work Bob! I'm working on the frontend today.",
-        "time": "2024-01-15T09:02:00Z"
-      },
-      {
-        "speaker": "Diana",
-        "content": "I'll be reviewing the test cases this morning.",
-        "time": "2024-01-15T09:03:00Z"
-      }
-    ]
-  },
-  "tags": ["work", "standup", "team"],
-  "metadata": {
-    "platform": "slack",
-    "channel": "dev-team",
-    "meeting_type": "daily_standup"
-  }
-}
-```
-
-## Validation Rules
-
-The system enforces these validation rules:
-
-1. **Required Fields**: `id`, `source`, `people`, `user`, `conversation`
-2. **User in People**: The `user` must be included in the `people` array
-3. **Speaker Validation**: Each message `speaker` must be in the `people` array
-4. **Non-Empty Content**: Message `content` cannot be empty
-5. **Valid Timestamps**: Message `time` must be a valid timestamp
-6. **Minimum Messages**: At least one message must be present
-
-## Error Handling
-
-Common validation errors and their meanings:
-
-- `"document ID is required"`: Missing or empty `id` field
-- `"user 'X' must be included in the people list"`: User not in people array
-- `"message N: speaker 'X' must be included in the people list"`: Invalid speaker
-- `"conversation must contain at least one message"`: Empty conversation array
-
-## Best Practices
-
-1. **Consistent Speaker Names**: Use the same name format throughout
-2. **Proper Timestamps**: Use RFC3339 format with timezone information
-3. **Meaningful IDs**: Use descriptive, unique conversation identifiers
-4. **Source Tracking**: Always specify the source system
-5. **Validation First**: Always validate before storing
-6. **Error Handling**: Handle validation errors gracefully
-
-## Future Enhancements
-
-Potential future additions to the format:
-
-- Message threading/replies
-- Message reactions/emojis
-- File attachments metadata
-- Message editing history
-- Read receipts/status
-- Message priority levels
-- Custom message types (system messages, etc.)
-
-The structured format is designed to be extensible, allowing these features to be added without breaking existing implementations.
-
----
+**Result**: Same powerful conversation-aware fact extraction, but **90% less complexity**!
 
 ## Key Files
 
 - `pkg/agent/memory/memory.go` - Interface definitions
 - `pkg/agent/memory/evolvingmemory/store.go` - Unified storage logic
+- `pkg/agent/memory/evolvingmemory/factextraction.go` - Simplified fact extraction
+- `pkg/agent/memory/evolvingmemory/prompts.go` - Static prompts (no templating)
 
 ## Summary
 
 The interface approach gives us the best of both worlds:
 - **Existing code keeps working** (no breaking changes)
 - **New code gets rich features** (when using ConversationDocument)
+- **Social network extraction** (facts about all participants)
+- **Ultra-simple implementation** (no over-engineering)
 - **Gradual migration** (upgrade data sources one by one)
 - **Type safety** (compile-time guarantees)
 
-This design enables a smooth transition from simple text-based memory to rich, structured conversation memory while maintaining full backward compatibility! 🎉 
+This design enables a smooth transition from simple text-based memory to rich, structured conversation memory while maintaining full backward compatibility and keeping the implementation refreshingly simple! 🎉 
