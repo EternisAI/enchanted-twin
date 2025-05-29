@@ -467,7 +467,6 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 		docs := []memory.TextDocument{doc}
 		progressCh := make(chan memory.ProgressUpdate, 1)
 		go func() {
-			defer close(progressCh)
 			for range progressCh {
 			}
 		}()
