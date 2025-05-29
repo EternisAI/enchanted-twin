@@ -371,8 +371,8 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			if len(contactDocuments) > 0 {
-				logger.Info("Storing WhatsApp contacts using StoreRawData...")
-				err = memoryStorage.StoreRawData(ctx, contactDocuments, nil)
+				logger.Info("Storing WhatsApp contacts...")
+				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), nil)
 				if err != nil {
 					logger.Error("Error storing WhatsApp contacts", "error", err)
 				}
@@ -467,7 +467,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			if len(conversationDocuments) > 0 {
-				err = memoryStorage.Store(ctx, conversationDocuments, nil)
+				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(conversationDocuments), nil)
 				if err != nil {
 					logger.Error("Error storing WhatsApp conversation documents", "error", err)
 				} else {
@@ -535,7 +535,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				logger.Info("WhatsApp message stored successfully")
 			}
 
-			err = memoryStorage.Store(ctx, []memory.TextDocument{document}, nil)
+			err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{document}), nil)
 			if err != nil {
 				logger.Error("Error storing WhatsApp message", "error", err)
 			}

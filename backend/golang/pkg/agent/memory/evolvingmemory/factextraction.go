@@ -4,109 +4,154 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 
 	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// extractFactsFromTextDocument extracts facts for a given speaker from a text document.
-func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, sessionDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
-	s.logger.Infof("== Starting Fact Extraction for Speaker: %s == (Session Doc ID: '%s')", speakerID, sessionDoc.ID)
+// normalizeAndFormatConversation replaces primary user name with "primaryUser" and returns JSON.
+func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string, error) {
+	normalized := convDoc
+
+	// Replace primary user name in conversation messages
+	for i, msg := range normalized.Conversation {
+		if msg.Speaker == convDoc.User {
+			normalized.Conversation[i].Speaker = "primaryUser"
+		}
+	}
+
+	// Replace primary user name in people list
+	for i, person := range normalized.People {
+		if person == convDoc.User {
+			normalized.People[i] = "primaryUser"
+		}
+	}
+
+	// Update the user field
+	normalized.User = "primaryUser"
+
+	// Just JSON marshal the whole thing
+	jsonBytes, err := json.Marshal(normalized)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal conversation: %w", err)
+	}
+
+	return string(jsonBytes), nil
+}
+
+// extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
+func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
+	s.logger.Infof("== Starting Rich Fact Extraction for Speaker: %s == (Conversation ID: '%s')", speakerID, convDoc.ID())
 
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
-		extractFactsTool, // This will now correctly refer to the one in tools.go
+		extractFactsTool,
 	}
 
-	sysPrompt := strings.ReplaceAll(SpeakerFocusedFactExtractionPrompt, "{primary_speaker_name}", speakerID)
-	sysPrompt = strings.ReplaceAll(sysPrompt, "{current_system_date}", currentSystemDate)
-	sysPrompt = strings.ReplaceAll(sysPrompt, "{document_event_date}", docEventDateStr)
+	// Normalize and format as JSON
+	conversationJSON, err := normalizeAndFormatConversation(convDoc)
+	if err != nil {
+		s.logger.Errorf("Failed to normalize conversation for speaker %s in conversation %s: %v", speakerID, convDoc.ID(), err)
+		return nil, fmt.Errorf("conversation normalization error: %w", err)
+	}
 
+	if len(convDoc.Conversation) == 0 {
+		s.logger.Warnf("No conversation messages found for speaker %s in conversation %s.", speakerID, convDoc.ID())
+		return []string{}, nil
+	}
+
+	// Dead simple: static prompt + JSON conversation
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		{
-			OfSystem: &openai.ChatCompletionSystemMessageParam{
-				Content: openai.ChatCompletionSystemMessageParamContentUnion{
-					OfString: openai.String(sysPrompt),
-				},
-			},
-		},
+		openai.SystemMessage(ConversationFactExtractionPrompt),
+		openai.UserMessage(conversationJSON),
 	}
 
-	conversationLines := strings.Split(strings.TrimSpace(sessionDoc.Content), "\\n")
-	parsedTurnsCount := 0
-	for _, line := range conversationLines {
-		trimmedLine := strings.TrimSpace(line)
-		if trimmedLine == "" {
-			continue
-		}
-		parts := strings.SplitN(trimmedLine, ":", 2)
-		if len(parts) < 2 {
-			s.logger.Warnf("Skipping malformed line (no speaker colon): '%s' for speaker %s in doc %s", trimmedLine, speakerID, sessionDoc.ID)
-			continue
-		}
-		turnSpeaker := strings.TrimSpace(parts[0])
-		turnText := strings.TrimSpace(parts[1])
-
-		if turnText == "" {
-			continue
-		}
-
-		parsedTurnsCount++
-		fullTurnContent := fmt.Sprintf("%s: %s", turnSpeaker, turnText)
-
-		if turnSpeaker == speakerID { // User's turn for the LLM context
-			llmMsgs = append(llmMsgs, openai.ChatCompletionMessageParamUnion{
-				OfUser: &openai.ChatCompletionUserMessageParam{
-					Content: openai.ChatCompletionUserMessageParamContentUnion{
-						OfString: openai.String(fullTurnContent),
-					},
-				},
-			})
-		} else { // Other speaker's turn, context for LLM
-			llmMsgs = append(llmMsgs, openai.ChatCompletionMessageParamUnion{
-				OfAssistant: &openai.ChatCompletionAssistantMessageParam{
-					Content: openai.ChatCompletionAssistantMessageParamContentUnion{
-						OfString: openai.String(fullTurnContent),
-					},
-				},
-			})
-		}
-	}
-
-	if parsedTurnsCount == 0 && len(conversationLines) > 0 {
-		s.logger.Warnf("No valid turns were parsed from %d conversation lines for speaker %s in doc %s. LLM might not have sufficient context.", len(conversationLines), speakerID, sessionDoc.ID)
-	}
-	if len(llmMsgs) <= 1 { // Only system prompt
-		s.logger.Warnf("llmMsgs only contains system prompt for speaker %s in doc %s. No conversational turns added. Skipping LLM call for fact extraction.", speakerID, sessionDoc.ID)
-		return []string{}, nil // No error, but no facts
-	}
-
-	s.logger.Debugf("Calling LLM for Speaker-Focused Fact Extraction (%s). Model: %s, Tools: %d tools", speakerID, openAIChatModel, len(factExtractionToolsList))
+	s.logger.Debugf("Calling LLM for Rich Fact Extraction (%s). Model: %s, Tools: %d tools", speakerID, openAIChatModel, len(factExtractionToolsList))
 
 	llmResponse, err := s.completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
 	if err != nil {
-		s.logger.Errorf("LLM completion error during fact extraction for speaker %s in doc %s: %v", speakerID, sessionDoc.ID, err)
-		return nil, fmt.Errorf("LLM completion error for speaker %s, doc %s: %w", speakerID, sessionDoc.ID, err)
+		s.logger.Errorf("LLM completion error during rich fact extraction for speaker %s in conversation %s: %v", speakerID, convDoc.ID(), err)
+		return nil, fmt.Errorf("LLM completion error for speaker %s, conversation %s: %w", speakerID, convDoc.ID(), err)
 	}
 
 	var extractedFacts []string
-	if len(llmResponse.ToolCalls) > 0 {
-		for _, toolCall := range llmResponse.ToolCalls {
-			if toolCall.Function.Name == ExtractFactsToolName {
-				var args ExtractFactsToolArguments // Assumes this struct is defined in evolvingmemory.go
-				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
-					extractedFacts = append(extractedFacts, args.Facts...)
-					s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from doc %s.", len(args.Facts), speakerID, sessionDoc.ID)
-				} else {
-					s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from doc %s: %v. Arguments: %s", speakerID, sessionDoc.ID, err, toolCall.Function.Arguments)
-				}
-			} else {
-				s.logger.Warnf("LLM called an unexpected tool '%s' during fact extraction for speaker %s from doc %s.", toolCall.Function.Name, speakerID, sessionDoc.ID)
-			}
+	for _, toolCall := range llmResponse.ToolCalls {
+		if toolCall.Function.Name != ExtractFactsToolName {
+			s.logger.Warnf("LLM called an unexpected tool %q during rich fact extraction for speaker %s from conversation %s.",
+				toolCall.Function.Name, speakerID, convDoc.ID())
+			continue
 		}
-	} else {
-		s.logger.Info("LLM response for fact extraction for speaker %s from doc %s did not contain tool calls. No facts extracted by tool.", speakerID, sessionDoc.ID)
+
+		var args ExtractFactsToolArguments
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from conversation %s: %v. Arguments: %s",
+				speakerID, convDoc.ID(), err, toolCall.Function.Arguments)
+			continue
+		}
+
+		extractedFacts = append(extractedFacts, args.Facts...)
+		s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from conversation %s using rich context.",
+			len(args.Facts), speakerID, convDoc.ID())
+	}
+
+	if len(llmResponse.ToolCalls) == 0 {
+		s.logger.Infof("LLM response for rich fact extraction for speaker %s from conversation %s did not contain tool calls. No facts extracted by tool.",
+			speakerID, convDoc.ID())
+	}
+
+	return extractedFacts, nil
+}
+
+// extractFactsFromTextDocument extracts facts from text documents.
+func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
+	s.logger.Infof("== Starting Text Fact Extraction for Speaker: %s == (Document ID: '%s')", speakerID, textDoc.ID())
+
+	factExtractionToolsList := []openai.ChatCompletionToolParam{
+		extractFactsTool,
+	}
+
+	content := textDoc.Content()
+	if content == "" {
+		s.logger.Warnf("No content found in text document for speaker %s in document %s.", speakerID, textDoc.ID())
+		return []string{}, nil
+	}
+
+	llmMsgs := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(TextFactExtractionPrompt),
+		openai.UserMessage(content),
+	}
+
+	s.logger.Debugf("Calling LLM for Text Fact Extraction (%s). Model: %s, Tools: %d tools", speakerID, openAIChatModel, len(factExtractionToolsList))
+
+	llmResponse, err := s.completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
+	if err != nil {
+		s.logger.Errorf("LLM completion error during text fact extraction for speaker %s in document %s: %v", speakerID, textDoc.ID(), err)
+		return nil, fmt.Errorf("LLM completion error for speaker %s, document %s: %w", speakerID, textDoc.ID(), err)
+	}
+
+	var extractedFacts []string
+	for _, toolCall := range llmResponse.ToolCalls {
+		if toolCall.Function.Name != ExtractFactsToolName {
+			s.logger.Warnf("LLM called an unexpected tool %q during text fact extraction for speaker %s from text document %s.",
+				toolCall.Function.Name, speakerID, textDoc.ID())
+			continue
+		}
+
+		var args ExtractFactsToolArguments
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from text document %s: %v. Arguments: %s",
+				speakerID, textDoc.ID(), err, toolCall.Function.Arguments)
+			continue
+		}
+
+		extractedFacts = append(extractedFacts, args.Facts...)
+		s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from text document %s.",
+			len(args.Facts), speakerID, textDoc.ID())
+	}
+
+	if len(llmResponse.ToolCalls) == 0 {
+		s.logger.Infof("LLM response for text fact extraction for speaker %s from text document %s did not contain tool calls. No facts extracted by tool.",
+			speakerID, textDoc.ID())
 	}
 
 	return extractedFacts, nil

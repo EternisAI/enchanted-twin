@@ -4,7 +4,7 @@ import "context"
 
 type MockMemory struct{}
 
-func (m *MockMemory) Store(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error {
+func (m *MockMemory) Store(ctx context.Context, documents []ConversationDocument, progressChan chan<- ProgressUpdate) error {
 	return nil
 }
 

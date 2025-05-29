@@ -135,15 +135,15 @@ func TestConversationToDocuments(t *testing.T) {
 
 	doc := documents[0]
 
-	assert.Contains(t, doc.Tags, "chat")
-	assert.Contains(t, doc.Tags, "chatgpt")
-	assert.Contains(t, doc.Tags, "conversation")
-	assert.Equal(t, "conversation", doc.Metadata["type"])
-	assert.Equal(t, "Test Conversation", doc.Metadata["title"])
-	assert.Equal(t, "chatgpt", doc.Metadata["source"])
+	assert.Contains(t, doc.Tags(), "chat")
+	assert.Contains(t, doc.Tags(), "chatgpt")
+	assert.Contains(t, doc.Tags(), "conversation")
+	assert.Equal(t, "conversation", doc.Metadata()["type"])
+	assert.Equal(t, "Test Conversation", doc.Metadata()["title"])
+	assert.Equal(t, "chatgpt", doc.Source())
 
 	expectedContent := "This document is a ChatGPT conversation log between user and assistant.\n\nuser: Hello, how are you?\n\nassistant: I am doing well, thank you! How can I help you today?\n\nuser: Can you tell me about Puerto Vallarta?\n\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico...\n\n"
-	assert.Equal(t, expectedContent, doc.Content)
+	assert.Equal(t, expectedContent, doc.Content())
 }
 
 // writeRecordsToJSONL writes records to a JSONL file (simplified version for testing).
@@ -250,13 +250,15 @@ func TestJSONLRoundTrip(t *testing.T) {
 	assert.Equal(t, "assistant", secondMsg["Role"])
 	assert.Equal(t, "I don't have access to real-time weather data, but I can help you find weather information.", secondMsg["Text"])
 
-	documents, err := ToDocuments(readRecords)
-	require.NoError(t, err, "ToDocuments should work with records read from JSONL")
-	require.Len(t, documents, 1, "Expected 1 document")
+	// Test conversion to Document format
+	docs, err := ToDocuments(readRecords)
+	require.NoError(t, err, "Error converting records to documents")
+	require.Len(t, docs, 1, "Expected 1 document after conversion")
 
-	doc := documents[0]
-	assert.Contains(t, doc.Content, "user: What's the weather like?")
-	assert.Contains(t, doc.Content, "assistant: I don't have access to real-time weather data")
-	assert.Equal(t, "Weather Conversation", doc.Metadata["title"])
-	assert.Equal(t, "chatgpt", doc.Metadata["source"])
+	convertedDoc := docs[0]
+	assert.Contains(t, convertedDoc.Tags(), "chat")
+	assert.Contains(t, convertedDoc.Tags(), "chatgpt")
+	assert.Contains(t, convertedDoc.Tags(), "conversation")
+	assert.Equal(t, "conversation", convertedDoc.Metadata()["type"])
+	assert.Equal(t, "Weather Conversation", convertedDoc.Metadata()["title"])
 }

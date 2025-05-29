@@ -14,15 +14,13 @@ import (
 )
 
 // updateMemories decides and executes memory operations (ADD, UPDATE, DELETE, NONE) for a given fact.
-func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sessionDoc memory.TextDocument) (string, *models.Object, error) {
+func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string, speakerID string, currentSystemDate string, docEventDateStr string, sourceDoc memory.Document, isFromTextDocument bool) (string, *models.Object, error) {
 	logContextEntity := "Speaker"
 	logContextValue := speakerID
-	speakerPromptName := speakerID
 
 	if speakerID == "" {
 		logContextEntity = "Document"
 		logContextValue = "<document_context>"
-		speakerPromptName = "Content Source" // Generic term for prompts when no specific speaker
 	}
 
 	s.logger.Infof("Processing fact for %s %s: \"%s...\"", logContextEntity, logContextValue, firstNChars(factContent, 70))
@@ -36,11 +34,11 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 
 	existingMemoriesContentForPrompt := []string{}
 	existingMemoriesForPromptStr := "No existing relevant memories found."
-	if len(existingMemoriesResult.Documents) > 0 {
-		s.logger.Debugf("Retrieved %d existing memories for decision prompt for %s %s.", len(existingMemoriesResult.Documents), logContextEntity, logContextValue)
-		for _, memDoc := range existingMemoriesResult.Documents {
-			memContext := fmt.Sprintf("ID: %s, Content: %s", memDoc.ID, memDoc.Content)
-			// Potentially: memDoc.Metadata["speakerID"] could be displayed here if relevant to the LLM's decision
+	if len(existingMemoriesResult.Facts) > 0 {
+		s.logger.Debugf("Retrieved %d existing memories for decision prompt for %s %s.", len(existingMemoriesResult.Facts), logContextEntity, logContextValue)
+		for _, memFact := range existingMemoriesResult.Facts {
+			memContext := fmt.Sprintf("ID: %s, Content: %s", memFact.ID, memFact.Content)
+			// Potentially: memFact.Metadata["speakerID"] could be displayed here if relevant to the LLM's decision
 			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
 		}
 		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
@@ -48,15 +46,20 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		s.logger.Debugf("No existing relevant memories found for this fact for %s %s.", logContextEntity, logContextValue)
 	}
 
-	prompt := strings.ReplaceAll(DefaultUpdateMemoryPrompt, "{primary_speaker_name}", speakerPromptName)
-	prompt = strings.ReplaceAll(prompt, "{current_system_date}", currentSystemDate)
-	prompt = strings.ReplaceAll(prompt, "{document_event_date}", docEventDateStr)
-
 	var decisionPromptBuilder strings.Builder
-	decisionPromptBuilder.WriteString(prompt)
+
+	// Use appropriate prompt based on document type
+	if isFromTextDocument {
+		decisionPromptBuilder.WriteString(TextMemoryUpdatePrompt)
+		s.logger.Debugf("Using TextMemoryUpdatePrompt for %s %s", logContextEntity, logContextValue)
+	} else {
+		decisionPromptBuilder.WriteString(ConversationMemoryUpdatePrompt)
+		s.logger.Debugf("Using ConversationMemoryUpdatePrompt for %s %s", logContextEntity, logContextValue)
+	}
+
 	decisionPromptBuilder.WriteString("\n\nContext:\n")
-	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for %s (if any, related to the new fact):\n%s\n\n", speakerPromptName, existingMemoriesForPromptStr))
-	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for %s:\n%s\n\n", speakerPromptName, factContent))
+	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for the primary user (if any, related to the new fact):\n%s\n\n", existingMemoriesForPromptStr))
+	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for the primary user:\n%s\n\n", factContent))
 	decisionPromptBuilder.WriteString("Based on the guidelines and context, what action should be taken for the NEW FACT?")
 	fullDecisionPrompt := decisionPromptBuilder.String()
 
@@ -105,10 +108,8 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		factMetadata := make(map[string]string)
-		for k, v := range sessionDoc.Metadata {
-			if k != "dataset_speaker_a" && k != "dataset_speaker_b" { // Filter out helper metadata
-				factMetadata[k] = v
-			}
+		for k, v := range sourceDoc.Metadata() {
+			factMetadata[k] = v
 		}
 		if speakerID != "" { // Only add speakerID to metadata if it's not empty
 			factMetadata["speakerID"] = speakerID
@@ -124,8 +125,11 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 			contentProperty:  factContent,
 			metadataProperty: string(metadataBytes),
 		}
-		if sessionDoc.Timestamp != nil {
-			data[timestampProperty] = sessionDoc.Timestamp.Format(time.RFC3339)
+		// Use conversation date for timestamp
+		if docEventDateStr != "Unknown" {
+			if parsedTime, parseErr := time.Parse("2006-01-02", docEventDateStr); parseErr == nil {
+				data[timestampProperty] = parsedTime.Format(time.RFC3339)
+			}
 		}
 
 		addObject := &models.Object{
@@ -151,7 +155,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		// Speaker/Context validation for UPDATE
-		originalSpeakerInMeta, originalSpeakerMetaExists := originalDoc.Metadata["speakerID"]
+		originalSpeakerInMeta, originalSpeakerMetaExists := originalDoc.Metadata()["speakerID"]
 
 		if speakerID == "" { // Current context is document-level
 			if originalSpeakerMetaExists && originalSpeakerInMeta != "" {
@@ -181,7 +185,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 
 		updatedFactMetadata := make(map[string]string)
-		for k, v := range originalDoc.Metadata {
+		for k, v := range originalDoc.Metadata() {
 			updatedFactMetadata[k] = v
 		}
 		// Manage speakerID in updated metadata
@@ -191,12 +195,20 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 			delete(updatedFactMetadata, "speakerID") // If document-level, ensure no speakerID is present
 		}
 
+		// Parse conversation date for timestamp
+		var updateTimestamp *time.Time
+		if docEventDateStr != "Unknown" {
+			if parsedTime, parseErr := time.Parse("2006-01-02", docEventDateStr); parseErr == nil {
+				updateTimestamp = &parsedTime
+			}
+		}
+
 		docToUpdate := memory.TextDocument{
-			ID:        updateArgs.MemoryID,
-			Content:   updateArgs.UpdatedMemory,
-			Timestamp: sessionDoc.Timestamp, // Update timestamp to the current sessionDoc's timestamp
-			Metadata:  updatedFactMetadata,
-			Tags:      originalDoc.Tags, // Preserve original tags unless LLM specifies changes
+			FieldID:        updateArgs.MemoryID,
+			FieldContent:   updateArgs.UpdatedMemory,
+			FieldTimestamp: updateTimestamp,
+			FieldMetadata:  updatedFactMetadata,
+			FieldTags:      originalDoc.Tags(), // Use Tags() method to access tags
 		}
 
 		if err = s.Update(ctx, updateArgs.MemoryID, docToUpdate, updatedEmbedding32); err != nil { // Update is in evolvingmemory.go
@@ -225,7 +237,8 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 			s.logger.Warnf("Failed to get original document for DELETE validation (ID: %s) for %s %s: %v. Proceeding with delete cautiously.", deleteArgs.MemoryID, logContextEntity, logContextValue, getDelErr)
 			// If we can't get the doc, we might still proceed with delete if LLM is trusted, or deny. For now, proceed.
 		} else {
-			originalSpeakerInMetaDel, originalSpeakerMetaExistsDel := originalDocForDelete.Metadata["speakerID"]
+			// Use FieldMetadata() method to access metadata
+			originalSpeakerInMetaDel, originalSpeakerMetaExistsDel := originalDocForDelete.Metadata()["speakerID"]
 			if speakerID == "" { // Current context is document-level
 				if originalSpeakerMetaExistsDel && originalSpeakerInMetaDel != "" {
 					s.logger.Warn("Document-level context attempted to DELETE a memory with a specific speaker. Skipping delete.",

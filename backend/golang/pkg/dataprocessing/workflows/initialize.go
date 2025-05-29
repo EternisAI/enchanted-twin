@@ -383,7 +383,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Documents", "slack", len(documents))
 
-			err = w.Memory.Store(ctx, documents, progressCallback)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -397,7 +397,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Documents", "telegram", len(documents))
 
-			err = w.Memory.Store(ctx, documents, progressCallback)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -410,7 +410,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Documents", "x", len(documents))
 
-			err = w.Memory.Store(ctx, documents, progressCallback)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -423,7 +423,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Documents", "gmail", len(documents))
 
-			err = w.Memory.Store(ctx, documents, progressCallback)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -459,11 +459,11 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
 				}
 
-				err = w.Memory.StoreRawData(ctx, contactDocs, contactProgressCallback)
+				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(contactDocs), contactProgressCallback)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}
-				w.Logger.Info("Stored contact documents as raw data", "count", len(contactDocs))
+				w.Logger.Info("Stored contact documents", "count", len(contactDocs))
 			}
 
 			if len(conversationalDocs) > 0 {
@@ -480,7 +480,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
 				}
 
-				err = w.Memory.Store(ctx, conversationalDocs, conversationalProgressCallback)
+				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(conversationalDocs), conversationalProgressCallback)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}
@@ -514,7 +514,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
 				}
 
-				err = w.Memory.Store(ctx, documents, batchProgressCallback)
+				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), batchProgressCallback)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}
@@ -528,7 +528,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Documents", "misc", len(documents))
 
-			err = w.Memory.Store(ctx, documents, progressCallback)
+			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
