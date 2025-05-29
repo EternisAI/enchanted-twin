@@ -29,7 +29,7 @@ Requirements
 
 ### GraphQL
 
-### Backend
+Backend
 
 On the backend side GraphQL resolvers (`schema.resolvers.go`) are code-generated from the schema `schema.graphqls`. Steps to update the schema
 
@@ -37,7 +37,7 @@ On the backend side GraphQL resolvers (`schema.resolvers.go`) are code-generated
 1. Generate resolvers using `make gqlgen` in `backend/golang` directory.
 1. This will generate additional code in `schema.resolvers.go`.
 
-### Frontend
+Frontend
 
 Frontend uses `schema.graphqls` as the source of truth to code generate queries/mutations/subscriptions using `pnpm codegen`.
 
