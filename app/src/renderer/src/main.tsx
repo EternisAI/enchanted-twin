@@ -13,7 +13,7 @@ import { TTSProvider } from './lib/ttsProvider'
 import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
 
-const router = createRouter({
+export const router = createRouter({
   routeTree,
   defaultViewTransition: true,
   history: createHashHistory()

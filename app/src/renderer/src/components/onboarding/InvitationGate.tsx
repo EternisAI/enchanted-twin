@@ -13,6 +13,7 @@ import { Button } from '../ui/button'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import MCPServerItem from '../oauth/MCPServerItem'
+import { router } from '../../main'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
@@ -77,6 +78,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
       // Error is handled in onError callback
     }
     setIsSubmitting(false)
+    router.navigate({ to: '/onboarding' })
   }
 
   // If user is activated or whitelisted, show the app
