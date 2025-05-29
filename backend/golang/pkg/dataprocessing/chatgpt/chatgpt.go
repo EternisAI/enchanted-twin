@@ -207,9 +207,13 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			case []ConversationMessage:
 
 				for _, message := range messages {
+					trimmedText := strings.TrimSpace(message.Text)
+					if trimmedText == "" {
+						continue
+					}
 					conversationBuilder.WriteString(message.Role)
 					conversationBuilder.WriteString(": ")
-					conversationBuilder.WriteString(message.Text)
+					conversationBuilder.WriteString(trimmedText)
 					conversationBuilder.WriteString("\n\n")
 				}
 			case []interface{}:
@@ -228,10 +232,11 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 								text = textStr
 							}
 						}
-						if role != "" && text != "" {
+						trimmedText := strings.TrimSpace(text)
+						if role != "" && trimmedText != "" {
 							conversationBuilder.WriteString(role)
 							conversationBuilder.WriteString(": ")
-							conversationBuilder.WriteString(text)
+							conversationBuilder.WriteString(trimmedText)
 							conversationBuilder.WriteString("\n\n")
 						}
 					}

@@ -24,26 +24,15 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 	sysPrompt = strings.ReplaceAll(sysPrompt, "{current_date}", currentSystemDate)
 	sysPrompt = strings.ReplaceAll(sysPrompt, "{conversation_date}", docEventDateStr)
 
-	// Build a single conversation string instead of alternating User/Assistant roles
-	var conversationBuilder strings.Builder
-	parsedTurnsCount := 0
+	// Use the Content() method from ConversationDocument which now handles empty messages
+	conversationContent := convDoc.Content()
 
-	for _, msg := range convDoc.Conversation {
-		if strings.TrimSpace(msg.Content) == "" {
-			continue
-		}
-
-		parsedTurnsCount++
-		conversationBuilder.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content))
-	}
-
-	if parsedTurnsCount == 0 {
-		s.logger.Warnf("No valid turns found in conversation for speaker %s in conversation %s.", speakerID, convDoc.ID())
+	if conversationContent == "" {
+		s.logger.Warnf("No substantive content found in conversation for speaker %s in conversation %s after processing.", speakerID, convDoc.ID())
 		return []string{}, nil
 	}
 
 	// Use clean message construction instead of verbose struct initialization
-	conversationContent := strings.TrimSpace(conversationBuilder.String())
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(sysPrompt),
 		openai.UserMessage(conversationContent),
