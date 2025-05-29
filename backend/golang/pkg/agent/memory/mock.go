@@ -8,7 +8,7 @@ func (m *MockMemory) Store(ctx context.Context, documents []ConversationDocument
 	return nil
 }
 
-func (m *MockMemory) StoreRawData(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error {
+func (m *MockMemory) StoreRawData(ctx context.Context, documents []TextDocument, progressCallback ProgressCallback) error {
 	return nil
 }
 

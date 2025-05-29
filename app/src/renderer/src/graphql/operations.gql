@@ -132,6 +132,10 @@ query GetSetupProgress {
   }
 }
 
+query GetWhitelistStatus {
+  whitelistStatus
+}
+
 mutation CreateChat($name: String!, $voice: Boolean! = false) {
   createChat(name: $name, voice: $voice) {
     id
@@ -170,6 +174,10 @@ mutation DeleteChat($chatId: ID!) {
 
 mutation UpdateProfile($input: UpdateProfileInput!) {
   updateProfile(input: $input)
+}
+
+mutation ActivateInviteCode($inviteCode: String!) {
+  activate(inviteCode: $inviteCode)
 }
 
 subscription MessageAdded($chatId: ID!) {

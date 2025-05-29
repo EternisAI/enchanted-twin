@@ -364,22 +364,14 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			return IndexDataActivityResponse{}, err
 		}
 
-		progressChan := make(chan memory.ProgressUpdate, 10)
-
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
-			for update := range progressChan {
-				percentage := 0.0
-				if update.Total > 0 {
-					percentage = float64(update.Processed) / float64(update.Total) * 100
-				}
-
-				dataSourcesResponse[i].IndexProgress = int32(percentage)
-				publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
+		progressCallback := func(processed, total int) {
+			percentage := 0.0
+			if total > 0 {
+				percentage = float64(processed) / float64(total) * 100
 			}
-		}()
+			dataSourcesResponse[i].IndexProgress = int32(percentage)
+			publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
+		}
 
 		switch strings.ToLower(dataSourceDB.Name) {
 		case "slack":
@@ -390,7 +382,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "slack", len(documents))
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
+
+			err = w.Memory.Store(ctx, documents, progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -403,7 +396,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "telegram", len(documents))
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
+
+			err = w.Memory.Store(ctx, documents, progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -415,7 +409,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "x", len(documents))
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
+
+			err = w.Memory.Store(ctx, documents, progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -427,7 +422,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "gmail", len(documents))
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
+
+			err = w.Memory.Store(ctx, documents, progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
@@ -454,7 +450,16 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			w.Logger.Info("Separated documents", "contacts", len(contactDocs), "conversational", len(conversationalDocs))
 
 			if len(contactDocs) > 0 {
-				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(contactDocs), progressChan)
+				contactProgressCallback := func(processed, total int) {
+					percentage := 0.0
+					if total > 0 {
+						percentage = float64(processed) / float64(total) * 50.0 // 50% for contacts
+					}
+					dataSourcesResponse[i].IndexProgress = int32(percentage)
+					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
+				}
+
+				err = w.Memory.StoreRawData(ctx, contactDocs, contactProgressCallback)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}
@@ -462,7 +467,20 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 
 			if len(conversationalDocs) > 0 {
-				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(conversationalDocs), progressChan)
+				conversationalProgressCallback := func(processed, total int) {
+					baseProgress := 50.0 // Start at 50% if contacts were processed
+					if len(contactDocs) == 0 {
+						baseProgress = 0.0
+					}
+					percentage := baseProgress
+					if total > 0 {
+						percentage += float64(processed) / float64(total) * 50.0 // 50% for conversational
+					}
+					dataSourcesResponse[i].IndexProgress = int32(percentage)
+					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
+				}
+
+				err = w.Memory.Store(ctx, conversationalDocs, conversationalProgressCallback)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}
@@ -474,6 +492,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 
 		case "chatgpt":
 			batchSize := 20
+			totalBatches := (len(records) + batchSize - 1) / batchSize
+
 			for j := 0; j < len(records); j += batchSize {
 				batch := records[j:min(j+batchSize, len(records))]
 				documents, err := chatgpt.ToDocuments(batch)
@@ -483,7 +503,18 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 
 				w.Logger.Info("Storing documents", "documents", documents[0])
 
-				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
+				batchNum := j/batchSize + 1
+				batchProgressCallback := func(processed, total int) {
+					batchProgress := float64(batchNum-1) / float64(totalBatches) * 100
+					if total > 0 {
+						withinBatchProgress := float64(processed) / float64(total) * (100.0 / float64(totalBatches))
+						batchProgress += withinBatchProgress
+					}
+					dataSourcesResponse[i].IndexProgress = int32(batchProgress)
+					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
+				}
+
+				err = w.Memory.Store(ctx, documents, batchProgressCallback)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}
@@ -496,7 +527,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 				return IndexDataActivityResponse{}, err
 			}
 			w.Logger.Info("Documents", "misc", len(documents))
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressChan)
+
+			err = w.Memory.Store(ctx, documents, progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}

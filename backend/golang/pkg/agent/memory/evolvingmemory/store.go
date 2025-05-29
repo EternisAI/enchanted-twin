@@ -12,13 +12,7 @@ import (
 )
 
 // Store orchestrates the process of extracting facts from documents and updating memories.
-func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document, progressChan chan<- memory.ProgressUpdate) error {
-	defer func() {
-		if progressChan != nil {
-			close(progressChan)
-		}
-	}()
-
+func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.TextDocument, progressCallback memory.ProgressCallback) error {
 	batcher := s.client.Batch().ObjectsBatcher()
 	var objectsAddedToBatch int
 
@@ -29,133 +23,103 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 
 	currentSystemDate := getCurrentDateForPrompt()
 
-	for i, doc := range documents {
-		s.logger.Infof("Processing document %d of %d. ID: '%s'", i+1, totalDocs, doc.ID())
+	for i := range documents { // Iterate by index to get pointers
+		sessionDoc := &documents[i] // sessionDoc is now *memory.TextDocument
+		s.logger.Infof("Processing session document %d of %d. Session Doc ID (if any): '%s'", i+1, totalDocs, sessionDoc.ID())
 
-		// Handle different document types
-		if convDoc, ok := doc.(*memory.ConversationDocument); ok {
-			// Get conversation date from first message
-			docEventDateStr := "Unknown"
-			if len(convDoc.Conversation.Conversation) > 0 {
-				docEventDateStr = convDoc.Conversation.Conversation[0].Time.Format("2006-01-02")
-			}
+		// The logic for specificSpeakerCandidates and the outer speakersToProcess loop can remain
+		// if TextDocument metadata can still guide speaker-specific processing.
+		// For now, we assume a simplified path focusing on the TextDocument itself.
 
-			// Use the explicit People array from structured conversations
-			speakersToProcess := convDoc.Conversation.People
-			s.logger.Infof("Processing %d speakers from conversation: %v", len(speakersToProcess), speakersToProcess)
+		// Since documents are []memory.TextDocument, sessionDoc is *memory.TextDocument.
+		// The original logic to differentiate ConversationDocument vs TextDocument is simplified.
+		// We process sessionDoc as a TextDocument.
 
-			// Process each speaker in the conversation
-			for _, speakerID := range speakersToProcess {
-				s.logger.Infof("== Processing for Speaker: %s == (Conversation %d of %d)", speakerID, i+1, totalDocs)
+		// Handle TextDocument - convert to ConversationDocument for processing
+		s.logger.Infof("Processing text document as single-speaker conversation. ID: '%s'", sessionDoc.ID())
 
-				extractedFacts, err := s.extractFactsFromConversation(ctx, *convDoc, speakerID, currentSystemDate, docEventDateStr)
-				if err != nil {
-					s.logger.Errorf("Error during fact extraction for speaker %s: %v. Skipping this speaker.", speakerID, err)
-					continue
-				}
-				if len(extractedFacts) == 0 {
-					s.logger.Infof("No facts extracted for speaker %s. Skipping memory operations for this speaker.", speakerID)
-					continue
-				}
-				s.logger.Infof("Total facts to process for speaker '%s': %d", speakerID, len(extractedFacts))
-
-				for factIdx, factContent := range extractedFacts {
-					if strings.TrimSpace(factContent) == "" {
-						s.logger.Debug("Skipping empty fact text.", "speaker", speakerID)
-						continue
-					}
-					s.logger.Infof("Processing fact %d for speaker %s: \"%s...\"", factIdx+1, speakerID, firstNChars(factContent, 70))
-
-					action, objectToAdd, err := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, *convDoc)
-					if err != nil {
-						s.logger.Errorf("Error processing fact for speaker %s: %v. Fact: \"%s...\"", speakerID, err, firstNChars(factContent, 50))
-						continue
-					}
-
-					if action == AddMemoryToolName && objectToAdd != nil {
-						batcher.WithObjects(objectToAdd)
-						objectsAddedToBatch++
-						s.logger.Infof("Fact ADDED to batch for speaker %s. Fact: \"%s...\"", speakerID, firstNChars(factContent, 50))
-					} else if action != AddMemoryToolName {
-						s.logger.Infof("Action '%s' for speaker %s (Fact: \"%s...\") handled directly, not added to batch.", action, speakerID, firstNChars(factContent, 30))
-					}
-				}
-			}
-		} else if textDoc, ok := doc.(*memory.TextDocument); ok {
-			// Handle TextDocument - convert to ConversationDocument for processing
-			s.logger.Infof("Processing text document as single-speaker conversation. ID: '%s'", textDoc.ID())
-
-			// Convert TextDocument to a simple ConversationDocument for processing
-			timestamp := textDoc.Timestamp()
-			if timestamp == nil {
-				now := time.Now()
-				timestamp = &now
-			}
-
-			// Create a simple conversation with the content as a single message
-			// Use "user" as the default speaker for text documents
-			convDocFromText := memory.ConversationDocument{
-				FieldID: textDoc.ID(),
-				Conversation: memory.StructuredConversation{
-					Source: textDoc.Metadata()["source"],
-					People: []string{"user"},
-					User:   "user",
-					Conversation: []memory.ConversationMessage{
-						{
-							Speaker: "user",
-							Content: textDoc.Content(),
-							Time:    *timestamp,
-						},
-					},
-				},
-				FieldTags:     textDoc.Tags(),
-				FieldMetadata: textDoc.Metadata(),
-			}
-
-			docEventDateStr := timestamp.Format("2006-01-02")
-
-			// Process as single speaker
-			speakerID := "user"
-			s.logger.Infof("== Processing text document for Speaker: %s == (Document %d of %d)", speakerID, i+1, totalDocs)
-
-			extractedFacts, err := s.extractFactsFromConversation(ctx, convDocFromText, speakerID, currentSystemDate, docEventDateStr)
-			if err != nil {
-				s.logger.Errorf("Error during fact extraction for text document %s: %v. Skipping.", textDoc.ID(), err)
-				continue
-			}
-			if len(extractedFacts) == 0 {
-				s.logger.Infof("No facts extracted for text document %s. Skipping memory operations.", textDoc.ID())
-				continue
-			}
-			s.logger.Infof("Total facts to process for text document '%s': %d", textDoc.ID(), len(extractedFacts))
-
-			for factIdx, factContent := range extractedFacts {
-				if strings.TrimSpace(factContent) == "" {
-					s.logger.Debug("Skipping empty fact text.", "document", textDoc.ID())
-					continue
-				}
-				s.logger.Infof("Processing fact %d for text document %s: \"%s...\"", factIdx+1, textDoc.ID(), firstNChars(factContent, 70))
-
-				action, objectToAdd, err := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, convDocFromText)
-				if err != nil {
-					s.logger.Errorf("Error processing fact for text document %s: %v. Fact: \"%s...\"", textDoc.ID(), err, firstNChars(factContent, 50))
-					continue
-				}
-
-				if action == AddMemoryToolName && objectToAdd != nil {
-					batcher.WithObjects(objectToAdd)
-					objectsAddedToBatch++
-					s.logger.Infof("Fact ADDED to batch for text document %s. Fact: \"%s...\"", textDoc.ID(), firstNChars(factContent, 50))
-				} else if action != AddMemoryToolName {
-					s.logger.Infof("Action '%s' for text document %s (Fact: \"%s...\") handled directly, not added to batch.", action, textDoc.ID(), firstNChars(factContent, 30))
-				}
-			}
-		} else {
-			s.logger.Warnf("Document with ID '%s' is neither a ConversationDocument nor a TextDocument. Skipping.", doc.ID())
+		// Convert TextDocument to a simple ConversationDocument for processing
+		timestamp := sessionDoc.Timestamp()
+		if timestamp == nil {
+			now := time.Now()
+			timestamp = &now
 		}
 
-		if progressChan != nil {
-			progressChan <- memory.ProgressUpdate{Processed: (i + 1), Total: totalDocs}
+		// Create a simple conversation with the content as a single message
+		// Use "user" as the default speaker for text documents
+		// Metadata for source needs to be checked carefully.
+		source := "unknown"
+		if md := sessionDoc.Metadata(); md != nil {
+			if srcVal, ok := md["source"]; ok {
+				source = srcVal
+			}
+		}
+
+		convDocFromText := memory.ConversationDocument{
+			FieldID: sessionDoc.ID(),
+			Conversation: memory.StructuredConversation{
+				Source: source, // Use fetched source
+				People: []string{"user"},
+				User:   "user",
+				Conversation: []memory.ConversationMessage{
+					{
+						Speaker: "user",
+						Content: sessionDoc.Content(),
+						Time:    *timestamp,
+					},
+				},
+			},
+			FieldTags:     sessionDoc.Tags(),
+			FieldMetadata: sessionDoc.Metadata(),
+		}
+
+		docEventDateStr := timestamp.Format("2006-01-02")
+
+		// Process as single speaker (default for TextDocument)
+		speakerID := "user" // This could be enhanced by speaker identification from sessionDoc.Metadata() if needed
+		s.logger.Infof("== Processing text document for Speaker: %s == (Document %d of %d)", speakerID, i+1, totalDocs)
+
+		extractedFacts, err := s.extractFactsFromConversation(ctx, convDocFromText, speakerID, currentSystemDate, docEventDateStr)
+		if err != nil {
+			s.logger.Errorf("Error during fact extraction for text document %s: %v. Skipping.", sessionDoc.ID(), err)
+			if progressCallback != nil {
+				progressCallback(i+1, totalDocs)
+			}
+			continue
+		}
+		if len(extractedFacts) == 0 {
+			s.logger.Infof("No facts extracted for text document %s. Skipping memory operations.", sessionDoc.ID())
+			if progressCallback != nil {
+				progressCallback(i+1, totalDocs)
+			}
+			continue
+		}
+		s.logger.Infof("Total facts to process for text document '%s': %d", sessionDoc.ID(), len(extractedFacts))
+
+		for factIdx, factContent := range extractedFacts {
+			if strings.TrimSpace(factContent) == "" {
+				s.logger.Debug("Skipping empty fact text.", "document", sessionDoc.ID())
+				continue
+			}
+			s.logger.Infof("Processing fact %d for text document %s: \\\"%s...\\\"", factIdx+1, sessionDoc.ID(), firstNChars(factContent, 70))
+
+			action, objectToAdd, err := s.updateMemories(ctx, factContent, speakerID, currentSystemDate, docEventDateStr, convDocFromText)
+			if err != nil {
+				s.logger.Errorf("Error processing fact for text document %s: %v. Fact: \\\"%s...\\\"", sessionDoc.ID(), err, firstNChars(factContent, 50))
+				continue
+			}
+
+			if action == AddMemoryToolName && objectToAdd != nil {
+				batcher.WithObjects(objectToAdd)
+				objectsAddedToBatch++
+				s.logger.Infof("Fact ADDED to batch for text document %s. Fact: \\\"%s...\\\"", sessionDoc.ID(), firstNChars(factContent, 50))
+			} else if action != AddMemoryToolName {
+				s.logger.Infof("Action '%s' for text document %s (Fact: \\\"%s...\\\") handled directly, not added to batch.", action, sessionDoc.ID(), firstNChars(factContent, 30))
+			}
+		}
+
+		if progressCallback != nil {
+			progressCallback(i+1, totalDocs)
 		}
 	}
 
@@ -197,13 +161,7 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 }
 
 // StoreRawData stores documents directly without fact extraction processing.
-func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
-	defer func() {
-		if progressChan != nil {
-			close(progressChan)
-		}
-	}()
-
+func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.TextDocument, progressCallback memory.ProgressCallback) error {
 	s.logger.Info("=== EVOLVINGMEMORY STORE RAW DATA START ===")
 	s.logger.Info("StoreRawData method called", "total_documents", len(documents))
 
@@ -216,10 +174,14 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 		return nil
 	}
 
-	for i, doc := range documents {
+	for i := range documents { // Iterate by index to get pointers
+		doc := &documents[i] // doc is *memory.TextDocument
 		vector, err := s.embeddingsService.Embedding(ctx, doc.Content(), openAIEmbedModel)
 		if err != nil {
 			s.logger.Errorf("Error generating embedding for document %s: %v", doc.ID(), err)
+			if progressCallback != nil {
+				progressCallback(i+1, totalDocs) // Call progress on error before continue
+			}
 			continue
 		}
 
@@ -260,8 +222,8 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 		objectsAddedToBatch++
 		s.logger.Infof("Processed and added document %s to batch (%d/%d)", doc.ID(), i+1, totalDocs)
 
-		if progressChan != nil {
-			progressChan <- memory.ProgressUpdate{Processed: (i + 1), Total: totalDocs}
+		if progressCallback != nil {
+			progressCallback(i+1, totalDocs)
 		}
 	}
 

@@ -118,7 +118,7 @@
   --muted-foreground: oklch(0.72 0 0);
   --accent: oklch(0.32 0 0);
   --accent-foreground: oklch(1 0 0);
-  --destructive: oklch(0.69 0.20 23.91);
+  --destructive: oklch(0.69 0.2 23.91);
   --destructive-foreground: oklch(0 0 0);
   --border: oklch(0.26 0 0);
   --input: oklch(0.32 0 0);
@@ -222,9 +222,26 @@
     app-region: no-drag;
   }
 
-  h1, h2 {
+  h1,
+  h2 {
     /* font-family: var(--font-sans); */
     @apply font-semibold;
+  }
+}
+
+@layer utilities {
+  @keyframes subtle-scale {
+    0%,
+    100% {
+      transform: scale(1);
+    }
+    50% {
+      transform: scale(1.05);
+    }
+  }
+
+  .animate-subtle-scale {
+    animation: subtle-scale 3s linear infinite;
   }
 }
 
@@ -232,4 +249,3 @@
 /* button {
   cursor: pointer;
 } */
-

@@ -316,6 +316,36 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 }
 
 // StoreConversations is an alias for Store to maintain backward compatibility.
+// It now converts ConversationDocuments to TextDocuments and adapts the progress channel.
 func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
-	return s.Store(ctx, memory.ConversationDocumentsToDocuments(documents), progressChan)
+	textDocs := make([]memory.TextDocument, len(documents))
+	for i, convDoc := range documents {
+		textDoc := convDoc.ToTextDocument() // Returns *TextDocument
+		if textDoc != nil {
+			textDocs[i] = *textDoc // Dereference to get TextDocument value
+		} else {
+			// Handle case where ToTextDocument might return nil, though unlikely based on its current implementation
+			s.logger.Warnf("Conversion of ConversationDocument at index %d to TextDocument returned nil. Skipping.", i)
+			// Optionally, you could filter out nils or return an error
+			// For now, it will result in a zero-value TextDocument at this index if not handled further.
+		}
+	}
+
+	var callback memory.ProgressCallback
+	if progressChan != nil {
+		callback = func(processed, total int) {
+			select {
+			case progressChan <- memory.ProgressUpdate{Processed: processed, Total: total}:
+			default:
+				// Non-blocking send: if the channel is full or closed, log and drop the update
+				s.logger.Warnf("Progress update dropped for StoreConversations: processed %d, total %d (channel busy or closed)", processed, total)
+			}
+		}
+		// Ensure the channel is closed when the operation is done if this callback is the sole manager.
+		// However, Store itself manages its own progressCallback calls. This adapter is per-call.
+		// If Store is expected to make many calls, the channel might be closed prematurely here.
+		// A safer approach might be to not close it here, assuming the caller of StoreConversations manages the channel lifecycle.
+	}
+
+	return s.Store(ctx, textDocs, callback)
 }

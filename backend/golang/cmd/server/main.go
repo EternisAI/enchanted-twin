@@ -220,8 +220,6 @@ func main() {
 	logger.Info("Evolving memory created", "elapsed", time.Since(memoryCreateStart))
 	logger.Info("Total Weaviate setup completed", "total_elapsed", time.Since(weaviateBootstrapStart))
 
-	whatsapp.TriggerConnect()
-
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
 		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath, envs)
