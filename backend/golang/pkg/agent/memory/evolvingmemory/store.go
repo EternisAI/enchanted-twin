@@ -43,21 +43,26 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 		case *memory.ConversationDocument:
 			s.logger.Infof("Processing ConversationDocument '%s' with Rich Context Extraction", doc.ID())
 
-			// Use rich conversation extraction for each speaker
-			for _, speakerID := range typedDoc.People {
-				speakerObjects, speakerErr := s.processConversationForSpeaker(
-					ctx,
-					*typedDoc,
-					speakerID,
-					currentSystemDate,
-					docEventDateStr,
-				)
-				if speakerErr != nil {
-					s.logger.Errorf("Error processing ConversationDocument %s for speaker %s: %v", doc.ID(), speakerID, speakerErr)
-					continue
-				}
-				objectsForThisDoc = append(objectsForThisDoc, speakerObjects...)
+			// Process conversation once for the primary user only
+			// The conversation fact extraction already handles extracting facts about ALL participants
+			primaryUserID := typedDoc.User
+			if primaryUserID == "" {
+				s.logger.Warnf("ConversationDocument %s has no primary user specified, skipping", doc.ID())
+				continue
 			}
+
+			speakerObjects, speakerErr := s.processConversationForSpeaker(
+				ctx,
+				*typedDoc,
+				primaryUserID,
+				currentSystemDate,
+				docEventDateStr,
+			)
+			if speakerErr != nil {
+				s.logger.Errorf("Error processing ConversationDocument %s for primary user %s: %v", doc.ID(), primaryUserID, speakerErr)
+				continue
+			}
+			objectsForThisDoc = speakerObjects
 
 		case *memory.TextDocument:
 			s.logger.Infof("Processing TextDocument '%s' with Text Extraction", doc.ID())
