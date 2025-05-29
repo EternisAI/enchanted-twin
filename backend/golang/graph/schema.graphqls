@@ -100,6 +100,7 @@ type Query {
   getWhatsAppStatus: WhatsAppStatus!
   getAgentTasks: [AgentTask!]!
   getSetupProgress: [SetupProgress!]!
+  whitelistStatus: Boolean!
 }
 
 type SetupProgress {
@@ -135,6 +136,7 @@ type Mutation {
   updateAgentTask(id: ID!, notify: Boolean!): Boolean!
   removeMCPServer(id: String!): Boolean!
   startWhatsAppConnection: Boolean!
+  activate(inviteCode: String!): Boolean!
 }
 
 type Subscription {

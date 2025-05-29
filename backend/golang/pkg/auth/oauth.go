@@ -17,6 +17,7 @@ import (
 
 	"github.com/charmbracelet/log"
 
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -531,4 +532,134 @@ func RefreshOAuthToken(
 	}
 
 	return false, fmt.Errorf("no tokens processed for provider: %s", provider)
+}
+
+func Activate(ctx context.Context, logger *log.Logger, store *db.Store, inviteCode string) (bool, error) {
+	logger.Debug("activating", "inviteCode", inviteCode)
+
+	_, err := RefreshOAuthToken(ctx, logger, store, "google")
+	if err != nil {
+		return false, fmt.Errorf("failed to refresh OAuth tokens: %w", err)
+	}
+
+	oauthTokens, err := store.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return false, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+
+	if len(oauthTokens) == 0 {
+		return false, fmt.Errorf("no OAuth tokens found")
+	}
+
+	type RedeemInviteCodeRequest struct {
+		AccessToken string `json:"access_token" binding:"required"`
+	}
+
+	redeemRequest := RedeemInviteCodeRequest{
+		AccessToken: oauthTokens[0].AccessToken,
+	}
+
+	requestBody, err := json.Marshal(redeemRequest)
+	if err != nil {
+		return false, fmt.Errorf("failed to marshal redeem request: %w", err)
+	}
+
+	conf, err := config.LoadConfig(false)
+	if err != nil {
+		return false, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	redeemURL := fmt.Sprintf("%s/api/v1/invites/%s/redeem", conf.InviteServerURL, inviteCode)
+	req, err := http.NewRequestWithContext(ctx, "POST", redeemURL, bytes.NewBuffer(requestBody))
+	if err != nil {
+		return false, fmt.Errorf("failed to create redeem request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return false, fmt.Errorf("failed to send redeem request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Error("failed to close redeem response body", "error", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return false, fmt.Errorf("failed to redeem invite code: %d: %s", resp.StatusCode, body)
+	}
+
+	logger.Debug("successfully redeemed invite code", "inviteCode", inviteCode)
+
+	return true, nil
+}
+
+func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bool, error) {
+	oauthTokens, err := store.GetOAuthTokensArray(ctx, "google")
+	if err != nil {
+		return false, fmt.Errorf("failed to get OAuth tokens: %w", err)
+	}
+
+	if len(oauthTokens) == 0 {
+		return false, nil
+	}
+
+	conf, err := config.LoadConfig(false)
+	if err != nil {
+		return false, fmt.Errorf("failed to load config: %w", err)
+	}
+	inviteServerURL := conf.InviteServerURL
+
+	for _, token := range oauthTokens {
+		// Make GET request to check if this email is whitelisted
+		whitelistURL := fmt.Sprintf("%s/api/v1/invites/%s/whitelist", inviteServerURL, token.Username)
+		req, err := http.NewRequestWithContext(ctx, "GET", whitelistURL, nil)
+		if err != nil {
+			logger.Error("failed to create whitelist request", "email", token.Username, "error", err)
+			continue
+		}
+
+		client := &http.Client{Timeout: 30 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			logger.Error("failed to send whitelist request", "email", token.Username, "error", err)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				logger.Error("failed to close whitelist response body", "error", closeErr)
+			}
+			logger.Error("whitelist request failed", "email", token.Username, "status", resp.StatusCode)
+			continue
+		}
+
+		var whitelistResp struct {
+			Email       string `json:"email"`
+			Whitelisted bool   `json:"whitelisted"`
+		}
+
+		if err := json.NewDecoder(resp.Body).Decode(&whitelistResp); err != nil {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				logger.Error("failed to close whitelist response body", "error", closeErr)
+			}
+			logger.Error("failed to decode whitelist response", "email", token.Username, "error", err)
+			continue
+		}
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Error("failed to close whitelist response body", "error", closeErr)
+		}
+
+		logger.Debug("whitelist check result", "email", whitelistResp.Email, "whitelisted", whitelistResp.Whitelisted)
+
+		if whitelistResp.Whitelisted {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }

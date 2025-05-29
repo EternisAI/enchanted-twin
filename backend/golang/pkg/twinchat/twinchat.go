@@ -427,8 +427,8 @@ func (s *Service) GetChat(ctx context.Context, chatID string) (model.Chat, error
 	return s.storage.GetChat(ctx, chatID)
 }
 
-func (s *Service) CreateChat(ctx context.Context, name string) (model.Chat, error) {
-	return s.storage.CreateChat(ctx, name)
+func (s *Service) CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error) {
+	return s.storage.CreateChat(ctx, name, voice)
 }
 
 func (s *Service) GetMessagesByChatId(
@@ -548,5 +548,5 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 
 	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
 
-	return s.memoryService.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{doc}), nil)
+	return s.memoryService.Store(ctx, []memory.TextDocument{doc}, nil)
 }

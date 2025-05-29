@@ -112,10 +112,6 @@ func GetConnectChannel() chan struct{} {
 	return ConnectChan
 }
 
-func TriggerConnect() {
-	GetConnectChannel() <- struct{}{}
-}
-
 func GetSyncStatus() SyncStatus {
 	syncStatusLock.RLock()
 	defer syncStatusLock.RUnlock()
@@ -374,11 +370,9 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 			}
 
-			progressChan := make(chan memory.ProgressUpdate, 1)
-
 			if len(contactDocuments) > 0 {
-				logger.Info("Storing WhatsApp contacts...")
-				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), progressChan)
+				logger.Info("Storing WhatsApp contacts using StoreRawData...")
+				err = memoryStorage.StoreRawData(ctx, contactDocuments, nil)
 				if err != nil {
 					logger.Error("Error storing WhatsApp contacts", "error", err)
 				}
@@ -472,18 +466,8 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 			}
 
-			go func() {
-				for update := range progressChan {
-					logger.Info("Storage progress",
-						"processed", update.Processed,
-						"total", update.Total,
-						"percentage", float64(update.Processed)/float64(update.Total)*100,
-					)
-				}
-			}()
-
 			if len(conversationDocuments) > 0 {
-				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(conversationDocuments), progressChan)
+				err = memoryStorage.Store(ctx, conversationDocuments, nil)
 				if err != nil {
 					logger.Error("Error storing WhatsApp conversation documents", "error", err)
 				} else {
@@ -551,8 +535,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				logger.Info("WhatsApp message stored successfully")
 			}
 
-			progressChan := make(chan memory.ProgressUpdate, 1)
-			err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{document}), progressChan)
+			err = memoryStorage.Store(ctx, []memory.TextDocument{document}, nil)
 			if err != nil {
 				logger.Error("Error storing WhatsApp message", "error", err)
 			}
