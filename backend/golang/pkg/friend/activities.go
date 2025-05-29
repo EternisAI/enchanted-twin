@@ -52,32 +52,43 @@ func (s *FriendService) StoreSentMessage(ctx context.Context, message string, ac
 	return nil
 }
 
-func (s *FriendService) CheckForSimilarMessages(ctx context.Context, message string) (bool, error) {
+func (s *FriendService) CheckForSimilarFriendMessages(ctx context.Context, message string) (bool, error) {
 	if s.memoryService == nil {
 		s.logger.Warn("Memory service not available, skipping similarity check")
 		return false, nil
 	}
 
-	result, err := s.memoryService.QueryWithDistance(ctx, message)
+	s.logger.Info("Checking for similarity with previous friend messages", "message", message)
+
+	// Create a filtered query to only search friend messages
+	result, err := s.memoryService.QueryWithDistance(ctx, message, map[string]string{
+		"type": FriendMetadataType,
+	})
 	if err != nil {
-		s.logger.Error("Failed to query for similar messages", "error", err)
-		return false, fmt.Errorf("failed to query for similar messages: %w", err)
+		s.logger.Error("Failed to query for similar friend messages", "error", err)
+		return false, fmt.Errorf("failed to query for similar friend messages: %w", err)
 	}
-	s.logger.Info("Query with distance result", "result", result)
+
+	s.logger.Debug("Query with distance result (friend messages only)", "total_documents", len(result.Documents))
 
 	for _, docWithDistance := range result.Documents {
-		if docWithDistance.Document.Metadata["type"] == FriendMetadataType {
-			if docWithDistance.Distance < SimilarityThreshold {
-				s.logger.Info("Found similar message, skipping send",
-					"distance", docWithDistance.Distance,
-					"threshold", SimilarityThreshold,
-					"similar_message", docWithDistance.Document.Content[:min(100, len(docWithDistance.Document.Content))])
-				return true, nil
-			}
+		s.logger.Debug("Checking friend document",
+			"distance", docWithDistance.Distance,
+			"threshold", SimilarityThreshold,
+			"activity_type", docWithDistance.Document.Metadata["activity_type"],
+			"content_preview", docWithDistance.Document.Content[:min(50, len(docWithDistance.Document.Content))])
+
+		if docWithDistance.Distance < SimilarityThreshold {
+			s.logger.Info("Found similar friend message, skipping send",
+				"distance", docWithDistance.Distance,
+				"threshold", SimilarityThreshold,
+				"similar_message", docWithDistance.Document.Content[:min(100, len(docWithDistance.Document.Content))])
+			return true, nil
 		}
 	}
 
-	s.logger.Info("No similar messages found, safe to send", "checked_documents", len(result.Documents))
+	s.logger.Info("No similar friend messages found, safe to send",
+		"total_friend_documents_checked", len(result.Documents))
 	return false, nil
 }
 
@@ -164,7 +175,7 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context, input GenerateP
 }
 
 func (s *FriendService) SendPokeMessage(ctx context.Context, message string) error {
-	isSimilar, err := s.CheckForSimilarMessages(ctx, message)
+	isSimilar, err := s.CheckForSimilarFriendMessages(ctx, message)
 	if err != nil {
 		s.logger.Error("Failed to check for similar messages", "error", err)
 	}
@@ -238,7 +249,7 @@ func (s *FriendService) SendMemoryPicture(ctx context.Context, input SendMemoryP
 	messageIndex := len(input.PictureDescription) % len(messageOptions)
 	message := messageOptions[messageIndex]
 
-	isSimilar, err := s.CheckForSimilarMessages(ctx, message)
+	isSimilar, err := s.CheckForSimilarFriendMessages(ctx, message)
 	if err != nil {
 		s.logger.Error("Failed to check for similar messages", "error", err)
 	}
@@ -424,7 +435,7 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 		return fmt.Errorf("failed to get random question: %w", err)
 	}
 
-	isSimilar, err := s.CheckForSimilarMessages(ctx, question)
+	isSimilar, err := s.CheckForSimilarFriendMessages(ctx, question)
 	if err != nil {
 		s.logger.Error("Failed to check for similar messages", "error", err)
 	}
@@ -443,11 +454,28 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 		return fmt.Errorf("failed to send question: %w", err)
 	}
 
-	err = s.StoreSentMessage(ctx, question, "question")
-	if err != nil {
-		s.logger.Error("Failed to store sent question", "error", err)
+	if s.memoryService != nil {
+		metaData := map[string]string{
+			"type":          FriendMetadataType,
+			"activity_type": "question",
+		}
+		doc := memory.TextDocument{
+			Content:  question,
+			Metadata: metaData,
+			Tags:     []string{"friend", "question"},
+		}
+		docs := []memory.TextDocument{doc}
+		progressCh := make(chan memory.ProgressUpdate, 1)
+		go func() {
+			defer close(progressCh)
+			for range progressCh {
+			}
+		}()
+		if errStore := s.memoryService.Store(ctx, docs, progressCh); errStore != nil {
+			s.logger.Error("Failed to store question in memory", "error", errStore)
+		}
 	}
 
-	s.logger.Info("Question sent successfully", "chat_id", input.ChatID, "question", question)
+	s.logger.Info("Successfully sent question", "question", question)
 	return nil
 }

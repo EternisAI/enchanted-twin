@@ -63,7 +63,7 @@ func (s *FriendService) RegisterWorkflowsAndActivities(worker *worker.Worker, te
 	(*worker).RegisterActivity(s.GenerateRandomWait)
 	(*worker).RegisterActivity(s.SelectRandomActivity)
 	(*worker).RegisterActivity(s.StoreSentMessage)
-	(*worker).RegisterActivity(s.CheckForSimilarMessages)
+	(*worker).RegisterActivity(s.CheckForSimilarFriendMessages)
 	(*worker).RegisterActivity(s.GetRandomQuestion)
 	(*worker).RegisterActivity(s.SendQuestion)
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -133,9 +134,9 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	return memory.QueryResult{Documents: finalResults}, nil
 }
 
-// QueryWithDistance retrieves memories relevant to the query text with similarity distances.
-func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText string) (memory.QueryWithDistanceResult, error) {
-	s.logger.Info("QueryWithDistance method called", "query_text", queryText)
+// QueryWithDistance retrieves memories relevant to the query text with similarity distances, with optional metadata filtering.
+func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
+	s.logger.Info("QueryWithDistance method called", "query_text", queryText, "filters", metadataFilters)
 
 	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
@@ -166,6 +167,25 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		WithLimit(10).
 		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
 
+	// Add WHERE filtering if metadata filters are provided
+	if len(metadataFilters) > 0 {
+		filterMap := metadataFilters[0] // Use first filter map if provided
+		for key, value := range filterMap {
+			if key == "type" {
+				// Create a filter that looks for the type in the metadata JSON
+				// Since metadata is stored as JSON string, we need to use a Like operator
+				// to match the pattern: "type":"friend"
+				whereFilter := filters.Where().
+					WithPath([]string{metadataProperty}).
+					WithOperator(filters.Like).
+					WithValueText(fmt.Sprintf(`*"%s":"%s"*`, key, value))
+
+				queryBuilder = queryBuilder.WithWhere(whereFilter)
+				s.logger.Debug("Added WHERE filter", "key", key, "value", value, "pattern", fmt.Sprintf(`*"%s":"%s"*`, key, value))
+			}
+		}
+	}
+
 	resp, err := queryBuilder.Do(ctx)
 	if err != nil {
 		return memory.QueryWithDistanceResult{}, fmt.Errorf("failed to execute Weaviate query: %w", err)
@@ -187,7 +207,7 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
 		return memory.QueryWithDistanceResult{Documents: finalResults}, nil
 	}
-	s.logger.Info("Retrieved documents from Weaviate with distances", "count", len(classData))
+	s.logger.Info("Retrieved documents from Weaviate with distances", "count", len(classData), "with_filters", len(metadataFilters) > 0)
 
 	for _, item := range classData {
 		obj, okMap := item.(map[string]interface{})

@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
@@ -27,102 +26,82 @@ func (m *MockMemoryService) Query(ctx context.Context, query string) (memory.Que
 	return args.Get(0).(memory.QueryResult), args.Error(1)
 }
 
-func (m *MockMemoryService) QueryWithDistance(ctx context.Context, query string) (memory.QueryWithDistanceResult, error) {
-	args := m.Called(ctx, query)
+func (m *MockMemoryService) QueryWithDistance(ctx context.Context, query string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
+	args := m.Called(ctx, query, metadataFilters)
 	return args.Get(0).(memory.QueryWithDistanceResult), args.Error(1)
 }
 
-func TestCheckForSimilarMessages(t *testing.T) {
+func TestCheckForSimilarFriendMessages(t *testing.T) {
+	ctx := context.Background()
+
+	// Setup mock services
+	mockMemoryService := &MockMemoryService{}
 	logger := log.New(os.Stdout)
-	mockMemory := &MockMemoryService{}
 
 	friendService := &FriendService{
+		memoryService: mockMemoryService,
 		logger:        logger,
-		memoryService: mockMemory,
 	}
 
-	ctx := context.Background()
-	testMessage := "Hey, how are you doing today?"
+	testMessage := "How are you doing today?"
+	expectedFilters := []map[string]string{{"type": FriendMetadataType}}
 
-	t.Run("should return true when similar message found", func(t *testing.T) {
-		now := time.Now()
-		similarDoc := memory.DocumentWithDistance{
-			Document: memory.TextDocument{
-				ID:        "test-id",
-				Content:   "Hey, how are you doing?",
-				Timestamp: &now,
-				Metadata: map[string]string{
-					"type": FriendMetadataType,
+	// Test case 1: No similar messages found
+	mockMemoryService.On("QueryWithDistance", ctx, testMessage, expectedFilters).Return(
+		memory.QueryWithDistanceResult{
+			Documents: []memory.DocumentWithDistance{},
+		}, nil)
+
+	isSimilar, err := friendService.CheckForSimilarFriendMessages(ctx, testMessage)
+	assert.NoError(t, err)
+	assert.False(t, isSimilar)
+	mockMemoryService.AssertExpectations(t)
+
+	// Test case 2: Similar message found (distance below threshold)
+	mockMemoryService.ExpectedCalls = nil // Reset mock
+	mockMemoryService.On("QueryWithDistance", ctx, testMessage, expectedFilters).Return(
+		memory.QueryWithDistanceResult{
+			Documents: []memory.DocumentWithDistance{
+				{
+					Document: memory.TextDocument{
+						Content: "How are you feeling today?",
+						Metadata: map[string]string{
+							"type":          "friend",
+							"activity_type": "question",
+						},
+					},
+					Distance: 0.05, // Below threshold
 				},
 			},
-			Distance: 0.1, // Below threshold
-		}
+		}, nil)
 
-		mockMemory.On("QueryWithDistance", ctx, testMessage).Return(
-			memory.QueryWithDistanceResult{
-				Documents: []memory.DocumentWithDistance{similarDoc},
-			}, nil)
+	isSimilar, err = friendService.CheckForSimilarFriendMessages(ctx, testMessage)
+	assert.NoError(t, err)
+	assert.True(t, isSimilar)
+	mockMemoryService.AssertExpectations(t)
 
-		isSimilar, err := friendService.CheckForSimilarMessages(ctx, testMessage)
-
-		assert.NoError(t, err)
-		assert.True(t, isSimilar)
-		mockMemory.AssertExpectations(t)
-	})
-
-	t.Run("should return false when no similar message found", func(t *testing.T) {
-		mockMemory.ExpectedCalls = nil // Reset mock
-		now := time.Now()
-		differentDoc := memory.DocumentWithDistance{
-			Document: memory.TextDocument{
-				ID:        "test-id-2",
-				Content:   "Completely different message about weather",
-				Timestamp: &now,
-				Metadata: map[string]string{
-					"type": FriendMetadataType,
+	// Test case 3: Message found but distance above threshold
+	mockMemoryService.ExpectedCalls = nil // Reset mock
+	mockMemoryService.On("QueryWithDistance", ctx, testMessage, expectedFilters).Return(
+		memory.QueryWithDistanceResult{
+			Documents: []memory.DocumentWithDistance{
+				{
+					Document: memory.TextDocument{
+						Content: "What's the weather like?",
+						Metadata: map[string]string{
+							"type":          "friend",
+							"activity_type": "question",
+						},
+					},
+					Distance: 0.8, // Above threshold
 				},
 			},
-			Distance: 0.8, // Above threshold
-		}
+		}, nil)
 
-		mockMemory.On("QueryWithDistance", ctx, testMessage).Return(
-			memory.QueryWithDistanceResult{
-				Documents: []memory.DocumentWithDistance{differentDoc},
-			}, nil)
-
-		isSimilar, err := friendService.CheckForSimilarMessages(ctx, testMessage)
-
-		assert.NoError(t, err)
-		assert.False(t, isSimilar)
-		mockMemory.AssertExpectations(t)
-	})
-
-	t.Run("should return false when no friend messages found", func(t *testing.T) {
-		mockMemory.ExpectedCalls = nil // Reset mock
-		now := time.Now()
-		nonFriendDoc := memory.DocumentWithDistance{
-			Document: memory.TextDocument{
-				ID:        "test-id-3",
-				Content:   "Hey, how are you doing?",
-				Timestamp: &now,
-				Metadata: map[string]string{
-					"type": "user_memory", // Different type
-				},
-			},
-			Distance: 0.1, // Below threshold but wrong type
-		}
-
-		mockMemory.On("QueryWithDistance", ctx, testMessage).Return(
-			memory.QueryWithDistanceResult{
-				Documents: []memory.DocumentWithDistance{nonFriendDoc},
-			}, nil)
-
-		isSimilar, err := friendService.CheckForSimilarMessages(ctx, testMessage)
-
-		assert.NoError(t, err)
-		assert.False(t, isSimilar)
-		mockMemory.AssertExpectations(t)
-	})
+	isSimilar, err = friendService.CheckForSimilarFriendMessages(ctx, testMessage)
+	assert.NoError(t, err)
+	assert.False(t, isSimilar)
+	mockMemoryService.AssertExpectations(t)
 }
 
 func TestStoreSentMessage(t *testing.T) {

@@ -45,5 +45,5 @@ type ProgressUpdate struct {
 type Storage interface {
 	Store(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error
 	Query(ctx context.Context, query string) (QueryResult, error)
-	QueryWithDistance(ctx context.Context, query string) (QueryWithDistanceResult, error)
+	QueryWithDistance(ctx context.Context, query string, metadataFilters ...map[string]string) (QueryWithDistanceResult, error)
 }
