@@ -528,25 +528,59 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	slidingWindow := 10
 	messagesWindow := helpers.SafeLastN(messages, slidingWindow)
 
-	content := ""
+	var conversationMessages []memory.ConversationMessage
+	var people []string
+	peopleMap := make(map[string]bool)
+	primaryUser := "primaryUser"
+
 	for _, message := range messagesWindow {
 		if message.Role.String() == "system" {
 			continue
 		}
-		content += fmt.Sprintf("%s: %s\n", message.Role.String(), *message.Text)
+
+		var speaker string
+		if message.Role == model.RoleUser {
+			speaker = primaryUser
+		} else {
+			speaker = "assistant"
+		}
+
+		if !peopleMap[speaker] {
+			people = append(people, speaker)
+			peopleMap[speaker] = true
+		}
+
+		createdAt, err := time.Parse(time.RFC3339, message.CreatedAt)
+		if err != nil {
+			createdAt = time.Now()
+		}
+
+		if message.Text != nil {
+			conversationMessages = append(conversationMessages, memory.ConversationMessage{
+				Speaker: speaker,
+				Content: *message.Text,
+				Time:    createdAt,
+			})
+		}
 	}
 
-	prompt := fmt.Sprintf("The following conversation is between a human and an AI assistant:\n\n%s", content)
+	if len(conversationMessages) == 0 {
+		s.logger.Info("No messages to index", "chat_id", chatID)
+		return nil
+	}
 
-	doc := memory.TextDocument{
+	doc := memory.ConversationDocument{
 		FieldID:      uuid.New().String(),
-		FieldContent: prompt,
+		FieldSource:  "chat",
+		People:       people,
+		User:         primaryUser,
+		Conversation: conversationMessages,
 		FieldMetadata: map[string]string{
-			"source": "chat",
+			"chat_id": chatID,
 		},
 	}
 
-	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
+	s.logger.Info("Indexing conversation", "chat_id", chatID, "messages_count", len(conversationMessages))
 
-	return s.memoryService.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{doc}), nil)
+	return s.memoryService.Store(ctx, memory.ConversationDocumentsToDocuments([]memory.ConversationDocument{doc}), nil)
 }
