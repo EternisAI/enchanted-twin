@@ -2,87 +2,10 @@ package evolvingmemory
 
 import (
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
-
-// ParseStructuredConversationFromJSON parses a JSON string into a ConversationDocument.
-func ParseStructuredConversationFromJSON(jsonData []byte) (*memory.ConversationDocument, error) {
-	var doc memory.ConversationDocument
-	if err := json.Unmarshal(jsonData, &doc); err != nil {
-		return nil, fmt.Errorf("failed to parse structured conversation JSON: %w", err)
-	}
-
-	if err := ValidateConversationDocument(&doc); err != nil {
-		return nil, fmt.Errorf("validation failed: %w", err)
-	}
-
-	return &doc, nil
-}
-
-// ValidateConversationDocument validates a ConversationDocument for required fields and consistency.
-func ValidateConversationDocument(doc *memory.ConversationDocument) error {
-	if doc.ID() == "" {
-		return fmt.Errorf("document ID is required")
-	}
-
-	if doc.FieldSource == "" {
-		return fmt.Errorf("conversation source is required")
-	}
-
-	if len(doc.People) == 0 {
-		return fmt.Errorf("at least one person must be specified in the conversation")
-	}
-
-	if doc.User == "" {
-		return fmt.Errorf("user field is required to identify the primary user")
-	}
-
-	// Validate that the user is in the people list
-	userFound := false
-	for _, person := range doc.People {
-		if person == doc.User {
-			userFound = true
-			break
-		}
-	}
-	if !userFound {
-		return fmt.Errorf("user '%s' must be included in the people list", doc.User)
-	}
-
-	if len(doc.Conversation) == 0 {
-		return fmt.Errorf("conversation must contain at least one message")
-	}
-
-	// Validate each message
-	for i, msg := range doc.Conversation {
-		if msg.Speaker == "" {
-			return fmt.Errorf("message %d: speaker is required", i)
-		}
-		if msg.Content == "" {
-			return fmt.Errorf("message %d: content is required", i)
-		}
-		if msg.Time.IsZero() {
-			return fmt.Errorf("message %d: time is required", i)
-		}
-
-		// Validate that the speaker is in the people list
-		speakerFound := false
-		for _, person := range doc.People {
-			if person == msg.Speaker {
-				speakerFound = true
-				break
-			}
-		}
-		if !speakerFound {
-			return fmt.Errorf("message %d: speaker '%s' must be included in the people list", i, msg.Speaker)
-		}
-	}
-
-	return nil
-}
 
 // CreateExampleConversationDocument creates an example ConversationDocument for testing/documentation.
 func CreateExampleConversationDocument() *memory.ConversationDocument {
