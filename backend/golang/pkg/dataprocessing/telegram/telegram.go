@@ -206,10 +206,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			}
 
 			textDocuments = append(textDocuments, memory.TextDocument{
-				Content:   message,
-				Timestamp: &record.Timestamp,
-				Tags:      []string{"social", "telegram", "chat"},
-				Metadata: map[string]string{
+				FieldContent:   message,
+				FieldTimestamp: &record.Timestamp,
+				FieldTags:      []string{"social", "telegram", "chat"},
+				FieldMetadata: map[string]string{
 					"type":   "message",
 					"from":   from,
 					"to":     to,
@@ -231,10 +231,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 				phoneNumber = ""
 			}
 			textDocuments = append(textDocuments, memory.TextDocument{
-				Content:   firstName + " " + lastName,
-				Timestamp: &record.Timestamp,
-				Tags:      []string{"social", "telegram", "contact"},
-				Metadata: map[string]string{
+				FieldContent:   firstName + " " + lastName,
+				FieldTimestamp: &record.Timestamp,
+				FieldTags:      []string{"social", "telegram", "contact"},
+				FieldMetadata: map[string]string{
 					"type":        "contact",
 					"firstName":   firstName,
 					"lastName":    lastName,

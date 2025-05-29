@@ -439,10 +439,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 		}
 
 		documents = append(documents, memory.TextDocument{
-			Content:   content,
-			Timestamp: &record.Timestamp,
-			Metadata:  metadata,
-			Tags:      tags,
+			FieldContent:   content,
+			FieldTimestamp: &record.Timestamp,
+			FieldMetadata:  metadata,
+			FieldTags:      tags,
 		})
 	}
 	return documents, nil
