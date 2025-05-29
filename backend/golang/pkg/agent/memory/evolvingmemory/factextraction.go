@@ -75,22 +75,28 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 	}
 
 	var extractedFacts []string
-	if len(llmResponse.ToolCalls) > 0 {
-		for _, toolCall := range llmResponse.ToolCalls {
-			if toolCall.Function.Name == ExtractFactsToolName {
-				var args ExtractFactsToolArguments
-				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
-					extractedFacts = append(extractedFacts, args.Facts...)
-					s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from conversation %s using rich context.", len(args.Facts), speakerID, convDoc.ID())
-				} else {
-					s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from conversation %s: %v. Arguments: %s", speakerID, convDoc.ID(), err, toolCall.Function.Arguments)
-				}
-			} else {
-				s.logger.Warnf("LLM called an unexpected tool '%s' during rich fact extraction for speaker %s from conversation %s.", toolCall.Function.Name, speakerID, convDoc.ID())
-			}
+	for _, toolCall := range llmResponse.ToolCalls {
+		if toolCall.Function.Name != ExtractFactsToolName {
+			s.logger.Warnf("LLM called an unexpected tool %q during rich fact extraction for speaker %s from conversation %s.",
+				toolCall.Function.Name, speakerID, convDoc.ID())
+			continue
 		}
-	} else {
-		s.logger.Info("LLM response for rich fact extraction for speaker %s from conversation %s did not contain tool calls. No facts extracted by tool.", speakerID, convDoc.ID())
+
+		var args ExtractFactsToolArguments
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from conversation %s: %v. Arguments: %s",
+				speakerID, convDoc.ID(), err, toolCall.Function.Arguments)
+			continue
+		}
+
+		extractedFacts = append(extractedFacts, args.Facts...)
+		s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from conversation %s using rich context.",
+			len(args.Facts), speakerID, convDoc.ID())
+	}
+
+	if len(llmResponse.ToolCalls) == 0 {
+		s.logger.Infof("LLM response for rich fact extraction for speaker %s from conversation %s did not contain tool calls. No facts extracted by tool.",
+			speakerID, convDoc.ID())
 	}
 
 	return extractedFacts, nil
@@ -124,22 +130,28 @@ func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, text
 	}
 
 	var extractedFacts []string
-	if len(llmResponse.ToolCalls) > 0 {
-		for _, toolCall := range llmResponse.ToolCalls {
-			if toolCall.Function.Name == ExtractFactsToolName {
-				var args ExtractFactsToolArguments
-				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
-					extractedFacts = append(extractedFacts, args.Facts...)
-					s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from text document %s.", len(args.Facts), speakerID, textDoc.ID())
-				} else {
-					s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from text document %s: %v. Arguments: %s", speakerID, textDoc.ID(), err, toolCall.Function.Arguments)
-				}
-			} else {
-				s.logger.Warnf("LLM called an unexpected tool '%s' during text fact extraction for speaker %s from text document %s.", toolCall.Function.Name, speakerID, textDoc.ID())
-			}
+	for _, toolCall := range llmResponse.ToolCalls {
+		if toolCall.Function.Name != ExtractFactsToolName {
+			s.logger.Warnf("LLM called an unexpected tool %q during text fact extraction for speaker %s from text document %s.",
+				toolCall.Function.Name, speakerID, textDoc.ID())
+			continue
 		}
-	} else {
-		s.logger.Info("LLM response for text fact extraction for speaker %s from text document %s did not contain tool calls. No facts extracted by tool.", speakerID, textDoc.ID())
+
+		var args ExtractFactsToolArguments
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			s.logger.Warnf("Failed to unmarshal EXTRACT_FACTS arguments for speaker %s from text document %s: %v. Arguments: %s",
+				speakerID, textDoc.ID(), err, toolCall.Function.Arguments)
+			continue
+		}
+
+		extractedFacts = append(extractedFacts, args.Facts...)
+		s.logger.Infof("Successfully parsed EXTRACT_FACTS tool call. Extracted %d facts for speaker %s from text document %s.",
+			len(args.Facts), speakerID, textDoc.ID())
+	}
+
+	if len(llmResponse.ToolCalls) == 0 {
+		s.logger.Infof("LLM response for text fact extraction for speaker %s from text document %s did not contain tool calls. No facts extracted by tool.",
+			speakerID, textDoc.ID())
 	}
 
 	return extractedFacts, nil
