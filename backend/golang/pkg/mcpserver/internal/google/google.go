@@ -96,6 +96,16 @@ func (c *GoogleClient) CallTool(
 			return nil, err
 		}
 		content = result
+	case REPLY_EMAIL_TOOL_NAME:
+		var argumentsTyped ReplyEmailArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		result, err := processReplyEmail(ctx, c.Store, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
+		content = result
 	case SEARCH_FILES_TOOL_NAME:
 		var argumentsTyped SearchFilesArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
