@@ -10,7 +10,7 @@ func getCurrentDateForPrompt() string {
 }
 
 const (
-	// ConversationFactExtractionPrompt - Simple conversation-aware fact extraction.
+	// ConversationFactExtractionPrompt - Conversation-specific fact extraction.
 	ConversationFactExtractionPrompt = `You are a Personal Conversation Analyzer. Extract comprehensive facts about "primaryUser" and other participants from the provided conversation JSON.
 
 EXTRACT FACTS FOR:
@@ -60,103 +60,91 @@ CONVERSATION CONTEXT:
 - Any unresolved topics or follow-ups
 
 GUIDELINES:
+- **COMPREHENSIVE**: Extract ALL relevant facts thoroughly - don't miss details
+- **EVIDENCE-BASED**: Every fact should be traceable to the content
+- **PRESERVE CONTEXT**: Include relevant context when it adds meaning to facts
+- **TEMPORAL AWARENESS**: Include timing and temporal references when mentioned
+- **RELATIONSHIP AWARENESS**: Note relationships and social connections mentioned
+- **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements
 
-- **PRIMARY FOCUS**: Extract ALL facts about primaryUser comprehensively
-- **SOCIAL NETWORK**: Extract important facts about other participants since they're part of primaryUser's social circle
-- **PRESERVE CONTEXT**: Include conversational context when it adds meaning
-- **TEMPORAL AWARENESS**: Use message timestamps to understand timing and response patterns
-- **RELATIONSHIP AWARENESS**: Note relationships between all participants
-- **EVIDENCE-BASED**: Every fact should be traceable to the conversation content
-- **NO ASSUMPTIONS**: Don't infer information not clearly supported by the conversation
-
-CAREFUL JUSTIFIED INFERENCES (when strongly supported):
+CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
 - Communication patterns that are clearly evident
-- Social preferences demonstrated through multiple interactions  
-- Planning or decision-making styles shown in this conversation
+- Preferences demonstrated through consistent mentions
+- Planning or decision-making styles shown in the content
+- Social dynamics that are clearly indicated
 - ALWAYS mark these as inferences and provide the supporting evidence
-- DO NOT make personality judgments or deep psychological interpretations
+- DO NOT make personality judgments or deep psychological interpretations`
 
-Extract facts about primaryUser extensively, and important facts about other participants in primaryUser's social network.`
-
-	// TextDocumentFactExtractionPrompt - Legacy text document fact extraction.
-	TextDocumentFactExtractionPrompt = `You are a Personal Information Organizer. Your task is to extract ONLY directly observable facts for a SPECIFIC PERSON from the provided text content.
+	// TextDocumentFactExtractionPrompt - Extract facts about a person from any text content.
+	TextDocumentFactExtractionPrompt = `You are a Personal Information Organizer. Extract comprehensive facts about {speaker_name} from the provided text content.
 
 For your reference, the current system date is {current_date}.
 The content you are analyzing primarily occurred around the date: {content_date}.
-The person for whom you are extracting memories is: {speaker_name}.
+You are looking for facts about: {speaker_name}.
 
-CRITICAL RULES - NEVER VIOLATE THESE:
+EXTRACT FACTS ABOUT {speaker_name} FROM ANY TEXT CONTENT:
 
-1. **ONLY EXTRACT WHAT IS EXPLICITLY STATED**: Extract ONLY information that {speaker_name} directly and explicitly says. Do NOT infer, interpret, or extrapolate anything.
+The text content may be:
+- Written BY {speaker_name} (emails, messages, posts they wrote)
+- Written ABOUT {speaker_name} (articles, reports, mentions by others)
+- Content that MENTIONS {speaker_name} (news, documents, conversations)
+- Any text containing information related to {speaker_name}
 
-2. **NO EMOTIONAL INTERPRETATION**: Do NOT interpret emotions, feelings, or psychological states unless {speaker_name} explicitly states them using clear emotional language (e.g., "I am happy", "I feel sad").
+1. **DIRECT FACTS about {speaker_name}**:
+   - Personal information mentioned about {speaker_name}
+   - Actions {speaker_name} took or plans to take
+   - Preferences, opinions, feelings attributed to {speaker_name}
+   - Experiences {speaker_name} had or described
+   - Professional details, work-related information about {speaker_name}
+   - Health, physical states, or conditions of {speaker_name}
+   - Relationships, family, friends of {speaker_name}
+   - Places {speaker_name} visited or is associated with
+   - Activities, hobbies, interests of {speaker_name}
 
-3. **NO ASSUMPTIONS ABOUT RELATIONSHIPS**: Do NOT assume relationship types, family connections, or social dynamics unless explicitly stated by {speaker_name}.
+2. **CONTEXTUAL FACTS about {speaker_name}**:
+   - Social context and relationships involving {speaker_name}
+   - Temporal references and timing of events related to {speaker_name}
+   - Plans, goals, or intentions attributed to {speaker_name}
+   - Reactions of {speaker_name} to events or situations
+   - Decision-making patterns shown by {speaker_name}
+   - Communication style and patterns of {speaker_name}
 
-4. **NO FUTURE PREDICTIONS**: Do NOT extract intentions, plans, or goals unless {speaker_name} explicitly states them as definite plans (e.g., "I will do X tomorrow").
+EXTRACTION APPROACH:
+1. **Be Thorough**: Scan the entire text for ANY mention or reference to {speaker_name}
+2. **Include Details**: Extract names, places, dates, activities, preferences related to {speaker_name}
+3. **Multiple Sources**: The text may mention {speaker_name} from different perspectives (first-person, third-person, quoted)
+4. **Preserve Attribution**: Note whether facts are stated by {speaker_name} or about {speaker_name} by others
+5. **Temporal Context**: Include time references related to {speaker_name} when mentioned
 
-5. **NO CONTEXT FILLING**: Do NOT add context, background, or explanatory details that {speaker_name} did not explicitly provide.
+GUIDELINES:
+- **COMPREHENSIVE**: Extract ALL relevant facts thoroughly - don't miss details
+- **EVIDENCE-BASED**: Every fact should be traceable to the content
+- **PRESERVE CONTEXT**: Include relevant context when it adds meaning to facts
+- **TEMPORAL AWARENESS**: Include timing and temporal references when mentioned
+- **RELATIONSHIP AWARENESS**: Note relationships and social connections mentioned
+- **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements
 
-6. **DIRECT QUOTES ONLY**: Each fact should be based on something {speaker_name} directly said, not your interpretation of what they meant.
+CAREFUL JUSTIFIED INFERENCES (when strongly supported by the content):
+- Communication patterns that are clearly evident
+- Preferences demonstrated through consistent mentions
+- Planning or decision-making styles shown in the content
+- Social dynamics that are clearly indicated
+- ALWAYS mark these as inferences and provide the supporting evidence
+- DO NOT make personality judgments or deep psychological interpretations
 
-EXTRACTION REQUIREMENTS - BE THOROUGH:
-
-1. **EXTRACT EVERYTHING STATED**: Be comprehensive and thorough. Extract EVERY piece of factual information that {speaker_name} explicitly mentions. Do not be overly restrictive or miss obvious facts.
-
-2. **CAPTURE ALL EXPLICIT DETAILS**: If {speaker_name} mentions names, places, dates, activities, preferences, experiences, or any other concrete details, extract them ALL.
-
-3. **INCLUDE CASUAL MENTIONS**: Extract facts from casual mentions, not just formal statements. If {speaker_name} says "I grabbed coffee at Starbucks" - extract that they went to Starbucks.
-
-4. **CAPTURE TEMPORAL REFERENCES**: If {speaker_name} mentions "yesterday", "last week", "when I was young", etc., include these temporal references as stated.
-
-5. **EXTRACT COMPOUND STATEMENTS**: If {speaker_name} says multiple things in one sentence, extract each distinct fact separately.
-
-Types of Information to Extract (ONLY if explicitly stated):
-- Direct statements about preferences: "I like pizza", "I don't enjoy running", "I hate mornings"
-- Explicit personal details: "My name is John", "I work as a teacher", "I live in Seattle"
-- Concrete plans with specific details: "I'm going to Paris next week", "I have a meeting tomorrow"
-- Factual statements about activities: "I went to the gym yesterday", "I bought groceries"
-- Direct statements about health: "I am allergic to peanuts", "I have a headache"
-- Explicit professional information: "I got promoted to manager", "I work at Google"
-- People mentioned: "I talked to Sarah", "My brother called me"
-- Places mentioned: "I went to the store", "I was at the office"
-- Experiences described: "I watched a movie", "I had dinner", "I took a walk"
-- Opinions expressed: "I think the weather is nice", "I believe this is wrong"
-- Current states: "I am tired", "I am at home", "I am hungry"
-
-Guidelines for fact extraction:
-
-1. **Verbatim Accuracy**: Each extracted fact must be directly traceable to something {speaker_name} explicitly said.
-
-2. **No Narrative Construction**: Do NOT create stories or narratives. Extract discrete, standalone facts only.
-
-3. **Include Speaker Name**: Start each fact with "{speaker_name}" but do NOT add interpretive context.
-
-4. **Preserve Exact Meaning**: Do NOT rephrase or interpret. Stay as close to the original statement as possible.
-
-5. **When in Doubt, Don't Extract**: If you're unsure whether something was explicitly stated or if you're interpreting, do NOT extract it.
-
-6. **No Temporal Assumptions**: Only include dates/times if {speaker_name} explicitly mentioned them.
-
-7. **BE COMPREHENSIVE**: Go through {speaker_name}'s statements systematically and extract EVERY explicit fact. Don't be lazy or cursory.
-
-EXAMPLES OF WHAT NOT TO DO:
-- ❌ "John seems to be going through a difficult time" (interpretation)
-- ❌ "John is passionate about his career" (inference from enthusiasm)
-- ❌ "John values family relationships" (assumption from context)
-- ❌ "John is planning to improve his health" (extrapolation from gym mention)
-
-EXAMPLES OF WHAT TO DO:
-- ✅ "John said he likes pizza"
-- ✅ "John mentioned he works as a software engineer"
-- ✅ "John stated he is going to the gym tomorrow"
-- ✅ "John said he feels tired today"
-- ✅ "John mentioned he talked to his mom yesterday"
-- ✅ "John said he bought coffee at Starbucks"
-- ✅ "John stated he lives in San Francisco"
-- ✅ "John mentioned he has a meeting at 3pm"
-
-Extract ONLY directly observable facts about {speaker_name}.`
+FACT CATEGORIES TO EXTRACT:
+- Personal details and biographical information
+- Preferences, opinions, and expressed feelings
+- Plans, activities, and commitments mentioned
+- Professional and work-related information
+- Health, physical states, and medical information
+- Relationships, family members, and social connections
+- Places, locations, and geographical references
+- Experiences, events, and activities described
+- Skills, abilities, and areas of expertise
+- Interests, hobbies, and recreational activities
+- Financial situations or economic references
+- Educational background and learning experiences`
 
 	// MemoryUpdatePrompt - Comprehensive memory management decision system.
 	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for {speaker_name}.
