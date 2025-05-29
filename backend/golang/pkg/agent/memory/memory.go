@@ -42,7 +42,8 @@ func (cd *ConversationDocument) ID() string {
 
 func (cd *ConversationDocument) Content() string {
 	var content strings.Builder
-	hasContent := false // Track if any substantive content is added
+	content.Grow(len(cd.Conversation) * 50) // rough estimate
+	hasContent := false                     // Track if any substantive content is added
 	for _, msg := range cd.Conversation {
 		trimmedMsgContent := strings.TrimSpace(msg.Content)
 		if trimmedMsgContent == "" {
