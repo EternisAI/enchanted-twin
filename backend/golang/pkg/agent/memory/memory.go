@@ -23,9 +23,18 @@ func (d *TextDocument) String() string {
 	return fmt.Sprintf("Content: %s, Timestamp: %s, Metadata: %s", d.Content, d.Timestamp, metadataString)
 }
 
+type DocumentWithDistance struct {
+	Document TextDocument
+	Distance float32
+}
+
 type QueryResult struct {
 	Text      []string
 	Documents []TextDocument
+}
+
+type QueryWithDistanceResult struct {
+	Documents []DocumentWithDistance
 }
 
 type ProgressUpdate struct {
@@ -36,4 +45,5 @@ type ProgressUpdate struct {
 type Storage interface {
 	Store(ctx context.Context, documents []TextDocument, progressChan chan<- ProgressUpdate) error
 	Query(ctx context.Context, query string) (QueryResult, error)
+	QueryWithDistance(ctx context.Context, query string) (QueryWithDistanceResult, error)
 }

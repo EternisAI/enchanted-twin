@@ -11,3 +11,7 @@ func (m *MockMemory) Store(ctx context.Context, documents []TextDocument, progre
 func (m *MockMemory) Query(ctx context.Context, query string) (QueryResult, error) {
 	return QueryResult{}, nil
 }
+
+func (m *MockMemory) QueryWithDistance(ctx context.Context, query string) (QueryWithDistanceResult, error) {
+	return QueryWithDistanceResult{}, nil
+}

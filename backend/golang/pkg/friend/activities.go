@@ -6,18 +6,94 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
-	"strings"
+	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 )
+
+const (
+	SimilarityThreshold = 0.15
+	FriendMetadataType  = "friend"
+)
+
+func (s *FriendService) StoreSentMessage(ctx context.Context, message string, activityType string) error {
+	if s.memoryService == nil {
+		s.logger.Warn("Memory service not available, skipping message storage")
+		return nil
+	}
+
+	now := time.Now()
+	doc := memory.TextDocument{
+		Content:   message,
+		Timestamp: &now,
+		Tags:      []string{"sent_message", activityType},
+		Metadata: map[string]string{
+			"type":          FriendMetadataType,
+			"activity_type": activityType,
+			"sent_at":       now.Format(time.RFC3339),
+		},
+	}
+
+	progressChan := make(chan memory.ProgressUpdate, 1)
+	go func() {
+		for range progressChan {
+		}
+	}()
+
+	err := s.memoryService.Store(ctx, []memory.TextDocument{doc}, progressChan)
+	if err != nil {
+		s.logger.Error("Failed to store sent message", "error", err, "message", message)
+		return fmt.Errorf("failed to store sent message: %w", err)
+	}
+
+	s.logger.Info("Stored sent message in memory", "activity_type", activityType, "message_length", len(message))
+	return nil
+}
+
+func (s *FriendService) CheckForSimilarMessages(ctx context.Context, message string) (bool, error) {
+	if s.memoryService == nil {
+		s.logger.Warn("Memory service not available, skipping similarity check")
+		return false, nil
+	}
+
+	result, err := s.memoryService.QueryWithDistance(ctx, message)
+	if err != nil {
+		s.logger.Error("Failed to query for similar messages", "error", err)
+		return false, fmt.Errorf("failed to query for similar messages: %w", err)
+	}
+	s.logger.Info("Query with distance result", "result", result)
+
+	for _, docWithDistance := range result.Documents {
+		if docWithDistance.Document.Metadata["type"] == FriendMetadataType {
+			if docWithDistance.Distance < SimilarityThreshold {
+				s.logger.Info("Found similar message, skipping send",
+					"distance", docWithDistance.Distance,
+					"threshold", SimilarityThreshold,
+					"similar_message", docWithDistance.Document.Content[:min(100, len(docWithDistance.Document.Content))])
+				return true, nil
+			}
+		}
+	}
+
+	s.logger.Info("No similar messages found, safe to send", "checked_documents", len(result.Documents))
+	return false, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
 
 func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
 	if s.memoryService == nil {
 		return "", nil
 	}
 
-	result, err := s.memoryService.Query(ctx, "user memories personal experiences")
+	result, err := s.memoryService.Query(ctx, "what do you know about me")
 	if err != nil {
 		s.logger.Error("Failed to fetch memories", "error", err)
 		return "", err
@@ -27,12 +103,8 @@ func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
 		return "No memories found", nil
 	}
 
-	var memories []string
-	for _, doc := range result.Documents {
-		memories = append(memories, doc.Content)
-	}
-
-	return strings.Join(memories, "\n"), nil
+	randomIndex := rand.Intn(len(result.Documents))
+	return result.Documents[randomIndex].Content, nil
 }
 
 func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
@@ -54,20 +126,23 @@ func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
 	return result.Documents[randomIndex].Content, nil
 }
 
-func (s *FriendService) GeneratePokeMessage(ctx context.Context) (string, error) {
+func (s *FriendService) FetchIdentity(ctx context.Context) (string, error) {
 	personality, err := s.identityService.GetPersonality(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to get personality: %w", err)
 	}
+	return personality, nil
+}
 
-	memories, err := s.FetchMemory(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch memories: %w", err)
-	}
+type GeneratePokeMessageInput struct {
+	Identity string `json:"identity"`
+	Memories string `json:"memories"`
+}
 
+func (s *FriendService) GeneratePokeMessage(ctx context.Context, input GeneratePokeMessageInput) (string, error) {
 	prompt, err := prompts.BuildPokeMessagePrompt(prompts.PokeMessagePrompt{
-		Identity: personality,
-		Memories: memories,
+		Identity: input.Identity,
+		Memories: input.Memories,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to build prompt: %w", err)
@@ -89,33 +164,43 @@ func (s *FriendService) GeneratePokeMessage(ctx context.Context) (string, error)
 }
 
 func (s *FriendService) SendPokeMessage(ctx context.Context, message string) error {
+	isSimilar, err := s.CheckForSimilarMessages(ctx, message)
+	if err != nil {
+		s.logger.Error("Failed to check for similar messages", "error", err)
+	}
+
+	if isSimilar {
+		s.logger.Info("Skipping poke message due to similarity with previous messages")
+		return nil
+	}
+
 	if s.twinchatService == nil {
 		return fmt.Errorf("twinchat service not available")
 	}
 
-	_, err := s.twinchatService.SendAssistantMessage(ctx, "", message)
+	_, err = s.twinchatService.SendAssistantMessage(ctx, "", message)
 	if err != nil {
 		return fmt.Errorf("failed to send poke message: %w", err)
+	}
+
+	err = s.StoreSentMessage(ctx, message, "poke_message")
+	if err != nil {
+		s.logger.Error("Failed to store sent poke message", "error", err)
 	}
 
 	s.logger.Info("Poke message sent successfully")
 	return nil
 }
 
-func (s *FriendService) GenerateMemoryPicture(ctx context.Context) (string, error) {
-	personality, err := s.identityService.GetPersonality(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to get personality: %w", err)
-	}
+type GenerateMemoryPictureInput struct {
+	Identity     string `json:"identity"`
+	RandomMemory string `json:"random_memory"`
+}
 
-	randomMemory, err := s.FetchRandomMemory(ctx)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch random memory: %w", err)
-	}
-
+func (s *FriendService) GenerateMemoryPicture(ctx context.Context, input GenerateMemoryPictureInput) (string, error) {
 	prompt, err := prompts.BuildMemoryPicturePrompt(prompts.MemoryPicturePrompt{
-		Memory:   randomMemory,
-		Identity: personality,
+		Memory:   input.RandomMemory,
+		Identity: input.Identity,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to build picture prompt: %w", err)
@@ -142,6 +227,27 @@ type SendMemoryPictureInput struct {
 }
 
 func (s *FriendService) SendMemoryPicture(ctx context.Context, input SendMemoryPictureInput) error {
+	messageOptions := []string{
+		"This memory made me think of something visual, so I made this:",
+		"Your memory sparked this image in my head:",
+		"I couldn't stop thinking about this memory, so I drew it:",
+		"This memory was too good not to visualize:",
+		"Had to turn this memory into something you could see:",
+	}
+
+	messageIndex := len(input.PictureDescription) % len(messageOptions)
+	message := messageOptions[messageIndex]
+
+	isSimilar, err := s.CheckForSimilarMessages(ctx, message)
+	if err != nil {
+		s.logger.Error("Failed to check for similar messages", "error", err)
+	}
+
+	if isSimilar {
+		s.logger.Info("Skipping memory picture due to similarity with previous messages")
+		return nil
+	}
+
 	if s.twinchatService == nil {
 		return fmt.Errorf("twinchat service not available")
 	}
@@ -169,12 +275,8 @@ func (s *FriendService) SendMemoryPicture(ctx context.Context, input SendMemoryP
 		return fmt.Errorf("no image URLs returned from generate_image tool")
 	}
 
-	// Send message with the generated image
 	s.logger.Info("Sending memory picture with image", "image_urls", imageURLs)
 
-	message := fmt.Sprintf("I was thinking about this memory and created a picture for you: %s", input.PictureDescription)
-
-	// Use the send_to_chat tool to send the message with image URLs
 	_, err = s.toolRegistry.Execute(ctx, "send_to_chat", map[string]any{
 		"message":    message,
 		"chat_id":    input.ChatID,
@@ -182,15 +284,86 @@ func (s *FriendService) SendMemoryPicture(ctx context.Context, input SendMemoryP
 	})
 	if err != nil {
 		s.logger.Error("Failed to send message with image via send_to_chat tool", "error", err)
-		// Fallback to regular message without image
 		_, err := s.twinchatService.SendAssistantMessage(ctx, input.ChatID, message)
 		if err != nil {
 			return fmt.Errorf("failed to send fallback memory picture message: %w", err)
 		}
 		s.logger.Info("Memory picture message sent (without image)", "chat_id", input.ChatID)
-		return nil
+	} else {
+		s.logger.Info("Memory picture sent successfully with image", "chat_id", input.ChatID, "image_count", len(imageURLs))
 	}
 
-	s.logger.Info("Memory picture sent successfully with image", "chat_id", input.ChatID, "image_count", len(imageURLs))
+	err = s.StoreSentMessage(ctx, message, "memory_picture")
+	if err != nil {
+		s.logger.Error("Failed to store sent memory picture message", "error", err)
+	}
+
 	return nil
+}
+
+type TrackUserResponseInput struct {
+	ChatID       string    `json:"chat_id"`
+	ActivityType string    `json:"activity_type"`
+	Timestamp    time.Time `json:"timestamp"`
+}
+
+type GenerateRandomWaitInput struct {
+	MinSeconds int `json:"min_seconds"`
+	MaxSeconds int `json:"max_seconds"`
+}
+
+type GenerateRandomWaitOutput struct {
+	WaitDurationSeconds int `json:"wait_duration_seconds"`
+}
+
+type SelectRandomActivityInput struct {
+	AvailableActivities []string `json:"available_activities"`
+}
+
+type SelectRandomActivityOutput struct {
+	SelectedActivity string `json:"selected_activity"`
+}
+
+func (s *FriendService) TrackUserResponse(ctx context.Context, input TrackUserResponseInput) error {
+	s.logger.Info("Tracking user response",
+		"chat_id", input.ChatID,
+		"activity_type", input.ActivityType,
+		"timestamp", input.Timestamp)
+
+	if s.store != nil {
+		err := s.store.StoreFriendActivity(ctx, input.ChatID, input.ActivityType, input.Timestamp)
+		if err != nil {
+			s.logger.Error("Failed to store friend activity", "error", err)
+			return fmt.Errorf("failed to store friend activity: %w", err)
+		}
+		s.logger.Info("Friend activity stored successfully", "chat_id", input.ChatID)
+	} else {
+		s.logger.Warn("Store not available, skipping friend activity storage")
+	}
+
+	return nil
+}
+
+func (s *FriendService) GenerateRandomWait(ctx context.Context, input GenerateRandomWaitInput) (GenerateRandomWaitOutput, error) {
+	waitDuration := rand.Intn(input.MaxSeconds-input.MinSeconds+1) + input.MinSeconds
+	s.logger.Info("Generated random wait duration", "duration_seconds", waitDuration)
+
+	return GenerateRandomWaitOutput{
+		WaitDurationSeconds: waitDuration,
+	}, nil
+}
+
+func (s *FriendService) SelectRandomActivity(ctx context.Context, input SelectRandomActivityInput) (SelectRandomActivityOutput, error) {
+	if len(input.AvailableActivities) == 0 {
+		return SelectRandomActivityOutput{}, fmt.Errorf("no activities available for selection")
+	}
+
+	selectedIndex := rand.Intn(len(input.AvailableActivities))
+	selectedActivity := input.AvailableActivities[selectedIndex]
+
+	s.logger.Info("Selected random activity", "activity", selectedActivity, "from_options", input.AvailableActivities)
+
+	return SelectRandomActivityOutput{
+		SelectedActivity: selectedActivity,
+	}, nil
 }

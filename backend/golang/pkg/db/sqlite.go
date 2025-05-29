@@ -78,6 +78,16 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
+
+		CREATE TABLE IF NOT EXISTS friend_activity_tracking (
+			id TEXT PRIMARY KEY,
+			chat_id TEXT NOT NULL,
+			activity_type TEXT NOT NULL,
+			timestamp TIMESTAMP NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_friend_activity_chat_id ON friend_activity_tracking(chat_id);
+		CREATE INDEX IF NOT EXISTS idx_friend_activity_timestamp ON friend_activity_tracking(timestamp DESC);
 	`)
 	if err != nil {
 		return nil, err
