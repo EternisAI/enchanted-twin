@@ -18,6 +18,19 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 )
 
+const (
+	MinWaitSeconds = 60 * 60 * 1
+	MaxWaitSeconds = 60 * 60 * 3
+)
+
+type ActivityType string
+
+const (
+	ActivityTypePokeMessage   ActivityType = "poke_message"
+	ActivityTypeMemoryPicture ActivityType = "memory_picture"
+	ActivityTypeQuestion      ActivityType = "question"
+)
+
 type FriendService struct {
 	aiService       *ai.Service
 	logger          *log.Logger
