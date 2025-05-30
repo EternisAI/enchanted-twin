@@ -213,19 +213,6 @@ func PublishSyncStatus(nc *nats.Conn, logger *log.Logger) error {
 	return nil
 }
 
-func IsSyncComplete() bool {
-	status := GetSyncStatus()
-	return !status.IsSyncing && status.TotalItems > 0 && status.ProcessedItems >= status.TotalItems
-}
-
-func IsSyncInProgress() bool {
-	return GetSyncStatus().IsSyncing
-}
-
-func GetSyncProgress() float64 {
-	return GetSyncStatus().Progress
-}
-
 func normalizeJID(jid string) string {
 	if idx := strings.Index(jid, "@"); idx > 0 {
 		return jid[:idx]

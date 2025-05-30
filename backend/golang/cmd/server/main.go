@@ -735,20 +735,6 @@ func bootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	}
 }
 
-// ClassExists checks if a class already exists in Weaviate.
-func ClassExists(client *weaviate.Client, className string) (bool, error) {
-	schema, err := client.Schema().Getter().Do(context.Background())
-	if err != nil {
-		return false, err
-	}
-	for _, class := range schema.Classes {
-		if class.Class == className {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func InitSchema(client *weaviate.Client, logger *log.Logger) error {
 	logger.Debug("Starting schema initialization")
 	start := time.Now()

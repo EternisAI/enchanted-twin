@@ -16,7 +16,6 @@ release:
 
 lint:
 	golangci-lint run --fix
-	@go run golang.org/x/tools/cmd/deadcode@latest ./...
 
 test:
 	go test ./...
@@ -26,3 +25,7 @@ gqlgen:
 
 run-telegram-chat:
 	go run cmd/telegram_chat_server/main.go
+
+deadcode:
+	@echo "=== Checking for transitively dead functions ==="
+	@go run golang.org/x/tools/cmd/deadcode@latest ./...

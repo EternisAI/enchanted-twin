@@ -46,20 +46,6 @@ type Source interface {
 	Sync(ctx context.Context) ([]types.Record, error)
 }
 
-// ToCSVRecord converts a Record to a CSV record format.
-func (r Record) ToCSVRecord() ([]string, error) {
-	dataJSON, err := json.Marshal(r.Data)
-	if err != nil {
-		return nil, err
-	}
-
-	return []string{
-		string(dataJSON),
-		r.Timestamp.Format(time.RFC3339),
-		r.Source,
-	}, nil
-}
-
 func extractZip(zipPath string) (extractedPath string, err error) {
 	tempDir, err := os.MkdirTemp("", "extracted_zip_")
 	if err != nil {

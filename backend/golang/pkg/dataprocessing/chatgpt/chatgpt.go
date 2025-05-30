@@ -1,7 +1,6 @@
 package chatgpt
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -278,8 +277,4 @@ func parseTimestamp(ts string) (time.Time, error) {
 	}
 
 	return time.Unix(seconds, 0), nil
-}
-
-func (s *ChatGPTDataSource) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Chatgpt")
 }

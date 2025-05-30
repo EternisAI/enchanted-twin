@@ -159,44 +159,6 @@ type TwitterUserResponse struct {
 	} `json:"data"`
 }
 
-func GetUserIDByUsername(username string, bearerToken string) (string, error) {
-	url := fmt.Sprintf("https://api.twitter.com/2/users/by?usernames=%s", username)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
-	}
-
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", bearerToken))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error making request: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf(
-			"API request failed with status %d: %s",
-			resp.StatusCode,
-			string(body),
-		)
-	}
-
-	var userResponse TwitterUserResponse
-	if err := json.NewDecoder(resp.Body).Decode(&userResponse); err != nil {
-		return "", fmt.Errorf("error decoding response: %v", err)
-	}
-
-	if len(userResponse.Data) == 0 {
-		return "", fmt.Errorf("no user found with username: %s", username)
-	}
-
-	return userResponse.Data[0].ID, nil
-}
-
 type LikeData struct {
 	ExpandedUrl string `json:"expandedUrl"`
 	FullText    string `json:"fullText"`

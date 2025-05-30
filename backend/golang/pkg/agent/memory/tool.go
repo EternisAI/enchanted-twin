@@ -85,14 +85,3 @@ func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
 		},
 	}
 }
-
-// GetMemoryTools returns all memory-related tools.
-func GetMemoryTools(logger *log.Logger, storage Storage) []types.Tool {
-	if storage == nil {
-		return []types.Tool{}
-	}
-
-	return []types.Tool{
-		NewMemorySearchTool(logger, storage),
-	}
-}
