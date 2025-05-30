@@ -23,12 +23,28 @@ func (m *MockMemoryService) Store(ctx context.Context, documents []memory.TextDo
 
 func (m *MockMemoryService) Query(ctx context.Context, query string) (memory.QueryResult, error) {
 	args := m.Called(ctx, query)
-	return args.Get(0).(memory.QueryResult), args.Error(1)
+	err := args.Error(1)
+	if err != nil {
+		return memory.QueryResult{}, err
+	}
+	result, ok := args.Get(0).(memory.QueryResult)
+	if !ok {
+		return memory.QueryResult{}, nil
+	}
+	return result, err
 }
 
 func (m *MockMemoryService) QueryWithDistance(ctx context.Context, query string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
 	args := m.Called(ctx, query, metadataFilters)
-	return args.Get(0).(memory.QueryWithDistanceResult), args.Error(1)
+	err := args.Error(1)
+	if err != nil {
+		return memory.QueryWithDistanceResult{}, err
+	}
+	result, ok := args.Get(0).(memory.QueryWithDistanceResult)
+	if !ok {
+		return memory.QueryWithDistanceResult{}, nil
+	}
+	return result, err
 }
 
 func TestCheckForSimilarFriendMessages(t *testing.T) {
