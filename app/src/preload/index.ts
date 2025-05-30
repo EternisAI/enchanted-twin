@@ -2,7 +2,7 @@ import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
 import { AppNotification } from '../renderer/src/graphql/generated/graphql'
 import { MediaType } from '../main/mediaPermissions'
-import { voiceStore } from '../main/stores'
+import { voiceStore, screenpipeStore } from '../main/stores'
 
 const api = {
   getPathForFile: (file) => webUtils.getPathForFile(file),
@@ -60,7 +60,9 @@ const api = {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),
     install: () => ipcRenderer.invoke('screenpipe:install'),
     start: () => ipcRenderer.invoke('screenpipe:start'),
-    stop: () => ipcRenderer.invoke('screenpipe:stop')
+    stop: () => ipcRenderer.invoke('screenpipe:stop'),
+    getAutoStart: () => ipcRenderer.invoke('screenpipe:get-auto-start'),
+    setAutoStart: (enabled: boolean) => ipcRenderer.invoke('screenpipe:set-auto-start', enabled)
   },
   launch: {
     onProgress: (
@@ -102,6 +104,10 @@ const api = {
   voiceStore: {
     get: (key: string) => voiceStore.get(key),
     set: (key: string, value: unknown) => voiceStore.set(key, value)
+  },
+  screenpipeStore: {
+    get: (key: string) => screenpipeStore.get(key),
+    set: (key: string, value: unknown) => screenpipeStore.set(key, value)
   }
 }
 

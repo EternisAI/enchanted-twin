@@ -43,10 +43,18 @@ const STEPS: Step[] = [
 ]
 
 export default function VoiceOnboardingContainer() {
+  const navigate = useNavigate()
   const { installationStatus, isVoiceReady } = useDependencyStatus()
   const { theme } = useTheme()
+  const { isCompleted } = useOnboardingStore()
 
   console.log('isVoiceReady', isVoiceReady)
+
+  useEffect(() => {
+    if (isCompleted) {
+      navigate({ to: '/' })
+    }
+  }, [isCompleted, navigate])
 
   return (
     <div

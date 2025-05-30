@@ -57,6 +57,8 @@ interface IApi {
     install: () => Promise<ScreenpipeResult>
     start: () => Promise<ScreenpipeResult>
     stop: () => Promise<boolean>
+    getAutoStart: () => Promise<boolean>
+    setAutoStart: (enabled: boolean) => Promise<boolean>
   }
   launch: {
     onProgress: (
