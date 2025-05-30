@@ -45,7 +45,11 @@ func IntegrationTest(config IntegrationTestConfig) error {
 		TimeFormat:      time.Kitchen,
 	})
 
-	bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate")
+	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate")
+	if err != nil {
+		logger.Error("Error starting weaviate server", "error", err)
+		return err
+	}
 
 	weaviateClient, err := weaviate.NewClient(weaviate.Config{
 		Host:   fmt.Sprintf("localhost:%s", weaviatePort),
@@ -96,6 +100,10 @@ func IntegrationTest(config IntegrationTestConfig) error {
 	fmt.Println("documents ", documents[0:10])
 
 	mem, err := evolvingmemory.New(logger, weaviateClient, openAiService, aiEmbeddingsService)
+	if err != nil {
+		logger.Error("Error processing telegram", "error", err)
+		return err
+	}
 
 	err = mem.Store(ctx, documents, nil)
 	if err != nil {

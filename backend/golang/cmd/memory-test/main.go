@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/google/uuid"
+
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/integration"
-	"github.com/google/uuid"
 )
 
 func main() {

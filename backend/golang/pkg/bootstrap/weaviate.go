@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/charmbracelet/log"
 	"github.com/go-openapi/loads"
 	"github.com/jessevdk/go-flags"
@@ -16,6 +15,8 @@ import (
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 )
 
 func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
