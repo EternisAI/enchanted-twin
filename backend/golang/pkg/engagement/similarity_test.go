@@ -16,8 +16,8 @@ type MockMemoryService struct {
 	mock.Mock
 }
 
-func (m *MockMemoryService) Store(ctx context.Context, documents []memory.TextDocument, progressChan chan<- memory.ProgressUpdate) error {
-	args := m.Called(ctx, documents, progressChan)
+func (m *MockMemoryService) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
+	args := m.Called(ctx, documents, progressCallback)
 	return args.Error(0)
 }
 
@@ -80,8 +80,8 @@ func TestCheckForSimilarFriendMessages(t *testing.T) {
 			Documents: []memory.DocumentWithDistance{
 				{
 					Document: memory.TextDocument{
-						Content: "How are you feeling today?",
-						Metadata: map[string]string{
+						FieldContent: "How are you feeling today?",
+						FieldMetadata: map[string]string{
 							"type":          "friend",
 							"activity_type": "question",
 						},
@@ -103,8 +103,8 @@ func TestCheckForSimilarFriendMessages(t *testing.T) {
 			Documents: []memory.DocumentWithDistance{
 				{
 					Document: memory.TextDocument{
-						Content: "What's the weather like?",
-						Metadata: map[string]string{
+						FieldContent: "What's the weather like?",
+						FieldMetadata: map[string]string{
 							"type":          "friend",
 							"activity_type": "question",
 						},
@@ -133,18 +133,18 @@ func TestStoreSentMessage(t *testing.T) {
 	testMessage := "Test message"
 	activityType := "poke_message"
 
-	mockMemory.On("Store", ctx, mock.MatchedBy(func(docs []memory.TextDocument) bool {
+	mockMemory.On("Store", ctx, mock.MatchedBy(func(docs []memory.Document) bool {
 		if len(docs) != 1 {
 			return false
 		}
 		doc := docs[0]
-		return doc.Content == testMessage &&
-			doc.Metadata["type"] == FriendMetadataType &&
-			doc.Metadata["activity_type"] == activityType &&
-			len(doc.Tags) == 2 &&
-			doc.Tags[0] == "sent_message" &&
-			doc.Tags[1] == activityType
-	}), mock.AnythingOfType("chan<- memory.ProgressUpdate")).Return(nil)
+		return doc.Content() == testMessage &&
+			doc.Metadata()["type"] == FriendMetadataType &&
+			doc.Metadata()["activity_type"] == activityType &&
+			len(doc.Tags()) == 2 &&
+			doc.Tags()[0] == "sent_message" &&
+			doc.Tags()[1] == activityType
+	}), mock.AnythingOfType("memory.ProgressCallback")).Return(nil)
 
 	err := friendService.StoreSentMessage(ctx, testMessage, activityType)
 

@@ -251,11 +251,11 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 
 		finalResults = append(finalResults, memory.DocumentWithDistance{
 			Document: memory.TextDocument{
-				ID:        id,
-				Content:   content,
-				Timestamp: parsedTimestamp,
-				Metadata:  metaMap,
-				Tags:      tags,
+				FieldID:        id,
+				FieldContent:   content,
+				FieldTimestamp: parsedTimestamp,
+				FieldMetadata:  metaMap,
+				FieldTags:      tags,
 			},
 			Distance: float32(distance),
 		})
