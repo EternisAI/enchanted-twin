@@ -132,9 +132,21 @@ func (s *Service) SendMessage(
 	isVoice bool,
 ) (*model.Message, error) {
 	now := time.Now()
-	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
-	if err != nil {
-		return nil, err
+
+	messages := make([]*model.Message, 0)
+	if chatID == "" {
+		chat, err := s.storage.CreateChat(ctx, "New chat")
+		if err != nil {
+			return nil, err
+		}
+		s.logger.Info("Created new chat", "chat_id", chat.ID)
+		chatID = chat.ID
+	} else {
+		messages_, err := s.storage.GetMessagesByChatId(ctx, chatID)
+		if err != nil {
+			return nil, err
+		}
+		messages = messages_
 	}
 
 	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
@@ -250,7 +262,7 @@ func (s *Service) SendMessage(
 			MessageID:  assistantMessageId,
 			ImageUrls:  delta.ImageURLs,
 			Chunk:      delta.ContentDelta,
-			Role:       model.RoleAssistant,
+			Role:       model.RoleUser,
 			IsComplete: delta.IsCompleted,
 			CreatedAt:  &createdAt,
 		}
@@ -411,7 +423,7 @@ func (s *Service) SendMessage(
 	return &model.Message{
 		ID:          idAssistant,
 		Text:        &response.Content,
-		Role:        model.RoleUser,
+		Role:        model.RoleAssistant,
 		ImageUrls:   response.ImageURLs,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
@@ -583,4 +595,70 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	s.logger.Info("Indexing conversation", "chat_id", chatID, "messages_count", len(conversationMessages))
 
 	return s.memoryService.Store(ctx, memory.ConversationDocumentsToDocuments([]memory.ConversationDocument{doc}), nil)
+}
+
+func (s *Service) SendAssistantMessage(
+	ctx context.Context,
+	chatID string,
+	message string,
+) (*model.Message, error) {
+	now := time.Now()
+
+	if chatID == "" {
+		chat, err := s.storage.CreateChat(ctx, "New chat")
+		if err != nil {
+			return nil, err
+		}
+		s.logger.Info("Created new chat", "chat_id", chat.ID)
+		chatID = chat.ID
+	}
+
+	assistantMessageId := uuid.New().String()
+	createdAt := time.Now().Format(time.RFC3339)
+
+	assistantMessageDb := repository.Message{
+		ID:           assistantMessageId,
+		ChatID:       chatID,
+		Text:         message,
+		Role:         model.RoleAssistant.String(),
+		CreatedAtStr: now.Format(time.RFC3339Nano),
+	}
+
+	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
+	if err != nil {
+		return nil, err
+	}
+
+	assistantNatsMsg := model.Message{
+		ID:        assistantMessageId,
+		Text:      &message,
+		ImageUrls: []string{},
+		CreatedAt: createdAt,
+		Role:      model.RoleAssistant,
+	}
+
+	assistantNatsMsgJSON, err := json.Marshal(assistantNatsMsg)
+	if err != nil {
+		s.logger.Error("failed to marshal assistant NATS message", "error", err)
+	} else {
+		subject := fmt.Sprintf("chat.%s", chatID)
+		if err := s.nc.Publish(subject, assistantNatsMsgJSON); err != nil {
+			s.logger.Error("failed to publish assistant message to NATS", "error", err)
+		}
+	}
+
+	go func() {
+		err := s.IndexConversation(context.Background(), chatID)
+		if err != nil {
+			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
+		}
+	}()
+
+	return &model.Message{
+		ID:        idAssistant,
+		Text:      &message,
+		Role:      model.RoleAssistant,
+		ImageUrls: []string{},
+		CreatedAt: createdAt,
+	}, nil
 }

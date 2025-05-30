@@ -139,9 +139,18 @@ type MemoryFact struct {
 	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
+type DocumentWithDistance struct {
+	Document TextDocument
+	Distance float32
+}
+
 type QueryResult struct {
 	Facts     []MemoryFact   `json:"facts"`
 	Documents []TextDocument `json:"documents,omitempty"` // For backward compatibility
+}
+
+type QueryWithDistanceResult struct {
+	Documents []DocumentWithDistance
 }
 
 type ProgressUpdate struct {
@@ -154,6 +163,7 @@ type ProgressCallback func(processed, total int)
 type Storage interface {
 	Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
 	Query(ctx context.Context, query string) (QueryResult, error)
+	QueryWithDistance(ctx context.Context, query string, metadataFilters ...map[string]string) (QueryWithDistanceResult, error)
 }
 
 // Helper functions to convert slices to Document interface
