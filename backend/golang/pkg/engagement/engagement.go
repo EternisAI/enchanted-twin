@@ -24,8 +24,8 @@ import (
 )
 
 const (
-	MinWaitSeconds = 60 * 60 * 1
-	MaxWaitSeconds = 60 * 60 * 3
+	MinWaitSeconds = 60 * 60 * 0.5
+	MaxWaitSeconds = 60 * 60 * 1
 )
 
 type ActivityType string
