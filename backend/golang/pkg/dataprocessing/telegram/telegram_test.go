@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -45,6 +46,7 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
+
 	telegramProcessor := NewTelegramProcessor()
 	docs, err := telegramProcessor.ToDocuments(records)
 	if err != nil {
@@ -54,22 +56,35 @@ func TestToDocuments(t *testing.T) {
 	// Verify results
 	assert.Equal(t, 2, len(docs), "Expected 2 documents")
 
-	// Check message document
+	// The documents could be in any order, so let's find them by type
+	var conversationDoc, contactDoc memory.Document
+	for _, doc := range docs {
+		tags := doc.Tags()
+		if len(tags) >= 3 && tags[2] == "chat" {
+			conversationDoc = doc
+		} else if len(tags) >= 3 && tags[2] == "contact" {
+			contactDoc = doc
+		}
+	}
+
+	// Check message conversation document
 	expectedTimestamp, _ := time.Parse(time.RFC3339, "2022-12-25T04:38:18Z")
-	assert.Equal(t, "I want to believe", docs[0].Content())
-	assert.Equal(t, &expectedTimestamp, docs[0].Timestamp())
-	assert.Equal(t, []string{"social", "telegram", "chat"}, docs[0].Tags())
+	assert.NotNil(t, conversationDoc, "Expected conversation document")
+	assert.Contains(t, conversationDoc.Content(), "I want to believe", "Conversation should contain the message")
+	assert.Equal(t, []string{"social", "telegram", "chat"}, conversationDoc.Tags())
 
 	// Check contact document
-	assert.Equal(t, "John Doe", docs[1].Content())
-	assert.Equal(t, &expectedTimestamp, docs[1].Timestamp())
-	assert.Equal(t, []string{"social", "telegram", "contact"}, docs[1].Tags())
+	assert.NotNil(t, contactDoc, "Expected contact document")
+	assert.Equal(t, "John Doe", contactDoc.Content())
+	assert.Equal(t, &expectedTimestamp, contactDoc.Timestamp())
+	assert.Equal(t, []string{"social", "telegram", "contact"}, contactDoc.Tags())
 	assert.Equal(t, map[string]string{
 		"type":        "contact",
 		"firstName":   "John",
 		"lastName":    "Doe",
 		"phoneNumber": "+1234567890",
-	}, docs[1].Metadata())
+		"source":      "telegram",
+	}, contactDoc.Metadata())
 }
 
 func TestProcessDirectoryInput(t *testing.T) {

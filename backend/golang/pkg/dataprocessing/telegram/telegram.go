@@ -79,7 +79,6 @@ func (s *TelegramProcessor) Name() string {
 }
 
 func extractUsername(ctx context.Context, telegramData TelegramData, store *db.Store, processor *TelegramProcessor) string {
-	// Extract and save username if store is provided and username exists
 	extractedUsername := ""
 	if telegramData.PersonalInformation.Username != "" {
 		userIDStr := ""
@@ -119,9 +118,6 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 }
 
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
-	fmt.Println("============================ Processing file", filepath)
-
-	// Check if filepath is a directory
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
 		return nil, err
@@ -129,14 +125,12 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 
 	var jsonFilePath string
 	if fileInfo.IsDir() {
-		// If it's a directory, find the JSON file
 		var candidates []string
 		entries, err := os.ReadDir(filepath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading directory %s: %v", filepath, err)
 		}
 
-		// Look for result.json first (common Telegram export file)
 		for _, entry := range entries {
 			if !entry.IsDir() && entry.Name() == "result.json" {
 				jsonFilePath = fmt.Sprintf("%s/result.json", filepath)
@@ -144,7 +138,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 			}
 		}
 
-		// If result.json not found, look for any .json file
 		if jsonFilePath == "" {
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
@@ -156,7 +149,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 				return nil, fmt.Errorf("no JSON files found in directory %s", filepath)
 			}
 
-			// Use the first JSON file found
 			jsonFilePath = fmt.Sprintf("%s/%s", filepath, candidates[0])
 			fmt.Printf("Using JSON file: %s\n", jsonFilePath)
 		}
@@ -181,7 +173,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 	for _, contact := range telegramData.Contacts.List {
 		timestamp, err := parseTimestamp(contact.Date, contact.DateUnixtime)
 		if err != nil {
-			// Log the error instead of silently continuing
 			fmt.Printf("Warning: Failed to parse contact timestamp: %v\n", err)
 			continue
 		}
@@ -206,7 +197,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 		for _, message := range chat.Messages {
 			timestamp, err := parseTimestamp(message.Date, message.DateUnixtime)
 			if err != nil {
-				// Log the error instead of silently continuing
 				fmt.Printf("Warning: Failed to parse message timestamp: %v\n", err)
 				continue
 			}
@@ -216,7 +206,9 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 				fullText += entity.Text
 			}
 
-			myMessage := strings.EqualFold(message.From, effectiveUserName)
+			normalizedEffectiveUserName := strings.TrimPrefix(effectiveUserName, "@")
+			normalizedMessageFrom := strings.TrimPrefix(message.From, "@")
+			myMessage := strings.EqualFold(normalizedMessageFrom, normalizedEffectiveUserName)
 
 			to := ""
 			if myMessage {
@@ -273,14 +265,12 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 		"2006-01-02T15:04:05.000-07:00",
 	}
 
-	// Try parsing with various formats
 	for _, format := range formats {
 		if t, err := time.Parse(format, dateStr); err == nil {
 			return t, nil
 		}
 	}
 
-	// If none of the formats work and we have a unix timestamp, use that
 	if unixStr != "" {
 		if unixSec, err := strconv.ParseInt(unixStr, 10, 64); err == nil {
 			return time.Unix(unixSec, 0), nil
@@ -318,6 +308,8 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 			switch v := chatIdInterface.(type) {
 			case int:
 				chatId = fmt.Sprintf("%d", v)
+			case float64:
+				chatId = fmt.Sprintf("%.0f", v)
 			case string:
 				chatId = v
 			default:
