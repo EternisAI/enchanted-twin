@@ -78,7 +78,7 @@ func (s *TelegramProcessor) Name() string {
 	return "telegram"
 }
 
-func extractUsername(ctx context.Context, telegramData TelegramData, store *db.Store, processor *TelegramProcessor) string {
+func extractUsername(ctx context.Context, telegramData TelegramData, store *db.Store, processor *TelegramProcessor) (string, error) {
 	extractedUsername := ""
 	if telegramData.PersonalInformation.Username != "" {
 		userIDStr := ""
@@ -109,12 +109,14 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 
 		if err := store.SetSourceUsername(ctx, sourceUsername); err != nil {
 			fmt.Printf("Warning: Failed to save username to database: %v\n", err)
+
+			return "", err
 		}
 
 		extractedUsername = telegramData.PersonalInformation.Username
 	}
 
-	return extractedUsername
+	return extractedUsername, nil
 }
 
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
@@ -166,7 +168,10 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 		return nil, err
 	}
 
-	effectiveUserName := extractUsername(ctx, telegramData, store, s)
+	effectiveUserName, err := extractUsername(ctx, telegramData, store, s)
+	if err != nil {
+		return nil, err
+	}
 
 	var records []types.Record
 
