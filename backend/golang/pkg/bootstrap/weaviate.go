@@ -8,10 +8,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/charmbracelet/log"
 	"github.com/go-openapi/loads"
 	"github.com/jessevdk/go-flags"
 	"github.com/pkg/errors"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 )
@@ -158,4 +160,16 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+func InitSchema(client *weaviate.Client, logger *log.Logger) error {
+	logger.Debug("Starting schema initialization")
+	start := time.Now()
+
+	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
+		return err
+	}
+
+	logger.Debug("Schema initialization completed", "elapsed", time.Since(start))
+	return nil
 }

@@ -200,7 +200,7 @@ func main() {
 
 	logger.Info("Initializing Weaviate schema")
 	schemaInitStart := time.Now()
-	if err := InitSchema(weaviateClient, logger); err != nil {
+	if err := bootstrap.InitSchema(weaviateClient, logger); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
@@ -598,18 +598,6 @@ func ClassExists(client *weaviate.Client, className string) (bool, error) {
 		}
 	}
 	return false, nil
-}
-
-func InitSchema(client *weaviate.Client, logger *log.Logger) error {
-	logger.Debug("Starting schema initialization")
-	start := time.Now()
-
-	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
-		return err
-	}
-
-	logger.Debug("Schema initialization completed", "elapsed", time.Since(start))
-	return nil
 }
 
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {

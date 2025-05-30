@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/pkg/errors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -46,6 +47,22 @@ func IntegrationTest(config IntegrationTestConfig) error {
 
 	bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate")
 
+	weaviateClient, err := weaviate.NewClient(weaviate.Config{
+		Host:   fmt.Sprintf("localhost:%s", weaviatePort),
+		Scheme: "http",
+	})
+	if err != nil {
+		logger.Error("Error creating weaviate client", "error", err)
+		return err
+	}
+
+	schemaInitStart := time.Now()
+	if err := bootstrap.InitSchema(weaviateClient, logger); err != nil {
+		logger.Error("Failed to initialize Weaviate schema", "error", err)
+		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
+	}
+	logger.Info("Weaviate schema initialized", "elapsed", time.Since(schemaInitStart))
+
 	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
@@ -77,11 +94,6 @@ func IntegrationTest(config IntegrationTestConfig) error {
 	}
 
 	fmt.Println("documents ", documents[0:10])
-
-	weaviateClient, err := weaviate.NewClient(weaviate.Config{
-		Host:   fmt.Sprintf("localhost:%s", weaviatePort),
-		Scheme: "http",
-	})
 
 	mem, err := evolvingmemory.New(logger, weaviateClient, openAiService, aiEmbeddingsService)
 
