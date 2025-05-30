@@ -43,7 +43,7 @@ export function OnboardingDoneAnimation() {
   )
 }
 
-export function Animation({
+export function OnboardingVoiceAnimation({
   run = true,
   layerCount = 7,
   maxSize = 800,

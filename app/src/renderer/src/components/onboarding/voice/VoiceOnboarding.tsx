@@ -5,13 +5,14 @@ import MessageInput from '@renderer/components/chat/MessageInput'
 import { UserMessageBubble } from '@renderer/components/chat/Message'
 import { Message, Role, UpdateProfileDocument } from '@renderer/graphql/generated/graphql'
 import { useTTS } from '@renderer/hooks/useTTS'
-import { Animation, OnboardingDoneAnimation } from './Animations'
+import { OnboardingVoiceAnimation, OnboardingDoneAnimation } from './Animations'
 import { useMutation } from '@apollo/client'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
 import { useNavigate } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { useTitlebarColor } from '@renderer/hooks/useTitlebarColor'
 
 type Ask = (answers: string[]) => string
 
@@ -80,6 +81,7 @@ function VoiceOnboarding() {
   const [answers, setAnswers] = useState<string[]>([])
   const [triggerAnimation, setTriggerAnimation] = useState(false)
   const { completeOnboarding } = useOnboardingStore()
+  const { updateTitlebarColor } = useTitlebarColor()
 
   const [updateProfile] = useMutation(UpdateProfileDocument)
 
@@ -89,6 +91,15 @@ function VoiceOnboarding() {
 
   useEffect(() => {
     speak(currentPrompt)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    updateTitlebarColor('onboarding')
+
+    return () => {
+      updateTitlebarColor('app')
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -146,7 +157,7 @@ function VoiceOnboarding() {
         }}
         variant="outline"
         size="sm"
-        className="absolute bottom-4 right-4"
+        className="absolute bottom-4 right-4 text-white hover:text-black"
       >
         Skip
       </Button>
@@ -158,7 +169,7 @@ function VoiceOnboarding() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
       >
-        <Animation run={isSpeaking} />
+        <OnboardingVoiceAnimation run={isSpeaking} />
       </motion.div>
 
       <div></div>
