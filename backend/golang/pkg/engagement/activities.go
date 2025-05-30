@@ -26,23 +26,19 @@ func (s *FriendService) StoreSentMessage(ctx context.Context, message string, ac
 
 	now := time.Now()
 	doc := memory.TextDocument{
-		Content:   message,
-		Timestamp: &now,
-		Tags:      []string{"sent_message", activityType},
-		Metadata: map[string]string{
+		FieldContent:   message,
+		FieldTimestamp: &now,
+		FieldTags:      []string{"sent_message", activityType},
+		FieldMetadata: map[string]string{
 			"type":          FriendMetadataType,
 			"activity_type": activityType,
 			"sent_at":       now.Format(time.RFC3339),
 		},
 	}
 
-	progressChan := make(chan memory.ProgressUpdate, 1)
-	go func() {
-		for range progressChan {
-		}
-	}()
-
-	err := s.memoryService.Store(ctx, []memory.TextDocument{doc}, progressChan)
+	err := s.memoryService.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{doc}), func(processed, total int) {
+		// Progress callback - no action needed
+	})
 	if err != nil {
 		s.logger.Error("Failed to store sent message", "error", err, "message", message)
 		return fmt.Errorf("failed to store sent message: %w", err)
@@ -75,14 +71,14 @@ func (s *FriendService) CheckForSimilarFriendMessages(ctx context.Context, messa
 		s.logger.Debug("Checking friend document",
 			"distance", docWithDistance.Distance,
 			"threshold", SimilarityThreshold,
-			"activity_type", docWithDistance.Document.Metadata["activity_type"],
-			"content_preview", docWithDistance.Document.Content[:min(50, len(docWithDistance.Document.Content))])
+			"activity_type", docWithDistance.Document.FieldMetadata["activity_type"],
+			"content_preview", docWithDistance.Document.FieldContent[:min(50, len(docWithDistance.Document.FieldContent))])
 
 		if docWithDistance.Distance < SimilarityThreshold {
 			s.logger.Info("Found similar friend message, skipping send",
 				"distance", docWithDistance.Distance,
 				"threshold", SimilarityThreshold,
-				"similar_message", docWithDistance.Document.Content[:min(100, len(docWithDistance.Document.Content))])
+				"similar_message", docWithDistance.Document.FieldContent[:min(100, len(docWithDistance.Document.FieldContent))])
 			return true, nil
 		}
 	}
@@ -115,7 +111,7 @@ func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
 	}
 
 	randomIndex := rand.Intn(len(result.Documents))
-	return result.Documents[randomIndex].Content, nil
+	return result.Documents[randomIndex].FieldContent, nil
 }
 
 func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
@@ -134,7 +130,7 @@ func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
 	}
 
 	randomIndex := rand.Intn(len(result.Documents))
-	return result.Documents[randomIndex].Content, nil
+	return result.Documents[randomIndex].FieldContent, nil
 }
 
 func (s *FriendService) FetchIdentity(ctx context.Context) (string, error) {
@@ -460,17 +456,13 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 			"activity_type": "question",
 		}
 		doc := memory.TextDocument{
-			Content:  question,
-			Metadata: metaData,
-			Tags:     []string{"friend", "question"},
+			FieldContent:  question,
+			FieldMetadata: metaData,
+			FieldTags:     []string{"friend", "question"},
 		}
 		docs := []memory.TextDocument{doc}
-		progressCh := make(chan memory.ProgressUpdate, 1)
-		go func() {
-			for range progressCh {
-			}
-		}()
-		if errStore := s.memoryService.Store(ctx, docs, progressCh); errStore != nil {
+		if errStore := s.memoryService.Store(ctx, memory.TextDocumentsToDocuments(docs), func(processed, total int) {
+		}); errStore != nil {
 			s.logger.Error("Failed to store question in memory", "error", errStore)
 		}
 	}
