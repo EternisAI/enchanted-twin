@@ -396,7 +396,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			}
 			w.Logger.Info("Documents", "telegram", len(documents))
 
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
+			err = w.Memory.Store(ctx, documents, progressCallback)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}

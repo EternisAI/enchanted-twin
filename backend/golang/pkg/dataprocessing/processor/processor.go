@@ -17,5 +17,5 @@ type Processor interface {
 	// Sync returns latest data from the source
 	Sync(ctx context.Context) ([]types.Record, error)
 	// ToDocuments converts records to documents
-	ToDocuments(records []types.Record) ([]memory.TextDocument, error)
+	ToDocuments(records []types.Record) ([]memory.Document, error)
 }

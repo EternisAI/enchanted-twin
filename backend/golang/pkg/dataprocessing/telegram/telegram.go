@@ -291,10 +291,13 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", dateStr)
 }
 
-func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
-	textDocuments := []memory.TextDocument{}
+func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+	conversationMap := make(map[string]*memory.ConversationDocument)
+	var textDocuments []memory.TextDocument
+
 	for _, record := range records {
 		if record.Data["type"] == "message" {
+
 			message, ok := record.Data["text"].(string)
 			if !ok || message == "" {
 				continue
@@ -308,18 +311,56 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.TextDo
 				continue
 			}
 
-			textDocuments = append(textDocuments, memory.TextDocument{
-				FieldContent:   message,
-				FieldTimestamp: &record.Timestamp,
-				FieldTags:      []string{"social", "telegram", "chat"},
-				FieldMetadata: map[string]string{
-					"type":   "message",
-					"from":   from,
-					"to":     to,
-					"source": "telegram",
-				},
+			chatIdInterface, ok := record.Data["chatId"]
+			if !ok {
+				continue
+			}
+
+			var chatId string
+			switch v := chatIdInterface.(type) {
+			case int:
+				chatId = fmt.Sprintf("%d", v)
+			case string:
+				chatId = v
+			default:
+				continue
+			}
+
+			conversation, exists := conversationMap[chatId]
+			if !exists {
+				conversationMap[chatId] = &memory.ConversationDocument{
+					FieldID:      chatId,
+					FieldSource:  "telegram",
+					FieldTags:    []string{"social", "telegram", "chat"},
+					People:       []string{from, to},
+					User:         from,
+					Conversation: []memory.ConversationMessage{},
+					FieldMetadata: map[string]string{
+						"type":   "conversation",
+						"source": "telegram",
+					},
+				}
+				conversation = conversationMap[chatId]
+			}
+
+			conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+				Speaker: from,
+				Content: message,
+				Time:    record.Timestamp,
 			})
+
+			peopleMap := make(map[string]bool)
+			for _, person := range conversation.People {
+				peopleMap[person] = true
+			}
+			if !peopleMap[from] {
+				conversation.People = append(conversation.People, from)
+			}
+			if !peopleMap[to] {
+				conversation.People = append(conversation.People, to)
+			}
 		}
+
 		if record.Data["type"] == "contact" {
 			firstName, ok := record.Data["firstName"].(string)
 			if !ok {
@@ -338,6 +379,7 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.TextDo
 				FieldTimestamp: &record.Timestamp,
 				FieldTags:      []string{"social", "telegram", "contact"},
 				FieldMetadata: map[string]string{
+					"source":      "telegram",
 					"type":        "contact",
 					"firstName":   firstName,
 					"lastName":    lastName,
@@ -347,5 +389,14 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.TextDo
 		}
 	}
 
-	return textDocuments, nil
+	var conversationDocuments []memory.ConversationDocument
+	for _, conversation := range conversationMap {
+		conversationDocuments = append(conversationDocuments, *conversation)
+	}
+
+	var allDocuments []memory.Document
+	allDocuments = append(allDocuments, memory.ConversationDocumentsToDocuments(conversationDocuments)...)
+	allDocuments = append(allDocuments, memory.TextDocumentsToDocuments(textDocuments)...)
+
+	return allDocuments, nil
 }
