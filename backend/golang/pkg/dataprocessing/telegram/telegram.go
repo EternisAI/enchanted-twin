@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	processor "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type Contact struct {
@@ -45,8 +48,18 @@ type Chat struct {
 	Name     string    `json:"name"`
 }
 
+type PersonalInformation struct {
+	UserID      int    `json:"user_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	PhoneNumber string `json:"phone_number"`
+	Username    string `json:"username"`
+	Bio         string `json:"bio"`
+}
+
 type TelegramData struct {
-	Contacts struct {
+	PersonalInformation PersonalInformation `json:"personal_information"`
+	Contacts            struct {
 		About string    `json:"about"`
 		List  []Contact `json:"list"`
 	} `json:"contacts"`
@@ -56,46 +69,103 @@ type TelegramData struct {
 	} `json:"chats"`
 }
 
-type Source struct{}
+type TelegramProcessor struct{}
 
-func New() *Source {
-	return &Source{}
+func NewTelegramProcessor() processor.Processor {
+	return &TelegramProcessor{}
 }
 
-func (s *Source) Name() string {
+func (s *TelegramProcessor) Name() string {
 	return "telegram"
 }
 
-// and falls back to unix timestamp if available.
-func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
-	formats := []string{
-		"2006-01-02T15:04:05",
-		"2006-01-02T15:04:05.000",
-		"2006-01-02T15:04:05Z",
-		"2006-01-02T15:04:05.000Z",
-		"2006-01-02T15:04:05-07:00",
-		"2006-01-02T15:04:05.000-07:00",
-	}
-
-	// Try parsing with various formats
-	for _, format := range formats {
-		if t, err := time.Parse(format, dateStr); err == nil {
-			return t, nil
+func extractUsername(ctx context.Context, telegramData TelegramData, store *db.Store, processor *TelegramProcessor) string {
+	// Extract and save username if store is provided and username exists
+	extractedUsername := ""
+	if telegramData.PersonalInformation.Username != "" {
+		userIDStr := ""
+		if telegramData.PersonalInformation.UserID != 0 {
+			userIDStr = strconv.Itoa(telegramData.PersonalInformation.UserID)
 		}
-	}
 
-	// If none of the formats work and we have a unix timestamp, use that
-	if unixStr != "" {
-		if unixSec, err := strconv.ParseInt(unixStr, 10, 64); err == nil {
-			return time.Unix(unixSec, 0), nil
+		sourceUsername := db.SourceUsername{
+			Source:   processor.Name(),
+			Username: telegramData.PersonalInformation.Username,
 		}
+
+		if userIDStr != "" {
+			sourceUsername.UserID = &userIDStr
+		}
+		if telegramData.PersonalInformation.FirstName != "" {
+			sourceUsername.FirstName = &telegramData.PersonalInformation.FirstName
+		}
+		if telegramData.PersonalInformation.LastName != "" {
+			sourceUsername.LastName = &telegramData.PersonalInformation.LastName
+		}
+		if telegramData.PersonalInformation.PhoneNumber != "" {
+			sourceUsername.PhoneNumber = &telegramData.PersonalInformation.PhoneNumber
+		}
+		if telegramData.PersonalInformation.Bio != "" {
+			sourceUsername.Bio = &telegramData.PersonalInformation.Bio
+		}
+
+		if err := store.SetSourceUsername(ctx, sourceUsername); err != nil {
+			fmt.Printf("Warning: Failed to save username to database: %v\n", err)
+		}
+
+		extractedUsername = telegramData.PersonalInformation.Username
 	}
 
-	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", dateStr)
+	return extractedUsername
 }
 
-func (s *Source) ProcessFile(filepath string, userName string) ([]types.Record, error) {
-	jsonData, err := os.ReadFile(filepath)
+func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
+	fmt.Println("============================ Processing file", filepath)
+
+	// Check if filepath is a directory
+	fileInfo, err := os.Stat(filepath)
+	if err != nil {
+		return nil, err
+	}
+
+	var jsonFilePath string
+	if fileInfo.IsDir() {
+		// If it's a directory, find the JSON file
+		var candidates []string
+		entries, err := os.ReadDir(filepath)
+		if err != nil {
+			return nil, fmt.Errorf("error reading directory %s: %v", filepath, err)
+		}
+
+		// Look for result.json first (common Telegram export file)
+		for _, entry := range entries {
+			if !entry.IsDir() && entry.Name() == "result.json" {
+				jsonFilePath = fmt.Sprintf("%s/result.json", filepath)
+				break
+			}
+		}
+
+		// If result.json not found, look for any .json file
+		if jsonFilePath == "" {
+			for _, entry := range entries {
+				if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
+					candidates = append(candidates, entry.Name())
+				}
+			}
+
+			if len(candidates) == 0 {
+				return nil, fmt.Errorf("no JSON files found in directory %s", filepath)
+			}
+
+			// Use the first JSON file found
+			jsonFilePath = fmt.Sprintf("%s/%s", filepath, candidates[0])
+			fmt.Printf("Using JSON file: %s\n", jsonFilePath)
+		}
+	} else {
+		jsonFilePath = filepath
+	}
+
+	jsonData, err := os.ReadFile(jsonFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +174,8 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]types.Record, 
 	if err := json.Unmarshal(jsonData, &telegramData); err != nil {
 		return nil, err
 	}
+
+	effectiveUserName := extractUsername(ctx, telegramData, store, s)
 
 	var records []types.Record
 
@@ -145,13 +217,13 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]types.Record, 
 				fullText += entity.Text
 			}
 
-			myMessage := strings.EqualFold(message.From, userName)
+			myMessage := strings.EqualFold(message.From, effectiveUserName)
 
 			to := ""
 			if myMessage {
 				to = chat.Name
 			} else {
-				to = userName
+				to = effectiveUserName
 			}
 
 			messageData := map[string]interface{}{
@@ -188,7 +260,38 @@ func (s *Source) ProcessFile(filepath string, userName string) ([]types.Record, 
 	return records, nil
 }
 
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func (s *TelegramProcessor) Sync(ctx context.Context) ([]types.Record, error) {
+	return nil, fmt.Errorf("sync operation not supported for Telegram")
+}
+
+func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
+	formats := []string{
+		"2006-01-02T15:04:05",
+		"2006-01-02T15:04:05.000",
+		"2006-01-02T15:04:05Z",
+		"2006-01-02T15:04:05.000Z",
+		"2006-01-02T15:04:05-07:00",
+		"2006-01-02T15:04:05.000-07:00",
+	}
+
+	// Try parsing with various formats
+	for _, format := range formats {
+		if t, err := time.Parse(format, dateStr); err == nil {
+			return t, nil
+		}
+	}
+
+	// If none of the formats work and we have a unix timestamp, use that
+	if unixStr != "" {
+		if unixSec, err := strconv.ParseInt(unixStr, 10, 64); err == nil {
+			return time.Unix(unixSec, 0), nil
+		}
+	}
+
+	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", dateStr)
+}
+
+func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	textDocuments := []memory.TextDocument{}
 	for _, record := range records {
 		if record.Data["type"] == "message" {
@@ -245,8 +348,4 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 	}
 
 	return textDocuments, nil
-}
-
-func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Telegram")
 }

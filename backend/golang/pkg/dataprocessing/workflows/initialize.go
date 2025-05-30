@@ -249,20 +249,18 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 	ctx context.Context,
 	input ProcessDataActivityInput,
 ) (ProcessDataActivityResponse, error) {
-	// TODO: replace username parameter
 	outputPath := fmt.Sprintf(
 		"%s/%s_%s.jsonl",
 		w.Config.AppDataPath,
 		input.DataSourceName,
 		input.DataSourceID,
 	)
-	success, err := dataprocessing.ProcessSource(
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
+	success, err := dataprocessingService.ProcessSource(
+		ctx,
 		input.DataSourceName,
 		input.SourcePath,
 		outputPath,
-		input.Username,
-		w.OpenAIService,
-		w.Config.CompletionsModel,
 	)
 	if err != nil {
 		w.Logger.Error(
@@ -391,7 +389,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			dataSourcesResponse[i].IsIndexed = true
 
 		case "telegram":
-			documents, err := telegram.ToDocuments(records)
+			telegramProcessor := telegram.NewTelegramProcessor()
+			documents, err := telegramProcessor.ToDocuments(records)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
