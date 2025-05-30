@@ -56,35 +56,6 @@ jobs:
         if: steps.changes.outputs.backend == 'true'
         run: make test
 
-  deadcode:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend/golang
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      - name: Determine if backend/golang changed
-        id: changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            backend:
-              - 'backend/golang/**'
-
-      - name: Skip – no backend changes
-        if: steps.changes.outputs.backend != 'true'
-        run: echo "✅ No backend changes – skipping dead code check."
-
-      - uses: actions/setup-go@v5
-        if: steps.changes.outputs.backend == 'true'
-        with:
-          go-version-file: backend/golang/go.mod
-          cache-dependency-path: backend/golang/go.sum
-
       - name: Check for dead code
         if: steps.changes.outputs.backend == 'true'
         run: |
