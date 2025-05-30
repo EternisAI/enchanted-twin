@@ -18,12 +18,10 @@ jobs:
         working-directory: backend/golang
 
     steps:
-      # always check out—needed for the diff filter
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # we want the full history for git diff
+          fetch-depth: 1
 
-      # --- change detector ---------------------------------------------------
       - name: Determine if backend/golang changed
         id: changes
         uses: dorny/paths-filter@v3
@@ -31,13 +29,11 @@ jobs:
           filters: |
             backend:
               - 'backend/golang/**'
-      # -----------------------------------------------------------------------
-      # Fast-exit path when nothing changed
+
       - name: Skip – no backend changes
         if: steps.changes.outputs.backend != 'true'
         run: echo "✅ No backend changes – skipping Go CI."
 
-      # The real pipeline – guarded so it only runs when backend files changed
       - uses: actions/setup-go@v5
         if: steps.changes.outputs.backend == 'true'
         with:
