@@ -29,23 +29,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// Record represents a single data record that will be written to CSV.
-type Record struct {
-	Data      map[string]any
-	Timestamp time.Time
-	Source    string
-}
-
-// Source interface defines methods that each data source must implement.
-type Source interface {
-	// ProcessFile processes the input file and returns records
-	ProcessFile(filepath string, userName string) ([]Record, error)
-	// Name returns the source identifier
-	Name() string
-	// Sync returns the records from the source
-	Sync(ctx context.Context) ([]types.Record, error)
-}
-
 func extractZip(zipPath string) (extractedPath string, err error) {
 	tempDir, err := os.MkdirTemp("", "extracted_zip_")
 	if err != nil {
@@ -244,7 +227,21 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 	return tempDir, nil
 }
 
-func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiService *ai.Service, completionsModel string) (bool, error) {
+type DataProcessingService struct {
+	openAiService    *ai.Service
+	completionsModel string
+	store            *db.Store
+}
+
+func NewDataProcessingService(openAiService *ai.Service, completionsModel string, store *db.Store) *DataProcessingService {
+	return &DataProcessingService{
+		openAiService:    openAiService,
+		completionsModel: completionsModel,
+		store:            store,
+	}
+}
+
+func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType string, inputPath string, outputPath string) (bool, error) {
 	var records []types.Record
 	var err error
 
@@ -271,29 +268,18 @@ func ProcessSource(sourceType string, inputPath string, outputPath string, name 
 
 	switch strings.ToLower(sourceType) {
 	case "telegram":
-		if name == "" {
-			return false, fmt.Errorf("telegram requires a username")
-		}
-		source := telegram.New()
-		records, err = source.ProcessFile(inputPath, name)
+		processor := telegram.NewTelegramProcessor()
+		records, err = processor.ProcessFile(context.Background(), inputPath, s.store)
 	case "slack":
-		if name == "" {
-			return false, fmt.Errorf("slack requires a username")
-		}
 		source := slack.New(inputPath)
-		records, err = source.ProcessDirectory(name)
+		records, err = source.ProcessDirectory("")
 	case "gmail":
-		if name == "" {
-			return false, fmt.Errorf("gmail requires an email")
-		}
+
 		source := gmail.New()
-		records, err = source.ProcessDirectory(inputPath, name)
+		records, err = source.ProcessDirectory(inputPath, "")
 	case "x":
-		if name == "" {
-			return false, fmt.Errorf("x requires a username")
-		}
 		source := x.New(inputPath)
-		records, err = source.ProcessDirectory(name)
+		records, err = source.ProcessDirectory(inputPath)
 	case "whatsapp":
 		source := whatsapp.New()
 		records, err = source.ProcessFile(inputPath)
@@ -302,12 +288,15 @@ func ProcessSource(sourceType string, inputPath string, outputPath string, name 
 		records, err = source.ProcessFile(inputPath)
 	case "chatgpt":
 		source := chatgpt.New(inputPath)
-		records, err = source.ProcessDirectory(name)
+		records, err = source.ProcessDirectory("")
 	case "misc":
-		source := misc.New(openAiService, completionsModel)
+		source := misc.New(s.openAiService, s.completionsModel)
 		records, err = source.ProcessDirectory(inputPath)
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
+	}
+	if err != nil {
+		return false, err
 	}
 
 	err = SaveRecords(records, outputPath)
