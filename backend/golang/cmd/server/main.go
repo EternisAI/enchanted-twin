@@ -51,7 +51,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/EternisAI/enchanted-twin/pkg/friend"
+	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
@@ -483,7 +483,7 @@ func bootstrapTemporalWorker(
 	identityActivities := identity.NewIdentityActivities(input.logger, input.memory, input.aiCompletionsService, input.envs.CompletionsModel)
 	identityActivities.RegisterWorkflowsAndActivities(w)
 
-	friendService := friend.NewFriendService(friend.FriendServiceConfig{
+	friendService := engagement.NewFriendService(engagement.FriendServiceConfig{
 		Logger:          input.logger,
 		MemoryService:   input.memory,
 		IdentityService: identity.NewIdentityService(input.temporalClient),

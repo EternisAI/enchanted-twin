@@ -1,6 +1,6 @@
 // Owner: slimane@eternis.ai
 
-package friend
+package engagement
 
 import (
 	"context"

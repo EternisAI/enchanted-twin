@@ -1,6 +1,11 @@
 // Owner: slimane@eternis.ai
 
-package friend
+// Package engagement provides services for managing automated friend interactions
+// and user engagement activities. It orchestrates AI-driven conversations, memory
+// sharing, and proactive messaging through Temporal workflows to maintain
+// meaningful connections with users.
+
+package engagement
 
 import (
 	"time"
