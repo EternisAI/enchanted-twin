@@ -47,14 +47,28 @@ export default function VoiceOnboardingContainer() {
   const { installationStatus, isVoiceReady } = useDependencyStatus()
   const { theme } = useTheme()
   const { isCompleted } = useOnboardingStore()
+  const { updateTitlebarColor } = useTitlebarColor()
 
-  console.log('isVoiceReady', isVoiceReady)
+  console.log('isVoiceReady', isVoiceReady, installationStatus)
+
+  const didInstallationFail = useMemo(() => {
+    return installationStatus.status?.toLocaleLowerCase() === 'failed'
+  }, [installationStatus])
 
   useEffect(() => {
     if (isCompleted) {
       navigate({ to: '/' })
     }
   }, [isCompleted, navigate])
+
+  useEffect(() => {
+    updateTitlebarColor('onboarding')
+
+    return () => {
+      updateTitlebarColor('app')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div
@@ -66,7 +80,7 @@ export default function VoiceOnboardingContainer() {
             : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
       }}
     >
-      {isVoiceReady ? (
+      {isVoiceReady || didInstallationFail ? (
         <VoiceOnboarding />
       ) : (
         <div className="flex flex-col justify-center items-center h-full gap-4">
@@ -89,7 +103,6 @@ function VoiceOnboarding() {
   const [answers, setAnswers] = useState<string[]>([])
   const [triggerAnimation, setTriggerAnimation] = useState(false)
   const { completeOnboarding } = useOnboardingStore()
-  const { updateTitlebarColor } = useTitlebarColor()
 
   const [updateProfile] = useMutation(UpdateProfileDocument)
 
@@ -99,15 +112,6 @@ function VoiceOnboarding() {
 
   useEffect(() => {
     speak(currentPrompt)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  useEffect(() => {
-    updateTitlebarColor('onboarding')
-
-    return () => {
-      updateTitlebarColor('app')
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
