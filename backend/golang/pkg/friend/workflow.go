@@ -9,19 +9,6 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-const (
-	MinWaitSeconds = 1
-	MaxWaitSeconds = 10
-)
-
-type ActivityType string
-
-const (
-	ActivityTypePokeMessage   ActivityType = "poke_message"
-	ActivityTypeMemoryPicture ActivityType = "memory_picture"
-	ActivityTypeQuestion      ActivityType = "question"
-)
-
 type FriendWorkflowInput struct {
 	UserIdentity string `json:"user_identity,omitempty"`
 	ChatID       string `json:"chat_id,omitempty"`
