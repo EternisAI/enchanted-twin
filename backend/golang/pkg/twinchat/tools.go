@@ -46,7 +46,9 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	}
 
 	if chatId == "" {
+
 		chat, err := e.chatStorage.CreateChat(ctx, "Network message", true)
+
 		if err != nil {
 			return nil, err
 		}
