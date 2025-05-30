@@ -135,7 +135,7 @@ func (s *Service) SendMessage(
 
 	messages := make([]*model.Message, 0)
 	if chatID == "" {
-		chat, err := s.storage.CreateChat(ctx, "New chat", false)
+		chat, err := s.storage.CreateChat(ctx, "New chat", true)
 		if err != nil {
 			return nil, err
 		}
@@ -605,7 +605,7 @@ func (s *Service) SendAssistantMessage(
 	now := time.Now()
 
 	if chatID == "" {
-		chat, err := s.storage.CreateChat(ctx, "New chat", false)
+		chat, err := s.storage.CreateChat(ctx, "New chat", true)
 		if err != nil {
 			return nil, err
 		}
