@@ -15,3 +15,7 @@ func (m *MockMemory) StoreRawData(ctx context.Context, documents []TextDocument,
 func (m *MockMemory) Query(ctx context.Context, query string) (QueryResult, error) {
 	return QueryResult{}, nil
 }
+
+func (m *MockMemory) QueryWithDistance(ctx context.Context, query string) (QueryWithDistanceResult, error) {
+	return QueryWithDistanceResult{}, nil
+}
