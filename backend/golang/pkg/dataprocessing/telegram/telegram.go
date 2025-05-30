@@ -211,9 +211,14 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 				fullText += entity.Text
 			}
 
-			normalizedEffectiveUserName := strings.TrimPrefix(effectiveUserName, "@")
-			normalizedMessageFrom := strings.TrimPrefix(message.From, "@")
-			myMessage := strings.EqualFold(normalizedMessageFrom, normalizedEffectiveUserName)
+			var myMessage bool
+			if effectiveUserName == "" {
+				myMessage = false
+			} else {
+				normalizedEffectiveUserName := strings.TrimPrefix(effectiveUserName, "@")
+				normalizedMessageFrom := strings.TrimPrefix(message.From, "@")
+				myMessage = strings.EqualFold(normalizedMessageFrom, normalizedEffectiveUserName)
+			}
 
 			to := ""
 			if myMessage {
