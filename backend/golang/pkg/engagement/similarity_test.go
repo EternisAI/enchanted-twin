@@ -133,18 +133,18 @@ func TestStoreSentMessage(t *testing.T) {
 	testMessage := "Test message"
 	activityType := "poke_message"
 
-	mockMemory.On("Store", ctx, mock.MatchedBy(func(docs []memory.TextDocument) bool {
+	mockMemory.On("Store", ctx, mock.MatchedBy(func(docs []memory.Document) bool {
 		if len(docs) != 1 {
 			return false
 		}
 		doc := docs[0]
-		return doc.FieldContent == testMessage &&
-			doc.FieldMetadata["type"] == FriendMetadataType &&
-			doc.FieldMetadata["activity_type"] == activityType &&
-			len(doc.FieldTags) == 2 &&
-			doc.FieldTags[0] == "sent_message" &&
-			doc.FieldTags[1] == activityType
-	}), mock.AnythingOfType("chan<- memory.ProgressUpdate")).Return(nil)
+		return doc.Content() == testMessage &&
+			doc.Metadata()["type"] == FriendMetadataType &&
+			doc.Metadata()["activity_type"] == activityType &&
+			len(doc.Tags()) == 2 &&
+			doc.Tags()[0] == "sent_message" &&
+			doc.Tags()[1] == activityType
+	}), mock.AnythingOfType("memory.ProgressCallback")).Return(nil)
 
 	err := friendService.StoreSentMessage(ctx, testMessage, activityType)
 
