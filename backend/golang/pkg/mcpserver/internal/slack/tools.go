@@ -69,7 +69,6 @@ func processListDirectMessageConversations(
 			}, // Adjust types as needed
 		}
 
-		fmt.Println("Getting channels with params", params)
 		channels, nextCursor, err := api.GetConversationsContext(ctx, params)
 		if err != nil {
 			fmt.Println("Error getting channels:", err)
@@ -77,7 +76,6 @@ func processListDirectMessageConversations(
 		}
 
 		allChannels = append(allChannels, channels...)
-		fmt.Println("Total channels fetched so far:", len(allChannels))
 		finalNextCursor = nextCursor
 
 		// Stop only when no more pages
@@ -90,13 +88,11 @@ func processListDirectMessageConversations(
 
 	contents := []*mcp_golang.Content{}
 	userNames := map[string]string{}
-	fmt.Println("Final number of channels:", len(allChannels))
 	for _, channel := range allChannels {
 		var channelInfo string
 		if channel.IsIM {
 			// For DMs, you might want to fetch the user's name
 			// This requires additional API calls and permissions
-			fmt.Println("Channel", channel.ID, channel.User)
 
 			if userName, ok := userNames[channel.User]; !ok {
 				user, err := api.GetUserInfo(channel.User)
@@ -171,8 +167,6 @@ func processListChannels(
 			Types: []string{
 				"public_channel",
 				"private_channel",
-				"mpim",
-				"im",
 			}, // Adjust types as needed
 		}
 
@@ -199,15 +193,6 @@ func processListChannels(
 	fmt.Println("Final number of channels:", len(allChannels))
 	for _, channel := range allChannels {
 		channelInfo := fmt.Sprintf("Channel: %s (ID: %s)", channel.Name, channel.ID)
-		if channel.IsIM {
-			// For DMs, you might want to fetch the user's name
-			// This requires additional API calls and permissions
-			channelInfo = fmt.Sprintf("Direct Message (ID: %s)", channel.ID)
-		} else if channel.IsMpIM {
-			channelInfo = fmt.Sprintf("Group Direct Message (ID: %s)", channel.ID)
-		}
-
-		fmt.Println("Channel", channel.Name, channel.ID)
 
 		contents = append(contents, &mcp_golang.Content{
 			Type: "text",
