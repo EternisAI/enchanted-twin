@@ -89,9 +89,10 @@ jobs:
         if: steps.changes.outputs.backend == 'true'
         run: |
           go install golang.org/x/tools/cmd/deadcode@latest
-          if deadcode ./... 2>&1 | grep -q "is dead code"; then
+          output=$(deadcode ./... 2>&1 || true)
+          if [ -n "$output" ]; then
             echo "❌ Dead code found! Please remove the following:"
-            deadcode ./...
+            echo "$output"
             exit 1
           else
             echo "✅ No dead code found"
