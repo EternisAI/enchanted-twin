@@ -19,7 +19,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/google_addresses"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
@@ -282,9 +281,6 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		records, err = source.ProcessDirectory(inputPath)
 	case "whatsapp":
 		source := whatsapp.New()
-		records, err = source.ProcessFile(inputPath)
-	case "google_addresses":
-		source := google_addresses.New(inputPath)
 		records, err = source.ProcessFile(inputPath)
 	case "chatgpt":
 		source := chatgpt.New(inputPath)
