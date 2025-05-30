@@ -1,0 +1,122 @@
+package engagement
+
+var QuestionTable = []string{
+	// Daily Check-In
+	"On a scale of 0-10, how stressed are you **right now**?",
+	"Did today feel productive enough—crushing it, decent, or kinda meh?",
+	"What's one little win you had today?",
+	"Anything bugging you that I can help unload?",
+	"How much energy do you have left in the tank—empty, half, or turbo?",
+	"What's the highlight of your day so far?",
+	"What's one thing you wish had gone better today?",
+	"Did you get outside today—long walk, quick step out, or full hermit mode?",
+	"Coffee/tea count today—none yet, 1-2 cups, 3-4 cups, or lost count?",
+	"Anything coming up tomorrow you're jazzed or jittery about?",
+
+	// Mood & Feelings
+	"What emotion is driving the bus right now?",
+	"When was the last time you belly-laughed?",
+	"If your mood were a weather forecast—sunny, partly cloudy, stormy, or foggy?",
+	"What song sums up how you feel today?",
+	"What's something you're grateful for in this moment?",
+	"Who's someone you'd text if you needed a pep talk?",
+	"When stressed, do you prefer—moving your body, creative outlet, social time, or solo cave mode?",
+	"How do you recharge after social overload?",
+	"What does \"relaxed\" look like for you?",
+	"What's a recent worry you successfully squashed?",
+
+	// Communication Style
+	"How do you want me to talk to you—more chill or more straight-to-business?",
+	"Do you prefer bullet points or a good ol' story?",
+	"Emoji in messages: yay, meh, or please-God-no?",
+	"When should I keep it short, and when should I get detailed?",
+	"How do you like feedback—soft pillow or blunt hammer?",
+	"If I'm overexplaining, how do you want to signal \"got it\"?",
+	"Are voice notes your jam or your nightmare?",
+	"Dad jokes in chat—bring 'em on, occasionally, or absolutely not?",
+	"Tool suggestions—drop them in naturally, ask first, or only when you request?",
+
+	// Practical & Logistics
+	"What's priority #1 on your to-do list today?",
+	"Need help blocking distractions?",
+	"Is there a deadline sneaking up on you?",
+	"Reminder style preference—gentle nudge, firm poke, or air-horn urgency?",
+	"What time do you usually hit peak focus?",
+	"Do you want me to track recurring tasks for you?",
+	"Meeting tolerance today—bring 'em on, 2-3 max, or please no more?",
+	"Are you comfortable delegating, or do you hoard tasks like a dragon?",
+	"Schedule visualization—simple list, calendar view, or Kanban board?",
+	"What's one tool I could introduce that might save you time?",
+
+	// Work Vibes
+	"What project are you most excited about right now?",
+	"What's one skill you're actively leveling up?",
+	"How do you define \"done\" on a task?",
+	"When's your next break/vacation, and do you need help planning?",
+	"Win celebration style—quiet satisfaction, share with team, or party time?",
+	"Who on your team should I ping for quick approvals?",
+	"Any blockers I should keep an eye out for?",
+	"Surprise scope creep—negotiate boundaries, roll with it, or escalate quickly?",
+	"Do you prefer brainstorming alone first or jumping straight into group chats?",
+	"What's one process you'd love to optimize?",
+
+	// Learning & Curiosity
+	"What's a topic you'd binge-watch tutorials about?",
+	"Learning resource preference—bite-sized daily, weekend deep-dives, or as-needed?",
+	"How do you like to capture new ideas?",
+	"Content format preference—podcast, article, or video?",
+	"When was the last time you \"wow, I didn't know that\"?",
+	"What's a mind-blowing fact you learned recently?",
+	"Learning style—structured courses, rabbit-hole wandering, or hands-on projects?",
+	"How do you track progress on a new skill?",
+	"Is there a mentor (real or virtual) you'd like me to surface content from?",
+	"What project would you tackle if time and money weren't a thing?",
+
+	// Health & Habits
+	"Sleep last night—solid 7-8 hours, decent 5-6, or running on fumes?",
+	"Have you had water in the last hour?",
+	"Step count awareness—tracking actively, vaguely aware, or don't wanna know?",
+	"Got any movement breaks scheduled today?",
+	"Posture check—sitting tall, decent slouch, or full shrimp mode?",
+	"Lunch plans—veggie-included meal, quick snack, or still deciding?",
+	"When's the last time you stretched?",
+	"Pre-sleep routine—established ritual, inconsistent, or just collapse?",
+	"Caffeine relationship—reliable friend, unpredictable frenemy, or sworn enemy?",
+	"Any wellness metrics you want me to keep tabs on?",
+
+	// Social & Relationships
+	"Who's someone you'd love to catch up with this week?",
+	"Good news celebration—group hang, quiet moment, or social media share?",
+	"What's your favorite way to show appreciation?",
+	"How can I help you stay in touch with friends/family?",
+	"Conflict style—tackle head-on immediately, cool off first, or avoid if possible?",
+	"What quality do you value most in a friend?",
+	"Support when down—practical help, listening ear, or space to process?",
+	"What's a recent act of kindness you experienced?",
+	"Who's someone that inspires you and why?",
+	"Social battery right now—fully charged, running low, or need immediate recharge?",
+
+	// Fun & Random
+	"If you could teleport anywhere for lunch today, where'd you go?",
+	"Current show obsession—guilty pleasure, critically acclaimed, or documentary deep-dive?",
+	"If your day had a soundtrack, what would the opening track be?",
+	"Coffee date companion—fictional character, historical figure, or someone you know?",
+	"Hobby wish list—creative outlet, physical activity, or intellectual pursuit?",
+	"What meme never fails to make you laugh?",
+	"24-hour superpower—time manipulation, mind reading, or teleportation?",
+	"Pineapple on pizza—absolutely, sometimes, or never ever?",
+	"What's the weirdest food combo you secretly love?",
+	"Life movie title for this chapter—comedy, drama, action-adventure, or documentary?",
+
+	// Self-Reflection
+	"What personal value are you fiercely protective of?",
+	"When do you feel most \"you\"?",
+	"What's a belief you've outgrown?",
+	"Impact style—quiet influence, direct mentorship, or leading by example?",
+	"What's one lesson life keeps teaching you on repeat?",
+	"Two-sentence DM to past self—encouragement, warning, or practical advice?",
+	"What's a risk you're glad you took?",
+	"Personal success measurement—achievement milestones, daily contentment, or relationship quality?",
+	"What legacy do you want to build, big or small?",
+	"What question do you wish more people asked you?",
+}
