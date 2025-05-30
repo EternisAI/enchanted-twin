@@ -17,7 +17,6 @@ import (
 )
 
 func TestSimpleConversationProcessing(t *testing.T) {
-	// Simple JSON data for testing
 	sampleJSON := `[
   {
     "title": "Test Conversation",
@@ -110,7 +109,6 @@ func TestSimpleConversationProcessing(t *testing.T) {
 }
 
 func TestConversationToDocuments(t *testing.T) {
-	// Create test records with conversation messages
 	messages := []ConversationMessage{
 		{Role: "user", Text: "Hello, how are you?"},
 		{Role: "assistant", Text: "I am doing well, thank you! How can I help you today?"},
@@ -142,7 +140,7 @@ func TestConversationToDocuments(t *testing.T) {
 	assert.Equal(t, "Test Conversation", doc.Metadata()["title"])
 	assert.Equal(t, "chatgpt", doc.Source())
 
-	expectedContent := "This document is a ChatGPT conversation log between user and assistant.\n\nuser: Hello, how are you?\n\nassistant: I am doing well, thank you! How can I help you today?\n\nuser: Can you tell me about Puerto Vallarta?\n\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico...\n\n"
+	expectedContent := "user: Hello, how are you?\nassistant: I am doing well, thank you! How can I help you today?\nuser: Can you tell me about Puerto Vallarta?\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico..."
 	assert.Equal(t, expectedContent, doc.Content())
 }
 

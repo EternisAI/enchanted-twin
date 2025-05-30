@@ -513,7 +513,7 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
 				}
 
-				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), batchProgressCallback)
+				err = w.Memory.Store(ctx, documents, batchProgressCallback)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}

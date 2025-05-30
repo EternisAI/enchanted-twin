@@ -185,8 +185,8 @@ func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, e
 	return allRecords, nil
 }
 
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
-	textDocuments := make([]memory.TextDocument, 0, len(records))
+func ToDocuments(records []types.Record) ([]memory.Document, error) {
+	conversationDocuments := make([]memory.ConversationDocument, 0, len(records))
 
 	for _, record := range records {
 		getString := func(key string) string {
@@ -200,70 +200,52 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 
 		title := getString("title")
 
-		var conversationBuilder strings.Builder
-
-		if messagesInterface, ok := record.Data["messages"]; ok {
-			switch messages := messagesInterface.(type) {
-			case []ConversationMessage:
-
-				for _, message := range messages {
-					trimmedText := strings.TrimSpace(message.Text)
-					if trimmedText == "" {
-						continue
-					}
-					conversationBuilder.WriteString(message.Role)
-					conversationBuilder.WriteString(": ")
-					conversationBuilder.WriteString(trimmedText)
-					conversationBuilder.WriteString("\n\n")
-				}
-			case []interface{}:
-
-				for _, msgInterface := range messages {
-					if msgMap, ok := msgInterface.(map[string]interface{}); ok {
-						role := ""
-						text := ""
-						if roleVal, ok := msgMap["Role"]; ok {
-							if roleStr, ok := roleVal.(string); ok {
-								role = roleStr
-							}
-						}
-						if textVal, ok := msgMap["Text"]; ok {
-							if textStr, ok := textVal.(string); ok {
-								text = textStr
-							}
-						}
-						trimmedText := strings.TrimSpace(text)
-						if role != "" && trimmedText != "" {
-							conversationBuilder.WriteString(role)
-							conversationBuilder.WriteString(": ")
-							conversationBuilder.WriteString(trimmedText)
-							conversationBuilder.WriteString("\n\n")
-						}
-					}
-				}
-			}
-		}
-
-		conversationText := conversationBuilder.String()
-		if conversationText == "" {
-			continue
-		}
-
-		explainer := "This document is a ChatGPT conversation log between user and assistant.\n\n"
-		fullContent := explainer + conversationText
-
-		textDocuments = append(textDocuments, memory.TextDocument{
-			FieldContent:   fullContent,
-			FieldTimestamp: &record.Timestamp,
-			FieldSource:    "chatgpt",
-			FieldTags:      []string{"chat", "chatgpt", "conversation"},
+		conversation := memory.ConversationDocument{
+			FieldSource: "chatgpt",
+			FieldTags:   []string{"chat", "chatgpt", "conversation"},
 			FieldMetadata: map[string]string{
 				"type":  "conversation",
 				"title": title,
 			},
-		})
+		}
+
+		if messagesInterface, ok := record.Data["messages"]; ok {
+			switch messages := messagesInterface.(type) {
+			case []interface{}:
+				for _, messageInterface := range messages {
+					if messageMap, ok := messageInterface.(map[string]interface{}); ok {
+						role, _ := messageMap["Role"].(string)
+						text, _ := messageMap["Text"].(string)
+
+						if role != "" && text != "" {
+							conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+								Speaker: role,
+								Content: text,
+								Time:    record.Timestamp,
+							})
+						}
+					}
+				}
+			case []ConversationMessage:
+				for _, message := range messages {
+					conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+						Speaker: message.Role,
+						Content: message.Text,
+						Time:    record.Timestamp,
+					})
+				}
+			}
+		}
+
+		conversationDocuments = append(conversationDocuments, conversation)
 	}
-	return textDocuments, nil
+
+	var documents []memory.Document
+	for _, conversationDocument := range conversationDocuments {
+		documents = append(documents, &conversationDocument)
+	}
+
+	return documents, nil
 }
 
 func parseTimestamp(ts string) (time.Time, error) {
