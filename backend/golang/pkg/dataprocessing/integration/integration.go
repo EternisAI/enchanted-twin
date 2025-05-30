@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -21,27 +20,18 @@ import (
 )
 
 // go run cmd/integration-test/main.go.
-func IntegrationTest() error {
-	source := "telegram" // see pkg dataprocessing for supported sources
-	inputPath := "data_input/telegram_export.json.zip"
+type IntegrationTestConfig struct {
+	Source            string
+	InputPath         string
+	OutputPath        string
+	CompletionsModel  string
+	CompletionsApiKey string
+	CompletionsApiUrl string
+	EmbeddingsApiKey  string
+}
 
-	id := uuid.New().String()
-	outputPath := fmt.Sprintf(
-		"%s/%s_%s.jsonl",
-		"./output",
-		source,
-		id,
-	)
-
-	completionsModel := "gpt-4o-mini"
-	completionsApiUrl := "https://openrouter.ai/api/v1"
-	// embeddingModel := "text-embedding-3-small"
-
-	embeddingApiKey := "<your-openai-api-key>"
-	completionsApiKey := "<your-openai-api-key>"
-
+func IntegrationTest(config IntegrationTestConfig) error {
 	storePath := "./output/test.db"
-
 	weaviatePort := "8080"
 	ctx := context.Background()
 
@@ -54,8 +44,8 @@ func IntegrationTest() error {
 
 	bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate")
 
-	openAiService := ai.NewOpenAIService(logger, completionsApiKey, completionsApiUrl)
-	aiEmbeddingsService := ai.NewOpenAIService(logger, embeddingApiKey, "https://api.openai.com/v1")
+	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
+	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, "https://api.openai.com/v1")
 
 	fmt.Println("aiEmbeddingsService  ", aiEmbeddingsService)
 	store, err := db.NewStore(ctx, storePath)
@@ -64,15 +54,15 @@ func IntegrationTest() error {
 		return err
 	}
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService, completionsModel, store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService, config.CompletionsModel, store)
 
-	_, err = dataprocessingService.ProcessSource(ctx, source, inputPath, outputPath)
+	_, err = dataprocessingService.ProcessSource(ctx, config.Source, config.InputPath, config.OutputPath)
 	if err != nil {
-		logger.Error("Error processing source", "source", source)
+		logger.Error("Error processing source", "source", config.Source)
 		return err
 	}
 
-	records, err := helpers.ReadJSONL[types.Record](outputPath)
+	records, err := helpers.ReadJSONL[types.Record](config.OutputPath)
 	if err != nil {
 		logger.Error("Error loading records", "error", err)
 		return err
@@ -101,7 +91,7 @@ func IntegrationTest() error {
 
 	fmt.Println(records)
 
-	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", source))
+	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
 	if err != nil {
 		logger.Error("Error querying memory", "error", err)
 		return err

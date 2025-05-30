@@ -25,3 +25,6 @@ gqlgen:
 
 run-telegram-chat:
 	go run cmd/telegram_chat_server/main.go
+
+test-memory:
+	go run cmd/memory-test/main.go
