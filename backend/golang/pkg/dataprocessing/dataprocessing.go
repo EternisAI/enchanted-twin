@@ -24,7 +24,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -271,8 +270,6 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 	case "telegram":
 		processor := telegram.NewTelegramProcessor()
 		records, err = processor.ProcessFile(context.Background(), inputPath, s.store)
-		fmt.Println("============================ Records", records)
-		fmt.Println("============================ Error", err)
 	case "slack":
 		source := slack.New(inputPath)
 		records, err = source.ProcessDirectory("")

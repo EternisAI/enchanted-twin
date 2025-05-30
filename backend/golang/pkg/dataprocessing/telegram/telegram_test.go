@@ -117,7 +117,7 @@ func TestProcessDirectoryInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck
 
 	// Create result.json in the directory
 	resultJsonPath := fmt.Sprintf("%s/result.json", tempDir)
@@ -130,15 +130,15 @@ func TestProcessDirectoryInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
 	}
-	dbFile.Close()
-	defer os.Remove(dbFile.Name())
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	// Test processing directory (should find result.json)
 	processor := NewTelegramProcessor()
@@ -211,7 +211,7 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck
 
 	// Create telegram_export.json (non-standard name) in the directory
 	customJsonPath := fmt.Sprintf("%s/telegram_export.json", tempDir)
@@ -224,15 +224,15 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
 	}
-	dbFile.Close()
-	defer os.Remove(dbFile.Name())
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	// Test processing directory (should find telegram_export.json)
 	processor := NewTelegramProcessor()
@@ -266,7 +266,7 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer os.RemoveAll(tempDir) //nolint:errcheck
 
 	// Create a non-JSON file
 	txtFilePath := fmt.Sprintf("%s/readme.txt", tempDir)
@@ -279,15 +279,15 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
 	}
-	dbFile.Close()
-	defer os.Remove(dbFile.Name())
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	// Test processing directory with no JSON files (should return error)
 	processor := NewTelegramProcessor()

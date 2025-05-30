@@ -79,27 +79,27 @@ func TestUsernameExtraction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck
 
 	if _, err := tmpFile.WriteString(testData); err != nil {
 		t.Fatalf("Failed to write test data: %v", err)
 	}
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 
 	// Create temporary database
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
 	}
-	dbFile.Close()
-	defer os.Remove(dbFile.Name())
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	// Test username extraction
 	source := NewTelegramProcessor()
@@ -148,9 +148,10 @@ func TestUsernameExtraction(t *testing.T) {
 	for _, record := range records {
 		if record.Data["type"] == "message" {
 			from, _ := record.Data["from"].(string)
-			if from == "JohnDoe" {
+			switch from {
+			case "JohnDoe":
 				userMessage = record.Data
-			} else if from == "Alice Smith" {
+			case "Alice Smith":
 				otherMessage = record.Data
 			}
 		}
@@ -192,26 +193,26 @@ func TestUsernameExtractionFallback(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck
 
 	if _, err := tmpFile.WriteString(testData); err != nil {
 		t.Fatalf("Failed to write test data: %v", err)
 	}
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
 	}
-	dbFile.Close()
-	defer os.Remove(dbFile.Name())
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	source := NewTelegramProcessor()
 	_, err = source.ProcessFile(ctx, tmpFile.Name(), store)
@@ -261,28 +262,28 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer os.Remove(tmpFile.Name()) //nolint:errcheck
 
 	encoder := json.NewEncoder(tmpFile)
 	if err := encoder.Encode(testData); err != nil {
 		t.Fatalf("Failed to encode test data: %v", err)
 	}
-	tmpFile.Close()
+	tmpFile.Close() //nolint:errcheck
 
 	// Create database
 	dbFile, err := os.CreateTemp("", "example_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
 	}
-	dbFile.Close()
-	defer os.Remove(dbFile.Name())
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	// Process with username extraction
 	source := NewTelegramProcessor()

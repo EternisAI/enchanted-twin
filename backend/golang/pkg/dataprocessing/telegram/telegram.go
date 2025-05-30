@@ -12,7 +12,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	processor "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -297,7 +296,6 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 
 	for _, record := range records {
 		if record.Data["type"] == "message" {
-
 			message, ok := record.Data["text"].(string)
 			if !ok || message == "" {
 				continue
