@@ -9,6 +9,9 @@ import { Animation, OnboardingDoneAnimation } from './Animations'
 import { useMutation } from '@apollo/client'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { useTheme } from '@renderer/lib/theme'
+import { Button } from '@renderer/components/ui/button'
+import { useNavigate } from '@tanstack/react-router'
+import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 
 type Ask = (answers: string[]) => string
 
@@ -70,11 +73,13 @@ export default function VoiceOnboardingContainer() {
 }
 
 function VoiceOnboarding() {
+  const navigate = useNavigate()
   const { speak, stop, isSpeaking } = useTTS()
 
   const [stepIdx, setStepIdx] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
   const [triggerAnimation, setTriggerAnimation] = useState(false)
+  const { completeOnboarding } = useOnboardingStore()
 
   const [updateProfile] = useMutation(UpdateProfileDocument)
 
@@ -133,7 +138,18 @@ function VoiceOnboarding() {
   }, [answers])
 
   return (
-    <div className="w-full h-full flex flex-col justify-between items-center">
+    <div className="w-full h-full flex flex-col justify-between items-center relative">
+      <Button
+        onClick={() => {
+          completeOnboarding()
+          navigate({ to: '/' })
+        }}
+        variant="outline"
+        size="sm"
+        className="absolute bottom-4 right-4"
+      >
+        Skip
+      </Button>
       {triggerAnimation && <OnboardingDoneAnimation />}
 
       <motion.div
@@ -185,7 +201,7 @@ function VoiceOnboarding() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut', delay: 0.8 }}
-          className="z-1"
+          className="z-1 relative"
         >
           <MessageInput
             onSend={handleSendMessage}
