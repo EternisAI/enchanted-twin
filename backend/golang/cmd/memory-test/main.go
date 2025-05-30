@@ -14,10 +14,11 @@ func main() {
 
 	completionsModel := "gpt-4o-mini"
 	completionsApiUrl := "https://openrouter.ai/api/v1"
-	// embeddingModel := "text-embedding-3-small"
-
-	embeddingApiKey := "<your-openai-api-key>"
 	completionsApiKey := "<your-openai-api-key>"
+
+	embeddingModel := "text-embedding-3-small"
+	embeddingApiKey := "<your-openai-api-key>"
+	embeddingsApiUrl := "https://api.openai.com/v1"
 
 	id := uuid.New().String()
 	outputPath := fmt.Sprintf(
@@ -33,8 +34,10 @@ func main() {
 		OutputPath:        outputPath,
 		CompletionsModel:  completionsModel,
 		CompletionsApiUrl: completionsApiUrl,
-		EmbeddingsApiKey:  embeddingApiKey,
 		CompletionsApiKey: completionsApiKey,
+		EmbeddingsModel:   embeddingModel,
+		EmbeddingsApiKey:  embeddingApiKey,
+		EmbeddingsApiUrl:  embeddingsApiUrl,
 	}); err != nil {
 		log.Fatal("Integration test failed:", err)
 	}

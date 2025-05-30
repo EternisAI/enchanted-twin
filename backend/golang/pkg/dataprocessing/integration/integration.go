@@ -27,7 +27,9 @@ type IntegrationTestConfig struct {
 	CompletionsModel  string
 	CompletionsApiKey string
 	CompletionsApiUrl string
+	EmbeddingsModel   string
 	EmbeddingsApiKey  string
+	EmbeddingsApiUrl  string
 }
 
 func IntegrationTest(config IntegrationTestConfig) error {
@@ -45,7 +47,7 @@ func IntegrationTest(config IntegrationTestConfig) error {
 	bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate")
 
 	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
-	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, "https://api.openai.com/v1")
+	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
 	fmt.Println("aiEmbeddingsService  ", aiEmbeddingsService)
 	store, err := db.NewStore(ctx, storePath)
