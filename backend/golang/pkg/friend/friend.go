@@ -80,7 +80,7 @@ func (s *FriendService) RegisterWorkflowsAndActivities(worker *worker.Worker, te
 	(*worker).RegisterActivity(s.GetRandomQuestion)
 	(*worker).RegisterActivity(s.SendQuestion)
 
-	err := helpers.CreateScheduleIfNotExists(s.logger, temporalClient, "friend-workflow", 20*time.Second, s.FriendWorkflow, []any{&FriendWorkflowInput{}})
+	err := helpers.CreateScheduleIfNotExists(s.logger, temporalClient, "friend-workflow", 1*time.Hour, s.FriendWorkflow, []any{&FriendWorkflowInput{}})
 	if err != nil {
 		s.logger.Error("Failed to create friend workflow schedule", "error", err)
 	}
