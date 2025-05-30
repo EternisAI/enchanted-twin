@@ -4,20 +4,27 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/integration"
 	"github.com/google/uuid"
 )
 
 func main() {
+	envs, err := config.LoadConfig(false)
+	if err != nil {
+		log.Fatal("Error loading config:", err)
+	}
+
 	source := "telegram" // see pkg dataprocessing for supported sources
 	inputPath := "data_input/telegram_export.json.zip"
 
 	completionsModel := "gpt-4o-mini"
 	completionsApiUrl := "https://openrouter.ai/api/v1"
-	completionsApiKey := "<your-openai-api-key>"
+
+	completionsApiKey := envs.CompletionsAPIKey
 
 	embeddingModel := "text-embedding-3-small"
-	embeddingApiKey := "<your-openai-api-key>"
+	embeddingApiKey := envs.EmbeddingsAPIKey
 	embeddingsApiUrl := "https://api.openai.com/v1"
 
 	id := uuid.New().String()
