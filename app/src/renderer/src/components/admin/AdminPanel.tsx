@@ -112,7 +112,7 @@ export default function AdminPanel() {
             <Trash2 className="mr-2" />
             {isLoading.data ? 'Deleting...' : 'Delete App Data'}
           </Button>
-          <ContinueSetupButton />
+          {process.env.NODE_ENV === 'development' && <ContinueSetupButton />}
         </Card>
       </div>
     </div>
