@@ -25,3 +25,6 @@ gqlgen:
 
 run-telegram-chat:
 	go run cmd/telegram_chat_server/main.go
+
+deadcode:
+	go run golang.org/x/tools/cmd/deadcode@latest ./...
