@@ -7,13 +7,14 @@ import {
   McpServerType
 } from '@renderer/graphql/generated/graphql'
 import { OnboardingLayout } from './OnboardingLayout'
-import { Card } from '../ui/card'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import MCPServerItem from '../oauth/MCPServerItem'
 import { router } from '../../main'
+import { OnboardingVoiceAnimation } from './voice/Animations'
+import { useTheme } from '@renderer/lib/theme'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
@@ -81,7 +82,6 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     router.navigate({ to: '/onboarding' })
   }
 
-  // If user is activated or whitelisted, show the app
   if (isActivated || isWhitelisted) {
     return <>{children}</>
   }
@@ -100,53 +100,55 @@ export default function InvitationGate({ children }: { children: React.ReactNode
 
   if (!hasGoogleConnected) {
     return (
-      <OnboardingLayout
-        title="Beta Access"
-        subtitle="Login with Google for Beta access. All your data stays local and access to your Google account is only possible by you."
-      >
-        <div className="flex flex-col gap-6 items-center">
-          <MCPServerItem
-            server={{
-              id: 'GOOGLE',
-              type: McpServerType.Google,
-              connected: false,
-              command: '',
-              enabled: false,
-              name: 'Google'
-            }}
-            onConnect={() => {
-              refetchMcpServers()
-            }}
-            onRemove={() => {}}
-          />
-        </div>
-      </OnboardingLayout>
+      <InvitationWrapper showTitlebar showAnimation showPrivacyText>
+        <OnboardingLayout
+          title="Beta Access"
+          subtitle="Login with Google for Beta access."
+          className="text-white"
+        >
+          <div className="flex flex-col gap-6 items-center ">
+            <MCPServerItem
+              server={{
+                id: 'GOOGLE',
+                type: McpServerType.Google,
+                connected: false,
+                command: '',
+                enabled: false,
+                name: 'Google'
+              }}
+              onConnect={() => {
+                refetchMcpServers()
+              }}
+              onRemove={() => {}}
+            />
+          </div>
+        </OnboardingLayout>
+      </InvitationWrapper>
     )
   }
 
-  // Show invite code input if not whitelisted
   return (
-    <OnboardingLayout
-      title="Enter your invite code"
-      subtitle="Enter your invite code to activate your account"
-    >
-      <Card className="p-6">
-        <form onSubmit={handleInviteCodeSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="inviteCode" className="block text-sm font-medium mb-2">
-              Invite Code
-            </label>
-            <Input
-              id="inviteCode"
-              type="text"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              placeholder="Enter your invite code"
-              className="w-full"
-              disabled={isSubmitting}
-            />
-          </div>
-          <Button type="submit" className="w-full" disabled={isSubmitting || !inviteCode.trim()}>
+    <InvitationWrapper showTitlebar showAnimation showPrivacyText>
+      <OnboardingLayout
+        title="Invitation Code"
+        subtitle="Enter your invite code to access Enchanted"
+        className="!text-white"
+      >
+        <form onSubmit={handleInviteCodeSubmit} className="flex flex-col items-center gap-4">
+          <Input
+            id="inviteCode"
+            type="text"
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            placeholder="Enter your invite code"
+            className="max-w-md h-12 mx-auto !bg-white/20 border-white/20 text-white border-none placeholder:text-white/70"
+            disabled={isSubmitting}
+          />
+          <Button
+            type="submit"
+            className="w-fit px-8 bg-white text-black"
+            disabled={isSubmitting || !inviteCode.trim()}
+          >
             {isSubmitting ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -157,16 +159,54 @@ export default function InvitationGate({ children }: { children: React.ReactNode
             )}
           </Button>
         </form>
-      </Card>
+      </OnboardingLayout>
+    </InvitationWrapper>
+  )
+}
 
-      {/* <Card className="p-4 bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800">
-        <div className="flex items-center gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          <p className="text-sm text-amber-800 dark:text-amber-200">
-            Don&apos;t have an invite code? Contact support to request access.
-          </p>
+interface InvitationWrapperProps {
+  children: React.ReactNode
+  showTitlebar?: boolean
+  showAnimation?: boolean
+  showPrivacyText?: boolean
+}
+
+function InvitationWrapper({
+  children,
+  showTitlebar = false,
+  showAnimation = false,
+  showPrivacyText = false
+}: InvitationWrapperProps) {
+  const { theme } = useTheme()
+
+  return (
+    <div
+      className="flex flex-col gap-6 justify-between items-center relative overflow-hidden"
+      style={{
+        background:
+          theme === 'light'
+            ? 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
+            : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
+      }}
+    >
+      {showTitlebar && (
+        <div className="titlebar text-center fixed top-0 left-0 right-0 text-muted-foreground text-xs h-8 z-20 flex items-center justify-center backdrop-blur-sm" />
+      )}
+
+      {children}
+
+      {showAnimation && (
+        <div className="absolute top-[-20px] left-0">
+          <OnboardingVoiceAnimation layerCount={9} />
         </div>
-      </Card> */}
-    </OnboardingLayout>
+      )}
+
+      {showPrivacyText && (
+        <p className="absolute bottom-8 text-sm text-center text-secondary-foreground/50 max-w-md">
+          Everything stays local on your device, <br /> and only you can access your Google
+          account—never us.
+        </p>
+      )}
+    </div>
   )
 }
