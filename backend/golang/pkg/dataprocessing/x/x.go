@@ -163,6 +163,20 @@ type Tweet struct {
 	} `json:"tweet"`
 }
 
+type DMConversation struct {
+	DMConversation struct {
+		ConversationID string `json:"conversationId"`
+		Messages       []struct {
+			MessageCreate struct {
+				SenderID    string `json:"senderId"`
+				RecipientID string `json:"recipientId"`
+				Text        string `json:"text"`
+				CreatedAt   string `json:"createdAt"`
+			} `json:"messageCreate"`
+		} `json:"messages"`
+	} `json:"dmConversation"`
+}
+
 type TwitterUserResponse struct {
 	Data []struct {
 		ID       string `json:"id"`
