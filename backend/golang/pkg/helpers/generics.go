@@ -1,10 +1,7 @@
 package helpers
 
-func SafeFirstN[T any](slice []T, firstN int) []T {
-	if len(slice) > firstN {
-		return slice[:firstN]
-	}
-	return slice
+func Ptr[T any](value T) *T {
+	return &value
 }
 
 func SafeLastN[T any](slice []T, lastN int) []T {

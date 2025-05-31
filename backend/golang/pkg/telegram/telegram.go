@@ -31,6 +31,19 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
+const (
+	// TelegramEnabled is the flag to enable telegram.
+	TelegramEnabled = "telegram_enabled"
+	// TelegramChatUUIDKey allows to identifies the chat with a specific user, after the first message.
+	TelegramChatUUIDKey = "telegram_chat_uuid"
+	// TelegramLastUpdateIDKey is used to track the last update ID for Telegram messages.
+	TelegramLastUpdateIDKey = "telegram_last_update_id"
+	// TelegramBotName is the telegram bot name to be used for sending messages.
+	TelegramBotName = "MyTwinSlimBot"
+	// TelegramAPIBase is the base url for the telegram api.
+	TelegramAPIBase = "https://api.telegram.org"
+)
+
 var ErrSubscriptionNilTextMessage = errors.New("subscription stopped due to nil text message")
 
 type Update struct {

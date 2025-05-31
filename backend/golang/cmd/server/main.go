@@ -586,20 +586,6 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 	return graph.NewExecutableSchema(config)
 }
 
-// ClassExists checks if a class already exists in Weaviate.
-func ClassExists(client *weaviate.Client, className string) (bool, error) {
-	schema, err := client.Schema().Getter().Do(context.Background())
-	if err != nil {
-		return false, err
-	}
-	for _, class := range schema.Classes {
-		if class.Class == className {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
 	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
 	if err != nil {

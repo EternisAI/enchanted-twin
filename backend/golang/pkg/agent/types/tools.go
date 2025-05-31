@@ -86,17 +86,6 @@ func SimpleToolResult(content string) *StructuredToolResult {
 	}
 }
 
-// ImageToolResult creates a tool result with image URLs.
-func ImageToolResult(content string, imageURLs []string) *StructuredToolResult {
-	return &StructuredToolResult{
-		Output: map[string]any{
-			"content": content,
-			"images":  imageURLs,
-		},
-		ToolParams: make(map[string]any),
-	}
-}
-
 // Tool defines the interface for all executable tools.
 type Tool interface {
 	// Definition returns the tool metadata

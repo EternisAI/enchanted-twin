@@ -20,10 +20,6 @@ func New() *Source {
 	return &Source{}
 }
 
-func (s *Source) Name() string {
-	return "whatsapp"
-}
-
 func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
@@ -174,10 +170,6 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 
 func (s *Source) ProcessFile(filepath string) ([]types.Record, error) {
 	return ReadWhatsAppDB(filepath)
-}
-
-func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
 func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {

@@ -1,7 +1,6 @@
 package slack
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -168,8 +167,4 @@ func parseTimestamp(ts string) (time.Time, error) {
 	}
 
 	return time.Unix(seconds, 0), nil
-}
-
-func (s *SlackDataSource) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Slack")
 }

@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
@@ -302,64 +301,4 @@ func checkPortsAvailable(ip string, ports []int) error {
 		}
 	}
 	return nil
-}
-
-// TemporalService represents a Temporal service that can be started and stopped.
-type TemporalService struct {
-	logger       *log.Logger
-	dbPath       string
-	readyChan    chan struct{}
-	serverCancel context.CancelFunc
-	port         int
-}
-
-// NewTemporalService creates a new Temporal service.
-func NewTemporalService(logger *log.Logger) (*TemporalService, error) {
-	// Create a unique SQLite DB path for this instance
-	dbPath := fmt.Sprintf("/tmp/temporaldb-%s.db", uuid.New().String())
-
-	return &TemporalService{
-		logger:    logger,
-		dbPath:    dbPath,
-		readyChan: make(chan struct{}),
-		port:      TemporalServerPort,
-	}, nil
-}
-
-// Start starts the Temporal service.
-func (s *TemporalService) Start(ctx context.Context) error {
-	_, cancel := context.WithCancel(ctx)
-	s.serverCancel = cancel
-
-	// Start the server in a goroutine
-	go CreateTemporalServer(s.logger, s.readyChan, s.dbPath)
-
-	return nil
-}
-
-// Stop stops the Temporal service.
-func (s *TemporalService) Stop(ctx context.Context) error {
-	if s.serverCancel != nil {
-		s.serverCancel()
-	}
-
-	// Additional cleanup if necessary
-	return nil
-}
-
-// WaitForReady waits for the Temporal service to be ready.
-func (s *TemporalService) WaitForReady(ctx context.Context, timeout time.Duration) error {
-	select {
-	case <-s.readyChan:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-time.After(timeout):
-		return fmt.Errorf("timeout waiting for Temporal to be ready")
-	}
-}
-
-// GetHostPort returns the host:port address of the Temporal service.
-func (s *TemporalService) GetHostPort() string {
-	return fmt.Sprintf("%s:%d", TemporalServerIP, s.port)
 }
