@@ -104,7 +104,7 @@ func (w *DataProcessingWorkflows) GmailHistoryWorkflow(
 				break
 			}
 
-			err = workflow.ExecuteActivity(ctx, w.GmailIndexActivity, GmailIndexActivityInput{Records: uniqueRecords}).Get(ctx, nil)
+			err = workflow.ExecuteActivity(ctx, w.GmailHistoryIndexActivity, GmailHistoryIndexActivityInput{Records: uniqueRecords}).Get(ctx, nil)
 			if err != nil {
 				return GmailHistoryWorkflowResponse{}, err
 			}
@@ -244,18 +244,17 @@ type GmailHistoryIndexActivityResponse struct{}
 
 func (w *DataProcessingWorkflows) GmailHistoryIndexActivity(
 	ctx context.Context,
-	input GmailIndexActivityInput,
-) (GmailIndexActivityResponse, error) {
+	input GmailHistoryIndexActivityInput,
+) (GmailHistoryIndexActivityResponse, error) {
 	documents, err := gmail.ToDocuments(input.Records)
 	if err != nil {
-		return GmailIndexActivityResponse{}, err
+		return GmailHistoryIndexActivityResponse{}, err
 	}
 
-	progressChan := make(chan memory.ProgressUpdate, 10)
-	err = w.Memory.Store(ctx, documents, progressChan)
+	err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), nil)
 	if err != nil {
-		return GmailIndexActivityResponse{}, err
+		return GmailHistoryIndexActivityResponse{}, err
 	}
 
-	return GmailIndexActivityResponse{}, nil
+	return GmailHistoryIndexActivityResponse{}, nil
 }

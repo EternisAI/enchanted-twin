@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -65,13 +66,13 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	data, ok := resp.Data["Get"].(map[string]interface{})
 	if !ok {
 		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
-		return memory.QueryResult{Documents: finalResults}, nil
+		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
 	}
 
 	classData, ok := data[ClassName].([]interface{})
 	if !ok {
 		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
-		return memory.QueryResult{Documents: finalResults}, nil
+		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
 	}
 	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
 
@@ -122,13 +123,143 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		}
 
 		finalResults = append(finalResults, memory.TextDocument{
-			ID:        id,
-			Content:   content,
-			Timestamp: parsedTimestamp,
-			Metadata:  metaMap,
-			Tags:      tags,
+			FieldID:        id,
+			FieldContent:   content,
+			FieldTimestamp: parsedTimestamp,
+			FieldMetadata:  metaMap,
+			FieldTags:      tags,
 		})
 	}
 	s.logger.Info("Query processed successfully.", "num_results_returned_after_filtering", len(finalResults))
-	return memory.QueryResult{Documents: finalResults}, nil
+	return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
+}
+
+// QueryWithDistance retrieves memories relevant to the query text with similarity distances, with optional metadata filtering.
+func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
+	s.logger.Info("QueryWithDistance method called", "query_text", queryText, "filters", metadataFilters)
+
+	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
+	if err != nil {
+		return memory.QueryWithDistanceResult{}, fmt.Errorf("failed to create embedding for query: %w", err)
+	}
+	queryVector32 := make([]float32, len(vector))
+	for i, val := range vector {
+		queryVector32[i] = float32(val)
+	}
+
+	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
+
+	contentField := graphql.Field{Name: contentProperty}
+	timestampField := graphql.Field{Name: timestampProperty}
+	metaField := graphql.Field{Name: metadataProperty}
+	tagsField := graphql.Field{Name: tagsProperty}
+	additionalFields := graphql.Field{
+		Name: "_additional",
+		Fields: []graphql.Field{
+			{Name: "id"},
+			{Name: "distance"},
+		},
+	}
+
+	queryBuilder := s.client.GraphQL().Get().
+		WithClassName(ClassName).
+		WithNearVector(nearVector).
+		WithLimit(10).
+		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
+
+	// Add WHERE filtering if metadata filters are provided
+	if len(metadataFilters) > 0 {
+		filterMap := metadataFilters[0] // Use first filter map if provided
+		for key, value := range filterMap {
+			if key == "type" {
+				// Create a filter that looks for the type in the metadata JSON
+				// Since metadata is stored as JSON string, we need to use a Like operator
+				// to match the pattern: "type":"friend"
+				whereFilter := filters.Where().
+					WithPath([]string{metadataProperty}).
+					WithOperator(filters.Like).
+					WithValueText(fmt.Sprintf(`*"%s":"%s"*`, key, value))
+
+				queryBuilder = queryBuilder.WithWhere(whereFilter)
+				s.logger.Debug("Added WHERE filter", "key", key, "value", value, "pattern", fmt.Sprintf(`*"%s":"%s"*`, key, value))
+			}
+		}
+	}
+
+	resp, err := queryBuilder.Do(ctx)
+	if err != nil {
+		return memory.QueryWithDistanceResult{}, fmt.Errorf("failed to execute Weaviate query: %w", err)
+	}
+
+	if len(resp.Errors) > 0 {
+		return memory.QueryWithDistanceResult{}, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
+	}
+
+	finalResults := []memory.DocumentWithDistance{}
+	data, ok := resp.Data["Get"].(map[string]interface{})
+	if !ok {
+		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
+		return memory.QueryWithDistanceResult{Documents: finalResults}, nil
+	}
+
+	classData, ok := data[ClassName].([]interface{})
+	if !ok {
+		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
+		return memory.QueryWithDistanceResult{Documents: finalResults}, nil
+	}
+	s.logger.Info("Retrieved documents from Weaviate with distances", "count", len(classData), "with_filters", len(metadataFilters) > 0)
+
+	for _, item := range classData {
+		obj, okMap := item.(map[string]interface{})
+		if !okMap {
+			s.logger.Warn("Retrieved item is not a map, skipping", "item", item)
+			continue
+		}
+
+		content, _ := obj[contentProperty].(string)
+		metadataJSON, _ := obj[metadataProperty].(string)
+
+		var parsedTimestamp *time.Time
+		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
+			t, pErr := time.Parse(time.RFC3339, tsStr)
+			if pErr == nil {
+				parsedTimestamp = &t
+			} else {
+				s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", pErr)
+			}
+		}
+
+		additional, _ := obj["_additional"].(map[string]interface{})
+		id, _ := additional["id"].(string)
+		distance, _ := additional["distance"].(float64)
+
+		metaMap := make(map[string]string)
+		if metadataJSON != "" {
+			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
+				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
+			}
+		}
+
+		var tags []string
+		if tagsInterface, tagsOk := obj[tagsProperty].([]interface{}); tagsOk {
+			for _, tagInterfaceItem := range tagsInterface {
+				if tagStr, okTag := tagInterfaceItem.(string); okTag {
+					tags = append(tags, tagStr)
+				}
+			}
+		}
+
+		finalResults = append(finalResults, memory.DocumentWithDistance{
+			Document: memory.TextDocument{
+				FieldID:        id,
+				FieldContent:   content,
+				FieldTimestamp: parsedTimestamp,
+				FieldMetadata:  metaMap,
+				FieldTags:      tags,
+			},
+			Distance: float32(distance),
+		})
+	}
+	s.logger.Info("QueryWithDistance processed successfully.", "num_results_returned", len(finalResults))
+	return memory.QueryWithDistanceResult{Documents: finalResults}, nil
 }

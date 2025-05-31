@@ -1,9 +1,9 @@
-name: Go CI
+name: Go CI (backend)
 
 on:
-  push:
+  pull_request: # run on every PR so the status check always exists
     branches: [main, master]
-  pull_request:
+  push:
     branches: [main, master]
 
 concurrency:
@@ -20,14 +20,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
+
+      - name: Determine if backend/golang changed
+        id: changes
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            backend:
+              - 'backend/golang/**'
+
+      - name: Skip – no backend changes
+        if: steps.changes.outputs.backend != 'true'
+        run: echo "✅ No backend changes – skipping Go CI."
 
       - uses: actions/setup-go@v5
+        if: steps.changes.outputs.backend == 'true'
         with:
           go-version-file: backend/golang/go.mod
           cache-dependency-path: backend/golang/go.sum
 
       - name: Lint only the diff
+        if: steps.changes.outputs.backend == 'true'
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.1
@@ -35,9 +49,9 @@ jobs:
           args: --timeout=10m --new-from-rev=origin/${{ github.event.pull_request.base.ref }}
 
       - name: Build
-        run: |
-          make build
+        if: steps.changes.outputs.backend == 'true'
+        run: make build
 
       - name: Test
-        run: |
-          make test
+        if: steps.changes.outputs.backend == 'true'
+        run: make test

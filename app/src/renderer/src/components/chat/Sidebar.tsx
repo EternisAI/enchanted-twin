@@ -298,7 +298,7 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         disabled={isActive}
         to="/chat/$chatId"
         onClick={() => {
-          if (chat.voice) setVoiceMode(true)
+          setVoiceMode(chat.voice)
           window.api.analytics.capture('open_chat', {
             method: 'ui'
           })

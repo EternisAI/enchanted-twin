@@ -19,6 +19,7 @@ import { ScrollArea } from '../ui/scroll-area'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import ChatInputBox from './ChatInputBox'
 import VoiceVisualizer from './voice/VoiceVisualizer'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -56,6 +57,8 @@ export function Home() {
   const filteredChats = chats.filter((chat) =>
     chat.name.toLowerCase().includes(debouncedQuery.toLowerCase())
   )
+
+  const { isVoiceReady } = useDependencyStatus()
 
   const dummySuggestions = [
     // {
@@ -327,6 +330,7 @@ export function Home() {
         className="relative w-full"
       >
         <ChatInputBox
+          isVoiceReady={isVoiceReady}
           query={query}
           textareaRef={textareaRef}
           isReasonSelected={isReasonSelected}

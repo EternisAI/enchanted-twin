@@ -198,7 +198,7 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 
 // CreateChat is the resolver for the createChat field.
 func (r *mutationResolver) CreateChat(ctx context.Context, name string, voice bool) (*model.Chat, error) {
-	chat, err := r.TwinChatService.CreateChat(ctx, name)
+	chat, err := r.TwinChatService.CreateChat(ctx, name, voice)
 	if err != nil {
 		return nil, err
 	}
@@ -378,6 +378,11 @@ func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, e
 		r.Logger.Info("Triggered WhatsApp connection start (async)")
 		return true, nil
 	}
+}
+
+// Activate is the resolver for the activate field.
+func (r *mutationResolver) Activate(ctx context.Context, inviteCode string) (bool, error) {
+	return auth.Activate(ctx, r.Logger, r.Store, inviteCode)
 }
 
 // Profile is the resolver for the profile field.
@@ -635,6 +640,11 @@ func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupPro
 		results = append(results, &progress)
 	}
 	return results, nil
+}
+
+// WhitelistStatus is the resolver for the whitelistStatus field.
+func (r *queryResolver) WhitelistStatus(ctx context.Context) (bool, error) {
+	return auth.IsWhitelisted(ctx, r.Logger, r.Store)
 }
 
 // MessageAdded is the resolver for the messageAdded field.
