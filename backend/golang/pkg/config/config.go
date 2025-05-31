@@ -20,7 +20,6 @@ type Config struct {
 	EmbeddingsModel    string
 	DBPath             string
 	AppDataPath        string
-	OllamaBaseURL      string
 	TelegramToken      string
 	TelegramChatServer string
 	ContainerRuntime   string
@@ -63,7 +62,6 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
 		DBPath:             getEnv("DB_PATH", "./store.db", printEnv),
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
-		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
