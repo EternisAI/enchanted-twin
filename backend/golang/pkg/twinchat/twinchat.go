@@ -262,7 +262,7 @@ func (s *Service) SendMessage(
 			MessageID:  assistantMessageId,
 			ImageUrls:  delta.ImageURLs,
 			Chunk:      delta.ContentDelta,
-			Role:       model.RoleUser,
+			Role:       model.RoleAssistant,
 			IsComplete: delta.IsCompleted,
 			CreatedAt:  &createdAt,
 		}
