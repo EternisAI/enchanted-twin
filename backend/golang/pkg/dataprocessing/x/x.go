@@ -275,10 +275,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 		}
 
 		documents = append(documents, memory.TextDocument{
-			Content:   content,
-			Timestamp: &record.Timestamp,
-			Tags:      tags,
-			Metadata:  metadata,
+			FieldContent:   content,
+			FieldTimestamp: &record.Timestamp,
+			FieldTags:      tags,
+			FieldMetadata:  metadata,
 		})
 	}
 	return documents, nil

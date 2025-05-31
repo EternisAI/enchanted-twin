@@ -23,6 +23,7 @@ const (
 	SEND_EMAIL_TOOL_NAME          = "send_email"
 	EMAIL_BY_ID_TOOL_NAME         = "email_by_id"
 	LIST_EMAIL_ACCOUNTS_TOOL_NAME = "list_email_accounts"
+	REPLY_EMAIL_TOOL_NAME         = "reply_email"
 )
 
 const (
@@ -30,6 +31,7 @@ const (
 	SEND_EMAIL_TOOL_DESCRIPTION          = "Send an email to recipient email address"
 	EMAIL_BY_ID_TOOL_DESCRIPTION         = "Get the email by id, returns subject, from, date and body"
 	LIST_EMAIL_ACCOUNTS_TOOL_DESCRIPTION = "List the email accounts the user has"
+	REPLY_EMAIL_TOOL_DESCRIPTION         = "Reply to an email by its id"
 )
 
 type EmailQuery struct {
@@ -60,6 +62,13 @@ type SendEmailArguments struct {
 type EmailByIdArguments struct {
 	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to get the email from"`
 	Id           string `json:"id" jsonschema:"required,description=The id of the email"`
+}
+
+type ReplyEmailArguments struct {
+	EmailAccount string `json:"email_account" jsonschema:"required,description=The email account to reply from"`
+	EmailId      string `json:"email_id" jsonschema:"required,description=The id of the email to reply to"`
+	Body         string `json:"body" jsonschema:"required,description=The body of the reply email"`
+	ReplyAll     bool   `json:"reply_all" jsonschema:"description=Whether to reply to all recipients, default is false"`
 }
 
 func (q *EmailQuery) ToQuery() (string, error) {
@@ -302,6 +311,116 @@ func processEmailById(
 	}, nil
 }
 
+func processReplyEmail(
+	ctx context.Context,
+	store *db.Store,
+	arguments ReplyEmailArguments,
+) ([]*mcp_golang.Content, error) {
+	accessToken, err := GetAccessToken(ctx, store, arguments.EmailAccount)
+	if err != nil {
+		return nil, err
+	}
+
+	token := &oauth2.Token{
+		AccessToken: accessToken,
+	}
+
+	config := oauth2.Config{}
+	client := config.Client(ctx, token)
+
+	gmailService, err := gmail.NewService(ctx, option.WithHTTPClient(client))
+	if err != nil {
+		fmt.Println("Error initializing Gmail service:", err)
+		return nil, err
+	}
+
+	if arguments.EmailId == "" {
+		return nil, errors.New("email_id is required")
+	}
+
+	// Get the original message
+	originalMsg, err := gmailService.Users.Messages.Get("me", arguments.EmailId).Do()
+	if err != nil {
+		fmt.Println("Error getting original message:", err)
+		return nil, err
+	}
+
+	// Get user profile for sender email
+	profile, err := gmailService.Users.GetProfile("me").Do()
+	if err != nil {
+		fmt.Println("Error retrieving user profile:", err)
+		return nil, err
+	}
+
+	// Extract headers from original message
+	var originalSubject, originalFrom, originalTo, originalCC, messageId, references string
+	for _, header := range originalMsg.Payload.Headers {
+		switch header.Name {
+		case "Subject":
+			originalSubject = header.Value
+		case "From":
+			originalFrom = header.Value
+		case "To":
+			originalTo = header.Value
+		case "Cc":
+			originalCC = header.Value
+		case "Message-ID":
+			messageId = header.Value
+		case "References":
+			references = header.Value
+		}
+	}
+
+	// Prepare reply subject
+	replySubject := originalSubject
+	if !strings.HasPrefix(strings.ToLower(originalSubject), "re:") {
+		replySubject = "Re: " + originalSubject
+	}
+
+	// Determine recipients
+	replyTo := originalFrom
+	var replyCc string
+	if arguments.ReplyAll {
+		// Extract sender from originalTo and originalCC, exclude current user
+		allRecipients := []string{}
+		if originalTo != "" {
+			allRecipients = append(allRecipients, originalTo)
+		}
+		if originalCC != "" {
+			allRecipients = append(allRecipients, originalCC)
+		}
+
+		// Filter out current user's email from CC
+		var ccList []string
+		for _, recipient := range allRecipients {
+			if !strings.Contains(recipient, profile.EmailAddress) && recipient != originalFrom {
+				ccList = append(ccList, recipient)
+			}
+		}
+		if len(ccList) > 0 {
+			replyCc = strings.Join(ccList, ", ")
+		}
+	}
+
+	// Create reply message
+	message := createReplyMessage(profile.EmailAddress, replyTo, replyCc, replySubject, arguments.Body, messageId, references)
+
+	_, err = gmailService.Users.Messages.Send("me", message).Do()
+	if err != nil {
+		fmt.Printf("Error sending reply email: %s\n", err)
+		return nil, err
+	}
+
+	return []*mcp_golang.Content{
+		{
+			Type: "text",
+			TextContent: &mcp_golang.TextContent{
+				Text: "Successfully sent reply email",
+			},
+		},
+	}, nil
+}
+
 func processListEmailAccounts(
 	ctx context.Context,
 	store *db.Store,
@@ -335,6 +454,41 @@ func createMessage(from, to, subject, bodyContent string) *gmail.Message {
 	header["MIME-Version"] = "1.0"
 	header["Content-Type"] = "text/plain; charset=\"utf-8\""
 	header["Content-Transfer-Encoding"] = "base64"
+
+	var message string
+	for k, v := range header {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
+	}
+	message += "\r\n" + bodyContent
+
+	// Encode as base64
+	return &gmail.Message{
+		Raw: base64.URLEncoding.EncodeToString([]byte(message)),
+	}
+}
+
+func createReplyMessage(from, to, cc, subject, bodyContent, originalMessageId, references string) *gmail.Message {
+	// Compose reply email
+	header := make(map[string]string)
+	header["From"] = from
+	header["To"] = to
+	if cc != "" {
+		header["Cc"] = cc
+	}
+	header["Subject"] = subject
+	header["MIME-Version"] = "1.0"
+	header["Content-Type"] = "text/plain; charset=\"utf-8\""
+	header["Content-Transfer-Encoding"] = "base64"
+
+	// Add threading headers for proper reply threading
+	if originalMessageId != "" {
+		header["In-Reply-To"] = originalMessageId
+		if references != "" {
+			header["References"] = references + " " + originalMessageId
+		} else {
+			header["References"] = originalMessageId
+		}
+	}
 
 	var message string
 	for k, v := range header {
@@ -419,6 +573,17 @@ func GenerateGmailTools() ([]mcp_golang.ToolRetType, error) {
 		Name:        LIST_EMAIL_ACCOUNTS_TOOL_NAME,
 		Description: &desc,
 		InputSchema: "{}",
+	})
+
+	replyEmailSchema, err := utils.ConverToInputSchema(ReplyEmailArguments{})
+	if err != nil {
+		return nil, fmt.Errorf("error generating schema for reply_email: %w", err)
+	}
+	desc = REPLY_EMAIL_TOOL_DESCRIPTION
+	tools = append(tools, mcp_golang.ToolRetType{
+		Name:        REPLY_EMAIL_TOOL_NAME,
+		Description: &desc,
+		InputSchema: replyEmailSchema,
 	})
 
 	return tools, nil

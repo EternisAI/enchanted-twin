@@ -18,3 +18,5 @@ The Go backend starts an **embedded Weaviate server** at runtime (see `bootstrap
 
 • It serves on the port defined by the `WEAVIATE_PORT` environment variable (defaults to `51414`).
 
+
+### Test memory 

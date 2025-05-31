@@ -12,6 +12,7 @@ type JSONForSQLLite string
 type ChatDB struct {
 	ID            string `db:"id"`
 	Name          string `db:"name"`
+	Voice         bool   `db:"voice"`
 	CreatedAt     string `db:"created_at"`
 	LastMessageAt string `db:"last_message_at"`
 }
@@ -21,6 +22,7 @@ func (c *ChatDB) ToModel() model.Chat {
 	return model.Chat{
 		ID:        c.ID,
 		Name:      c.Name,
+		Voice:     c.Voice,
 		CreatedAt: c.CreatedAt,
 	}
 }

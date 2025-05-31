@@ -19,7 +19,7 @@ import (
 
 type chatStore interface {
 	AddMessageToChat(ctx context.Context, msg repository.Message) (string, error)
-	CreateChat(ctx context.Context, name string) (model.Chat, error)
+	CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error)
 }
 
 type sendToChat struct {
@@ -43,6 +43,14 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	chatId, ok := inputs["chat_id"].(string)
 	if !ok {
 		return nil, errors.New("chat_id is not a string")
+	}
+
+	if chatId == "" {
+		chat, err := e.chatStorage.CreateChat(ctx, "Network message", true)
+		if err != nil {
+			return nil, err
+		}
+		chatId = chat.ID
 	}
 
 	dbMessage := repository.Message{

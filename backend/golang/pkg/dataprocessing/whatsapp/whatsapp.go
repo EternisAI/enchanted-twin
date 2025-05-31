@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -23,9 +24,7 @@ func (s *Source) Name() string {
 	return "whatsapp"
 }
 
-// ReadWhatsAppDB reads the WhatsApp database and returns Records.
 func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
-	// Open the database
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
@@ -35,7 +34,7 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			log.Printf("Error closing database: %v", err)
 		}
 	}()
-	// Query all messages from ZWAMESSAGE table
+
 	query := `SELECT 
 		m.Z_PK, m.ZISFROMME, m.ZCHATSESSION, m.ZMESSAGEINFO, m.ZMESSAGEDATE, m.ZSENTDATE,
 		m.ZFROMJID, m.ZTEXT, m.ZTOJID,
@@ -200,10 +199,10 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 		}
 
 		documents = append(documents, memory.TextDocument{
-			Content:   content,
-			Timestamp: &record.Timestamp,
-			Tags:      []string{"whatsapp"},
-			Metadata: map[string]string{
+			FieldContent:   content,
+			FieldTimestamp: &record.Timestamp,
+			FieldTags:      []string{"whatsapp"},
+			FieldMetadata: map[string]string{
 				"from": fromName,
 				"to":   toName,
 			},
@@ -221,15 +220,15 @@ func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, messag
 	timestamp := time.Now()
 
 	document := memory.TextDocument{
-		ID:        fmt.Sprintf("whatsapp-%d", time.Now().UnixNano()),
-		Content:   message,
-		Timestamp: &timestamp,
-		Tags:      []string{"whatsapp", "message"},
-		Metadata: map[string]string{
-			"from":     fromName,
-			"to":       toName,
-			"type":     "message",
-			"platform": "whatsapp",
+		FieldID:        fmt.Sprintf("whatsapp-%d", time.Now().UnixNano()),
+		FieldContent:   message,
+		FieldTimestamp: &timestamp,
+		FieldTags:      []string{"whatsapp", "message"},
+		FieldMetadata: map[string]string{
+			"from":   fromName,
+			"to":     toName,
+			"type":   "message",
+			"source": "whatsapp",
 		},
 	}
 
@@ -245,15 +244,15 @@ func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contac
 	timestamp := time.Now()
 
 	document := memory.TextDocument{
-		ID:        fmt.Sprintf("whatsapp-contact-%d", time.Now().UnixNano()),
-		Content:   fmt.Sprintf("Whatsapp Contact name: %s. Contact ID: %s.", contactName, contactID),
-		Timestamp: &timestamp,
-		Tags:      []string{"whatsapp", "contact"},
-		Metadata: map[string]string{
+		FieldID:        fmt.Sprintf("whatsapp-contact-%d", time.Now().UnixNano()),
+		FieldContent:   fmt.Sprintf("Whatsapp Contact name: %s. Contact ID: %s.", contactName, contactID),
+		FieldTimestamp: &timestamp,
+		FieldTags:      []string{"whatsapp", "contact"},
+		FieldMetadata: map[string]string{
 			"contact_id": contactID,
 			"name":       contactName,
 			"type":       "contact",
-			"platform":   "whatsapp",
+			"source":     "whatsapp",
 		},
 	}
 
@@ -274,25 +273,71 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 	}
 
 	document := memory.TextDocument{
-		ID:        fmt.Sprintf("whatsapp-history-%d", time.Now().UnixNano()),
-		Content:   message,
-		Timestamp: &timestamp,
-		Tags:      []string{"whatsapp", "message", "historical"},
-		Metadata: map[string]string{
-			"from":     fromName,
-			"to":       toName,
-			"type":     "message",
-			"platform": "whatsapp",
-			"source":   "history_sync",
+		FieldID:        fmt.Sprintf("whatsapp-history-%d", time.Now().UnixNano()),
+		FieldContent:   message,
+		FieldTimestamp: &timestamp,
+		FieldTags:      []string{"whatsapp", "message", "conversation"},
+		FieldMetadata: map[string]string{
+			"from":   fromName,
+			"to":     toName,
+			"type":   "message",
+			"source": "whatsapp",
 		},
 	}
 
 	return document, nil
 }
 
-//	progressChan := make(chan memory.ProgressUpdate, 1)
+// IsValidConversationalContent checks if a WhatsApp document contains conversational content
+// suitable for fact extraction, preventing hallucination on metadata and contact info.
+func IsValidConversationalContent(doc memory.TextDocument) bool {
+	content := strings.TrimSpace(doc.FieldContent)
 
-// err := memoryStorage.Store(ctx, []memory.TextDocument{document}, progressChan)
-// if err != nil {
-// 	return fmt.Errorf("failed to store historical WhatsApp message: %w", err)
-// }
+	// 1. Check if it's a contact document (tag-based)
+	for _, tag := range doc.FieldTags {
+		if tag == "contact" {
+			return false
+		}
+	}
+
+	metadataPatterns := []string{
+		"Contact name:",
+		"Contact ID:",
+		"Phone number:",
+		"Email:",
+		"Contact:",
+		"Whatsapp Contact",
+		"Telegram Contact",
+		"@s.whatsapp.net",
+		"@c.us",
+		"@gmail.com",
+		"@yahoo.com",
+		"@hotmail.com",
+		"@outlook.com",
+	}
+
+	for _, pattern := range metadataPatterns {
+		if strings.Contains(content, pattern) {
+			return false
+		}
+	}
+
+	if len(content) < 20 {
+		return false
+	}
+
+	lines := strings.Split(content, "\n")
+	conversationalLines := 0
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if strings.Contains(trimmedLine, ":") && len(trimmedLine) > 10 {
+			// Check if it looks like "Speaker: message" format
+			parts := strings.SplitN(trimmedLine, ":", 2)
+			if len(parts) == 2 && len(strings.TrimSpace(parts[1])) > 3 {
+				conversationalLines++
+			}
+		}
+	}
+
+	return conversationalLines > 0
+}

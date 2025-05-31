@@ -35,29 +35,28 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 		return nil, errors.New("query must be a string")
 	}
 
+	// For now, search across all speakers
 	result, err := t.Memory.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
+
 	resultText := ""
-	for i, text := range result.Text {
-		resultText += fmt.Sprintf("Answer %d: %s\n", i, text)
-	}
-	for _, doc := range result.Documents {
+	for i, fact := range result.Facts {
 		resultText += fmt.Sprintf(
-			"Memory Document %s: %s. At %s\n",
-			doc.ID,
-			doc.Content,
-			doc.Timestamp,
+			"Memory %d: %s (Speaker: %s, Source: %s, Time: %s)\n",
+			i+1,
+			fact.Content,
+			fact.Speaker,
+			fact.Source,
+			fact.Timestamp.Format("2006-01-02 15:04:05"),
 		)
 	}
 
 	t.Logger.Debug(
 		"Memory tool result",
-		"documents_count",
-		len(result.Documents),
-		"text_count",
-		len(result.Text),
+		"facts_count",
+		len(result.Facts),
 		"response",
 		resultText,
 	)

@@ -3,6 +3,7 @@ import { platform, homedir } from 'os'
 import path from 'path'
 import log from 'electron-log/main'
 import { ipcMain } from 'electron'
+import { screenpipeStore } from './stores'
 
 let screenpipeProcess: ChildProcess | null = null
 let isScreenpipeCurrentlyInstalled: boolean = false
@@ -142,11 +143,44 @@ export function cleanupScreenpipe(): void {
   }
 }
 
+export function autoStartScreenpipeIfEnabled(): Promise<void> {
+  return new Promise((resolve) => {
+    const autoStart = screenpipeStore.get('autoStart') as boolean
+
+    if (!autoStart) {
+      log.info('[Screenpipe] auto-start is disabled')
+      resolve()
+      return
+    }
+
+    if (!isScreenpipeInstalled()) {
+      log.warn('[Screenpipe] auto-start is enabled but screenpipe is not installed')
+      resolve()
+      return
+    }
+
+    log.info('[Screenpipe] Auto-starting screenpipe...')
+    startScreenpipe()
+      .then((result) => {
+        if (result.success) {
+          log.info('[Screenpipe] auto-started successfully')
+        } else {
+          log.error('[Screenpipe] Failed to auto-start:', result.error)
+        }
+        resolve()
+      })
+      .catch((error) => {
+        log.error('[Screenpipe] Error during auto-start:', error)
+        resolve()
+      })
+  })
+}
+
 export function registerScreenpipeIpc(): void {
   ipcMain.handle('screenpipe:get-status', () => {
     return {
       isRunning: isScreenpipeRunning(),
-      isInstalled: isScreenpipeCurrentlyInstalled
+      isInstalled: isScreenpipeCurrentlyInstalled || isScreenpipeInstalled()
     }
   })
 
@@ -155,10 +189,30 @@ export function registerScreenpipeIpc(): void {
   })
 
   ipcMain.handle('screenpipe:start', async () => {
-    return await startScreenpipe()
+    const result = await startScreenpipe()
+    if (result.success) {
+      screenpipeStore.set('autoStart', true)
+      log.info('Screenpipe auto-start enabled after manual start')
+    }
+    return result
   })
 
   ipcMain.handle('screenpipe:stop', () => {
-    return stopScreenpipe()
+    const stopped = stopScreenpipe()
+    if (stopped) {
+      screenpipeStore.set('autoStart', false)
+      log.info('Screenpipe auto-start disabled after manual stop')
+    }
+    return stopped
+  })
+
+  ipcMain.handle('screenpipe:get-auto-start', () => {
+    return screenpipeStore.get('autoStart')
+  })
+
+  ipcMain.handle('screenpipe:set-auto-start', (_, enabled: boolean) => {
+    screenpipeStore.set('autoStart', enabled)
+    log.info(`[Screenpipe] auto-start ${enabled ? 'enabled' : 'disabled'}`)
+    return enabled
   })
 }

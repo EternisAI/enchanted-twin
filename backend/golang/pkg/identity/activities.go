@@ -45,7 +45,7 @@ func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (s
 			return "", err
 		}
 		for _, doc := range docs.Documents {
-			memoryDocuments = append(memoryDocuments, doc.String())
+			memoryDocuments = append(memoryDocuments, doc.Content())
 		}
 	}
 
