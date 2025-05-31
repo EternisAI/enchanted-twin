@@ -15,6 +15,7 @@ release:
 	GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
 
 lint:
+	golangci-lint fmt
 	golangci-lint run --fix
 
 test:
@@ -25,3 +26,10 @@ gqlgen:
 
 run-telegram-chat:
 	go run cmd/telegram_chat_server/main.go
+
+deadcode:
+	@echo "=== Checking for transitively dead functions ==="
+	@go run golang.org/x/tools/cmd/deadcode@latest ./...
+
+test-memory:
+	go run cmd/memory-test/main.go

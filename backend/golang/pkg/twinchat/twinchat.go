@@ -26,6 +26,15 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
 
+type Storage interface {
+	GetChat(ctx context.Context, id string) (model.Chat, error)
+	GetChats(ctx context.Context) ([]*model.Chat, error)
+	CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error)
+	DeleteChat(ctx context.Context, chatID string) error
+	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
+	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
+}
+
 type Service struct {
 	aiService        *ai.Service
 	storage          Storage
@@ -135,7 +144,6 @@ func (s *Service) SendMessage(
 
 	messages := make([]*model.Message, 0)
 	if chatID == "" {
-
 		chat, err := s.storage.CreateChat(ctx, "New chat", isVoice)
 		if err != nil {
 			return nil, err
@@ -263,7 +271,7 @@ func (s *Service) SendMessage(
 			MessageID:  assistantMessageId,
 			ImageUrls:  delta.ImageURLs,
 			Chunk:      delta.ContentDelta,
-			Role:       model.RoleUser,
+			Role:       model.RoleAssistant,
 			IsComplete: delta.IsCompleted,
 			CreatedAt:  &createdAt,
 		}
@@ -606,7 +614,6 @@ func (s *Service) SendAssistantMessage(
 	now := time.Now()
 
 	if chatID == "" {
-
 		chat, err := s.storage.CreateChat(ctx, "New chat", false)
 		if err != nil {
 			return nil, err

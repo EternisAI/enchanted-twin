@@ -71,37 +71,12 @@ type ToolCallFunction struct {
 	Arguments string `json:"arguments"`
 }
 
-// NewSystemMessage creates a system message.
-func NewSystemMessage(content string) Message {
-	return Message{
-		Role:    MessageRoleSystem,
-		Content: content,
-	}
-}
-
-// NewUserMessage creates a user message.
-func NewUserMessage(content string) Message {
-	return Message{
-		Role:    MessageRoleUser,
-		Content: content,
-	}
-}
-
 // NewAssistantMessage creates an assistant message.
 func NewAssistantMessage(content string, toolCalls []ToolCall) Message {
 	return Message{
 		Role:      MessageRoleAssistant,
 		Content:   content,
 		ToolCalls: toolCalls,
-	}
-}
-
-// NewToolMessage creates a tool message.
-func NewToolMessage(content string, toolCallID string) Message {
-	return Message{
-		Role:       MessageRoleTool,
-		Content:    content,
-		ToolCallID: toolCallID,
 	}
 }
 
