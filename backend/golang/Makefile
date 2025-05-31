@@ -27,5 +27,9 @@ gqlgen:
 run-telegram-chat:
 	go run cmd/telegram_chat_server/main.go
 
+deadcode:
+	@echo "=== Checking for transitively dead functions ==="
+	@go run golang.org/x/tools/cmd/deadcode@latest ./...
+
 test-memory:
 	go run cmd/memory-test/main.go
