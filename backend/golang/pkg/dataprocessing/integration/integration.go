@@ -69,7 +69,6 @@ func IntegrationTest(config IntegrationTestConfig) error {
 	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
-	fmt.Println("aiEmbeddingsService  ", aiEmbeddingsService)
 	store, err := db.NewStore(ctx, storePath)
 	if err != nil {
 		logger.Error("Error creating store", "error", err)
