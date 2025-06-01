@@ -228,12 +228,12 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 					if messageMap, ok := messageInterface.(map[string]interface{}); ok {
 						role, ok := messageMap["Role"].(string)
 						if !ok {
-							log.Printf("Error: Skipping message with empty role")
+							log.Printf("Error: Skipping message with invalid role type or missing role key. Value: %v, Type: %T", messageMap["Role"], messageMap["Role"])
 							continue
 						}
 						text, ok := messageMap["Text"].(string)
 						if !ok {
-							log.Printf("Error: Skipping message with empty text")
+							log.Printf("Error: Skipping message with invalid text type or missing text key. Value: %v, Type: %T", messageMap["Text"], messageMap["Text"])
 							continue
 						}
 
