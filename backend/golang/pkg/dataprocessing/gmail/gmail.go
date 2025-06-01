@@ -411,6 +411,7 @@ func (g *GmailProcessor) SyncWithDateRange(ctx context.Context, token, startDate
 	return out, hasMore, list.NextPageToken, nil
 }
 
+
 func SortByOldest(records []types.Record) {
 	if len(records) <= 1 {
 		return
@@ -426,6 +427,7 @@ func SortByOldest(records []types.Record) {
 }
 
 func (g *GmailProcessor) fetchMessage(
+
 	ctx context.Context,
 	c *http.Client,
 	token, id string,

@@ -1,7 +1,6 @@
 package chatgpt
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
