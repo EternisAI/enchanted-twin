@@ -4,6 +4,15 @@ import { DependencyProgress, KokoroBootstrap } from './pythonManager'
 let kokoro: KokoroBootstrap | null = null
 
 export function startKokoro(mainWindow: Electron.BrowserWindow) {
+  // Check if Kokoro should be started based on environment variable
+  const startKokoroEnv = process.env.START_KOKORO
+  if (startKokoroEnv === 'FALSE' || startKokoroEnv === 'false') {
+    log.info('[Kokoro] Kokoro startup disabled by START_KOKORO environment variable')
+    return null
+  }
+
+  log.info('[Kokoro] Starting Kokoro TTS service')
+  
   const kokoroProgress = (data: DependencyProgress) => {
     if (mainWindow) {
       log.info(`[Kokoro] Emitting launch-progress: ${data.progress}, Status: ${data.status}`)

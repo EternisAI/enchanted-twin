@@ -59,8 +59,14 @@ async function startGoServer(
   backendPort: number
 ) {
   if (!existsSync(goBinaryPath)) {
-    log.error(`Go binary not found at: ${goBinaryPath}`)
-    createErrorWindow(`Go binary not found at: ${goBinaryPath}`)
+    const isEternisDevMode = process.env.ETERNIS_DEV === 'true'
+    
+    if (!isEternisDevMode) {
+      log.error(`Go binary not found at: ${goBinaryPath}`)
+      createErrorWindow(`Go binary not found at: ${goBinaryPath}`)
+    } else {
+      log.info(`Go binary not found at: ${goBinaryPath} (suppressed in ETERNIS_DEV mode)`)
+    }
     return false
   }
   log.info(`Attempting to start Go server at: ${goBinaryPath}`)
