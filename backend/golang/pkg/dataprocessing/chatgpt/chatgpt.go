@@ -238,12 +238,13 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 						}
 
 						if role != "" && text != "" {
-							log.Printf("Skipping message with empty role (%s) or text (%s)", role, text)
 							conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
 								Speaker: role,
 								Content: text,
 								Time:    record.Timestamp,
 							})
+						} else {
+							log.Printf("Error: Skipping message with empty role or text")
 						}
 					}
 				}
