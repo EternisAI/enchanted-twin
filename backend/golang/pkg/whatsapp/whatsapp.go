@@ -440,11 +440,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 			totalItems := totalContacts + totalMessages
 
-			// note: remove
-			if totalMessages == 0 {
-				return
-			}
-
 			UpdateSyncStatus(SyncStatus{
 				IsCompleted:       false,
 				IsSyncing:         true,
@@ -501,16 +496,11 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			conversationDocuments := []memory.ConversationDocument{}
-			fmt.Println("========================= v.Data.Conversations", v.Data.Conversations[0])
 
-			for i, conversation := range v.Data.Conversations {
+			for _, conversation := range v.Data.Conversations {
 				conversationDoc := ProcessNewConversationMessage(conversation, logger)
 				if conversationDoc != nil {
 					conversationDocuments = append(conversationDocuments, *conversationDoc)
-				}
-
-				if i == 0 {
-					fmt.Println("========================= conversationDoc", conversationDoc)
 				}
 
 				processedItems++
@@ -586,21 +576,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				} else {
 					fromName = v.Info.Sender.User
 				}
-			}
-
-			chatID := v.Info.Chat.User
-
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-			defer cancel()
-
-			conversationDoc := dataprocessing_whatsapp.ProcessNewConversationMessage(ctx, chatID, message, fromName)
-
-			fmt.Println("========================= conversationDoc", conversationDoc)
-			err := memoryStorage.Store(ctx, memory.ConversationDocumentsToDocuments([]memory.ConversationDocument{conversationDoc}), nil)
-			if err != nil {
-				logger.Error("Error storing WhatsApp message", "error", err)
-			} else {
-				logger.Info("WhatsApp message stored successfully")
 			}
 
 		default:
