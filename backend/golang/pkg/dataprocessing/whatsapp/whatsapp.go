@@ -19,11 +19,9 @@ func NewWhatsappProcessor() *WhatsappProcessor {
 	return &WhatsappProcessor{}
 }
 
-
 func (s *WhatsappProcessor) Name() string {
 	return "whatsapp"
 }
-
 
 func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	db, err := sql.Open("sqlite3", dbPath)
@@ -177,13 +175,11 @@ func (s *WhatsappProcessor) ProcessFile(filepath string) ([]types.Record, error)
 	return ReadWhatsAppDB(filepath)
 }
 
-
 func (s *WhatsappProcessor) Sync(ctx context.Context) ([]types.Record, error) {
 	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
 func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
-
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		content, ok := record.Data["TEXT"].(string)
