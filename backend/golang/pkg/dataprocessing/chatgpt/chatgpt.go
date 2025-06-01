@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -11,7 +12,9 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type ChatGPTConversation struct {
@@ -53,7 +56,7 @@ type Content struct {
 
 type Metadata map[string]interface{}
 
-type ChatGPTDataSource struct {
+type ChatGPTProcessor struct {
 	inputPath string
 }
 
@@ -62,19 +65,20 @@ type ConversationMessage struct {
 	Text string
 }
 
-func New(inputPath string) *ChatGPTDataSource {
-	return &ChatGPTDataSource{
+func NewChatGPTProcessor(inputPath string) processor.Processor {
+	return &ChatGPTProcessor{
 		inputPath: inputPath,
 	}
 }
 
-func (s *ChatGPTDataSource) Name() string {
+func (s *ChatGPTProcessor) Name() string {
 	return "chatgpt"
 }
 
-func (s *ChatGPTDataSource) ProcessFileConversations(
+func (s *ChatGPTProcessor) ProcessFile(
+	ctx context.Context,
 	filePath string,
-	username string,
+	store *db.Store,
 ) ([]types.Record, error) {
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
@@ -133,7 +137,9 @@ func (s *ChatGPTDataSource) ProcessFileConversations(
 			continue
 		}
 
+		id := strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64)
 		conversationData := map[string]any{
+			"id":       id,
 			"title":    conversation.Title,
 			"messages": messages,
 		}
@@ -149,7 +155,7 @@ func (s *ChatGPTDataSource) ProcessFileConversations(
 	return records, nil
 }
 
-func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, error) {
+func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, store *db.Store) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
@@ -166,7 +172,7 @@ func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, e
 		}
 
 		if filepath.Base(path) == "conversations.json" {
-			records, err := s.ProcessFileConversations(path, userName)
+			records, err := s.ProcessFile(ctx, path, store)
 			if err != nil {
 				fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 				return nil
@@ -185,7 +191,7 @@ func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, e
 	return allRecords, nil
 }
 
-func ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
 	conversationDocuments := make([]memory.ConversationDocument, 0, len(records))
 
 	for _, record := range records {
@@ -200,7 +206,14 @@ func ToDocuments(records []types.Record) ([]memory.Document, error) {
 
 		title := getString("title")
 
+		id, ok := record.Data["id"].(string)
+		if !ok {
+			log.Printf("Skipping conversation with missing ID (%v)", record.Data)
+			id = ""
+		}
+
 		conversation := memory.ConversationDocument{
+			FieldID:     id,
 			FieldSource: "chatgpt",
 			FieldTags:   []string{"chat", "chatgpt", "conversation"},
 			FieldMetadata: map[string]string{
@@ -218,6 +231,7 @@ func ToDocuments(records []types.Record) ([]memory.Document, error) {
 						text, _ := messageMap["Text"].(string)
 
 						if role != "" && text != "" {
+							log.Printf("Skipping message with empty role (%s) or text (%s)", role, text)
 							conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
 								Speaker: role,
 								Content: text,
@@ -248,6 +262,10 @@ func ToDocuments(records []types.Record) ([]memory.Document, error) {
 	return documents, nil
 }
 
+func (s *ChatGPTProcessor) Sync(ctx context.Context) ([]types.Record, error) {
+	return nil, fmt.Errorf("sync operation not supported for Chatgpt")
+}
+
 func parseTimestamp(ts string) (time.Time, error) {
 	parts := strings.Split(ts, ".")
 	if len(parts) != 2 {
@@ -260,8 +278,4 @@ func parseTimestamp(ts string) (time.Time, error) {
 	}
 
 	return time.Unix(seconds, 0), nil
-}
-
-func (s *ChatGPTDataSource) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Chatgpt")
 }

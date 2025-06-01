@@ -10,10 +10,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -91,13 +93,30 @@ func IntegrationTest(config IntegrationTestConfig) error {
 		return err
 	}
 
-	telegramProcessor := telegram.NewTelegramProcessor()
-	documents, err := telegramProcessor.ToDocuments(records)
-	if err != nil {
-		logger.Error("Error processing telegram", "error", err)
+	var documents []memory.Document
+	switch config.Source {
+	case "telegram":
+		telegramProcessor := telegram.NewTelegramProcessor()
+		documents, err = telegramProcessor.ToDocuments(records)
+		if err != nil {
+			logger.Error("Error processing telegram", "error", err)
+			return err
+		}
+	case "chatgpt":
+		chatgptProcessor := chatgpt.NewChatGPTProcessor(config.InputPath)
+		documents, err = chatgptProcessor.ToDocuments(records)
+		if err != nil {
+			logger.Error("Error processing chatgpt", "error", err)
+			return err
+		}
+	default:
+		return fmt.Errorf("unsupported source type: %s", config.Source)
 	}
 
-	fmt.Println("documents ", documents[0:10])
+	fmt.Println("===================")
+	fmt.Println("documents ", documents[0].Content())
+
+	return nil
 
 	mem, err := evolvingmemory.New(logger, weaviateClient, openAiService, aiEmbeddingsService)
 	if err != nil {

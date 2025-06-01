@@ -14,6 +14,8 @@ type Processor interface {
 	Name() string
 	// ProcessFile processes exported files
 	ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error)
+	// ProcessDirectory processes a directory of files
+	ProcessDirectory(ctx context.Context, store *db.Store) ([]types.Record, error)
 	// Sync returns latest data from the source
 	Sync(ctx context.Context) ([]types.Record, error)
 	// ToDocuments converts records to documents

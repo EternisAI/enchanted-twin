@@ -495,7 +495,8 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 
 			for j := 0; j < len(records); j += batchSize {
 				batch := records[j:min(j+batchSize, len(records))]
-				documents, err := chatgpt.ToDocuments(batch)
+				chatgptProcessor := chatgpt.NewChatGPTProcessor(*dataSourceDB.ProcessedPath)
+				documents, err := chatgptProcessor.ToDocuments(batch)
 				if err != nil {
 					return IndexDataActivityResponse{}, err
 				}

@@ -119,6 +119,10 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 	return extractedUsername, nil
 }
 
+func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, store *db.Store) ([]types.Record, error) {
+	return nil, fmt.Errorf("process directory not supported for Telegram")
+}
+
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
