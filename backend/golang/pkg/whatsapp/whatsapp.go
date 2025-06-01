@@ -404,7 +404,6 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 				}
 			}
 		}
-
 	}
 
 	if len(conversationMessages) > 0 {
@@ -488,7 +487,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			if len(contactDocuments) > 0 {
-
 				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), nil)
 				if err != nil {
 					logger.Error("Error storing WhatsApp contacts", "error", err)
@@ -518,7 +516,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						logger.Error("Error publishing sync status", "error", err)
 					}
 				}
-
 			}
 
 			if len(conversationDocuments) > 0 {
@@ -566,16 +563,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			if v.Info.Sender.User != "" && v.Info.PushName != "" {
 				senderJID := v.Info.Sender.String()
 				addContact(senderJID, v.Info.PushName)
-			}
-
-			fromName := v.Info.PushName
-			if fromName == "" {
-				contact, found := findContactByJID(v.Info.Sender.String())
-				if found {
-					fromName = contact.Name
-				} else {
-					fromName = v.Info.Sender.User
-				}
 			}
 
 		default:

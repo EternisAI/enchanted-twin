@@ -40,7 +40,7 @@ func TestProcessLikeFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	source := New(tempDir)
+	source := NewXProcessor()
 	records, err := source.ProcessFile(likePath)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
@@ -131,7 +131,7 @@ func TestProcessTweetFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	source := New(tempDir)
+	source := NewXProcessor()
 	records, err := source.ProcessFile(tweetPath)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
@@ -289,7 +289,7 @@ func TestProcessDirectMessageFile(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	source := New(tempDir)
+	source := NewXProcessor()
 	records, err := source.ProcessFile(dmPath)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
@@ -541,7 +541,7 @@ func TestProcessDirectory(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	source := New(tempDir)
+	source := NewXProcessor()
 	records, err := source.ProcessDirectory("testuser")
 	if err != nil {
 		t.Fatalf("ProcessDirectory failed: %v", err)
@@ -607,7 +607,8 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
-	documents, err := ToDocuments(records)
+	source := NewXProcessor()
+	documents, err := source.ToDocuments(records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
 	}

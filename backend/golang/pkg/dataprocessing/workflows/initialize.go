@@ -371,7 +371,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 		}
 
 		dataSourcesResponse[i].IsIndexed = true
-
 	}
 	go func() {
 		wg.Wait()
