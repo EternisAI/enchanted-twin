@@ -542,7 +542,7 @@ func TestProcessDirectory(t *testing.T) {
 	}
 
 	source := NewXProcessor()
-	records, err := source.ProcessDirectory("testuser")
+	records, err := source.ProcessDirectory(tempDir)
 	if err != nil {
 		t.Fatalf("ProcessDirectory failed: %v", err)
 	}
@@ -640,7 +640,6 @@ func TestToDocuments(t *testing.T) {
 		"id":            "1904572225459806695",
 		"favoriteCount": "0",
 		"retweetCount":  "0",
-		"source":        "x",
 	}, documents[1].Metadata())
 
 	// Check like (now third after sorting by timestamp)
@@ -651,9 +650,8 @@ func TestToDocuments(t *testing.T) {
 	assert.Contains(t, documents[2].Tags(), "x")
 	assert.Contains(t, documents[2].Tags(), "like")
 	assert.Equal(t, map[string]string{
-		"type":   "like",
-		"id":     "12345",
-		"url":    "",
-		"source": "x",
+		"type": "like",
+		"id":   "12345",
+		"url":  "",
 	}, documents[2].Metadata())
 }

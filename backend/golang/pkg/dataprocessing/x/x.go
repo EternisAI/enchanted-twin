@@ -240,10 +240,9 @@ func (s *XProcessor) ToDocuments(records []types.Record) ([]memory.Document, err
 			content = getString("fullText")
 			tweetId := getString("tweetId")
 			metadata = map[string]string{
-				"type":   "like",
-				"id":     tweetId,
-				"url":    getString("expandedUrl"),
-				"source": "x",
+				"type": "like",
+				"id":   tweetId,
+				"url":  getString("expandedUrl"),
 			}
 			tags = append(tags, "like")
 
@@ -257,15 +256,13 @@ func (s *XProcessor) ToDocuments(records []types.Record) ([]memory.Document, err
 				"id":            id,
 				"favoriteCount": favoriteCount,
 				"retweetCount":  retweetCount,
-				"source":        "x",
 			}
 			tags = append(tags, "tweet")
 
 		case "direct_message":
 			content = getString("text")
 			metadata = map[string]string{
-				"type":   "direct_message",
-				"source": "x",
+				"type": "direct_message",
 			}
 			tags = append(tags, "direct_message")
 		}
