@@ -271,6 +271,7 @@ func (s *XProcessor) ToDocuments(records []types.Record) ([]memory.Document, err
 		}
 
 		documents = append(documents, memory.TextDocument{
+			FieldSource:    "x",
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
 			FieldTags:      tags,

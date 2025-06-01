@@ -213,6 +213,7 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 		conversation := memory.ConversationDocument{
 			FieldID:     id,
 			FieldSource: "chatgpt",
+			User:        "user",
 			FieldTags:   []string{"chat", "chatgpt", "conversation"},
 			FieldMetadata: map[string]string{
 				"type":  "conversation",

@@ -418,7 +418,6 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 			FieldMetadata: map[string]string{
 				"chat_id": chatID,
 				"type":    "conversation",
-				"source":  "whatsapp",
 			},
 		}
 		return &conversationDoc

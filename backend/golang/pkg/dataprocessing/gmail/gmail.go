@@ -557,11 +557,11 @@ func (g *GmailProcessor) ToDocuments(recs []types.Record) ([]memory.Document, er
 			continue
 		}
 		out = append(out, memory.TextDocument{
+			FieldSource:    "gmail",
 			FieldContent:   get("content"),
 			FieldTimestamp: &r.Timestamp,
 			FieldTags:      []string{"google", "email"},
 			FieldMetadata: map[string]string{
-				"source":  "email",
 				"from":    get("from"),
 				"to":      get("to"),
 				"subject": get("subject"),

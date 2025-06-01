@@ -378,11 +378,11 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 				phoneNumber = ""
 			}
 			textDocuments = append(textDocuments, memory.TextDocument{
+				FieldSource:    "telegram",
 				FieldContent:   firstName + " " + lastName,
 				FieldTimestamp: &record.Timestamp,
 				FieldTags:      []string{"social", "telegram", "contact"},
 				FieldMetadata: map[string]string{
-					"source":      "telegram",
 					"type":        "contact",
 					"firstName":   firstName,
 					"lastName":    lastName,

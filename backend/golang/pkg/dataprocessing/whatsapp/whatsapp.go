@@ -198,6 +198,7 @@ func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 		}
 
 		documents = append(documents, memory.TextDocument{
+			FieldSource:    "whatsapp",
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
 			FieldTags:      []string{"whatsapp"},
@@ -223,15 +224,15 @@ func (s *WhatsappProcessor) ProcessNewMessage(ctx context.Context, memoryStorage
 	timestamp := time.Now()
 
 	document := memory.TextDocument{
+		FieldSource:    "whatsapp",
 		FieldID:        fmt.Sprintf("whatsapp-%d", time.Now().UnixNano()),
 		FieldContent:   message,
 		FieldTimestamp: &timestamp,
 		FieldTags:      []string{"whatsapp", "message"},
 		FieldMetadata: map[string]string{
-			"from":   fromName,
-			"to":     toName,
-			"type":   "message",
-			"source": "whatsapp",
+			"from": fromName,
+			"to":   toName,
+			"type": "message",
 		},
 	}
 
@@ -250,12 +251,12 @@ func (s *WhatsappProcessor) ProcessNewContact(ctx context.Context, memoryStorage
 		FieldID:        fmt.Sprintf("whatsapp-contact-%d", time.Now().UnixNano()),
 		FieldContent:   fmt.Sprintf("Whatsapp Contact name: %s. Contact ID: %s.", contactName, contactID),
 		FieldTimestamp: &timestamp,
+		FieldSource:    "whatsapp",
 		FieldTags:      []string{"whatsapp", "contact"},
 		FieldMetadata: map[string]string{
 			"contact_id": contactID,
 			"name":       contactName,
 			"type":       "contact",
-			"source":     "whatsapp",
 		},
 	}
 
@@ -279,12 +280,12 @@ func (s *WhatsappProcessor) ProcessHistoricalMessage(ctx context.Context, memory
 		FieldID:        fmt.Sprintf("whatsapp-history-%d", time.Now().UnixNano()),
 		FieldContent:   message,
 		FieldTimestamp: &timestamp,
+		FieldSource:    "whatsapp",
 		FieldTags:      []string{"whatsapp", "message", "conversation"},
 		FieldMetadata: map[string]string{
-			"from":   fromName,
-			"to":     toName,
-			"type":   "message",
-			"source": "whatsapp",
+			"from": fromName,
+			"to":   toName,
+			"type": "message",
 		},
 	}
 
