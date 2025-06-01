@@ -24,7 +24,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
-	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 )
 
 // WhatsmeowLoggerAdapter adapts github.com/charmbracelet/log.Logger to whatsmeow's Logger interface.
@@ -461,7 +461,8 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			contactDocuments := []memory.TextDocument{}
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
-					document, err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
+					whatsappProcessor := whatsapp.NewWhatsappProcessor()
+					document, err := whatsappProcessor.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
 					if err != nil {
 						logger.Error("Error processing WhatsApp contact", "error", err)
 					} else {

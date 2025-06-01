@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
@@ -273,20 +274,19 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		source := slack.New(inputPath)
 		records, err = source.ProcessDirectory("")
 	case "gmail":
-
-		source := gmail.New()
+		source := gmail.NewGmailProcessor()
 		records, err = source.ProcessDirectory(inputPath, "")
 	case "x":
-		source := x.New(inputPath)
+		source := x.NewXProcessor()
 		records, err = source.ProcessDirectory(inputPath)
 	case "whatsapp":
-		source := whatsapp.New()
+		source := whatsapp.NewWhatsappProcessor()
 		records, err = source.ProcessFile(inputPath)
 	case "chatgpt":
 		chatgptProcessor := chatgpt.NewChatGPTProcessor(inputPath)
 		records, err = chatgptProcessor.ProcessDirectory(context.Background(), s.store)
 	case "misc":
-		source := misc.New(s.openAiService, s.completionsModel)
+		source := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel)
 		records, err = source.ProcessDirectory(inputPath)
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
@@ -301,6 +301,61 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 	}
 
 	return true, nil
+}
+
+func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType string, records []types.Record) ([]memory.Document, error) {
+	var documents []memory.Document
+	var err error
+
+	sourceType = strings.ToLower(sourceType)
+	switch sourceType {
+	case "chatgpt":
+		chatgptProcessor := chatgpt.NewChatGPTProcessor("")
+		documents, err = chatgptProcessor.ToDocuments(records)
+		if err != nil {
+			return nil, err
+		}
+	case "telegram":
+		telegramProcessor := telegram.NewTelegramProcessor()
+		documents, err = telegramProcessor.ToDocuments(records)
+		if err != nil {
+			return nil, err
+		}
+	case "slack":
+		slackProcessor := slack.New("")
+		documents, err = slackProcessor.ToDocuments(records)
+		if err != nil {
+			return nil, err
+		}
+	case "gmail":
+		gmailProcessor := gmail.NewGmailProcessor()
+		documents, err = gmailProcessor.ToDocuments(records)
+		if err != nil {
+			return nil, err
+		}
+	case "whatsapp":
+		whatsappProcessor := whatsapp.NewWhatsappProcessor()
+		documents, err = whatsappProcessor.ToDocuments(records)
+		if err != nil {
+			return nil, err
+		}
+	case "x":
+		xProcessor := x.NewXProcessor()
+		documents, err = xProcessor.ToDocuments(records)
+		if err != nil {
+			return nil, err
+		}
+	case "misc":
+		miscProcessor := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel)
+		documents, err = miscProcessor.ToDocuments(records)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
+	}
+
+	return documents, nil
 }
 
 func SaveRecords(records []types.Record, outputPath string) error {
@@ -412,9 +467,11 @@ func Sync(ctx context.Context, sourceName string, accessToken string, store *db.
 	var authorized bool
 	switch sourceName {
 	case "gmail":
-		records, authorized, err = gmail.New().Sync(ctx, accessToken)
+		gmailProcessor := gmail.NewGmailProcessor()
+		records, authorized, err = gmailProcessor.Sync(ctx, accessToken)
 	case "x":
-		records, authorized, err = x.New("").Sync(ctx, accessToken)
+		xProcessor := x.NewXProcessor()
+		records, authorized, err = xProcessor.Sync(ctx, accessToken)
 	default:
 		return nil, fmt.Errorf("unsupported source: %s", sourceName)
 	}

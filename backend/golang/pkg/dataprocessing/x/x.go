@@ -31,21 +31,17 @@ const (
 	TypeDirectMessage = "direct_messages"
 )
 
-type Source struct {
-	inputPath string
+type XProcessor struct{}
+
+func NewXProcessor() *XProcessor {
+	return &XProcessor{}
 }
 
-func New(inputPath string) *Source {
-	return &Source{
-		inputPath: inputPath,
-	}
-}
-
-func (s *Source) Name() string {
+func (s *XProcessor) Name() string {
 	return "x"
 }
 
-func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
+func (s *XProcessor) ProcessFile(filePath string) ([]types.Record, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -104,10 +100,10 @@ func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", timestampStr)
 }
 
-func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
+func (s *XProcessor) ProcessDirectory(inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
-	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -222,7 +218,7 @@ type DirectMessageData struct {
 	Type           string `json:"type"`
 }
 
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func (s *XProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		content := ""
@@ -281,10 +277,16 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			FieldMetadata:  metadata,
 		})
 	}
-	return documents, nil
+
+	var documents_ []memory.Document
+	for _, document := range documents {
+		documents_ = append(documents_, &document)
+	}
+
+	return documents_, nil
 }
 
-func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+func (s *XProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
 	// Create HTTP client with OAuth token
 	client := &http.Client{
 		Timeout: 30 * time.Second,

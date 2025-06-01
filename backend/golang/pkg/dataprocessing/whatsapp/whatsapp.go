@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -14,13 +13,13 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
-type Source struct{}
+type WhatsappProcessor struct{}
 
-func New() *Source {
-	return &Source{}
+func NewWhatsappProcessor() *WhatsappProcessor {
+	return &WhatsappProcessor{}
 }
 
-func (s *Source) Name() string {
+func (s *WhatsappProcessor) Name() string {
 	return "whatsapp"
 }
 
@@ -172,15 +171,15 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	return records, nil
 }
 
-func (s *Source) ProcessFile(filepath string) ([]types.Record, error) {
+func (s *WhatsappProcessor) ProcessFile(filepath string) ([]types.Record, error) {
 	return ReadWhatsAppDB(filepath)
 }
 
-func (s *Source) Sync(ctx context.Context) ([]types.Record, error) {
+func (s *WhatsappProcessor) Sync(ctx context.Context) ([]types.Record, error) {
 	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		content, ok := record.Data["TEXT"].(string)
@@ -208,11 +207,15 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			},
 		})
 	}
-	return documents, nil
+	var documents_ []memory.Document
+	for _, document := range documents {
+		documents_ = append(documents_, &document)
+	}
+	return documents_, nil
 }
 
 // ProcessNewMessage processes a new WhatsApp message and stores it in memory.
-func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) (memory.TextDocument, error) {
+func (s *WhatsappProcessor) ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) (memory.TextDocument, error) {
 	if message == "" {
 		return memory.TextDocument{}, fmt.Errorf("empty message content")
 	}
@@ -236,7 +239,7 @@ func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, messag
 }
 
 // ProcessNewContact stores a WhatsApp contact in memory.
-func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) (memory.TextDocument, error) {
+func (s *WhatsappProcessor) ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) (memory.TextDocument, error) {
 	if contactName == "" || contactID == "" {
 		return memory.TextDocument{}, fmt.Errorf("empty contact information")
 	}
@@ -260,7 +263,7 @@ func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contac
 }
 
 // ProcessHistoricalMessage processes a historical WhatsApp message and stores it in memory.
-func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) (memory.TextDocument, error) {
+func (s *WhatsappProcessor) ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) (memory.TextDocument, error) {
 	if message == "" {
 		return memory.TextDocument{}, fmt.Errorf("empty message content")
 	}
@@ -286,58 +289,4 @@ func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage,
 	}
 
 	return document, nil
-}
-
-// IsValidConversationalContent checks if a WhatsApp document contains conversational content
-// suitable for fact extraction, preventing hallucination on metadata and contact info.
-func IsValidConversationalContent(doc memory.TextDocument) bool {
-	content := strings.TrimSpace(doc.FieldContent)
-
-	// 1. Check if it's a contact document (tag-based)
-	for _, tag := range doc.FieldTags {
-		if tag == "contact" {
-			return false
-		}
-	}
-
-	metadataPatterns := []string{
-		"Contact name:",
-		"Contact ID:",
-		"Phone number:",
-		"Email:",
-		"Contact:",
-		"Whatsapp Contact",
-		"Telegram Contact",
-		"@s.whatsapp.net",
-		"@c.us",
-		"@gmail.com",
-		"@yahoo.com",
-		"@hotmail.com",
-		"@outlook.com",
-	}
-
-	for _, pattern := range metadataPatterns {
-		if strings.Contains(content, pattern) {
-			return false
-		}
-	}
-
-	if len(content) < 20 {
-		return false
-	}
-
-	lines := strings.Split(content, "\n")
-	conversationalLines := 0
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if strings.Contains(trimmedLine, ":") && len(trimmedLine) > 10 {
-			// Check if it looks like "Speaker: message" format
-			parts := strings.SplitN(trimmedLine, ":", 2)
-			if len(parts) == 2 && len(strings.TrimSpace(parts[1])) > 3 {
-				conversationalLines++
-			}
-		}
-	}
-
-	return conversationalLines > 0
 }

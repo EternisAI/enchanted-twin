@@ -30,10 +30,10 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
-type Gmail struct{}
+type GmailProcessor struct{}
 
-func New() *Gmail             { return &Gmail{} }
-func (g *Gmail) Name() string { return "gmail" }
+func NewGmailProcessor() *GmailProcessor { return &GmailProcessor{} }
+func (g *GmailProcessor) Name() string   { return "gmail" }
 
 /* ────────────────────────────────────────────  MBOX helpers  ─────────────────────────────────────────── */
 
@@ -77,7 +77,7 @@ type (
 
 const processTimeout = time.Second
 
-func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessFile(path, user string) ([]types.Record, error) {
 	total, err := countEmails(path)
 	if err != nil {
 		return nil, err
@@ -220,7 +220,7 @@ func (g *Gmail) ProcessFile(path, user string) ([]types.Record, error) {
 
 /* ────────────────────────────────────────────  single-email helper  ─────────────────────────────────── */
 
-func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
+func (g *GmailProcessor) processEmail(raw, user string) (types.Record, error) {
 	msg, err := mail.ReadMessage(strings.NewReader(raw))
 	if err != nil {
 		return types.Record{}, err
@@ -302,7 +302,7 @@ func (g *Gmail) processEmail(raw, user string) (types.Record, error) {
 
 /* ────────────────────────────────────────────  Gmail API sync  ───────────────────────────────────────── */
 
-func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, bool, error) {
+func (g *GmailProcessor) Sync(ctx context.Context, token string) ([]types.Record, bool, error) {
 	c := &http.Client{Timeout: 30 * time.Second}
 
 	req, _ := http.NewRequestWithContext(ctx, http.MethodGet,
@@ -344,7 +344,7 @@ func (g *Gmail) Sync(ctx context.Context, token string) ([]types.Record, bool, e
 	return out, true, nil
 }
 
-func (g *Gmail) SyncWithDateRange(ctx context.Context, token, startDate, endDate string, maxResults int, pageToken string) ([]types.Record, bool, string, error) {
+func (g *GmailProcessor) SyncWithDateRange(ctx context.Context, token, startDate, endDate string, maxResults int, pageToken string) ([]types.Record, bool, string, error) {
 	if maxResults <= 0 {
 		maxResults = 100
 	}
@@ -425,7 +425,7 @@ func SortByOldest(records []types.Record) {
 	}
 }
 
-func (g *Gmail) fetchMessage(
+func (g *GmailProcessor) fetchMessage(
 	ctx context.Context,
 	c *http.Client,
 	token, id string,
@@ -512,8 +512,6 @@ func (g *Gmail) fetchMessage(
 	}, nil
 }
 
-/* ────────────────────────────────────────────  misc helpers  ────────────────────────────────────────── */
-
 func decodeBase64URL(s string) (string, error) {
 	if m := len(s) % 4; m != 0 {
 		s += strings.Repeat("=", 4-m)
@@ -524,7 +522,7 @@ func decodeBase64URL(s string) (string, error) {
 	return string(b), err
 }
 
-func (g *Gmail) ProcessDirectory(dir, user string) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessDirectory(dir, user string) ([]types.Record, error) {
 	var all []types.Record
 	var mu sync.Mutex
 	err := filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
@@ -544,7 +542,7 @@ func (g *Gmail) ProcessDirectory(dir, user string) ([]types.Record, error) {
 	return all, err
 }
 
-func ToDocuments(recs []types.Record) ([]memory.TextDocument, error) {
+func (g *GmailProcessor) ToDocuments(recs []types.Record) ([]memory.Document, error) {
 	out := []memory.TextDocument{}
 	for _, r := range recs {
 		get := func(k string) string {
@@ -570,7 +568,11 @@ func ToDocuments(recs []types.Record) ([]memory.TextDocument, error) {
 			},
 		})
 	}
-	return out, nil
+	var documents []memory.Document
+	for _, document := range out {
+		documents = append(documents, &document)
+	}
+	return documents, nil
 }
 
 func cleanEmailText(s string) string {

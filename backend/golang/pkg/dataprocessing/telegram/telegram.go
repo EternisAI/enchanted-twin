@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	processor "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -70,7 +69,7 @@ type TelegramData struct {
 
 type TelegramProcessor struct{}
 
-func NewTelegramProcessor() processor.Processor {
+func NewTelegramProcessor() *TelegramProcessor {
 	return &TelegramProcessor{}
 }
 

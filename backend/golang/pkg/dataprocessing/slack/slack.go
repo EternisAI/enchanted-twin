@@ -116,7 +116,7 @@ func (s *SlackDataSource) ProcessDirectory(userName string) ([]types.Record, err
 	return allRecords, nil
 }
 
-func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.Document, error) {
 	textDocuments := make([]memory.TextDocument, 0, len(records))
 
 	for _, record := range records {
@@ -141,6 +141,7 @@ func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocu
 		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
 
 		textDocuments = append(textDocuments, memory.TextDocument{
+			FieldSource:    "slack",
 			FieldContent:   message,
 			FieldTimestamp: &record.Timestamp,
 			FieldTags:      []string{"social", "slack", "chat"},
@@ -148,11 +149,16 @@ func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocu
 				"type":           "message",
 				"channelName":    channelName,
 				"authorUsername": authorUsername,
-				"source":         "slack",
 			},
 		})
 	}
-	return textDocuments, nil
+
+	var documents []memory.Document
+	for _, document := range textDocuments {
+		documents = append(documents, &document)
+	}
+
+	return documents, nil
 }
 
 func parseTimestamp(ts string) (time.Time, error) {

@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -56,16 +55,15 @@ type Content struct {
 
 type Metadata map[string]interface{}
 
-type ChatGPTProcessor struct {
-	inputPath string
-}
-
 type ConversationMessage struct {
 	Role string
 	Text string
 }
+type ChatGPTProcessor struct {
+	inputPath string
+}
 
-func NewChatGPTProcessor(inputPath string) processor.Processor {
+func NewChatGPTProcessor(inputPath string) *ChatGPTProcessor {
 	return &ChatGPTProcessor{
 		inputPath: inputPath,
 	}
@@ -229,12 +227,12 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 					if messageMap, ok := messageInterface.(map[string]interface{}); ok {
 						role, ok := messageMap["Role"].(string)
 						if !ok {
-							log.Printf("Error: Skipping message with empty role (%s)", role)
+							log.Printf("Error: Skipping message with empty role")
 							continue
 						}
 						text, ok := messageMap["Text"].(string)
 						if !ok {
-							log.Printf("Error: Skipping message with empty text (%s)", text)
+							log.Printf("Error: Skipping message with empty text")
 							continue
 						}
 

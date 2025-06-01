@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,17 +13,9 @@ import (
 	"go.temporal.io/sdk/workflow"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -354,9 +345,6 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			continue
 		}
 
-		w.Logger.Info("Processing data source", "dataSource", dataSourceDB.Name)
-		w.Logger.Info("Processed path", "processedPath", *dataSourceDB.ProcessedPath)
-
 		records, err := helpers.ReadJSONL[types.Record](*dataSourceDB.ProcessedPath)
 		if err != nil {
 			return IndexDataActivityResponse{}, err
@@ -371,172 +359,19 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
 		}
 
-		switch strings.ToLower(dataSourceDB.Name) {
-		case "slack":
-			slackSource := slack.New(*dataSourceDB.ProcessedPath)
-
-			documents, err := slackSource.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "slack", len(documents))
-
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-
-		case "telegram":
-			telegramProcessor := telegram.NewTelegramProcessor()
-			documents, err := telegramProcessor.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "telegram", len(documents))
-
-			err = w.Memory.Store(ctx, documents, progressCallback)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		case "x":
-			documents, err := x.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "x", len(documents))
-
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		case "gmail":
-			documents, err := gmail.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "gmail", len(documents))
-
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		case "whatsapp":
-			documents, err := whatsapp.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "whatsapp", len(documents))
-
-			var contactDocs []memory.TextDocument
-			var conversationalDocs []memory.TextDocument
-
-			for _, doc := range documents {
-				if whatsapp.IsValidConversationalContent(doc) {
-					conversationalDocs = append(conversationalDocs, doc)
-				} else {
-					contactDocs = append(contactDocs, doc)
-				}
-			}
-
-			w.Logger.Info("Separated documents", "contacts", len(contactDocs), "conversational", len(conversationalDocs))
-
-			if len(contactDocs) > 0 {
-				contactProgressCallback := func(processed, total int) {
-					percentage := 0.0
-					if total > 0 {
-						percentage = float64(processed) / float64(total) * 50.0 // 50% for contacts
-					}
-					dataSourcesResponse[i].IndexProgress = int32(percentage)
-					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
-				}
-
-				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(contactDocs), contactProgressCallback)
-				if err != nil {
-					return IndexDataActivityResponse{}, err
-				}
-				w.Logger.Info("Stored contact documents", "count", len(contactDocs))
-			}
-
-			if len(conversationalDocs) > 0 {
-				conversationalProgressCallback := func(processed, total int) {
-					baseProgress := 50.0 // Start at 50% if contacts were processed
-					if len(contactDocs) == 0 {
-						baseProgress = 0.0
-					}
-					percentage := baseProgress
-					if total > 0 {
-						percentage += float64(processed) / float64(total) * 50.0 // 50% for conversational
-					}
-					dataSourcesResponse[i].IndexProgress = int32(percentage)
-					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
-				}
-
-				err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(conversationalDocs), conversationalProgressCallback)
-				if err != nil {
-					return IndexDataActivityResponse{}, err
-				}
-				w.Logger.Info("Stored conversational documents with fact extraction", "count", len(conversationalDocs))
-			}
-
-			w.Logger.Info("Indexed all WhatsApp documents", "total", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-
-		case "chatgpt":
-			batchSize := 20
-			totalBatches := (len(records) + batchSize - 1) / batchSize
-
-			for j := 0; j < len(records); j += batchSize {
-				batch := records[j:min(j+batchSize, len(records))]
-				chatgptProcessor := chatgpt.NewChatGPTProcessor(*dataSourceDB.ProcessedPath)
-				documents, err := chatgptProcessor.ToDocuments(batch)
-				if err != nil {
-					return IndexDataActivityResponse{}, err
-				}
-
-				w.Logger.Info("Storing documents", "documents", documents[0])
-
-				batchNum := j/batchSize + 1
-				batchProgressCallback := func(processed, total int) {
-					batchProgress := float64(batchNum-1) / float64(totalBatches) * 100
-					if total > 0 {
-						withinBatchProgress := float64(processed) / float64(total) * (100.0 / float64(totalBatches))
-						batchProgress += withinBatchProgress
-					}
-					dataSourcesResponse[i].IndexProgress = int32(batchProgress)
-					publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
-				}
-
-				err = w.Memory.Store(ctx, documents, batchProgressCallback)
-				if err != nil {
-					return IndexDataActivityResponse{}, err
-				}
-				w.Logger.Info("Indexed documents", "documents", len(documents))
-			}
-			dataSourcesResponse[i].IsIndexed = true
-		case "misc":
-			documents, err := misc.ToDocuments(records)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Documents", "misc", len(documents))
-
-			err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), progressCallback)
-			if err != nil {
-				return IndexDataActivityResponse{}, err
-			}
-			w.Logger.Info("Indexed documents", "documents", len(documents))
-			dataSourcesResponse[i].IsIndexed = true
-		default:
-			w.Logger.Error("Unsupported data source", "dataSource", dataSourceDB.Name)
+		dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
+		documents, err := dataprocessingService.ToDocuments(ctx, dataSourceDB.Name, records)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
 		}
+
+		err = w.Memory.Store(ctx, documents, progressCallback)
+		if err != nil {
+			return IndexDataActivityResponse{}, err
+		}
+
+		dataSourcesResponse[i].IsIndexed = true
+
 	}
 	go func() {
 		wg.Wait()
