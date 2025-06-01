@@ -227,8 +227,16 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 			case []interface{}:
 				for _, messageInterface := range messages {
 					if messageMap, ok := messageInterface.(map[string]interface{}); ok {
-						role, _ := messageMap["Role"].(string)
-						text, _ := messageMap["Text"].(string)
+						role, ok := messageMap["Role"].(string)
+						if !ok {
+							log.Printf("Error: Skipping message with empty role (%s)", role)
+							continue
+						}
+						text, ok := messageMap["Text"].(string)
+						if !ok {
+							log.Printf("Error: Skipping message with empty text (%s)", text)
+							continue
+						}
 
 						if role != "" && text != "" {
 							log.Printf("Skipping message with empty role (%s) or text (%s)", role, text)
