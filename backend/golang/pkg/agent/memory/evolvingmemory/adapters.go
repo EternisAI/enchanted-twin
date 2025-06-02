@@ -113,28 +113,8 @@ func (m *memoryOperationsAdapter) DecideAction(ctx context.Context, fact string,
 		return MemoryDecision{}, fmt.Errorf("storage or completions service not properly initialized")
 	}
 
-	// Build the prompt with existing memories
-	existingMemoriesContentForPrompt := []string{}
-	existingMemoriesForPromptStr := "No existing relevant memories found."
-
-	if len(similar) > 0 {
-		for _, mem := range similar {
-			memContext := fmt.Sprintf("ID: %s, Content: %s", mem.ID, mem.Content)
-			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
-		}
-		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
-	}
-
 	// Build the decision prompt
-	var decisionPromptBuilder strings.Builder
-	// Default to conversation prompt - in real pipeline this would be determined by document type
-	decisionPromptBuilder.WriteString(ConversationMemoryUpdatePrompt)
-	decisionPromptBuilder.WriteString("\n\nContext:\n")
-	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for the primary user (if any, related to the new fact):\n%s\n\n", existingMemoriesForPromptStr))
-	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for the primary user:\n%s\n\n", fact))
-	decisionPromptBuilder.WriteString("Based on the guidelines and context, what action should be taken for the NEW FACT?")
-
-	fullDecisionPrompt := decisionPromptBuilder.String()
+	fullDecisionPrompt := m.buildDecisionPrompt(fact, similar)
 
 	decisionMessages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(fullDecisionPrompt),
@@ -151,6 +131,36 @@ func (m *memoryOperationsAdapter) DecideAction(ctx context.Context, fact string,
 	}
 
 	// Parse the response
+	return m.parseToolCallResponse(llmResponse)
+}
+
+// buildDecisionPrompt constructs the prompt for LLM memory decision making.
+func (m *memoryOperationsAdapter) buildDecisionPrompt(fact string, similar []ExistingMemory) string {
+	// Build the prompt with existing memories
+	existingMemoriesContentForPrompt := []string{}
+	existingMemoriesForPromptStr := "No existing relevant memories found."
+
+	if len(similar) > 0 {
+		for _, mem := range similar {
+			memContext := fmt.Sprintf("ID: %s, Content: %s", mem.ID, mem.Content)
+			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
+		}
+		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
+	}
+
+	var decisionPromptBuilder strings.Builder
+	// Default to conversation prompt - in real pipeline this would be determined by document type
+	decisionPromptBuilder.WriteString(ConversationMemoryUpdatePrompt)
+	decisionPromptBuilder.WriteString("\n\nContext:\n")
+	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for the primary user (if any, related to the new fact):\n%s\n\n", existingMemoriesForPromptStr))
+	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for the primary user:\n%s\n\n", fact))
+	decisionPromptBuilder.WriteString("Based on the guidelines and context, what action should be taken for the NEW FACT?")
+
+	return decisionPromptBuilder.String()
+}
+
+// parseToolCallResponse parses the LLM response and extracts the memory decision.
+func (m *memoryOperationsAdapter) parseToolCallResponse(llmResponse openai.ChatCompletionMessage) (MemoryDecision, error) {
 	if len(llmResponse.ToolCalls) == 0 {
 		// Default to ADD if no tool call
 		return MemoryDecision{
