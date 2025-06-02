@@ -23,7 +23,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
 	github.com/ollama/ollama v0.7.0
-	github.com/openai/openai-go v1.0.0
+	github.com/openai/openai-go v1.2.1
 	github.com/pion/webrtc/v4 v4.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/rs/cors v1.11.1
