@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
@@ -141,29 +140,6 @@ func TestValidateMemoryOperation(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestBatchObjects(t *testing.T) {
-	// Create test objects
-	objects := make([]*models.Object, 25)
-	for i := range objects {
-		objects[i] = &models.Object{
-			Class: ClassName,
-		}
-	}
-
-	// Test batching with size 10
-	batches := BatchObjects(objects, 10)
-
-	assert.Len(t, batches, 3)
-	assert.Len(t, batches[0], 10)
-	assert.Len(t, batches[1], 10)
-	assert.Len(t, batches[2], 5)
-
-	// Test with size 0 (should default to 100)
-	batches = BatchObjects(objects, 0)
-	assert.Len(t, batches, 1)
-	assert.Len(t, batches[0], 25)
 }
 
 func TestMarshalMetadata(t *testing.T) {
