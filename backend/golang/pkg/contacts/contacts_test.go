@@ -57,7 +57,11 @@ func (m *MockMemoryStorage) Query(ctx context.Context, query string, filter *mem
 
 func (m *MockMemoryStorage) QueryWithDistance(ctx context.Context, query string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
 	args := m.Called(ctx, query, metadataFilters)
-	return args.Get(0).(memory.QueryWithDistanceResult), args.Error(1)
+	result, ok := args.Get(0).(memory.QueryWithDistanceResult)
+	if !ok {
+		return memory.QueryWithDistanceResult{}, args.Error(1)
+	}
+	return result, args.Error(1)
 }
 
 // MockAI is a mock implementation of AI interface.

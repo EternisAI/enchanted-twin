@@ -125,8 +125,6 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 				}
 			}
 			s.logger.Infof("Final fact batch storage completed: %d successful, %d failed.", successCount, failureCount)
-		} else if err != nil {
-			s.logger.Error("Batcher.Do() returned an error and a nil response. Cannot determine individual item statuses.", "error", err)
 		} else {
 			s.logger.Info("Batcher.Do() returned no error and a nil response. Assuming batched items were processed if totalObjectsAddedToBatch > 0.")
 		}
