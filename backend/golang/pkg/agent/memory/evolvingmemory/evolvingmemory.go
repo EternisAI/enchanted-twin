@@ -31,6 +31,127 @@ const (
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
 
+// Document types
+type DocumentType string
+
+const (
+	DocumentTypeConversation DocumentType = "conversation"
+	DocumentTypeText         DocumentType = "text"
+)
+
+// Configuration for the storage system
+type Config struct {
+	// Parallelism
+	Workers        int
+	FactsPerWorker int
+
+	// Batching
+	BatchSize     int
+	FlushInterval time.Duration
+
+	// Timeouts
+	FactExtractionTimeout time.Duration
+	MemoryDecisionTimeout time.Duration
+	StorageTimeout        time.Duration
+
+	// Features
+	EnableRichContext      bool
+	ParallelFactExtraction bool
+	StreamingProgress      bool
+}
+
+// Document preparation
+type PreparedDocument struct {
+	Original   memory.Document
+	Type       DocumentType
+	SpeakerID  string
+	Timestamp  time.Time
+	DateString string // Pre-formatted
+}
+
+// Processing pipeline types
+type ExtractedFact struct {
+	Content   string
+	SpeakerID string
+	Source    PreparedDocument
+}
+
+// Memory actions
+type MemoryAction string
+
+const (
+	// Using existing constants from above
+	ADD    MemoryAction = AddMemoryToolName
+	UPDATE MemoryAction = UpdateMemoryToolName
+	DELETE MemoryAction = DeleteMemoryToolName
+	NONE   MemoryAction = NoneMemoryToolName
+)
+
+// Memory decision from LLM
+type MemoryDecision struct {
+	Action     MemoryAction
+	TargetID   string // For UPDATE/DELETE
+	Reason     string
+	Confidence float64
+}
+
+// Processing result
+type FactResult struct {
+	Fact     ExtractedFact
+	Decision MemoryDecision
+	Object   *models.Object // Only for ADD
+	Error    error
+}
+
+// Document result
+type DocumentResult struct {
+	DocumentID string
+	Facts      []FactResult
+	Error      error
+}
+
+// Progress reporting
+type Progress struct {
+	Processed int
+	Total     int
+	Stage     string
+	Error     error
+}
+
+// Memory search results
+type ExistingMemory struct {
+	ID        string
+	Content   string
+	Timestamp time.Time
+	Score     float64
+	Metadata  map[string]string // Contains speakerID if present
+}
+
+// Validation rules
+type ValidationRule struct {
+	CurrentSpeakerID string // Who's processing this fact
+	IsDocumentLevel  bool   // Is current context document-level?
+	TargetMemoryID   string // For UPDATE/DELETE
+	TargetSpeakerID  string // Speaker of target memory
+	Action           MemoryAction
+}
+
+// Interfaces for IO boundaries
+type FactExtractor interface {
+	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error)
+}
+
+type MemoryOperations interface {
+	SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error)
+	DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error)
+	UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error
+	DeleteMemory(ctx context.Context, memoryID string) error
+}
+
+type StorageOperations interface {
+	StoreBatch(ctx context.Context, objects []*models.Object) error
+}
+
 // --- Structs for Tool Call Arguments ---
 
 // AddToolArguments is currently empty as per tools.go definition
