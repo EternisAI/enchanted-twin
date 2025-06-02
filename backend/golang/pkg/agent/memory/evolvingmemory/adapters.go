@@ -73,7 +73,7 @@ func NewMemoryOperations(storage *WeaviateStorage) (MemoryOperations, error) {
 }
 
 func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error) {
-	result, err := m.storage.Query(ctx, fact)
+	result, err := m.storage.storage.Query(ctx, fact)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}
