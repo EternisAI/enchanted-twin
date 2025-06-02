@@ -35,6 +35,7 @@ type IntegrationTestMemoryConfig struct {
 func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 	storePath := "./output/test.db"
 	weaviatePort := "8080"
+	batchSize := 20
 	ctx := context.Background()
 
 	logger := log.NewWithOptions(os.Stdout, log.Options{
@@ -101,13 +102,23 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		return err
 	}
 
-	err = mem.Store(ctx, documents, nil)
-	if err != nil {
-		logger.Error("Error storing documents", "error", err)
-		return err
+	if len(documents) == 0 {
+		logger.Error("No documents to store", "source", config.Source)
+		return fmt.Errorf("no documents to store")
 	}
+	logger.Info("Storing documents", "source", config.Source, "documents[0]", documents[0])
 
-	fmt.Println(records)
+	for i := 0; i < len(documents); i += batchSize {
+		batch := documents[i:min(i+batchSize, len(documents))]
+
+		logger.Info("Storing documents batch", "index", i)
+
+		err = mem.Store(ctx, batch, nil)
+		if err != nil {
+			logger.Error("Error storing documents", "error", err)
+			return err
+		}
+	}
 
 	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
 	if err != nil {
@@ -115,7 +126,7 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		return err
 	}
 
-	fmt.Println(result)
+	logger.Info("Query result", "result", result)
 
 	return nil
 }
