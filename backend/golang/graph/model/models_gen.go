@@ -54,6 +54,15 @@ type ConnectMCPServerInput struct {
 	Type    MCPServerType    `json:"type"`
 }
 
+type Contact struct {
+	ID          string   `json:"id"`
+	ContactName string   `json:"contactName"`
+	Tags        []string `json:"tags"`
+	Insight     *string  `json:"insight,omitempty"`
+	CreatedAt   string   `json:"createdAt"`
+	UpdatedAt   string   `json:"updatedAt"`
+}
+
 type DataSource struct {
 	ID            string `json:"id"`
 	Name          string `json:"name"`

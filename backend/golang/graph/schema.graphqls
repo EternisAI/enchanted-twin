@@ -101,6 +101,7 @@ type Query {
   getAgentTasks: [AgentTask!]!
   getSetupProgress: [SetupProgress!]!
   whitelistStatus: Boolean!
+  getContacts: [Contact!]!
 }
 
 type SetupProgress {
@@ -279,4 +280,13 @@ type AgentTask {
   upcomingRuns: [DateTime!]!
   previousRuns: [DateTime!]!
   notify: Boolean!
+}
+
+type Contact {
+  id: ID!
+  contactName: String!
+  tags: [String!]!
+  insight: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
 }

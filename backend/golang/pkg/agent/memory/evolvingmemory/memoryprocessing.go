@@ -26,7 +26,7 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 	s.logger.Infof("Processing fact for %s %s: \"%s...\"", logContextEntity, logContextValue, firstNChars(factContent, 70))
 
 	// queryOptions := map[string]interface{}{"speakerID": speakerID} // Consider if query needs adaptation for speakerID == ""
-	existingMemoriesResult, err := s.Query(ctx, factContent) // Assuming Query is speaker-agnostic or handles "" speakerID appropriately
+	existingMemoriesResult, err := s.Query(ctx, factContent, nil)
 	if err != nil {
 		s.logger.Errorf("Error querying existing memories for fact processing for %s %s: %v. Fact: \"%s...\"", logContextEntity, logContextValue, err, firstNChars(factContent, 50))
 		return "", nil, fmt.Errorf("querying existing memories: %w", err)
@@ -124,6 +124,14 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		data := map[string]interface{}{
 			contentProperty:  factContent,
 			metadataProperty: string(metadataBytes),
+		}
+
+		// Extract and store source and contactName as root-level properties for efficient indexing
+		if source := sourceDoc.Source(); source != "" {
+			data[sourceProperty] = source
+		}
+		if contactName, exists := factMetadata[contactNameProperty]; exists && contactName != "" {
+			data[contactNameProperty] = contactName
 		}
 		// Use conversation date for timestamp
 		if docEventDateStr != "Unknown" {

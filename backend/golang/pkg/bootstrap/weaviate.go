@@ -17,6 +17,7 @@ import (
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/contacts/storage"
 )
 
 func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
@@ -168,6 +169,10 @@ func InitSchema(client *weaviate.Client, logger *log.Logger) error {
 	start := time.Now()
 
 	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
+		return err
+	}
+
+	if err := storage.EnsureContactSchemaExists(client, logger); err != nil {
 		return err
 	}
 

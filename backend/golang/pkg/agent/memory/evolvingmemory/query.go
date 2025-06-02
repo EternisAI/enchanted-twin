@@ -2,7 +2,6 @@ package evolvingmemory
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 )
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
 	// var filterBySpeakerID string
 	// if opts, ok := options.(map[string]interface{}); ok {
 	// 	if speakerToFilter, okS := opts["speakerID"].(string); okS && speakerToFilter != "" {
@@ -22,7 +21,7 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	// 	}
 	// }
 
-	s.logger.Info("Query method called", "query_text", queryText)
+	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
@@ -47,11 +46,54 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		},
 	}
 
+	limit := 10
+	if filter != nil && filter.Limit != nil {
+		limit = *filter.Limit
+	}
+
 	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
-		WithLimit(10).
+		WithLimit(limit).
 		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
+
+	// Add WHERE filtering if filter is provided
+	if filter != nil {
+		var whereFilters []*filters.WhereBuilder
+
+		if filter.Source != nil {
+			sourceFilter := filters.Where().
+				WithPath([]string{sourceProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(*filter.Source)
+			whereFilters = append(whereFilters, sourceFilter)
+			s.logger.Debug("Added source filter", "source", *filter.Source)
+		}
+
+		if filter.ContactName != nil {
+			contactFilter := filters.Where().
+				WithPath([]string{contactNameProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(*filter.ContactName)
+			whereFilters = append(whereFilters, contactFilter)
+			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
+		}
+
+		if len(whereFilters) > 0 {
+			combinedFilter := filters.Where().
+				WithOperator(filters.And).
+				WithOperands(whereFilters)
+			queryBuilder = queryBuilder.WithWhere(combinedFilter)
+			s.logger.Debug("Applied combined WHERE filters", "filter_count", len(whereFilters))
+		}
+
+		if filter.Distance > 0 {
+			// Set distance threshold for similarity search
+			nearVector = nearVector.WithDistance(filter.Distance)
+			queryBuilder = queryBuilder.WithNearVector(nearVector)
+			s.logger.Debug("Added distance filter", "distance", filter.Distance)
+		}
+	}
 
 	resp, err := queryBuilder.Do(ctx)
 	if err != nil {
@@ -84,7 +126,6 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		}
 
 		content, _ := obj[contentProperty].(string)
-		metadataJSON, _ := obj[metadataProperty].(string)
 
 		var parsedTimestamp *time.Time
 		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
@@ -100,18 +141,13 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		id, _ := additional["id"].(string)
 
 		metaMap := make(map[string]string)
-		if metadataJSON != "" {
-			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
-				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
+		if metadataObj, metaOk := obj[metadataProperty].(map[string]interface{}); metaOk {
+			for key, value := range metadataObj {
+				if strValue, ok := value.(string); ok {
+					metaMap[key] = strValue
+				}
 			}
 		}
-
-		// docSpeakerID := metaMap["speakerID"]
-
-		// if filterBySpeakerID != "" && docSpeakerID != filterBySpeakerID {
-		// 	s.logger.Debug("Document filtered out by speakerID mismatch", "doc_id", id, "doc_speaker_id", docSpeakerID, "filter_speaker_id", filterBySpeakerID)
-		// 	continue
-		// }
 
 		var tags []string
 		if tagsInterface, tagsOk := obj[tagsProperty].([]interface{}); tagsOk {
@@ -172,16 +208,14 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		filterMap := metadataFilters[0] // Use first filter map if provided
 		for key, value := range filterMap {
 			if key == "type" {
-				// Create a filter that looks for the type in the metadata JSON
-				// Since metadata is stored as JSON string, we need to use a Like operator
-				// to match the pattern: "type":"friend"
+				// Filter by nested property in metadata object
 				whereFilter := filters.Where().
-					WithPath([]string{metadataProperty}).
-					WithOperator(filters.Like).
-					WithValueText(fmt.Sprintf(`*"%s":"%s"*`, key, value))
+					WithPath([]string{metadataProperty, key}).
+					WithOperator(filters.Equal).
+					WithValueText(value)
 
 				queryBuilder = queryBuilder.WithWhere(whereFilter)
-				s.logger.Debug("Added WHERE filter", "key", key, "value", value, "pattern", fmt.Sprintf(`*"%s":"%s"*`, key, value))
+				s.logger.Debug("Added WHERE filter for metadata object", "key", key, "value", value)
 			}
 		}
 	}
@@ -217,7 +251,6 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		}
 
 		content, _ := obj[contentProperty].(string)
-		metadataJSON, _ := obj[metadataProperty].(string)
 
 		var parsedTimestamp *time.Time
 		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
@@ -233,10 +266,14 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		id, _ := additional["id"].(string)
 		distance, _ := additional["distance"].(float64)
 
+		// Handle metadata as object with nested properties
 		metaMap := make(map[string]string)
-		if metadataJSON != "" {
-			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
-				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
+		if metadataObj, metaOk := obj[metadataProperty].(map[string]interface{}); metaOk {
+			// Extract all metadata fields
+			for key, value := range metadataObj {
+				if strValue, ok := value.(string); ok {
+					metaMap[key] = strValue
+				}
 			}
 		}
 
