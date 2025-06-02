@@ -20,7 +20,7 @@ import (
 )
 
 // go run cmd/integration-test/main.go.
-type IntegrationTestConfig struct {
+type IntegrationTestMemoryConfig struct {
 	Source            string
 	InputPath         string
 	OutputPath        string
@@ -32,7 +32,7 @@ type IntegrationTestConfig struct {
 	EmbeddingsApiUrl  string
 }
 
-func IntegrationTest(config IntegrationTestConfig) error {
+func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 	storePath := "./output/test.db"
 	weaviatePort := "8080"
 	ctx := context.Background()

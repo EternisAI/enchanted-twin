@@ -36,7 +36,7 @@ func main() {
 		id,
 	)
 
-	if err := integration.IntegrationTest(integration.IntegrationTestConfig{
+	if err := integration.IntegrationTestMemory(integration.IntegrationTestMemoryConfig{
 		Source:            source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,
