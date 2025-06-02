@@ -350,7 +350,7 @@ func (s *WeaviateStorage) streamingStore(
 
 		// Store batch with timeout
 		storeCtx, cancel := context.WithTimeout(ctx, config.StorageTimeout)
-		err := s.StoreBatch(storeCtx, batch)
+		err := s.storage.StoreBatch(storeCtx, batch)
 		cancel()
 
 		if err != nil {
