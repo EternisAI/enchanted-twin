@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -36,25 +37,21 @@ const UpdateNotification = () => {
     }
   }, [])
 
-  // Manually check for updates (user initiated)
-  const checkForUpdates = () => {
-    toast.info('Checking for updates...')
-    window.api.checkForUpdates(false).catch(console.error)
-  }
-
   if (updateStatus === 'Update downloaded') {
     return (
       <div className="fixed bottom-4 right-4 bg-green-50 dark:bg-green-900 p-4 rounded-lg shadow-lg z-50">
         <h3 className="font-medium text-green-800 dark:text-green-200">Update Ready</h3>
-        <p className="text-sm text-green-700 dark:text-green-300 mt-1">A new version is ready to install</p>
+        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+          A new version is ready to install
+        </p>
         <div className="mt-2 flex space-x-2">
-          <button 
+          <button
             onClick={() => window.api.restartApp()}
             className="px-3 py-1 bg-green-600 text-white rounded-md text-sm hover:bg-green-700"
           >
             Restart Now
           </button>
-          <button 
+          <button
             onClick={() => setUpdateStatus(null)}
             className="px-3 py-1 bg-transparent text-green-700 dark:text-green-300 border border-green-600 rounded-md text-sm"
           >
@@ -69,12 +66,14 @@ const UpdateNotification = () => {
     return (
       <div className="fixed bottom-4 right-4 bg-blue-50 dark:bg-blue-900 p-4 rounded-lg shadow-lg z-50">
         <h3 className="font-medium text-blue-800 dark:text-blue-200">
-          {updateStatus === 'Checking for update...' ? 'Checking for updates...' : 'Downloading update...'}
+          {updateStatus === 'Checking for update...'
+            ? 'Checking for updates...'
+            : 'Downloading update...'}
         </h3>
         {progress > 0 && (
           <div className="mt-2 w-full bg-blue-200 dark:bg-blue-700 rounded-full h-2">
-            <div 
-              className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full" 
+            <div
+              className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -86,4 +85,4 @@ const UpdateNotification = () => {
   return null
 }
 
-export default UpdateNotification 
+export default UpdateNotification
