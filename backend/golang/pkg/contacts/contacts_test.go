@@ -19,7 +19,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
-// MockMemoryStorage is a mock implementation of memory.Storage
 type MockMemoryStorage struct {
 	mock.Mock
 }
@@ -61,7 +60,7 @@ func (m *MockMemoryStorage) QueryWithDistance(ctx context.Context, query string,
 	return args.Get(0).(memory.QueryWithDistanceResult), args.Error(1)
 }
 
-// MockAI is a mock implementation of AI interface
+// MockAI is a mock implementation of AI interface.
 type MockAI struct {
 	mock.Mock
 	callCount int
