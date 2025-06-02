@@ -29,6 +29,32 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
+func validateInputPath(inputPath string) error {
+	cleanPath := filepath.Clean(inputPath)
+
+	info, err := os.Stat(cleanPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("input path does not exist: %s", cleanPath)
+	}
+	if err != nil {
+		return fmt.Errorf("error accessing input path: %v", err)
+	}
+
+	_ = info
+	return nil
+}
+
+func validateOutputPath(outputPath string) error {
+	cleanPath := filepath.Clean(outputPath)
+
+	dir := filepath.Dir(cleanPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("cannot create output directory: %v", err)
+	}
+
+	return nil
+}
+
 func extractZip(zipPath string) (extractedPath string, err error) {
 	tempDir, err := os.MkdirTemp("", "extracted_zip_")
 	if err != nil {
@@ -242,6 +268,14 @@ func NewDataProcessingService(openAiService *ai.Service, completionsModel string
 }
 
 func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType string, inputPath string, outputPath string) (bool, error) {
+	if err := validateInputPath(inputPath); err != nil {
+		return false, fmt.Errorf("invalid input path: %v", err)
+	}
+
+	if err := validateOutputPath(outputPath); err != nil {
+		return false, fmt.Errorf("invalid output path: %v", err)
+	}
+
 	var records []types.Record
 	var err error
 
@@ -359,13 +393,13 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 }
 
 func SaveRecords(records []types.Record, outputPath string) error {
-	// Create the output directory if it doesn't exist
-	outputDir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return fmt.Errorf("error creating output directory: %v", err)
+	// Validate and clean the output path
+	cleanPath := filepath.Clean(outputPath)
+	if err := validateOutputPath(cleanPath); err != nil {
+		return fmt.Errorf("invalid output path: %v", err)
 	}
 
-	file, err := os.Create(outputPath)
+	file, err := os.Create(cleanPath)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %v", err)
 	}
@@ -376,7 +410,7 @@ func SaveRecords(records []types.Record, outputPath string) error {
 	}()
 
 	// Determine output format based on file extension
-	ext := strings.ToLower(filepath.Ext(outputPath))
+	ext := strings.ToLower(filepath.Ext(cleanPath))
 	switch ext {
 	case ".json":
 		// For JSON output, create a slice of records with their data
@@ -456,7 +490,7 @@ func SaveRecords(records []types.Record, outputPath string) error {
 		return fmt.Errorf("unsupported output format: %s (use .csv, .jsonl, .json)", ext)
 	}
 
-	fmt.Printf("Successfully processed %d records and wrote to %s\n", len(records), outputPath)
+	fmt.Printf("Successfully processed %d records and wrote to %s\n", len(records), cleanPath)
 	return nil
 }
 
