@@ -82,7 +82,7 @@ jobs:
           COMPLETIONS_API_URL: "https://openrouter.ai/api/v1"
           COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
           COMPLETIONS_MODEL: "openai/gpt-4.1"
-          REASONING_MODEL: "openai/o4-mini"
+          REASONING_MODEL: "qwen/qwen3-30b-a3b"
           EMBEDDINGS_API_URL: "https://api.openai.com/v1"
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
           EMBEDDINGS_MODEL: "text-embedding-3-small"
