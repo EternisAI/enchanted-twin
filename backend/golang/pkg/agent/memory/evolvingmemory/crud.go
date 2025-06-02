@@ -91,9 +91,13 @@ func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) err
 	return nil
 }
 
-// GetByID retrieves a memory document by its ID from Weaviate.
-// Moved from evolvingmemory.go to isolate read operations.
+// GetByID retrieves a specific memory document from Weaviate by its ID.
+// Moved from evolvingmemory.go to isolate retrieval operations.
 func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
+	if s.client == nil || s.client.Data() == nil {
+		return nil, fmt.Errorf("weaviate client not initialized")
+	}
+
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(id).
 		WithClassName(ClassName).
@@ -184,6 +188,10 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 // Delete removes a memory document from Weaviate by ID.
 // Moved from evolvingmemory.go to isolate delete operations.
 func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
+	if s.client == nil || s.client.Data() == nil {
+		return fmt.Errorf("weaviate client not initialized")
+	}
+
 	err := s.client.Data().Deleter().
 		WithID(id).
 		WithClassName(ClassName).
