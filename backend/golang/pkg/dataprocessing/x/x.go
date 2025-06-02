@@ -133,9 +133,13 @@ func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string, sto
 }
 
 func isXDataFile(fileName string) bool {
+	if strings.HasPrefix(fileName, "._") {
+		return false
+	}
+
 	supportedFiles := []string{"like.js", "tweets.js", "direct-messages.js"}
 	for _, supported := range supportedFiles {
-		if strings.Contains(fileName, supported) {
+		if fileName == supported {
 			return true
 		}
 	}
