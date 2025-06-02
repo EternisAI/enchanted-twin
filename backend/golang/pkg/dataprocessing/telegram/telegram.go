@@ -135,7 +135,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 
 	var jsonFilePath string
 	if fileInfo.IsDir() {
-		var candidates []string
 		entries, err := os.ReadDir(filepath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading directory %s: %v", filepath, err)
@@ -149,6 +148,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 		}
 
 		if jsonFilePath == "" {
+			var candidates []string
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
 					candidates = append(candidates, entry.Name())
@@ -159,8 +159,11 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 				return nil, fmt.Errorf("no JSON files found in directory %s", filepath)
 			}
 
+			if len(candidates) > 1 {
+				return nil, fmt.Errorf("multiple JSON files found in directory %s, but no result.json file. Please specify the exact file path or ensure result.json exists. Found files: %v", filepath, candidates)
+			}
+
 			jsonFilePath = fmt.Sprintf("%s/%s", filepath, candidates[0])
-			fmt.Printf("Using JSON file: %s\n", jsonFilePath)
 		}
 	} else {
 		jsonFilePath = filepath
