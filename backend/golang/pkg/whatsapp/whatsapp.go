@@ -17,13 +17,13 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/samber/lo"
 	"go.mau.fi/whatsmeow"
+	"go.mau.fi/whatsmeow/proto/waHistorySync"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
-	dataprocessing_whatsapp "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 )
 
 // WhatsmeowLoggerAdapter adapts github.com/charmbracelet/log.Logger to whatsmeow's Logger interface.
@@ -213,19 +213,6 @@ func PublishSyncStatus(nc *nats.Conn, logger *log.Logger) error {
 	return nil
 }
 
-func IsSyncComplete() bool {
-	status := GetSyncStatus()
-	return !status.IsSyncing && status.TotalItems > 0 && status.ProcessedItems >= status.TotalItems
-}
-
-func IsSyncInProgress() bool {
-	return GetSyncStatus().IsSyncing
-}
-
-func GetSyncProgress() float64 {
-	return GetSyncStatus().Progress
-}
-
 func normalizeJID(jid string) string {
 	if idx := strings.Index(jid, "@"); idx > 0 {
 		return jid[:idx]
@@ -308,6 +295,121 @@ func formatDetailedProgressMessage(totalContacts, processedMessages, totalMessag
 	return strings.Join(parts, " and ")
 }
 
+func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, logger *log.Logger) *memory.ConversationDocument {
+	if conversation.ID == nil {
+		logger.Warn("Skipping conversation with nil ID")
+		return nil
+	}
+
+	chatID := *conversation.ID
+	var conversationMessages []memory.ConversationMessage
+	var people []string
+	peopleMap := make(map[string]bool)
+
+	for _, messageInfo := range conversation.Messages {
+		userReceipts := messageInfo.GetMessage().UserReceipt
+		contacts := []string{}
+
+		for _, userReceipt := range userReceipts {
+			if userReceipt.UserJID == nil {
+				continue
+			}
+
+			userJID := *userReceipt.UserJID
+
+			contact, ok := findContactByJID(userJID)
+			if ok {
+				contacts = append(contacts, contact.Name)
+			} else {
+				contacts = append(contacts, normalizeJID(userJID))
+			}
+		}
+
+		message := messageInfo.GetMessage()
+		if message == nil || message.Key == nil || message.Key.FromMe == nil {
+			continue
+		}
+
+		var content string
+		if msg := message.Message.GetConversation(); msg != "" {
+			content = msg
+		} else if message.Message.GetImageMessage() != nil {
+			content = "[IMAGE]"
+		} else if message.Message.GetVideoMessage() != nil {
+			content = "[VIDEO]"
+		} else if message.Message.GetAudioMessage() != nil {
+			content = "[AUDIO]"
+		} else if message.Message.GetDocumentMessage() != nil {
+			content = "[DOCUMENT]"
+		} else if message.Message.GetStickerMessage() != nil {
+			content = "[STICKER]"
+		} else {
+			continue
+		}
+
+		fromName := ""
+		if *message.Key.FromMe {
+			fromName = "me"
+		} else {
+			if message.Key.Participant != nil && *message.Key.Participant != "" {
+				participantJID := *message.Key.Participant
+				if contact, found := findContactByJID(participantJID); found {
+					fromName = contact.Name
+				} else {
+					fromName = normalizeJID(participantJID)
+				}
+			} else if message.Key.RemoteJID != nil && *message.Key.RemoteJID != "" {
+				remoteJID := *message.Key.RemoteJID
+				if contact, found := findContactByJID(remoteJID); found {
+					fromName = contact.Name
+				} else {
+					fromName = normalizeJID(remoteJID)
+				}
+			} else {
+				fromName = "unknown"
+			}
+		}
+
+		if fromName != "" {
+			timestamp := time.Unix(int64(*message.MessageTimestamp), 0)
+			conversationMessages = append(conversationMessages, memory.ConversationMessage{
+				Speaker: fromName,
+				Content: content,
+				Time:    timestamp,
+			})
+
+			if !peopleMap[fromName] {
+				people = append(people, fromName)
+				peopleMap[fromName] = true
+			}
+
+			for _, contact := range contacts {
+				if !peopleMap[contact] {
+					people = append(people, contact)
+					peopleMap[contact] = true
+				}
+			}
+		}
+	}
+
+	if len(conversationMessages) > 0 {
+		conversationDoc := memory.ConversationDocument{
+			FieldID:      fmt.Sprintf("whatsapp-chat-%s", chatID),
+			FieldSource:  "whatsapp",
+			People:       people,
+			User:         "me",
+			Conversation: conversationMessages,
+			FieldTags:    []string{"whatsapp", "conversation", "chat"},
+			FieldMetadata: map[string]string{
+				"chat_id": chatID,
+				"type":    "conversation",
+			},
+		}
+		return &conversationDoc
+	}
+	return nil
+}
+
 func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, config *config.Config) func(interface{}) {
 	return func(evt interface{}) {
 		switch v := evt.(type) {
@@ -343,13 +445,19 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			contactDocuments := []memory.TextDocument{}
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
-					document, err := dataprocessing_whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
-					if err != nil {
-						logger.Error("Error processing WhatsApp contact", "error", err)
-					} else {
-						logger.Info("WhatsApp contact stored successfully", "pushname", *pushname.Pushname)
-						contactDocuments = append(contactDocuments, document)
+					timestamp := time.Now()
+					document := memory.TextDocument{
+						FieldSource:    "whatsapp",
+						FieldContent:   fmt.Sprintf("WhatsApp Contact name: %s. Contact ID: %s.", *pushname.Pushname, *pushname.ID),
+						FieldTimestamp: &timestamp,
+						FieldTags:      []string{"whatsapp", "contact"},
+						FieldMetadata: map[string]string{
+							"contact_id": *pushname.ID,
+							"name":       *pushname.Pushname,
+							"type":       "contact",
+						},
 					}
+					contactDocuments = append(contactDocuments, document)
 
 					addContact(*pushname.ID, *pushname.Pushname)
 				}
@@ -371,103 +479,39 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			if len(contactDocuments) > 0 {
-				logger.Info("Storing WhatsApp contacts...")
 				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), nil)
 				if err != nil {
 					logger.Error("Error storing WhatsApp contacts", "error", err)
 				}
 			}
 
-			conversationDocuments := []memory.TextDocument{}
-			for i, conversation := range v.Data.Conversations {
-				if conversation.ID == nil {
-					logger.Warn("Skipping conversation with nil ID", "conversation_index", i)
-					continue
+			conversationDocuments := []memory.ConversationDocument{}
+
+			for _, conversation := range v.Data.Conversations {
+				conversationDoc := ProcessNewConversationMessage(conversation, logger)
+				if conversationDoc != nil {
+					conversationDocuments = append(conversationDocuments, *conversationDoc)
 				}
 
-				chatID := *conversation.ID
+				processedItems++
 
-				processedConversationMessages := 0
-
-				for _, messageInfo := range conversation.Messages {
-					userReceipts := messageInfo.GetMessage().UserReceipt
-					contacts := []string{}
-
-					for _, userReceipt := range userReceipts {
-						if userReceipt.UserJID == nil {
-							continue
-						}
-
-						userJID := *userReceipt.UserJID
-
-						contact, ok := findContactByJID(userJID)
-						if ok {
-							contacts = append(contacts, contact.Name)
-						} else {
-							contacts = append(contacts, normalizeJID(userJID))
-						}
-					}
-
-					message := messageInfo.GetMessage()
-					if message == nil || message.Key == nil || message.Key.FromMe == nil {
-						continue
-					}
-
-					var content string
-					if msg := message.Message.GetConversation(); msg != "" {
-						content = msg
-					} else {
-						continue
-					}
-
-					fromName := ""
-					toName := chatID
-
-					if *message.Key.FromMe {
-						fromName = "me"
-						if len(contacts) > 0 {
-							toName = contacts[0]
-						}
-					} else if len(contacts) > 0 {
-						fromName = contacts[0]
-						toName = "me"
-					}
-
-					document, err := dataprocessing_whatsapp.ProcessHistoricalMessage(
-						ctx,
-						memoryStorage,
-						content,
-						fromName,
-						toName,
-						*message.MessageTimestamp,
-					)
+				if processedItems%20 == 0 || processedItems == totalItems {
+					UpdateSyncStatus(SyncStatus{
+						IsCompleted:    false,
+						IsSyncing:      true,
+						ProcessedItems: processedItems,
+						TotalItems:     totalItems,
+						StatusMessage:  formatDetailedProgressMessage(totalContacts, processedItems-totalContacts, totalMessages),
+					})
+					err := PublishSyncStatus(nc, logger)
 					if err != nil {
-						logger.Error("Error processing historical WhatsApp message", "error", err)
-					} else {
-						conversationDocuments = append(conversationDocuments, document)
-					}
-
-					processedItems++
-					processedConversationMessages++
-
-					if processedItems%20 == 0 || processedItems == totalItems {
-						UpdateSyncStatus(SyncStatus{
-							IsCompleted:    false,
-							IsSyncing:      true,
-							ProcessedItems: processedItems,
-							TotalItems:     totalItems,
-							StatusMessage:  formatDetailedProgressMessage(totalContacts, processedItems-totalContacts, totalMessages),
-						})
-						err := PublishSyncStatus(nc, logger)
-						if err != nil {
-							logger.Error("Error publishing sync status", "error", err)
-						}
+						logger.Error("Error publishing sync status", "error", err)
 					}
 				}
 			}
 
 			if len(conversationDocuments) > 0 {
-				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(conversationDocuments), nil)
+				err = memoryStorage.Store(ctx, memory.ConversationDocumentsToDocuments(conversationDocuments), nil)
 				if err != nil {
 					logger.Error("Error storing WhatsApp conversation documents", "error", err)
 				} else {
@@ -511,33 +555,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			if v.Info.Sender.User != "" && v.Info.PushName != "" {
 				senderJID := v.Info.Sender.String()
 				addContact(senderJID, v.Info.PushName)
-			}
-
-			fromName := v.Info.PushName
-			if fromName == "" {
-				contact, found := findContactByJID(v.Info.Sender.String())
-				if found {
-					fromName = contact.Name
-				} else {
-					fromName = v.Info.Sender.User
-				}
-			}
-
-			toName := v.Info.Chat.User
-
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
-			defer cancel()
-
-			document, err := dataprocessing_whatsapp.ProcessNewMessage(ctx, memoryStorage, message, fromName, toName)
-			if err != nil {
-				logger.Error("Error processing WhatsApp message", "error", err)
-			} else {
-				logger.Info("WhatsApp message stored successfully")
-			}
-
-			err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{document}), nil)
-			if err != nil {
-				logger.Error("Error storing WhatsApp message", "error", err)
 			}
 
 		default:

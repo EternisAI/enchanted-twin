@@ -1,6 +1,7 @@
 package gmail
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -426,7 +427,7 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Create Gmail processor
-	processor := New()
+	processor := NewGmailProcessor()
 
 	// Test processor name
 	if processor.Name() != "gmail" {
@@ -434,7 +435,7 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Process the test file
-	records, err := processor.ProcessFile(tmpFile, "bob@gmail.com")
+	records, err := processor.ProcessFile(context.Background(), tmpFile, nil)
 	if err != nil {
 		t.Fatalf("Failed to process file: %v", err)
 	}
@@ -495,7 +496,8 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
-	documents, err := ToDocuments(records)
+	gmailProcessor := NewGmailProcessor()
+	documents, err := gmailProcessor.ToDocuments(records)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
@@ -555,7 +557,6 @@ func TestToDocuments(t *testing.T) {
 		"from":    "support@example.com",
 		"to":      "testuser@example.com",
 		"subject": "Welcome to the Platform",
-		"source":  "email",
 	}
 	if len(doc.Metadata()) != len(expectedMetadata) {
 		t.Errorf("Expected %d metadata entries, got %d", len(expectedMetadata), len(doc.Metadata()))

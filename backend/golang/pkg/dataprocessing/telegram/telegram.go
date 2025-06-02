@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	processor "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -119,6 +119,14 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 	return extractedUsername, nil
 }
 
+func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
+	return nil, fmt.Errorf("process directory not supported for Telegram")
+}
+
+func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for Telegram")
+}
+
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
@@ -127,7 +135,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 
 	var jsonFilePath string
 	if fileInfo.IsDir() {
-		var candidates []string
 		entries, err := os.ReadDir(filepath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading directory %s: %v", filepath, err)
@@ -141,6 +148,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 		}
 
 		if jsonFilePath == "" {
+			var candidates []string
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
 					candidates = append(candidates, entry.Name())
@@ -151,8 +159,11 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 				return nil, fmt.Errorf("no JSON files found in directory %s", filepath)
 			}
 
+			if len(candidates) > 1 {
+				return nil, fmt.Errorf("multiple JSON files found in directory %s, but no result.json file. Please specify the exact file path or ensure result.json exists. Found files: %v", filepath, candidates)
+			}
+
 			jsonFilePath = fmt.Sprintf("%s/%s", filepath, candidates[0])
-			fmt.Printf("Using JSON file: %s\n", jsonFilePath)
 		}
 	} else {
 		jsonFilePath = filepath
@@ -259,10 +270,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 	}
 
 	return records, nil
-}
-
-func (s *TelegramProcessor) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Telegram")
 }
 
 func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
@@ -375,11 +382,11 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 				phoneNumber = ""
 			}
 			textDocuments = append(textDocuments, memory.TextDocument{
+				FieldSource:    "telegram",
 				FieldContent:   firstName + " " + lastName,
 				FieldTimestamp: &record.Timestamp,
 				FieldTags:      []string{"social", "telegram", "contact"},
 				FieldMetadata: map[string]string{
-					"source":      "telegram",
 					"type":        "contact",
 					"firstName":   firstName,
 					"lastName":    lastName,

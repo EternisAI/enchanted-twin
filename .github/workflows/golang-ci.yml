@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 1
+          fetch-depth: 0
 
       - name: Determine if backend/golang changed
         id: changes
@@ -55,3 +55,16 @@ jobs:
       - name: Test
         if: steps.changes.outputs.backend == 'true'
         run: make test
+
+      - name: Check for dead code
+        if: steps.changes.outputs.backend == 'true'
+        run: |
+          # Run deadcode and capture only stdout (actual results), not stderr (download messages)
+          deadcode_output=$(go run golang.org/x/tools/cmd/deadcode@latest ./... 2>/dev/null || true)
+          if [ -n "$deadcode_output" ]; then
+            echo "❌ Dead code found! Please remove the following:"
+            echo "$deadcode_output"
+            exit 1
+          else
+            echo "✅ No dead code found"
+          fi
