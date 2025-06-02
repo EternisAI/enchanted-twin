@@ -26,6 +26,7 @@ type Interface interface {
 	Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
+	DeleteAll(ctx context.Context) error
 }
 
 // WeaviateStorage implements the storage interface using Weaviate.
@@ -169,5 +170,115 @@ func (s *WeaviateStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 	}
 
 	s.logger.Infof("Successfully batch stored %d objects", len(objects))
+	return nil
+}
+
+// DeleteAll removes all memory documents from Weaviate.
+func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
+	// Note: For v5 client, we need to delete the class and recreate it
+	// as batch delete with filters has changed significantly
+
+	// Check if class exists before trying to delete
+	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
+	if err != nil {
+		return fmt.Errorf("checking class existence before delete all for '%s': %w", ClassName, err)
+	}
+	if !exists {
+		s.logger.Info("Class does not exist, no need to delete.", "class", ClassName)
+		return nil
+	}
+
+	// Delete the entire class
+	err = s.client.Schema().ClassDeleter().WithClassName(ClassName).Do(ctx)
+	if err != nil {
+		// Check if it was deleted concurrently
+		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
+		if checkErr == nil && !existsAfterAttempt {
+			s.logger.Info("Class was deleted, possibly concurrently.", "class", ClassName)
+			return nil
+		}
+		return fmt.Errorf("failed to delete class '%s': %w", ClassName, err)
+	}
+
+	s.logger.Info("Successfully deleted all memories by removing class", "class", ClassName)
+
+	// Recreate the schema
+	return s.ensureSchemaExists(ctx)
+}
+
+// ensureSchemaExists ensures the Weaviate schema exists for the Memory class.
+func (s *WeaviateStorage) ensureSchemaExists(ctx context.Context) error {
+	// First, check if schema already exists
+	schema, err := s.client.Schema().Getter().Do(ctx)
+	if err != nil {
+		return fmt.Errorf("getting schema: %w", err)
+	}
+
+	// Check if our class already exists
+	for _, class := range schema.Classes {
+		if class.Class == ClassName {
+			// Schema exists, validate it matches our expectations
+			s.logger.Infof("Schema for class %s already exists, validating...", ClassName)
+
+			// Basic validation - check properties exist
+			expectedProps := map[string]string{
+				contentProperty:   "text",
+				timestampProperty: "date",
+				metadataProperty:  "text",
+			}
+
+			existingProps := make(map[string]string)
+			for _, prop := range class.Properties {
+				for _, dt := range prop.DataType {
+					existingProps[prop.Name] = dt
+				}
+			}
+
+			// Check if all expected properties exist
+			for propName, propType := range expectedProps {
+				if existingType, exists := existingProps[propName]; !exists {
+					return fmt.Errorf("missing property %s in existing schema", propName)
+				} else if existingType != propType {
+					return fmt.Errorf("property %s has type %s, expected %s", propName, existingType, propType)
+				}
+			}
+
+			s.logger.Info("Schema validation successful")
+			return nil
+		}
+	}
+
+	// Schema doesn't exist, create it
+	s.logger.Infof("Creating schema for class %s", ClassName)
+
+	classObj := &models.Class{
+		Class:       ClassName,
+		Description: "A memory entry in the evolving memory system",
+		Properties: []*models.Property{
+			{
+				Name:        contentProperty,
+				DataType:    []string{"text"},
+				Description: "The content of the memory",
+			},
+			{
+				Name:        timestampProperty,
+				DataType:    []string{"date"},
+				Description: "When this memory was created or last updated",
+			},
+			{
+				Name:        metadataProperty,
+				DataType:    []string{"text"},
+				Description: "JSON-encoded metadata for the memory",
+			},
+		},
+		Vectorizer: "none", // We provide our own vectors
+	}
+
+	err = s.client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
+	if err != nil {
+		return fmt.Errorf("creating schema: %w", err)
+	}
+
+	s.logger.Info("Schema created successfully")
 	return nil
 }
