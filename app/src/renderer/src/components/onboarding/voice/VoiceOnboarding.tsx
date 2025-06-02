@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useMutation } from '@apollo/client'
 import { motion } from 'framer-motion'
+import { useNavigate } from '@tanstack/react-router'
 
 import MessageInput from '@renderer/components/chat/MessageInput'
 import { UserMessageBubble } from '@renderer/components/chat/Message'
 import { Message, Role, UpdateProfileDocument } from '@renderer/graphql/generated/graphql'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { OnboardingVoiceAnimation, OnboardingDoneAnimation } from './Animations'
-import { useMutation } from '@apollo/client'
-import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { useTheme } from '@renderer/lib/theme'
 import { Button } from '@renderer/components/ui/button'
-import { useNavigate } from '@tanstack/react-router'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useTitlebarColor } from '@renderer/hooks/useTitlebarColor'
 
@@ -44,16 +43,9 @@ const STEPS: Step[] = [
 
 export default function VoiceOnboardingContainer() {
   const navigate = useNavigate()
-  const { installationStatus, isVoiceReady } = useDependencyStatus()
   const { theme } = useTheme()
   const { isCompleted } = useOnboardingStore()
   const { updateTitlebarColor } = useTitlebarColor()
-
-  console.log('isVoiceReady', isVoiceReady, installationStatus)
-
-  const didInstallationFail = useMemo(() => {
-    return installationStatus.status?.toLocaleLowerCase() === 'failed'
-  }, [installationStatus])
 
   useEffect(() => {
     if (isCompleted) {
@@ -80,17 +72,7 @@ export default function VoiceOnboardingContainer() {
             : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
       }}
     >
-      {isVoiceReady || didInstallationFail ? (
-        <VoiceOnboarding />
-      ) : (
-        <div className="flex flex-col justify-center items-center h-full gap-4">
-          <div className="w-24 h-24 border-4 border-white border-t-transparent rounded-full animate-spin " />
-          <p className="text-white text-lg text-center">Adding dependencies...</p>
-          <p className="text-white text-md text-center">
-            {installationStatus.status} - {installationStatus.progress}%
-          </p>
-        </div>
-      )}
+      <VoiceOnboarding />
     </div>
   )
 }
