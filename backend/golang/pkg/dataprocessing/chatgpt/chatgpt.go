@@ -75,6 +75,10 @@ func (s *ChatGPTProcessor) ProcessFile(
 	filePath string,
 	store *db.Store,
 ) ([]types.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled before processing: %w", err)
+	}
+
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -87,7 +91,13 @@ func (s *ChatGPTProcessor) ProcessFile(
 
 	var records []types.Record
 
-	for _, conversation := range conversations {
+	for i, conversation := range conversations {
+		if i%10 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, fmt.Errorf("context cancelled during conversation processing: %w", err)
+			}
+		}
+
 		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
 		if err != nil {
 			continue
@@ -154,6 +164,10 @@ func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath strin
 	var allRecords []types.Record
 
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		if err != nil {
 			return err
 		}
@@ -169,6 +183,9 @@ func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath strin
 		if filepath.Base(path) == "conversations.json" {
 			records, err := s.ProcessFile(ctx, path, store)
 			if err != nil {
+				if ctx.Err() != nil {
+					return err
+				}
 				fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 				return nil
 			}

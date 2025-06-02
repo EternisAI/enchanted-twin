@@ -26,7 +26,7 @@ func (s *WhatsappProcessor) Name() string {
 	return "whatsapp"
 }
 
-func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
+func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
@@ -36,6 +36,10 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			log.Printf("Error closing database: %v", err)
 		}
 	}()
+
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context cancelled before query: %w", err)
+	}
 
 	query := `SELECT 
 		m.Z_PK, m.ZISFROMME, m.ZCHATSESSION, m.ZMESSAGEINFO, m.ZMESSAGEDATE, m.ZSENTDATE,
@@ -52,7 +56,7 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 		LEFT JOIN ZWACHATSESSION s ON m.ZCHATSESSION = s.Z_PK
 		WHERE m.ZTEXT IS NOT NULL`
 
-	rows, err := db.Query(query)
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %v", err)
 	}
@@ -77,6 +81,13 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	var records []types.Record
 	rowCount := 0
 	for rows.Next() {
+
+		if rowCount%100 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, fmt.Errorf("context cancelled during row processing: %w", err)
+			}
+		}
+
 		err := rows.Scan(valuePtrs...)
 		if err != nil {
 			log.Printf("Scan error: %v (row %d, expected %d columns)", err, rowCount, count)
@@ -165,7 +176,7 @@ func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath strin
 }
 
 func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
-	return ReadWhatsAppDB(filePath)
+	return ReadWhatsAppDB(ctx, filePath)
 }
 
 func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
