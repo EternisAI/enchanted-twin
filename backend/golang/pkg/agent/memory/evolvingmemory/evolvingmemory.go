@@ -21,7 +21,6 @@ const (
 	openAIEmbedModel  = "text-embedding-3-small"
 	openAIChatModel   = "gpt-4o-mini"
 
-	// Tool Names (matching function names in tools.go).
 	AddMemoryToolName    = "ADD"
 	UpdateMemoryToolName = "UPDATE"
 	DeleteMemoryToolName = "DELETE"
@@ -78,7 +77,6 @@ type ExtractedFact struct {
 type MemoryAction string
 
 const (
-	// Using existing constants from above.
 	ADD    MemoryAction = AddMemoryToolName
 	UPDATE MemoryAction = UpdateMemoryToolName
 	DELETE MemoryAction = DeleteMemoryToolName
@@ -150,27 +148,21 @@ type StorageOperations interface {
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 }
 
-// --- Structs for Tool Call Arguments ---
-
-// UpdateToolArguments matches the parameters defined in updateMemoryTool in tools.go.
 type UpdateToolArguments struct {
 	MemoryID      string `json:"id"`
 	UpdatedMemory string `json:"updated_content"`
 	Reason        string `json:"reason,omitempty"`
 }
 
-// DeleteToolArguments matches the parameters defined in deleteMemoryTool in tools.go.
 type DeleteToolArguments struct {
 	MemoryID string `json:"id"`
 	Reason   string `json:"reason,omitempty"`
 }
 
-// NoneToolArguments matches the parameters defined in noneMemoryTool in tools.go.
 type NoneToolArguments struct {
 	Reason string `json:"reason"`
 }
 
-// ExtractFactsToolArguments matches the parameters defined in extractFactsTool in tools.go.
 type ExtractFactsToolArguments struct {
 	Facts []string `json:"facts"`
 }
@@ -184,10 +176,6 @@ type WeaviateStorage struct {
 }
 
 // New creates a new WeaviateStorage instance.
-// weaviateHost should be like "localhost:8081".
-// weaviateScheme is "http" or "https".
-// The logger is used for logging messages.
-// The aiService is used for generating embeddings.
 func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Service, embeddingsService *ai.Service) (*WeaviateStorage, error) {
 	storage := &WeaviateStorage{
 		client:             client,

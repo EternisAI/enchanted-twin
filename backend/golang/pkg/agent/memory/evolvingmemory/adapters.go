@@ -23,7 +23,6 @@ func NewFactExtractor(storage *WeaviateStorage) FactExtractor {
 
 // ExtractFacts routes to the appropriate extraction method based on document type.
 func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error) {
-	// Check if storage is properly initialized
 	if f.storage == nil {
 		return nil, fmt.Errorf("storage not initialized")
 	}
@@ -37,7 +36,6 @@ func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDoc
 			return nil, fmt.Errorf("document is not a ConversationDocument")
 		}
 
-		// Check completions service only when we need it
 		if f.storage.completionsService == nil {
 			return nil, fmt.Errorf("completions service not initialized")
 		}
@@ -50,7 +48,6 @@ func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDoc
 			return nil, fmt.Errorf("document is not a TextDocument")
 		}
 
-		// Check completions service only when we need it
 		if f.storage.completionsService == nil {
 			return nil, fmt.Errorf("completions service not initialized")
 		}
@@ -72,9 +69,7 @@ func NewMemoryOperations(storage *WeaviateStorage) MemoryOperations {
 	return &memoryOperationsAdapter{storage: storage}
 }
 
-// SearchSimilar wraps the existing Query method.
 func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error) {
-	// Check if storage is properly initialized
 	if m.storage == nil {
 		return nil, fmt.Errorf("storage not initialized")
 	}
@@ -88,7 +83,6 @@ func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}
 
-	// Transform QueryResult to []ExistingMemory
 	memories := make([]ExistingMemory, 0, len(result.Documents))
 	for _, doc := range result.Documents {
 		mem := ExistingMemory{
@@ -96,7 +90,6 @@ func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string
 			Content:  doc.Content(),
 			Metadata: doc.Metadata(),
 		}
-		// Handle potentially nil timestamp
 		if doc.Timestamp() != nil {
 			mem.Timestamp = *doc.Timestamp()
 		}
@@ -106,14 +99,11 @@ func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string
 	return memories, nil
 }
 
-// DecideAction extracts the LLM decision logic from updateMemories.
 func (m *memoryOperationsAdapter) DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error) {
-	// Check if storage is properly initialized
 	if m.storage == nil || m.storage.completionsService == nil {
 		return MemoryDecision{}, fmt.Errorf("storage or completions service not properly initialized")
 	}
 
-	// Build the decision prompt
 	fullDecisionPrompt := m.buildDecisionPrompt(fact, similar)
 
 	decisionMessages := []openai.ChatCompletionMessageParamUnion{
@@ -124,19 +114,15 @@ func (m *memoryOperationsAdapter) DecideAction(ctx context.Context, fact string,
 		addMemoryTool, updateMemoryTool, deleteMemoryTool, noneMemoryTool,
 	}
 
-	// Call LLM for decision
 	llmResponse, err := m.storage.completionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, openAIChatModel)
 	if err != nil {
 		return MemoryDecision{}, fmt.Errorf("LLM decision for memory update: %w", err)
 	}
 
-	// Parse the response
 	return m.parseToolCallResponse(llmResponse)
 }
 
-// buildDecisionPrompt constructs the prompt for LLM memory decision making.
 func (m *memoryOperationsAdapter) buildDecisionPrompt(fact string, similar []ExistingMemory) string {
-	// Build the prompt with existing memories
 	existingMemoriesContentForPrompt := []string{}
 	existingMemoriesForPromptStr := "No existing relevant memories found."
 
@@ -159,10 +145,8 @@ func (m *memoryOperationsAdapter) buildDecisionPrompt(fact string, similar []Exi
 	return decisionPromptBuilder.String()
 }
 
-// parseToolCallResponse parses the LLM response and extracts the memory decision.
 func (m *memoryOperationsAdapter) parseToolCallResponse(llmResponse openai.ChatCompletionMessage) (MemoryDecision, error) {
 	if len(llmResponse.ToolCalls) == 0 {
-		// Default to ADD if no tool call
 		return MemoryDecision{
 			Action: ADD,
 			Reason: "No tool call made, defaulting to ADD",
@@ -172,7 +156,6 @@ func (m *memoryOperationsAdapter) parseToolCallResponse(llmResponse openai.ChatC
 	toolCall := llmResponse.ToolCalls[0]
 	action := MemoryAction(toolCall.Function.Name)
 
-	// Parse tool arguments based on action
 	decision := MemoryDecision{
 		Action: action,
 	}
@@ -208,7 +191,6 @@ func (m *memoryOperationsAdapter) parseToolCallResponse(llmResponse openai.ChatC
 
 // UpdateMemory updates an existing memory with new content.
 func (m *memoryOperationsAdapter) UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error {
-	// Get the original document to preserve metadata
 	originalDoc, err := m.storage.GetByID(ctx, memoryID)
 	if err != nil {
 		return fmt.Errorf("getting original document for update: %w", err)
@@ -223,7 +205,6 @@ func (m *memoryOperationsAdapter) UpdateMemory(ctx context.Context, memoryID str
 		FieldTags:      originalDoc.Tags(),
 	}
 
-	// Perform the update
 	return m.storage.Update(ctx, memoryID, docToUpdate, embedding)
 }
 
