@@ -145,7 +145,6 @@ func (s *Storage) UpdateInsight(ctx context.Context, contactID string, insight s
 		WithProperties(updateProperties).
 		WithMerge().
 		Do(ctx)
-
 	if err != nil {
 		return fmt.Errorf("updating contact insight: %w", err)
 	}
@@ -158,7 +157,6 @@ func (s *Storage) GetContact(ctx context.Context, contactID string) (*model.Cont
 		WithClassName(ContactClassName).
 		WithID(contactID).
 		Do(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("getting contact by ID '%s': %w", contactID, err)
 	}
@@ -199,7 +197,6 @@ func (s *Storage) ListContacts(ctx context.Context) ([]*model.Contact, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithClassName(ContactClassName).
 		Do(ctx)
-
 	if err != nil {
 		return nil, fmt.Errorf("listing contacts: %w", err)
 	}

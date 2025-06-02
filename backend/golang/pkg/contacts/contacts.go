@@ -3,9 +3,10 @@ package contacts
 import (
 	"context"
 
+	"github.com/openai/openai-go"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/openai/openai-go"
 )
 
 type Storage interface {
