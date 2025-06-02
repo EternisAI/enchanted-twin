@@ -113,17 +113,19 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		}
 		if speakerID != "" { // Only add speakerID to metadata if it's not empty
 			factMetadata["speakerID"] = speakerID
+			// Also set contact_name based on speakerID for efficient querying
+			factMetadata["contact_name"] = speakerID
 		}
 
-		metadataBytes, jsonErr := json.Marshal(factMetadata)
-		if jsonErr != nil {
-			s.logger.Errorf("Error marshaling metadata for ADD for %s %s: %v. Storing with empty metadata.", logContextEntity, logContextValue, jsonErr)
-			metadataBytes = []byte("{}")
+		// Store metadata as an object, not a JSON string
+		metadataObj := make(map[string]interface{})
+		for key, value := range factMetadata {
+			metadataObj[key] = value
 		}
 
 		data := map[string]interface{}{
 			contentProperty:  factContent,
-			metadataProperty: string(metadataBytes),
+			metadataProperty: metadataObj,
 		}
 
 		// Extract and store source and contactName as root-level properties for efficient indexing
@@ -199,6 +201,8 @@ func (s *WeaviateStorage) updateMemories(ctx context.Context, factContent string
 		// Manage speakerID in updated metadata
 		if speakerID != "" {
 			updatedFactMetadata["speakerID"] = speakerID // Ensure current speakerID is set
+			// Also set contact_name based on speakerID for efficient querying
+			updatedFactMetadata["contact_name"] = speakerID
 		} else {
 			delete(updatedFactMetadata, "speakerID") // If document-level, ensure no speakerID is present
 		}
