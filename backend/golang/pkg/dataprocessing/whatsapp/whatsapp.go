@@ -183,6 +183,7 @@ func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 }
 
 func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+	// TODO:  build ConversationDocument instead of TextDocument
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		content, ok := record.Data["text"].(string)
