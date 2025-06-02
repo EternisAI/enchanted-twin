@@ -19,7 +19,7 @@ require (
 	github.com/lib/pq v1.10.9
 	github.com/lnquy/cron v1.1.1
 	github.com/mattn/go-sqlite3 v2.0.3+incompatible
-	github.com/metoro-io/mcp-golang v0.12.0
+	github.com/metoro-io/mcp-golang v0.13.0
 	github.com/nats-io/nats-server/v2 v2.11.3
 	github.com/nats-io/nats.go v1.42.0
 	github.com/openai/openai-go v1.3.0
