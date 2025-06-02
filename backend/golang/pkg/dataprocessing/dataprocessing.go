@@ -281,7 +281,7 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		records, err = source.ProcessDirectory(inputPath)
 	case "whatsapp":
 		source := whatsapp.NewWhatsappProcessor()
-		records, err = source.ProcessFile(inputPath)
+		records, err = source.ProcessFile(context.Background(), inputPath, s.store)
 	case "chatgpt":
 		chatgptProcessor := chatgpt.NewChatGPTProcessor(inputPath)
 		records, err = chatgptProcessor.ProcessDirectory(context.Background(), s.store)

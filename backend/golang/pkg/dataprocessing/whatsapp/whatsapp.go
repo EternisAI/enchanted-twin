@@ -10,12 +10,14 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type WhatsappProcessor struct{}
 
-func NewWhatsappProcessor() *WhatsappProcessor {
+func NewWhatsappProcessor() processor.Processor {
 	return &WhatsappProcessor{}
 }
 
@@ -171,8 +173,12 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	return records, nil
 }
 
-func (s *WhatsappProcessor) ProcessFile(filepath string) ([]types.Record, error) {
-	return ReadWhatsAppDB(filepath)
+func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
+}
+
+func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+	return ReadWhatsAppDB(filePath)
 }
 
 func (s *WhatsappProcessor) Sync(ctx context.Context) ([]types.Record, error) {
@@ -216,7 +222,7 @@ func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 }
 
 // ProcessNewMessage processes a new WhatsApp message and stores it in memory.
-func (s *WhatsappProcessor) ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) (memory.TextDocument, error) {
+func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) (memory.TextDocument, error) {
 	if message == "" {
 		return memory.TextDocument{}, fmt.Errorf("empty message content")
 	}
@@ -240,7 +246,7 @@ func (s *WhatsappProcessor) ProcessNewMessage(ctx context.Context, memoryStorage
 }
 
 // ProcessNewContact stores a WhatsApp contact in memory.
-func (s *WhatsappProcessor) ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) (memory.TextDocument, error) {
+func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) (memory.TextDocument, error) {
 	if contactName == "" || contactID == "" {
 		return memory.TextDocument{}, fmt.Errorf("empty contact information")
 	}
@@ -264,7 +270,7 @@ func (s *WhatsappProcessor) ProcessNewContact(ctx context.Context, memoryStorage
 }
 
 // ProcessHistoricalMessage processes a historical WhatsApp message and stores it in memory.
-func (s *WhatsappProcessor) ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) (memory.TextDocument, error) {
+func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) (memory.TextDocument, error) {
 	if message == "" {
 		return memory.TextDocument{}, fmt.Errorf("empty message content")
 	}

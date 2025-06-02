@@ -446,8 +446,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			contactDocuments := []memory.TextDocument{}
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
-					whatsappProcessor := whatsapp.NewWhatsappProcessor()
-					document, err := whatsappProcessor.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
+					document, err := whatsapp.ProcessNewContact(ctx, memoryStorage, *pushname.ID, *pushname.Pushname)
 					if err != nil {
 						logger.Error("Error processing WhatsApp contact", "error", err)
 					} else {
