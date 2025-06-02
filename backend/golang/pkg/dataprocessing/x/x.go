@@ -249,7 +249,7 @@ func (s *XProcessor) ToDocuments(records []types.Record) ([]memory.Document, err
 			}
 			tags = append(tags, "tweet")
 
-		case "direct_message":
+		case "directMessage":
 			content = getString("text")
 			metadata = map[string]string{
 				"type": "direct_message",
