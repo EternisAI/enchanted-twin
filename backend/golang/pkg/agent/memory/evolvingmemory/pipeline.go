@@ -37,13 +37,14 @@ func (s *WeaviateStorage) StoreV2(ctx context.Context, documents []memory.Docume
 		defer close(errorCh)
 
 		// Stage 1: Prepare documents (Pure)
-		prepared, prepErrors := PrepareDocuments(documents, time.Now())
-		for _, err := range prepErrors {
+		prepared, prepError := PrepareDocuments(documents, time.Now())
+		if prepError != nil {
 			select {
-			case errorCh <- err:
+			case errorCh <- prepError:
 			case <-ctx.Done():
 				return
 			}
+			return
 		}
 
 		if len(prepared) == 0 {

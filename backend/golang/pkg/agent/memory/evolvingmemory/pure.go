@@ -11,7 +11,7 @@ import (
 )
 
 // PrepareDocuments converts raw documents into prepared documents with extracted metadata.
-func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, []error) {
+func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, error) {
 	prepared := make([]PreparedDocument, 0, len(docs))
 	errors := make([]error, 0)
 
@@ -24,7 +24,11 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 		prepared = append(prepared, p)
 	}
 
-	return prepared, errors
+	if len(errors) > 0 {
+		return nil, aggregateErrors(errors)
+	}
+
+	return prepared, nil
 }
 
 func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocument, error) {
@@ -128,4 +132,22 @@ func marshalMetadata(metadata map[string]string) string {
 	}
 
 	return "{" + strings.Join(pairs, ",") + "}"
+}
+
+// aggregateErrors combines multiple errors into a single error with context about all failures.
+func aggregateErrors(errors []error) error {
+	if len(errors) == 0 {
+		return nil
+	}
+
+	if len(errors) == 1 {
+		return errors[0]
+	}
+
+	var messages []string
+	for i, err := range errors {
+		messages = append(messages, fmt.Sprintf("error %d: %v", i+1, err))
+	}
+
+	return fmt.Errorf("multiple errors occurred (%d total): %s", len(errors), strings.Join(messages, "; "))
 }
