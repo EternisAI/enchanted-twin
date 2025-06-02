@@ -152,9 +152,6 @@ type StorageOperations interface {
 
 // --- Structs for Tool Call Arguments ---
 
-// AddToolArguments is currently empty as per tools.go definition
-// type AddToolArguments struct {}
-
 // UpdateToolArguments matches the parameters defined in updateMemoryTool in tools.go.
 type UpdateToolArguments struct {
 	MemoryID      string `json:"id"`
@@ -202,14 +199,6 @@ func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Ser
 	return storage, nil
 }
 
-// firstNChars is a helper to get the first N characters of a string for logging.
-func firstNChars(s string, n int) string {
-	if len(s) <= n {
-		return s
-	}
-	return s[:n] + "..."
-}
-
 // StoreConversations is an alias for Store to maintain backward compatibility.
 func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
 	var callback memory.ProgressCallback
@@ -226,4 +215,55 @@ func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []me
 	// Convert ConversationDocuments to unified Document interface
 	unifiedDocs := memory.ConversationDocumentsToDocuments(documents)
 	return s.Store(ctx, unifiedDocs, callback)
+}
+
+// Store implements the memory.Storage interface using the new StoreV2 pipeline.
+// This method provides backward compatibility while leveraging the new parallel processing architecture.
+func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
+	// Use default configuration
+	config := DefaultConfig()
+
+	// Launch StoreV2 with channels
+	progressCh, errorCh := s.StoreV2(ctx, documents, config)
+
+	// Track total for progress reporting
+	total := len(documents)
+	processed := 0
+
+	// Collect all errors
+	var errors []error
+
+	// Process results from both channels
+	for progressCh != nil || errorCh != nil {
+		select {
+		case progress, ok := <-progressCh:
+			if !ok {
+				progressCh = nil
+				continue
+			}
+			processed = progress.Processed
+			if progressCallback != nil {
+				progressCallback(processed, total)
+			}
+
+		case err, ok := <-errorCh:
+			if !ok {
+				errorCh = nil
+				continue
+			}
+			errors = append(errors, err)
+
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+
+	// If any errors occurred, return the first one
+	// (In a production system, you might want to combine errors)
+	if len(errors) > 0 {
+		s.logger.Errorf("Store encountered %d errors, returning first: %v", len(errors), errors[0])
+		return errors[0]
+	}
+
+	return nil
 }
