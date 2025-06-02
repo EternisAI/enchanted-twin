@@ -21,7 +21,7 @@ func (m *MockMemoryService) Store(ctx context.Context, documents []memory.Docume
 	return args.Error(0)
 }
 
-func (m *MockMemoryService) Query(ctx context.Context, query string) (memory.QueryResult, error) {
+func (m *MockMemoryService) Query(ctx context.Context, query string, filter *memory.Filter) (memory.QueryResult, error) {
 	args := m.Called(ctx, query)
 	err := args.Error(1)
 	if err != nil {
