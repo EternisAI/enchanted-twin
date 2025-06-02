@@ -53,21 +53,16 @@ func parseTweets(arrayContent string) ([]types.Record, error) {
 		fmt.Printf("Processing tweet object %d\n", i)
 
 		start := startMatch[0]
-		end := len(arrayContent)
-		if i < len(tweetStartMatches)-1 {
-			end = tweetStartMatches[i+1][0]
-		}
 
-		tweetObj := arrayContent[start:end]
-
-		tweetContentStart := startMatch[1] - 1 // Position of the opening brace of tweet content
+		tweetContentStart := startMatch[1] - 1
 		braceCount := 1
 		actualEnd := tweetContentStart + 1
 
 		for actualEnd < len(arrayContent) && braceCount > 0 {
-			if arrayContent[actualEnd] == '{' {
+			switch arrayContent[actualEnd] {
+			case '{':
 				braceCount++
-			} else if arrayContent[actualEnd] == '}' {
+			case '}':
 				braceCount--
 			}
 			actualEnd++
@@ -75,15 +70,16 @@ func parseTweets(arrayContent string) ([]types.Record, error) {
 
 		outerBraceCount := 1
 		for actualEnd < len(arrayContent) && outerBraceCount > 0 {
-			if arrayContent[actualEnd] == '{' {
+			switch arrayContent[actualEnd] {
+			case '{':
 				outerBraceCount++
-			} else if arrayContent[actualEnd] == '}' {
+			case '}':
 				outerBraceCount--
 			}
 			actualEnd++
 		}
 
-		tweetObj = arrayContent[start:actualEnd]
+		tweetObj := arrayContent[start:actualEnd]
 
 		createdAtRegex := regexp.MustCompile(`"?created_at"?\s*:\s*"([^"]+)"`)
 		createdAtMatch := createdAtRegex.FindStringSubmatch(tweetObj)

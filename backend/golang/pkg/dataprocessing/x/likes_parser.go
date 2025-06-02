@@ -35,9 +35,10 @@ func parseLikesAlternative(arrayContent string) ([]types.Record, error) {
 		actualEnd := likeContentStart + 1
 
 		for actualEnd < len(arrayContent) && braceCount > 0 {
-			if arrayContent[actualEnd] == '{' {
+			switch arrayContent[actualEnd] {
+			case '{':
 				braceCount++
-			} else if arrayContent[actualEnd] == '}' {
+			case '}':
 				braceCount--
 			}
 			actualEnd++
@@ -46,9 +47,10 @@ func parseLikesAlternative(arrayContent string) ([]types.Record, error) {
 		// Include the closing brace of the outer object
 		outerBraceCount := 1
 		for actualEnd < len(arrayContent) && outerBraceCount > 0 {
-			if arrayContent[actualEnd] == '{' {
+			switch arrayContent[actualEnd] {
+			case '{':
 				outerBraceCount++
-			} else if arrayContent[actualEnd] == '}' {
+			case '}':
 				outerBraceCount--
 			}
 			actualEnd++
