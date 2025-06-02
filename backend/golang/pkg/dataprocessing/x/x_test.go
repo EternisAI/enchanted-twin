@@ -591,7 +591,7 @@ func TestToDocuments(t *testing.T) {
 	}()
 
 	// Write test data to the file
-	testData := `{"data":{"conversationId":"1638683789647032320-1676928456225898496","myMessage":false,"recipientId":"1638683789647032320","senderId":"1676928456225898496","text":"Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks","type":"direct_message"},"timestamp":"2024-09-11T21:05:12Z","source":"x"}
+	testData := `{"data":{"conversationId":"1638683789647032320-1676928456225898496","myMessage":false,"recipientId":"1638683789647032320","senderId":"1676928456225898496","text":"Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks","type":"directMessage"},"timestamp":"2024-09-11T21:05:12Z","source":"x"}
 {"data":{"expandedUrl":"","fullText":"A verified internet scales humanity","tweetId":"12345","type":"like"},"timestamp":"2025-04-18T17:21:50-06:00","source":"x"}
 {"data":{"favoriteCount":"0","fullText":"@ChopJurassic @ReallyAmerican1 yes you do","id":"1904572225459806695","lang":"en","retweetCount":"0","type":"tweet","userId":"0"},"timestamp":"2025-03-25T16:32:58Z","source":"x"}`
 
