@@ -5,7 +5,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/openai/openai-go"
 )
 
@@ -16,14 +15,18 @@ type Storage interface {
 	ListContacts(ctx context.Context) ([]*model.Contact, error)
 }
 
+type AI interface {
+	Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error)
+}
+
 type Service struct {
 	storage            Storage
 	memoryStorage      memory.Storage
-	completionsService *ai.Service
+	completionsService AI
 	model              string
 }
 
-func NewService(storage Storage, memoryStorage memory.Storage, completionsService *ai.Service, model string) *Service {
+func NewService(storage Storage, memoryStorage memory.Storage, completionsService AI, model string) *Service {
 	return &Service{
 		storage:            storage,
 		memoryStorage:      memoryStorage,

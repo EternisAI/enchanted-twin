@@ -103,27 +103,30 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 		resp, err := batcher.Do(ctx)
 		if err != nil {
 			s.logger.Errorf("Error final batch storing facts to Weaviate: %v", err)
+			return fmt.Errorf("batch storage failed: %w", err)
 		} else {
 			s.logger.Info("Final fact batch storage call completed.")
 		}
 
 		var successCount, failureCount int
 		if resp != nil {
+			s.logger.Infof("Batch response received with %d items", len(resp))
 			for itemIdx, res := range resp {
 				if res.Result != nil && res.Result.Status != nil && *res.Result.Status == "SUCCESS" {
 					successCount++
+					s.logger.Debugf("Item %d: SUCCESS", itemIdx)
 				} else {
 					failureCount++
 					errorMsg := "unknown error during final batch item processing"
 					if res.Result != nil && res.Result.Errors != nil && len(res.Result.Errors.Error) > 0 {
 						errorMsg = res.Result.Errors.Error[0].Message
 					}
-					s.logger.Warnf("Failed to store a fact in final batch (Item %d). Error: %s.", itemIdx, errorMsg)
+					s.logger.Errorf("Failed to store a fact in final batch (Item %d). Error: %s. Full result: %+v", itemIdx, errorMsg, res)
 				}
 			}
 			s.logger.Infof("Final fact batch storage completed: %d successful, %d failed.", successCount, failureCount)
 		} else if err != nil {
-			s.logger.Warn("Batcher.Do() returned an error and a nil response. Cannot determine individual item statuses.")
+			s.logger.Error("Batcher.Do() returned an error and a nil response. Cannot determine individual item statuses.", "error", err)
 		} else {
 			s.logger.Info("Batcher.Do() returned no error and a nil response. Assuming batched items were processed if totalObjectsAddedToBatch > 0.")
 		}
@@ -284,6 +287,12 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 			for key, value := range originalMetadata {
 				metadataObj[key] = value
 			}
+
+			// Map speakerID to contact_name if present
+			if speakerID, exists := originalMetadata["speakerID"]; exists && speakerID != "" {
+				metadataObj["contact_name"] = speakerID
+			}
+
 			data[metadataProperty] = metadataObj
 
 			// Extract and store source and contactName as root-level properties for efficient indexing
@@ -292,9 +301,12 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 			}
 			if contactName, exists := originalMetadata[contactNameProperty]; exists && contactName != "" {
 				data[contactNameProperty] = contactName
+			} else if speakerID, exists := originalMetadata["speakerID"]; exists && speakerID != "" {
+				// Use speakerID as contact_name if contact_name is not set
+				data[contactNameProperty] = speakerID
 			}
 		} else {
-			data[metadataProperty] = map[string]interface{}{}
+			data[metadataProperty] = map[string]any{}
 		}
 
 		// Also check document source method

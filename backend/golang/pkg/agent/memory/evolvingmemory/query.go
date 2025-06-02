@@ -3,6 +3,7 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
@@ -36,7 +37,14 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 
 	contentField := graphql.Field{Name: contentProperty}
 	timestampField := graphql.Field{Name: timestampProperty}
-	metaField := graphql.Field{Name: metadataProperty}
+	metaField := graphql.Field{
+		Name: metadataProperty,
+		Fields: []graphql.Field{
+			{Name: sourceProperty},
+			{Name: contactNameProperty},
+			{Name: "speakerID"},
+		},
+	}
 	tagsField := graphql.Field{Name: tagsProperty}
 	additionalFields := graphql.Field{
 		Name: "_additional",
@@ -49,6 +57,13 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 	limit := 10
 	if filter != nil && filter.Limit != nil {
 		limit = *filter.Limit
+	}
+
+	if filter != nil && filter.Distance > 0 {
+		nearVector = nearVector.WithDistance(filter.Distance)
+		s.logger.Debug("Added distance filter", "distance", filter.Distance)
+	} else {
+		nearVector = nearVector.WithDistance(1.0)
 	}
 
 	queryBuilder := s.client.GraphQL().Get().
@@ -86,13 +101,6 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 			queryBuilder = queryBuilder.WithWhere(combinedFilter)
 			s.logger.Debug("Applied combined WHERE filters", "filter_count", len(whereFilters))
 		}
-
-		if filter.Distance > 0 {
-			// Set distance threshold for similarity search
-			nearVector = nearVector.WithDistance(filter.Distance)
-			queryBuilder = queryBuilder.WithNearVector(nearVector)
-			s.logger.Debug("Added distance filter", "distance", filter.Distance)
-		}
 	}
 
 	resp, err := queryBuilder.Do(ctx)
@@ -101,7 +109,13 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 	}
 
 	if len(resp.Errors) > 0 {
-		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
+		var errorMessages []string
+		for _, err := range resp.Errors {
+			if err != nil && err.Message != "" {
+				errorMessages = append(errorMessages, err.Message)
+			}
+		}
+		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMessages, "; "))
 	}
 
 	finalResults := []memory.TextDocument{}
@@ -187,7 +201,14 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 
 	contentField := graphql.Field{Name: contentProperty}
 	timestampField := graphql.Field{Name: timestampProperty}
-	metaField := graphql.Field{Name: metadataProperty}
+	metaField := graphql.Field{
+		Name: metadataProperty,
+		Fields: []graphql.Field{
+			{Name: sourceProperty},
+			{Name: contactNameProperty},
+			{Name: "speakerID"},
+		},
+	}
 	tagsField := graphql.Field{Name: tagsProperty}
 	additionalFields := graphql.Field{
 		Name: "_additional",
