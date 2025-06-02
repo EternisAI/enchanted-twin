@@ -167,3 +167,53 @@ Run with: `go test ./pkg/agent/memory/evolvingmemory/...`
 - Metrics/monitoring hooks
 - Configurable retry logic
 - Smarter batching strategies 
+
+## Recent Changes
+
+### Error Handling Improvements (2024-12-19)
+
+Made the following improvements to error handling and initialization:
+
+#### 1. Constructor Validation
+- `NewFactExtractor()` and `NewMemoryOperations()` now return `(Interface, error)` instead of just `Interface`
+- All dependency validation moved to initialization time instead of runtime
+- Constructors validate that `storage`, `storage.client`, and `storage.completionsService` are not nil
+- Fail-fast at application startup rather than during request processing
+
+#### 2. Removed Runtime Nil Checks
+- Removed all runtime nil checks from adapter methods (`ExtractFacts`, `SearchSimilar`, `DecideAction`, etc.)
+- Removed nil checks from CRUD operations (`GetByID`, `Delete`, etc.)
+- Code is now cleaner and more performant with guaranteed valid dependencies
+
+#### 3. StoreBatch Error Handling
+- Changed from error accumulation to fail-fast behavior
+- Now returns immediately on first error instead of collecting all errors
+- Provides faster feedback when batch operations fail
+
+#### 4. Updated Tests
+- Added comprehensive tests for constructor error cases
+- All existing tests updated to handle new constructor signatures
+- Added validation tests for nil storage, client, and service dependencies
+
+#### Migration Guide
+
+If you're using these constructors, update your code:
+
+```go
+// Old way:
+factExtractor := NewFactExtractor(storage)
+memoryOps := NewMemoryOperations(storage)
+
+// New way:
+factExtractor, err := NewFactExtractor(storage)
+if err != nil {
+    return fmt.Errorf("failed to create fact extractor: %w", err)
+}
+
+memoryOps, err := NewMemoryOperations(storage)
+if err != nil {
+    return fmt.Errorf("failed to create memory operations: %w", err)
+}
+```
+
+These changes ensure that dependency issues are caught early during application startup, leading to more reliable runtime behavior. 

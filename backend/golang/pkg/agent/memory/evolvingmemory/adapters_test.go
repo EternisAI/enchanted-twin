@@ -27,7 +27,9 @@ func TestFactExtractorAdapter(t *testing.T) {
 		completionsService: mockCompletions,
 		embeddingsService:  mockEmbeddings,
 	}
-	adapter := NewFactExtractor(storage)
+	adapter, err := NewFactExtractor(storage)
+	assert.NoError(t, err)
+	assert.NotNil(t, adapter)
 
 	// TODO: Re-enable these tests when we have proper AI service mocking
 	// The empty ai.Service{} structs cause nil pointer dereferences when called
@@ -107,12 +109,33 @@ func TestFactExtractorAdapter(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "document is not a ConversationDocument")
 	})
+
+	t.Run("NewFactExtractor_NilStorage", func(t *testing.T) {
+		_, err := NewFactExtractor(nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "storage cannot be nil")
+	})
+
+	t.Run("NewFactExtractor_NilCompletionsService", func(t *testing.T) {
+		mockEmbeddings := &ai.Service{}
+		storageWithoutCompletions := &WeaviateStorage{
+			logger:             logger,
+			client:             mockClient,
+			completionsService: nil,
+			embeddingsService:  mockEmbeddings,
+		}
+		_, err := NewFactExtractor(storageWithoutCompletions)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "completions service not initialized")
+	})
 }
 
 // TestMemoryOperationsAdapter tests the memory operations adapter structure.
 func TestMemoryOperationsAdapter(t *testing.T) {
 	logger := log.Default()
 	mockClient := &weaviate.Client{}
+	mockCompletions := &ai.Service{}
+	mockEmbeddings := &ai.Service{}
 
 	// TODO: Re-enable these tests when we have proper Weaviate client mocking
 	// t.Run("SearchSimilar_Structure", func(t *testing.T) {
@@ -120,7 +143,7 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 	// 		logger: logger,
 	// 		client: mockClient,
 	// 	}
-	// 	adapter := NewMemoryOperations(storage)
+	// 	adapter, err := NewMemoryOperations(storage)
 
 	// 	// Test that SearchSimilar wraps Query method properly
 	// 	memories, err := adapter.SearchSimilar(context.Background(), "test fact", "speaker1")
@@ -133,7 +156,7 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 	// 		logger: logger,
 	// 		client: mockClient,
 	// 	}
-	// 	adapter := NewMemoryOperations(storage)
+	// 	adapter, err := NewMemoryOperations(storage)
 
 	// 	// Test that UpdateMemory tries to get the original document
 	// 	embedding := make([]float32, 10)
@@ -146,7 +169,7 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 	// 		logger: logger,
 	// 		client: mockClient,
 	// 	}
-	// 	adapter := NewMemoryOperations(storage)
+	// 	adapter, err := NewMemoryOperations(storage)
 
 	// 	// Test that DeleteMemory wraps Delete method
 	// 	err := adapter.DeleteMemory(context.Background(), "mem1")
@@ -156,11 +179,13 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 	// Just a basic test to ensure the function doesn't completely fail
 	t.Run("BasicStructure", func(t *testing.T) {
 		storage := &WeaviateStorage{
-			logger: logger,
-			client: mockClient,
+			logger:             logger,
+			client:             mockClient,
+			completionsService: mockCompletions,
+			embeddingsService:  mockEmbeddings,
 		}
-		adapter := NewMemoryOperations(storage)
-		assert.NotNil(t, adapter)
+		_, err := NewMemoryOperations(storage)
+		assert.NoError(t, err)
 	})
 }
 
@@ -199,7 +224,8 @@ func TestAdapterCreation(t *testing.T) {
 	storage, _ := New(logger, mockClient, &ai.Service{}, &ai.Service{})
 
 	t.Run("NewFactExtractor", func(t *testing.T) {
-		adapter := NewFactExtractor(storage)
+		adapter, err := NewFactExtractor(storage)
+		assert.NoError(t, err)
 		assert.NotNil(t, adapter)
 
 		// Verify it implements the interface
@@ -207,10 +233,44 @@ func TestAdapterCreation(t *testing.T) {
 	})
 
 	t.Run("NewMemoryOperations", func(t *testing.T) {
-		adapter := NewMemoryOperations(storage)
+		adapter, err := NewMemoryOperations(storage)
+		assert.NoError(t, err)
 		assert.NotNil(t, adapter)
 
 		// Verify it implements the interface
 		_ = adapter
+	})
+
+	t.Run("NewMemoryOperations_NilStorage", func(t *testing.T) {
+		_, err := NewMemoryOperations(nil)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "storage cannot be nil")
+	})
+
+	t.Run("NewMemoryOperations_NilClient", func(t *testing.T) {
+		mockCompletions := &ai.Service{}
+		mockEmbeddings := &ai.Service{}
+		storageWithoutClient := &WeaviateStorage{
+			logger:             logger,
+			client:             nil,
+			completionsService: mockCompletions,
+			embeddingsService:  mockEmbeddings,
+		}
+		_, err := NewMemoryOperations(storageWithoutClient)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "weaviate client not initialized")
+	})
+
+	t.Run("NewMemoryOperations_NilCompletionsService", func(t *testing.T) {
+		mockEmbeddings := &ai.Service{}
+		storageWithoutCompletions := &WeaviateStorage{
+			logger:             logger,
+			client:             mockClient,
+			completionsService: nil,
+			embeddingsService:  mockEmbeddings,
+		}
+		_, err := NewMemoryOperations(storageWithoutCompletions)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "completions service not initialized")
 	})
 }

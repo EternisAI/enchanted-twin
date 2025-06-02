@@ -57,8 +57,25 @@ func (s *WeaviateStorage) StoreV2(ctx context.Context, documents []memory.Docume
 
 		workChunks := DistributeWork(prepared, config.Workers)
 
-		factExtractor := NewFactExtractor(s)
-		memoryOps := NewMemoryOperations(s)
+		factExtractor, err := NewFactExtractor(s)
+		if err != nil {
+			select {
+			case errorCh <- fmt.Errorf("creating fact extractor: %w", err):
+			case <-ctx.Done():
+				return
+			}
+			return
+		}
+
+		memoryOps, err := NewMemoryOperations(s)
+		if err != nil {
+			select {
+			case errorCh <- fmt.Errorf("creating memory operations: %w", err):
+			case <-ctx.Done():
+				return
+			}
+			return
+		}
 
 		factStream := make(chan ExtractedFact, 1000)
 		resultStream := make(chan FactResult, 1000)
