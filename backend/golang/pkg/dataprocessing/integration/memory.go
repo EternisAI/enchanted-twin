@@ -15,13 +15,12 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 // go run cmd/integration-test/main.go.
-type IntegrationTestConfig struct {
+type IntegrationTestMemoryConfig struct {
 	Source            string
 	InputPath         string
 	OutputPath        string
@@ -33,9 +32,10 @@ type IntegrationTestConfig struct {
 	EmbeddingsApiUrl  string
 }
 
-func IntegrationTest(config IntegrationTestConfig) error {
+func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 	storePath := "./output/test.db"
 	weaviatePort := "8080"
+	batchSize := 20
 	ctx := context.Background()
 
 	logger := log.NewWithOptions(os.Stdout, log.Options{
@@ -45,7 +45,7 @@ func IntegrationTest(config IntegrationTestConfig) error {
 		TimeFormat:      time.Kitchen,
 	})
 
-	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate")
+	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate-test-memory")
 	if err != nil {
 		logger.Error("Error starting weaviate server", "error", err)
 		return err
@@ -70,7 +70,6 @@ func IntegrationTest(config IntegrationTestConfig) error {
 	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
-	fmt.Println("aiEmbeddingsService  ", aiEmbeddingsService)
 	store, err := db.NewStore(ctx, storePath)
 	if err != nil {
 		logger.Error("Error creating store", "error", err)
@@ -91,27 +90,35 @@ func IntegrationTest(config IntegrationTestConfig) error {
 		return err
 	}
 
-	telegramProcessor := telegram.NewTelegramProcessor()
-	documents, err := telegramProcessor.ToDocuments(records)
+	documents, err := dataprocessingService.ToDocuments(ctx, config.Source, records)
 	if err != nil {
-		logger.Error("Error processing telegram", "error", err)
+		logger.Error("Error processing source", "source", config.Source)
+		return err
 	}
-
-	fmt.Println("documents ", documents[0:10])
 
 	mem, err := evolvingmemory.New(logger, weaviateClient, openAiService, aiEmbeddingsService)
 	if err != nil {
-		logger.Error("Error processing telegram", "error", err)
+		logger.Error("Error processing memory", "error", err)
 		return err
 	}
 
-	err = mem.Store(ctx, documents, nil)
-	if err != nil {
-		logger.Error("Error storing documents", "error", err)
-		return err
+	if len(documents) == 0 {
+		logger.Error("No documents to store", "source", config.Source)
+		return fmt.Errorf("no documents to store")
 	}
+	logger.Info("Storing documents", "source", config.Source, "documents[0]", documents[0])
 
-	fmt.Println(records)
+	for i := 0; i < len(documents); i += batchSize {
+		batch := documents[i:min(i+batchSize, len(documents))]
+
+		logger.Info("Storing documents batch", "index", i)
+
+		err = mem.Store(ctx, batch, nil)
+		if err != nil {
+			logger.Error("Error storing documents", "error", err)
+			return err
+		}
+	}
 
 	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
 	if err != nil {
@@ -119,7 +126,7 @@ func IntegrationTest(config IntegrationTestConfig) error {
 		return err
 	}
 
-	fmt.Println(result)
+	logger.Info("Query result", "result", result)
 
 	return nil
 }

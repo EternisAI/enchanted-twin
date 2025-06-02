@@ -1,8 +1,10 @@
 package chatgpt
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -10,7 +12,9 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type ChatGPTConversation struct {
@@ -52,29 +56,29 @@ type Content struct {
 
 type Metadata map[string]interface{}
 
-type ChatGPTDataSource struct {
-	inputPath string
-}
-
 type ConversationMessage struct {
 	Role string
 	Text string
 }
+type ChatGPTProcessor struct{}
 
-func New(inputPath string) *ChatGPTDataSource {
-	return &ChatGPTDataSource{
-		inputPath: inputPath,
-	}
+func NewChatGPTProcessor() processor.Processor {
+	return &ChatGPTProcessor{}
 }
 
-func (s *ChatGPTDataSource) Name() string {
+func (s *ChatGPTProcessor) Name() string {
 	return "chatgpt"
 }
 
-func (s *ChatGPTDataSource) ProcessFileConversations(
+func (s *ChatGPTProcessor) ProcessFile(
+	ctx context.Context,
 	filePath string,
-	username string,
+	store *db.Store,
 ) ([]types.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled before processing: %w", err)
+	}
+
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -87,7 +91,13 @@ func (s *ChatGPTDataSource) ProcessFileConversations(
 
 	var records []types.Record
 
-	for _, conversation := range conversations {
+	for i, conversation := range conversations {
+		if i%10 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, fmt.Errorf("context canceled during conversation processing: %w", err)
+			}
+		}
+
 		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
 		if err != nil {
 			continue
@@ -132,7 +142,9 @@ func (s *ChatGPTDataSource) ProcessFileConversations(
 			continue
 		}
 
+		id := strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64)
 		conversationData := map[string]any{
+			"id":       id,
 			"title":    conversation.Title,
 			"messages": messages,
 		}
@@ -148,10 +160,14 @@ func (s *ChatGPTDataSource) ProcessFileConversations(
 	return records, nil
 }
 
-func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, error) {
+func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
 	var allRecords []types.Record
 
-	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
 		if err != nil {
 			return err
 		}
@@ -165,8 +181,11 @@ func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, e
 		}
 
 		if filepath.Base(path) == "conversations.json" {
-			records, err := s.ProcessFileConversations(path, userName)
+			records, err := s.ProcessFile(ctx, path, store)
 			if err != nil {
+				if ctx.Err() != nil {
+					return err
+				}
 				fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 				return nil
 			}
@@ -184,8 +203,12 @@ func (s *ChatGPTDataSource) ProcessDirectory(userName string) ([]types.Record, e
 	return allRecords, nil
 }
 
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
-	textDocuments := make([]memory.TextDocument, 0, len(records))
+func (s *ChatGPTProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for Chatgpt")
+}
+
+func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+	conversationDocuments := make([]memory.ConversationDocument, 0, len(records))
 
 	for _, record := range records {
 		getString := func(key string) string {
@@ -199,70 +222,119 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 
 		title := getString("title")
 
-		var conversationBuilder strings.Builder
-
-		if messagesInterface, ok := record.Data["messages"]; ok {
-			switch messages := messagesInterface.(type) {
-			case []ConversationMessage:
-
-				for _, message := range messages {
-					trimmedText := strings.TrimSpace(message.Text)
-					if trimmedText == "" {
-						continue
-					}
-					conversationBuilder.WriteString(message.Role)
-					conversationBuilder.WriteString(": ")
-					conversationBuilder.WriteString(trimmedText)
-					conversationBuilder.WriteString("\n\n")
-				}
-			case []interface{}:
-
-				for _, msgInterface := range messages {
-					if msgMap, ok := msgInterface.(map[string]interface{}); ok {
-						role := ""
-						text := ""
-						if roleVal, ok := msgMap["Role"]; ok {
-							if roleStr, ok := roleVal.(string); ok {
-								role = roleStr
-							}
-						}
-						if textVal, ok := msgMap["Text"]; ok {
-							if textStr, ok := textVal.(string); ok {
-								text = textStr
-							}
-						}
-						trimmedText := strings.TrimSpace(text)
-						if role != "" && trimmedText != "" {
-							conversationBuilder.WriteString(role)
-							conversationBuilder.WriteString(": ")
-							conversationBuilder.WriteString(trimmedText)
-							conversationBuilder.WriteString("\n\n")
-						}
-					}
-				}
-			}
+		id, ok := record.Data["id"].(string)
+		if !ok {
+			log.Printf("Skipping conversation with missing ID (%v)", record.Data)
+			id = ""
 		}
 
-		conversationText := conversationBuilder.String()
-		if conversationText == "" {
-			continue
-		}
-
-		explainer := "This document is a ChatGPT conversation log between user and assistant.\n\n"
-		fullContent := explainer + conversationText
-
-		textDocuments = append(textDocuments, memory.TextDocument{
-			FieldContent:   fullContent,
-			FieldTimestamp: &record.Timestamp,
-			FieldSource:    "chatgpt",
-			FieldTags:      []string{"chat", "chatgpt", "conversation"},
+		conversation := memory.ConversationDocument{
+			FieldID:     id,
+			FieldSource: "chatgpt",
+			User:        "user",
+			FieldTags:   []string{"chat", "chatgpt", "conversation"},
 			FieldMetadata: map[string]string{
 				"type":  "conversation",
 				"title": title,
 			},
+		}
+
+		if messagesInterface, ok := record.Data["messages"]; ok {
+			// Validate that messagesInterface is actually a slice before proceeding
+			if messagesInterface == nil {
+				log.Printf("Warning: messages field is nil for conversation %s", id)
+				continue
+			}
+
+			switch messages := messagesInterface.(type) {
+			case []interface{}:
+				if err := s.processInterfaceMessages(messages, &conversation, record.Timestamp); err != nil {
+					log.Printf("Warning: Failed to process interface messages for conversation %s: %v", id, err)
+				}
+			case []ConversationMessage:
+				for _, message := range messages {
+					if message.Role != "" && message.Text != "" {
+						conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+							Speaker: message.Role,
+							Content: message.Text,
+							Time:    record.Timestamp,
+						})
+					} else {
+						log.Printf("Warning: Skipping message with empty role or text in conversation %s", id)
+					}
+				}
+			default:
+				log.Printf("Warning: Unexpected messages type %T for conversation %s, skipping", messagesInterface, id)
+				continue
+			}
+		} else {
+			log.Printf("Warning: No messages field found for conversation %s", id)
+		}
+
+		conversationDocuments = append(conversationDocuments, conversation)
+	}
+
+	var documents []memory.Document
+	for _, conversationDocument := range conversationDocuments {
+		documents = append(documents, &conversationDocument)
+	}
+
+	return documents, nil
+}
+
+func (s *ChatGPTProcessor) processInterfaceMessages(messages []interface{}, conversation *memory.ConversationDocument, timestamp time.Time) error {
+	for i, messageInterface := range messages {
+		if messageInterface == nil {
+			log.Printf("Warning: Skipping nil message at index %d", i)
+			continue
+		}
+
+		messageMap, ok := messageInterface.(map[string]interface{})
+		if !ok {
+			log.Printf("Warning: Skipping message at index %d with unexpected type %T", i, messageInterface)
+			continue
+		}
+
+		// Safely extract role with validation
+		roleInterface, exists := messageMap["Role"]
+		if !exists {
+			log.Printf("Warning: Skipping message at index %d with missing 'Role' key", i)
+			continue
+		}
+
+		role, ok := roleInterface.(string)
+		if !ok {
+			log.Printf("Warning: Skipping message at index %d with invalid role type %T (expected string)", i, roleInterface)
+			continue
+		}
+
+		// Safely extract text with validation
+		textInterface, exists := messageMap["Text"]
+		if !exists {
+			log.Printf("Warning: Skipping message at index %d with missing 'Text' key", i)
+			continue
+		}
+
+		text, ok := textInterface.(string)
+		if !ok {
+			log.Printf("Warning: Skipping message at index %d with invalid text type %T (expected string)", i, textInterface)
+			continue
+		}
+
+		// Validate content before adding
+		if role == "" || text == "" {
+			log.Printf("Warning: Skipping message at index %d with empty role or text", i)
+			continue
+		}
+
+		conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+			Speaker: role,
+			Content: text,
+			Time:    timestamp,
 		})
 	}
-	return textDocuments, nil
+
+	return nil
 }
 
 func parseTimestamp(ts string) (time.Time, error) {

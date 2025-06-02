@@ -1,6 +1,7 @@
 package chatgpt
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -17,7 +18,6 @@ import (
 )
 
 func TestSimpleConversationProcessing(t *testing.T) {
-	// Simple JSON data for testing
 	sampleJSON := `[
   {
     "title": "Test Conversation",
@@ -70,9 +70,10 @@ func TestSimpleConversationProcessing(t *testing.T) {
 	err = os.WriteFile(tempFilePath, []byte(sampleJSON), 0o644)
 	require.NoError(t, err)
 
-	dataSource := New(tempDir)
+	dataSource := NewChatGPTProcessor()
 
-	records, err := dataSource.ProcessFileConversations(tempFilePath, "testuser")
+	ctx := context.Background()
+	records, err := dataSource.ProcessFile(ctx, tempFilePath, nil)
 
 	require.NoError(t, err)
 	require.Len(t, records, 1, "Expected 1 conversation record")
@@ -110,7 +111,6 @@ func TestSimpleConversationProcessing(t *testing.T) {
 }
 
 func TestConversationToDocuments(t *testing.T) {
-	// Create test records with conversation messages
 	messages := []ConversationMessage{
 		{Role: "user", Text: "Hello, how are you?"},
 		{Role: "assistant", Text: "I am doing well, thank you! How can I help you today?"},
@@ -129,7 +129,8 @@ func TestConversationToDocuments(t *testing.T) {
 		},
 	}
 
-	documents, err := ToDocuments(records)
+	chatgptProcessor := NewChatGPTProcessor()
+	documents, err := chatgptProcessor.ToDocuments(records)
 	require.NoError(t, err)
 	require.Len(t, documents, 1)
 
@@ -142,7 +143,7 @@ func TestConversationToDocuments(t *testing.T) {
 	assert.Equal(t, "Test Conversation", doc.Metadata()["title"])
 	assert.Equal(t, "chatgpt", doc.Source())
 
-	expectedContent := "This document is a ChatGPT conversation log between user and assistant.\n\nuser: Hello, how are you?\n\nassistant: I am doing well, thank you! How can I help you today?\n\nuser: Can you tell me about Puerto Vallarta?\n\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico...\n\n"
+	expectedContent := "user: Hello, how are you?\nassistant: I am doing well, thank you! How can I help you today?\nuser: Can you tell me about Puerto Vallarta?\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico..."
 	assert.Equal(t, expectedContent, doc.Content())
 }
 
@@ -251,7 +252,8 @@ func TestJSONLRoundTrip(t *testing.T) {
 	assert.Equal(t, "I don't have access to real-time weather data, but I can help you find weather information.", secondMsg["Text"])
 
 	// Test conversion to Document format
-	docs, err := ToDocuments(readRecords)
+	chatgptProcessor := NewChatGPTProcessor()
+	docs, err := chatgptProcessor.ToDocuments(readRecords)
 	require.NoError(t, err, "Error converting records to documents")
 	require.Len(t, docs, 1, "Expected 1 document after conversion")
 
