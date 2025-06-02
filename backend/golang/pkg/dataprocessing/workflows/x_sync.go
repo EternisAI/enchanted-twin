@@ -9,11 +9,9 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/x"
 )
 
 type XSyncWorkflowInput struct {
@@ -159,12 +157,13 @@ func (w *DataProcessingWorkflows) XIndexActivity(
 	ctx context.Context,
 	input XIndexActivityInput,
 ) (XIndexActivityResponse, error) {
-	documents, err := x.ToDocuments(input.Records)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
+	documents, err := dataprocessingService.ToDocuments(ctx, "x", input.Records)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}
-	w.Logger.Info("X", "tweets", len(documents))
-	err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), nil)
+
+	err = w.Memory.Store(ctx, documents, nil)
 	if err != nil {
 		return XIndexActivityResponse{}, err
 	}

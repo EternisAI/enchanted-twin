@@ -1,7 +1,6 @@
 package x
 
 import (
-	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -43,28 +42,108 @@ func parseTwitterFile(content []byte, fileType string) ([]types.Record, error) {
 }
 
 func parseTweets(arrayContent string) ([]types.Record, error) {
-	var tweets []Tweet
-	if err := json.Unmarshal([]byte(arrayContent), &tweets); err != nil {
-		return nil, fmt.Errorf("failed to parse tweets: %v", err)
-	}
-
-	fmt.Printf("Found %d tweet objects\n", len(tweets))
-
 	var records []types.Record
-	for _, tweet := range tweets {
-		timestamp, err := ParseTwitterTimestamp(tweet.Tweet.CreatedAt)
+
+	tweetStartRegex := regexp.MustCompile(`\{\s*"?tweet"?\s*:\s*\{`)
+	tweetStartMatches := tweetStartRegex.FindAllStringIndex(arrayContent, -1)
+
+	fmt.Printf("Found %d tweet objects\n", len(tweetStartMatches))
+
+	for i, startMatch := range tweetStartMatches {
+		fmt.Printf("Processing tweet object %d\n", i)
+
+		start := startMatch[0]
+
+		tweetContentStart := startMatch[1] - 1
+		braceCount := 1
+		actualEnd := tweetContentStart + 1
+
+		for actualEnd < len(arrayContent) && braceCount > 0 {
+			switch arrayContent[actualEnd] {
+			case '{':
+				braceCount++
+			case '}':
+				braceCount--
+			}
+			actualEnd++
+		}
+
+		outerBraceCount := 1
+		for actualEnd < len(arrayContent) && outerBraceCount > 0 {
+			switch arrayContent[actualEnd] {
+			case '{':
+				outerBraceCount++
+			case '}':
+				outerBraceCount--
+			}
+			actualEnd++
+		}
+
+		tweetObj := arrayContent[start:actualEnd]
+
+		createdAtRegex := regexp.MustCompile(`"?created_at"?\s*:\s*"([^"]+)"`)
+		createdAtMatch := createdAtRegex.FindStringSubmatch(tweetObj)
+		if len(createdAtMatch) < 2 {
+			fmt.Printf("Could not find created_at in tweet %d\n", i)
+			continue
+		}
+		createdAt := createdAtMatch[1]
+
+		idRegex := regexp.MustCompile(`"?id_str"?\s*:\s*"([^"]+)"`)
+		idMatch := idRegex.FindStringSubmatch(tweetObj)
+		if len(idMatch) < 2 {
+			fmt.Printf("Could not find id_str in tweet %d\n", i)
+			continue
+		}
+		id := idMatch[1]
+
+		fullTextRegex := regexp.MustCompile(`"?full_text"?\s*:\s*"((?:[^"\\]|\\.)*)"|"?full_text"?\s*:\s*\n?\s*"([\s\S]*?)"`)
+		fullTextMatch := fullTextRegex.FindStringSubmatch(tweetObj)
+		var fullText string
+		if len(fullTextMatch) >= 2 {
+			if fullTextMatch[1] != "" {
+				fullText = fullTextMatch[1]
+			} else if len(fullTextMatch) > 2 && fullTextMatch[2] != "" {
+				fullText = fullTextMatch[2]
+			}
+		}
+
+		retweetCountRegex := regexp.MustCompile(`"?retweet_count"?\s*:\s*"([^"]*)"`)
+		retweetCountMatch := retweetCountRegex.FindStringSubmatch(tweetObj)
+		var retweetCount string
+		if len(retweetCountMatch) >= 2 {
+			retweetCount = retweetCountMatch[1]
+		}
+
+		favoriteCountRegex := regexp.MustCompile(`"?favorite_count"?\s*:\s*"([^"]*)"`)
+		favoriteCountMatch := favoriteCountRegex.FindStringSubmatch(tweetObj)
+		var favoriteCount string
+		if len(favoriteCountMatch) >= 2 {
+			favoriteCount = favoriteCountMatch[1]
+		}
+
+		langRegex := regexp.MustCompile(`"?lang"?\s*:\s*"([^"]*)"`)
+		langMatch := langRegex.FindStringSubmatch(tweetObj)
+		var lang string
+		if len(langMatch) >= 2 {
+			lang = langMatch[1]
+		}
+
+		timestamp, err := ParseTwitterTimestamp(createdAt)
 		if err != nil {
 			fmt.Printf("Warning: Failed to parse tweet timestamp: %v\n", err)
 			continue
 		}
 
+		fmt.Printf("Extracted tweet - id: %s, fullText: %.50s...\n", id, fullText)
+
 		data := map[string]interface{}{
 			"type":          "tweet",
-			"id":            tweet.Tweet.ID,
-			"fullText":      tweet.Tweet.FullText,
-			"retweetCount":  tweet.Tweet.RetweetCount,
-			"favoriteCount": tweet.Tweet.FavoriteCount,
-			"lang":          tweet.Tweet.Lang,
+			"id":            id,
+			"fullText":      fullText,
+			"retweetCount":  retweetCount,
+			"favoriteCount": favoriteCount,
+			"lang":          lang,
 		}
 
 		record := types.Record{
@@ -137,7 +216,7 @@ func parseDirectMessages(arrayContent string) ([]types.Record, error) {
 			}
 			recipientId := recipientIdMatch[1]
 			if recipientId == "" && len(recipientIdMatch) > 2 {
-				recipientId = recipientIdMatch[2] // Handle text in single quotes
+				recipientId = recipientIdMatch[2]
 			}
 
 			textRegex := regexp.MustCompile(`"?text"?\s*:\s*(?:"([^"]*)"|'([^']*)')`)
@@ -147,7 +226,7 @@ func parseDirectMessages(arrayContent string) ([]types.Record, error) {
 			}
 			text := textMatch[1]
 			if text == "" && len(textMatch) > 2 {
-				text = textMatch[2] // Handle text in single quotes
+				text = textMatch[2]
 			}
 
 			senderIdRegex := regexp.MustCompile(`"?senderId"?\s*:\s*(?:"([^"]+)"|'([^']+)')`)
@@ -157,7 +236,7 @@ func parseDirectMessages(arrayContent string) ([]types.Record, error) {
 			}
 			senderId := senderIdMatch[1]
 			if senderId == "" && len(senderIdMatch) > 2 {
-				senderId = senderIdMatch[2] // Handle text in single quotes
+				senderId = senderIdMatch[2]
 			}
 
 			createdAtRegex := regexp.MustCompile(`"?createdAt"?\s*:\s*(?:"([^"]+)"|'([^']+)')`)
@@ -167,7 +246,7 @@ func parseDirectMessages(arrayContent string) ([]types.Record, error) {
 			}
 			createdAt := createdAtMatch[1]
 			if createdAt == "" && len(createdAtMatch) > 2 {
-				createdAt = createdAtMatch[2] // Handle text in single quotes
+				createdAt = createdAtMatch[2]
 			}
 
 			timestamp, err := ParseTwitterTimestamp(createdAt)

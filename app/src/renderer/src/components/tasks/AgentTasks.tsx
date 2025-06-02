@@ -138,7 +138,11 @@ function AgentTaskRow({ task, onDelete, onUpdate }: Props) {
                     className="text-black hover:bg-black/10"
                     onClick={() => onUpdate(task.id, !task.notify)}
                   >
-                    {task.notify ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+                    {task.notify ? (
+                      <Bell className="w-4 h-4 text-primary" />
+                    ) : (
+                      <BellOff className="w-4 h-4 text-primary" />
+                    )}
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>

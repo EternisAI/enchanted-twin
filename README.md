@@ -27,6 +27,13 @@ Requirements
 1. Copy `.env.sample` to `.env` and update env variables
 1. Run the server `make run`
 
+Common development commands:
+- `make build` - Build the binary
+- `make test` - Run tests
+- `make lint` - Auto-fix formatting and run linters
+- `make deadcode` - Check for unused code
+- `make gqlgen` - Generate GraphQL resolvers
+
 ### GraphQL
 
 Backend

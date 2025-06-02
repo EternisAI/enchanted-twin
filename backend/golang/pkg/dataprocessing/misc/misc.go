@@ -14,33 +14,35 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 const (
 	DefaultChunkSize = 5000
 )
 
-type Source struct {
+type TextDocumentProcessor struct {
 	openAiService    *ai.Service
 	chunkSize        int
 	completionsModel string
 }
 
-func New(openAiService *ai.Service, completionsModel string) *Source {
-	return &Source{
+func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string) processor.Processor {
+	return &TextDocumentProcessor{
 		openAiService:    openAiService,
 		chunkSize:        DefaultChunkSize,
 		completionsModel: completionsModel,
 	}
 }
 
-func (s *Source) Name() string {
+func (s *TextDocumentProcessor) Name() string {
 	return "misc"
 }
 
 // IsHumanReadableContent determines if the content is human-readable text.
-func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bool, error) {
+func (s *TextDocumentProcessor) IsHumanReadableContent(ctx context.Context, content string) (bool, error) {
 	if len(content) == 0 {
 		return true, nil
 	}
@@ -191,7 +193,7 @@ func (s *Source) IsHumanReadableContent(ctx context.Context, content string) (bo
 }
 
 // ExtractTextFromPDF extracts text content from a PDF file.
-func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
+func (s *TextDocumentProcessor) ExtractTextFromPDF(filePath string) (string, error) {
 	f, r, err := pdf.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open PDF file %s: %w", filePath, err)
@@ -223,7 +225,7 @@ func (s *Source) ExtractTextFromPDF(filePath string) (string, error) {
 }
 
 // ExtractContentTags uses a language model to extract relevant tags from the content.
-func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
+func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content string) ([]string, error) {
 	contentSample := content
 	if len(content) > 1000 {
 		contentSample = content[:1000]
@@ -258,7 +260,7 @@ func (s *Source) ExtractContentTags(ctx context.Context, content string) ([]stri
 	return tags, nil
 }
 
-func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
+func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -381,7 +383,7 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 	return records, nil
 }
 
-func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
+func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.WalkDir(inputPath, func(path string, d fs.DirEntry, err error) error {
@@ -393,7 +395,7 @@ func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
 			return nil
 		}
 
-		records, err := s.ProcessFile(path)
+		records, err := s.ProcessFile(ctx, path, store)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil
@@ -409,11 +411,7 @@ func (s *Source) ProcessDirectory(inputPath string) ([]types.Record, error) {
 	return allRecords, nil
 }
 
-func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync not supported for local text files")
-}
-
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func (s *TextDocumentProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		metadata := map[string]string{}
@@ -445,5 +443,15 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			FieldTags:      tags,
 		})
 	}
-	return documents, nil
+
+	var documents_ []memory.Document
+	for _, document := range documents {
+		documents_ = append(documents_, &document)
+	}
+
+	return documents_, nil
+}
+
+func (s *TextDocumentProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync not supported for local text files")
 }
