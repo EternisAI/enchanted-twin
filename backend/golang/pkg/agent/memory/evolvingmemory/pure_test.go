@@ -4,9 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/weaviate/weaviate/entities/models"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
 func TestPrepareDocuments(t *testing.T) {

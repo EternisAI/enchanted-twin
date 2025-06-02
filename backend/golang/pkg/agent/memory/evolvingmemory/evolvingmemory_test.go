@@ -9,7 +9,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// TestConversationDocumentBasics tests basic ConversationDocument functionality
+// TestConversationDocumentBasics tests basic ConversationDocument functionality.
 func TestConversationDocumentBasics(t *testing.T) {
 	// Test data
 	conversation := &memory.ConversationDocument{
@@ -29,7 +29,7 @@ func TestConversationDocumentBasics(t *testing.T) {
 	assert.Equal(t, "alice", conversation.Metadata()["user"])
 }
 
-// TestTextDocumentBasics tests basic TextDocument functionality
+// TestTextDocumentBasics tests basic TextDocument functionality.
 func TestTextDocumentBasics(t *testing.T) {
 	now := time.Now()
 	textDoc := &memory.TextDocument{
@@ -46,7 +46,7 @@ func TestTextDocumentBasics(t *testing.T) {
 	assert.Equal(t, "notes", textDoc.Metadata()["source"])
 }
 
-// TestHelperFunctions tests utility functions
+// TestHelperFunctions tests utility functions.
 func TestHelperFunctions(t *testing.T) {
 	// Test firstNChars
 	assert.Equal(t, "Hello", firstNChars("Hello", 10))
@@ -58,7 +58,7 @@ func TestHelperFunctions(t *testing.T) {
 	assert.Regexp(t, `^\d{4}-\d{2}-\d{2}$`, dateStr) // Matches YYYY-MM-DD format
 }
 
-// TestValidationRules documents the speaker validation rules
+// TestValidationRules documents the speaker validation rules.
 func TestValidationRules(t *testing.T) {
 	tests := []struct {
 		name             string
@@ -111,7 +111,7 @@ func TestValidationRules(t *testing.T) {
 	}
 }
 
-// TestMemoryConstants verifies constants are defined
+// TestMemoryConstants verifies constants are defined.
 func TestMemoryConstants(t *testing.T) {
 	assert.Equal(t, "ADD", AddMemoryToolName)
 	assert.Equal(t, "UPDATE", UpdateMemoryToolName)

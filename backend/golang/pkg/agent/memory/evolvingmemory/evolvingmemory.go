@@ -2,8 +2,6 @@ package evolvingmemory
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -31,7 +29,7 @@ const (
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
 
-// Document types
+// Document types.
 type DocumentType string
 
 const (
@@ -39,7 +37,7 @@ const (
 	DocumentTypeText         DocumentType = "text"
 )
 
-// Configuration for the storage system
+// Configuration for the storage system.
 type Config struct {
 	// Parallelism
 	Workers        int
@@ -60,7 +58,7 @@ type Config struct {
 	StreamingProgress      bool
 }
 
-// Document preparation
+// Document preparation.
 type PreparedDocument struct {
 	Original   memory.Document
 	Type       DocumentType
@@ -69,25 +67,25 @@ type PreparedDocument struct {
 	DateString string // Pre-formatted
 }
 
-// Processing pipeline types
+// Processing pipeline types.
 type ExtractedFact struct {
 	Content   string
 	SpeakerID string
 	Source    PreparedDocument
 }
 
-// Memory actions
+// Memory actions.
 type MemoryAction string
 
 const (
-	// Using existing constants from above
+	// Using existing constants from above.
 	ADD    MemoryAction = AddMemoryToolName
 	UPDATE MemoryAction = UpdateMemoryToolName
 	DELETE MemoryAction = DeleteMemoryToolName
 	NONE   MemoryAction = NoneMemoryToolName
 )
 
-// Memory decision from LLM
+// Memory decision from LLM.
 type MemoryDecision struct {
 	Action     MemoryAction
 	TargetID   string // For UPDATE/DELETE
@@ -95,7 +93,7 @@ type MemoryDecision struct {
 	Confidence float64
 }
 
-// Processing result
+// Processing result.
 type FactResult struct {
 	Fact     ExtractedFact
 	Decision MemoryDecision
@@ -103,14 +101,14 @@ type FactResult struct {
 	Error    error
 }
 
-// Document result
+// Document result.
 type DocumentResult struct {
 	DocumentID string
 	Facts      []FactResult
 	Error      error
 }
 
-// Progress reporting
+// Progress reporting.
 type Progress struct {
 	Processed int
 	Total     int
@@ -118,7 +116,7 @@ type Progress struct {
 	Error     error
 }
 
-// Memory search results
+// Memory search results.
 type ExistingMemory struct {
 	ID        string
 	Content   string
@@ -127,7 +125,7 @@ type ExistingMemory struct {
 	Metadata  map[string]string // Contains speakerID if present
 }
 
-// Validation rules
+// Validation rules.
 type ValidationRule struct {
 	CurrentSpeakerID string // Who's processing this fact
 	IsDocumentLevel  bool   // Is current context document-level?
@@ -136,7 +134,7 @@ type ValidationRule struct {
 	Action           MemoryAction
 }
 
-// Interfaces for IO boundaries
+// Interfaces for IO boundaries.
 type FactExtractor interface {
 	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error)
 }
@@ -204,236 +202,12 @@ func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Ser
 	return storage, nil
 }
 
-func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) error {
-	ctx := context.Background()
-	exists, err := client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
-	if err != nil {
-		return fmt.Errorf("checking class existence for '%s': %w", ClassName, err)
-	}
-	if exists {
-		logger.Debugf("Class '%s' already exists.", ClassName)
-		return nil
-	}
-
-	logger.Infof("Class '%s' does not exist, creating it now.", ClassName)
-	properties := []*models.Property{
-		{
-			Name:     contentProperty,
-			DataType: []string{"text"},
-		},
-		{
-			Name:     timestampProperty, // Added for storing the event timestamp of the memory
-			DataType: []string{"date"},
-		},
-		{
-			Name:     tagsProperty,       // For categorization or keyword tagging
-			DataType: []string{"text[]"}, // Array of strings
-		},
-		{
-			Name:     metadataProperty, // For any other structured metadata
-			DataType: []string{"text"}, // Storing as JSON string
-		},
-	}
-
-	classObj := &models.Class{
-		Class:      ClassName,
-		Properties: properties,
-		Vectorizer: "none",
-		VectorIndexConfig: map[string]interface{}{
-			"distance": "cosine",
-		},
-	}
-
-	err = client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
-	if err != nil {
-		existsAfterAttempt, checkErr := client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
-		if checkErr == nil && existsAfterAttempt {
-			logger.Info("Class was created concurrently. Proceeding.", "class", ClassName)
-			return nil
-		}
-		return fmt.Errorf("creating class '%s': %w. Original error: %v", ClassName, err, err)
-	}
-	logger.Infof("Successfully created class '%s'", ClassName)
-	return nil
-}
-
 // firstNChars is a helper to get the first N characters of a string for logging.
 func firstNChars(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
 	return s[:n] + "..."
-}
-
-// GetByID retrieves a document by its Weaviate ID.
-// speakerID (if present) will be within the Metadata map after unmarshalling metadataJson.
-func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
-	s.logger.Debugf("Attempting to get document by ID: %s", id)
-
-	result, err := s.client.Data().ObjectsGetter().
-		WithClassName(ClassName).
-		WithID(id).
-		// No WithAdditionalParameters needed for ObjectsGetter for standard properties
-		Do(ctx)
-	if err != nil {
-		// Weaviate client might return a specific error for not found (e.g., status code 404 in the error details)
-		// For now, returning the generic error. Could inspect err for specific handling of "not found".
-		return nil, fmt.Errorf("getting document by ID '%s': %w", id, err)
-	}
-
-	if len(result) == 0 {
-		s.logger.Warnf("No document found with ID: %s (empty result array)", id)
-		return nil, nil // Or an error like fmt.Errorf("document with ID '%s' not found", id)
-	}
-
-	obj := result[0]
-	if obj.Properties == nil {
-		return nil, fmt.Errorf("document with ID '%s' has nil properties", id)
-	}
-
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("failed to cast properties to map[string]interface{} for ID '%s'", id)
-	}
-
-	content, _ := props[contentProperty].(string)
-	docTimestampStr, _ := props[timestampProperty].(string)
-	tagsInterface, _ := props[tagsProperty].([]interface{})
-	metadataJSON, _ := props[metadataProperty].(string) // This string contains all metadata, including speakerID
-
-	var docTimestampP *time.Time
-	if docTimestampStr != "" {
-		parsedTime, pErr := time.Parse(time.RFC3339, docTimestampStr)
-		if pErr != nil {
-			s.logger.Warnf("Failed to parse timestamp for document ID '%s': %v. Setting to nil.", id, pErr)
-		} else {
-			docTimestampP = &parsedTime
-		}
-	}
-
-	var tags []string
-	for _, tagInterface := range tagsInterface {
-		if tagStr, okT := tagInterface.(string); okT {
-			tags = append(tags, tagStr)
-		}
-	}
-
-	metadataMap := make(map[string]string) // This will hold all metadata, including speakerID if it was stored
-	if metadataJSON != "" {
-		if errJson := json.Unmarshal([]byte(metadataJSON), &metadataMap); errJson != nil {
-			s.logger.Warnf("Failed to unmarshal metadataJson for document ID '%s': %v. Metadata will be empty.", id, errJson)
-			// metadataMap will remain empty or partially filled if unmarshalling failed mid-way (unlikely for simple map[string]string)
-		}
-	}
-
-	doc := &memory.TextDocument{
-		FieldID:        obj.ID.String(), // Use the ID from Weaviate's object, converting to string
-		FieldContent:   content,
-		FieldTimestamp: docTimestampP,
-		FieldTags:      tags,
-		FieldMetadata:  metadataMap, // speakerID is now part of this map if it was stored
-	}
-
-	s.logger.Debugf("Successfully retrieved document by ID: %s. speakerID from metadata: '%s'", id, metadataMap["speakerID"])
-	return doc, nil
-}
-
-// Update updates an existing document in Weaviate.
-// speakerID (if present) is expected to be within doc.Metadata, which is marshaled to metadataJson.
-func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	s.logger.Debugf("Attempting to update document ID: %s", id)
-
-	data := map[string]interface{}{
-		contentProperty: doc.FieldContent,
-	}
-
-	if doc.FieldTimestamp != nil {
-		data[timestampProperty] = doc.FieldTimestamp.Format(time.RFC3339)
-	}
-	if len(doc.FieldTags) > 0 {
-		data[tagsProperty] = doc.FieldTags
-	} else {
-		data[tagsProperty] = []string{} // Explicitly clear tags if doc.Tags is empty
-	}
-
-	// All metadata, including speakerID, is expected to be in doc.Metadata.
-	// This map will be marshaled into the metadataJson field.
-	if len(doc.FieldMetadata) > 0 {
-		metadataBytes, err := json.Marshal(doc.FieldMetadata)
-		if err != nil {
-			s.logger.Errorf("Failed to marshal metadata for document ID '%s': %v", id, err)
-			return fmt.Errorf("marshaling metadata for update: %w", err)
-		}
-		data[metadataProperty] = string(metadataBytes)
-		s.logger.Debugf("Updating doc %s, speakerID in marshaled metadata: '%s'", id, doc.FieldMetadata["speakerID"])
-	} else {
-		data[metadataProperty] = "{}" // Store an empty JSON object string if no metadata
-		s.logger.Debugf("Updating doc %s with empty metadataJson", id)
-	}
-
-	updater := s.client.Data().Updater().
-		WithClassName(ClassName).
-		WithID(id).
-		WithProperties(data)
-
-	if len(vector) > 0 {
-		updater = updater.WithVector(vector)
-	}
-
-	err := updater.Do(ctx)
-	if err != nil {
-		return fmt.Errorf("updating document ID '%s': %w", id, err)
-	}
-
-	s.logger.Infof("Successfully updated document ID: %s", id)
-	return nil
-}
-
-// Delete removes a document from Weaviate by its ID.
-func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
-	err := s.client.Data().Deleter().
-		WithClassName(ClassName).
-		WithID(id).
-		Do(ctx)
-	if err != nil {
-		// Check if the error is because the object was not found. Often, delete is idempotent.
-		// For now, we just return the error. Specific error handling (e.g., for 404) can be added if needed.
-		return fmt.Errorf("failed to delete object %s: %w", id, err)
-	}
-
-	s.logger.Info("Successfully deleted document by ID (or it was already gone)", "id", id)
-	return nil
-}
-
-// DeleteAll deletes the entire Weaviate class to ensure a clean state for testing.
-func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
-	s.logger.Warn("Attempting to DELETE ENTIRE CLASS for testing purposes.", "class", ClassName)
-
-	// Check if class exists before trying to delete
-	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
-	if err != nil {
-		return fmt.Errorf("checking class existence before delete all for '%s': %w", ClassName, err)
-	}
-	if !exists {
-		s.logger.Info("Class does not exist, no need to delete.", "class", ClassName)
-		return nil
-	}
-
-	err = s.client.Schema().ClassDeleter().WithClassName(ClassName).Do(ctx)
-	if err != nil {
-		// It's possible the class was deleted by another process between the check and here.
-		// Or a genuine error occurred.
-		// Check existence again to be sure.
-		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
-		if checkErr == nil && !existsAfterAttempt {
-			s.logger.Info("Class was deleted, possibly concurrently or by this attempt despite error.", "class", ClassName)
-			return nil // Treat as success if it's gone
-		}
-		return fmt.Errorf("failed to delete class '%s': %w. Initial error: %v", ClassName, err, err)
-	}
-	s.logger.Info("Successfully deleted class for testing.", "class", ClassName)
-	// The schema will be recreated on the next operation that requires it via ensureSchemaExistsInternal.
-	return nil
 }
 
 // StoreConversations is an alias for Store to maintain backward compatibility.

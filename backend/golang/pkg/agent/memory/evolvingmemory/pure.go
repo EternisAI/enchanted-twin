@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/weaviate/weaviate/entities/models"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// PrepareDocuments converts raw documents into prepared documents with extracted metadata
+// PrepareDocuments converts raw documents into prepared documents with extracted metadata.
 func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, []error) {
 	prepared := make([]PreparedDocument, 0, len(docs))
 	errors := make([]error, 0)
@@ -57,7 +58,7 @@ func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocume
 	return prepared, nil
 }
 
-// DistributeWork splits documents evenly among workers
+// DistributeWork splits documents evenly among workers.
 func DistributeWork(docs []PreparedDocument, workers int) [][]PreparedDocument {
 	if workers <= 0 {
 		workers = 1
@@ -72,7 +73,7 @@ func DistributeWork(docs []PreparedDocument, workers int) [][]PreparedDocument {
 	return chunks
 }
 
-// ValidateMemoryOperation ensures speaker context rules are followed
+// ValidateMemoryOperation ensures speaker context rules are followed.
 func ValidateMemoryOperation(rule ValidationRule) error {
 	switch rule.Action {
 	case UPDATE, DELETE:
@@ -90,7 +91,7 @@ func ValidateMemoryOperation(rule ValidationRule) error {
 	return nil
 }
 
-// CreateMemoryObject builds the Weaviate object for ADD operations
+// CreateMemoryObject builds the Weaviate object for ADD operations.
 func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Object {
 	metadata := make(map[string]string)
 
@@ -114,7 +115,7 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	}
 }
 
-// BatchObjects groups objects into batches of specified size
+// BatchObjects groups objects into batches of specified size.
 func BatchObjects(objects []*models.Object, size int) [][]*models.Object {
 	if size <= 0 {
 		size = 100 // default
