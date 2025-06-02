@@ -12,6 +12,7 @@ import { ThemeProvider } from './lib/theme'
 import { TTSProvider } from './lib/ttsProvider'
 import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
+import UpdateNotification from './components/UpdateNotification'
 
 export const router = createRouter({
   routeTree,
@@ -39,6 +40,8 @@ function App() {
       <TTSProvider>
         <ApolloClientProvider>
           <div className="flex flex-col h-full w-full">
+            <UpdateNotification />
+
             <Toaster position="bottom-right" />
             <InvitationGate>
               <RouterProvider router={router} />
