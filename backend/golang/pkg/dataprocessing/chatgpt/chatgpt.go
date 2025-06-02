@@ -223,41 +223,35 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 		}
 
 		if messagesInterface, ok := record.Data["messages"]; ok {
+			// Validate that messagesInterface is actually a slice before proceeding
+			if messagesInterface == nil {
+				log.Printf("Warning: messages field is nil for conversation %s", id)
+				continue
+			}
+
 			switch messages := messagesInterface.(type) {
 			case []interface{}:
-				for _, messageInterface := range messages {
-					if messageMap, ok := messageInterface.(map[string]interface{}); ok {
-						role, ok := messageMap["Role"].(string)
-						if !ok {
-							log.Printf("Error: Skipping message with invalid role type or missing role key. Value: %v, Type: %T", messageMap["Role"], messageMap["Role"])
-							continue
-						}
-						text, ok := messageMap["Text"].(string)
-						if !ok {
-							log.Printf("Error: Skipping message with invalid text type or missing text key. Value: %v, Type: %T", messageMap["Text"], messageMap["Text"])
-							continue
-						}
-
-						if role != "" && text != "" {
-							conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
-								Speaker: role,
-								Content: text,
-								Time:    record.Timestamp,
-							})
-						} else {
-							log.Printf("Error: Skipping message with empty role or text")
-						}
-					}
+				if err := s.processInterfaceMessages(messages, &conversation, record.Timestamp); err != nil {
+					log.Printf("Warning: Failed to process interface messages for conversation %s: %v", id, err)
 				}
 			case []ConversationMessage:
 				for _, message := range messages {
-					conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
-						Speaker: message.Role,
-						Content: message.Text,
-						Time:    record.Timestamp,
-					})
+					if message.Role != "" && message.Text != "" {
+						conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+							Speaker: message.Role,
+							Content: message.Text,
+							Time:    record.Timestamp,
+						})
+					} else {
+						log.Printf("Warning: Skipping message with empty role or text in conversation %s", id)
+					}
 				}
+			default:
+				log.Printf("Warning: Unexpected messages type %T for conversation %s, skipping", messagesInterface, id)
+				continue
 			}
+		} else {
+			log.Printf("Warning: No messages field found for conversation %s", id)
 		}
 
 		conversationDocuments = append(conversationDocuments, conversation)
@@ -269,6 +263,61 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 	}
 
 	return documents, nil
+}
+
+func (s *ChatGPTProcessor) processInterfaceMessages(messages []interface{}, conversation *memory.ConversationDocument, timestamp time.Time) error {
+	for i, messageInterface := range messages {
+		if messageInterface == nil {
+			log.Printf("Warning: Skipping nil message at index %d", i)
+			continue
+		}
+
+		messageMap, ok := messageInterface.(map[string]interface{})
+		if !ok {
+			log.Printf("Warning: Skipping message at index %d with unexpected type %T", i, messageInterface)
+			continue
+		}
+
+		// Safely extract role with validation
+		roleInterface, exists := messageMap["Role"]
+		if !exists {
+			log.Printf("Warning: Skipping message at index %d with missing 'Role' key", i)
+			continue
+		}
+
+		role, ok := roleInterface.(string)
+		if !ok {
+			log.Printf("Warning: Skipping message at index %d with invalid role type %T (expected string)", i, roleInterface)
+			continue
+		}
+
+		// Safely extract text with validation
+		textInterface, exists := messageMap["Text"]
+		if !exists {
+			log.Printf("Warning: Skipping message at index %d with missing 'Text' key", i)
+			continue
+		}
+
+		text, ok := textInterface.(string)
+		if !ok {
+			log.Printf("Warning: Skipping message at index %d with invalid text type %T (expected string)", i, textInterface)
+			continue
+		}
+
+		// Validate content before adding
+		if role == "" || text == "" {
+			log.Printf("Warning: Skipping message at index %d with empty role or text", i)
+			continue
+		}
+
+		conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+			Speaker: role,
+			Content: text,
+			Time:    timestamp,
+		})
+	}
+
+	return nil
 }
 
 func parseTimestamp(ts string) (time.Time, error) {
