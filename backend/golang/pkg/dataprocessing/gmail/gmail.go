@@ -414,20 +414,6 @@ func SyncWithDateRange(ctx context.Context, token, startDate, endDate string, ma
 	return out, hasMore, list.NextPageToken, nil
 }
 
-func SortByOldest(records []types.Record) {
-	if len(records) <= 1 {
-		return
-	}
-
-	for i := 0; i < len(records)-1; i++ {
-		for j := i + 1; j < len(records); j++ {
-			if records[i].Timestamp.After(records[j].Timestamp) {
-				records[i], records[j] = records[j], records[i]
-			}
-		}
-	}
-}
-
 func FetchMessage(
 	ctx context.Context,
 	c *http.Client,

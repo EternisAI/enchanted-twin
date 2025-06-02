@@ -270,10 +270,6 @@ func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Documen
 	return documents, nil
 }
 
-func (s *ChatGPTProcessor) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Chatgpt")
-}
-
 func parseTimestamp(ts string) (time.Time, error) {
 	parts := strings.Split(ts, ".")
 	if len(parts) != 2 {

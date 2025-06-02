@@ -409,10 +409,6 @@ func (s *TextDocumentProcessor) ProcessDirectory(inputPath string) ([]types.Reco
 	return allRecords, nil
 }
 
-func (s *TextDocumentProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync not supported for local text files")
-}
-
 func (s *TextDocumentProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
