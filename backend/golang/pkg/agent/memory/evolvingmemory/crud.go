@@ -92,10 +92,6 @@ func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) err
 
 // GetByID retrieves a specific memory document from Weaviate by its ID.
 func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
-	if s.client == nil || s.client.Data() == nil {
-		return nil, fmt.Errorf("weaviate client not initialized")
-	}
-
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(id).
 		WithClassName(ClassName).
@@ -184,10 +180,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 
 // Delete removes a memory document from Weaviate by ID.
 func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
-	if s.client == nil || s.client.Data() == nil {
-		return fmt.Errorf("weaviate client not initialized")
-	}
-
 	err := s.client.Data().Deleter().
 		WithID(id).
 		WithClassName(ClassName).
@@ -250,18 +242,11 @@ func (s *WeaviateStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 		return fmt.Errorf("batch storing objects: %w", err)
 	}
 
-	// Check for individual errors
-	var errors []error
+	// Check for individual errors and fail on first error
 	for _, obj := range result {
 		if obj.Result.Errors != nil && len(obj.Result.Errors.Error) > 0 {
-			for _, e := range obj.Result.Errors.Error {
-				errors = append(errors, fmt.Errorf("object error: %s", e.Message))
-			}
+			return fmt.Errorf("object error: %s", obj.Result.Errors.Error[0].Message)
 		}
-	}
-
-	if len(errors) > 0 {
-		return fmt.Errorf("batch store had %d errors: %v", len(errors), errors[0])
 	}
 
 	s.logger.Infof("Successfully batch stored %d objects", len(objects))

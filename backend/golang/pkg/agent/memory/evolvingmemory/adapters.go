@@ -17,16 +17,18 @@ type factExtractorAdapter struct {
 }
 
 // NewFactExtractor creates a new FactExtractor implementation.
-func NewFactExtractor(storage *WeaviateStorage) FactExtractor {
-	return &factExtractorAdapter{storage: storage}
+func NewFactExtractor(storage *WeaviateStorage) (FactExtractor, error) {
+	if storage == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
+	}
+	if storage.completionsService == nil {
+		return nil, fmt.Errorf("completions service not initialized")
+	}
+	return &factExtractorAdapter{storage: storage}, nil
 }
 
 // ExtractFacts routes to the appropriate extraction method based on document type.
 func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error) {
-	if f.storage == nil {
-		return nil, fmt.Errorf("storage not initialized")
-	}
-
 	currentDate := getCurrentDateForPrompt()
 
 	switch doc.Type {
@@ -36,20 +38,12 @@ func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDoc
 			return nil, fmt.Errorf("document is not a ConversationDocument")
 		}
 
-		if f.storage.completionsService == nil {
-			return nil, fmt.Errorf("completions service not initialized")
-		}
-
 		return f.storage.extractFactsFromConversation(ctx, *convDoc, doc.SpeakerID, currentDate, doc.DateString)
 
 	case DocumentTypeText:
 		textDoc, ok := doc.Original.(*memory.TextDocument)
 		if !ok {
 			return nil, fmt.Errorf("document is not a TextDocument")
-		}
-
-		if f.storage.completionsService == nil {
-			return nil, fmt.Errorf("completions service not initialized")
 		}
 
 		return f.storage.extractFactsFromTextDocument(ctx, *textDoc, doc.SpeakerID, currentDate, doc.DateString)
@@ -65,19 +59,20 @@ type memoryOperationsAdapter struct {
 }
 
 // NewMemoryOperations creates a new MemoryOperations implementation.
-func NewMemoryOperations(storage *WeaviateStorage) MemoryOperations {
-	return &memoryOperationsAdapter{storage: storage}
+func NewMemoryOperations(storage *WeaviateStorage) (MemoryOperations, error) {
+	if storage == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
+	}
+	if storage.client == nil {
+		return nil, fmt.Errorf("weaviate client not initialized")
+	}
+	if storage.completionsService == nil {
+		return nil, fmt.Errorf("completions service not initialized")
+	}
+	return &memoryOperationsAdapter{storage: storage}, nil
 }
 
 func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error) {
-	if m.storage == nil {
-		return nil, fmt.Errorf("storage not initialized")
-	}
-
-	if m.storage.client == nil {
-		return nil, fmt.Errorf("weaviate client not properly initialized")
-	}
-
 	result, err := m.storage.Query(ctx, fact)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
@@ -100,10 +95,6 @@ func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string
 }
 
 func (m *memoryOperationsAdapter) DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error) {
-	if m.storage == nil || m.storage.completionsService == nil {
-		return MemoryDecision{}, fmt.Errorf("storage or completions service not properly initialized")
-	}
-
 	fullDecisionPrompt := m.buildDecisionPrompt(fact, similar)
 
 	decisionMessages := []openai.ChatCompletionMessageParamUnion{
