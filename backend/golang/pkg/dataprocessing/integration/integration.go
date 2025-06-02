@@ -44,7 +44,7 @@ func IntegrationTest(config IntegrationTestConfig) error {
 		TimeFormat:      time.Kitchen,
 	})
 
-	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate")
+	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate-test-memory")
 	if err != nil {
 		logger.Error("Error starting weaviate server", "error", err)
 		return err
@@ -97,7 +97,7 @@ func IntegrationTest(config IntegrationTestConfig) error {
 
 	mem, err := evolvingmemory.New(logger, weaviateClient, openAiService, aiEmbeddingsService)
 	if err != nil {
-		logger.Error("Error processing telegram", "error", err)
+		logger.Error("Error processing memory", "error", err)
 		return err
 	}
 
