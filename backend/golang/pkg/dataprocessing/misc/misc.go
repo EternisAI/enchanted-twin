@@ -14,7 +14,9 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 const (
@@ -27,7 +29,7 @@ type TextDocumentProcessor struct {
 	completionsModel string
 }
 
-func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string) *TextDocumentProcessor {
+func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string) processor.Processor {
 	return &TextDocumentProcessor{
 		openAiService:    openAiService,
 		chunkSize:        DefaultChunkSize,
@@ -258,7 +260,7 @@ func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content 
 	return tags, nil
 }
 
-func (s *TextDocumentProcessor) ProcessFile(filePath string) ([]types.Record, error) {
+func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -381,7 +383,7 @@ func (s *TextDocumentProcessor) ProcessFile(filePath string) ([]types.Record, er
 	return records, nil
 }
 
-func (s *TextDocumentProcessor) ProcessDirectory(inputPath string) ([]types.Record, error) {
+func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.WalkDir(inputPath, func(path string, d fs.DirEntry, err error) error {
@@ -393,7 +395,7 @@ func (s *TextDocumentProcessor) ProcessDirectory(inputPath string) ([]types.Reco
 			return nil
 		}
 
-		records, err := s.ProcessFile(path)
+		records, err := s.ProcessFile(ctx, path, store)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil
@@ -448,4 +450,8 @@ func (s *TextDocumentProcessor) ToDocuments(records []types.Record) ([]memory.Do
 	}
 
 	return documents_, nil
+}
+
+func (s *TextDocumentProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync not supported for local text files")
 }

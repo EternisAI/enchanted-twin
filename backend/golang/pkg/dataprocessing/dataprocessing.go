@@ -271,8 +271,8 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		processor := telegram.NewTelegramProcessor()
 		records, err = processor.ProcessFile(context.Background(), inputPath, s.store)
 	case "slack":
-		source := slack.New(inputPath)
-		records, err = source.ProcessDirectory("")
+		source := slack.NewSlackProcessor()
+		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
 	case "gmail":
 		source := gmail.NewGmailProcessor()
 		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
@@ -283,11 +283,11 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		source := whatsapp.NewWhatsappProcessor()
 		records, err = source.ProcessFile(context.Background(), inputPath, s.store)
 	case "chatgpt":
-		chatgptProcessor := chatgpt.NewChatGPTProcessor(inputPath)
-		records, err = chatgptProcessor.ProcessDirectory(context.Background(), s.store)
+		chatgptProcessor := chatgpt.NewChatGPTProcessor()
+		records, err = chatgptProcessor.ProcessDirectory(context.Background(), inputPath, s.store)
 	case "misc":
 		source := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel)
-		records, err = source.ProcessDirectory(inputPath)
+		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
@@ -310,7 +310,7 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 	sourceType = strings.ToLower(sourceType)
 	switch sourceType {
 	case "chatgpt":
-		chatgptProcessor := chatgpt.NewChatGPTProcessor("")
+		chatgptProcessor := chatgpt.NewChatGPTProcessor()
 		documents, err = chatgptProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
@@ -322,7 +322,7 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 			return nil, err
 		}
 	case "slack":
-		slackProcessor := slack.New("")
+		slackProcessor := slack.NewSlackProcessor()
 		documents, err = slackProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err

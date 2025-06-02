@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -59,14 +60,10 @@ type ConversationMessage struct {
 	Role string
 	Text string
 }
-type ChatGPTProcessor struct {
-	inputPath string
-}
+type ChatGPTProcessor struct{}
 
-func NewChatGPTProcessor(inputPath string) *ChatGPTProcessor {
-	return &ChatGPTProcessor{
-		inputPath: inputPath,
-	}
+func NewChatGPTProcessor() processor.Processor {
+	return &ChatGPTProcessor{}
 }
 
 func (s *ChatGPTProcessor) Name() string {
@@ -153,10 +150,10 @@ func (s *ChatGPTProcessor) ProcessFile(
 	return records, nil
 }
 
-func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, store *db.Store) ([]types.Record, error) {
+func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
 	var allRecords []types.Record
 
-	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -187,6 +184,10 @@ func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, store *db.Store
 	}
 
 	return allRecords, nil
+}
+
+func (s *ChatGPTProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for Chatgpt")
 }
 
 func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {

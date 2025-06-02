@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -69,7 +70,7 @@ type TelegramData struct {
 
 type TelegramProcessor struct{}
 
-func NewTelegramProcessor() *TelegramProcessor {
+func NewTelegramProcessor() processor.Processor {
 	return &TelegramProcessor{}
 }
 
@@ -116,6 +117,14 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 	}
 
 	return extractedUsername, nil
+}
+
+func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
+	return nil, fmt.Errorf("process directory not supported for Telegram")
+}
+
+func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for Telegram")
 }
 
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
