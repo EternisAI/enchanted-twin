@@ -36,7 +36,6 @@ func (s *WeaviateStorage) StoreV2(ctx context.Context, documents []memory.Docume
 		defer close(progressCh)
 		defer close(errorCh)
 
-		// Stage 1: Prepare documents (Pure)
 		prepared, prepError := PrepareDocuments(documents, time.Now())
 		if prepError != nil {
 			select {
@@ -56,43 +55,35 @@ func (s *WeaviateStorage) StoreV2(ctx context.Context, documents []memory.Docume
 			return
 		}
 
-		// Stage 2: Distribute work (Pure)
 		workChunks := DistributeWork(prepared, config.Workers)
 
-		// Stage 3: Create adapters
 		factExtractor := NewFactExtractor(s)
 		memoryOps := NewMemoryOperations(s)
 
-		// Stage 4: Parallel Processing Pipeline
 		factStream := make(chan ExtractedFact, 1000)
 		resultStream := make(chan FactResult, 1000)
 		objectStream := make(chan []*models.Object, 100)
 
-		// Workers: Document → Facts
 		var extractWg sync.WaitGroup
 		for i, chunk := range workChunks {
 			extractWg.Add(1)
 			go s.extractFactsWorker(ctx, chunk, factStream, &extractWg, factExtractor, i, config)
 		}
 
-		// Workers: Facts → Decisions → Results
 		var processWg sync.WaitGroup
 		for i := 0; i < config.Workers; i++ {
 			processWg.Add(1)
 			go s.processFactsWorker(ctx, factStream, resultStream, &processWg, memoryOps, i, config)
 		}
 
-		// Aggregator: Results → Batches
 		var aggregateWg sync.WaitGroup
 		aggregateWg.Add(1)
 		go s.aggregateResults(ctx, resultStream, objectStream, &aggregateWg, config)
 
-		// Storage: Batches → Weaviate
 		var storeWg sync.WaitGroup
 		storeWg.Add(1)
 		go s.streamingStore(ctx, objectStream, progressCh, errorCh, &storeWg, config)
 
-		// Close channels in order
 		extractWg.Wait()
 		close(factStream)
 
@@ -121,7 +112,6 @@ func (s *WeaviateStorage) extractFactsWorker(
 	defer wg.Done()
 
 	for _, doc := range docs {
-		// Apply timeout for fact extraction
 		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 
 		facts, err := factExtractor.ExtractFacts(extractCtx, doc)
@@ -132,7 +122,6 @@ func (s *WeaviateStorage) extractFactsWorker(
 			continue
 		}
 
-		// Send facts to the stream
 		for _, factContent := range facts {
 			if factContent == "" {
 				continue
@@ -183,7 +172,6 @@ func (s *WeaviateStorage) processSingleFact(
 	memoryOps MemoryOperations,
 	config Config,
 ) FactResult {
-	// Step 1: Search for similar memories
 	searchCtx, searchCancel := context.WithTimeout(ctx, config.MemoryDecisionTimeout)
 	similar, err := memoryOps.SearchSimilar(searchCtx, fact.Content, fact.SpeakerID)
 	searchCancel()
@@ -192,7 +180,6 @@ func (s *WeaviateStorage) processSingleFact(
 		return FactResult{Fact: fact, Error: fmt.Errorf("search failed: %w", err)}
 	}
 
-	// Step 2: LLM decides action
 	decisionCtx, decisionCancel := context.WithTimeout(ctx, config.MemoryDecisionTimeout)
 	decision, err := memoryOps.DecideAction(decisionCtx, fact.Content, similar)
 	decisionCancel()
@@ -201,7 +188,6 @@ func (s *WeaviateStorage) processSingleFact(
 		return FactResult{Fact: fact, Error: fmt.Errorf("decision failed: %w", err)}
 	}
 
-	// Step 3: Validate the operation
 	if decision.Action == UPDATE || decision.Action == DELETE {
 		targetMemory := findMemoryByID(similar, decision.TargetID)
 		if targetMemory == nil {
@@ -222,19 +208,15 @@ func (s *WeaviateStorage) processSingleFact(
 		}
 	}
 
-	// Step 4: Execute the action
 	switch decision.Action {
 	case UPDATE:
-		// Generate new embedding
 		embedding, err := s.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
 		if err != nil {
 			return FactResult{Fact: fact, Decision: decision, Error: err}
 		}
 
-		// Convert to float32
 		embedding32 := toFloat32(embedding)
 
-		// Execute update
 		updateCtx, updateCancel := context.WithTimeout(ctx, config.StorageTimeout)
 		err = memoryOps.UpdateMemory(updateCtx, decision.TargetID, fact.Content, embedding32)
 		updateCancel()
@@ -242,7 +224,6 @@ func (s *WeaviateStorage) processSingleFact(
 		return FactResult{Fact: fact, Decision: decision, Error: err}
 
 	case DELETE:
-		// Execute delete
 		deleteCtx, deleteCancel := context.WithTimeout(ctx, config.StorageTimeout)
 		err := memoryOps.DeleteMemory(deleteCtx, decision.TargetID)
 		deleteCancel()
@@ -250,10 +231,8 @@ func (s *WeaviateStorage) processSingleFact(
 		return FactResult{Fact: fact, Decision: decision, Error: err}
 
 	case ADD:
-		// Create object for batch insert
 		obj := CreateMemoryObject(fact, decision)
 
-		// Generate embedding
 		embedding, err := s.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
 		if err != nil {
 			return FactResult{Fact: fact, Decision: decision, Error: err}

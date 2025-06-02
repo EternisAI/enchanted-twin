@@ -100,12 +100,10 @@ func ValidateMemoryOperation(rule ValidationRule) error {
 func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Object {
 	metadata := make(map[string]string)
 
-	// Copy original metadata
 	for k, v := range fact.Source.Original.Metadata() {
 		metadata[k] = v
 	}
 
-	// Add speaker ID if present
 	if fact.SpeakerID != "" {
 		metadata["speakerID"] = fact.SpeakerID
 	}

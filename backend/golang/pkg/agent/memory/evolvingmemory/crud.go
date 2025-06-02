@@ -14,7 +14,6 @@ import (
 )
 
 // EnsureSchemaExistsInternal ensures the Weaviate schema exists for the Memory class.
-// Moved from evolvingmemory.go to isolate schema operations.
 func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) error {
 	// First, check if schema already exists
 	schema, err := client.Schema().Getter().Do(context.Background())
@@ -92,7 +91,6 @@ func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) err
 }
 
 // GetByID retrieves a specific memory document from Weaviate by its ID.
-// Moved from evolvingmemory.go to isolate retrieval operations.
 func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
 	if s.client == nil || s.client.Data() == nil {
 		return nil, fmt.Errorf("weaviate client not initialized")
@@ -151,7 +149,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 }
 
 // Update updates an existing memory document in Weaviate.
-// Moved from evolvingmemory.go to isolate update operations.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
 	// Prepare metadata JSON
 	metadataJSON, err := json.Marshal(doc.Metadata())
@@ -186,7 +183,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 }
 
 // Delete removes a memory document from Weaviate by ID.
-// Moved from evolvingmemory.go to isolate delete operations.
 func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
 	if s.client == nil || s.client.Data() == nil {
 		return fmt.Errorf("weaviate client not initialized")
@@ -205,7 +201,6 @@ func (s *WeaviateStorage) Delete(ctx context.Context, id string) error {
 }
 
 // DeleteAll removes all memory documents from Weaviate.
-// Moved from evolvingmemory.go to isolate delete operations.
 func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 	// Note: For v5 client, we need to delete the class and recreate it
 	// as batch delete with filters has changed significantly
@@ -239,7 +234,6 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 }
 
 // StoreBatch implements the StorageOperations interface for batch storing objects.
-// This is a new method that wraps the existing batch store functionality.
 func (s *WeaviateStorage) StoreBatch(ctx context.Context, objects []*models.Object) error {
 	if len(objects) == 0 {
 		return nil
