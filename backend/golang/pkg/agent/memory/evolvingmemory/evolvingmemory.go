@@ -9,6 +9,7 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
@@ -173,15 +174,20 @@ type WeaviateStorage struct {
 	logger             *log.Logger
 	completionsService *ai.Service
 	embeddingsService  *ai.Service
+	storage            storage.Interface
 }
 
 // New creates a new WeaviateStorage instance.
 func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Service, embeddingsService *ai.Service) (*WeaviateStorage, error) {
+	// Create storage interface
+	storageImpl := storage.New(client, logger)
+
 	storage := &WeaviateStorage{
 		client:             client,
 		logger:             logger,
 		completionsService: completionsService,
 		embeddingsService:  embeddingsService,
+		storage:            storageImpl,
 	}
 
 	return storage, nil

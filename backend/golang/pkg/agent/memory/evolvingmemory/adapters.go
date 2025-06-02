@@ -182,7 +182,7 @@ func (m *memoryOperationsAdapter) parseToolCallResponse(llmResponse openai.ChatC
 
 // UpdateMemory updates an existing memory with new content.
 func (m *memoryOperationsAdapter) UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error {
-	originalDoc, err := m.storage.GetByID(ctx, memoryID)
+	originalDoc, err := m.storage.storage.GetByID(ctx, memoryID)
 	if err != nil {
 		return fmt.Errorf("getting original document for update: %w", err)
 	}
@@ -196,10 +196,10 @@ func (m *memoryOperationsAdapter) UpdateMemory(ctx context.Context, memoryID str
 		FieldTags:      originalDoc.Tags(),
 	}
 
-	return m.storage.Update(ctx, memoryID, docToUpdate, embedding)
+	return m.storage.storage.Update(ctx, memoryID, docToUpdate, embedding)
 }
 
 // DeleteMemory removes a memory by ID.
 func (m *memoryOperationsAdapter) DeleteMemory(ctx context.Context, memoryID string) error {
-	return m.storage.Delete(ctx, memoryID)
+	return m.storage.storage.Delete(ctx, memoryID)
 }
