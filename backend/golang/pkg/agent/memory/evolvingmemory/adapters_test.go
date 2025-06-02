@@ -2,10 +2,13 @@ package evolvingmemory
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
@@ -13,73 +16,137 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
+// createTestAIService creates a real AI service if API key is available, otherwise returns nil.
+func createTestAIService() *ai.Service {
+	// Try to load .env file from the backend/golang directory
+	envPath := filepath.Join("..", "..", "..", "..", ".env")
+	err := godotenv.Load(envPath)
+	if err != nil {
+		log.Default().Warn("Failed to load .env file", "path", envPath, "error", err)
+	} else {
+		log.Default().Debug("Successfully loaded .env file", "path", envPath)
+	}
+
+	apiKey := os.Getenv("COMPLETIONS_API_KEY")
+	if apiKey == "" {
+		log.Default().Debug("COMPLETIONS_API_KEY not found in environment")
+		return nil
+	}
+
+	apiURL := os.Getenv("COMPLETIONS_API_URL")
+	if apiURL == "" {
+		apiURL = "https://api.openai.com/v1" // Default fallback
+	}
+
+	log.Default().Debug("COMPLETIONS_API_KEY found, creating AI service")
+	return ai.NewOpenAIService(log.Default(), apiKey, apiURL)
+}
+
 // TestFactExtractorAdapter tests the fact extractor adapter structure.
 func TestFactExtractorAdapter(t *testing.T) {
 	logger := log.Default()
 	mockClient := &weaviate.Client{}
-	mockCompletions := &ai.Service{} // Use real service type with mock implementation
-	mockEmbeddings := &ai.Service{}  // Use real service type with mock implementation
 
-	// Create storage with mock services
+	// Try to create real AI services, fall back to nil if no env vars
+	aiService := createTestAIService()
+	if aiService == nil {
+		// Create dummy services for basic structural tests
+		aiService = &ai.Service{}
+	}
+
+	// Create storage with services
 	storage := &WeaviateStorage{
 		logger:             logger,
 		client:             mockClient,
-		completionsService: mockCompletions,
-		embeddingsService:  mockEmbeddings,
+		completionsService: aiService,
+		embeddingsService:  aiService,
 	}
 	adapter, err := NewFactExtractor(storage)
 	assert.NoError(t, err)
 	assert.NotNil(t, adapter)
 
-	// TODO: Re-enable these tests when we have proper AI service mocking
-	// The empty ai.Service{} structs cause nil pointer dereferences when called
+	t.Run("ExtractFacts_ConversationDocument", func(t *testing.T) {
+		testAI := createTestAIService()
+		if testAI == nil {
+			t.Skip("Skipping AI-dependent test: COMPLETIONS_API_KEY not set")
+		}
 
-	// t.Run("ExtractFacts_ConversationDocument", func(t *testing.T) {
-	// 	// Create test conversation document
-	// 	convDoc := &memory.ConversationDocument{
-	// 		FieldID: "conv-123",
-	// 		User:    "alice",
-	// 		Conversation: []memory.ConversationMessage{
-	// 			{Speaker: "alice", Content: "I love pizza", Time: time.Now()},
-	// 			{Speaker: "bob", Content: "I prefer sushi", Time: time.Now()},
-	// 		},
-	// 	}
-	// 	// Create prepared document
-	// 	prepDoc := PreparedDocument{
-	// 		Original:   convDoc,
-	// 		Type:       DocumentTypeConversation,
-	// 		SpeakerID:  "alice",
-	// 		Timestamp:  time.Now(),
-	// 		DateString: "2024-01-15",
-	// 	}
-	// 	// Test that the adapter routes to the correct method
-	// 	facts, err := adapter.ExtractFacts(context.Background(), prepDoc)
-	// 	assert.NoError(t, err)
-	// 	assert.NotNil(t, facts)
-	// })
+		// Create storage with real AI service
+		storageWithAI := &WeaviateStorage{
+			logger:             logger,
+			client:             mockClient,
+			completionsService: testAI,
+			embeddingsService:  testAI,
+		}
+		adapterWithAI, err := NewFactExtractor(storageWithAI)
+		assert.NoError(t, err)
 
-	// t.Run("ExtractFacts_TextDocument", func(t *testing.T) {
-	// 	// Create test text document
-	// 	now := time.Now()
-	// 	textDoc := &memory.TextDocument{
-	// 		FieldID:        "text-456",
-	// 		FieldContent:   "The user's favorite color is blue.",
-	// 		FieldTimestamp: &now,
-	// 		FieldMetadata:  map[string]string{"source": "notes"},
-	// 	}
-	// 	// Create prepared document
-	// 	prepDoc := PreparedDocument{
-	// 		Original:   textDoc,
-	// 		Type:       DocumentTypeText,
-	// 		SpeakerID:  "user",
-	// 		Timestamp:  now,
-	// 		DateString: "2024-01-15",
-	// 	}
-	// 	// Test that the adapter routes to the correct method
-	// 	facts, err := adapter.ExtractFacts(context.Background(), prepDoc)
-	// 	assert.NoError(t, err)
-	// 	assert.NotNil(t, facts)
-	// })
+		// Create test conversation document
+		convDoc := &memory.ConversationDocument{
+			FieldID: "conv-123",
+			User:    "alice",
+			Conversation: []memory.ConversationMessage{
+				{Speaker: "alice", Content: "I love pizza", Time: time.Now()},
+				{Speaker: "bob", Content: "I prefer sushi", Time: time.Now()},
+			},
+		}
+		// Create prepared document
+		prepDoc := PreparedDocument{
+			Original:   convDoc,
+			Type:       DocumentTypeConversation,
+			SpeakerID:  "alice",
+			Timestamp:  time.Now(),
+			DateString: "2024-01-15",
+		}
+
+		// Test that the adapter routes to the correct method
+		facts, err := adapterWithAI.ExtractFacts(context.Background(), prepDoc)
+		assert.NoError(t, err)
+		assert.NotNil(t, facts)
+		// Should be empty or contain facts depending on LLM response
+		t.Logf("Extracted %d facts", len(facts))
+	})
+
+	t.Run("ExtractFacts_TextDocument", func(t *testing.T) {
+		testAI := createTestAIService()
+		if testAI == nil {
+			t.Skip("Skipping AI-dependent test: COMPLETIONS_API_KEY not set")
+		}
+
+		// Create storage with real AI service
+		storageWithAI := &WeaviateStorage{
+			logger:             logger,
+			client:             mockClient,
+			completionsService: testAI,
+			embeddingsService:  testAI,
+		}
+		adapterWithAI, err := NewFactExtractor(storageWithAI)
+		assert.NoError(t, err)
+
+		// Create test text document
+		now := time.Now()
+		textDoc := &memory.TextDocument{
+			FieldID:        "text-456",
+			FieldContent:   "The user's favorite color is blue.",
+			FieldTimestamp: &now,
+			FieldMetadata:  map[string]string{"source": "notes"},
+		}
+		// Create prepared document
+		prepDoc := PreparedDocument{
+			Original:   textDoc,
+			Type:       DocumentTypeText,
+			SpeakerID:  "user",
+			Timestamp:  now,
+			DateString: "2024-01-15",
+		}
+
+		// Test that the adapter routes to the correct method
+		facts, err := adapterWithAI.ExtractFacts(context.Background(), prepDoc)
+		assert.NoError(t, err)
+		assert.NotNil(t, facts)
+		// Should be empty or contain facts depending on LLM response
+		t.Logf("Extracted %d facts", len(facts))
+	})
 
 	t.Run("ExtractFacts_UnknownDocumentType", func(t *testing.T) {
 		prepDoc := PreparedDocument{
@@ -117,12 +184,11 @@ func TestFactExtractorAdapter(t *testing.T) {
 	})
 
 	t.Run("NewFactExtractor_NilCompletionsService", func(t *testing.T) {
-		mockEmbeddings := &ai.Service{}
 		storageWithoutCompletions := &WeaviateStorage{
 			logger:             logger,
 			client:             mockClient,
 			completionsService: nil,
-			embeddingsService:  mockEmbeddings,
+			embeddingsService:  aiService,
 		}
 		_, err := NewFactExtractor(storageWithoutCompletions)
 		assert.Error(t, err)
@@ -134,55 +200,20 @@ func TestFactExtractorAdapter(t *testing.T) {
 func TestMemoryOperationsAdapter(t *testing.T) {
 	logger := log.Default()
 	mockClient := &weaviate.Client{}
-	mockCompletions := &ai.Service{}
-	mockEmbeddings := &ai.Service{}
 
-	// TODO: Re-enable these tests when we have proper Weaviate client mocking
-	// t.Run("SearchSimilar_Structure", func(t *testing.T) {
-	// 	storage := &WeaviateStorage{
-	// 		logger: logger,
-	// 		client: mockClient,
-	// 	}
-	// 	adapter, err := NewMemoryOperations(storage)
-
-	// 	// Test that SearchSimilar wraps Query method properly
-	// 	memories, err := adapter.SearchSimilar(context.Background(), "test fact", "speaker1")
-	// 	assert.NoError(t, err)
-	// 	assert.NotNil(t, memories)
-	// })
-
-	// t.Run("UpdateMemory_RequiresGetByID", func(t *testing.T) {
-	// 	storage := &WeaviateStorage{
-	// 		logger: logger,
-	// 		client: mockClient,
-	// 	}
-	// 	adapter, err := NewMemoryOperations(storage)
-
-	// 	// Test that UpdateMemory tries to get the original document
-	// 	embedding := make([]float32, 10)
-	// 	err := adapter.UpdateMemory(context.Background(), "mem1", "new content", embedding)
-	// 	assert.NoError(t, err)
-	// })
-
-	// t.Run("DeleteMemory_Structure", func(t *testing.T) {
-	// 	storage := &WeaviateStorage{
-	// 		logger: logger,
-	// 		client: mockClient,
-	// 	}
-	// 	adapter, err := NewMemoryOperations(storage)
-
-	// 	// Test that DeleteMemory wraps Delete method
-	// 	err := adapter.DeleteMemory(context.Background(), "mem1")
-	// 	assert.NoError(t, err)
-	// })
+	// Try to create real AI services, fall back to dummy if no env vars
+	aiService := createTestAIService()
+	if aiService == nil {
+		aiService = &ai.Service{}
+	}
 
 	// Just a basic test to ensure the function doesn't completely fail
 	t.Run("BasicStructure", func(t *testing.T) {
 		storage := &WeaviateStorage{
 			logger:             logger,
 			client:             mockClient,
-			completionsService: mockCompletions,
-			embeddingsService:  mockEmbeddings,
+			completionsService: aiService,
+			embeddingsService:  aiService,
 		}
 		_, err := NewMemoryOperations(storage)
 		assert.NoError(t, err)
@@ -221,7 +252,14 @@ func TestDecisionParsing(t *testing.T) {
 func TestAdapterCreation(t *testing.T) {
 	logger := log.Default()
 	mockClient := &weaviate.Client{}
-	storage, _ := New(logger, mockClient, &ai.Service{}, &ai.Service{})
+
+	// Try to create real AI services, fall back to dummy if no env vars
+	aiService := createTestAIService()
+	if aiService == nil {
+		aiService = &ai.Service{}
+	}
+
+	storage, _ := New(logger, mockClient, aiService, aiService)
 
 	t.Run("NewFactExtractor", func(t *testing.T) {
 		adapter, err := NewFactExtractor(storage)
@@ -248,13 +286,11 @@ func TestAdapterCreation(t *testing.T) {
 	})
 
 	t.Run("NewMemoryOperations_NilClient", func(t *testing.T) {
-		mockCompletions := &ai.Service{}
-		mockEmbeddings := &ai.Service{}
 		storageWithoutClient := &WeaviateStorage{
 			logger:             logger,
 			client:             nil,
-			completionsService: mockCompletions,
-			embeddingsService:  mockEmbeddings,
+			completionsService: aiService,
+			embeddingsService:  aiService,
 		}
 		_, err := NewMemoryOperations(storageWithoutClient)
 		assert.Error(t, err)
@@ -262,12 +298,11 @@ func TestAdapterCreation(t *testing.T) {
 	})
 
 	t.Run("NewMemoryOperations_NilCompletionsService", func(t *testing.T) {
-		mockEmbeddings := &ai.Service{}
 		storageWithoutCompletions := &WeaviateStorage{
 			logger:             logger,
 			client:             mockClient,
 			completionsService: nil,
-			embeddingsService:  mockEmbeddings,
+			embeddingsService:  aiService,
 		}
 		_, err := NewMemoryOperations(storageWithoutCompletions)
 		assert.Error(t, err)
