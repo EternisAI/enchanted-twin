@@ -180,7 +180,7 @@ type WeaviateStorage struct {
 // New creates a new WeaviateStorage instance.
 func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Service, embeddingsService *ai.Service) (*WeaviateStorage, error) {
 	// Create storage interface
-	storageImpl := storage.New(client, logger)
+	storageImpl := storage.New(client, logger, embeddingsService)
 
 	storage := &WeaviateStorage{
 		client:             client,
@@ -260,4 +260,14 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 	}
 
 	return nil
+}
+
+// Query implements the memory.Storage interface by delegating to the storage interface.
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
+	return s.storage.Query(ctx, queryText)
+}
+
+// QueryWithDistance implements the memory.Storage interface by delegating to the storage interface.
+func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
+	return s.storage.QueryWithDistance(ctx, queryText, metadataFilters...)
 }
