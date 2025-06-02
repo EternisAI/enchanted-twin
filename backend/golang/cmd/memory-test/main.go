@@ -16,8 +16,8 @@ func main() {
 		log.Fatal("Error loading config:", err)
 	}
 
-	source := "telegram" // see pkg dataprocessing for supported sources
-	inputPath := "data_input/telegram_export.json.zip"
+	source := "chatgpt" // see pkg dataprocessing for supported sources
+	inputPath := "data_input/chatgpt.zip"
 
 	completionsModel := "gpt-4o-mini"
 	completionsApiUrl := "https://openrouter.ai/api/v1"
@@ -36,7 +36,7 @@ func main() {
 		id,
 	)
 
-	if err := integration.IntegrationTest(integration.IntegrationTestConfig{
+	if err := integration.IntegrationTestMemory(integration.IntegrationTestMemoryConfig{
 		Source:            source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,

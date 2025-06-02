@@ -26,6 +26,7 @@ func (s *FriendService) StoreSentMessage(ctx context.Context, message string, ac
 
 	now := time.Now()
 	doc := memory.TextDocument{
+		FieldSource:    "friend",
 		FieldContent:   message,
 		FieldTimestamp: &now,
 		FieldTags:      []string{"sent_message", activityType},
@@ -456,6 +457,7 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 			"activity_type": "question",
 		}
 		doc := memory.TextDocument{
+			FieldSource:   "friend",
 			FieldContent:  question,
 			FieldMetadata: metaData,
 			FieldTags:     []string{"friend", "question"},

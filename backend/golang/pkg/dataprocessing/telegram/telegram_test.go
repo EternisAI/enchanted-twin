@@ -83,7 +83,6 @@ func TestToDocuments(t *testing.T) {
 		"firstName":   "John",
 		"lastName":    "Doe",
 		"phoneNumber": "+1234567890",
-		"source":      "telegram",
 	}, contactDoc.Metadata())
 }
 
