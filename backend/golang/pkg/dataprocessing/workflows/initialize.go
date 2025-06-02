@@ -350,13 +350,25 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			return IndexDataActivityResponse{}, err
 		}
 
+		if len(records) == 0 {
+			w.Logger.Warn("No records found for data source", "dataSource", dataSourceDB.Name)
+			dataSourcesResponse[i].IsIndexed = true
+			continue
+		}
+
 		dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
 
 		batchSize := 20
 		totalBatches := (len(records) + batchSize - 1) / batchSize
 
 		for j := 0; j < len(records); j += batchSize {
-			documents, err := dataprocessingService.ToDocuments(ctx, dataSourceDB.Name, records)
+			end := j + batchSize
+			if end > len(records) {
+				end = len(records)
+			}
+
+			batchRecords := records[j:end]
+			documents, err := dataprocessingService.ToDocuments(ctx, dataSourceDB.Name, batchRecords)
 			if err != nil {
 				return IndexDataActivityResponse{}, err
 			}
