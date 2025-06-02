@@ -160,7 +160,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                   tabIndex={-1}
                   aria-label="Stop message audio"
                 >
-                  <VolumeOff className="h-5 w-5 text-black fill-black" />
+                  <VolumeOff className="h-5 w-5 text-primary" />
                 </button>
               ) : (
                 <button
@@ -170,7 +170,7 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
                   tabIndex={-1}
                   aria-label="Play message audio"
                 >
-                  <Volume2 className="h-5 w-5 text-black" />
+                  <Volume2 className="h-5 w-5 text-primary" />
                 </button>
               )}
             </span>
