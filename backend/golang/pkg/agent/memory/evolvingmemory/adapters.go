@@ -24,8 +24,8 @@ func NewFactExtractor(storage *WeaviateStorage) FactExtractor {
 // ExtractFacts routes to the appropriate extraction method based on document type.
 func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error) {
 	// Check if storage is properly initialized
-	if f.storage == nil || f.storage.completionsService == nil {
-		return nil, fmt.Errorf("storage or completions service not properly initialized")
+	if f.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
 	}
 
 	currentDate := getCurrentDateForPrompt()
@@ -36,6 +36,12 @@ func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDoc
 		if !ok {
 			return nil, fmt.Errorf("document is not a ConversationDocument")
 		}
+
+		// Check completions service only when we need it
+		if f.storage.completionsService == nil {
+			return nil, fmt.Errorf("completions service not initialized")
+		}
+
 		return f.storage.extractFactsFromConversation(ctx, *convDoc, doc.SpeakerID, currentDate, doc.DateString)
 
 	case DocumentTypeText:
@@ -43,6 +49,12 @@ func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDoc
 		if !ok {
 			return nil, fmt.Errorf("document is not a TextDocument")
 		}
+
+		// Check completions service only when we need it
+		if f.storage.completionsService == nil {
+			return nil, fmt.Errorf("completions service not initialized")
+		}
+
 		return f.storage.extractFactsFromTextDocument(ctx, *textDoc, doc.SpeakerID, currentDate, doc.DateString)
 
 	default:
@@ -63,8 +75,12 @@ func NewMemoryOperations(storage *WeaviateStorage) MemoryOperations {
 // SearchSimilar wraps the existing Query method.
 func (m *memoryOperationsAdapter) SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error) {
 	// Check if storage is properly initialized
-	if m.storage == nil || m.storage.client == nil {
-		return nil, fmt.Errorf("storage or weaviate client not properly initialized")
+	if m.storage == nil {
+		return nil, fmt.Errorf("storage not initialized")
+	}
+
+	if m.storage.client == nil {
+		return nil, fmt.Errorf("weaviate client not properly initialized")
 	}
 
 	result, err := m.storage.Query(ctx, fact)

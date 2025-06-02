@@ -18,7 +18,13 @@ func TestFactExtractorAdapter(t *testing.T) {
 	logger := log.Default()
 	mockClient := &weaviate.Client{}
 
-	storage, _ := New(logger, mockClient, &ai.Service{}, &ai.Service{})
+	// Create storage with nil services - this is ok for structure tests
+	storage := &WeaviateStorage{
+		logger:             logger,
+		client:             mockClient,
+		completionsService: nil, // Explicitly nil
+		embeddingsService:  nil, // Explicitly nil
+	}
 	adapter := NewFactExtractor(storage)
 
 	t.Run("ExtractFacts_ConversationDocument", func(t *testing.T) {
@@ -42,11 +48,12 @@ func TestFactExtractorAdapter(t *testing.T) {
 		}
 
 		// Test that the adapter routes to the correct method
-		// This will fail with actual service calls, but we're testing the structure
+		// This will fail with our nil check
 		_, err := adapter.ExtractFacts(context.Background(), prepDoc)
 
-		// We expect an error because the AI service is not properly initialized
+		// We expect an error because the completions service is nil
 		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "completions service not initialized")
 	})
 
 	t.Run("ExtractFacts_TextDocument", func(t *testing.T) {
@@ -70,7 +77,8 @@ func TestFactExtractorAdapter(t *testing.T) {
 
 		// Test that the adapter routes to the correct method
 		_, err := adapter.ExtractFacts(context.Background(), prepDoc)
-		assert.Error(t, err) // Expected due to uninitialized service
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "completions service not initialized")
 	})
 
 	t.Run("ExtractFacts_UnknownDocumentType", func(t *testing.T) {
@@ -109,17 +117,24 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 	mockClient := &weaviate.Client{}
 
 	t.Run("SearchSimilar_Structure", func(t *testing.T) {
-		storage, _ := New(logger, mockClient, &ai.Service{}, &ai.Service{})
+		storage := &WeaviateStorage{
+			logger: logger,
+			client: nil, // Nil client to test error handling
+		}
 		adapter := NewMemoryOperations(storage)
 
 		// Test that SearchSimilar wraps Query method properly
-		// This will fail with actual calls, but tests the structure
+		// This will fail with our nil check
 		_, err := adapter.SearchSimilar(context.Background(), "test fact", "speaker1")
-		assert.Error(t, err) // Expected due to uninitialized client
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "weaviate client not properly initialized")
 	})
 
 	t.Run("UpdateMemory_RequiresGetByID", func(t *testing.T) {
-		storage, _ := New(logger, mockClient, &ai.Service{}, &ai.Service{})
+		storage := &WeaviateStorage{
+			logger: logger,
+			client: mockClient,
+		}
 		adapter := NewMemoryOperations(storage)
 
 		// Test that UpdateMemory tries to get the original document
@@ -130,7 +145,10 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 	})
 
 	t.Run("DeleteMemory_Structure", func(t *testing.T) {
-		storage, _ := New(logger, mockClient, &ai.Service{}, &ai.Service{})
+		storage := &WeaviateStorage{
+			logger: logger,
+			client: mockClient,
+		}
 		adapter := NewMemoryOperations(storage)
 
 		// Test that DeleteMemory wraps Delete method

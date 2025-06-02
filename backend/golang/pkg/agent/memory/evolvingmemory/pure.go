@@ -115,24 +115,6 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	}
 }
 
-// BatchObjects groups objects into batches of specified size.
-func BatchObjects(objects []*models.Object, size int) [][]*models.Object {
-	if size <= 0 {
-		size = 100 // default
-	}
-
-	var batches [][]*models.Object
-	for i := 0; i < len(objects); i += size {
-		end := i + size
-		if end > len(objects) {
-			end = len(objects)
-		}
-		batches = append(batches, objects[i:end])
-	}
-
-	return batches
-}
-
 func marshalMetadata(metadata map[string]string) string {
 	// Simple implementation - in production might want proper JSON marshaling
 	result := "{"
@@ -146,4 +128,22 @@ func marshalMetadata(metadata map[string]string) string {
 	}
 	result += "}"
 	return result
+}
+
+// BatchObjects splits a slice of objects into batches of the specified size.
+func BatchObjects(objects []*models.Object, batchSize int) [][]*models.Object {
+	if batchSize <= 0 {
+		batchSize = 100 // Default batch size
+	}
+
+	var batches [][]*models.Object
+	for i := 0; i < len(objects); i += batchSize {
+		end := i + batchSize
+		if end > len(objects) {
+			end = len(objects)
+		}
+		batches = append(batches, objects[i:end])
+	}
+
+	return batches
 }

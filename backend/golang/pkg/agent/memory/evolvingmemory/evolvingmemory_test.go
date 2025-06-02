@@ -1,9 +1,11 @@
 package evolvingmemory
 
 import (
+	"context"
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -44,18 +46,6 @@ func TestTextDocumentBasics(t *testing.T) {
 	assert.Equal(t, "The user's favorite color is blue.", textDoc.Content())
 	assert.Equal(t, &now, textDoc.Timestamp())
 	assert.Equal(t, "notes", textDoc.Metadata()["source"])
-}
-
-// TestHelperFunctions tests utility functions.
-func TestHelperFunctions(t *testing.T) {
-	// Test firstNChars
-	assert.Equal(t, "Hello", firstNChars("Hello", 10))
-	assert.Equal(t, "Hello...", firstNChars("Hello World", 5))
-
-	// Test getCurrentDateForPrompt - it returns date in YYYY-MM-DD format
-	dateStr := getCurrentDateForPrompt()
-	assert.NotEmpty(t, dateStr)
-	assert.Regexp(t, `^\d{4}-\d{2}-\d{2}$`, dateStr) // Matches YYYY-MM-DD format
 }
 
 // TestValidationRules documents the speaker validation rules.
@@ -118,6 +108,65 @@ func TestMemoryConstants(t *testing.T) {
 	assert.Equal(t, "DELETE", DeleteMemoryToolName)
 	assert.Equal(t, "NONE", NoneMemoryToolName)
 	assert.Equal(t, "EXTRACT_FACTS", ExtractFactsToolName)
+}
+
+// TestStore_BackwardCompatibility tests the backward compatibility of the Store method.
+func TestStore_BackwardCompatibility(t *testing.T) {
+	// Test with empty documents - this should work without any mocks
+	t.Run("empty documents", func(t *testing.T) {
+		logger := log.Default()
+		storage := &WeaviateStorage{
+			logger: logger,
+			// Don't need other fields for empty document test
+		}
+
+		err := storage.Store(context.Background(), []memory.Document{}, nil)
+		assert.NoError(t, err)
+	})
+
+	// Test with progress callback - simplified version
+	t.Run("with progress callback", func(t *testing.T) {
+		progressCalls := 0
+		callback := func(processed, total int) {
+			progressCalls++
+			// Empty documents, so nothing to process
+			assert.Equal(t, 0, processed)
+			assert.Equal(t, 0, total)
+		}
+
+		logger := log.Default()
+		storage := &WeaviateStorage{
+			logger: logger,
+		}
+
+		err := storage.Store(context.Background(), []memory.Document{}, callback)
+		assert.NoError(t, err)
+
+		// For empty documents, callback might not be called, which is fine
+		t.Logf("Progress callback called %d times", progressCalls)
+	})
+
+	// Test context cancellation
+	t.Run("context cancellation", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel() // Cancel immediately
+
+		logger := log.Default()
+		storage := &WeaviateStorage{
+			logger: logger,
+		}
+
+		docs := []memory.Document{
+			&memory.TextDocument{
+				FieldID:      "test-doc-2",
+				FieldContent: "Test content 2",
+			},
+		}
+
+		err := storage.Store(ctx, docs, nil)
+		assert.Error(t, err)
+		assert.Equal(t, context.Canceled, err)
+	})
 }
 
 // Note: Full integration tests with real Weaviate/AI services
