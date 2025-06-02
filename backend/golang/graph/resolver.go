@@ -6,6 +6,7 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/contacts"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
@@ -27,6 +28,7 @@ type Resolver struct {
 	MCPService             mcpserver.MCPService
 	DataProcessingWorkflow *workflows.DataProcessingWorkflows
 	TelegramService        *telegram.TelegramService
+	ContactsService        *contacts.Service
 	WhatsAppQRCode         *string // Current WhatsApp QR code
 	WhatsAppConnected      bool    // WhatsApp connection status
 }

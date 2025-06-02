@@ -113,7 +113,7 @@ func IntegrationTest(config IntegrationTestConfig) error {
 
 	fmt.Println(records)
 
-	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
+	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source), nil)
 	if err != nil {
 		logger.Error("Error querying memory", "error", err)
 		return err

@@ -44,6 +44,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/contacts"
+	"github.com/EternisAI/enchanted-twin/pkg/contacts/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
@@ -216,6 +218,11 @@ func main() {
 	logger.Info("Evolving memory created", "elapsed", time.Since(memoryCreateStart))
 	logger.Info("Total Weaviate setup completed", "total_elapsed", time.Since(weaviateBootstrapStart))
 
+	logger.Info("Creating contacts service")
+	contactsStorage := storage.NewStorage(weaviateClient, logger)
+	contactsService := contacts.NewService(contactsStorage, mem, aiCompletionsService, envs.CompletionsModel)
+	logger.Info("Contacts service created")
+
 	whatsappClientChan := make(chan *whatsmeow.Client)
 	go func() {
 		client := whatsapp.BootstrapWhatsAppClient(mem, logger, nc, envs.DBPath, envs)
@@ -381,6 +388,7 @@ func main() {
 		aiService:         aiCompletionsService,
 		mcpService:        mcpService,
 		telegramService:   telegramService,
+		contactsService:   contactsService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
 	})
@@ -506,6 +514,7 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	contactsService        *contacts.Service
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
 }
@@ -529,6 +538,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
+		ContactsService:        input.contactsService,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
 	}

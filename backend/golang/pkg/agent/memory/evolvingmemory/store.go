@@ -279,9 +279,27 @@ func (s *WeaviateStorage) StoreRawData(ctx context.Context, documents []memory.T
 
 		originalMetadata := doc.Metadata()
 		if len(originalMetadata) > 0 {
-			data[metadataProperty] = originalMetadata
+			// Store metadata as an object, not a JSON string
+			metadataObj := make(map[string]interface{})
+			for key, value := range originalMetadata {
+				metadataObj[key] = value
+			}
+			data[metadataProperty] = metadataObj
+
+			// Extract and store source and contactName as root-level properties for efficient indexing
+			if source, exists := originalMetadata["source"]; exists && source != "" {
+				data[sourceProperty] = source
+			}
+			if contactName, exists := originalMetadata[contactNameProperty]; exists && contactName != "" {
+				data[contactNameProperty] = contactName
+			}
 		} else {
-			data[metadataProperty] = "{}"
+			data[metadataProperty] = map[string]interface{}{}
+		}
+
+		// Also check document source method
+		if docSource := doc.Source(); docSource != "" {
+			data[sourceProperty] = docSource
 		}
 
 		obj := &models.Object{

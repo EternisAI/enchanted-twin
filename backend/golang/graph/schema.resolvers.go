@@ -13,12 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -26,6 +20,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -647,6 +646,11 @@ func (r *queryResolver) WhitelistStatus(ctx context.Context) (bool, error) {
 	return auth.IsWhitelisted(ctx, r.Logger, r.Store)
 }
 
+// GetContacts is the resolver for the getContacts field.
+func (r *queryResolver) GetContacts(ctx context.Context) ([]*model.Contact, error) {
+	panic(fmt.Errorf("not implemented: GetContacts - getContacts"))
+}
+
 // MessageAdded is the resolver for the messageAdded field.
 func (r *subscriptionResolver) MessageAdded(ctx context.Context, chatID string) (<-chan *model.Message, error) {
 	messages := make(chan *model.Message)
@@ -1013,10 +1017,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

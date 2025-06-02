@@ -2,7 +2,6 @@ package evolvingmemory
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -12,16 +11,19 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 const (
-	ClassName         = "TextDocument"
-	contentProperty   = "content"
-	timestampProperty = "timestamp"
-	tagsProperty      = "tags"
-	metadataProperty  = "metadataJson"
-	openAIEmbedModel  = "text-embedding-3-small"
-	openAIChatModel   = "gpt-4o-mini"
+	ClassName           = "TextDocument"
+	contentProperty     = "content"
+	timestampProperty   = "timestamp"
+	tagsProperty        = "tags"
+	metadataProperty    = "metadata"
+	sourceProperty      = "source"
+	contactNameProperty = "contact_name"
+	openAIEmbedModel    = "text-embedding-3-small"
+	openAIChatModel     = "gpt-4o-mini"
 
 	// Tool Names (matching function names in tools.go).
 	AddMemoryToolName    = "ADD"
@@ -101,16 +103,45 @@ func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) err
 			DataType: []string{"text"},
 		},
 		{
-			Name:     timestampProperty, // Added for storing the event timestamp of the memory
-			DataType: []string{"date"},
+			Name:              timestampProperty,
+			DataType:          []string{"date"},
+			IndexRangeFilters: helpers.Ptr(true),
 		},
 		{
-			Name:     tagsProperty,       // For categorization or keyword tagging
-			DataType: []string{"text[]"}, // Array of strings
+			Name:     tagsProperty,
+			DataType: []string{"text[]"},
 		},
 		{
-			Name:     metadataProperty, // For any other structured metadata
-			DataType: []string{"text"}, // Storing as JSON string
+			Name:     metadataProperty,
+			DataType: []string{"object"},
+			NestedProperties: []*models.NestedProperty{
+				{
+					Name:            sourceProperty,
+					DataType:        []string{"text"},
+					IndexFilterable: helpers.Ptr(true),
+					IndexSearchable: helpers.Ptr(true),
+				},
+				{
+					Name:            contactNameProperty,
+					DataType:        []string{"text"},
+					IndexFilterable: helpers.Ptr(true),
+					IndexSearchable: helpers.Ptr(true),
+				},
+			},
+		},
+		{
+			// TODO: Remove once Weaviate supports nested indexing
+			Name:            sourceProperty,
+			DataType:        []string{"text"},
+			IndexFilterable: helpers.Ptr(true),
+			IndexSearchable: helpers.Ptr(true),
+		},
+		{
+			// TODO: Remove once Weaviate supports nested indexing
+			Name:            contactNameProperty,
+			DataType:        []string{"text"},
+			IndexFilterable: helpers.Ptr(true),
+			IndexSearchable: helpers.Ptr(true),
 		},
 	}
 
@@ -121,6 +152,7 @@ func EnsureSchemaExistsInternal(client *weaviate.Client, logger *log.Logger) err
 		VectorIndexConfig: map[string]interface{}{
 			"distance": "cosine",
 		},
+		VectorIndexType: "hnsw",
 	}
 
 	err = client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
@@ -178,7 +210,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 	content, _ := props[contentProperty].(string)
 	docTimestampStr, _ := props[timestampProperty].(string)
 	tagsInterface, _ := props[tagsProperty].([]interface{})
-	metadataJSON, _ := props[metadataProperty].(string) // This string contains all metadata, including speakerID
 
 	var docTimestampP *time.Time
 	if docTimestampStr != "" {
@@ -197,11 +228,12 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		}
 	}
 
-	metadataMap := make(map[string]string) // This will hold all metadata, including speakerID if it was stored
-	if metadataJSON != "" {
-		if errJson := json.Unmarshal([]byte(metadataJSON), &metadataMap); errJson != nil {
-			s.logger.Warnf("Failed to unmarshal metadataJson for document ID '%s': %v. Metadata will be empty.", id, errJson)
-			// metadataMap will remain empty or partially filled if unmarshalling failed mid-way (unlikely for simple map[string]string)
+	metadataMap := make(map[string]string)
+	if metadataObj, ok := props[metadataProperty].(map[string]interface{}); ok {
+		for key, value := range metadataObj {
+			if strValue, strOk := value.(string); strOk && strValue != "" {
+				metadataMap[key] = strValue
+			}
 		}
 	}
 
@@ -234,21 +266,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	} else {
 		data[tagsProperty] = []string{} // Explicitly clear tags if doc.Tags is empty
 	}
-
-	// All metadata, including speakerID, is expected to be in doc.Metadata.
-	// This map will be marshaled into the metadataJson field.
-	if len(doc.FieldMetadata) > 0 {
-		metadataBytes, err := json.Marshal(doc.FieldMetadata)
-		if err != nil {
-			s.logger.Errorf("Failed to marshal metadata for document ID '%s': %v", id, err)
-			return fmt.Errorf("marshaling metadata for update: %w", err)
-		}
-		data[metadataProperty] = string(metadataBytes)
-		s.logger.Debugf("Updating doc %s, speakerID in marshaled metadata: '%s'", id, doc.FieldMetadata["speakerID"])
-	} else {
-		data[metadataProperty] = "{}" // Store an empty JSON object string if no metadata
-		s.logger.Debugf("Updating doc %s with empty metadataJson", id)
-	}
+	data[metadataProperty] = doc.FieldMetadata
 
 	updater := s.client.Data().Updater().
 		WithClassName(ClassName).
