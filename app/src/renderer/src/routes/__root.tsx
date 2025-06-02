@@ -1,16 +1,16 @@
+import { useEffect } from 'react'
 import { createRootRoute, Outlet, useNavigate, useRouterState } from '@tanstack/react-router'
+import { PanelLeftOpen } from 'lucide-react'
+import { useQuery } from '@apollo/client'
+
 import AdminKeyboardShortcuts from '@renderer/components/AdminKeyboardShortcuts'
 import { Omnibar } from '@renderer/components/Omnibar'
 import { GlobalIndexingStatus } from '@renderer/components/GlobalIndexingStatus'
 import { NotificationsProvider } from '@renderer/hooks/NotificationsContextProvider'
-import UpdateNotification from '@renderer/components/UpdateNotification'
-import { useEffect } from 'react'
 import { LayoutGroup, motion, AnimatePresence } from 'framer-motion'
 import { Sidebar } from '@renderer/components/chat/Sidebar'
 import { Button } from '@renderer/components/ui/button'
-import { PanelLeftOpen } from 'lucide-react'
 import { GetChatsDocument, Chat } from '@renderer/graphql/generated/graphql'
-import { useQuery } from '@apollo/client'
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useOmnibarStore } from '@renderer/lib/stores/omnibar'
 import {
@@ -140,7 +140,6 @@ function RootComponent() {
             </motion.div>
           </div>
           <Omnibar />
-          <UpdateNotification />
         </motion.div>
       </LayoutGroup>
     </NotificationsProvider>
