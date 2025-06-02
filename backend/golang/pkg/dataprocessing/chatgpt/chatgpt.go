@@ -205,7 +205,7 @@ func (s *ChatGPTProcessor) Sync(ctx context.Context, accessToken string) ([]type
 	return nil, false, fmt.Errorf("sync operation not supported for Chatgpt")
 }
 
-func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	conversationDocuments := make([]memory.ConversationDocument, 0, len(records))
 
 	for _, record := range records {

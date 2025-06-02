@@ -188,7 +188,7 @@ func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 	return nil, false, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
-func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	// TODO:  build ConversationDocument instead of TextDocument
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {

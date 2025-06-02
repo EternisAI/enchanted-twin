@@ -535,7 +535,7 @@ func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string) ([]ty
 	return all, err
 }
 
-func (g *GmailProcessor) ToDocuments(recs []types.Record) ([]memory.Document, error) {
+func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) ([]memory.Document, error) {
 	out := []memory.TextDocument{}
 	for _, r := range recs {
 		get := func(k string) string {

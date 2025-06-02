@@ -345,43 +345,43 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 	switch sourceType {
 	case "chatgpt":
 		chatgptProcessor := chatgpt.NewChatGPTProcessor(s.store)
-		documents, err = chatgptProcessor.ToDocuments(records)
+		documents, err = chatgptProcessor.ToDocuments(ctx, records)
 		if err != nil {
 			return nil, err
 		}
 	case "telegram":
 		telegramProcessor := telegram.NewTelegramProcessor(s.store)
-		documents, err = telegramProcessor.ToDocuments(records)
+		documents, err = telegramProcessor.ToDocuments(ctx, records)
 		if err != nil {
 			return nil, err
 		}
 	case "slack":
 		slackProcessor := slack.NewSlackProcessor(s.store)
-		documents, err = slackProcessor.ToDocuments(records)
+		documents, err = slackProcessor.ToDocuments(ctx, records)
 		if err != nil {
 			return nil, err
 		}
 	case "gmail":
 		gmailProcessor := gmail.NewGmailProcessor(s.store)
-		documents, err = gmailProcessor.ToDocuments(records)
+		documents, err = gmailProcessor.ToDocuments(ctx, records)
 		if err != nil {
 			return nil, err
 		}
 	case "whatsapp":
 		whatsappProcessor := whatsapp.NewWhatsappProcessor(s.store)
-		documents, err = whatsappProcessor.ToDocuments(records)
+		documents, err = whatsappProcessor.ToDocuments(ctx, records)
 		if err != nil {
 			return nil, err
 		}
 	case "x":
 		xProcessor := x.NewXProcessor(s.store)
-		documents, err = xProcessor.ToDocuments(records)
+		documents, err = xProcessor.ToDocuments(ctx, records)
 		if err != nil {
 			return nil, err
 		}
 	case "misc":
 		miscProcessor := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store)
-		documents, err = miscProcessor.ToDocuments(records)
+		documents, err = miscProcessor.ToDocuments(ctx, records)
 		if err != nil {
 			return nil, err
 		}

@@ -307,9 +307,19 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", dateStr)
 }
 
-func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	conversationMap := make(map[string]*memory.ConversationDocument)
 	var textDocuments []memory.TextDocument
+
+	sourceUsername, err := s.store.GetSourceUsername(ctx, s.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source username: %v", err)
+	}
+
+	var extractedUser string
+	if sourceUsername != nil {
+		extractedUser = sourceUsername.Username
+	}
 
 	for _, record := range records {
 		if record.Data["type"] == "message" {
@@ -350,7 +360,7 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 					FieldSource:  "telegram",
 					FieldTags:    []string{"social", "telegram", "chat"},
 					People:       []string{from, to},
-					User:         from,
+					User:         extractedUser,
 					Conversation: []memory.ConversationMessage{},
 					FieldMetadata: map[string]string{
 						"type":   "conversation",

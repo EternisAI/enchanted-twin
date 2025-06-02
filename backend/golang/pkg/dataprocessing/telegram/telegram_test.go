@@ -48,7 +48,7 @@ func TestToDocuments(t *testing.T) {
 	}
 
 	telegramProcessor := NewTelegramProcessor(nil)
-	docs, err := telegramProcessor.ToDocuments(records)
+	docs, err := telegramProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
 	}

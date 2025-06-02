@@ -118,7 +118,7 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string)
 	return allRecords, nil
 }
 
-func (s *SlackProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *SlackProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	textDocuments := make([]memory.TextDocument, 0, len(records))
 
 	for _, record := range records {

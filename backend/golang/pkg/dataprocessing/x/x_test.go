@@ -1,6 +1,7 @@
 package x
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -43,7 +44,7 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
 	source := NewXProcessor(nil)
-	documents, err := source.ToDocuments(records)
+	documents, err := source.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
 	}

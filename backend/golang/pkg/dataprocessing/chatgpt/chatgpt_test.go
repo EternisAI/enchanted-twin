@@ -130,7 +130,7 @@ func TestConversationToDocuments(t *testing.T) {
 	}
 
 	chatgptProcessor := NewChatGPTProcessor(nil)
-	documents, err := chatgptProcessor.ToDocuments(records)
+	documents, err := chatgptProcessor.ToDocuments(context.Background(), records)
 	require.NoError(t, err)
 	require.Len(t, documents, 1)
 
@@ -253,7 +253,7 @@ func TestJSONLRoundTrip(t *testing.T) {
 
 	// Test conversion to Document format
 	chatgptProcessor := NewChatGPTProcessor(nil)
-	docs, err := chatgptProcessor.ToDocuments(readRecords)
+	docs, err := chatgptProcessor.ToDocuments(context.Background(), readRecords)
 	require.NoError(t, err, "Error converting records to documents")
 	require.Len(t, docs, 1, "Expected 1 document after conversion")
 

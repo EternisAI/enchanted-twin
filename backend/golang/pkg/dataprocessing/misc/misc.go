@@ -413,7 +413,7 @@ func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath 
 	return allRecords, nil
 }
 
-func (s *TextDocumentProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		metadata := map[string]string{}

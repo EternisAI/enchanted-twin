@@ -244,7 +244,7 @@ func (w *DataProcessingWorkflows) GmailHistoryIndexActivity(
 	input GmailHistoryIndexActivityInput,
 ) (GmailHistoryIndexActivityResponse, error) {
 	gmailProcessor := gmail.NewGmailProcessor(w.Store)
-	documents, err := gmailProcessor.ToDocuments(input.Records)
+	documents, err := gmailProcessor.ToDocuments(ctx, input.Records)
 	if err != nil {
 		return GmailHistoryIndexActivityResponse{}, err
 	}

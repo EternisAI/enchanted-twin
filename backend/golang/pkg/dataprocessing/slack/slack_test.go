@@ -1,6 +1,7 @@
 package slack
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
-	docs, err := slack.ToDocuments(records)
+	docs, err := slack.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
 	}

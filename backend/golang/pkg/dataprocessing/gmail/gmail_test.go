@@ -497,7 +497,7 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
 	gmailProcessor := NewGmailProcessor(nil)
-	documents, err := gmailProcessor.ToDocuments(records)
+	documents, err := gmailProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}

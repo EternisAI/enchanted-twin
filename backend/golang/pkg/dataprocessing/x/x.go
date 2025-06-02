@@ -214,7 +214,7 @@ type DirectMessageData struct {
 	Type           string `json:"type"`
 }
 
-func (s *XProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		content := ""
