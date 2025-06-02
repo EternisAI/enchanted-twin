@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -61,13 +62,11 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 		}
 	}()
 
-	// Get column names
 	columns, err := rows.Columns()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get column names: %v", err)
 	}
 
-	// Prepare value containers
 	count := len(columns)
 	values := make([]interface{}, count)
 	valuePtrs := make([]interface{}, count)
@@ -76,7 +75,6 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	}
 
 	var records []types.Record
-	// Iterate over rows
 	rowCount := 0
 	for rows.Next() {
 		err := rows.Scan(valuePtrs...)
@@ -86,11 +84,9 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 		}
 		rowCount++
 
-		// Create data map for this record
 		data := make(map[string]interface{})
 		var timestamp time.Time
 
-		// Important fields to ensure are included in the data map
 		importantFields := map[string]bool{
 			"ZTEXT":     true,
 			"ZISFROMME": true,
@@ -100,33 +96,27 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			"ZTONAME":   true,
 		}
 
-		// Track if we've found all important fields
 		foundFields := make(map[string]bool)
 
-		// Populate data map
 		for i, col := range columns {
 			val := values[i]
 
-			// Mark important field as found
 			if importantFields[col] {
 				foundFields[col] = true
 			}
 
-			// Simplify column name by removing 'Z' prefix
 			simplifiedKey := col
 			if len(col) > 1 && col[0] == 'Z' {
 				simplifiedKey = col[1:]
 			}
+			simplifiedKey = strings.ToLower(simplifiedKey)
 
-			// Handle different column types
 			switch col {
 			case "ZMESSAGEDATE", "ZSENTDATE":
-				// SQLite timestamps can be stored in different formats
-				// This assumes they're stored as Unix timestamps (seconds since epoch)
+
 				if v, ok := val.(int64); ok {
 					t := time.Unix(v, 0)
 					data[simplifiedKey] = t
-					// Use message date as the record timestamp if available
 					if col == "ZMESSAGEDATE" {
 						timestamp = t
 					}
@@ -144,19 +134,16 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			}
 		}
 
-		// Log warning for any important fields that weren't found
 		for field := range importantFields {
 			if !foundFields[field] {
 				fmt.Printf("Warning: Important field %s not found in query results\n", field)
 			}
 		}
 
-		// If no timestamp was set from ZMESSAGEDATE, use current time as fallback
 		if timestamp.IsZero() {
 			timestamp = time.Now()
 		}
 
-		// Create record
 		record := types.Record{
 			Data:      data,
 			Timestamp: timestamp,
@@ -188,19 +175,19 @@ func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
-		content, ok := record.Data["TEXT"].(string)
+		content, ok := record.Data["text"].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to convert TEXT field to string")
+			return nil, fmt.Errorf("failed to convert text field to string")
 		}
 
-		fromName, ok := record.Data["FROMNAME"].(string)
+		fromName, ok := record.Data["fromname"].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to convert FROMNAME field to string")
+			return nil, fmt.Errorf("failed to convert fromname field to string")
 		}
 
-		toName, ok := record.Data["TONAME"].(string)
+		toName, ok := record.Data["toname"].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to convert TONAME field to string")
+			return nil, fmt.Errorf("failed to convert toname field to string")
 		}
 
 		documents = append(documents, memory.TextDocument{
