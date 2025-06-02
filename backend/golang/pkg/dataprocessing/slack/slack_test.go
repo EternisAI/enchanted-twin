@@ -13,7 +13,7 @@ import (
 
 func TestToDocuments(t *testing.T) {
 	// Create a temporary test file
-	slack := New("testdata/slack")
+	slack := NewSlackProcessor()
 	tempFile, err := os.CreateTemp("", "test-slack-*.jsonl")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -59,7 +59,6 @@ func TestToDocuments(t *testing.T) {
 		"type":           "message",
 		"channelName":    "general",
 		"authorUsername": "john_doe",
-		"source":         "slack",
 	}, docs[0].Metadata())
 
 	// Check second message
@@ -71,6 +70,5 @@ func TestToDocuments(t *testing.T) {
 		"type":           "message",
 		"channelName":    "general",
 		"authorUsername": "jane_doe",
-		"source":         "slack",
 	}, docs[1].Metadata())
 }
