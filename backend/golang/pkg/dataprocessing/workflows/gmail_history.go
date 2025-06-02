@@ -142,9 +142,7 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
 	}
 
-	g := gmail.NewGmailProcessor()
-
-	records, more, token, err := g.SyncWithDateRange(ctx, tokens.AccessToken, input.StartDate, input.EndDate, 50, input.NextPageToken)
+	records, more, token, err := gmail.SyncWithDateRange(ctx, tokens.AccessToken, input.StartDate, input.EndDate, 50, input.NextPageToken)
 	if err != nil {
 		return GmailHistoryFetchActivityResponse{}, err
 	}

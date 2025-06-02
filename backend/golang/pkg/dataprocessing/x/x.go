@@ -15,7 +15,9 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 const (
@@ -26,7 +28,7 @@ const (
 
 type XProcessor struct{}
 
-func NewXProcessor() *XProcessor {
+func NewXProcessor() processor.Processor {
 	return &XProcessor{}
 }
 
@@ -34,7 +36,7 @@ func (s *XProcessor) Name() string {
 	return "x"
 }
 
-func (s *XProcessor) ProcessFile(filePath string) ([]types.Record, error) {
+func (s *XProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -93,7 +95,7 @@ func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", timestampStr)
 }
 
-func (s *XProcessor) ProcessDirectory(inputPath string) ([]types.Record, error) {
+func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
@@ -114,7 +116,7 @@ func (s *XProcessor) ProcessDirectory(inputPath string) ([]types.Record, error) 
 			return nil
 		}
 
-		records, err := s.ProcessFile(path)
+		records, err := s.ProcessFile(ctx, path, store)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil

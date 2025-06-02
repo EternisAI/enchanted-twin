@@ -275,10 +275,10 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		records, err = source.ProcessDirectory("")
 	case "gmail":
 		source := gmail.NewGmailProcessor()
-		records, err = source.ProcessDirectory(inputPath, "")
+		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
 	case "x":
 		source := x.NewXProcessor()
-		records, err = source.ProcessDirectory(inputPath)
+		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
 	case "whatsapp":
 		source := whatsapp.NewWhatsappProcessor()
 		records, err = source.ProcessFile(context.Background(), inputPath, s.store)

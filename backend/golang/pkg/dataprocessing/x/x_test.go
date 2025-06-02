@@ -1,6 +1,7 @@
 package x
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -41,7 +42,7 @@ func TestProcessLikeFile(t *testing.T) {
 	}
 
 	source := NewXProcessor()
-	records, err := source.ProcessFile(likePath)
+	records, err := source.ProcessFile(context.Background(), likePath, nil)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestProcessTweetFile(t *testing.T) {
 	}
 
 	source := NewXProcessor()
-	records, err := source.ProcessFile(tweetPath)
+	records, err := source.ProcessFile(context.Background(), tweetPath, nil)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
 	}
@@ -290,7 +291,7 @@ func TestProcessDirectMessageFile(t *testing.T) {
 	}
 
 	source := NewXProcessor()
-	records, err := source.ProcessFile(dmPath)
+	records, err := source.ProcessFile(context.Background(), dmPath, nil)
 	if err != nil {
 		t.Fatalf("ProcessFile failed: %v", err)
 	}
@@ -542,7 +543,7 @@ func TestProcessDirectory(t *testing.T) {
 	}
 
 	source := NewXProcessor()
-	records, err := source.ProcessDirectory(tempDir)
+	records, err := source.ProcessDirectory(context.Background(), tempDir, nil)
 	if err != nil {
 		t.Fatalf("ProcessDirectory failed: %v", err)
 	}

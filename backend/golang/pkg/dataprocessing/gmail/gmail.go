@@ -27,13 +27,16 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type GmailProcessor struct{}
 
-func NewGmailProcessor() *GmailProcessor { return &GmailProcessor{} }
-func (g *GmailProcessor) Name() string   { return "gmail" }
+func NewGmailProcessor() processor.Processor { return &GmailProcessor{} }
+
+func (g *GmailProcessor) Name() string { return "gmail" }
 
 /* ────────────────────────────────────────────  MBOX helpers  ─────────────────────────────────────────── */
 
@@ -77,7 +80,7 @@ type (
 
 const processTimeout = time.Second
 
-func (g *GmailProcessor) ProcessFile(path, user string) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessFile(ctx context.Context, path string, store *db.Store) ([]types.Record, error) {
 	total, err := countEmails(path)
 	if err != nil {
 		return nil, err
@@ -114,7 +117,7 @@ func (g *GmailProcessor) ProcessFile(path, user string) ([]types.Record, error) 
 					err error
 				})
 				go func(raw string) {
-					rec, e := g.processEmail(raw, user)
+					rec, e := g.processEmail(raw, "")
 					done <- struct {
 						r   types.Record
 						err error
@@ -334,7 +337,7 @@ func (g *GmailProcessor) Sync(ctx context.Context, token string) ([]types.Record
 
 	var out []types.Record
 	for _, m := range list.Messages {
-		rec, err := g.fetchMessage(ctx, c, token, m.ID)
+		rec, err := FetchMessage(ctx, c, token, m.ID)
 		if err != nil {
 			log.Errorf("message %s: %v", m.ID, err)
 			continue
@@ -344,7 +347,7 @@ func (g *GmailProcessor) Sync(ctx context.Context, token string) ([]types.Record
 	return out, true, nil
 }
 
-func (g *GmailProcessor) SyncWithDateRange(ctx context.Context, token, startDate, endDate string, maxResults int, pageToken string) ([]types.Record, bool, string, error) {
+func SyncWithDateRange(ctx context.Context, token, startDate, endDate string, maxResults int, pageToken string) ([]types.Record, bool, string, error) {
 	if maxResults <= 0 {
 		maxResults = 100
 	}
@@ -399,7 +402,7 @@ func (g *GmailProcessor) SyncWithDateRange(ctx context.Context, token, startDate
 
 	var out []types.Record
 	for _, m := range list.Messages {
-		rec, err := g.fetchMessage(ctx, c, token, m.ID)
+		rec, err := FetchMessage(ctx, c, token, m.ID)
 		if err != nil {
 			log.Errorf("message %s: %v", m.ID, err)
 			continue
@@ -425,7 +428,7 @@ func SortByOldest(records []types.Record) {
 	}
 }
 
-func (g *GmailProcessor) fetchMessage(
+func FetchMessage(
 	ctx context.Context,
 	c *http.Client,
 	token, id string,
@@ -508,7 +511,7 @@ func (g *GmailProcessor) fetchMessage(
 			"message_id": id,
 		},
 		Timestamp: date,
-		Source:    g.Name(),
+		Source:    "gmail",
 	}, nil
 }
 
@@ -522,14 +525,14 @@ func decodeBase64URL(s string) (string, error) {
 	return string(b), err
 }
 
-func (g *GmailProcessor) ProcessDirectory(dir, user string) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string, store *db.Store) ([]types.Record, error) {
 	var all []types.Record
 	var mu sync.Mutex
 	err := filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
 		if err != nil || fi.IsDir() || !strings.Contains(fi.Name(), ".mbox") {
 			return err
 		}
-		recs, err := g.ProcessFile(p, user)
+		recs, err := g.ProcessFile(ctx, p, store)
 		if err != nil {
 			logrus.Errorf("process %s: %v", p, err)
 			return nil

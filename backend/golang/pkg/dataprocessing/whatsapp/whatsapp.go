@@ -181,8 +181,8 @@ func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string, st
 	return ReadWhatsAppDB(filePath)
 }
 
-func (s *WhatsappProcessor) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
+func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
 func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {

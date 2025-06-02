@@ -1,6 +1,7 @@
 package gmail
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -434,7 +435,7 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Process the test file
-	records, err := processor.ProcessFile(tmpFile, "bob@gmail.com")
+	records, err := processor.ProcessFile(context.Background(), tmpFile, nil)
 	if err != nil {
 		t.Fatalf("Failed to process file: %v", err)
 	}

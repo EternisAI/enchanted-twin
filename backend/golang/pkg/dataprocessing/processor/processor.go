@@ -17,7 +17,7 @@ type Processor interface {
 	// ProcessDirectory processes a directory of files
 	ProcessDirectory(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error)
 	// Sync returns latest data from the source
-	Sync(ctx context.Context) ([]types.Record, error)
+	Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error)
 	// ToDocuments converts records to documents
 	ToDocuments(records []types.Record) ([]memory.Document, error)
 }
