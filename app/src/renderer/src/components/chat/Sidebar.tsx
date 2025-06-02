@@ -20,7 +20,8 @@ import {
   SearchIcon,
   ChevronDown,
   ChevronUp,
-  CheckSquare
+  CheckSquare,
+  Globe
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -195,6 +196,15 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
         >
           <CheckSquare className="w-4 h-4 mr-2 text-muted-foreground" />
           <span className="text-sm">Tasks</span>
+        </Button>
+
+        <Button
+          variant="outline"
+          className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-1"
+          onClick={() => navigate({ to: '/holon' })}
+        >
+          <Globe className="w-4 h-4 mr-2 text-muted-foreground" />
+          <span className="text-sm">Holon Networks</span>
         </Button>
 
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">

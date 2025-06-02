@@ -44,6 +44,12 @@ export type AppNotification = {
   title: Scalars['String']['output'];
 };
 
+export type Author = {
+  __typename?: 'Author';
+  alias?: Maybe<Scalars['String']['output']>;
+  identity: Scalars['String']['output'];
+};
+
 export type Chat = {
   __typename?: 'Chat';
   createdAt: Scalars['DateTime']['output'];
@@ -171,6 +177,7 @@ export type Mutation = {
   deleteAgentTask: Scalars['Boolean']['output'];
   deleteChat: Chat;
   deleteDataSource: Scalars['Boolean']['output'];
+  joinHolon: Scalars['Boolean']['output'];
   refreshExpiredOAuthTokens: Array<OAuthStatus>;
   removeMCPServer: Scalars['Boolean']['output'];
   sendMessage: Message;
@@ -223,6 +230,11 @@ export type MutationDeleteChatArgs = {
 
 export type MutationDeleteDataSourceArgs = {
   id: Scalars['ID']['input'];
+};
+
+
+export type MutationJoinHolonArgs = {
+  network?: InputMaybe<Scalars['String']['input']>;
 };
 
 
@@ -286,6 +298,8 @@ export type Query = {
   getMCPServers: Array<McpServerDefinition>;
   getOAuthStatus: Array<OAuthStatus>;
   getSetupProgress: Array<SetupProgress>;
+  getThread?: Maybe<Thread>;
+  getThreads: Array<Thread>;
   getTools: Array<Tool>;
   getWhatsAppStatus: WhatsAppStatus;
   profile: UserProfile;
@@ -306,6 +320,17 @@ export type QueryGetChatSuggestionsArgs = {
 export type QueryGetChatsArgs = {
   first?: Scalars['Int']['input'];
   offset?: Scalars['Int']['input'];
+};
+
+
+export type QueryGetThreadArgs = {
+  id: Scalars['ID']['input'];
+  network?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type QueryGetThreadsArgs = {
+  network?: InputMaybe<Scalars['String']['input']>;
 };
 
 export enum Role {
@@ -350,6 +375,30 @@ export type SubscriptionTelegramMessageAddedArgs = {
 
 export type SubscriptionToolCallUpdatedArgs = {
   chatId: Scalars['ID']['input'];
+};
+
+export type Thread = {
+  __typename?: 'Thread';
+  actions?: Maybe<Array<Scalars['String']['output']>>;
+  author: Author;
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  expiresAt?: Maybe<Scalars['DateTime']['output']>;
+  id: Scalars['ID']['output'];
+  imageURLs: Array<Scalars['String']['output']>;
+  messages: Array<ThreadMessage>;
+  title: Scalars['String']['output'];
+  views: Scalars['Int']['output'];
+};
+
+export type ThreadMessage = {
+  __typename?: 'ThreadMessage';
+  actions?: Maybe<Array<Scalars['String']['output']>>;
+  author: Author;
+  content: Scalars['String']['output'];
+  createdAt: Scalars['DateTime']['output'];
+  id: Scalars['ID']['output'];
+  isDelivered?: Maybe<Scalars['Boolean']['output']>;
 };
 
 export type Tool = {
@@ -611,10 +660,32 @@ export type GetWhatsAppStatusQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type GetWhatsAppStatusQuery = { __typename?: 'Query', getWhatsAppStatus: { __typename?: 'WhatsAppStatus', isConnected: boolean, qrCodeData?: string | null, statusMessage: string } };
 
+export type GetThreadsQueryVariables = Exact<{
+  network?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type GetThreadsQuery = { __typename?: 'Query', getThreads: Array<{ __typename?: 'Thread', id: string, title: string, content: string, imageURLs: Array<string>, createdAt: any, expiresAt?: any | null, actions?: Array<string> | null, views: number, author: { __typename?: 'Author', alias?: string | null, identity: string }, messages: Array<{ __typename?: 'ThreadMessage', id: string, content: string, createdAt: any, isDelivered?: boolean | null, actions?: Array<string> | null, author: { __typename?: 'Author', alias?: string | null, identity: string } }> }> };
+
+export type GetThreadQueryVariables = Exact<{
+  network?: InputMaybe<Scalars['String']['input']>;
+  id: Scalars['ID']['input'];
+}>;
+
+
+export type GetThreadQuery = { __typename?: 'Query', getThread?: { __typename?: 'Thread', id: string, title: string, content: string, imageURLs: Array<string>, createdAt: any, expiresAt?: any | null, actions?: Array<string> | null, views: number, author: { __typename?: 'Author', alias?: string | null, identity: string }, messages: Array<{ __typename?: 'ThreadMessage', id: string, content: string, createdAt: any, isDelivered?: boolean | null, actions?: Array<string> | null, author: { __typename?: 'Author', alias?: string | null, identity: string } }> } | null };
+
 export type StartWhatsAppConnectionMutationVariables = Exact<{ [key: string]: never; }>;
 
 
 export type StartWhatsAppConnectionMutation = { __typename?: 'Mutation', startWhatsAppConnection: boolean };
+
+export type JoinHolonMutationVariables = Exact<{
+  network?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type JoinHolonMutation = { __typename?: 'Mutation', joinHolon: boolean };
 
 
 export const GetProfileDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetProfile"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"profile"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"name"}}]}}]}}]} as unknown as DocumentNode<GetProfileQuery, GetProfileQueryVariables>;
@@ -648,4 +719,7 @@ export const UpdateAgentTaskDocument = {"kind":"Document","definitions":[{"kind"
 export const ConnectMcpServerDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"ConnectMCPServer"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"input"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ConnectMCPServerInput"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"connectMCPServer"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"input"},"value":{"kind":"Variable","name":{"kind":"Name","value":"input"}}}]}]}}]} as unknown as DocumentNode<ConnectMcpServerMutation, ConnectMcpServerMutationVariables>;
 export const RemoveMcpServerDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"RemoveMCPServer"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"removeMCPServer"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}]}]}}]} as unknown as DocumentNode<RemoveMcpServerMutation, RemoveMcpServerMutationVariables>;
 export const GetWhatsAppStatusDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetWhatsAppStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getWhatsAppStatus"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"isConnected"}},{"kind":"Field","name":{"kind":"Name","value":"qrCodeData"}},{"kind":"Field","name":{"kind":"Name","value":"statusMessage"}}]}}]}}]} as unknown as DocumentNode<GetWhatsAppStatusQuery, GetWhatsAppStatusQueryVariables>;
+export const GetThreadsDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetThreads"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"network"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getThreads"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"network"},"value":{"kind":"Variable","name":{"kind":"Name","value":"network"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"imageURLs"}},{"kind":"Field","name":{"kind":"Name","value":"author"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"alias"}},{"kind":"Field","name":{"kind":"Name","value":"identity"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"messages"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"author"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"alias"}},{"kind":"Field","name":{"kind":"Name","value":"identity"}}]}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"isDelivered"}},{"kind":"Field","name":{"kind":"Name","value":"actions"}}]}},{"kind":"Field","name":{"kind":"Name","value":"actions"}},{"kind":"Field","name":{"kind":"Name","value":"views"}}]}}]}}]} as unknown as DocumentNode<GetThreadsQuery, GetThreadsQueryVariables>;
+export const GetThreadDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"query","name":{"kind":"Name","value":"GetThread"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"network"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}},{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"id"}},"type":{"kind":"NonNullType","type":{"kind":"NamedType","name":{"kind":"Name","value":"ID"}}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"getThread"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"network"},"value":{"kind":"Variable","name":{"kind":"Name","value":"network"}}},{"kind":"Argument","name":{"kind":"Name","value":"id"},"value":{"kind":"Variable","name":{"kind":"Name","value":"id"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"title"}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"imageURLs"}},{"kind":"Field","name":{"kind":"Name","value":"author"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"alias"}},{"kind":"Field","name":{"kind":"Name","value":"identity"}}]}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"expiresAt"}},{"kind":"Field","name":{"kind":"Name","value":"messages"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"id"}},{"kind":"Field","name":{"kind":"Name","value":"author"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"alias"}},{"kind":"Field","name":{"kind":"Name","value":"identity"}}]}},{"kind":"Field","name":{"kind":"Name","value":"content"}},{"kind":"Field","name":{"kind":"Name","value":"createdAt"}},{"kind":"Field","name":{"kind":"Name","value":"isDelivered"}},{"kind":"Field","name":{"kind":"Name","value":"actions"}}]}},{"kind":"Field","name":{"kind":"Name","value":"actions"}},{"kind":"Field","name":{"kind":"Name","value":"views"}}]}}]}}]} as unknown as DocumentNode<GetThreadQuery, GetThreadQueryVariables>;
 export const StartWhatsAppConnectionDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"StartWhatsAppConnection"},"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"startWhatsAppConnection"}}]}}]} as unknown as DocumentNode<StartWhatsAppConnectionMutation, StartWhatsAppConnectionMutationVariables>;
+export const JoinHolonDocument = {"kind":"Document","definitions":[{"kind":"OperationDefinition","operation":"mutation","name":{"kind":"Name","value":"JoinHolon"},"variableDefinitions":[{"kind":"VariableDefinition","variable":{"kind":"Variable","name":{"kind":"Name","value":"network"}},"type":{"kind":"NamedType","name":{"kind":"Name","value":"String"}}}],"selectionSet":{"kind":"SelectionSet","selections":[{"kind":"Field","name":{"kind":"Name","value":"joinHolon"},"arguments":[{"kind":"Argument","name":{"kind":"Name","value":"network"},"value":{"kind":"Variable","name":{"kind":"Name","value":"network"}}}]}]}}]} as unknown as DocumentNode<JoinHolonMutation, JoinHolonMutationVariables>;

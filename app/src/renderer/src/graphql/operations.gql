@@ -302,6 +302,66 @@ query GetWhatsAppStatus {
   }
 }
 
+query GetThreads($network: String) {
+  getThreads(network: $network) {
+    id
+    title
+    content
+    imageURLs
+    author {
+      alias
+      identity
+    }
+    createdAt
+    expiresAt
+    messages {
+      id
+      author {
+        alias
+        identity
+      }
+      content
+      createdAt
+      isDelivered
+      actions
+    }
+    actions
+    views
+  }
+}
+
+query GetThread($network: String, $id: ID!) {
+  getThread(network: $network, id: $id) {
+    id
+    title
+    content
+    imageURLs
+    author {
+      alias
+      identity
+    }
+    createdAt
+    expiresAt
+    messages {
+      id
+      author {
+        alias
+        identity
+      }
+      content
+      createdAt
+      isDelivered
+      actions
+    }
+    actions
+    views
+  }
+}
+
 mutation StartWhatsAppConnection {
   startWhatsAppConnection
+}
+
+mutation JoinHolon($network: String) {
+  joinHolon(network: $network)
 }
