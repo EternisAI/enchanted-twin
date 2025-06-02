@@ -350,24 +350,32 @@ func (w *DataProcessingWorkflows) IndexDataActivity(
 			return IndexDataActivityResponse{}, err
 		}
 
-		progressCallback := func(processed, total int) {
-			percentage := 0.0
-			if total > 0 {
-				percentage = float64(processed) / float64(total) * 100
-			}
-			dataSourcesResponse[i].IndexProgress = int32(percentage)
-			publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
-		}
-
 		dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
-		documents, err := dataprocessingService.ToDocuments(ctx, dataSourceDB.Name, records)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
-		}
 
-		err = w.Memory.Store(ctx, documents, progressCallback)
-		if err != nil {
-			return IndexDataActivityResponse{}, err
+		batchSize := 20
+		totalBatches := (len(records) + batchSize - 1) / batchSize
+
+		for j := 0; j < len(records); j += batchSize {
+			documents, err := dataprocessingService.ToDocuments(ctx, dataSourceDB.Name, records)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
+
+			batchNum := j/batchSize + 1
+			batchProgressCallback := func(processed, total int) {
+				batchProgress := float64(batchNum-1) / float64(totalBatches) * 100
+				if total > 0 {
+					withinBatchProgress := float64(processed) / float64(total) * (100.0 / float64(totalBatches))
+					batchProgress += withinBatchProgress
+				}
+				dataSourcesResponse[i].IndexProgress = int32(batchProgress)
+				publishIndexingStatus(w, dataSourcesResponse, input.IndexingState, nil)
+			}
+
+			err = w.Memory.Store(ctx, documents, batchProgressCallback)
+			if err != nil {
+				return IndexDataActivityResponse{}, err
+			}
 		}
 
 		dataSourcesResponse[i].IsIndexed = true
