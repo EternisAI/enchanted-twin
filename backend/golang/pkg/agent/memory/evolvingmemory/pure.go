@@ -2,6 +2,7 @@ package evolvingmemory
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/weaviate/weaviate/entities/models"
@@ -115,35 +116,16 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	}
 }
 
+// marshalMetadata converts a metadata map to JSON string for storage.
 func marshalMetadata(metadata map[string]string) string {
-	// Simple implementation - in production might want proper JSON marshaling
-	result := "{"
-	first := true
+	if len(metadata) == 0 {
+		return "{}"
+	}
+
+	var pairs []string
 	for k, v := range metadata {
-		if !first {
-			result += ","
-		}
-		result += fmt.Sprintf(`"%s":"%s"`, k, v)
-		first = false
-	}
-	result += "}"
-	return result
-}
-
-// BatchObjects splits a slice of objects into batches of the specified size.
-func BatchObjects(objects []*models.Object, batchSize int) [][]*models.Object {
-	if batchSize <= 0 {
-		batchSize = 100 // Default batch size
+		pairs = append(pairs, fmt.Sprintf(`"%s":"%s"`, k, v))
 	}
 
-	var batches [][]*models.Object
-	for i := 0; i < len(objects); i += batchSize {
-		end := i + batchSize
-		if end > len(objects) {
-			end = len(objects)
-		}
-		batches = append(batches, objects[i:end])
-	}
-
-	return batches
+	return "{" + strings.Join(pairs, ",") + "}"
 }
