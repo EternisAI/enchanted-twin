@@ -38,7 +38,7 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 	}()
 
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("context cancelled before query: %w", err)
+		return nil, fmt.Errorf("context canceled before query: %w", err)
 	}
 
 	query := `SELECT 
@@ -81,10 +81,9 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 	var records []types.Record
 	rowCount := 0
 	for rows.Next() {
-
 		if rowCount%100 == 0 {
 			if err := ctx.Err(); err != nil {
-				return nil, fmt.Errorf("context cancelled during row processing: %w", err)
+				return nil, fmt.Errorf("context canceled during row processing: %w", err)
 			}
 		}
 

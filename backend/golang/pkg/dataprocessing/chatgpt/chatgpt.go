@@ -76,7 +76,7 @@ func (s *ChatGPTProcessor) ProcessFile(
 	store *db.Store,
 ) ([]types.Record, error) {
 	if err := ctx.Err(); err != nil {
-		return nil, fmt.Errorf("context cancelled before processing: %w", err)
+		return nil, fmt.Errorf("context canceled before processing: %w", err)
 	}
 
 	jsonData, err := os.ReadFile(filePath)
@@ -94,7 +94,7 @@ func (s *ChatGPTProcessor) ProcessFile(
 	for i, conversation := range conversations {
 		if i%10 == 0 {
 			if err := ctx.Err(); err != nil {
-				return nil, fmt.Errorf("context cancelled during conversation processing: %w", err)
+				return nil, fmt.Errorf("context canceled during conversation processing: %w", err)
 			}
 		}
 
