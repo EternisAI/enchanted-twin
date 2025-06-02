@@ -13,7 +13,7 @@ import (
 
 func TestToDocuments(t *testing.T) {
 	// Create a temporary test file
-	slack := NewSlackProcessor()
+	slack := NewSlackProcessor(nil)
 	tempFile, err := os.CreateTemp("", "test-slack-*.jsonl")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)

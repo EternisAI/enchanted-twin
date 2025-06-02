@@ -32,9 +32,13 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-type GmailProcessor struct{}
+type GmailProcessor struct {
+	store *db.Store
+}
 
-func NewGmailProcessor() processor.Processor { return &GmailProcessor{} }
+func NewGmailProcessor(store *db.Store) processor.Processor {
+	return &GmailProcessor{store: store}
+}
 
 func (g *GmailProcessor) Name() string { return "gmail" }
 
@@ -80,7 +84,7 @@ type (
 
 const processTimeout = time.Second
 
-func (g *GmailProcessor) ProcessFile(ctx context.Context, path string, store *db.Store) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.Record, error) {
 	total, err := countEmails(path)
 	if err != nil {
 		return nil, err
@@ -511,14 +515,14 @@ func decodeBase64URL(s string) (string, error) {
 	return string(b), err
 }
 
-func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string, store *db.Store) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string) ([]types.Record, error) {
 	var all []types.Record
 	var mu sync.Mutex
 	err := filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
 		if err != nil || fi.IsDir() || !strings.Contains(fi.Name(), ".mbox") {
 			return err
 		}
-		recs, err := g.ProcessFile(ctx, p, store)
+		recs, err := g.ProcessFile(ctx, p)
 		if err != nil {
 			logrus.Errorf("process %s: %v", p, err)
 			return nil

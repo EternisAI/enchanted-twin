@@ -427,7 +427,7 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Create Gmail processor
-	processor := NewGmailProcessor()
+	processor := NewGmailProcessor(nil)
 
 	// Test processor name
 	if processor.Name() != "gmail" {
@@ -435,7 +435,7 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Process the test file
-	records, err := processor.ProcessFile(context.Background(), tmpFile, nil)
+	records, err := processor.ProcessFile(context.Background(), tmpFile)
 	if err != nil {
 		t.Fatalf("Failed to process file: %v", err)
 	}
@@ -496,7 +496,7 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
-	gmailProcessor := NewGmailProcessor()
+	gmailProcessor := NewGmailProcessor(nil)
 	documents, err := gmailProcessor.ToDocuments(records)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)

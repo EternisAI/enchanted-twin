@@ -302,26 +302,26 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 
 	switch strings.ToLower(sourceType) {
 	case "telegram":
-		processor := telegram.NewTelegramProcessor()
-		records, err = processor.ProcessFile(context.Background(), inputPath, s.store)
+		processor := telegram.NewTelegramProcessor(s.store)
+		records, err = processor.ProcessFile(context.Background(), inputPath)
 	case "slack":
-		source := slack.NewSlackProcessor()
-		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
+		source := slack.NewSlackProcessor(s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	case "gmail":
-		source := gmail.NewGmailProcessor()
-		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
+		source := gmail.NewGmailProcessor(s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	case "x":
-		source := x.NewXProcessor()
-		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
+		source := x.NewXProcessor(s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	case "whatsapp":
-		source := whatsapp.NewWhatsappProcessor()
-		records, err = source.ProcessFile(context.Background(), inputPath, s.store)
+		source := whatsapp.NewWhatsappProcessor(s.store)
+		records, err = source.ProcessFile(context.Background(), inputPath)
 	case "chatgpt":
-		chatgptProcessor := chatgpt.NewChatGPTProcessor()
-		records, err = chatgptProcessor.ProcessDirectory(context.Background(), inputPath, s.store)
+		chatgptProcessor := chatgpt.NewChatGPTProcessor(s.store)
+		records, err = chatgptProcessor.ProcessDirectory(context.Background(), inputPath)
 	case "misc":
-		source := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel)
-		records, err = source.ProcessDirectory(context.Background(), inputPath, s.store)
+		source := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
 	}
@@ -344,43 +344,43 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 	sourceType = strings.ToLower(sourceType)
 	switch sourceType {
 	case "chatgpt":
-		chatgptProcessor := chatgpt.NewChatGPTProcessor()
+		chatgptProcessor := chatgpt.NewChatGPTProcessor(s.store)
 		documents, err = chatgptProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
 		}
 	case "telegram":
-		telegramProcessor := telegram.NewTelegramProcessor()
+		telegramProcessor := telegram.NewTelegramProcessor(s.store)
 		documents, err = telegramProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
 		}
 	case "slack":
-		slackProcessor := slack.NewSlackProcessor()
+		slackProcessor := slack.NewSlackProcessor(s.store)
 		documents, err = slackProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
 		}
 	case "gmail":
-		gmailProcessor := gmail.NewGmailProcessor()
+		gmailProcessor := gmail.NewGmailProcessor(s.store)
 		documents, err = gmailProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
 		}
 	case "whatsapp":
-		whatsappProcessor := whatsapp.NewWhatsappProcessor()
+		whatsappProcessor := whatsapp.NewWhatsappProcessor(s.store)
 		documents, err = whatsappProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
 		}
 	case "x":
-		xProcessor := x.NewXProcessor()
+		xProcessor := x.NewXProcessor(s.store)
 		documents, err = xProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
 		}
 	case "misc":
-		miscProcessor := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel)
+		miscProcessor := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store)
 		documents, err = miscProcessor.ToDocuments(records)
 		if err != nil {
 			return nil, err
@@ -501,10 +501,10 @@ func Sync(ctx context.Context, sourceName string, accessToken string, store *db.
 	var authorized bool
 	switch sourceName {
 	case "gmail":
-		gmailProcessor := gmail.NewGmailProcessor()
+		gmailProcessor := gmail.NewGmailProcessor(store)
 		records, authorized, err = gmailProcessor.Sync(ctx, accessToken)
 	case "x":
-		xProcessor := x.NewXProcessor()
+		xProcessor := x.NewXProcessor(store)
 		records, authorized, err = xProcessor.Sync(ctx, accessToken)
 	default:
 		return nil, fmt.Errorf("unsupported source: %s", sourceName)

@@ -26,17 +26,23 @@ type SlackMessage struct {
 	Timestamp   string      `json:"ts"`
 }
 
-type SlackProcessor struct{}
+type SlackProcessor struct {
+	store *db.Store
+}
 
-func NewSlackProcessor() processor.Processor {
-	return &SlackProcessor{}
+func NewSlackProcessor(store *db.Store) processor.Processor {
+	return &SlackProcessor{store: store}
 }
 
 func (s *SlackProcessor) Name() string {
 	return "slack"
 }
 
-func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -80,7 +86,7 @@ func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string, store
 	return records, nil
 }
 
-func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
+func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
@@ -96,7 +102,7 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string,
 			return nil
 		}
 
-		records, err := s.ProcessFile(ctx, path, store)
+		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil

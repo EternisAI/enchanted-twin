@@ -144,7 +144,7 @@ func (w *DataProcessingWorkflows) GmailIndexActivity(
 	ctx context.Context,
 	input GmailIndexActivityInput,
 ) (GmailIndexActivityResponse, error) {
-	gmailProcessor := gmail.NewGmailProcessor()
+	gmailProcessor := gmail.NewGmailProcessor(w.Store)
 	documents, err := gmailProcessor.ToDocuments(input.Records)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err

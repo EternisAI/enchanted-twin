@@ -42,7 +42,7 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
-	source := NewXProcessor()
+	source := NewXProcessor(nil)
 	documents, err := source.ToDocuments(records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)

@@ -26,17 +26,19 @@ const (
 	TypeDirectMessage = "direct_messages"
 )
 
-type XProcessor struct{}
+type XProcessor struct {
+	store *db.Store
+}
 
-func NewXProcessor() processor.Processor {
-	return &XProcessor{}
+func NewXProcessor(store *db.Store) processor.Processor {
+	return &XProcessor{store: store}
 }
 
 func (s *XProcessor) Name() string {
 	return "x"
 }
 
-func (s *XProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+func (s *XProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -95,7 +97,7 @@ func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", timestampStr)
 }
 
-func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
+func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
@@ -116,7 +118,7 @@ func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string, sto
 			return nil
 		}
 
-		records, err := s.ProcessFile(ctx, path, store)
+		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil
