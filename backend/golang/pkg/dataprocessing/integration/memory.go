@@ -54,7 +54,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	defer func() {
 		if err := os.RemoveAll(tempDir); err != nil {
 			logger.Error("Failed to clean up temp directory", "error", err)
-			fmt.Printf("Warning: failed to clean up temp directory %s: %v\n", tempDir, err)
+			logger.Info("Warning: failed to clean up temp directory", "error", err)
 		}
 	}()
 
