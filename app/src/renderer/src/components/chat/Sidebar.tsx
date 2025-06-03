@@ -68,10 +68,13 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
   const { openOmnibar } = useOmnibarStore()
-  // const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
+  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const [showAllChats, setShowAllChats] = useState(false)
 
   const handleNewChat = () => {
+    if (isVoiceMode) {
+      toggleVoiceMode()
+    }
     navigate({ to: '/', search: { focusInput: 'true' } })
   }
 

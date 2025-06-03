@@ -11,16 +11,22 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-type Source struct{}
+type WhatsappProcessor struct{}
 
-func New() *Source {
-	return &Source{}
+func NewWhatsappProcessor() processor.Processor {
+	return &WhatsappProcessor{}
 }
 
-func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
+func (s *WhatsappProcessor) Name() string {
+	return "whatsapp"
+}
+
+func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
@@ -30,6 +36,10 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			log.Printf("Error closing database: %v", err)
 		}
 	}()
+
+	if err := ctx.Err(); err != nil {
+		return nil, fmt.Errorf("context canceled before query: %w", err)
+	}
 
 	query := `SELECT 
 		m.Z_PK, m.ZISFROMME, m.ZCHATSESSION, m.ZMESSAGEINFO, m.ZMESSAGEDATE, m.ZSENTDATE,
@@ -46,7 +56,7 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 		LEFT JOIN ZWACHATSESSION s ON m.ZCHATSESSION = s.Z_PK
 		WHERE m.ZTEXT IS NOT NULL`
 
-	rows, err := db.Query(query)
+	rows, err := db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("query failed: %v", err)
 	}
@@ -56,13 +66,11 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 		}
 	}()
 
-	// Get column names
 	columns, err := rows.Columns()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get column names: %v", err)
 	}
 
-	// Prepare value containers
 	count := len(columns)
 	values := make([]interface{}, count)
 	valuePtrs := make([]interface{}, count)
@@ -71,9 +79,14 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	}
 
 	var records []types.Record
-	// Iterate over rows
 	rowCount := 0
 	for rows.Next() {
+		if rowCount%100 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, fmt.Errorf("context canceled during row processing: %w", err)
+			}
+		}
+
 		err := rows.Scan(valuePtrs...)
 		if err != nil {
 			log.Printf("Scan error: %v (row %d, expected %d columns)", err, rowCount, count)
@@ -81,11 +94,9 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 		}
 		rowCount++
 
-		// Create data map for this record
 		data := make(map[string]interface{})
 		var timestamp time.Time
 
-		// Important fields to ensure are included in the data map
 		importantFields := map[string]bool{
 			"ZTEXT":     true,
 			"ZISFROMME": true,
@@ -95,33 +106,27 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			"ZTONAME":   true,
 		}
 
-		// Track if we've found all important fields
 		foundFields := make(map[string]bool)
 
-		// Populate data map
 		for i, col := range columns {
 			val := values[i]
 
-			// Mark important field as found
 			if importantFields[col] {
 				foundFields[col] = true
 			}
 
-			// Simplify column name by removing 'Z' prefix
 			simplifiedKey := col
 			if len(col) > 1 && col[0] == 'Z' {
 				simplifiedKey = col[1:]
 			}
+			simplifiedKey = strings.ToLower(simplifiedKey)
 
-			// Handle different column types
 			switch col {
 			case "ZMESSAGEDATE", "ZSENTDATE":
-				// SQLite timestamps can be stored in different formats
-				// This assumes they're stored as Unix timestamps (seconds since epoch)
+
 				if v, ok := val.(int64); ok {
 					t := time.Unix(v, 0)
 					data[simplifiedKey] = t
-					// Use message date as the record timestamp if available
 					if col == "ZMESSAGEDATE" {
 						timestamp = t
 					}
@@ -139,19 +144,16 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 			}
 		}
 
-		// Log warning for any important fields that weren't found
 		for field := range importantFields {
 			if !foundFields[field] {
 				fmt.Printf("Warning: Important field %s not found in query results\n", field)
 			}
 		}
 
-		// If no timestamp was set from ZMESSAGEDATE, use current time as fallback
 		if timestamp.IsZero() {
 			timestamp = time.Now()
 		}
 
-		// Create record
 		record := types.Record{
 			Data:      data,
 			Timestamp: timestamp,
@@ -168,29 +170,39 @@ func ReadWhatsAppDB(dbPath string) ([]types.Record, error) {
 	return records, nil
 }
 
-func (s *Source) ProcessFile(filepath string) ([]types.Record, error) {
-	return ReadWhatsAppDB(filepath)
+func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+	return ReadWhatsAppDB(ctx, filePath)
+}
+
+func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for WhatsApp")
+}
+
+func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+	// TODO:  build ConversationDocument instead of TextDocument
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
-		content, ok := record.Data["TEXT"].(string)
+		content, ok := record.Data["text"].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to convert TEXT field to string")
+			return nil, fmt.Errorf("failed to convert text field to string")
 		}
 
-		fromName, ok := record.Data["FROMNAME"].(string)
+		fromName, ok := record.Data["fromname"].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to convert FROMNAME field to string")
+			return nil, fmt.Errorf("failed to convert fromname field to string")
 		}
 
-		toName, ok := record.Data["TONAME"].(string)
+		toName, ok := record.Data["toname"].(string)
 		if !ok {
-			return nil, fmt.Errorf("failed to convert TONAME field to string")
+			return nil, fmt.Errorf("failed to convert toname field to string")
 		}
 
 		documents = append(documents, memory.TextDocument{
+			FieldSource:    "whatsapp",
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
 			FieldTags:      []string{"whatsapp"},
@@ -200,136 +212,9 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			},
 		})
 	}
-	return documents, nil
-}
-
-// ProcessNewMessage processes a new WhatsApp message and stores it in memory.
-func ProcessNewMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string) (memory.TextDocument, error) {
-	if message == "" {
-		return memory.TextDocument{}, fmt.Errorf("empty message content")
+	var documents_ []memory.Document
+	for _, document := range documents {
+		documents_ = append(documents_, &document)
 	}
-
-	timestamp := time.Now()
-
-	document := memory.TextDocument{
-		FieldID:        fmt.Sprintf("whatsapp-%d", time.Now().UnixNano()),
-		FieldContent:   message,
-		FieldTimestamp: &timestamp,
-		FieldTags:      []string{"whatsapp", "message"},
-		FieldMetadata: map[string]string{
-			"from":   fromName,
-			"to":     toName,
-			"type":   "message",
-			"source": "whatsapp",
-		},
-	}
-
-	return document, nil
-}
-
-// ProcessNewContact stores a WhatsApp contact in memory.
-func ProcessNewContact(ctx context.Context, memoryStorage memory.Storage, contactID string, contactName string) (memory.TextDocument, error) {
-	if contactName == "" || contactID == "" {
-		return memory.TextDocument{}, fmt.Errorf("empty contact information")
-	}
-
-	timestamp := time.Now()
-
-	document := memory.TextDocument{
-		FieldID:        fmt.Sprintf("whatsapp-contact-%d", time.Now().UnixNano()),
-		FieldContent:   fmt.Sprintf("Whatsapp Contact name: %s. Contact ID: %s.", contactName, contactID),
-		FieldTimestamp: &timestamp,
-		FieldTags:      []string{"whatsapp", "contact"},
-		FieldMetadata: map[string]string{
-			"contact_id": contactID,
-			"name":       contactName,
-			"type":       "contact",
-			"source":     "whatsapp",
-		},
-	}
-
-	return document, nil
-}
-
-// ProcessHistoricalMessage processes a historical WhatsApp message and stores it in memory.
-func ProcessHistoricalMessage(ctx context.Context, memoryStorage memory.Storage, message string, fromName string, toName string, timestampPtr uint64) (memory.TextDocument, error) {
-	if message == "" {
-		return memory.TextDocument{}, fmt.Errorf("empty message content")
-	}
-
-	var timestamp time.Time
-	if timestampPtr != 0 {
-		timestamp = time.Unix(int64(timestampPtr), 0)
-	} else {
-		timestamp = time.Now()
-	}
-
-	document := memory.TextDocument{
-		FieldID:        fmt.Sprintf("whatsapp-history-%d", time.Now().UnixNano()),
-		FieldContent:   message,
-		FieldTimestamp: &timestamp,
-		FieldTags:      []string{"whatsapp", "message", "conversation"},
-		FieldMetadata: map[string]string{
-			"from":   fromName,
-			"to":     toName,
-			"type":   "message",
-			"source": "whatsapp",
-		},
-	}
-
-	return document, nil
-}
-
-// IsValidConversationalContent checks if a WhatsApp document contains conversational content
-// suitable for fact extraction, preventing hallucination on metadata and contact info.
-func IsValidConversationalContent(doc memory.TextDocument) bool {
-	content := strings.TrimSpace(doc.FieldContent)
-
-	// 1. Check if it's a contact document (tag-based)
-	for _, tag := range doc.FieldTags {
-		if tag == "contact" {
-			return false
-		}
-	}
-
-	metadataPatterns := []string{
-		"Contact name:",
-		"Contact ID:",
-		"Phone number:",
-		"Email:",
-		"Contact:",
-		"Whatsapp Contact",
-		"Telegram Contact",
-		"@s.whatsapp.net",
-		"@c.us",
-		"@gmail.com",
-		"@yahoo.com",
-		"@hotmail.com",
-		"@outlook.com",
-	}
-
-	for _, pattern := range metadataPatterns {
-		if strings.Contains(content, pattern) {
-			return false
-		}
-	}
-
-	if len(content) < 20 {
-		return false
-	}
-
-	lines := strings.Split(content, "\n")
-	conversationalLines := 0
-	for _, line := range lines {
-		trimmedLine := strings.TrimSpace(line)
-		if strings.Contains(trimmedLine, ":") && len(trimmedLine) > 10 {
-			// Check if it looks like "Speaker: message" format
-			parts := strings.SplitN(trimmedLine, ":", 2)
-			if len(parts) == 2 && len(strings.TrimSpace(parts[1])) > 3 {
-				conversationalLines++
-			}
-		}
-	}
-
-	return conversationalLines > 0
+	return documents_, nil
 }

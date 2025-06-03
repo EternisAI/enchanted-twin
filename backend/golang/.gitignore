@@ -9,3 +9,4 @@ store.db*
 *.db-wal
 postgres-data/*
 data/*
+weaviate-test-memory/*
