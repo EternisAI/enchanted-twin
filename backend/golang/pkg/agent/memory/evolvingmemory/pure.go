@@ -152,12 +152,13 @@ func marshalMetadata(metadata map[string]string) string {
 		return "{}"
 	}
 
-	var pairs []string
-	for k, v := range metadata {
-		pairs = append(pairs, fmt.Sprintf(`"%s":"%s"`, k, v))
+	// Use proper JSON marshaling instead of manual construction
+	jsonBytes, err := json.Marshal(metadata)
+	if err != nil {
+		// Fallback to empty JSON object if marshaling fails
+		return "{}"
 	}
-
-	return "{" + strings.Join(pairs, ",") + "}"
+	return string(jsonBytes)
 }
 
 // aggregateErrors combines multiple errors into a single error with context about all failures.
@@ -205,6 +206,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 
 // BuildMemoryDecisionPrompt constructs the prompt for memory decision making.
 // This is pure business logic extracted from the adapter.
+// DEPRECATED: Use BuildSeparateMemoryDecisionPrompts for security.
 func BuildMemoryDecisionPrompt(fact string, similar []ExistingMemory) string {
 	existingMemoriesContentForPrompt := []string{}
 	existingMemoriesForPromptStr := "No existing relevant memories found."
@@ -225,6 +227,40 @@ func BuildMemoryDecisionPrompt(fact string, similar []ExistingMemory) string {
 	decisionPromptBuilder.WriteString("Based on the guidelines and context, what action should be taken for the NEW FACT?")
 
 	return decisionPromptBuilder.String()
+}
+
+// BuildSeparateMemoryDecisionPrompts constructs separate system and user prompts to prevent injection.
+// This is the secure version that properly separates system instructions from user content.
+func BuildSeparateMemoryDecisionPrompts(fact string, similar []ExistingMemory) (systemPrompt string, userPrompt string) {
+	// System prompt contains only instructions and guidelines - no user content
+	systemPrompt = ConversationMemoryUpdatePrompt + `
+
+Based on the guidelines above, analyze the provided context and decide what action should be taken for the new fact.
+Use the appropriate tool to indicate your decision.`
+
+	// User prompt contains only the user data to be analyzed
+	existingMemoriesContentForPrompt := []string{}
+	existingMemoriesForPromptStr := "No existing relevant memories found."
+
+	if len(similar) > 0 {
+		for _, mem := range similar {
+			memContext := fmt.Sprintf("ID: %s, Content: %s", mem.ID, mem.Content)
+			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
+		}
+		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
+	}
+
+	userPrompt = fmt.Sprintf(`Context to analyze:
+
+Existing Memories for the primary user (if any, related to the new fact):
+%s
+
+New Fact to consider for the primary user:
+%s
+
+Please analyze this context and decide what action should be taken for the NEW FACT.`, existingMemoriesForPromptStr, fact)
+
+	return systemPrompt, userPrompt
 }
 
 // ParseMemoryDecisionResponse parses LLM tool call response into MemoryDecision.
