@@ -2,7 +2,6 @@ package evolvingmemory
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -16,20 +15,17 @@ import (
 )
 
 // createMockStorage creates a StorageImpl instance with mocked services for testing.
-func createMockStorage(t *testing.T) *StorageImpl {
-	logger := log.NewWithOptions(os.Stderr, log.Options{
-		Level: log.WarnLevel,
-	})
+func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
+	mockClient := &weaviate.Client{}
 
 	// Try to create separate AI services, fall back to skipping tests if no env vars
 	completionsService, embeddingsService := createTestAIServices()
 	if completionsService == nil || embeddingsService == nil {
-		t.Skip("Skipping AI-dependent tests: API keys not set")
-		return nil
+		return nil, nil
 	}
 
 	// Create mock storage interface using embeddings service for vector operations
-	mockStorage := storage.New(&weaviate.Client{}, logger, embeddingsService)
+	mockStorage := storage.New(mockClient, logger, embeddingsService)
 
 	storage := &StorageImpl{
 		logger:             logger,
@@ -38,7 +34,7 @@ func createMockStorage(t *testing.T) *StorageImpl {
 		storage:            mockStorage,
 	}
 
-	return storage
+	return storage, nil
 }
 
 func TestDefaultConfig(t *testing.T) {
@@ -61,7 +57,7 @@ func TestStoreV2BasicFlow(t *testing.T) {
 	t.Skip("Skipping test that requires real Weaviate client - causes nil pointer dereference with mock")
 
 	ctx := context.Background()
-	storage := createMockStorage(t)
+	storage, _ := createMockStorage(log.Default())
 
 	// Create test documents
 	docs := []memory.Document{
@@ -120,7 +116,7 @@ func TestStoreV2BasicFlow(t *testing.T) {
 
 func TestStoreV2EmptyDocuments(t *testing.T) {
 	ctx := context.Background()
-	storage := createMockStorage(t)
+	storage, _ := createMockStorage(log.Default())
 
 	config := DefaultConfig()
 
@@ -160,7 +156,7 @@ func TestPipelineIntegration_BasicFlow(t *testing.T) {
 	}
 
 	// This test verifies the basic pipeline flow with mocked dependencies
-	storage := createMockStorage(t)
+	storage, _ := createMockStorage(log.Default())
 	ctx := context.Background()
 	config := DefaultConfig()
 	config.Workers = 2

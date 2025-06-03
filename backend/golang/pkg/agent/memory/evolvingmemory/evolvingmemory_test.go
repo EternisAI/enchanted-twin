@@ -3,15 +3,18 @@ package evolvingmemory
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // TestConversationDocumentBasics tests basic ConversationDocument functionality.
@@ -120,12 +123,30 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
 
-		// Try to create separate AI services, fall back to skipping tests if no env vars
-		completionsService, embeddingsService := createTestAIServices()
-		if completionsService == nil || embeddingsService == nil {
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
 			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
@@ -153,12 +174,30 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
 
-		// Try to create separate AI services, fall back to skipping tests if no env vars
-		completionsService, embeddingsService := createTestAIServices()
-		if completionsService == nil || embeddingsService == nil {
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
 			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
@@ -184,12 +223,30 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
 
-		// Try to create separate AI services, fall back to skipping tests if no env vars
-		completionsService, embeddingsService := createTestAIServices()
-		if completionsService == nil || embeddingsService == nil {
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
 			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 

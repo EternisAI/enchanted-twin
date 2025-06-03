@@ -3,10 +3,12 @@ package evolvingmemory
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -15,6 +17,32 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
+
+// createTestAIServices creates AI services for testing.
+func createTestAIServices() (*ai.Service, *ai.Service) {
+	logger := log.Default()
+	envPath := filepath.Join("..", "..", "..", ".env")
+	_ = godotenv.Load(envPath)
+	completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+	embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+	if embeddingsKey == "" {
+		embeddingsKey = completionsKey
+	}
+	completionsURL := os.Getenv("COMPLETIONS_API_URL")
+	if completionsURL == "" {
+		completionsURL = "https://api.openai.com/v1"
+	}
+	embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+	if embeddingsURL == "" {
+		embeddingsURL = "https://api.openai.com/v1"
+	}
+	if completionsKey == "" {
+		return nil, nil
+	}
+	completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+	embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+	return completionsService, embeddingsService
+}
 
 // TestFactExtractorAdapter tests the fact extractor adapter structure.
 func TestFactExtractorAdapter(t *testing.T) {
