@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/google/uuid"
 
@@ -11,6 +15,18 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigChan
+		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+		cancel()
+	}()
+
 	envs, err := config.LoadConfig(false)
 	if err != nil {
 		log.Fatal("Error loading config:", err)
@@ -36,7 +52,7 @@ func main() {
 		id,
 	)
 
-	if err := integration.IntegrationTestMemory(integration.IntegrationTestMemoryConfig{
+	if err := integration.IntegrationTestMemory(ctx, integration.IntegrationTestMemoryConfig{
 		Source:            source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,
@@ -47,6 +63,10 @@ func main() {
 		EmbeddingsApiKey:  embeddingApiKey,
 		EmbeddingsApiUrl:  embeddingsApiUrl,
 	}); err != nil {
+		if err == context.Canceled {
+			log.Println("Integration test was canceled")
+			return
+		}
 		log.Fatal("Integration test failed:", err)
 	}
 	log.Println("Integration test completed successfully")
