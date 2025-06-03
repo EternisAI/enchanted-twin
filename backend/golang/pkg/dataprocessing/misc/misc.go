@@ -27,13 +27,15 @@ type TextDocumentProcessor struct {
 	openAiService    *ai.Service
 	chunkSize        int
 	completionsModel string
+	store            *db.Store
 }
 
-func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string) processor.Processor {
+func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store) processor.Processor {
 	return &TextDocumentProcessor{
 		openAiService:    openAiService,
 		chunkSize:        DefaultChunkSize,
 		completionsModel: completionsModel,
+		store:            store,
 	}
 }
 
@@ -260,7 +262,7 @@ func (s *TextDocumentProcessor) ExtractContentTags(ctx context.Context, content 
 	return tags, nil
 }
 
-func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s: %w", filePath, err)
@@ -383,7 +385,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	return records, nil
 }
 
-func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
+func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.WalkDir(inputPath, func(path string, d fs.DirEntry, err error) error {
@@ -395,7 +397,7 @@ func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath 
 			return nil
 		}
 
-		records, err := s.ProcessFile(ctx, path, store)
+		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil
@@ -411,7 +413,7 @@ func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath 
 	return allRecords, nil
 }
 
-func (s *TextDocumentProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		metadata := map[string]string{}
