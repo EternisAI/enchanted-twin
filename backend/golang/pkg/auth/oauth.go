@@ -168,6 +168,161 @@ type TokenResponse struct {
 	Platform     string    `json:"platform"`
 }
 
+type ComposioConnectAccountRequest struct {
+	GrantType string `json:"grant_type" binding:"required"`
+	Code      string `json:"code,omitempty"`
+	Platform  string `json:"platform" binding:"required"`
+}
+
+type CreateConnectedAccountRequest struct {
+	Provider    string `json:"provider" binding:"required"`
+	UserID      string `json:"user_id" binding:"required"`
+	RedirectURI string `json:"redirect_uri,omitempty"`
+}
+
+type CreateConnectedAccountResponse struct {
+	ID  string `json:"id"`
+	URL string `json:"url"`
+}
+
+type ConnectedAccountDetailResponse struct {
+	UserID string    `json:"user_id"`
+	ID     string    `json:"id"`
+	Status string    `json:"status"`
+	State  AuthState `json:"state"`
+}
+
+// AuthState represents the authentication state with OAuth details.
+type AuthState struct {
+	AuthScheme string        `json:"authScheme"`
+	Val        OAuth2Details `json:"val"`
+}
+
+// OAuth2Details represents OAuth2 authentication details.
+type OAuth2Details struct {
+	Status       string `json:"status"`
+	AccessToken  string `json:"access_token"`
+	TokenType    string `json:"token_type"`
+	RefreshToken string `json:"refresh_token"`
+	ExpiresIn    int    `json:"expires_in"`
+}
+
+func GetComposioAuthUrl(ctx context.Context, logger *log.Logger, store *db.Store, provider string) (string, string, error) {
+	conf, err := config.LoadConfig(false)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Load OAuth config for provider
+	oauthConfig, err := store.GetOAuthConfig(ctx, provider)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get OAuth config: %w", err)
+	}
+
+	userId, err := store.GetUserId(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get user ID: %w", err)
+	}
+
+	requestBody, err := json.Marshal(CreateConnectedAccountRequest{
+		Provider:    provider,
+		UserID:      userId,
+		RedirectURI: oauthConfig.RedirectURI,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	authURL := fmt.Sprintf("%s/composio/auth", conf.ProxyTEEURL)
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"POST",
+		authURL,
+		bytes.NewBuffer(requestBody),
+	)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to send token request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Error("failed to close token response body", "error", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", "", fmt.Errorf("failed to obtain token: %d: %s", resp.StatusCode, body)
+	}
+
+	var connectedAccountResponse CreateConnectedAccountResponse
+
+	if err := json.NewDecoder(resp.Body).Decode(&connectedAccountResponse); err != nil {
+		return "", "", fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	return connectedAccountResponse.URL, oauthConfig.RedirectURI, nil
+}
+
+func GetComposioAccount(ctx context.Context, logger *log.Logger, store *db.Store, account string, provider string) (*ConnectedAccountDetailResponse, error) {
+	conf, err := config.LoadConfig(false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	// Create and execute request to /auth/exchange
+	exchangeURL := fmt.Sprintf("%s/composio/account", conf.ProxyTEEURL)
+	req, err := http.NewRequestWithContext(
+		ctx,
+		"GET",
+		exchangeURL,
+		nil,
+	)
+
+	q := req.URL.Query()
+	q.Set("account_id", account)
+	req.URL.RawQuery = q.Encode()
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create token request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send token request: %w", err)
+	}
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Error("failed to close token response body", "error", closeErr)
+		}
+	}()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("failed to obtain token: %d: %s", resp.StatusCode, body)
+	}
+
+	// Parse token response based on provider
+	var tokenResp ConnectedAccountDetailResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return nil, fmt.Errorf("failed to parse token response: %w", err)
+	}
+
+	return &tokenResp, nil
+}
+
 // ExchangeToken handles the HTTP request to exchange an authorization code for tokens.
 func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, oauthConfig db.OAuthConfig, tokenReq TokenRequest) (*TokenResponse, error) {
 	conf, err := config.LoadConfig(false)
@@ -191,7 +346,7 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, oau
 	}
 
 	// Create and execute request to /auth/exchange
-	exchangeURL := fmt.Sprintf("%s/auth/exchange", conf.OAuthServerURL)
+	exchangeURL := fmt.Sprintf("%s/auth/exchange", conf.ProxyTEEURL)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
@@ -222,64 +377,6 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, oau
 	}
 
 	// Parse token response based on provider
-	var tokenResp TokenResponse
-	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
-		return nil, fmt.Errorf("failed to parse token response: %w", err)
-	}
-
-	return &tokenResp, nil
-}
-
-// RefreshTokens handles the refresh token flow using the new API endpoint.
-func RefreshTokens(ctx context.Context, logger *log.Logger, provider string, refreshToken string) (*TokenResponse, error) {
-	conf, err := config.LoadConfig(false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-
-	// Prepare request data for the new API
-	requestData := RefreshTokenRequest{
-		RefreshToken: refreshToken,
-		Platform:     provider,
-	}
-
-	requestBody, err := json.Marshal(requestData)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
-
-	// Create and execute request to /auth/refresh
-	refreshURL := fmt.Sprintf("%s/auth/refresh", conf.OAuthServerURL)
-	req, err := http.NewRequestWithContext(
-		ctx,
-		"POST",
-		refreshURL,
-		bytes.NewBuffer(requestBody),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create refresh request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to send refresh request: %w", err)
-	}
-	defer func() {
-		if closeErr := resp.Body.Close(); closeErr != nil {
-			logger.Error("failed to close refresh response body", "error", closeErr)
-		}
-	}()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to refresh token: %d: %s", resp.StatusCode, body)
-	}
-
-	// Parse token response (same format as exchange response)
 	var tokenResp TokenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
 		return nil, fmt.Errorf("failed to parse token response: %w", err)
@@ -604,16 +701,11 @@ func RefreshOAuthToken(
 			continue
 		}
 
-		// Use the new RefreshTokens function
-		tokenResp, err := RefreshTokens(ctx, logger, provider, token.RefreshToken)
-		if err != nil {
-			logger.Error("failed to refresh token", "provider", provider, "error", err)
-			lastError = err
-
-			token.Error = true
-			if err := store.SetOAuthTokens(ctx, token); err != nil {
-				// Log the error but continue processing other tokens
-				logger.Error("failed to update token error status", "provider", provider, "username", token.Username, "error", err)
+		if provider == "twitter" {
+			tokenResp, err := RefreshOAuthTokenComposio(ctx, logger, store, token, provider)
+			if err != nil {
+				logger.Error("failed to refresh token", "provider", provider, "error", err)
+				lastError = err
 			}
 			token.AccessToken = tokenResp.AccessToken
 			token.ExpiresAt = tokenResp.ExpiresAt
