@@ -120,19 +120,19 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
 
-		// Try to create real AI services, fall back to skipping tests if no env vars
-		aiService := createTestAIService()
-		if aiService == nil {
-			t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+		// Try to create separate AI services, fall back to skipping tests if no env vars
+		completionsService, embeddingsService := createTestAIServices()
+		if completionsService == nil || embeddingsService == nil {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
 
-		mockStorage := storage.New(mockClient, logger, aiService)
+		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
 		storageImpl := &StorageImpl{
 			logger:             logger,
-			completionsService: aiService,
-			embeddingsService:  aiService,
+			completionsService: completionsService,
+			embeddingsService:  embeddingsService,
 			storage:            mockStorage,
 		}
 
@@ -153,19 +153,19 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
 
-		// Try to create real AI services, fall back to skipping tests if no env vars
-		aiService := createTestAIService()
-		if aiService == nil {
-			t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+		// Try to create separate AI services, fall back to skipping tests if no env vars
+		completionsService, embeddingsService := createTestAIServices()
+		if completionsService == nil || embeddingsService == nil {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
 
-		mockStorage := storage.New(mockClient, logger, aiService)
+		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
 		storageImpl := &StorageImpl{
 			logger:             logger,
-			completionsService: aiService,
-			embeddingsService:  aiService,
+			completionsService: completionsService,
+			embeddingsService:  embeddingsService,
 			storage:            mockStorage,
 		}
 
@@ -184,19 +184,19 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
 
-		// Try to create real AI services, fall back to skipping tests if no env vars
-		aiService := createTestAIService()
-		if aiService == nil {
-			t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+		// Try to create separate AI services, fall back to skipping tests if no env vars
+		completionsService, embeddingsService := createTestAIServices()
+		if completionsService == nil || embeddingsService == nil {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
 
-		mockStorage := storage.New(mockClient, logger, aiService)
+		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
 		storageImpl := &StorageImpl{
 			logger:             logger,
-			completionsService: aiService,
-			embeddingsService:  aiService,
+			completionsService: completionsService,
+			embeddingsService:  embeddingsService,
 			storage:            mockStorage,
 		}
 
