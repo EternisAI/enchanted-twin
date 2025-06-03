@@ -1,25 +1,99 @@
 package main
 
 import (
-	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/log"
 )
 
-func main() {
-	target, _ := url.Parse("https://openrouter.ai")
-	proxy := httputil.NewSingleHostReverseProxy(target)
+var allowedBaseURLs = map[string]string{
+	"https://openrouter.ai/api/v1": os.Getenv("OPENROUTER_API_KEY"),
+	"https://api.openai.com":       os.Getenv("OPENAI_API_KEY"),
+}
 
-	// Use Director instead of ModifyRequest
-	originalDirector := proxy.Director
-	proxy.Director = func(req *http.Request) {
-		originalDirector(req)
-		req.Header.Set("User-Agent", "MyApp/1.0")
-		req.Header.Set("X-Forwarded-For", "")
-		req.Header.Del("X-Forwarded-Host")
-		req.Host = target.Host
+func main() {
+	logger := log.NewWithOptions(os.Stdout, log.Options{
+		ReportCaller:    true,
+		ReportTimestamp: true,
+		Level:           log.DebugLevel,
+		TimeFormat:      time.Kitchen,
+	})
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Extract X-BASE-URL from header
+		baseURL := r.Header.Get("X-BASE-URL")
+		if baseURL == "" {
+			http.Error(w, "X-BASE-URL header is required", http.StatusBadRequest)
+			return
+		}
+
+		// Check if base URL is in our allowed dictionary
+		apiKey, exists := allowedBaseURLs[baseURL]
+		if !exists {
+			logger.Error("Unauthorized base URL", "base_url", baseURL)
+			http.Error(w, "Unauthorized base URL", http.StatusForbidden)
+			return
+		}
+
+		// Parse the target URL
+		target, err := url.Parse(baseURL)
+		if err != nil {
+			logger.Error("Invalid URL format", "base_url", baseURL)
+			http.Error(w, "Invalid URL format", http.StatusBadRequest)
+			return
+		}
+
+		// Create reverse proxy for this specific target
+		p := httputil.NewSingleHostReverseProxy(target)
+
+		orig := p.Director
+		p.Director = func(r *http.Request) {
+			orig(r)
+			log.Printf("📤 Forwarding %s %s%s to %s", r.Method, r.Host, r.RequestURI, target.String()+r.RequestURI)
+
+			r.Host = target.Host
+
+			// Set Authorization header with Bearer token
+			r.Header.Set("Authorization", "Bearer "+apiKey)
+
+			// Handle User-Agent header
+			if userAgent := r.Header.Get("User-Agent"); strings.Contains(userAgent, "OpenAI/Go") {
+			} else {
+				r.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+			}
+
+			// Clean up proxy headers
+			r.Header.Del("X-Forwarded-For")
+			r.Header.Del("X-Real-Ip")
+			r.Header.Del("X-BASE-URL") // Remove our custom header before forwarding
+		}
+
+		p.ServeHTTP(w, r)
+	})
+
+	srv := &http.Server{
+		Addr:         ":12000",
+		Handler:      handler,
+		ReadTimeout:  0,
+		WriteTimeout: 0,
+		IdleTimeout:  0,
 	}
 
-	log.Fatal(http.ListenAndServe(":12000", proxy))
+	logger.Info("🔁  proxy listening on :12000")
+	logger.Info("✅  allowed base URLs", "paths", getKeys(allowedBaseURLs))
+	log.Fatal(srv.ListenAndServe())
+}
+
+// Helper function to get keys from map for logging
+func getKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }

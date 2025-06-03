@@ -171,9 +171,23 @@ func main() {
 		}
 	}()
 
-	// Initialize the AI service singleton
-	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
-	aiEmbeddingsService := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	tokenFunc := func() string {
+		return "12345"
+	}
+	var aiCompletionsService *ai.Service
+	if envs.ProxyTeeURL != "" {
+		aiCompletionsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.CompletionsAPIURL)
+	} else {
+		aiCompletionsService = ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
+	}
+
+	var aiEmbeddingsService *ai.Service
+	if envs.ProxyTeeURL != "" {
+		aiEmbeddingsService = ai.NewOpenAIServiceProxy(logger, envs.ProxyTeeURL, tokenFunc, envs.EmbeddingsAPIURL)
+	} else {
+		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
+	}
+
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
 	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
