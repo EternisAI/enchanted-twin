@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -235,6 +236,7 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 				contentProperty:   "text",
 				timestampProperty: "date",
 				metadataProperty:  "text",
+				tagsProperty:      "text[]",
 			}
 
 			existingProps := make(map[string]string)
@@ -279,6 +281,11 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 				Name:        metadataProperty,
 				DataType:    []string{"text"},
 				Description: "JSON-encoded metadata for the memory",
+			},
+			{
+				Name:        tagsProperty,
+				DataType:    []string{"text[]"},
+				Description: "Tags associated with the memory",
 			},
 		},
 		Vectorizer: "none", // We provide our own vectors
@@ -332,7 +339,11 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	}
 
 	if len(resp.Errors) > 0 {
-		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
+		var errorMsgs []string
+		for _, err := range resp.Errors {
+			errorMsgs = append(errorMsgs, err.Message)
+		}
+		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMsgs, "; "))
 	}
 
 	finalResults := []memory.TextDocument{}
@@ -458,7 +469,11 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 	}
 
 	if len(resp.Errors) > 0 {
-		return memory.QueryWithDistanceResult{}, fmt.Errorf("GraphQL query errors: %v", resp.Errors)
+		var errorMsgs []string
+		for _, err := range resp.Errors {
+			errorMsgs = append(errorMsgs, err.Message)
+		}
+		return memory.QueryWithDistanceResult{}, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMsgs, "; "))
 	}
 
 	finalResults := []memory.DocumentWithDistance{}
