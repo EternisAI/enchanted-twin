@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -150,14 +151,18 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
-		storageImpl := &StorageImpl{
-			logger:             logger,
-			completionsService: completionsService,
-			embeddingsService:  embeddingsService,
-			storage:            mockStorage,
-		}
+		storageImpl, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		})
+		require.NoError(t, err)
 
-		err := storageImpl.Store(context.Background(), []memory.Document{}, nil)
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
+
+		err = storageImplTyped.Store(context.Background(), []memory.Document{}, nil)
 		assert.NoError(t, err)
 	})
 
@@ -201,14 +206,18 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
-		storageImpl := &StorageImpl{
-			logger:             logger,
-			completionsService: completionsService,
-			embeddingsService:  embeddingsService,
-			storage:            mockStorage,
-		}
+		storageImpl, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		})
+		require.NoError(t, err)
 
-		err := storageImpl.Store(context.Background(), []memory.Document{}, callback)
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
+
+		err = storageImplTyped.Store(context.Background(), []memory.Document{}, callback)
 		assert.NoError(t, err)
 
 		// For empty documents, callback might not be called, which is fine
@@ -250,12 +259,16 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
-		storageImpl := &StorageImpl{
-			logger:             logger,
-			completionsService: completionsService,
-			embeddingsService:  embeddingsService,
-			storage:            mockStorage,
-		}
+		storageImpl, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		})
+		require.NoError(t, err)
+
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
 
 		docs := []memory.Document{
 			&memory.TextDocument{
@@ -264,7 +277,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			},
 		}
 
-		err := storageImpl.Store(ctx, docs, nil)
+		err = storageImplTyped.Store(ctx, docs, nil)
 		assert.Error(t, err)
 		assert.Equal(t, context.Canceled, err)
 	})
