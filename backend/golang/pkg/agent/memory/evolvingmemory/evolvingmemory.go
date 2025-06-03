@@ -185,10 +185,10 @@ type Dependencies struct {
 
 // StorageImpl implements MemoryStorage using any storage backend.
 type StorageImpl struct {
-	logger             *log.Logger
-	completionsService *ai.Service
-	embeddingsService  *ai.Service
-	storage            storage.Interface
+	logger       *log.Logger
+	orchestrator MemoryOrchestrator
+	storage      storage.Interface
+	engine       MemoryEngine // Keep reference for backward compatibility
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -206,12 +206,30 @@ func New(deps Dependencies) (MemoryStorage, error) {
 		return nil, fmt.Errorf("embeddings service cannot be nil")
 	}
 
+	// Create the memory engine with business logic
+	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsService, deps.Storage)
+	if err != nil {
+		return nil, fmt.Errorf("creating memory engine: %w", err)
+	}
+
+	// Create the orchestrator with coordination logic
+	orchestrator, err := NewMemoryOrchestrator(engine, deps.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("creating memory orchestrator: %w", err)
+	}
+
 	return &StorageImpl{
-		logger:             deps.Logger,
-		completionsService: deps.CompletionsService,
-		embeddingsService:  deps.EmbeddingsService,
-		storage:            deps.Storage,
+		logger:       deps.Logger,
+		orchestrator: orchestrator,
+		storage:      deps.Storage,
+		engine:       engine,
 	}, nil
+}
+
+// GetEngine returns the memory engine for backward compatibility.
+// TODO: Remove this method once adapters are fully migrated.
+func (s *StorageImpl) GetEngine() MemoryEngine {
+	return s.engine
 }
 
 // StoreConversations is an alias for Store to maintain backward compatibility.
@@ -281,6 +299,11 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, pr
 	}
 
 	return nil
+}
+
+// StoreV2 implements the new processing pipeline by delegating to the orchestrator.
+func (s *StorageImpl) StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
+	return s.orchestrator.ProcessDocuments(ctx, documents, config)
 }
 
 // Query implements the memory.Storage interface by delegating to the storage interface.

@@ -2,6 +2,7 @@ package evolvingmemory
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -12,29 +13,37 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // createMockStorage creates a StorageImpl instance with mocked services for testing.
 func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
+	// Create mock Weaviate client
 	mockClient := &weaviate.Client{}
 
-	// Try to create separate AI services, fall back to skipping tests if no env vars
-	completionsService, embeddingsService := createTestAIServices()
-	if completionsService == nil || embeddingsService == nil {
-		return nil, nil
-	}
+	// Create AI services for testing
+	completionsService := ai.NewOpenAIService(logger, "test-key", "https://api.openai.com/v1")
+	embeddingsService := ai.NewOpenAIService(logger, "test-key", "https://api.openai.com/v1")
 
 	// Create mock storage interface using embeddings service for vector operations
 	mockStorage := storage.New(mockClient, logger, embeddingsService)
 
-	storage := &StorageImpl{
-		logger:             logger,
-		completionsService: completionsService, // OpenRouter for LLM
-		embeddingsService:  embeddingsService,  // OpenAI for embeddings
-		storage:            mockStorage,
+	storageImpl, err := New(Dependencies{
+		Logger:             logger,
+		Storage:            mockStorage,
+		CompletionsService: completionsService,
+		EmbeddingsService:  embeddingsService,
+	})
+	if err != nil {
+		return nil, err
 	}
 
-	return storage, nil
+	storageImplTyped, ok := storageImpl.(*StorageImpl)
+	if !ok {
+		return nil, fmt.Errorf("failed to type assert to StorageImpl")
+	}
+
+	return storageImplTyped, nil
 }
 
 func TestDefaultConfig(t *testing.T) {
