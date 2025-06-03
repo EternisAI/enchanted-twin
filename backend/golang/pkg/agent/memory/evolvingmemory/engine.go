@@ -150,10 +150,12 @@ func (e *memoryEngine) SearchSimilar(ctx context.Context, fact string, speakerID
 
 // DecideAction decides what action to take with a fact given similar memories.
 func (e *memoryEngine) DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error) {
-	fullDecisionPrompt := BuildMemoryDecisionPrompt(fact, similar)
+	// Build separate system and user messages to prevent prompt injection
+	systemPrompt, userPrompt := BuildSeparateMemoryDecisionPrompts(fact, similar)
 
 	decisionMessages := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(fullDecisionPrompt),
+		openai.SystemMessage(systemPrompt),
+		openai.UserMessage(userPrompt),
 	}
 
 	// Use existing tools from tools.go
