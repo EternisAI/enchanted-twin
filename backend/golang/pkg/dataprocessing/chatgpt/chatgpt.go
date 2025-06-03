@@ -60,21 +60,19 @@ type ConversationMessage struct {
 	Role string
 	Text string
 }
-type ChatGPTProcessor struct{}
+type ChatGPTProcessor struct {
+	store *db.Store
+}
 
-func NewChatGPTProcessor() processor.Processor {
-	return &ChatGPTProcessor{}
+func NewChatGPTProcessor(store *db.Store) processor.Processor {
+	return &ChatGPTProcessor{store: store}
 }
 
 func (s *ChatGPTProcessor) Name() string {
 	return "chatgpt"
 }
 
-func (s *ChatGPTProcessor) ProcessFile(
-	ctx context.Context,
-	filePath string,
-	store *db.Store,
-) ([]types.Record, error) {
+func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, fmt.Errorf("context canceled before processing: %w", err)
 	}
@@ -160,7 +158,7 @@ func (s *ChatGPTProcessor) ProcessFile(
 	return records, nil
 }
 
-func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath string, store *db.Store) ([]types.Record, error) {
+func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
 	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
@@ -181,7 +179,7 @@ func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath strin
 		}
 
 		if filepath.Base(path) == "conversations.json" {
-			records, err := s.ProcessFile(ctx, path, store)
+			records, err := s.ProcessFile(ctx, path)
 			if err != nil {
 				if ctx.Err() != nil {
 					return err
@@ -207,7 +205,7 @@ func (s *ChatGPTProcessor) Sync(ctx context.Context, accessToken string) ([]type
 	return nil, false, fmt.Errorf("sync operation not supported for Chatgpt")
 }
 
-func (s *ChatGPTProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	conversationDocuments := make([]memory.ConversationDocument, 0, len(records))
 
 	for _, record := range records {

@@ -1,3 +1,5 @@
+// owner: slimane@eternis.ai
+
 package gmail
 
 import (
@@ -32,9 +34,13 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-type GmailProcessor struct{}
+type GmailProcessor struct {
+	store *db.Store
+}
 
-func NewGmailProcessor() processor.Processor { return &GmailProcessor{} }
+func NewGmailProcessor(store *db.Store) processor.Processor {
+	return &GmailProcessor{store: store}
+}
 
 func (g *GmailProcessor) Name() string { return "gmail" }
 
@@ -80,7 +86,19 @@ type (
 
 const processTimeout = time.Second
 
-func (g *GmailProcessor) ProcessFile(ctx context.Context, path string, store *db.Store) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.Record, error) {
+	userEmail, err := DetectUserEmailFromMbox(path)
+	if err != nil {
+		fmt.Printf("Warning: Could not detect user email: %v\n", err)
+		userEmail = ""
+	} else {
+		fmt.Printf("Detected user email: %s\n", userEmail)
+
+		if err := g.extractAndStoreUserEmail(ctx, userEmail); err != nil {
+			fmt.Printf("Warning: Failed to store user email in database: %v\n", err)
+		}
+	}
+
 	total, err := countEmails(path)
 	if err != nil {
 		return nil, err
@@ -117,7 +135,7 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string, store *db
 					err error
 				})
 				go func(raw string) {
-					rec, e := g.processEmail(raw, "")
+					rec, e := g.processEmail(raw, userEmail)
 					done <- struct {
 						r   types.Record
 						err error
@@ -223,7 +241,7 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string, store *db
 
 /* ────────────────────────────────────────────  single-email helper  ─────────────────────────────────── */
 
-func (g *GmailProcessor) processEmail(raw, user string) (types.Record, error) {
+func (g *GmailProcessor) processEmail(raw, userEmail string) (types.Record, error) {
 	msg, err := mail.ReadMessage(strings.NewReader(raw))
 	if err != nil {
 		return types.Record{}, err
@@ -232,10 +250,49 @@ func (g *GmailProcessor) processEmail(raw, user string) (types.Record, error) {
 	h := msg.Header
 	date, _ := mail.ParseDate(h.Get("Date"))
 
+	fromAddr := extractEmailAddress(h.Get("From"))
+	toAddr := extractEmailAddress(h.Get("To"))
+	deliveredToAddr := extractEmailAddress(h.Get("Delivered-To"))
+
+	var userRole string
+	var isUserEmail bool
+	if userEmail != "" {
+		userEmailLower := strings.ToLower(userEmail)
+		if strings.ToLower(fromAddr) == userEmailLower {
+			userRole = "sender"
+			isUserEmail = true
+		} else if strings.ToLower(toAddr) == userEmailLower || strings.ToLower(deliveredToAddr) == userEmailLower {
+			userRole = "recipient"
+			isUserEmail = true
+		} else {
+			userRole = "unknown"
+			isUserEmail = false
+		}
+	}
+
 	data := map[string]interface{}{
-		"from":    h.Get("From"),
-		"to":      h.Get("To"),
-		"subject": h.Get("Subject"),
+		"from":         h.Get("From"),
+		"to":           h.Get("To"),
+		"subject":      h.Get("Subject"),
+		"delivered_to": h.Get("Delivered-To"),
+	}
+
+	// Add user-specific metadata if user email is known
+	if userEmail != "" {
+		data["user_email"] = userEmail
+		data["user_role"] = userRole
+		data["is_user_email"] = isUserEmail
+	}
+
+	// Add extracted email addresses for easier filtering
+	if fromAddr != "" {
+		data["from_address"] = fromAddr
+	}
+	if toAddr != "" {
+		data["to_address"] = toAddr
+	}
+	if deliveredToAddr != "" {
+		data["delivered_to_address"] = deliveredToAddr
 	}
 
 	mt, params, _ := mime.ParseMediaType(h.Get("Content-Type"))
@@ -511,14 +568,14 @@ func decodeBase64URL(s string) (string, error) {
 	return string(b), err
 }
 
-func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string, store *db.Store) ([]types.Record, error) {
+func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string) ([]types.Record, error) {
 	var all []types.Record
 	var mu sync.Mutex
 	err := filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
 		if err != nil || fi.IsDir() || !strings.Contains(fi.Name(), ".mbox") {
 			return err
 		}
-		recs, err := g.ProcessFile(ctx, p, store)
+		recs, err := g.ProcessFile(ctx, p)
 		if err != nil {
 			logrus.Errorf("process %s: %v", p, err)
 			return nil
@@ -531,7 +588,7 @@ func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string, store
 	return all, err
 }
 
-func (g *GmailProcessor) ToDocuments(recs []types.Record) ([]memory.Document, error) {
+func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) ([]memory.Document, error) {
 	out := []memory.TextDocument{}
 	for _, r := range recs {
 		get := func(k string) string {
@@ -564,35 +621,81 @@ func (g *GmailProcessor) ToDocuments(recs []types.Record) ([]memory.Document, er
 	return documents, nil
 }
 
-func cleanEmailText(s string) string {
-	repl := strings.NewReplacer(
-		"\r\n", "\n", "\r", "\n",
-		"\u00a0", " ", // NBSP
-		"\u200c", "", // zero-width
-		"\u2007", " ",
-	)
-	s = repl.Replace(s)
+func cleanEmailText(content string) string {
+	content = regexp.MustCompile(`=0[AD]`).ReplaceAllString(content, " ")
+	content = regexp.MustCompile(`=\n`).ReplaceAllString(content, "")
+	content = regexp.MustCompile(`=3D`).ReplaceAllString(content, "=")
+	content = regexp.MustCompile(`=E2=9A=BD=EF=B8=8F`).ReplaceAllString(content, "⚽️")
 
-	linkRegex := regexp.MustCompile(`https?://[^\s)]+`) // Avoid matching trailing ')'
-	s = linkRegex.ReplaceAllString(s, "")
+	content = regexp.MustCompile(`https?://[^\s<>"]+`).ReplaceAllString(content, "")
 
-	var out []string
-	for _, ln := range strings.Split(s, "\n") {
-		ln = strings.TrimSpace(ln)
-		if ln == "" {
+	lines := strings.Split(content, "\n")
+	var cleanedLines []string
+	footerStarted := false
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+
+		if line == "" {
 			continue
 		}
-		lc := strings.ToLower(ln)
-		if strings.HasPrefix(lc, "unsubscribe") ||
-			strings.Contains(lc, "to unsubscribe") ||
-			strings.HasPrefix(lc, "update your preferences") ||
-			strings.HasPrefix(lc, "©") ||
-			strings.HasPrefix(lc, "google llc") ||
-			strings.HasPrefix(lc, "this email was sent") {
-			break
+
+		lowerLine := strings.ToLower(line)
+		if !footerStarted && (strings.Contains(lowerLine, "unsubscribe") ||
+			strings.Contains(lowerLine, "privacy policy") ||
+			strings.Contains(lowerLine, "email notification") ||
+			strings.Contains(lowerLine, "manage your") ||
+			strings.Contains(lowerLine, "copyright") ||
+			strings.Contains(lowerLine, "©") ||
+			strings.Contains(lowerLine, "this email was sent") ||
+			regexp.MustCompile(`--+`).MatchString(line)) {
+			footerStarted = true
+			continue
 		}
-		out = append(out, ln)
+
+		if footerStarted {
+			continue
+		}
+
+		line = regexp.MustCompile(`<[^>]*>`).ReplaceAllString(line, "")
+		line = regexp.MustCompile(`&[a-zA-Z0-9#]+;`).ReplaceAllString(line, "")
+		line = regexp.MustCompile(`\s+`).ReplaceAllString(line, " ")
+		line = strings.TrimSpace(line)
+
+		if regexp.MustCompile(`^[=\s\d\-\+\(\)\[\]<>'"]+$`).MatchString(line) {
+			continue
+		}
+
+		if line != "" {
+			cleanedLines = append(cleanedLines, line)
+		}
 	}
 
-	return strings.Join(out, "\n")
+	result := strings.Join(cleanedLines, "\n")
+	return strings.TrimSpace(result)
+}
+
+// extractAndStoreUserEmail stores the detected user email in the database.
+func (g *GmailProcessor) extractAndStoreUserEmail(ctx context.Context, userEmail string) error {
+	if g.store == nil {
+		return fmt.Errorf("store is nil")
+	}
+
+	if userEmail == "" {
+		return fmt.Errorf("user email is empty")
+	}
+
+	sourceUsername := db.SourceUsername{
+		Source:   g.Name(),
+		Username: userEmail,
+	}
+
+	fmt.Printf("Saving email to database: %v\n", sourceUsername)
+
+	if err := g.store.SetSourceUsername(ctx, sourceUsername); err != nil {
+		fmt.Printf("Warning: Failed to save email to database: %v\n", err)
+		return err
+	}
+
+	return nil
 }

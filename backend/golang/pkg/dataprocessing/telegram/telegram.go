@@ -68,17 +68,23 @@ type TelegramData struct {
 	} `json:"chats"`
 }
 
-type TelegramProcessor struct{}
+type TelegramProcessor struct {
+	store *db.Store
+}
 
-func NewTelegramProcessor() processor.Processor {
-	return &TelegramProcessor{}
+func NewTelegramProcessor(store *db.Store) processor.Processor {
+	return &TelegramProcessor{store: store}
 }
 
 func (s *TelegramProcessor) Name() string {
 	return "telegram"
 }
 
-func extractUsername(ctx context.Context, telegramData TelegramData, store *db.Store, processor *TelegramProcessor) (string, error) {
+func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData TelegramData) (string, error) {
+	if s.store == nil {
+		return "", fmt.Errorf("store is nil")
+	}
+
 	extractedUsername := ""
 	if telegramData.PersonalInformation.Username != "" {
 		userIDStr := ""
@@ -87,7 +93,7 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 		}
 
 		sourceUsername := db.SourceUsername{
-			Source:   processor.Name(),
+			Source:   s.Name(),
 			Username: telegramData.PersonalInformation.Username,
 		}
 
@@ -107,7 +113,7 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 			sourceUsername.Bio = &telegramData.PersonalInformation.Bio
 		}
 
-		if err := store.SetSourceUsername(ctx, sourceUsername); err != nil {
+		if err := s.store.SetSourceUsername(ctx, sourceUsername); err != nil {
 			fmt.Printf("Warning: Failed to save username to database: %v\n", err)
 
 			return "", err
@@ -119,7 +125,7 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 	return extractedUsername, nil
 }
 
-func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
+func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, filepath string) ([]types.Record, error) {
 	return nil, fmt.Errorf("process directory not supported for Telegram")
 }
 
@@ -127,7 +133,11 @@ func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 	return nil, false, fmt.Errorf("sync operation not supported for Telegram")
 }
 
-func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
+func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]types.Record, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
 		return nil, err
@@ -179,7 +189,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 		return nil, err
 	}
 
-	effectiveUserName, err := extractUsername(ctx, telegramData, store, s)
+	effectiveUserName, err := s.extractUsername(ctx, telegramData)
 	if err != nil {
 		return nil, err
 	}
@@ -297,9 +307,19 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", dateStr)
 }
 
-func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	conversationMap := make(map[string]*memory.ConversationDocument)
 	var textDocuments []memory.TextDocument
+
+	sourceUsername, err := s.store.GetSourceUsername(ctx, s.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source username: %v", err)
+	}
+
+	var extractedUser string
+	if sourceUsername != nil {
+		extractedUser = sourceUsername.Username
+	}
 
 	for _, record := range records {
 		if record.Data["type"] == "message" {
@@ -340,7 +360,7 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 					FieldSource:  "telegram",
 					FieldTags:    []string{"social", "telegram", "chat"},
 					People:       []string{from, to},
-					User:         from,
+					User:         extractedUser,
 					Conversation: []memory.ConversationMessage{},
 					FieldMetadata: map[string]string{
 						"type":   "conversation",
