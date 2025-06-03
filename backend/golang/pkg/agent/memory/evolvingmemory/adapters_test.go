@@ -3,12 +3,10 @@ package evolvingmemory
 import (
 	"context"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -18,50 +16,24 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// createTestAIService creates a real AI service if API key is available, otherwise returns nil.
-func createTestAIService() *ai.Service {
-	// Try to load .env file from the backend/golang directory
-	envPath := filepath.Join("..", "..", "..", "..", ".env")
-	err := godotenv.Load(envPath)
-	if err != nil {
-		log.Default().Warn("Failed to load .env file", "path", envPath, "error", err)
-	} else {
-		log.Default().Debug("Successfully loaded .env file", "path", envPath)
-	}
-
-	apiKey := os.Getenv("COMPLETIONS_API_KEY")
-	if apiKey == "" {
-		log.Default().Debug("COMPLETIONS_API_KEY not found in environment")
-		return nil
-	}
-
-	apiURL := os.Getenv("COMPLETIONS_API_URL")
-	if apiURL == "" {
-		apiURL = "https://api.openai.com/v1" // Default fallback
-	}
-
-	log.Default().Debug("COMPLETIONS_API_KEY found, creating AI service")
-	return ai.NewOpenAIService(log.Default(), apiKey, apiURL)
-}
-
 // TestFactExtractorAdapter tests the fact extractor adapter structure.
 func TestFactExtractorAdapter(t *testing.T) {
 	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
-	// Create storage with services
-	mockStorage := storage.New(mockClient, logger, aiService)
+	// Create storage with embeddings service (for vector operations)
+	mockStorage := storage.New(mockClient, logger, embeddingsService)
 	storageImpl := &StorageImpl{
 		logger:             logger,
-		completionsService: aiService,
-		embeddingsService:  aiService,
+		completionsService: completionsService, // OpenRouter for LLM
+		embeddingsService:  embeddingsService,  // OpenAI for embeddings
 		storage:            mockStorage,
 	}
 	adapter, err := NewFactExtractor(storageImpl)
@@ -160,7 +132,7 @@ func TestFactExtractorAdapter(t *testing.T) {
 		storageWithoutCompletions := &StorageImpl{
 			logger:             logger,
 			completionsService: nil,
-			embeddingsService:  aiService,
+			embeddingsService:  embeddingsService,
 			storage:            mockStorage,
 		}
 		_, err := NewFactExtractor(storageWithoutCompletions)
@@ -174,20 +146,20 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
-	// Try to create real AI services, fall back to skipping if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
 	// Just a basic test to ensure the function doesn't completely fail
 	t.Run("BasicStructure", func(t *testing.T) {
-		mockStorage := storage.New(mockClient, logger, aiService)
+		mockStorage := storage.New(mockClient, logger, embeddingsService)
 		storageImpl := &StorageImpl{
 			logger:             logger,
-			completionsService: aiService,
-			embeddingsService:  aiService,
+			completionsService: completionsService,
+			embeddingsService:  embeddingsService,
 			storage:            mockStorage,
 		}
 		_, err := NewMemoryOperations(storageImpl)
@@ -228,14 +200,16 @@ func TestAdapterCreation(t *testing.T) {
 	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
-	// Try to create real AI services, fall back to dummy if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		aiService = &ai.Service{}
+	// Try to create separate AI services, fall back to dummy if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		// Create dummy services for testing structure
+		completionsService = &ai.Service{}
+		embeddingsService = &ai.Service{}
 	}
 
-	mockStorage := storage.New(mockClient, logger, aiService)
-	storageImpl, err := New(logger, mockStorage, aiService, aiService)
+	mockStorage := storage.New(mockClient, logger, embeddingsService)
+	storageImpl, err := New(logger, mockStorage, completionsService, embeddingsService)
 	require.NoError(t, err)
 
 	t.Run("NewFactExtractor", func(t *testing.T) {
@@ -269,8 +243,8 @@ func TestAdapterCreation(t *testing.T) {
 	t.Run("NewMemoryOperations_NilClient", func(t *testing.T) {
 		storageWithoutInterface := &StorageImpl{
 			logger:             logger,
-			completionsService: aiService,
-			embeddingsService:  aiService,
+			completionsService: completionsService,
+			embeddingsService:  embeddingsService,
 			storage:            nil,
 		}
 		_, err := NewMemoryOperations(storageWithoutInterface)
@@ -282,7 +256,7 @@ func TestAdapterCreation(t *testing.T) {
 		storageWithoutCompletions := &StorageImpl{
 			logger:             logger,
 			completionsService: nil,
-			embeddingsService:  aiService,
+			embeddingsService:  embeddingsService,
 			storage:            mockStorage,
 		}
 		_, err := NewMemoryOperations(storageWithoutCompletions)
@@ -294,19 +268,19 @@ func TestAdapterCreation(t *testing.T) {
 func TestNewFactExtractor_Success(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, aiService)
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
 
 	storageImpl := &StorageImpl{
 		logger:             logger,
-		completionsService: aiService,
-		embeddingsService:  aiService,
+		completionsService: completionsService,
+		embeddingsService:  embeddingsService,
 		storage:            mockStorageInterface,
 	}
 
@@ -327,19 +301,19 @@ func TestNewFactExtractor_NilStorage(t *testing.T) {
 func TestNewFactExtractor_NilCompletionsService(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, aiService)
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
 
 	storageWithoutCompletions := &StorageImpl{
 		logger:             logger,
 		completionsService: nil, // Missing completions service
-		embeddingsService:  aiService,
+		embeddingsService:  embeddingsService,
 		storage:            mockStorageInterface,
 	}
 
@@ -353,19 +327,19 @@ func TestNewFactExtractor_NilCompletionsService(t *testing.T) {
 func TestFactExtractorAdapter_ExtractFacts_ConversationDocument(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, aiService)
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
 
 	storageWithAI := &StorageImpl{
 		logger:             logger,
-		completionsService: aiService,
-		embeddingsService:  aiService,
+		completionsService: completionsService,
+		embeddingsService:  embeddingsService,
 		storage:            mockStorageInterface,
 	}
 
@@ -399,19 +373,19 @@ func TestFactExtractorAdapter_ExtractFacts_ConversationDocument(t *testing.T) {
 func TestFactExtractorAdapter_ExtractFacts_TextDocument(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, aiService)
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
 
 	storageWithAI := &StorageImpl{
 		logger:             logger,
-		completionsService: aiService,
-		embeddingsService:  aiService,
+		completionsService: completionsService,
+		embeddingsService:  embeddingsService,
 		storage:            mockStorageInterface,
 	}
 
@@ -442,19 +416,19 @@ func TestFactExtractorAdapter_ExtractFacts_TextDocument(t *testing.T) {
 func TestFactExtractorAdapter_ExtractFacts_UnknownDocumentType(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, aiService)
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
 
 	storageWithoutCompletions := &StorageImpl{
 		logger:             logger,
-		completionsService: aiService,
-		embeddingsService:  aiService,
+		completionsService: completionsService,
+		embeddingsService:  embeddingsService,
 		storage:            mockStorageInterface,
 	}
 
@@ -479,17 +453,17 @@ func TestFactExtractorAdapter_ExtractFacts_UnknownDocumentType(t *testing.T) {
 func TestNewMemoryOperations_Success(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
 	mockClient := &weaviate.Client{}
-	mockStorageInterface := storage.New(mockClient, logger, aiService)
+	mockStorageInterface := storage.New(mockClient, logger, embeddingsService)
 
-	storageImpl, err := New(logger, mockStorageInterface, aiService, aiService)
+	storageImpl, err := New(logger, mockStorageInterface, completionsService, embeddingsService)
 	require.NoError(t, err)
 
 	// Type assert to get StorageImpl
@@ -513,17 +487,17 @@ func TestNewMemoryOperations_NilStorage(t *testing.T) {
 func TestNewMemoryOperations_NilStorageInterface(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
 	storageWithoutClient := &StorageImpl{
 		logger:             logger,
-		completionsService: aiService,
-		embeddingsService:  aiService,
+		completionsService: completionsService,
+		embeddingsService:  embeddingsService,
 		storage:            nil, // Missing storage interface
 	}
 
@@ -537,19 +511,19 @@ func TestNewMemoryOperations_NilStorageInterface(t *testing.T) {
 func TestNewMemoryOperations_NilCompletionsService(t *testing.T) {
 	logger := log.New(os.Stdout)
 
-	// Try to create real AI services, fall back to skipping tests if no env vars
-	aiService := createTestAIService()
-	if aiService == nil {
-		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+	// Try to create separate AI services, fall back to skipping tests if no env vars
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		t.Skip("Skipping AI-dependent tests: API keys not set")
 		return
 	}
 
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, aiService)
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
 
 	storageWithoutCompletions := &StorageImpl{
 		logger:             logger,
 		completionsService: nil, // Missing completions service
-		embeddingsService:  aiService,
+		embeddingsService:  embeddingsService,
 		storage:            mockStorageInterface,
 	}
 
