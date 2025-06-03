@@ -41,13 +41,28 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
 
+	// Create temporary database
+	dbFile, err := os.CreateTemp("", "test_*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp db file: %v", err)
+	}
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
+
+	ctx := context.Background()
+	store, err := db.NewStore(ctx, dbFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
 	// Test the function
 	records, err := helpers.ReadJSONL[types.Record](tempFile.Name())
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
 
-	telegramProcessor := NewTelegramProcessor(nil)
+	telegramProcessor := NewTelegramProcessor(store)
 	docs, err := telegramProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)

@@ -15,75 +15,19 @@ import (
 )
 
 func TestGmailProcessor(t *testing.T) {
-	// Create a temporary test file
+	// Sample mbox content based on the user's provided sample
 	content := `From 1828754568043628583@xxx Mon Apr 07 14:31:02 +0000 2025
 X-GM-THIRD: 1828754568043628583
-X-Gmail-Labels: =?UTF-8?Q?Forward_to_bob93@live.fr,Bo=C3=AEte_de_r=C3=A9ception,Non_lus?=
-Delivered-To: bob@gmail.com
+X-Gmail-Labels: =?UTF-8?Q?Forward_to_janedoe@live.fr,Bo=C3=AEte_de_r=C3=A9ception,Non_lus?=
+Delivered-To: johndoe@gmail.com
 Received: by 2002:a05:622a:68cd:b0:471:9721:748a with SMTP id ic13csp6102107qtb;
         Mon, 7 Apr 2025 07:31:03 -0700 (PDT)
-X-Google-Smtp-Source: AGHT+IGAOJR0tlrxR6lRuOwmwlCn7jmwluMHLTOSxCWRn8Ut5zK23fwrLmygD7NGQb1dougsEXjT
-X-Received: by 2002:a05:6102:5f02:b0:4c5:8b0c:5fde with SMTP id ada2fe7eead31-4c854fbb75dmr8874156137.8.1744036262713;
-        Mon, 07 Apr 2025 07:31:02 -0700 (PDT)
-ARC-Seal: i=1; a=rsa-sha256; t=1744036262; cv=none;
-        d=google.com; s=arc-20240605;
-        b=C59SJvNCarMMdinFoSQ+FIHptwMrBmg83fuYdwj8GU7hDUF1koutPKqi7nuZVMwmy1
-         d1MWiOMKcxK8j4L20x7diKqWLM5OG43EuXl9gMxjjhpBttptVl32ISn3jwMX8OFr0Jsf
-         UXcg1D1OlZRFh1RznsSP+qm3wSebnXPasydOEoOOGrVfeeep615nRAP/dQSqYRSxwOZ/
-         V8vafod/VE0zcYk3LXz+40pDu2fI5NSpIPFzVLYQJm4hoDiSp3vzwgmvLxfQxo8uiRch
-         7tHcjayI13BdOXS4O4FFLv4NEpldZe/IHz2cM/v8Ue1O2w/Yl8IrxgAw1wmfPl+i63Ek
-         cSFw==
-ARC-Message-Signature: i=1; a=rsa-sha256; c=relaxed/relaxed; d=google.com; s=arc-20240605;
-        h=from:mime-version:date:to:message-id:subject
-         :content-transfer-encoding:dkim-signature;
-        bh=myZz3UBCcavGyyEtepu6kC7s32D4F8HLYYYCsfDAg8E=;
-        fh=a6UvMgL1J6bhXDU8hl/iBD9Sq0vWZebayHnoHLeiwiM=;
-        b=g1ImzYbLRhW4YAvk76gi5AytfZic1CFHLorEkRxapBegW8JYjPt6/UxHCUNtOAScC0
-         iEG8lcORjaDaeZnBvJC9LLbDAUPaGGafnrXVkgrvZ1sAHu+AkoqF02LZhW3icBdCijXj
-         SHfSu+xHctT4Y4N4U/fMVNueQ5XCyzD0Cb7uaXw6yYcl8Fb3/vwq8QeA70rBLv3n6r35
-         Lw3D8RcVLmHNXxk8ziZ1EheSr3LmG34noXDBS1xWTd1O5+Fe/gZsRMI2qPKf2TGl1JJN
-         u4IhtuLgPVdRZt7wKI/HqgfT4hnp+aavdBDVPaOXuE7ZEJjrmaR8oDbcqwmJMR4F0SC5
-         grmQ==;
-        dara=google.com
-ARC-Authentication-Results: i=1; mx.google.com;
-       dkim=pass header.i=@meetup.com header.s=scph0624 header.b=o+33Obqh;
-       spf=pass (google.com: domain of msprvs1=20192pa_4brjs=bounces-56831-18@bounces.meetup.com designates 192.174.91.231 as permitted sender) smtp.mailfrom="msprvs1=20192PA_4BrJs=bounces-56831-18@bounces.meetup.com";
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=meetup.com
-Return-Path: <msprvs1=20192PA_4BrJs=bounces-56831-18@bounces.meetup.com>
-Received: from mta-174-91-231.evernote.com.sparkpostmail.com (mta-174-91-231.evernote.com.sparkpostmail.com. [192.174.91.231])
-        by mx.google.com with ESMTPS id ada2fe7eead31-4c84904b890si2741708137.591.2025.04.07.07.31.02
-        for <bob@gmail.com>
-        (version=TLS1_2 cipher=ECDHE-ECDSA-AES128-GCM-SHA256 bits=128/128);
-        Mon, 07 Apr 2025 07:31:02 -0700 (PDT)
-Received-SPF: pass (google.com: domain of msprvs1=20192pa_4brjs=bounces-56831-18@bounces.meetup.com designates 192.174.91.231 as permitted sender) client-ip=192.174.91.231;
-Authentication-Results: mx.google.com;
-       dkim=pass header.i=@meetup.com header.s=scph0624 header.b=o+33Obqh;
-       spf=pass (google.com: domain of msprvs1=20192pa_4brjs=bounces-56831-18@bounces.meetup.com designates 192.174.91.231 as permitted sender) smtp.mailfrom="msprvs1=20192PA_4BrJs=bounces-56831-18@bounces.meetup.com";
-       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=meetup.com
-Return-Path: <msprvs1=20192PA_4BrJs=bounces-56831-18@bounces.meetup.com>
-X-MSFBL: u8l/3YWivbew+HLwYNrk/2yEZ7z6SRursb7WyBA3pyU=|eyJjdXN0b21lcl9pZCI
-	6IjU2ODMxIiwibWVzc2FnZV9pZCI6IjY3ZWNhNmUxZjM2NzNjMzk0ODdkIiwidGV
-	uYW50X2lkIjoic3BjIiwiciI6ImJhdGNodHJhaW5AZ21haWwuY29tIiwic3ViYWN
-	jb3VudF9pZCI6IjE4In0=
-DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=meetup.com;
-	s=scph0624; t=1744036262; i=@meetup.com;
-	bh=myZz3UBCcavGyyEtepu6kC7s32D4F8HLYYYCsfDAg8E=;
-	h=Content-Type:Subject:Message-ID:To:Date:From:From:To:Cc:Subject;
-	b=o+33Obqh3KdKmskgTcbN3BhqwmQvFfP+QvOG3IJ3JtSU8AL5Ia/TJQ5Iodf28KQG+
-	 nOphdvzB4hBL/EDFMw9rKonoDpu+IUvfLpBxDpiUzkEq/fZ177HquXm32+2F55XPrn
-	 jEFODs5SbnKJ/7UQtB86uO2x5DN0oFbezwkmSdsU=
-Received: from [10.90.32.16] ([10.90.32.16])
-	by i-0d03cca353c2e4b50.mta1vrest.sd.prd.sparkpost (ecelerity 4.8.0.74368 r(msys-ecelerity:tags/4.8.0.17)) with REST
-	id D7/8C-56722-6A1E3F76; Mon, 07 Apr 2025 14:31:02 +0000
-Content-Transfer-Encoding: quoted-printable
-Content-Type: text/html; charset="UTF-8"
-Subject: =?utf-8?B?RC5Ub3VjaCAgcG9zdGVkIGluIOKave+4j05ZQyBBZHZhbmNlZC9F?=
-	=?utf-8?B?bGl0ZSBTb2NjZXIgQ29tbXVuaXR5IGJ5IEh1ZHNvbiBSaXZlciBGQw==?=
-Message-ID: <D7.8C.56722.6A1E3F76@i-0d03cca353c2e4b50.mta1vrest.sd.prd.sparkpost>
-To: bob@gmail.com
+From: "Meetup" <info@meetup.com>
+To: johndoe@gmail.com
+Subject: D.Touch posted in ⚽️NYC Advanced/Elite Soccer Community by Hudson River FC
 Date: Mon, 07 Apr 2025 14:31:02 +0000
 MIME-Version: 1.0
-From: "Meetup" <info@meetup.com>
+Content-Type: text/html; charset=UTF-8
 
 <!DOCTYPE html=0A  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://=
 www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">=0A=0A<html=0A  style=3D"=
@@ -297,10 +241,7 @@ etica, 'helvetica neue', arial, verdana, sans-serif;line-height:26px;color:=
 size-adjust:none;-ms-text-size-adjust:none;mso-line-height-rule:exactly;fon=
 t-size:17px;font-family:helvetica, 'helvetica neue', arial, verdana, sans-s=
 erif;line-height:26px;color:#212121;">=0A                                  =
-  I want to give out my MacBook Air 2023 for free it=E2=80=99s in health an=
-d good condition along side a charger so it=E2=80=99s perfect , I want to g=
-ive it because I just got a new one so I want to give it out to anyone inte=
-rested in it you can text me on 310-421-4920=0A                            =
+  I want to give out my MacBook Air 2023 for free it's in health and good condition along side a charger so it's perfect , I want to give it because I just got a new one so I want to give it out to anyone interested in it you can text me on 310-421-4920=0A                            =
       </p>=0A                                </td>=0A                      =
         </tr>=0A                              <tr style=3D"border-collapse:=
 collapse;">=0A                                <td align=3D"left"=0A        =
@@ -454,7 +395,11 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}{
 		{"Source", record.Source, "gmail"},
 		{"From", record.Data["from"], "\"Meetup\" <info@meetup.com>"},
-		{"To", record.Data["to"], "bob@gmail.com"},
+		{"To", record.Data["to"], "johndoe@gmail.com"},
+		{"DeliveredTo", record.Data["delivered_to"], "johndoe@gmail.com"},
+		{"UserEmail", record.Data["user_email"], "johndoe@gmail.com"},
+		{"UserRole", record.Data["user_role"], "recipient"},
+		{"IsUserEmail", record.Data["is_user_email"], true},
 		{"Timestamp", record.Timestamp.UTC(), expectedTime.UTC()},
 	}
 
@@ -467,15 +412,15 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	// Check that content is not empty and correctly cleaned
-	content, ok := record.Data["content"].(string)
+	content_data, ok := record.Data["content"].(string)
 	assert.True(t, ok, "Content should be a string")
-	assert.NotEmpty(t, content, "Content should not be empty after cleaning")
+	assert.NotEmpty(t, content_data, "Content should not be empty after cleaning")
 	// Add more specific checks:
-	assert.Contains(t, content, "D.Touch", "Cleaned content should contain part of the main body")
-	assert.NotContains(t, content, "https://", "Cleaned content should not contain https links")
-	assert.NotContains(t, content, "http://", "Cleaned content should not contain http links") // Also check http
-	assert.NotContains(t, content, "Unsubscribe", "Cleaned content should not contain footer elements like 'Unsubscribe'")
-	assert.NotContains(t, content, "Privacy Policy", "Cleaned content should not contain footer elements like 'Privacy Policy'")
+	assert.Contains(t, content_data, "D.Touch", "Cleaned content should contain part of the main body")
+	assert.NotContains(t, content_data, "https://", "Cleaned content should not contain https links")
+	assert.NotContains(t, content_data, "http://", "Cleaned content should not contain http links") // Also check http
+	assert.NotContains(t, content_data, "Unsubscribe", "Cleaned content should not contain footer elements like 'Unsubscribe'")
+	assert.NotContains(t, content_data, "Privacy Policy", "Cleaned content should not contain footer elements like 'Privacy Policy'")
 }
 
 func TestToDocuments(t *testing.T) {
@@ -579,12 +524,12 @@ func TestCleanEmailText(t *testing.T) {
 		{
 			name:     "remove links and footer",
 			input:    "Hello,\n\nCheck out this link: https://example.com/page1\nAnd this one: http://another-site.org/path?query=1\n\nSome normal text.\n\n--\nUnsubscribe here: https://unsubscribe.link\nRead our privacy policy https://policy.com\n© 2024 Company Name",
-			expected: "Hello,\nCheck out this link:\nAnd this one:\nSome normal text.\n--", // Footer lines and empty lines are removed
+			expected: "Hello,\nCheck out this link:\nAnd this one:\nSome normal text.",
 		},
 		{
 			name:     "only links",
 			input:    `This has a link https://link.com/test but no footer.`,
-			expected: `This has a link  but no footer.`,
+			expected: `This has a link but no footer.`,
 		},
 		{
 			name: "only footer",
@@ -619,4 +564,61 @@ With multiple lines.`,
 			assert.Equal(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestProcessSingleEmail(t *testing.T) {
+	// Sample mbox content based on the user's provided sample
+	content := `From 1828754568043628583@xxx Mon Apr 07 14:31:02 +0000 2025
+X-GM-THIRD: 1828754568043628583
+X-Gmail-Labels: =?UTF-8?Q?Forward_to_janedoe@live.fr,Bo=C3=AEte_de_r=C3=A9ception,Non_lus?=
+Delivered-To: johndoe@gmail.com
+Received: by 2002:a05:622a:68cd:b0:471:9721:748a with SMTP id ic13csp6102107qtb;
+        Mon, 7 Apr 2025 07:31:03 -0700 (PDT)
+From: "Meetup" <info@meetup.com>
+To: johndoe@gmail.com
+Subject: D.Touch posted in ⚽️NYC Advanced/Elite Soccer Community by Hudson River FC
+Date: Mon, 07 Apr 2025 14:31:02 +0000
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+
+I want to give out my MacBook Air 2023 for free it's in health and good condition along side a charger so it's perfect , I want to give it because I just got a new one so I want to give it out to anyone interested in it you can text me on 310-421-4920`
+
+	processor, ok := NewGmailProcessor(nil).(*GmailProcessor)
+	if !ok {
+		t.Fatalf("Failed to cast processor to *GmailProcessor")
+	}
+
+	record, err := processor.processEmail(content, "johndoe@gmail.com")
+	if err != nil {
+		t.Fatalf("Failed to process email: %v", err)
+	}
+
+	expectedTime, _ := time.Parse(time.RFC1123Z, "Mon, 07 Apr 2025 14:31:02 +0000")
+	tests := []struct {
+		name     string
+		got      interface{}
+		expected interface{}
+	}{
+		{"Source", record.Source, "gmail"},
+		{"From", record.Data["from"], `"Meetup" <info@meetup.com>`},
+		{"To", record.Data["to"], "johndoe@gmail.com"},
+		{"DeliveredTo", record.Data["delivered_to"], "johndoe@gmail.com"},
+		{"UserEmail", record.Data["user_email"], "johndoe@gmail.com"},
+		{"UserRole", record.Data["user_role"], "recipient"},
+		{"IsUserEmail", record.Data["is_user_email"], true},
+		{"Timestamp", record.Timestamp.UTC(), expectedTime.UTC()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !assert.Equal(t, tt.expected, tt.got) {
+				t.Errorf("Expected %v, got %v", tt.expected, tt.got)
+			}
+		})
+	}
+
+	content_data, ok := record.Data["content"].(string)
+	assert.True(t, ok, "Content should be a string")
+	assert.NotEmpty(t, content_data, "Content should not be empty after cleaning")
+	assert.Contains(t, content_data, "MacBook Air 2023", "Cleaned content should contain main message")
 }
