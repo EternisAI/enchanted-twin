@@ -80,6 +80,7 @@ func TestCheckForSimilarFriendMessages(t *testing.T) {
 			Documents: []memory.DocumentWithDistance{
 				{
 					Document: memory.TextDocument{
+						FieldSource:  "friend",
 						FieldContent: "How are you feeling today?",
 						FieldMetadata: map[string]string{
 							"type":          "friend",

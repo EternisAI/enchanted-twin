@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	processor "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -68,17 +68,23 @@ type TelegramData struct {
 	} `json:"chats"`
 }
 
-type TelegramProcessor struct{}
+type TelegramProcessor struct {
+	store *db.Store
+}
 
-func NewTelegramProcessor() processor.Processor {
-	return &TelegramProcessor{}
+func NewTelegramProcessor(store *db.Store) processor.Processor {
+	return &TelegramProcessor{store: store}
 }
 
 func (s *TelegramProcessor) Name() string {
 	return "telegram"
 }
 
-func extractUsername(ctx context.Context, telegramData TelegramData, store *db.Store, processor *TelegramProcessor) (string, error) {
+func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData TelegramData) (string, error) {
+	if s.store == nil {
+		return "", fmt.Errorf("store is nil")
+	}
+
 	extractedUsername := ""
 	if telegramData.PersonalInformation.Username != "" {
 		userIDStr := ""
@@ -87,7 +93,7 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 		}
 
 		sourceUsername := db.SourceUsername{
-			Source:   processor.Name(),
+			Source:   s.Name(),
 			Username: telegramData.PersonalInformation.Username,
 		}
 
@@ -107,7 +113,7 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 			sourceUsername.Bio = &telegramData.PersonalInformation.Bio
 		}
 
-		if err := store.SetSourceUsername(ctx, sourceUsername); err != nil {
+		if err := s.store.SetSourceUsername(ctx, sourceUsername); err != nil {
 			fmt.Printf("Warning: Failed to save username to database: %v\n", err)
 
 			return "", err
@@ -119,7 +125,19 @@ func extractUsername(ctx context.Context, telegramData TelegramData, store *db.S
 	return extractedUsername, nil
 }
 
-func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, store *db.Store) ([]types.Record, error) {
+func (s *TelegramProcessor) ProcessDirectory(ctx context.Context, filepath string) ([]types.Record, error) {
+	return nil, fmt.Errorf("process directory not supported for Telegram")
+}
+
+func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for Telegram")
+}
+
+func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]types.Record, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
 		return nil, err
@@ -127,7 +145,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 
 	var jsonFilePath string
 	if fileInfo.IsDir() {
-		var candidates []string
 		entries, err := os.ReadDir(filepath)
 		if err != nil {
 			return nil, fmt.Errorf("error reading directory %s: %v", filepath, err)
@@ -141,6 +158,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 		}
 
 		if jsonFilePath == "" {
+			var candidates []string
 			for _, entry := range entries {
 				if !entry.IsDir() && strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
 					candidates = append(candidates, entry.Name())
@@ -151,8 +169,11 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 				return nil, fmt.Errorf("no JSON files found in directory %s", filepath)
 			}
 
+			if len(candidates) > 1 {
+				return nil, fmt.Errorf("multiple JSON files found in directory %s, but no result.json file. Please specify the exact file path or ensure result.json exists. Found files: %v", filepath, candidates)
+			}
+
 			jsonFilePath = fmt.Sprintf("%s/%s", filepath, candidates[0])
-			fmt.Printf("Using JSON file: %s\n", jsonFilePath)
 		}
 	} else {
 		jsonFilePath = filepath
@@ -168,7 +189,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 		return nil, err
 	}
 
-	effectiveUserName, err := extractUsername(ctx, telegramData, store, s)
+	effectiveUserName, err := s.extractUsername(ctx, telegramData)
 	if err != nil {
 		return nil, err
 	}
@@ -261,10 +282,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string, st
 	return records, nil
 }
 
-func (s *TelegramProcessor) Sync(ctx context.Context) ([]types.Record, error) {
-	return nil, fmt.Errorf("sync operation not supported for Telegram")
-}
-
 func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 	formats := []string{
 		"2006-01-02T15:04:05",
@@ -290,9 +307,19 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", dateStr)
 }
 
-func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	conversationMap := make(map[string]*memory.ConversationDocument)
 	var textDocuments []memory.TextDocument
+
+	sourceUsername, err := s.store.GetSourceUsername(ctx, s.Name())
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source username: %v", err)
+	}
+
+	var extractedUser string
+	if sourceUsername != nil {
+		extractedUser = sourceUsername.Username
+	}
 
 	for _, record := range records {
 		if record.Data["type"] == "message" {
@@ -333,7 +360,7 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 					FieldSource:  "telegram",
 					FieldTags:    []string{"social", "telegram", "chat"},
 					People:       []string{from, to},
-					User:         from,
+					User:         extractedUser,
 					Conversation: []memory.ConversationMessage{},
 					FieldMetadata: map[string]string{
 						"type":   "conversation",
@@ -375,11 +402,11 @@ func (s *TelegramProcessor) ToDocuments(records []types.Record) ([]memory.Docume
 				phoneNumber = ""
 			}
 			textDocuments = append(textDocuments, memory.TextDocument{
+				FieldSource:    "telegram",
 				FieldContent:   firstName + " " + lastName,
 				FieldTimestamp: &record.Timestamp,
 				FieldTags:      []string{"social", "telegram", "contact"},
 				FieldMetadata: map[string]string{
-					"source":      "telegram",
 					"type":        "contact",
 					"firstName":   firstName,
 					"lastName":    lastName,

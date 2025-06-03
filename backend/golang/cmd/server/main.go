@@ -36,6 +36,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
@@ -200,7 +201,7 @@ func main() {
 
 	logger.Info("Initializing Weaviate schema")
 	schemaInitStart := time.Now()
-	if err := bootstrap.InitSchema(weaviateClient, logger); err != nil {
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
@@ -208,7 +209,16 @@ func main() {
 
 	logger.Info("Creating evolving memory instance")
 	memoryCreateStart := time.Now()
-	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
+
+	// Create storage interface first
+	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
+
+	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: aiCompletionsService,
+		EmbeddingsService:  aiEmbeddingsService,
+	})
 	if err != nil {
 		logger.Error("Failed to create evolving memory", "error", err)
 		panic(errors.Wrap(err, "Failed to create evolving memory"))

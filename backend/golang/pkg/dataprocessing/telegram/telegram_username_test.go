@@ -102,8 +102,8 @@ func TestUsernameExtraction(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	// Test username extraction
-	source := NewTelegramProcessor()
-	records, err := source.ProcessFile(ctx, tmpFile.Name(), store)
+	source := NewTelegramProcessor(store)
+	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
 	}
@@ -214,8 +214,8 @@ func TestUsernameExtractionFallback(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	source := NewTelegramProcessor()
-	_, err = source.ProcessFile(ctx, tmpFile.Name(), store)
+	source := NewTelegramProcessor(store)
+	_, err = source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
 	}
@@ -286,8 +286,8 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	// Process with username extraction
-	source := NewTelegramProcessor()
-	records, err := source.ProcessFile(ctx, tmpFile.Name(), store)
+	source := NewTelegramProcessor(store)
+	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
 	}
