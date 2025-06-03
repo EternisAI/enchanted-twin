@@ -204,31 +204,6 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 	}
 }
 
-// BuildMemoryDecisionPrompt constructs the prompt for memory decision making.
-// This is pure business logic extracted from the adapter.
-// DEPRECATED: Use BuildSeparateMemoryDecisionPrompts for security.
-func BuildMemoryDecisionPrompt(fact string, similar []ExistingMemory) string {
-	existingMemoriesContentForPrompt := []string{}
-	existingMemoriesForPromptStr := "No existing relevant memories found."
-
-	if len(similar) > 0 {
-		for _, mem := range similar {
-			memContext := fmt.Sprintf("ID: %s, Content: %s", mem.ID, mem.Content)
-			existingMemoriesContentForPrompt = append(existingMemoriesContentForPrompt, memContext)
-		}
-		existingMemoriesForPromptStr = strings.Join(existingMemoriesContentForPrompt, "\n---\n")
-	}
-
-	var decisionPromptBuilder strings.Builder
-	decisionPromptBuilder.WriteString(ConversationMemoryUpdatePrompt)
-	decisionPromptBuilder.WriteString("\n\nContext:\n")
-	decisionPromptBuilder.WriteString(fmt.Sprintf("Existing Memories for the primary user (if any, related to the new fact):\n%s\n\n", existingMemoriesForPromptStr))
-	decisionPromptBuilder.WriteString(fmt.Sprintf("New Fact to consider for the primary user:\n%s\n\n", fact))
-	decisionPromptBuilder.WriteString("Based on the guidelines and context, what action should be taken for the NEW FACT?")
-
-	return decisionPromptBuilder.String()
-}
-
 // BuildSeparateMemoryDecisionPrompts constructs separate system and user prompts to prevent injection.
 // This is the secure version that properly separates system instructions from user content.
 func BuildSeparateMemoryDecisionPrompts(fact string, similar []ExistingMemory) (systemPrompt string, userPrompt string) {
