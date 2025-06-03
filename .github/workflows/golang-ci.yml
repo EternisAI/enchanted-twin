@@ -74,6 +74,7 @@ jobs:
         env:
           COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
+          TELEGRAM_CHAT_SERVER: ${{ secrets.TELEGRAM_CHAT_SERVER }}
         run: |
           # Create output directory if it doesn't exist
           mkdir -p ./output
