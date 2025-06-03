@@ -8,7 +8,12 @@ This package stores and retrieves user memories in Weaviate (a vector database).
 
 ```go
 // Basic usage - store some documents
-storage, _ := evolvingmemory.New(logger, weaviateClient, completionsAI, embeddingsAI)
+storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
+    Logger:             logger,
+    Storage:            weaviateClient,
+    CompletionsService: completionsAI,
+    EmbeddingsService:  embeddingsAI,
+})
 
 docs := []memory.Document{
     &memory.TextDocument{...},           // Simple text
