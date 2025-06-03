@@ -41,7 +41,7 @@ func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
+func (s *StorageImpl) extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
 	s.logger.Infof("== Starting Rich Fact Extraction for Speaker: %s == (Conversation ID: '%s')", speakerID, convDoc.ID())
 
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
@@ -103,7 +103,7 @@ func (s *WeaviateStorage) extractFactsFromConversation(ctx context.Context, conv
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func (s *WeaviateStorage) extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
+func (s *StorageImpl) extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string) ([]string, error) {
 	s.logger.Infof("== Starting Text Fact Extraction for Speaker: %s == (Document ID: '%s')", speakerID, textDoc.ID())
 
 	factExtractionToolsList := []openai.ChatCompletionToolParam{

@@ -1,6 +1,7 @@
 package evolvingmemory
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -8,6 +9,7 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // PrepareDocuments converts raw documents into prepared documents with extracted metadata.
@@ -116,6 +118,29 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 			"timestamp":    fact.Source.Timestamp.Format(time.RFC3339),
 		},
 	}
+}
+
+// CreateMemoryObjectWithEmbedding builds the Weaviate object for ADD operations with embedding.
+func CreateMemoryObjectWithEmbedding(ctx context.Context, fact ExtractedFact, decision MemoryDecision, embeddingService *ai.Service) (*models.Object, error) {
+	obj := CreateMemoryObject(fact, decision)
+
+	// Generate embedding for the content
+	embedding, err := embeddingService.Embedding(ctx, fact.Content, openAIEmbedModel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding: %w", err)
+	}
+
+	obj.Vector = toFloat32(embedding)
+	return obj, nil
+}
+
+// toFloat32 converts a slice of float64 to float32 for Weaviate compatibility.
+func toFloat32(embedding []float64) []float32 {
+	result := make([]float32, len(embedding))
+	for i, v := range embedding {
+		result[i] = float32(v)
+	}
+	return result
 }
 
 // marshalMetadata converts a metadata map to JSON string for storage.

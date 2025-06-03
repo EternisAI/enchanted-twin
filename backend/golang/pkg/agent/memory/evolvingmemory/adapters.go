@@ -11,13 +11,13 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// factExtractorAdapter wraps WeaviateStorage to implement FactExtractor interface.
+// factExtractorAdapter wraps StorageImpl to implement FactExtractor interface.
 type factExtractorAdapter struct {
-	storage *WeaviateStorage
+	storage *StorageImpl
 }
 
 // NewFactExtractor creates a new FactExtractor implementation.
-func NewFactExtractor(storage *WeaviateStorage) (FactExtractor, error) {
+func NewFactExtractor(storage *StorageImpl) (FactExtractor, error) {
 	if storage == nil {
 		return nil, fmt.Errorf("storage cannot be nil")
 	}
@@ -53,18 +53,18 @@ func (f *factExtractorAdapter) ExtractFacts(ctx context.Context, doc PreparedDoc
 	}
 }
 
-// memoryOperationsAdapter wraps WeaviateStorage to implement MemoryOperations interface.
+// memoryOperationsAdapter wraps StorageImpl to implement MemoryOperations interface.
 type memoryOperationsAdapter struct {
-	storage *WeaviateStorage
+	storage *StorageImpl
 }
 
 // NewMemoryOperations creates a new MemoryOperations implementation.
-func NewMemoryOperations(storage *WeaviateStorage) (MemoryOperations, error) {
+func NewMemoryOperations(storage *StorageImpl) (MemoryOperations, error) {
 	if storage == nil {
 		return nil, fmt.Errorf("storage cannot be nil")
 	}
-	if storage.client == nil {
-		return nil, fmt.Errorf("weaviate client not initialized")
+	if storage.storage == nil {
+		return nil, fmt.Errorf("storage interface not initialized")
 	}
 	if storage.completionsService == nil {
 		return nil, fmt.Errorf("completions service not initialized")

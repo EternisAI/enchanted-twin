@@ -11,13 +11,13 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// DefaultConfig provides sensible defaults for the pipeline.
+// DefaultConfig provides default configuration values.
 func DefaultConfig() Config {
 	return Config{
 		Workers:                4,
-		FactsPerWorker:         10,
+		FactsPerWorker:         50,
 		BatchSize:              100,
-		FlushInterval:          5 * time.Second,
+		FlushInterval:          30 * time.Second,
 		FactExtractionTimeout:  30 * time.Second,
 		MemoryDecisionTimeout:  30 * time.Second,
 		StorageTimeout:         30 * time.Second,
@@ -28,7 +28,7 @@ func DefaultConfig() Config {
 }
 
 // StoreV2 implements the new parallel processing pipeline with streaming progress.
-func (s *WeaviateStorage) StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
+func (s *StorageImpl) StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
 	progressCh := make(chan Progress, 100)
 	errorCh := make(chan error, 100)
 
@@ -117,7 +117,7 @@ func (s *WeaviateStorage) StoreV2(ctx context.Context, documents []memory.Docume
 }
 
 // extractFactsWorker processes documents and extracts facts.
-func (s *WeaviateStorage) extractFactsWorker(
+func (s *StorageImpl) extractFactsWorker(
 	ctx context.Context,
 	docs []PreparedDocument,
 	out chan<- ExtractedFact,
@@ -160,7 +160,7 @@ func (s *WeaviateStorage) extractFactsWorker(
 }
 
 // processFactsWorker processes facts through memory decisions.
-func (s *WeaviateStorage) processFactsWorker(
+func (s *StorageImpl) processFactsWorker(
 	ctx context.Context,
 	facts <-chan ExtractedFact,
 	out chan<- FactResult,
@@ -183,7 +183,7 @@ func (s *WeaviateStorage) processFactsWorker(
 }
 
 // processSingleFact encapsulates the memory update logic.
-func (s *WeaviateStorage) processSingleFact(
+func (s *StorageImpl) processSingleFact(
 	ctx context.Context,
 	fact ExtractedFact,
 	memoryOps MemoryOperations,
@@ -225,50 +225,43 @@ func (s *WeaviateStorage) processSingleFact(
 		}
 	}
 
+	// Execute immediate operations (UPDATE/DELETE)
 	switch decision.Action {
 	case UPDATE:
 		embedding, err := s.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
 		if err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: err}
+			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}
 		}
 
-		embedding32 := toFloat32(embedding)
+		if err := memoryOps.UpdateMemory(ctx, decision.TargetID, fact.Content, toFloat32(embedding)); err != nil {
+			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("update failed: %w", err)}
+		}
 
-		updateCtx, updateCancel := context.WithTimeout(ctx, config.StorageTimeout)
-		err = memoryOps.UpdateMemory(updateCtx, decision.TargetID, fact.Content, embedding32)
-		updateCancel()
-
-		return FactResult{Fact: fact, Decision: decision, Error: err}
-
+		s.logger.Infof("Updated memory %s with new content", decision.TargetID)
+		return FactResult{Fact: fact, Decision: decision}
 	case DELETE:
-		deleteCtx, deleteCancel := context.WithTimeout(ctx, config.StorageTimeout)
-		err := memoryOps.DeleteMemory(deleteCtx, decision.TargetID)
-		deleteCancel()
-
-		return FactResult{Fact: fact, Decision: decision, Error: err}
-
-	case ADD:
-		obj := CreateMemoryObject(fact, decision)
-
-		embedding, err := s.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
-		if err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: err}
+		if err := memoryOps.DeleteMemory(ctx, decision.TargetID); err != nil {
+			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("delete failed: %w", err)}
 		}
-		obj.Vector = toFloat32(embedding)
+
+		s.logger.Infof("Deleted memory %s", decision.TargetID)
+		return FactResult{Fact: fact, Decision: decision}
+	case ADD:
+		// Prepare for batch processing
+		obj, err := CreateMemoryObjectWithEmbedding(ctx, fact, decision, s.embeddingsService)
+		if err != nil {
+			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("object creation failed: %w", err)}
+		}
 
 		return FactResult{Fact: fact, Decision: decision, Object: obj}
-
-	case NONE:
-		s.logger.Debugf("No action taken for fact: %s", fact.Content)
-		return FactResult{Fact: fact, Decision: decision}
-
-	default:
-		return FactResult{Fact: fact, Error: fmt.Errorf("unknown action: %s", decision.Action)}
 	}
+
+	// NONE action - do nothing
+	return FactResult{Fact: fact, Decision: decision}
 }
 
-// aggregateResults collects results and batches objects for storage.
-func (s *WeaviateStorage) aggregateResults(
+// aggregateResults collects ADD operations for batch processing.
+func (s *StorageImpl) aggregateResults(
 	ctx context.Context,
 	results <-chan FactResult,
 	out chan<- []*models.Object,
@@ -277,18 +270,15 @@ func (s *WeaviateStorage) aggregateResults(
 ) {
 	defer wg.Done()
 
-	batch := make([]*models.Object, 0, config.BatchSize)
+	var batch []*models.Object
 	ticker := time.NewTicker(config.FlushInterval)
 	defer ticker.Stop()
 
-	flush := func() {
+	flushBatch := func() {
 		if len(batch) > 0 {
-			batchCopy := make([]*models.Object, len(batch))
-			copy(batchCopy, batch)
-
 			select {
-			case out <- batchCopy:
-				batch = batch[:0] // Reset batch
+			case out <- batch:
+				batch = nil
 			case <-ctx.Done():
 				return
 			}
@@ -299,30 +289,25 @@ func (s *WeaviateStorage) aggregateResults(
 		select {
 		case result, ok := <-results:
 			if !ok {
-				// Channel closed, flush remaining
-				flush()
+				flushBatch()
 				return
 			}
 
-			// Log errors but don't stop
 			if result.Error != nil {
-				s.logger.Errorf("Fact processing error: %v", result.Error)
+				s.logger.Errorf("Fact processing failed: %v", result.Error)
 				continue
 			}
 
-			// Add object to batch if it's an ADD action
 			if result.Object != nil {
 				batch = append(batch, result.Object)
 
-				// Flush if batch is full
 				if len(batch) >= config.BatchSize {
-					flush()
+					flushBatch()
 				}
 			}
 
 		case <-ticker.C:
-			// Periodic flush
-			flush()
+			flushBatch()
 
 		case <-ctx.Done():
 			return
@@ -330,8 +315,8 @@ func (s *WeaviateStorage) aggregateResults(
 	}
 }
 
-// streamingStore handles batch storage to Weaviate with progress reporting.
-func (s *WeaviateStorage) streamingStore(
+// streamingStore handles batch storage with progress reporting.
+func (s *StorageImpl) streamingStore(
 	ctx context.Context,
 	batches <-chan []*models.Object,
 	progress chan<- Progress,
@@ -341,14 +326,13 @@ func (s *WeaviateStorage) streamingStore(
 ) {
 	defer wg.Done()
 
-	totalStored := 0
+	totalProcessed := 0
 
 	for batch := range batches {
 		if len(batch) == 0 {
 			continue
 		}
 
-		// Store batch with timeout
 		storeCtx, cancel := context.WithTimeout(ctx, config.StorageTimeout)
 		err := s.storage.StoreBatch(storeCtx, batch)
 		cancel()
@@ -359,23 +343,23 @@ func (s *WeaviateStorage) streamingStore(
 			case <-ctx.Done():
 				return
 			}
-		} else {
-			totalStored += len(batch)
-
-			// Report progress
-			select {
-			case progress <- Progress{
-				Processed: totalStored,
-				Stage:     "storage",
-			}:
-			case <-ctx.Done():
-				return
-			}
+			return
 		}
+
+		totalProcessed += len(batch)
+		select {
+		case progress <- Progress{
+			Processed: totalProcessed,
+			Total:     totalProcessed, // Will be updated by caller
+			Stage:     "storage",
+		}:
+		case <-ctx.Done():
+			return
+		}
+
+		s.logger.Infof("Stored batch of %d objects", len(batch))
 	}
 }
-
-// Helper functions
 
 func findMemoryByID(memories []ExistingMemory, id string) *ExistingMemory {
 	for i := range memories {
@@ -384,12 +368,4 @@ func findMemoryByID(memories []ExistingMemory, id string) *ExistingMemory {
 		}
 	}
 	return nil
-}
-
-func toFloat32(embedding []float64) []float32 {
-	result := make([]float32, len(embedding))
-	for i, v := range embedding {
-		result[i] = float32(v)
-	}
-	return result
 }

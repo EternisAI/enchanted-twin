@@ -12,24 +12,27 @@ import (
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// createMockStorage creates a WeaviateStorage instance with mocked services for testing.
-func createMockStorage(t *testing.T) *WeaviateStorage {
-	t.Helper()
-
-	// Create a mock logger
+// createMockStorage creates a StorageImpl instance with mocked services for testing.
+func createMockStorage(t *testing.T) *StorageImpl {
 	logger := log.NewWithOptions(os.Stderr, log.Options{
 		Level: log.WarnLevel,
 	})
 
-	// Create storage with mocks
-	storage := &WeaviateStorage{
+	// Create mock AI services
+	mockAI := &ai.Service{}
+
+	// Create mock storage interface
+	mockStorage := storage.New(&weaviate.Client{}, logger, mockAI)
+
+	storage := &StorageImpl{
 		logger:             logger,
-		completionsService: &ai.Service{},      // Would need proper mocking in real tests
-		embeddingsService:  &ai.Service{},      // Would need proper mocking in real tests
-		client:             &weaviate.Client{}, // Mock client
+		completionsService: mockAI,
+		embeddingsService:  mockAI,
+		storage:            mockStorage,
 	}
 
 	return storage
@@ -39,29 +42,108 @@ func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
 	assert.Equal(t, 4, config.Workers)
+	assert.Equal(t, 50, config.FactsPerWorker)
 	assert.Equal(t, 100, config.BatchSize)
+	assert.Equal(t, 30*time.Second, config.FlushInterval)
 	assert.Equal(t, 30*time.Second, config.FactExtractionTimeout)
+	assert.Equal(t, 30*time.Second, config.MemoryDecisionTimeout)
+	assert.Equal(t, 30*time.Second, config.StorageTimeout)
+	assert.True(t, config.EnableRichContext)
+	assert.True(t, config.ParallelFactExtraction)
 	assert.True(t, config.StreamingProgress)
 }
 
-func TestStoreV2_EmptyDocuments(t *testing.T) {
-	storage := createMockStorage(t)
+func TestStoreV2BasicFlow(t *testing.T) {
 	ctx := context.Background()
+	storage := createMockStorage(t)
+
+	// Create test documents
+	docs := []memory.Document{
+		&memory.TextDocument{
+			FieldID:      "test-1",
+			FieldContent: "This is a test document",
+		},
+	}
+
+	config := Config{
+		Workers:               1,
+		BatchSize:             10,
+		FlushInterval:         100 * time.Millisecond,
+		FactExtractionTimeout: 5 * time.Second,
+		MemoryDecisionTimeout: 5 * time.Second,
+		StorageTimeout:        5 * time.Second,
+	}
+
+	// Test that channels are created and closed properly
+	progressCh, errorCh := storage.StoreV2(ctx, docs, config)
+
+	require.NotNil(t, progressCh)
+	require.NotNil(t, errorCh)
+
+	// Consume channels until they close
+	var progressUpdates []Progress
+	var errors []error
+
+	for progressCh != nil || errorCh != nil {
+		select {
+		case progress, ok := <-progressCh:
+			if !ok {
+				progressCh = nil
+				continue
+			}
+			progressUpdates = append(progressUpdates, progress)
+
+		case err, ok := <-errorCh:
+			if !ok {
+				errorCh = nil
+				continue
+			}
+			errors = append(errors, err)
+
+		case <-time.After(10 * time.Second):
+			t.Fatal("Test timed out waiting for channels to close")
+		}
+	}
+
+	// We should have at least one progress update
+	assert.NotEmpty(t, progressUpdates)
+
+	// Errors are expected in this mock environment, so we don't assert on them
+	t.Logf("Progress updates: %d, Errors: %d", len(progressUpdates), len(errors))
+}
+
+func TestStoreV2EmptyDocuments(t *testing.T) {
+	ctx := context.Background()
+	storage := createMockStorage(t)
+
 	config := DefaultConfig()
 
 	progressCh, errorCh := storage.StoreV2(ctx, []memory.Document{}, config)
 
-	// Should receive progress with 0 documents
-	progress := <-progressCh
-	assert.Equal(t, 0, progress.Processed)
-	assert.Equal(t, 0, progress.Total)
-	assert.Equal(t, "preparation", progress.Stage)
+	// Should get one progress update indicating completion
+	select {
+	case progress := <-progressCh:
+		assert.Equal(t, 0, progress.Processed)
+		assert.Equal(t, 0, progress.Total)
+		assert.Equal(t, "preparation", progress.Stage)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Expected progress update for empty documents")
+	}
 
 	// Channels should close
-	_, ok := <-progressCh
-	assert.False(t, ok)
-	_, ok = <-errorCh
-	assert.False(t, ok)
+	select {
+	case _, ok := <-progressCh:
+		assert.False(t, ok, "Progress channel should be closed")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Progress channel should close")
+	}
+
+	select {
+	case _, ok := <-errorCh:
+		assert.False(t, ok, "Error channel should be closed")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Error channel should close")
+	}
 }
 
 func TestPipelineIntegration_BasicFlow(t *testing.T) {
