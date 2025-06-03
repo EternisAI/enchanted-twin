@@ -16,8 +16,8 @@ func main() {
 		log.Fatal("Error loading config:", err)
 	}
 
-	source := "chatgpt" // see pkg dataprocessing for supported sources
-	inputPath := "data_input/chatgpt.zip"
+	source := "chatgpt" // telegram, gmail, chatgpt, slack, misc
+	inputPath := "cmd/memory-test/sample-data/chatgpt.zip"
 
 	completionsModel := "gpt-4o-mini"
 	completionsApiUrl := "https://openrouter.ai/api/v1"
