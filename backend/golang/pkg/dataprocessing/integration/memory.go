@@ -34,25 +34,10 @@ type IntegrationTestMemoryConfig struct {
 }
 
 func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemoryConfig) error {
-	// Create context with timeout to ensure test doesn't run indefinitely, but respect parent cancellation
 	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Minute)
 	defer cancel()
 
 	batchSize := 20
-
-	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "integration-test-memory-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temp directory: %w", err)
-	}
-	defer func() {
-		if err := os.RemoveAll(tempDir); err != nil {
-			fmt.Printf("Warning: failed to clean up temp directory %s: %v\n", tempDir, err)
-		}
-	}()
-
-	storePath := filepath.Join(tempDir, "test.db")
-	weaviateDataPath := filepath.Join(tempDir, "weaviate-data")
 
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
@@ -62,6 +47,20 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		Prefix:          "[integration-test] ",
 	})
 
+	tempDir, err := os.MkdirTemp("", "integration-test-memory-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			logger.Error("Failed to clean up temp directory", "error", err)
+			fmt.Printf("Warning: failed to clean up temp directory %s: %v\n", tempDir, err)
+		}
+	}()
+
+	storePath := filepath.Join(tempDir, "test.db")
+	weaviateDataPath := filepath.Join(tempDir, "weaviate-data")
+
 	weaviatePort := "51414"
 
 	weaviateServer, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, weaviateDataPath)
@@ -70,7 +69,6 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		return err
 	}
 	defer func() {
-		// Allow time for any background operations to complete before cleanup
 		logger.Info("Waiting for background operations to complete before cleanup...")
 		time.Sleep(3 * time.Second)
 
