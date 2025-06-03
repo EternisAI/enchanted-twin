@@ -1,0 +1,1054 @@
+{
+  "about": "Here is the data you requested. Remember: Telegram is ad free, it doesn't use your data for ad targeting and doesn't sell it to others. Telegram only keeps the information it needs to function as a secure and feature-rich cloud service.\n\nCheck out Settings > Privacy & Security on Telegram's mobile apps for the relevant settings.",
+  "personal_information": {
+    "user_id": 1601587058,
+    "first_name": "JohnDoe",
+    "last_name": "",
+    "phone_number": "+33 6 16 87 45 98",
+    "username": "@JohnDoe",
+    "bio": "ⵥ"
+  },
+  "profile_pictures": [
+    {
+      "date": "2025-03-27T13:25:14",
+      "date_unixtime": "1743103514",
+      "photo": "profile_pictures/photo_1@27-03-2025_13-25-14.jpg"
+    },
+    {
+      "date": "2025-03-04T19:47:50",
+      "date_unixtime": "1741139270",
+      "photo": "profile_pictures/photo_2@04-03-2025_19-47-50.jpg"
+    },
+    {
+      "date": "2024-01-15T19:00:23",
+      "date_unixtime": "1705366823",
+      "photo": "profile_pictures/photo_3@15-01-2024_19-00-23.jpg"
+    }
+  ],
+  "stories": [],
+  "contacts": {
+    "about": "If you allow access, your contacts are continuously synced with Telegram. Thanks to this, you can easily switch to Telegram and immediately connect with friends across all your devices. We use data about your contacts to let you know when they join Telegram, and to display them by the name you set for them in your phone.\n\nYou can disable contact syncing or delete your stored contacts in Settings > Privacy & Security on Telegram's mobile apps.",
+    "list": [
+      {
+        "first_name": "Jane",
+        "last_name": "Doe",
+        "phone_number": "0066613921749",
+        "date": "2024-09-28T06:24:49",
+        "date_unixtime": "1727526289"
+      },
+      {
+        "first_name": "Bob",
+        "last_name": "",
+        "phone_number": "005233222373019",
+        "date": "2025-04-05T21:22:11",
+        "date_unixtime": "1743909731"
+      },
+      {
+        "first_name": "Dylan",
+        "last_name": "",
+        "phone_number": "0045603741216",
+        "date": "2024-10-22T13:19:10",
+        "date_unixtime": "1729624750"
+      },
+      {
+        "first_name": "Omar",
+        "last_name": "",
+        "phone_number": "0044762063843",
+        "date": "2022-01-20T07:09:36",
+        "date_unixtime": "1642684176"
+      },
+      {
+        "first_name": "Kevin",
+        "last_name": "",
+        "phone_number": "004432038006",
+        "date": "2021-05-12T20:49:53",
+        "date_unixtime": "1620870593"
+      }
+    ]
+  },
+  "frequent_contacts": {
+    "about": "This rating shows which people you are likelier to message frequently. Telegram uses this data to populate the 'People' box at the top of the Search section. This rating is also calculated for inline bots so that the app can suggest the bots you are most likely to use in the attachment menu (or when you start a new message with \"@\").\n\nTo delete this data, go to Settings > Privacy & Security and disable 'Suggest Frequent Contacts' (requires Telegram for iOS v.4.8.3 or Telegram for Android v.4.8.10 or higher).",
+    "list": [
+      {
+        "id": 61117523233,
+        "category": "people",
+        "type": "user",
+        "name": "Julie",
+        "rating": 1556.764526
+      },
+      {
+        "id": 6343254587,
+        "category": "people",
+        "type": "user",
+        "name": "Louis",
+        "rating": 248.75647
+      },
+      {
+        "id": 77120058134,
+        "category": "people",
+        "type": "user",
+        "name": "Hector",
+        "rating": 175.229523
+      },
+      {
+        "id": 55173910575,
+        "category": "people",
+        "type": "user",
+        "name": "Pierre",
+        "rating": 139.58194
+      },
+      {
+        "id": 63137853989,
+        "category": "people",
+        "type": "user",
+        "name": "TheSalad",
+        "rating": 81.539558
+      },
+      {
+        "id": 18795952479,
+        "category": "people",
+        "type": "user",
+        "name": "Arnaud",
+        "rating": 71.768303
+      },
+      {
+        "id": 1603158637058,
+        "category": "people",
+        "type": "user",
+        "name": "Jane",
+        "rating": 71.18779
+      }
+    ]
+  },
+  "chats": {
+    "about": "This page lists all chats from this export.",
+    "list": [
+      {
+        "name": "Tech.ai Community",
+        "type": "private_supergroup",
+        "id": 2491415677,
+        "messages": [
+          {
+            "id": 11161,
+            "type": "message",
+            "date": "2025-02-19T21:22:10",
+            "date_unixtime": "1740021730",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              {
+                "type": "bot_command",
+                "text": "/out_of_act_iv_waiting_room_into_iv_cent_waiting_room"
+              }
+            ],
+            "text_entities": [
+              {
+                "type": "bot_command",
+                "text": "/out_of_act_iv_waiting_room_into_iv_cent_waiting_room"
+              }
+            ]
+          },
+          {
+            "id": 11203,
+            "type": "message",
+            "date": "2025-02-19T21:28:02",
+            "date_unixtime": "1740022082",
+            "edited": "2025-02-19T21:28:19",
+            "edited_unixtime": "1740022099",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              {
+                "type": "bot_command",
+                "text": "/london_gang"
+              }
+            ],
+            "text_entities": [
+              {
+                "type": "bot_command",
+                "text": "/london_gang"
+              }
+            ],
+            "reactions": [
+              {
+                "type": "emoji",
+                "count": 1,
+                "emoji": "❤",
+                "recent": [
+                  {
+                    "from": "Altrunyx",
+                    "from_id": "user6695641031",
+                    "date": "2025-02-19T21:28:19"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": 11394,
+            "type": "message",
+            "date": "2025-02-19T23:49:29",
+            "date_unixtime": "1740030569",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 11387,
+            "text": [
+              {
+                "type": "link",
+                "text": "https://basescan.org/token/0x0bb41745eb63e734668c97ec537cf4b7377e764c#balances"
+              }
+            ],
+            "text_entities": [
+              {
+                "type": "link",
+                "text": "https://basescan.org/token/0x0bb41246eb63e734668c97ec537cf4b7377e764c#balances"
+              }
+            ]
+          },
+          {
+            "id": 11395,
+            "type": "message",
+            "date": "2025-02-19T23:49:33",
+            "date_unixtime": "1740030573",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "here you have the list of holders",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "here you have the list of holders"
+              }
+            ]
+          },
+          {
+            "id": 11559,
+            "type": "message",
+            "date": "2025-02-20T01:45:37",
+            "date_unixtime": "1740037537",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "did you use a smart wallet or regular metamask wallet?\ntry to refresh the page",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "did you use a smart wallet or regular metamask wallet?\ntry to refresh the page"
+              }
+            ]
+          },
+          {
+            "id": 11564,
+            "type": "message",
+            "date": "2025-02-20T02:02:56",
+            "date_unixtime": "1740038576",
+            "edited": "2025-02-20T02:33:29",
+            "edited_unixtime": "1740040409",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "yes wait for the official support channel then share your payment tx and they will unblock you",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "yes wait for the official support channel then share your payment tx and they will unblock you"
+              }
+            ],
+            "reactions": [
+              {
+                "type": "emoji",
+                "count": 1,
+                "emoji": "👍",
+                "recent": [
+                  {
+                    "from": "Gena Kartashevskyy",
+                    "from_id": "user334453611",
+                    "date": "2025-02-20T02:33:29"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": 11569,
+            "type": "message",
+            "date": "2025-02-20T02:50:11",
+            "date_unixtime": "1740041411",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "You are not supposed to create accounts on Tech social\n\nIts currently only open for  twins",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "You are not supposed to create accounts on Tech social\n\nIts currently only open for  twins"
+              }
+            ]
+          },
+          {
+            "id": 20923,
+            "type": "message",
+            "date": "2025-03-18T13:25:13",
+            "date_unixtime": "1742325913",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 20922,
+            "text": "did you reach out to support ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "did you reach out to support ?"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "left_chats": {
+    "about": "Below are the supergroups and channels from this export that you've left or where you were banned.\n\nNote that when you leave a channel or supergroup you've created, you have the option to either delete it, or simply leave (in case you want to rejoin later, or keep the community alive despite not being a member).",
+    "list": [
+      {
+        "name": "Bridge.ai - Direct to Wallet Trading",
+        "type": "private_supergroup",
+        "id": 1472340271,
+        "messages": [
+          {
+            "id": 63308,
+            "type": "message",
+            "date": "2023-03-06T05:44:11",
+            "date_unixtime": "1678103051",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "You should change your system\n\nDeposit address for XMR has the same characters in the beginning so it leads us into thinking it's not changing from one deposit to another\n\nI lost some money because of that",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "You should change your system\n\nDeposit address for XMR has the same characters in the beginning so it leads us into thinking it's not changing from one deposit to another\n\nI lost some money because of that"
+              }
+            ]
+          },
+          {
+            "id": 63309,
+            "type": "message",
+            "date": "2023-03-06T05:44:25",
+            "date_unixtime": "1678103065",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "either improve UX or generate totally different addresses",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "either improve UX or generate totally different addresses"
+              }
+            ]
+          },
+          {
+            "id": 63321,
+            "type": "message",
+            "date": "2023-03-06T10:34:14",
+            "date_unixtime": "1678120454",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 63318,
+            "text": "just swap to XMR in and out that's it",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "just swap to XMR in and out that's it"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Web3 Community Events | EthCC 2025",
+        "type": "private_supergroup",
+        "id": 1714481381,
+        "messages": [
+          {
+            "id": 1674,
+            "type": "service",
+            "date": "2022-07-15T14:24:48",
+            "date_unixtime": "1657913088",
+            "actor": "JohnDoe",
+            "actor_id": "user1601587058",
+            "action": "invite_members",
+            "members": ["JohnDoe"],
+            "text": "",
+            "text_entities": []
+          }
+        ]
+      },
+      {
+        "name": "CalorieToken",
+        "type": "private_supergroup",
+        "id": 1520407010,
+        "messages": [
+          {
+            "id": 4206,
+            "type": "service",
+            "date": "2022-05-03T08:13:03",
+            "date_unixtime": "1651583583",
+            "actor": "JohnDoe",
+            "actor_id": "user1601587058",
+            "action": "join_group_by_link",
+            "inviter": "Group",
+            "text": "",
+            "text_entities": []
+          },
+          {
+            "id": 4207,
+            "type": "message",
+            "date": "2022-05-03T08:13:26",
+            "date_unixtime": "1651583606",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "hi, sell is blocked ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "hi, sell is blocked ?"
+              }
+            ]
+          },
+          {
+            "id": 4208,
+            "type": "message",
+            "date": "2022-05-03T08:13:29",
+            "date_unixtime": "1651583609",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "what's slippage",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "what's slippage"
+              }
+            ]
+          },
+          {
+            "id": 4211,
+            "type": "message",
+            "date": "2022-05-03T08:14:57",
+            "date_unixtime": "1651583697",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              {
+                "type": "link",
+                "text": "https://pancakeswap.finance/swap?outputCurrency=0x2f5d136a1303c7795712aff28b86c0f2e796a2c7"
+              },
+              "\n\nit seems there is scam copycat on pancakeswap"
+            ],
+            "text_entities": [
+              {
+                "type": "link",
+                "text": "https://pancakeswap.finance/swap?outputCurrency=0x425d136a1303c7795712aff28b86c0f2e796a2c7"
+              },
+              {
+                "type": "plain",
+                "text": "\n\nit seems there is scam copycat on pancakeswap"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Magic Card Scam Father usher",
+        "type": "private_supergroup",
+        "id": 1530924583,
+        "messages": []
+      },
+      {
+        "name": "V2 🇧🇷 BRASIL🇧🇷OFICIAL",
+        "type": "private_supergroup",
+        "id": 1177774902,
+        "messages": []
+      },
+      {
+        "name": "IQ OPTIONS",
+        "type": "private_supergroup",
+        "id": 1377036345,
+        "messages": []
+      },
+      {
+        "name": "Cryptoo Hub",
+        "type": "private_supergroup",
+        "id": 1237602964,
+        "messages": []
+      },
+      {
+        "name": "SimbaX.io Official",
+        "type": "private_supergroup",
+        "id": 1192402706,
+        "messages": []
+      },
+
+      {
+        "name": "Meta <> Q - DEV",
+        "type": "private_supergroup",
+        "id": 1908972836,
+        "messages": [
+          {
+            "id": 4,
+            "type": "message",
+            "date": "2023-07-24T02:32:01",
+            "date_unixtime": "1690187521",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "Hello",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Hello"
+              }
+            ]
+          },
+          {
+            "id": 5,
+            "type": "message",
+            "date": "2023-07-24T05:05:16",
+            "date_unixtime": "1690196716",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "nice to meet you \nWhen can we organize a code walkthrough together ? :)",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "nice to meet you \nWhen can we organize a code walkthrough together ? :)"
+              }
+            ]
+          },
+          {
+            "id": 8,
+            "type": "message",
+            "date": "2023-07-24T06:58:45",
+            "date_unixtime": "1690203525",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              "can you invite me again to the repo ?? the previous invite expired \n",
+              {
+                "type": "mention",
+                "text": "@asa93"
+              }
+            ],
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "can you invite me again to the repo ?? the previous invite expired \n"
+              },
+              {
+                "type": "mention",
+                "text": "@asa93"
+              }
+            ]
+          },
+          {
+            "id": 11,
+            "type": "message",
+            "date": "2023-07-24T10:57:52",
+            "date_unixtime": "1690217872",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "hey jose, I'm available",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "hey jose, I'm available"
+              }
+            ]
+          },
+          {
+            "id": 14,
+            "type": "message",
+            "date": "2023-07-24T11:46:22",
+            "date_unixtime": "1690220782",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              "hey ",
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              "  can you jump in the call again for a sec ?"
+            ],
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "hey "
+              },
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              {
+                "type": "plain",
+                "text": "  can you jump in the call again for a sec ?"
+              }
+            ]
+          },
+          {
+            "id": 18,
+            "type": "message",
+            "date": "2023-08-02T10:02:27",
+            "date_unixtime": "1690992147",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              "Hola ",
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              " all good ?\n\n do you have some time at the end of the week to discuss the contracts ? 😊"
+            ],
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Hola "
+              },
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              {
+                "type": "plain",
+                "text": " all good ?\n\n do you have some time at the end of the week to discuss the contracts ? 😊"
+              }
+            ]
+          },
+          {
+            "id": 20,
+            "type": "message",
+            "date": "2023-08-03T04:59:13",
+            "date_unixtime": "1691060353",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 19,
+            "text": "this afternoon, after 3pm CET ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "this afternoon, after 3pm CET ?"
+              }
+            ]
+          },
+          {
+            "id": 21,
+            "type": "message",
+            "date": "2023-08-03T05:01:49",
+            "date_unixtime": "1691060509",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "actually, tomorrow would be better",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "actually, tomorrow would be better"
+              }
+            ]
+          },
+          {
+            "id": 23,
+            "type": "message",
+            "date": "2023-08-03T07:59:20",
+            "date_unixtime": "1691071160",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "Ok let's say 2pm ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Ok let's say 2pm ?"
+              }
+            ]
+          },
+          {
+            "id": 25,
+            "type": "message",
+            "date": "2023-08-03T08:01:01",
+            "date_unixtime": "1691071261",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "Yes",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Yes"
+              }
+            ]
+          },
+          {
+            "id": 26,
+            "type": "message",
+            "date": "2023-08-03T08:01:20",
+            "date_unixtime": "1691071280",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "Oh wait you are in Mexico",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Oh wait you are in Mexico"
+              }
+            ]
+          },
+          {
+            "id": 27,
+            "type": "message",
+            "date": "2023-08-03T08:01:30",
+            "date_unixtime": "1691071290",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "So 5pm ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "So 5pm ?"
+              }
+            ]
+          },
+          {
+            "id": 30,
+            "type": "message",
+            "date": "2023-08-04T08:18:56",
+            "date_unixtime": "1691158736",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "actually have a thing at 5pm but 6pm can do it !",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "actually have a thing at 5pm but 6pm can do it !"
+              }
+            ]
+          },
+          {
+            "id": 33,
+            "type": "message",
+            "date": "2023-08-04T10:05:50",
+            "date_unixtime": "1691165150",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "hey",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "hey"
+              }
+            ]
+          },
+          {
+            "id": 34,
+            "type": "message",
+            "date": "2023-08-04T10:05:51",
+            "date_unixtime": "1691165151",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              {
+                "type": "link",
+                "text": "https://meet.google.com/yte-veyn-stw?authuser=1"
+              }
+            ],
+            "text_entities": [
+              {
+                "type": "link",
+                "text": "https://meet.google.com/yte-veyn-stw?authuser=1"
+              }
+            ]
+          },
+          {
+            "id": 37,
+            "type": "message",
+            "date": "2023-08-04T11:51:01",
+            "date_unixtime": "1691171461",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "file": "(File not included. Change data exporting settings to download.)",
+            "file_name": "PQ-MetaPool contract review-040823-175046.pdf",
+            "file_size": 112487,
+            "thumbnail": "(File not included. Change data exporting settings to download.)",
+            "thumbnail_file_size": 6972,
+            "mime_type": "application/pdf",
+            "text": "",
+            "text_entities": []
+          },
+          {
+            "id": 39,
+            "type": "message",
+            "date": "2023-08-07T09:05:48",
+            "date_unixtime": "1691420748",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 38,
+            "text": "Are you able to deploy on testnet ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Are you able to deploy on testnet ?"
+              }
+            ]
+          },
+          {
+            "id": 42,
+            "type": "message",
+            "date": "2023-08-07T09:59:17",
+            "date_unixtime": "1691423957",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 41,
+            "text": "Yep that's what i thought\n\nGreat then\nSo you stabilized v0.1.1 ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Yep that's what i thought\n\nGreat then\nSo you stabilized v0.1.1 ?"
+              }
+            ]
+          },
+          {
+            "id": 44,
+            "type": "message",
+            "date": "2023-08-08T03:59:33",
+            "date_unixtime": "1691488773",
+            "edited": "2023-08-08T04:06:49",
+            "edited_unixtime": "1691489209",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              "Hey ",
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              " \n\nBtw the you mentionned last time that the price of shares is increasing when assets increase, but have you tested that ?\n\nWhat I see is that if you start with an initial price of 1:1 and you increase shares and assets over time, the price of shares will remain the same"
+            ],
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Hey "
+              },
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              {
+                "type": "plain",
+                "text": " \n\nBtw the you mentionned last time that the price of shares is increasing when assets increase, but have you tested that ?\n\nWhat I see is that if you start with an initial price of 1:1 and you increase shares and assets over time, the price of shares will remain the same"
+              }
+            ]
+          },
+          {
+            "id": 51,
+            "type": "message",
+            "date": "2023-08-08T09:22:11",
+            "date_unixtime": "1691508131",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 49,
+            "text": "no you don't need to allocate for the root nodes",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "no you don't need to allocate for the root nodes"
+              }
+            ]
+          },
+          {
+            "id": 53,
+            "type": "message",
+            "date": "2023-08-08T09:22:23",
+            "date_unixtime": "1691508143",
+            "edited": "2023-08-08T09:23:03",
+            "edited_unixtime": "1691508183",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "so 2, from left to right",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "so 2, from left to right"
+              }
+            ],
+            "reactions": [
+              {
+                "type": "emoji",
+                "count": 1,
+                "emoji": "👍",
+                "recent": [
+                  {
+                    "from": "Jose Sosa 🦡",
+                    "from_id": "user1444626451",
+                    "date": "2023-08-08T09:23:04"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": 57,
+            "type": "message",
+            "date": "2023-08-10T01:55:31",
+            "date_unixtime": "1691654131",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              "Hello ",
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              " \nquestion: do you have a idea of the methodology you are going to use to configure optimally the respective percentage of each validator ?"
+            ],
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Hello "
+              },
+              {
+                "type": "mention",
+                "text": "@jomsosa"
+              },
+              {
+                "type": "plain",
+                "text": " \nquestion: do you have a idea of the methodology you are going to use to configure optimally the respective percentage of each validator ?"
+              }
+            ]
+          },
+          {
+            "id": 59,
+            "type": "message",
+            "date": "2023-08-10T09:43:59",
+            "date_unixtime": "1691682239",
+            "edited": "2023-08-10T09:44:05",
+            "edited_unixtime": "1691682245",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 58,
+            "text": "yes it's a trade-off",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "yes it's a trade-off"
+              }
+            ]
+          },
+          {
+            "id": 61,
+            "type": "message",
+            "date": "2023-08-10T09:55:58",
+            "date_unixtime": "1691682958",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "reply_to_message_id": 60,
+            "text": "ok thank you, I will check on this !",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "ok thank you, I will check on this !"
+              }
+            ]
+          },
+          {
+            "id": 63,
+            "type": "message",
+            "date": "2023-08-14T12:40:22",
+            "date_unixtime": "1692038422",
+            "edited": "2023-08-14T12:40:34",
+            "edited_unixtime": "1692038434",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "Yep, im available tomorrow afternoon",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Yep, im available tomorrow afternoon"
+              }
+            ],
+            "reactions": [
+              {
+                "type": "emoji",
+                "count": 1,
+                "emoji": "👌",
+                "recent": [
+                  {
+                    "from": "Jose Sosa 🦡",
+                    "from_id": "user1444626451",
+                    "date": "2023-08-14T12:40:34"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": 65,
+            "type": "message",
+            "date": "2023-08-14T12:42:49",
+            "date_unixtime": "1692038569",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "4pm ?",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "4pm ?"
+              }
+            ]
+          },
+          {
+            "id": 68,
+            "type": "message",
+            "date": "2023-08-15T08:01:43",
+            "date_unixtime": "1692108103",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": "Hey\nI am finishing a call sorry, in a few minutes I'm ready",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Hey\nI am finishing a call sorry, in a few minutes I'm ready"
+              }
+            ]
+          },
+          {
+            "id": 70,
+            "type": "message",
+            "date": "2023-08-15T08:12:26",
+            "date_unixtime": "1692108746",
+            "from": "JohnDoe",
+            "from_id": "user1601587058",
+            "text": [
+              {
+                "type": "link",
+                "text": "https://meet.google.com/dtc-vtxo-xiq?authuser=1"
+              }
+            ],
+            "text_entities": [
+              {
+                "type": "link",
+                "text": "https://meet.google.com/dtc-vtxo-xiq?authuser=1"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "The Musc Project",
+        "type": "private_supergroup",
+        "id": 1534657512,
+        "messages": []
+      },
+      {
+        "name": "🔥🔥REALBURN OFFICIAL🔥🔥",
+        "type": "private_supergroup",
+        "id": 1556721476,
+        "messages": []
+      },
+      {
+        "name": "ACME Crypto",
+        "type": "private_supergroup",
+        "id": 1487594029,
+        "messages": []
+      }
+    ]
+  }
+}
