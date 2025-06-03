@@ -125,7 +125,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		mockClient := &weaviate.Client{}
 
 		// Create AI services inline
-		envPath := filepath.Join("..", "..", "..", ".env")
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
 		_ = godotenv.Load(envPath)
 		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
 		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
@@ -180,7 +180,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		mockClient := &weaviate.Client{}
 
 		// Create AI services inline
-		envPath := filepath.Join("..", "..", "..", ".env")
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
 		_ = godotenv.Load(envPath)
 		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
 		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
@@ -233,7 +233,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		mockClient := &weaviate.Client{}
 
 		// Create AI services inline
-		envPath := filepath.Join("..", "..", "..", ".env")
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
 		_ = godotenv.Load(envPath)
 		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
 		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
