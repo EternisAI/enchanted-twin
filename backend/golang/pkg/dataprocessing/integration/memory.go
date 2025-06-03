@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/pkg/errors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -33,24 +33,55 @@ type IntegrationTestMemoryConfig struct {
 	EmbeddingsApiUrl  string
 }
 
-func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
-	storePath := "./output/test.db"
-	weaviatePort := "8080"
+func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemoryConfig) error {
+	// Create context with timeout to ensure test doesn't run indefinitely, but respect parent cancellation
+	ctx, cancel := context.WithTimeout(parentCtx, 5*time.Minute)
+	defer cancel()
+
 	batchSize := 20
-	ctx := context.Background()
+
+	// Create temporary directory for test files
+	tempDir, err := os.MkdirTemp("", "integration-test-memory-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp directory: %w", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			fmt.Printf("Warning: failed to clean up temp directory %s: %v\n", tempDir, err)
+		}
+	}()
+
+	storePath := filepath.Join(tempDir, "test.db")
+	weaviateDataPath := filepath.Join(tempDir, "weaviate-data")
 
 	logger := log.NewWithOptions(os.Stdout, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           log.DebugLevel,
 		TimeFormat:      time.Kitchen,
+		Prefix:          "[integration-test] ",
 	})
 
-	_, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, "weaviate-test-memory")
+	weaviatePort := "51414"
+
+	weaviateServer, err := bootstrap.BootstrapWeaviateServer(ctx, logger, weaviatePort, weaviateDataPath)
 	if err != nil {
 		logger.Error("Error starting weaviate server", "error", err)
 		return err
 	}
+	defer func() {
+		// Allow time for any background operations to complete before cleanup
+		logger.Info("Waiting for background operations to complete before cleanup...")
+		time.Sleep(3 * time.Second)
+
+		if weaviateServer != nil {
+			if err := weaviateServer.Shutdown(); err != nil {
+				logger.Error("Failed to shutdown Weaviate server", "error", err)
+			} else {
+				logger.Info("Weaviate server shutdown successfully")
+			}
+		}
+	}()
 
 	weaviateClient, err := weaviate.NewClient(weaviate.Config{
 		Host:   fmt.Sprintf("localhost:%s", weaviatePort),
@@ -67,7 +98,7 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 	schemaInitStart := time.Now()
 	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
-		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
+		return fmt.Errorf("failed to initialize Weaviate schema: %w", err)
 	}
 	logger.Info("Weaviate schema initialized", "elapsed", time.Since(schemaInitStart))
 
@@ -76,6 +107,13 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		logger.Error("Error creating store", "error", err)
 		return err
 	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Failed to close store", "error", err)
+		} else {
+			logger.Info("Store closed successfully")
+		}
+	}()
 
 	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService, config.CompletionsModel, store)
 
@@ -97,7 +135,6 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		return err
 	}
 
-	// Create storage interface first
 	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
@@ -107,7 +144,7 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		EmbeddingsService:  aiEmbeddingsService,
 	})
 	if err != nil {
-		logger.Error("Error processing memory", "error", err)
+		logger.Error("Error creating memory", "error", err)
 		return err
 	}
 
@@ -115,18 +152,31 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		logger.Error("No documents to store", "source", config.Source)
 		return fmt.Errorf("no documents to store")
 	}
-	logger.Info("Storing documents", "source", config.Source, "documents[0]", documents[0])
+	logger.Info("Storing documents", "source", config.Source, "count", len(documents))
 
 	for i := 0; i < len(documents); i += batchSize {
+		if err := ctx.Err(); err != nil {
+			logger.Info("Context canceled during document storage", "error", err)
+			return err
+		}
+
 		batch := documents[i:min(i+batchSize, len(documents))]
 
-		logger.Info("Storing documents batch", "index", i)
+		logger.Info("Storing documents batch", "index", i, "batch_size", len(batch))
 
 		err = mem.Store(ctx, batch, nil)
 		if err != nil {
 			logger.Error("Error storing documents", "error", err)
 			return err
 		}
+	}
+
+	logger.Info("Waiting for memory processing to complete...")
+	select {
+	case <-time.After(5 * time.Second):
+	case <-ctx.Done():
+		logger.Info("Context canceled while waiting for processing to complete")
+		return ctx.Err()
 	}
 
 	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
@@ -136,6 +186,16 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 	}
 
 	logger.Info("Query result", "result", result)
+
+	logger.Info("Waiting for all background fact processing to complete...")
+	select {
+	case <-time.After(3 * time.Second):
+	case <-ctx.Done():
+		logger.Info("Context canceled during final wait")
+		return ctx.Err()
+	}
+
+	logger.Info("Integration test completed successfully")
 
 	return nil
 }
