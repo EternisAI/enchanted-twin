@@ -100,7 +100,12 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 	// Create storage interface first
 	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
 
-	mem, err := evolvingmemory.New(logger, storageInterface, openAiService, aiEmbeddingsService)
+	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: openAiService,
+		EmbeddingsService:  aiEmbeddingsService,
+	})
 	if err != nil {
 		logger.Error("Error processing memory", "error", err)
 		return err

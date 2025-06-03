@@ -237,7 +237,12 @@ func TestAdapterCreation(t *testing.T) {
 	}
 
 	mockStorage := storage.New(mockClient, logger, embeddingsService)
-	storageImpl, err := New(logger, mockStorage, completionsService, embeddingsService)
+	storageImpl, err := New(Dependencies{
+		Logger:             logger,
+		Storage:            mockStorage,
+		CompletionsService: completionsService,
+		EmbeddingsService:  embeddingsService,
+	})
 	require.NoError(t, err)
 
 	t.Run("NewFactExtractor", func(t *testing.T) {
@@ -491,7 +496,12 @@ func TestNewMemoryOperations_Success(t *testing.T) {
 	mockClient := &weaviate.Client{}
 	mockStorageInterface := storage.New(mockClient, logger, embeddingsService)
 
-	storageImpl, err := New(logger, mockStorageInterface, completionsService, embeddingsService)
+	storageImpl, err := New(Dependencies{
+		Logger:             logger,
+		Storage:            mockStorageInterface,
+		CompletionsService: completionsService,
+		EmbeddingsService:  embeddingsService,
+	})
 	require.NoError(t, err)
 
 	// Type assert to get StorageImpl

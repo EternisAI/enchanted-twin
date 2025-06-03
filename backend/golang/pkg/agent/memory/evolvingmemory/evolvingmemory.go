@@ -175,6 +175,14 @@ type MemoryStorage interface {
 	StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error)
 }
 
+// Dependencies holds all the required dependencies for creating a MemoryStorage instance.
+type Dependencies struct {
+	Logger             *log.Logger
+	Storage            storage.Interface
+	CompletionsService *ai.Service
+	EmbeddingsService  *ai.Service
+}
+
 // StorageImpl implements MemoryStorage using any storage backend.
 type StorageImpl struct {
 	logger             *log.Logger
@@ -184,25 +192,25 @@ type StorageImpl struct {
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
-func New(logger *log.Logger, storage storage.Interface, completionsService *ai.Service, embeddingsService *ai.Service) (MemoryStorage, error) {
-	if storage == nil {
+func New(deps Dependencies) (MemoryStorage, error) {
+	if deps.Storage == nil {
 		return nil, fmt.Errorf("storage interface cannot be nil")
 	}
-	if logger == nil {
+	if deps.Logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
-	if completionsService == nil {
+	if deps.CompletionsService == nil {
 		return nil, fmt.Errorf("completions service cannot be nil")
 	}
-	if embeddingsService == nil {
+	if deps.EmbeddingsService == nil {
 		return nil, fmt.Errorf("embeddings service cannot be nil")
 	}
 
 	return &StorageImpl{
-		logger:             logger,
-		completionsService: completionsService,
-		embeddingsService:  embeddingsService,
-		storage:            storage,
+		logger:             deps.Logger,
+		completionsService: deps.CompletionsService,
+		embeddingsService:  deps.EmbeddingsService,
+		storage:            deps.Storage,
 	}, nil
 }
 
