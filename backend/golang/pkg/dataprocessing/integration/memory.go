@@ -11,6 +11,7 @@ import (
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
@@ -96,7 +97,10 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		return err
 	}
 
-	mem, err := evolvingmemory.New(logger, weaviateClient, openAiService, aiEmbeddingsService)
+	// Create storage interface first
+	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
+
+	mem, err := evolvingmemory.New(logger, storageInterface, openAiService, aiEmbeddingsService)
 	if err != nil {
 		logger.Error("Error processing memory", "error", err)
 		return err

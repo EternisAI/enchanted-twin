@@ -10,9 +10,11 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
@@ -44,7 +46,7 @@ func createTestAIService() *ai.Service {
 
 // TestFactExtractorAdapter tests the fact extractor adapter structure.
 func TestFactExtractorAdapter(t *testing.T) {
-	logger := log.Default()
+	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
 	// Try to create real AI services, fall back to nil if no env vars
@@ -55,13 +57,14 @@ func TestFactExtractorAdapter(t *testing.T) {
 	}
 
 	// Create storage with services
-	storage := &WeaviateStorage{
+	mockStorage := storage.New(mockClient, logger, aiService)
+	storageImpl := &StorageImpl{
 		logger:             logger,
-		client:             mockClient,
 		completionsService: aiService,
 		embeddingsService:  aiService,
+		storage:            mockStorage,
 	}
-	adapter, err := NewFactExtractor(storage)
+	adapter, err := NewFactExtractor(storageImpl)
 	assert.NoError(t, err)
 	assert.NotNil(t, adapter)
 
@@ -72,11 +75,12 @@ func TestFactExtractorAdapter(t *testing.T) {
 		}
 
 		// Create storage with real AI service
-		storageWithAI := &WeaviateStorage{
+		testMockStorage := storage.New(mockClient, logger, testAI)
+		storageWithAI := &StorageImpl{
 			logger:             logger,
-			client:             mockClient,
 			completionsService: testAI,
 			embeddingsService:  testAI,
+			storage:            testMockStorage,
 		}
 		adapterWithAI, err := NewFactExtractor(storageWithAI)
 		assert.NoError(t, err)
@@ -114,11 +118,12 @@ func TestFactExtractorAdapter(t *testing.T) {
 		}
 
 		// Create storage with real AI service
-		storageWithAI := &WeaviateStorage{
+		testMockStorage := storage.New(mockClient, logger, testAI)
+		storageWithAI := &StorageImpl{
 			logger:             logger,
-			client:             mockClient,
 			completionsService: testAI,
 			embeddingsService:  testAI,
+			storage:            testMockStorage,
 		}
 		adapterWithAI, err := NewFactExtractor(storageWithAI)
 		assert.NoError(t, err)
@@ -184,11 +189,11 @@ func TestFactExtractorAdapter(t *testing.T) {
 	})
 
 	t.Run("NewFactExtractor_NilCompletionsService", func(t *testing.T) {
-		storageWithoutCompletions := &WeaviateStorage{
+		storageWithoutCompletions := &StorageImpl{
 			logger:             logger,
-			client:             mockClient,
 			completionsService: nil,
 			embeddingsService:  aiService,
+			storage:            mockStorage,
 		}
 		_, err := NewFactExtractor(storageWithoutCompletions)
 		assert.Error(t, err)
@@ -198,7 +203,7 @@ func TestFactExtractorAdapter(t *testing.T) {
 
 // TestMemoryOperationsAdapter tests the memory operations adapter structure.
 func TestMemoryOperationsAdapter(t *testing.T) {
-	logger := log.Default()
+	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
 	// Try to create real AI services, fall back to dummy if no env vars
@@ -209,13 +214,14 @@ func TestMemoryOperationsAdapter(t *testing.T) {
 
 	// Just a basic test to ensure the function doesn't completely fail
 	t.Run("BasicStructure", func(t *testing.T) {
-		storage := &WeaviateStorage{
+		mockStorage := storage.New(mockClient, logger, aiService)
+		storageImpl := &StorageImpl{
 			logger:             logger,
-			client:             mockClient,
 			completionsService: aiService,
 			embeddingsService:  aiService,
+			storage:            mockStorage,
 		}
-		_, err := NewMemoryOperations(storage)
+		_, err := NewMemoryOperations(storageImpl)
 		assert.NoError(t, err)
 	})
 }
@@ -250,7 +256,7 @@ func TestDecisionParsing(t *testing.T) {
 
 // TestAdapterCreation tests adapter creation.
 func TestAdapterCreation(t *testing.T) {
-	logger := log.Default()
+	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
 	// Try to create real AI services, fall back to dummy if no env vars
@@ -259,10 +265,14 @@ func TestAdapterCreation(t *testing.T) {
 		aiService = &ai.Service{}
 	}
 
-	storage, _ := New(logger, mockClient, aiService, aiService)
+	mockStorage := storage.New(mockClient, logger, aiService)
+	storageImpl, err := New(logger, mockStorage, aiService, aiService)
+	require.NoError(t, err)
 
 	t.Run("NewFactExtractor", func(t *testing.T) {
-		adapter, err := NewFactExtractor(storage)
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
+		adapter, err := NewFactExtractor(storageImplTyped)
 		assert.NoError(t, err)
 		assert.NotNil(t, adapter)
 
@@ -271,7 +281,9 @@ func TestAdapterCreation(t *testing.T) {
 	})
 
 	t.Run("NewMemoryOperations", func(t *testing.T) {
-		adapter, err := NewMemoryOperations(storage)
+		storageImplTyped, ok := storageImpl.(*StorageImpl)
+		require.True(t, ok, "Failed to type assert to StorageImpl")
+		adapter, err := NewMemoryOperations(storageImplTyped)
 		assert.NoError(t, err)
 		assert.NotNil(t, adapter)
 
@@ -286,26 +298,237 @@ func TestAdapterCreation(t *testing.T) {
 	})
 
 	t.Run("NewMemoryOperations_NilClient", func(t *testing.T) {
-		storageWithoutClient := &WeaviateStorage{
+		storageWithoutInterface := &StorageImpl{
 			logger:             logger,
-			client:             nil,
 			completionsService: aiService,
 			embeddingsService:  aiService,
+			storage:            nil,
 		}
-		_, err := NewMemoryOperations(storageWithoutClient)
+		_, err := NewMemoryOperations(storageWithoutInterface)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "weaviate client not initialized")
+		assert.Contains(t, err.Error(), "storage interface not initialized")
 	})
 
 	t.Run("NewMemoryOperations_NilCompletionsService", func(t *testing.T) {
-		storageWithoutCompletions := &WeaviateStorage{
+		storageWithoutCompletions := &StorageImpl{
 			logger:             logger,
-			client:             mockClient,
 			completionsService: nil,
 			embeddingsService:  aiService,
+			storage:            mockStorage,
 		}
 		_, err := NewMemoryOperations(storageWithoutCompletions)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "completions service not initialized")
 	})
+}
+
+func TestNewFactExtractor_Success(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, mockAI)
+
+	storageImpl := &StorageImpl{
+		logger:             logger,
+		completionsService: mockAI,
+		embeddingsService:  mockAI,
+		storage:            mockStorageInterface,
+	}
+
+	extractor, err := NewFactExtractor(storageImpl)
+
+	require.NoError(t, err)
+	assert.NotNil(t, extractor)
+}
+
+func TestNewFactExtractor_NilStorage(t *testing.T) {
+	extractor, err := NewFactExtractor(nil)
+
+	require.Error(t, err)
+	assert.Nil(t, extractor)
+	assert.Contains(t, err.Error(), "storage cannot be nil")
+}
+
+func TestNewFactExtractor_NilCompletionsService(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, mockAI)
+
+	storageWithoutCompletions := &StorageImpl{
+		logger:             logger,
+		completionsService: nil, // Missing completions service
+		embeddingsService:  mockAI,
+		storage:            mockStorageInterface,
+	}
+
+	extractor, err := NewFactExtractor(storageWithoutCompletions)
+
+	require.Error(t, err)
+	assert.Nil(t, extractor)
+	assert.Contains(t, err.Error(), "completions service not initialized")
+}
+
+func TestFactExtractorAdapter_ExtractFacts_ConversationDocument(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, mockAI)
+
+	storageWithAI := &StorageImpl{
+		logger:             logger,
+		completionsService: mockAI,
+		embeddingsService:  mockAI,
+		storage:            mockStorageInterface,
+	}
+
+	extractor, err := NewFactExtractor(storageWithAI)
+	require.NoError(t, err)
+
+	// Create a conversation document
+	convDoc := &memory.ConversationDocument{
+		FieldID: "test-conv",
+		Conversation: []memory.ConversationMessage{
+			{Speaker: "user", Content: "Hello there"},
+		},
+		User: "user",
+	}
+
+	doc := PreparedDocument{
+		Original:  convDoc,
+		Type:      DocumentTypeConversation,
+		SpeakerID: "user",
+	}
+
+	// This will fail in tests without real AI service, but we can test the path
+	_, err = extractor.ExtractFacts(context.Background(), doc)
+
+	// We expect an error here since we don't have a real AI service
+	// The important thing is that it routes to the conversation extraction method
+	assert.Error(t, err)
+}
+
+func TestFactExtractorAdapter_ExtractFacts_TextDocument(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, mockAI)
+
+	storageWithAI := &StorageImpl{
+		logger:             logger,
+		completionsService: mockAI,
+		embeddingsService:  mockAI,
+		storage:            mockStorageInterface,
+	}
+
+	extractor, err := NewFactExtractor(storageWithAI)
+	require.NoError(t, err)
+
+	// Create a text document
+	textDoc := &memory.TextDocument{
+		FieldID:      "test-text",
+		FieldContent: "This is a test document",
+	}
+
+	doc := PreparedDocument{
+		Original:  textDoc,
+		Type:      DocumentTypeText,
+		SpeakerID: "user",
+	}
+
+	// This will fail in tests without real AI service, but we can test the path
+	_, err = extractor.ExtractFacts(context.Background(), doc)
+
+	// We expect an error here since we don't have a real AI service
+	assert.Error(t, err)
+}
+
+func TestFactExtractorAdapter_ExtractFacts_UnknownDocumentType(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, mockAI)
+
+	storageWithoutCompletions := &StorageImpl{
+		logger:             logger,
+		completionsService: mockAI,
+		embeddingsService:  mockAI,
+		storage:            mockStorageInterface,
+	}
+
+	extractor, err := NewFactExtractor(storageWithoutCompletions)
+	require.NoError(t, err)
+
+	// Create a document with unknown type
+	doc := PreparedDocument{
+		Original:  &memory.TextDocument{},
+		Type:      "unknown",
+		SpeakerID: "user",
+	}
+
+	_, err = extractor.ExtractFacts(context.Background(), doc)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown document type")
+}
+
+// Memory Operations Tests
+
+func TestNewMemoryOperations_Success(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+	mockClient := &weaviate.Client{}
+	mockStorageInterface := storage.New(mockClient, logger, mockAI)
+
+	storageImpl, err := New(logger, mockStorageInterface, mockAI, mockAI)
+	require.NoError(t, err)
+
+	// Type assert to get StorageImpl
+	storageImplTyped, ok := storageImpl.(*StorageImpl)
+	require.True(t, ok, "Failed to type assert to StorageImpl")
+
+	memOps, err := NewMemoryOperations(storageImplTyped)
+
+	require.NoError(t, err)
+	assert.NotNil(t, memOps)
+}
+
+func TestNewMemoryOperations_NilStorage(t *testing.T) {
+	memOps, err := NewMemoryOperations(nil)
+
+	require.Error(t, err)
+	assert.Nil(t, memOps)
+	assert.Contains(t, err.Error(), "storage cannot be nil")
+}
+
+func TestNewMemoryOperations_NilStorageInterface(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+
+	storageWithoutClient := &StorageImpl{
+		logger:             logger,
+		completionsService: mockAI,
+		embeddingsService:  mockAI,
+		storage:            nil, // Missing storage interface
+	}
+
+	memOps, err := NewMemoryOperations(storageWithoutClient)
+
+	require.Error(t, err)
+	assert.Nil(t, memOps)
+	assert.Contains(t, err.Error(), "storage interface not initialized")
+}
+
+func TestNewMemoryOperations_NilCompletionsService(t *testing.T) {
+	logger := log.New(os.Stdout)
+	mockAI := &ai.Service{}
+	mockStorageInterface := storage.New(&weaviate.Client{}, logger, mockAI)
+
+	storageWithoutCompletions := &StorageImpl{
+		logger:             logger,
+		completionsService: nil, // Missing completions service
+		embeddingsService:  mockAI,
+		storage:            mockStorageInterface,
+	}
+
+	memOps, err := NewMemoryOperations(storageWithoutCompletions)
+
+	require.Error(t, err)
+	assert.Nil(t, memOps)
+	assert.Contains(t, err.Error(), "completions service not initialized")
 }

@@ -2,10 +2,10 @@ package evolvingmemory
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -168,33 +168,46 @@ type ExtractFactsToolArguments struct {
 	Facts []string `json:"facts"`
 }
 
-// WeaviateStorage implements the memory.Storage interface using Weaviate.
-type WeaviateStorage struct {
-	client             *weaviate.Client
+// MemoryStorage is the main interface for hot-swappable storage implementations.
+// This interface encapsulates all memory storage operations and business logic.
+type MemoryStorage interface {
+	memory.Storage // Inherit the base storage interface
+	StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error)
+}
+
+// StorageImpl implements MemoryStorage using any storage backend.
+type StorageImpl struct {
 	logger             *log.Logger
 	completionsService *ai.Service
 	embeddingsService  *ai.Service
 	storage            storage.Interface
 }
 
-// New creates a new WeaviateStorage instance.
-func New(logger *log.Logger, client *weaviate.Client, completionsService *ai.Service, embeddingsService *ai.Service) (*WeaviateStorage, error) {
-	// Create storage interface
-	storageImpl := storage.New(client, logger, embeddingsService)
+// New creates a new StorageImpl instance that can work with any storage backend.
+func New(logger *log.Logger, storage storage.Interface, completionsService *ai.Service, embeddingsService *ai.Service) (MemoryStorage, error) {
+	if storage == nil {
+		return nil, fmt.Errorf("storage interface cannot be nil")
+	}
+	if logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+	if completionsService == nil {
+		return nil, fmt.Errorf("completions service cannot be nil")
+	}
+	if embeddingsService == nil {
+		return nil, fmt.Errorf("embeddings service cannot be nil")
+	}
 
-	storage := &WeaviateStorage{
-		client:             client,
+	return &StorageImpl{
 		logger:             logger,
 		completionsService: completionsService,
 		embeddingsService:  embeddingsService,
-		storage:            storageImpl,
-	}
-
-	return storage, nil
+		storage:            storage,
+	}, nil
 }
 
 // StoreConversations is an alias for Store to maintain backward compatibility.
-func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
+func (s *StorageImpl) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
 	var callback memory.ProgressCallback
 	if progressChan != nil {
 		callback = func(processed, total int) {
@@ -213,7 +226,7 @@ func (s *WeaviateStorage) StoreConversations(ctx context.Context, documents []me
 
 // Store implements the memory.Storage interface using the new StoreV2 pipeline.
 // This method provides backward compatibility while leveraging the new parallel processing architecture.
-func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
+func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
 	// Use default configuration
 	config := DefaultConfig()
 
@@ -263,11 +276,11 @@ func (s *WeaviateStorage) Store(ctx context.Context, documents []memory.Document
 }
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
+func (s *StorageImpl) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
 	return s.storage.Query(ctx, queryText)
 }
 
 // QueryWithDistance implements the memory.Storage interface by delegating to the storage interface.
-func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
+func (s *StorageImpl) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
 	return s.storage.QueryWithDistance(ctx, queryText, metadataFilters...)
 }

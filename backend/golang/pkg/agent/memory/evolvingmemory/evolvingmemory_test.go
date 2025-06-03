@@ -2,13 +2,17 @@ package evolvingmemory
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
+	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // TestConversationDocumentBasics tests basic ConversationDocument functionality.
@@ -114,13 +118,19 @@ func TestMemoryConstants(t *testing.T) {
 func TestStore_BackwardCompatibility(t *testing.T) {
 	// Test with empty documents - this should work without any mocks
 	t.Run("empty documents", func(t *testing.T) {
-		logger := log.Default()
-		storage := &WeaviateStorage{
-			logger: logger,
-			// Don't need other fields for empty document test
+		logger := log.New(os.Stdout)
+		mockClient := &weaviate.Client{}
+		mockAI := &ai.Service{}
+		mockStorage := storage.New(mockClient, logger, mockAI)
+
+		storageImpl := &StorageImpl{
+			logger:             logger,
+			completionsService: mockAI,
+			embeddingsService:  mockAI,
+			storage:            mockStorage,
 		}
 
-		err := storage.Store(context.Background(), []memory.Document{}, nil)
+		err := storageImpl.Store(context.Background(), []memory.Document{}, nil)
 		assert.NoError(t, err)
 	})
 
@@ -134,12 +144,19 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			assert.Equal(t, 0, total)
 		}
 
-		logger := log.Default()
-		storage := &WeaviateStorage{
-			logger: logger,
+		logger := log.New(os.Stdout)
+		mockClient := &weaviate.Client{}
+		mockAI := &ai.Service{}
+		mockStorage := storage.New(mockClient, logger, mockAI)
+
+		storageImpl := &StorageImpl{
+			logger:             logger,
+			completionsService: mockAI,
+			embeddingsService:  mockAI,
+			storage:            mockStorage,
 		}
 
-		err := storage.Store(context.Background(), []memory.Document{}, callback)
+		err := storageImpl.Store(context.Background(), []memory.Document{}, callback)
 		assert.NoError(t, err)
 
 		// For empty documents, callback might not be called, which is fine
@@ -151,9 +168,16 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
-		logger := log.Default()
-		storage := &WeaviateStorage{
-			logger: logger,
+		logger := log.New(os.Stdout)
+		mockClient := &weaviate.Client{}
+		mockAI := &ai.Service{}
+		mockStorage := storage.New(mockClient, logger, mockAI)
+
+		storageImpl := &StorageImpl{
+			logger:             logger,
+			completionsService: mockAI,
+			embeddingsService:  mockAI,
+			storage:            mockStorage,
 		}
 
 		docs := []memory.Document{
@@ -163,7 +187,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			},
 		}
 
-		err := storage.Store(ctx, docs, nil)
+		err := storageImpl.Store(ctx, docs, nil)
 		assert.Error(t, err)
 		assert.Equal(t, context.Canceled, err)
 	})
