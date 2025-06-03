@@ -113,7 +113,12 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		}
 	}()
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService, config.CompletionsModel, store)
+	completionsModel := config.CompletionsModel
+	if completionsModel == "" {
+		completionsModel = "gpt-4o-mini"
+	}
+
+	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService, completionsModel, store)
 
 	_, err = dataprocessingService.ProcessSource(ctx, config.Source, config.InputPath, config.OutputPath)
 	if err != nil {
