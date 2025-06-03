@@ -1,3 +1,5 @@
+// owner: slimane@eternis.ai
+
 package gmail
 
 import (
