@@ -5,9 +5,72 @@ import (
 
 	"github.com/openai/openai-go"
 	"github.com/stretchr/testify/mock"
+	"github.com/weaviate/weaviate/entities/models"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
+
+// MockStorage mocks the storage interface to avoid Weaviate client issues.
+type MockStorage struct {
+	mock.Mock
+}
+
+func (m *MockStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	doc, _ := args.Get(0).(*memory.TextDocument)
+	return doc, args.Error(1)
+}
+
+func (m *MockStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
+	args := m.Called(ctx, id, doc, vector)
+	return args.Error(0)
+}
+
+func (m *MockStorage) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockStorage) StoreBatch(ctx context.Context, objects []*models.Object) error {
+	args := m.Called(ctx, objects)
+	return args.Error(0)
+}
+
+func (m *MockStorage) DeleteAll(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+func (m *MockStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
+	args := m.Called(ctx, queryText)
+	if args.Get(0) == nil {
+		return memory.QueryResult{}, args.Error(1)
+	}
+	result, _ := args.Get(0).(memory.QueryResult)
+	return result, args.Error(1)
+}
+
+func (m *MockStorage) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
+	args := m.Called(ctx, queryText, metadataFilters)
+	if args.Get(0) == nil {
+		return memory.QueryWithDistanceResult{}, args.Error(1)
+	}
+	result, _ := args.Get(0).(memory.QueryWithDistanceResult)
+	return result, args.Error(1)
+}
+
+func (m *MockStorage) EnsureSchemaExists(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
+// Ensure MockStorage implements the storage interface.
+var _ storage.Interface = (*MockStorage)(nil)
 
 // MockCompletionsService mocks the AI completions service.
 type MockCompletionsService struct {

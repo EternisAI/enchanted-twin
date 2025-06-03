@@ -10,18 +10,17 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // createTestAIServices creates AI services for testing.
 func createTestAIServices() (*ai.Service, *ai.Service) {
 	logger := log.Default()
-	envPath := filepath.Join("..", "..", "..", ".env")
+	envPath := filepath.Join("..", "..", "..", "..", ".env")
 	_ = godotenv.Load(envPath)
 	completionsKey := os.Getenv("COMPLETIONS_API_KEY")
 	embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
@@ -47,7 +46,6 @@ func createTestAIServices() (*ai.Service, *ai.Service) {
 // TestStorageImplBasicFunctionality tests the core storage functionality.
 func TestStorageImplBasicFunctionality(t *testing.T) {
 	logger := log.New(os.Stdout)
-	mockClient := &weaviate.Client{}
 
 	// Try to create separate AI services, fall back to skipping tests if no env vars
 	completionsService, embeddingsService := createTestAIServices()
@@ -56,8 +54,15 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 		return
 	}
 
-	// Create storage with embeddings service (for vector operations)
-	mockStorage := storage.New(mockClient, logger, embeddingsService)
+	// Create mock storage instead of using real Weaviate client
+	mockStorage := &MockStorage{}
+	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string")).Return(memory.QueryResult{
+		Facts:     []memory.MemoryFact{},
+		Documents: []memory.TextDocument{},
+	}, nil)
+	mockStorage.On("EnsureSchemaExists", mock.Anything).Return(nil)
+	mockStorage.On("StoreBatch", mock.Anything, mock.Anything).Return(nil)
+
 	storageImpl, err := New(Dependencies{
 		Logger:             logger,
 		Storage:            mockStorage,
@@ -153,7 +158,6 @@ func TestDecisionParsing(t *testing.T) {
 // TestStorageImplCreation tests storage implementation creation.
 func TestStorageImplCreation(t *testing.T) {
 	logger := log.New(os.Stdout)
-	mockClient := &weaviate.Client{}
 
 	// Try to create separate AI services, fall back to dummy if no env vars
 	completionsService, embeddingsService := createTestAIServices()
@@ -163,7 +167,7 @@ func TestStorageImplCreation(t *testing.T) {
 		embeddingsService = &ai.Service{}
 	}
 
-	mockStorage := storage.New(mockClient, logger, embeddingsService)
+	mockStorage := &MockStorage{}
 	storageImpl, err := New(Dependencies{
 		Logger:             logger,
 		Storage:            mockStorage,
@@ -192,14 +196,13 @@ func TestStorageImplCreation(t *testing.T) {
 // TestDependencyValidation tests that the New function properly validates dependencies.
 func TestDependencyValidation(t *testing.T) {
 	logger := log.New(os.Stdout)
-	mockClient := &weaviate.Client{}
 	completionsService, embeddingsService := createTestAIServices()
 	if completionsService == nil || embeddingsService == nil {
 		// Create dummy services for testing structure
 		completionsService = &ai.Service{}
 		embeddingsService = &ai.Service{}
 	}
-	mockStorage := storage.New(mockClient, logger, embeddingsService)
+	mockStorage := &MockStorage{}
 
 	t.Run("NilStorage", func(t *testing.T) {
 		_, err := New(Dependencies{
