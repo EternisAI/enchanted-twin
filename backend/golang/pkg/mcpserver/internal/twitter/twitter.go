@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	"github.com/charmbracelet/log"
 	mcp_golang "github.com/metoro-io/mcp-golang"
@@ -89,22 +88,16 @@ func (c *TwitterClient) CallTool(
 		return nil, err
 	}
 
-	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "twitter")
+	logger := log.Default()
+
+	logger.Debug("Refreshing token for twitter")
+	_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
 	if err != nil {
 		return nil, err
 	}
-
-	logger := log.Default()
-	if oauthTokens.ExpiresAt.Before(time.Now()) {
-		logger.Debug("Refreshing token for twitter")
-		_, err = auth.RefreshOAuthToken(ctx, logger, c.Store, "twitter")
-		if err != nil {
-			return nil, err
-		}
-		oauthTokens, err = c.Store.GetOAuthTokens(ctx, "twitter")
-		if err != nil {
-			return nil, err
-		}
+	oauthTokens, err := c.Store.GetOAuthTokens(ctx, "twitter")
+	if err != nil {
+		return nil, err
 	}
 
 	var content []*mcp_golang.Content

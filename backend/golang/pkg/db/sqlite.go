@@ -55,6 +55,28 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
+
+	// Create singleton table that only allows one row
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS singleton (
+			id INTEGER PRIMARY KEY CHECK (id = 1),
+			uuid TEXT NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	// Insert UUID into singleton table if it doesn't exist
+	singletonUUID := uuid.New().String()
+	_, err = db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO singleton (id, uuid) VALUES (1, ?)
+	`, singletonUUID)
+	if err != nil {
+		return nil, err
+	}
+
 	// Generate UUID for telegram integration if not exists
 	uuid := uuid.New().String()
 	_, err = db.ExecContext(ctx, `

@@ -13,12 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -26,6 +20,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -449,6 +448,55 @@ func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network
 	err := r.HolonService.JoinHolonNetwork(ctx, userID, networkName)
 	if err != nil {
 		return false, err
+	}
+	return true, nil
+}
+
+// CompleteOAuthFlowComposio is the resolver for the completeOAuthFlowComposio field.
+func (r *mutationResolver) CompleteOAuthFlowComposio(ctx context.Context, accountID string, provider string) (bool, error) {
+	username, err := auth.CompleteOAuthFlowComposio(ctx, r.Logger, r.Store, accountID, provider)
+	if err != nil {
+		return false, err
+	}
+
+	switch provider {
+	case "twitter":
+		_, err = r.MCPService.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
+			Name:    model.MCPServerTypeTwitter.String(),
+			Command: "npx",
+			Args:    []string{},
+			Envs:    []*model.KeyValueInput{},
+			Type:    model.MCPServerTypeTwitter,
+		})
+		if err != nil {
+			return false, fmt.Errorf("oauth successful but failed to create Twitter server: %w", err)
+		}
+
+		err = helpers.CreateScheduleIfNotExists(
+			r.Logger,
+			r.TemporalClient,
+			"refresh-twitter-token",
+			time.Minute*30,
+			auth.TokenRefreshWorkflow,
+			[]any{auth.TokenRefreshWorkflowInput{Provider: "twitter"}},
+		)
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return false, err
+		}
+
+		err = helpers.CreateScheduleIfNotExists(
+			r.Logger,
+			r.TemporalClient,
+			"x-sync-schedule",
+			time.Minute*10,
+			"XSyncWorkflow",
+			[]any{workflows.XSyncWorkflowInput{Username: username}},
+		)
+		if err != nil {
+			r.Logger.Error("Error creating schedule", "error", err)
+			return false, err
+		}
 	}
 
 	return true, nil
@@ -1139,10 +1187,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

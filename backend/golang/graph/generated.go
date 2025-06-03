@@ -163,6 +163,7 @@ type ComplexityRoot struct {
 		Activate                  func(childComplexity int, inviteCode string) int
 		AddDataSource             func(childComplexity int, name string, path string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
+		CompleteOAuthFlowComposio func(childComplexity int, accountID string, provider string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
 		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) int
 		DeleteAgentTask           func(childComplexity int, id string) int
@@ -323,6 +324,7 @@ type MutationResolver interface {
 	StartWhatsAppConnection(ctx context.Context) (bool, error)
 	Activate(ctx context.Context, inviteCode string) (bool, error)
 	JoinHolon(ctx context.Context, userID string, network *string) (bool, error)
+	CompleteOAuthFlowComposio(ctx context.Context, accountID string, provider string) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -914,6 +916,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.CompleteOAuthFlow(childComplexity, args["state"].(string), args["authCode"].(string)), true
+
+	case "Mutation.completeOAuthFlowComposio":
+		if e.complexity.Mutation.CompleteOAuthFlowComposio == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_completeOAuthFlowComposio_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CompleteOAuthFlowComposio(childComplexity, args["accountId"].(string), args["provider"].(string)), true
 
 	case "Mutation.connectMCPServer":
 		if e.complexity.Mutation.ConnectMCPServer == nil {
@@ -1881,6 +1895,47 @@ func (ec *executionContext) field_Mutation_addDataSource_argsPath(
 ) (string, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
 	if tmp, ok := rawArgs["path"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_completeOAuthFlowComposio_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_completeOAuthFlowComposio_argsAccountID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["accountId"] = arg0
+	arg1, err := ec.field_Mutation_completeOAuthFlowComposio_argsProvider(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["provider"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_completeOAuthFlowComposio_argsAccountID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("accountId"))
+	if tmp, ok := rawArgs["accountId"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_completeOAuthFlowComposio_argsProvider(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("provider"))
+	if tmp, ok := rawArgs["provider"]; ok {
 		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
@@ -7197,6 +7252,61 @@ func (ec *executionContext) fieldContext_Mutation_joinHolon(ctx context.Context,
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_joinHolon_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_completeOAuthFlowComposio(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_completeOAuthFlowComposio(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CompleteOAuthFlowComposio(rctx, fc.Args["accountId"].(string), fc.Args["provider"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_completeOAuthFlowComposio(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_completeOAuthFlowComposio_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -14235,6 +14345,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "joinHolon":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_joinHolon(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completeOAuthFlowComposio":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_completeOAuthFlowComposio(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

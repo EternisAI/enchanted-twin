@@ -105,6 +105,7 @@ func (s *Store) InitOAuthTokens(ctx context.Context) error {
 			expires_at DATETIME,
 			refresh_token TEXT NOT NULL,
 			username TEXT NOT NULL,
+			connected_account_id TEXT,
 			error BOOLEAN NOT NULL DEFAULT FALSE,
 			PRIMARY KEY (provider, username),
 			FOREIGN KEY (provider) REFERENCES oauth_providers(provider)
@@ -112,6 +113,16 @@ func (s *Store) InitOAuthTokens(ctx context.Context) error {
 	`)
 	if err != nil {
 		return fmt.Errorf("failed to create oauth_tokens table: %w", err)
+	}
+
+	// Create unique index for connected_account_id
+	_, err = s.db.ExecContext(ctx, `
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_oauth_tokens_connected_account_id 
+		ON oauth_tokens(connected_account_id) 
+		WHERE connected_account_id IS NOT NULL
+	`)
+	if err != nil {
+		return fmt.Errorf("failed to create unique index for connected_account_id: %w", err)
 	}
 
 	return nil
@@ -151,7 +162,7 @@ type OAuthConfig struct {
 var oauthConfig = map[string]OAuthConfig{
 	"twitter": {
 		ClientID:      "bEFtUmtyNm1wUFNtRUlqQTdmQmE6MTpjaQ",
-		RedirectURI:   "http://127.0.0.1:8080/callback",
+		RedirectURI:   "http://127.0.0.1:8085/callback",
 		AuthEndpoint:  "https://twitter.com/i/oauth2/authorize",
 		TokenEndpoint: "https://api.twitter.com/2/oauth2/token",
 		UserEndpoint:  "https://api.twitter.com/2/users/me",
@@ -185,14 +196,15 @@ var oauthConfig = map[string]OAuthConfig{
 
 // OAuthTokens represents oauth tokens for various providers.
 type OAuthTokens struct {
-	Provider     string    `db:"provider"`
-	TokenType    string    `db:"token_type"`
-	Scope        string    `db:"scope"`
-	AccessToken  string    `db:"access_token"`
-	ExpiresAt    time.Time `db:"expires_at"`
-	RefreshToken string    `db:"refresh_token"`
-	Username     string    `db:"username"`
-	Error        bool      `db:"error"`
+	Provider           string    `db:"provider"`
+	TokenType          string    `db:"token_type"`
+	Scope              string    `db:"scope"`
+	AccessToken        string    `db:"access_token"`
+	ExpiresAt          time.Time `db:"expires_at"`
+	RefreshToken       string    `db:"refresh_token"`
+	Username           string    `db:"username"`
+	ConnectedAccountID *string   `db:"connected_account_id"`
+	Error              bool      `db:"error"`
 }
 
 // For logging with Charmbracelet log.
@@ -243,7 +255,7 @@ func (s *Store) GetAllOAuthTokens(ctx context.Context) ([]OAuthTokens, error) {
 func (s *Store) GetOAuthTokensByUsername(ctx context.Context, provider string, username string) (*OAuthTokens, error) {
 	var tokens OAuthTokens
 	err := s.db.GetContext(ctx, &tokens, `
-		SELECT provider, token_type, scope, access_token, expires_at, refresh_token, username, error
+		SELECT provider, token_type, scope, access_token, expires_at, refresh_token, username, connected_account_id, error
 		FROM oauth_tokens
 		WHERE provider = ? AND username = ?
 	`, provider, username)
@@ -265,6 +277,7 @@ func (s *Store) GetOAuthTokens(ctx context.Context, provider string) (*OAuthToke
 			expires_at,
 			refresh_token,
 			username,
+			connected_account_id,
 			error
 		FROM oauth_tokens
 		WHERE provider = ?
@@ -283,13 +296,14 @@ func (s *Store) GetOAuthTokensArray(ctx context.Context, provider string) ([]OAu
 	var tokens []OAuthTokens
 	err := s.db.SelectContext(ctx, &tokens, `
 		SELECT 
-			provider, 
+			provider,
 			token_type,
 			scope,
 			access_token,
 			expires_at,
 			refresh_token,
 			username,
+			connected_account_id,
 			error
 		FROM oauth_tokens
 		WHERE provider = ?
@@ -412,6 +426,7 @@ func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
 	query := `
         INSERT OR REPLACE INTO oauth_tokens (
             provider,
+			connected_account_id,
             token_type, 
 			scope,
             access_token, 
@@ -419,11 +434,45 @@ func (s *Store) SetOAuthTokens(ctx context.Context, tokens OAuthTokens) error {
             refresh_token,
 			username,
 			error
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
 
 	_, err := s.db.ExecContext(ctx, query,
 		tokens.Provider,
+		tokens.ConnectedAccountID,
+		tokens.TokenType,
+		tokens.Scope,
+		tokens.AccessToken,
+		tokens.ExpiresAt,
+		tokens.RefreshToken,
+		tokens.Username,
+		tokens.Error,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to save OAuth tokens: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Store) SetOAuthTokensWithConnectedAccountID(ctx context.Context, tokens OAuthTokens, connectedAccountID string) error {
+	query := `
+        INSERT OR REPLACE INTO oauth_tokens (
+            provider,
+			connected_account_id,
+            token_type, 
+			scope,
+            access_token, 
+            expires_at, 
+            refresh_token,
+			username,
+			error
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+
+	_, err := s.db.ExecContext(ctx, query,
+		tokens.Provider,
+		connectedAccountID,
 		tokens.TokenType,
 		tokens.Scope,
 		tokens.AccessToken,
@@ -577,4 +626,15 @@ func (s *Store) SetOAuthTokenError(ctx context.Context, accessToken string, erro
 		return fmt.Errorf("failed to set OAuth token error: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) GetUserId(ctx context.Context) (string, error) {
+	var userId string
+	err := s.db.GetContext(ctx, &userId, `
+		SELECT uuid FROM singleton
+	`)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user ID: %w", err)
+	}
+	return userId, nil
 }
