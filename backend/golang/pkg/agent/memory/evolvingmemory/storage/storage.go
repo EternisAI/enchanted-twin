@@ -34,6 +34,7 @@ type Interface interface {
 	DeleteAll(ctx context.Context) error
 	Query(ctx context.Context, queryText string) (memory.QueryResult, error)
 	QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error)
+	EnsureSchemaExists(ctx context.Context) error
 }
 
 // WeaviateStorage implements the storage interface using Weaviate.
@@ -212,11 +213,11 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 	s.logger.Info("Successfully deleted all memories by removing class", "class", ClassName)
 
 	// Recreate the schema
-	return s.ensureSchemaExists(ctx)
+	return s.EnsureSchemaExists(ctx)
 }
 
-// ensureSchemaExists ensures the Weaviate schema exists for the Memory class.
-func (s *WeaviateStorage) ensureSchemaExists(ctx context.Context) error {
+// EnsureSchemaExists ensures the Weaviate schema exists for the Memory class.
+func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 	// First, check if schema already exists
 	schema, err := s.client.Schema().Getter().Do(ctx)
 	if err != nil {
