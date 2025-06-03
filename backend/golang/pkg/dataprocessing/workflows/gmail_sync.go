@@ -9,7 +9,6 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
@@ -145,12 +144,13 @@ func (w *DataProcessingWorkflows) GmailIndexActivity(
 	ctx context.Context,
 	input GmailIndexActivityInput,
 ) (GmailIndexActivityResponse, error) {
-	documents, err := gmail.ToDocuments(input.Records)
+	gmailProcessor := gmail.NewGmailProcessor(w.Store)
+	documents, err := gmailProcessor.ToDocuments(ctx, input.Records)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err
 	}
 
-	err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), nil)
+	err = w.Memory.Store(ctx, documents, nil)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err
 	}

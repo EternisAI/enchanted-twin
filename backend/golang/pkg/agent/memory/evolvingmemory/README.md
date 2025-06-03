@@ -1,438 +1,335 @@
-# Memory System: Unified Document Interface
+# Evolving Memory Package
 
-## TL;DR for Contributors 🚀
+## What is this?
 
-The memory system now uses a **unified `Document` interface** that supports both text documents and structured conversations. This means:
+This package stores and retrieves user memories using hot-swappable storage backends (currently Weaviate). It processes documents, extracts facts using LLMs, and manages memory updates intelligently through a clean 3-layer architecture.
 
-- ✅ **All existing code continues to work** (backward compatibility)
-- ✅ **New structured conversation data gets rich processing** with facts about all participants
-- ✅ **Data sources can be upgraded gradually** (no big bang migration)
-- ✅ **Type-safe at compile time** (Go interfaces FTW)
-- ✅ **Ultra-simple implementation** - JSON marshaling, static prompts, no over-engineering
+## Architecture Overview
 
-### Quick Start
+The package follows clean architecture principles with clear separation of concerns:
 
-#### Storing Documents
-
-```go
-// For simple text (emails, articles, notes)
-textDocs := []memory.TextDocument{doc1, doc2}
-err := storage.Store(ctx, memory.TextDocumentsToDocuments(textDocs), nil)
-
-// For conversations (WhatsApp, Slack, Discord)  
-convDocs := []memory.ConversationDocument{chat1, chat2}
-err := storage.Store(ctx, memory.ConversationDocumentsToDocuments(convDocs), nil)
-
-// Mix both types
-var allDocs []memory.Document
-allDocs = append(allDocs, memory.TextDocumentsToDocuments(textDocs)...)
-allDocs = append(allDocs, memory.ConversationDocumentsToDocuments(convDocs)...)
-err := storage.Store(ctx, allDocs, nil)
+```
+┌─────────────────┐    ┌──────────────────────┐    ┌─────────────────┐
+│   StorageImpl   │───▶│ MemoryOrchestrator   │───▶│  MemoryEngine   │
+│ (Public API)    │    │   (Coordination)     │    │ (Business Logic)│
+└─────────────────┘    └──────────────────────┘    └─────────────────┘
+         │                       │                        │
+         │                       │                        ▼
+         │                       ▼               ┌──────────────────┐
+         │              ┌──────────────────┐     │ storage.Interface│ ← HOT-SWAPPABLE! |                  |     |                  |
+         │              │   Channels &     │     └──────────────────┘
+         │              │   Workers &      │             │
+         │              │   Progress       │             ▼
+         │              └──────────────────┘    ┌─────────────────┐
+         │                                      │ WeaviateStorage │
+         ▼ (Clean Public Interface)             │ RedisStorage    │
+   ┌─────────────────┐                          │ PostgresStorage │
+   │  MemoryStorage  │                          └─────────────────┘
+   │   (Interface)   │
+   └─────────────────┘
 ```
 
-#### Processing Documents
+### Layer Responsibilities
 
-The system automatically routes documents based on type:
+1. **StorageImpl** - Thin public API maintaining interface compatibility
+2. **MemoryOrchestrator** - Infrastructure concerns (workers, channels, batching, timeouts)
+3. **MemoryEngine** - Pure business logic (fact extraction, memory decisions)
+4. **storage.Interface** - Hot-swappable storage abstraction
 
-```go
-// Internal routing in Store method:
-switch typedDoc := doc.(type) {
-case *memory.ConversationDocument:
-    // Rich conversation processing: extracts facts about primaryUser AND other participants
-    facts := s.extractFactsFromConversation(ctx, *typedDoc, speakerID, currentDate, docDate)
-case *memory.TextDocument:
-    // Text processing: fact extraction from unstructured content
-    facts := s.extractFactsFromTextDocument(ctx, *typedDoc, speakerID, currentDate, docDate)
-}
-```
-
----
-
-## Overview
-
-The memory system uses a **unified `Document` interface** that allows both `TextDocument` and `ConversationDocument` (structured) to be stored and processed seamlessly. This provides:
-
-- ✅ **Backward Compatibility**: Existing text-based ingestion continues to work
-- ✅ **Forward Compatibility**: New structured conversation data gets rich processing
-- ✅ **Social Network Extraction**: Facts about primaryUser AND their contacts/friends
-- ✅ **Gradual Migration**: Data sources can be upgraded one-by-one to structured format
-- ✅ **Type Safety**: Go interfaces ensure compile-time safety
-- ✅ **Simple Implementation**: No over-engineering, just JSON marshaling and static prompts
-
-## Document Interface
-
-All documents implement this unified interface:
+## Quick Start
 
 ```go
-type Document interface {
-    ID() string
-    Content() string              // Flattened content for search
-    Timestamp() *time.Time
-    Tags() []string
-    Metadata() map[string]string
-    Source() string
-}
-```
-
-## Document Types
-
-### TextDocument
-**Use for:** Single-author content, unstructured text, quick integration
-
-```go
-type TextDocument struct {
-    FieldID        string            `json:"id"`
-    FieldContent   string            `json:"content"`
-    FieldTimestamp *time.Time        `json:"timestamp"`
-    FieldSource    string            `json:"source,omitempty"`
-    FieldTags      []string          `json:"tags,omitempty"`
-    FieldMetadata  map[string]string `json:"metadata,omitempty"`
-}
-```
-
-**Use Cases:**
-- Email content (non-threaded)
-- Article/blog content
-- Notes and documents
-- Social media posts (single author)
-- Any unstructured text data
-
-### ConversationDocument (Structured)
-**Use for:** Multi-participant conversations, structured chat data
-
-```go
-type ConversationDocument struct {
-    FieldID       string                `json:"id"`
-    FieldSource   string                `json:"source"`       // "whatsapp", "slack", etc.
-    People        []string              `json:"people"`       // All participants
-    User          string                `json:"user"`         // Primary user
-    Conversation  []ConversationMessage `json:"conversation"` // Messages
-    FieldTags     []string              `json:"tags,omitempty"`
-    FieldMetadata map[string]string     `json:"metadata,omitempty"`
+// Create storage instance with hot-swappable backend
+storage, err := evolvingmemory.New(evolvingmemory.Dependencies{
+    Logger:             logger,
+    Storage:            storageBackend,        // Any storage.Interface implementation
+    CompletionsService: completionsAI,
+    EmbeddingsService:  embeddingsAI,         // Can be different from completions
+})
+if err != nil {
+    log.Fatal("Failed to create storage:", err)
 }
 
-type ConversationMessage struct {
-    Speaker string    `json:"speaker"`  // Must be in People array
-    Content string    `json:"content"`  // Message text
-    Time    time.Time `json:"time"`     // When sent
+docs := []memory.Document{
+    &memory.TextDocument{...},           // Simple text
+    &memory.ConversationDocument{...},   // Chat conversations
 }
-```
 
-**Use Cases:**
-- WhatsApp chats
-- Slack conversations
-- Discord threads
-- Email threads (when parsed)
-- Any multi-participant conversation
+// Backward compatible API (still works)
+err := storage.Store(ctx, docs, func(processed, total int) {
+    log.Printf("Progress: %d/%d", processed, total)
+})
 
-## Storage Interface
+// New channel-based API (recommended)
+config := evolvingmemory.DefaultConfig()
+progressCh, errorCh := storage.StoreV2(ctx, docs, config)
 
-The unified storage interface accepts any document type:
-
-```go
-type Storage interface {
-    Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
-    Query(ctx context.Context, query string) (QueryResult, error)
-}
-```
-
-## Helper Functions
-
-Convert slices to the unified interface:
-
-```go
-// Convert TextDocument slice
-docs := memory.TextDocumentsToDocuments(textDocs)
-err := storage.Store(ctx, docs, nil)
-
-// Convert ConversationDocument slice  
-docs := memory.ConversationDocumentsToDocuments(convDocs)
-err := storage.Store(ctx, docs, nil)
-```
-
-## Processing Logic (Simplified!)
-
-The memory system automatically handles both document types with **ultra-simple** processing:
-
-```go
-func (s *WeaviateStorage) Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error {
-    for _, doc := range documents {
-        switch typedDoc := doc.(type) {
-        case *memory.ConversationDocument:
-            // Rich conversation processing - extracts facts about ALL participants
-            conversationJSON, _ := normalizeAndFormatConversation(*typedDoc)
-            // Send JSON + static prompt to LLM - no templating, no complex context building
-            facts := s.extractFactsFromConversation(ctx, *typedDoc, speakerID, currentDate, docDate)
-            
-        case *memory.TextDocument:
-            // Legacy text processing
-            facts := s.extractFactsFromTextDocument(ctx, *typedDoc, speakerID, currentDate, docDate)
-        }
+// Process results
+for progressCh != nil || errorCh != nil {
+    select {
+    case progress, ok := <-progressCh:
+        if !ok { progressCh = nil; continue }
+        log.Printf("Progress: %d/%d", progress.Processed, progress.Total)
+    case err, ok := <-errorCh:
+        if !ok { errorCh = nil; continue }
+        log.Printf("Error: %v", err)
     }
 }
 ```
 
-### Conversation Processing Details
+## How does it work?
 
-**What makes it simple:**
-1. **Normalize**: Replace primary user name with "primaryUser" 
-2. **JSON Marshal**: Convert entire conversation to clean JSON
-3. **Static Prompt**: No templating, no complex context building
-4. **LLM Call**: Send JSON + prompt, get facts about ALL participants
+### The Flow
+
+1. **Documents come in** → Text documents or conversation transcripts
+2. **Extract facts** → MemoryEngine uses LLM to pull out interesting facts
+3. **Check existing memories** → Search storage for similar facts
+4. **Decide what to do** → LLM decides: ADD new memory, UPDATE existing, DELETE outdated, or NONE
+5. **Execute decision** → MemoryEngine executes immediately (UPDATE/DELETE) or batches (ADD)
+6. **Store in backend** → MemoryOrchestrator coordinates batched inserts via storage.Interface
+
+### Key Concepts
+
+**Document Types:**
+- `TextDocument` - Basic text with metadata (emails, notes, etc.)
+- `ConversationDocument` - Structured chats with multiple speakers
+
+**Memory Operations:**
+- `ADD` - Create a new memory (batched for efficiency)
+- `UPDATE` - Replace an existing memory's content (immediate)
+- `DELETE` - Remove an outdated memory (immediate)
+- `NONE` - Do nothing (fact isn't worth remembering)
+
+**Speaker Rules:**
+- Document-level memories can't modify speaker-specific ones
+- Speakers can only modify their own memories
+- Validation happens before any UPDATE/DELETE
+
+**Hot-Swappable Storage:**
+- Depends on `storage.Interface`, not specific implementations
+- Currently supports WeaviateStorage
+- Easy to add RedisStorage, PostgresStorage, etc.
+
+## Where to find things
+
+```
+evolvingmemory/
+├── evolvingmemory.go       # StorageImpl, MemoryStorage interface, Dependencies
+├── engine.go               # MemoryEngine - pure business logic
+├── orchestrator.go         # MemoryOrchestrator - coordination & workers
+├── pipeline.go             # Utilities, DefaultConfig, helper functions
+├── pure.go                 # Pure functions (validation, object creation)
+├── tools.go                # LLM tool definitions for OpenAI function calling
+├── prompts.go              # All LLM prompts for fact extraction and decisions
+├── *_test.go               # Comprehensive test suite
+└── storage/
+    └── storage.go          # Storage abstraction (WeaviateStorage implementation)
+```
+
+### Key Files Explained
+
+**evolvingmemory.go** - Start here! Main types and public interface:
+- `StorageImpl` - Public API implementation
+- `MemoryStorage` - Main interface for external consumers
+- `Dependencies` - Dependency injection structure
+- `New()` - Constructor with full validation
+
+**engine.go** - Pure business logic (no infrastructure concerns):
+- `MemoryEngine` - Core business operations
+- `ExtractFacts()` - LLM-based fact extraction
+- `ProcessFact()` - Memory decision making
+- `ExecuteDecision()` - Memory updates
+
+**orchestrator.go** - Infrastructure coordination:
+- `MemoryOrchestrator` - Coordinates workers and channels
+- `ProcessDocuments()` - Main processing pipeline
+- Worker management and progress reporting
+
+**storage/storage.go** - Hot-swappable storage abstraction:
+- `Interface` - Storage abstraction
+- `WeaviateStorage` - Current implementation
+- Easy to extend with new backends
+
+## Common Tasks
+
+### Adding a new storage backend
+
+1. Implement `storage.Interface` in a new package:
+```go
+type RedisStorage struct { ... }
+func (r *RedisStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) { ... }
+// ... implement all interface methods
+```
+
+2. Update your application to use the new storage:
+```go
+redisStorage := redis.NewStorage(redisClient, logger, embeddingsService)
+storage, err := evolvingmemory.New(evolvingmemory.Dependencies{
+    Storage: redisStorage,  // Just swap this!
+    // ... other deps unchanged
+})
+```
+
+### Adding a new document type
+
+1. Implement the `memory.Document` interface
+2. Add a case in `engine.ExtractFacts()` 
+3. Create extraction logic following existing patterns
+
+### Changing how facts are extracted
+
+Look in `engine.go`:
+- `extractFactsFromConversation()` - For chat conversations
+- `extractFactsFromTextDocument()` - For plain text
+- Prompts are defined in `prompts.go`
+
+### Modifying memory decision logic
+
+Check `engine.go`:
+- `DecideAction()` - Builds prompt and calls LLM
+- `buildDecisionPrompt()` - Constructs the decision prompt
+- `parseToolCallResponse()` - Parses LLM's decision
+
+### Debugging issues
+
+1. **Fact extraction failing?** → Check logs in `orchestrator.extractFactsWorker()`
+2. **Memories not updating?** → Look at `orchestrator.processFactsWorker()` logs
+3. **Validation errors?** → See `ValidateMemoryOperation()` in `pure.go`
+4. **Storage failing?** → Check storage implementation logs
+
+## Configuration
 
 ```go
-// Ultra-simple conversation processing
-func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string, error) {
-    // Replace primary user name with "primaryUser"
-    normalized := replaceUserNames(convDoc)
+config := evolvingmemory.Config{
+    // Parallelism
+    Workers:               4,    // Number of parallel workers
+    FactsPerWorker:        10,   // Facts processed per worker batch
     
-    // Just JSON marshal the whole thing - done!
-    return json.MarshalIndent(normalized, "", "  ")
+    // Batching
+    BatchSize:            100,   // Memories per storage batch
+    FlushInterval:        5 * time.Second,
+    
+    // Timeouts
+    FactExtractionTimeout: 30 * time.Second,
+    MemoryDecisionTimeout: 30 * time.Second,
+    StorageTimeout:       30 * time.Second,
+    
+    // Features
+    EnableRichContext:      true,  // Include rich document context
+    ParallelFactExtraction: true,  // Process facts in parallel
+    StreamingProgress:      true,  // Stream progress updates
 }
 ```
 
-**What the LLM receives:**
-```json
-{
-  "id": "chat_001",
-  "source": "whatsapp", 
-  "people": ["primaryUser", "Alice", "Bob"],
-  "user": "primaryUser",
-  "conversation": [
-    {
-      "speaker": "primaryUser",
-      "content": "Hey everyone, want to grab dinner?",
-      "time": "2024-01-14T14:30:15Z"
-    },
-    {
-      "speaker": "Alice", 
-      "content": "Sure! Where were you thinking?",
-      "time": "2024-01-14T14:31:02Z"
-    }
-  ]
-}
-```
+## Testing
 
-### Fact Extraction (Comprehensive Social Network)
+The test suite is comprehensive and focuses on different aspects:
+- `evolvingmemory_test.go` - Integration tests and main interface
+- `engine_test.go` - Business logic tests
+- `orchestrator_test.go` - Coordination logic tests
+- `pipeline_test.go` - Pipeline processing tests
+- `pure_test.go` - Pure function tests (fast, no external dependencies)
+- `adapters_test.go` - Interface compliance and dependency validation
 
-The system extracts facts about **ALL participants**, not just the primary user:
+Run with: `go test ./pkg/agent/memory/evolvingmemory/...`
 
-**🔥 PRIMARY FOCUS - primaryUser** (extensive):
-- Direct facts: what they said, felt, planned, experienced
-- Interaction facts: how others responded to them
-- Conversation facts: their role, outcomes involving them
+Most tests gracefully skip when AI services aren't configured, allowing for fast iteration.
 
-**👥 SECONDARY FOCUS - Other Participants** (important details):
-- Personal info they shared (work, family, interests)
-- Their preferences, opinions, experiences
-- Their relationship context with primaryUser
-- Plans, activities, commitments they mentioned
-- Life events and updates they shared
+## Common Patterns
 
-**🤝 RELATIONSHIP FACTS**:
-- How each person relates to primaryUser
-- Social dynamics between all participants
-- Shared experiences or connections
-- Communication patterns
+### Processing flow for a conversation:
+1. `ConversationDocument` arrives at `StorageImpl.StoreV2()`
+2. `MemoryOrchestrator.ProcessDocuments()` coordinates the pipeline
+3. Document gets prepared with metadata in `PrepareDocuments()`
+4. `MemoryEngine.ExtractFacts()` extracts facts: "User likes pizza", "Alice is a developer"
+5. For each fact, `MemoryEngine.ProcessFact()`:
+   - Searches for similar memories via storage
+   - LLM decides what to do
+   - Validates the operation
+   - Executes (immediate for UPDATE/DELETE, batched for ADD)
+6. `MemoryOrchestrator` batches new memories and flushes to storage
 
-## Migration Strategy
+### Error handling:
+- Each stage returns errors through channels
+- Timeouts on all external operations (LLM calls, storage operations)
+- Validation prevents illegal operations (cross-speaker modifications)
+- Errors are logged but processing continues for other documents
 
-### Phase 1: Interface Implementation ✅ COMPLETE
-- [x] Create unified `Document` interface
-- [x] Implement interface on both document types
-- [x] Update storage to accept `[]Document`
-- [x] Add helper conversion functions
-- [x] Update all existing callers
-- [x] Simplify fact extraction (remove over-engineering)
+## Gotchas
 
-### Phase 2: Gradual Data Source Migration (Future)
-Upgrade data sources one-by-one to produce `ConversationDocument`:
+1. **UPDATE/DELETE are immediate** - They happen right away, not batched
+2. **Speaker validation is strict** - Can't modify other people's memories
+3. **Facts can be empty** - Not all documents produce extractable facts
+4. **Channels close in order** - Progress channel closes before error channel
+5. **Storage abstraction** - Don't depend on Weaviate-specific features
 
+## Architecture Benefits
+
+### Clean Separation of Concerns
+- **StorageImpl**: Simple public API, no business logic
+- **MemoryOrchestrator**: Infrastructure concerns only
+- **MemoryEngine**: Pure business logic, easily testable
+- **storage.Interface**: Hot-swappable storage backends
+
+### Hot-Swappable Storage
+The storage abstraction allows easy switching between backends:
 ```go
-// Before (produces TextDocument)
-func ProcessWhatsApp(data []byte) []memory.TextDocument {
-    // Parse and flatten to text
-}
+// Current: Weaviate
+weaviateStorage := storage.New(weaviateClient, logger, embeddingsService)
 
-// After (produces ConversationDocument)  
-func ProcessWhatsApp(data []byte) []memory.ConversationDocument {
-    // Parse into structured conversations
-}
+// Future: Redis, Postgres, etc.
+redisStorage := redis.New(redisClient, logger, embeddingsService)
+pgStorage := postgres.New(pgClient, logger, embeddingsService)
+
+// Just change the dependency injection!
+storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
+    Storage: redisStorage,  // or weaviateStorage, or pgStorage
+    // ... other dependencies unchanged
+})
 ```
 
-**Priority Order:**
-1. **WhatsApp** → Already structured, easy win
-2. **Slack** → Rich threading, high value  
-3. **Discord** → Similar to Slack
-4. **Email** → When threading available
-5. **Telegram** → Chat-based conversations
+### Testability
+- Pure functions in `pure.go` are fast to test
+- Business logic in `MemoryEngine` can be tested with mocks
+- Integration tests can use real or mock storage backends
+- No global state or hard dependencies
 
-### Phase 3: Enhanced Processing (Future)
-- Advanced relationship mapping
-- Temporal conversation analysis
-- Cross-conversation participant tracking
-- Sentiment analysis per participant
+### Backward Compatibility
+All existing APIs are preserved:
+- `Store()` method works unchanged
+- `StoreConversations()` alias maintained
+- `Query()` and `QueryWithDistance()` delegated to storage
+- Zero breaking changes for existing consumers
 
-## Benefits by Document Type
+## Recent Changes
 
-| Feature | TextDocument | ConversationDocument |
-|---------|-------------|---------------------|
-| Backward Compatible | ✅ | ✅ |
-| Quick Integration | ✅ | ⚠️ Requires parsing |
-| Speaker Analysis | ❌ | ✅ |
-| Social Network Facts | ❌ | ✅ |
-| Relationship Tracking | ❌ | ✅ |
-| Temporal Analysis | ❌ | ✅ |
-| Rich Fact Extraction | ⚠️ Basic | ✅ Advanced |
-| Implementation Complexity | ✅ Simple | ✅ Simple (now!) |
+### Phase 3 Cleanup (January 2025)
 
-### TextDocument Processing
-- ✅ Backward compatible
-- ✅ Simple content indexing
-- ✅ Basic fact extraction
-- ⚠️ Limited context understanding
+Completed architectural cleanup for production readiness:
 
-### ConversationDocument Processing  
-- ✅ Rich speaker-specific facts
-- ✅ **Social network extraction** (facts about all participants)
-- ✅ Conversation context preservation
-- ✅ Multi-participant relationship tracking
-- ✅ Temporal message analysis
-- ✅ Source-aware processing
-- ✅ **Ultra-simple implementation** (no over-engineering)
+#### 1. Removed Dead Code
+- Eliminated unused adapter interfaces (`FactExtractor`, `MemoryOperations`)
+- Removed `adapters.go` file that had no external consumers
+- Cleaned up `GetEngine()` method that was only used by adapters
+- Zero dead code warnings now
 
-## Usage Examples
+#### 2. Simplified Architecture  
+- Direct access to business logic through clean public interfaces
+- Removed unnecessary abstraction layers
+- Cleaner dependency injection
 
-### Storing Mixed Document Types
+#### 3. Updated Tests
+- Converted adapter tests to direct StorageImpl interface tests
+- Focus on public interfaces rather than internal adapters
+- Comprehensive dependency validation tests
+- All tests passing with proper API key handling
 
-```go
-// Mix of document types
-var docs []memory.Document
+#### 4. Production Ready
+- ✅ Zero dead code
+- ✅ Clean architecture boundaries
+- ✅ Hot-swappable storage working
+- ✅ Comprehensive test coverage
+- ✅ Perfect backward compatibility
+- ✅ Ready for production deployment
 
-// Add some text documents
-textDocs := []memory.TextDocument{emailDoc, articleDoc}
-docs = append(docs, memory.TextDocumentsToDocuments(textDocs)...)
-
-// Add some conversation documents  
-convDocs := []memory.ConversationDocument{whatsappConv, slackThread}
-docs = append(docs, memory.ConversationDocumentsToDocuments(convDocs)...)
-
-// Store everything together
-err := storage.Store(ctx, docs, nil)
-```
-
-### Data Source Integration Patterns
-
-```go
-// Option 1: Start simple (TextDocument)
-func ProcessDataSource(rawData []byte) []memory.TextDocument {
-    // Quick and dirty: flatten to text
-    return []memory.TextDocument{
-        {FieldID: "doc1", FieldContent: "flattened content"},
-    }
-}
-
-// Option 2: Rich integration (ConversationDocument)  
-func ProcessDataSource(rawData []byte) []memory.ConversationDocument {
-    // Parse structure: speakers, timing, etc.
-    return []memory.ConversationDocument{
-        {
-            FieldID: "conv1",
-            FieldSource: "my_platform",
-            People: []string{"Alice", "Bob"},
-            User: "Alice",
-            Conversation: []memory.ConversationMessage{
-                {Speaker: "Alice", Content: "Hello", Time: time.Now()},
-                {Speaker: "Bob", Content: "Hi there", Time: time.Now()},
-            },
-        },
-    }
-}
-```
-
-### Storage Calls
-
-```go
-// Text processing (continues to work!)
-textDocs := processDataAsText(data)
-err := storage.Store(ctx, memory.TextDocumentsToDocuments(textDocs), nil)
-
-// Conversation processing (when structured data available)
-convDocs := processDataAsConversations(data)  
-err := storage.Store(ctx, memory.ConversationDocumentsToDocuments(convDocs), nil)
-```
-
-## Best Practices
-
-### For Data Source Developers
-
-1. **Choose the Right Type**:
-   - Use `ConversationDocument` for multi-participant conversations
-   - Use `TextDocument` for single-author content or unstructured text
-
-2. **Gradual Migration**:
-   - Start with `TextDocument` for quick integration
-   - Upgrade to `ConversationDocument` when conversation structure is available
-
-3. **Consistent Metadata**:
-   - Use consistent metadata keys across document types
-   - Include source information in metadata
-
-### For Memory System Developers
-
-1. **Type Checking**:
-   ```go
-   switch typedDoc := doc.(type) {
-   case *memory.ConversationDocument:
-       // Handle rich conversation logic
-   case *memory.TextDocument:
-       // Handle simple text logic
-   }
-   ```
-
-2. **Graceful Degradation**:
-   - Always provide fallback processing for `TextDocument`
-   - Don't assume conversation structure exists
-
-3. **Performance**:
-   - Batch process documents of the same type when possible
-   - Use type discrimination efficiently
-
-## What We Simplified
-
-The memory system used to be over-engineered with complex context building, template replacement, and elaborate data structures. **We fixed that!**
-
-### Before (Complex) ❌
-- `ConversationContext` struct with 8+ fields
-- `EnrichedMessage` with timing calculations
-- `buildConversationContext()` - 50+ lines of complexity
-- Template replacement with 10+ variables
-- Custom text formatting
-- JSON marshaling of complex context objects
-
-### After (Simple) ✅  
-- **One function**: `normalizeAndFormatConversation()`
-- **Static prompt**: No templating for conversations
-- **JSON marshal**: Direct conversion of conversation structure
-- **~30 lines** vs 150+ lines before
-
-**Result**: Same powerful conversation-aware fact extraction, but **90% less complexity**!
-
-## Key Files
-
-- `pkg/agent/memory/memory.go` - Interface definitions
-- `pkg/agent/memory/evolvingmemory/store.go` - Unified storage logic
-- `pkg/agent/memory/evolvingmemory/factextraction.go` - Simplified fact extraction
-- `pkg/agent/memory/evolvingmemory/prompts.go` - Static prompts (no templating)
-
-## Summary
-
-The interface approach gives us the best of both worlds:
-- **Existing code keeps working** (no breaking changes)
-- **New code gets rich features** (when using ConversationDocument)
-- **Social network extraction** (facts about all participants)
-- **Ultra-simple implementation** (no over-engineering)
-- **Gradual migration** (upgrade data sources one by one)
-- **Type safety** (compile-time guarantees)
-
-This design enables a smooth transition from simple text-based memory to rich, structured conversation memory while maintaining full backward compatibility and keeping the implementation refreshingly simple! 🎉 
+The package now follows hexagonal/clean architecture principles with clear separation between ports (interfaces), adapters (implementations), domain logic (business rules), and infrastructure (coordination). 

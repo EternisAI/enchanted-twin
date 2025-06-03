@@ -113,7 +113,7 @@ export default function VoiceModeChatView({
             isWaitingTwinResponse={isLoading || isSpeaking}
             onSend={onSendMessage}
             onStop={stop}
-            isReasonSelected={true}
+            isReasonSelected={false}
             voiceMode
           />
         </div>

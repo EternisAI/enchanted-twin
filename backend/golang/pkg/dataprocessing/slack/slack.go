@@ -1,6 +1,9 @@
+// owner: slimane@eternis.ai
+
 package slack
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -10,7 +13,9 @@ import (
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type UserProfile struct {
@@ -23,21 +28,23 @@ type SlackMessage struct {
 	Timestamp   string      `json:"ts"`
 }
 
-type SlackDataSource struct {
-	inputPath string
+type SlackProcessor struct {
+	store *db.Store
 }
 
-func New(inputPath string) *SlackDataSource {
-	return &SlackDataSource{
-		inputPath: inputPath,
-	}
+func NewSlackProcessor(store *db.Store) processor.Processor {
+	return &SlackProcessor{store: store}
 }
 
-func (s *SlackDataSource) Name() string {
+func (s *SlackProcessor) Name() string {
 	return "slack"
 }
 
-func (s *SlackDataSource) ProcessFile(filePath string, username string) ([]types.Record, error) {
+func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -64,7 +71,7 @@ func (s *SlackDataSource) ProcessFile(filePath string, username string) ([]types
 			"text":        message.Text,
 			"username":    message.UserProfile.Name,
 			"channelName": channelName,
-			"myMessage":   strings.EqualFold(message.UserProfile.Name, username),
+			"myMessage":   strings.EqualFold(message.UserProfile.Name, ""),
 		}
 
 		record := types.Record{
@@ -81,25 +88,23 @@ func (s *SlackDataSource) ProcessFile(filePath string, username string) ([]types
 	return records, nil
 }
 
-func (s *SlackDataSource) ProcessDirectory(userName string) ([]types.Record, error) {
+func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
-	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 
-		// Skip directories
 		if info.IsDir() {
 			return nil
 		}
 
-		// Only process .json files
 		if filepath.Ext(path) != ".json" {
 			return nil
 		}
 
-		records, err := s.ProcessFile(path, userName)
+		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil
@@ -115,7 +120,7 @@ func (s *SlackDataSource) ProcessDirectory(userName string) ([]types.Record, err
 	return allRecords, nil
 }
 
-func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+func (s *SlackProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	textDocuments := make([]memory.TextDocument, 0, len(records))
 
 	for _, record := range records {
@@ -140,6 +145,7 @@ func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocu
 		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
 
 		textDocuments = append(textDocuments, memory.TextDocument{
+			FieldSource:    "slack",
 			FieldContent:   message,
 			FieldTimestamp: &record.Timestamp,
 			FieldTags:      []string{"social", "slack", "chat"},
@@ -147,11 +153,20 @@ func (s *SlackDataSource) ToDocuments(records []types.Record) ([]memory.TextDocu
 				"type":           "message",
 				"channelName":    channelName,
 				"authorUsername": authorUsername,
-				"source":         "slack",
 			},
 		})
 	}
-	return textDocuments, nil
+
+	var documents []memory.Document
+	for _, document := range textDocuments {
+		documents = append(documents, &document)
+	}
+
+	return documents, nil
+}
+
+func (s *SlackProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+	return nil, false, fmt.Errorf("sync operation not supported for Slack")
 }
 
 func parseTimestamp(ts string) (time.Time, error) {

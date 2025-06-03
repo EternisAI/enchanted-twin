@@ -11,7 +11,6 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
@@ -143,9 +142,7 @@ func (w *DataProcessingWorkflows) GmailFetchHistoryActivity(
 		return GmailHistoryFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
 	}
 
-	g := gmail.New()
-
-	records, more, token, err := g.SyncWithDateRange(ctx, tokens.AccessToken, input.StartDate, input.EndDate, 50, input.NextPageToken)
+	records, more, token, err := gmail.SyncWithDateRange(ctx, tokens.AccessToken, input.StartDate, input.EndDate, 50, input.NextPageToken)
 	if err != nil {
 		return GmailHistoryFetchActivityResponse{}, err
 	}
@@ -246,12 +243,13 @@ func (w *DataProcessingWorkflows) GmailHistoryIndexActivity(
 	ctx context.Context,
 	input GmailHistoryIndexActivityInput,
 ) (GmailHistoryIndexActivityResponse, error) {
-	documents, err := gmail.ToDocuments(input.Records)
+	gmailProcessor := gmail.NewGmailProcessor(w.Store)
+	documents, err := gmailProcessor.ToDocuments(ctx, input.Records)
 	if err != nil {
 		return GmailHistoryIndexActivityResponse{}, err
 	}
 
-	err = w.Memory.Store(ctx, memory.TextDocumentsToDocuments(documents), nil)
+	err = w.Memory.Store(ctx, documents, nil)
 	if err != nil {
 		return GmailHistoryIndexActivityResponse{}, err
 	}

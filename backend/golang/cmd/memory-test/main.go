@@ -1,8 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/google/uuid"
 
@@ -11,13 +15,25 @@ import (
 )
 
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		sig := <-sigChan
+		log.Printf("Received signal %v, initiating graceful shutdown...", sig)
+		cancel()
+	}()
+
 	envs, err := config.LoadConfig(false)
 	if err != nil {
 		log.Fatal("Error loading config:", err)
 	}
 
-	source := "telegram" // see pkg dataprocessing for supported sources
-	inputPath := "data_input/telegram_export.json.zip"
+	source := "chatgpt" // telegram, gmail, chatgpt, slack, misc
+	inputPath := "cmd/memory-test/sample-data/chatgpt.zip"
 
 	completionsModel := "gpt-4o-mini"
 	completionsApiUrl := "https://openrouter.ai/api/v1"
@@ -36,7 +52,7 @@ func main() {
 		id,
 	)
 
-	if err := integration.IntegrationTest(integration.IntegrationTestConfig{
+	if err := integration.IntegrationTestMemory(ctx, integration.IntegrationTestMemoryConfig{
 		Source:            source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,
@@ -47,6 +63,10 @@ func main() {
 		EmbeddingsApiKey:  embeddingApiKey,
 		EmbeddingsApiUrl:  embeddingsApiUrl,
 	}); err != nil {
+		if err == context.Canceled {
+			log.Println("Integration test was canceled")
+			return
+		}
 		log.Fatal("Integration test failed:", err)
 	}
 	log.Println("Integration test completed successfully")
