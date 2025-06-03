@@ -16,10 +16,12 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-type WhatsappProcessor struct{}
+type WhatsappProcessor struct {
+	store *db.Store
+}
 
-func NewWhatsappProcessor() processor.Processor {
-	return &WhatsappProcessor{}
+func NewWhatsappProcessor(store *db.Store) processor.Processor {
+	return &WhatsappProcessor{store: store}
 }
 
 func (s *WhatsappProcessor) Name() string {
@@ -170,11 +172,15 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 	return records, nil
 }
 
-func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath string) ([]types.Record, error) {
 	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
-func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string, store *db.Store) ([]types.Record, error) {
+func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+	if s.store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
 	return ReadWhatsAppDB(ctx, filePath)
 }
 
@@ -182,7 +188,7 @@ func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 	return nil, false, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
-func (s *WhatsappProcessor) ToDocuments(records []types.Record) ([]memory.Document, error) {
+func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	// TODO:  build ConversationDocument instead of TextDocument
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
