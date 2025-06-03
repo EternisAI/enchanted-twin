@@ -113,12 +113,16 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 		metadata["speakerID"] = fact.SpeakerID
 	}
 
+	// Get tags from the source document
+	tags := fact.Source.Original.Tags()
+
 	return &models.Object{
 		Class: ClassName,
 		Properties: map[string]interface{}{
 			"content":      fact.Content,
 			"metadataJson": marshalMetadata(metadata),
 			"timestamp":    fact.Source.Timestamp.Format(time.RFC3339),
+			"tags":         tags,
 		},
 	}
 }
