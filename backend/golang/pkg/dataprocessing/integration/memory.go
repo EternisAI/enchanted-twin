@@ -11,6 +11,7 @@ import (
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
@@ -60,15 +61,15 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		return err
 	}
 
+	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
+	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
+
 	schemaInitStart := time.Now()
-	if err := bootstrap.InitSchema(weaviateClient, logger); err != nil {
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
 	logger.Info("Weaviate schema initialized", "elapsed", time.Since(schemaInitStart))
-
-	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
-	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
 	store, err := db.NewStore(ctx, storePath)
 	if err != nil {
@@ -96,7 +97,15 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		return err
 	}
 
-	mem, err := evolvingmemory.New(logger, weaviateClient, openAiService, aiEmbeddingsService)
+	// Create storage interface first
+	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
+
+	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: openAiService,
+		EmbeddingsService:  aiEmbeddingsService,
+	})
 	if err != nil {
 		logger.Error("Error processing memory", "error", err)
 		return err
