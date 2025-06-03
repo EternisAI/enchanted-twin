@@ -1,3 +1,18 @@
+// Package gmail provides email processing and user detection functionality for Gmail mbox files.
+//
+// User Detection Performance Optimization:
+// The user detection functions in this package use a sampling strategy to efficiently
+// handle large mbox files. Instead of processing every email in the file (which could
+// be millions for long-term Gmail exports), they only analyze the first MaxSampleSize
+// emails (currently 1000). This provides several benefits:
+//
+// 1. Significantly reduced processing time for large files
+// 2. Lower memory usage (constant memory footprint)
+// 3. Faster startup time for email processing workflows
+// 4. Reliable user detection (1000 emails is typically sufficient for pattern detection)
+//
+// For most Gmail exports, the user's email address appears consistently in the
+// Delivered-To headers, making early detection very reliable with small samples.
 package gmail
 
 import (
@@ -18,7 +33,13 @@ type EmailAddressFrequency struct {
 	Sources []string // Track which headers this came from
 }
 
+const (
+	// MaxSampleSize limits how many emails to analyze for user detection.
+	MaxSampleSize = 1000
+)
+
 // DetectUserEmailFromMbox analyzes an mbox file to determine the user's email address.
+// Uses sampling strategy to only process the first MaxSampleSize emails for performance.
 func DetectUserEmailFromMbox(path string) (string, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -26,7 +47,6 @@ func DetectUserEmailFromMbox(path string) (string, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	// Count delivered-to headers first (most reliable)
 	deliveredToCount := make(map[string]int)
 	fromCount := make(map[string]int)
 	toCount := make(map[string]int)
@@ -34,12 +54,14 @@ func DetectUserEmailFromMbox(path string) (string, error) {
 	var buf strings.Builder
 	r := bufio.NewReader(f)
 	inEmail := false
+	emailsProcessed := 0
 
 	for {
 		line, err := r.ReadString('\n')
 		if err == io.EOF {
-			if inEmail {
+			if inEmail && emailsProcessed < MaxSampleSize {
 				analyzeEmailHeaders(buf.String(), deliveredToCount, fromCount, toCount)
+				emailsProcessed++
 			}
 			break
 		}
@@ -49,33 +71,40 @@ func DetectUserEmailFromMbox(path string) (string, error) {
 
 		if strings.HasPrefix(line, "From ") {
 			if inEmail {
-				analyzeEmailHeaders(buf.String(), deliveredToCount, fromCount, toCount)
-				buf.Reset()
+				if emailsProcessed < MaxSampleSize {
+					analyzeEmailHeaders(buf.String(), deliveredToCount, fromCount, toCount)
+					emailsProcessed++
+					buf.Reset()
+				} else {
+					break
+				}
 			}
 			inEmail = true
 		}
 
-		if inEmail {
+		if inEmail && emailsProcessed < MaxSampleSize {
 			buf.WriteString(line)
 		}
 	}
 
-	// Priority 1: Delivered-To header (most reliable for Gmail exports)
+	fmt.Printf("User detection: analyzed %d emails (sample size: %d)\n", emailsProcessed, MaxSampleSize)
+
 	if userEmail := getMostFrequentEmail(deliveredToCount); userEmail != "" {
+		fmt.Printf("User detected from Delivered-To headers: %s (count: %d)\n", userEmail, deliveredToCount[userEmail])
 		return userEmail, nil
 	}
 
-	// Priority 2: From header analysis (for sent emails)
 	if userEmail := getMostFrequentEmail(fromCount); userEmail != "" {
+		fmt.Printf("User detected from From headers: %s (count: %d)\n", userEmail, fromCount[userEmail])
 		return userEmail, nil
 	}
 
-	// Priority 3: To header analysis (less reliable)
 	if userEmail := getMostFrequentEmail(toCount); userEmail != "" {
+		fmt.Printf("User detected from To headers: %s (count: %d)\n", userEmail, toCount[userEmail])
 		return userEmail, nil
 	}
 
-	return "", fmt.Errorf("could not determine user email address")
+	return "", fmt.Errorf("could not determine user email address from %d sampled emails", emailsProcessed)
 }
 
 // analyzeEmailHeaders extracts email addresses from different headers.
@@ -85,21 +114,18 @@ func analyzeEmailHeaders(emailContent string, deliveredTo, from, to map[string]i
 		return
 	}
 
-	// Check Delivered-To header (most reliable)
 	if deliveredToHeader := msg.Header.Get("Delivered-To"); deliveredToHeader != "" {
 		if email := extractEmailAddress(deliveredToHeader); email != "" {
 			deliveredTo[email]++
 		}
 	}
 
-	// Check From header
 	if fromHeader := msg.Header.Get("From"); fromHeader != "" {
 		if email := extractEmailAddress(fromHeader); email != "" {
 			from[email]++
 		}
 	}
 
-	// Check To header
 	if toHeader := msg.Header.Get("To"); toHeader != "" {
 		if email := extractEmailAddress(toHeader); email != "" {
 			to[email]++
@@ -188,6 +214,7 @@ func DetectUserEmailFromRecords(records []interface{}) (string, error) {
 }
 
 // AnalyzeEmailPatterns provides detailed analysis of email patterns for debugging.
+// Uses sampling strategy to only process the first MaxSampleSize emails for performance.
 func AnalyzeEmailPatterns(path string) (map[string]interface{}, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -198,7 +225,7 @@ func AnalyzeEmailPatterns(path string) (map[string]interface{}, error) {
 	deliveredToCount := make(map[string]int)
 	fromCount := make(map[string]int)
 	toCount := make(map[string]int)
-	totalEmails := 0
+	emailsProcessed := 0
 
 	var buf strings.Builder
 	r := bufio.NewReader(f)
@@ -207,9 +234,9 @@ func AnalyzeEmailPatterns(path string) (map[string]interface{}, error) {
 	for {
 		line, err := r.ReadString('\n')
 		if err == io.EOF {
-			if inEmail {
+			if inEmail && emailsProcessed < MaxSampleSize {
 				analyzeEmailHeaders(buf.String(), deliveredToCount, fromCount, toCount)
-				totalEmails++
+				emailsProcessed++
 			}
 			break
 		}
@@ -219,20 +246,25 @@ func AnalyzeEmailPatterns(path string) (map[string]interface{}, error) {
 
 		if strings.HasPrefix(line, "From ") {
 			if inEmail {
-				analyzeEmailHeaders(buf.String(), deliveredToCount, fromCount, toCount)
-				totalEmails++
-				buf.Reset()
+				if emailsProcessed < MaxSampleSize {
+					analyzeEmailHeaders(buf.String(), deliveredToCount, fromCount, toCount)
+					emailsProcessed++
+					buf.Reset()
+				} else {
+					break
+				}
 			}
 			inEmail = true
 		}
 
-		if inEmail {
+		if inEmail && emailsProcessed < MaxSampleSize {
 			buf.WriteString(line)
 		}
 	}
 
 	return map[string]interface{}{
-		"total_emails":   totalEmails,
+		"sampled_emails": emailsProcessed,
+		"sample_size":    MaxSampleSize,
 		"delivered_to":   deliveredToCount,
 		"from_addresses": fromCount,
 		"to_addresses":   toCount,

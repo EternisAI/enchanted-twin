@@ -1,8 +1,10 @@
 package gmail
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -93,7 +95,8 @@ Sent email content
 		t.Fatalf("Failed to analyze email patterns: %v", err)
 	}
 
-	assert.Equal(t, 3, analysis["total_emails"], "Should detect 3 emails")
+	assert.Equal(t, 3, analysis["sampled_emails"], "Should detect 3 emails")
+	assert.Equal(t, MaxSampleSize, analysis["sample_size"], "Should report correct sample size")
 	assert.Equal(t, "johndoe@gmail.com", analysis["detected_user"], "Should detect johndoe@gmail.com as user")
 
 	// Check delivered-to count
@@ -194,4 +197,57 @@ func TestGetMostFrequentEmail(t *testing.T) {
 			assert.Equal(t, tt.expected, result)
 		})
 	}
+}
+
+func TestSamplingStrategy(t *testing.T) {
+	// Create a test mbox file with more emails than MaxSampleSize
+	var mboxBuilder strings.Builder
+
+	// Add 1200 emails (more than MaxSampleSize of 1000)
+	for i := 0; i < 1200; i++ {
+		mboxBuilder.WriteString(fmt.Sprintf(`From %d@xxx Mon Apr 07 14:31:02 +0000 2025
+Delivered-To: johndoe@gmail.com
+From: "Service %d" <service%d@example.com>
+To: johndoe@gmail.com
+Subject: Test Email %d
+Date: Mon, 07 Apr 2025 14:31:02 +0000
+
+Test content %d
+
+`, i, i, i, i, i))
+	}
+
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "large_test.mbox")
+	err := os.WriteFile(tmpFile, []byte(mboxBuilder.String()), 0o644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	// Test user detection with sampling
+	userEmail, err := DetectUserEmailFromMbox(tmpFile)
+	if err != nil {
+		t.Fatalf("Failed to detect user email: %v", err)
+	}
+	assert.Equal(t, "johndoe@gmail.com", userEmail, "Should detect johndoe@gmail.com as the user email")
+
+	// Test detailed analysis with sampling
+	analysis, err := AnalyzeEmailPatterns(tmpFile)
+	if err != nil {
+		t.Fatalf("Failed to analyze email patterns: %v", err)
+	}
+
+	// Should only process MaxSampleSize emails, not all 1200
+	assert.Equal(t, MaxSampleSize, analysis["sampled_emails"], "Should only process MaxSampleSize emails")
+	assert.Equal(t, MaxSampleSize, analysis["sample_size"], "Should report correct sample size")
+
+	// Check that user was detected from the sample
+	assert.Equal(t, "johndoe@gmail.com", analysis["detected_user"], "Should detect user from sample")
+
+	// Verify that delivered-to count matches the sample size (all emails have same delivered-to)
+	deliveredTo, ok := analysis["delivered_to"].(map[string]int)
+	if !ok {
+		t.Fatalf("Expected delivered_to to be map[string]int")
+	}
+	assert.Equal(t, MaxSampleSize, deliveredTo["johndoe@gmail.com"], "All sampled emails should have same delivered-to")
 }
