@@ -65,7 +65,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
 		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
-		TelegramChatServer: getEnv("TELEGRAM_CHAT_SERVER", "http://54.82.31.213:8080/query", printEnv),
+		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
