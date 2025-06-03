@@ -60,15 +60,15 @@ func IntegrationTestMemory(config IntegrationTestMemoryConfig) error {
 		return err
 	}
 
+	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
+	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
+
 	schemaInitStart := time.Now()
-	if err := bootstrap.InitSchema(weaviateClient, logger); err != nil {
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
 	logger.Info("Weaviate schema initialized", "elapsed", time.Since(schemaInitStart))
-
-	openAiService := ai.NewOpenAIService(logger, config.CompletionsApiKey, config.CompletionsApiUrl)
-	aiEmbeddingsService := ai.NewOpenAIService(logger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
 	store, err := db.NewStore(ctx, storePath)
 	if err != nil {
