@@ -1,12 +1,12 @@
 import { Button } from '../ui/button'
 
-export default function HolonJoinScreen() {
+export default function HolonJoinScreen({ joinHolon }: { joinHolon: () => void }) {
   const handleJoinHolon = () => {
-    alert('Joining Holon...')
+    joinHolon()
   }
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-screen p-8 max-w-3xl mx-auto">
+    <div className="flex flex-col items-center justify-center min-h-screen max-w-3xl mx-auto">
       {/* Background decorative circle */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="w-96 h-96 rounded-full border border-muted-foreground/20" />

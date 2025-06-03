@@ -8,13 +8,15 @@ import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSu
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import VoiceModeChatView, { VoiceModeSwitch } from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
+import HolonThreadContext from '@renderer/components/holon/HolonThreadContext'
 
 interface ChatViewProps {
   chat: Chat
   initialMessage?: string
+  threadId?: string //@TODO: Remove this once backend has full tool support
 }
 
-export default function ChatView({ chat, initialMessage }: ChatViewProps) {
+export default function ChatView({ chat, initialMessage, threadId }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
   const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
   const [mounted, setMounted] = useState(false)
@@ -203,6 +205,8 @@ export default function ChatView({ chat, initialMessage }: ChatViewProps) {
         <div className="flex w-full justify-center">
           <div className="flex flex-col max-w-4xl items-center p-4 w-full">
             <div className="w-full flex flex-col gap-2">
+              {threadId && <HolonThreadContext threadId={threadId} />}{' '}
+              {/* @TODO: Remove this once backend has full tool support */}
               <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
               {error && (
                 <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">

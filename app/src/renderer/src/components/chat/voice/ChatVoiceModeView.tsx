@@ -9,7 +9,7 @@ import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
 import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
-import { extractReasoningAndReply, getToolUrl } from '../config'
+import { extractReasoningAndReply, getToolConfig } from '../config'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Tooltip } from '@renderer/components/ui/tooltip'
 import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
@@ -72,7 +72,7 @@ export default function VoiceModeChatView({
   }, [isSpeaking])
 
   const currentToolCall = activeToolCalls.find((tc) => !tc.isCompleted)
-  const toolUrl = getToolUrl(currentToolCall?.name)
+  const { toolUrl } = getToolConfig(currentToolCall?.name || '')
 
   return (
     <div className="flex h-full w-full items-center ">

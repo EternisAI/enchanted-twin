@@ -310,13 +310,18 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         key={chat.id}
         disabled={isActive}
         to="/chat/$chatId"
+        params={{ chatId: chat.id }}
+        search={(() => {
+          //@TODO: Remove this once backend has full tool support
+          const holonMatch = chat.name?.match(/^holon-(.+)$/)
+          return holonMatch ? { threadId: holonMatch[1] } : undefined
+        })()}
         onClick={() => {
           setVoiceMode(chat.voice)
           window.api.analytics.capture('open_chat', {
             method: 'ui'
           })
         }}
-        params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,
           'text-foreground': !isActive
