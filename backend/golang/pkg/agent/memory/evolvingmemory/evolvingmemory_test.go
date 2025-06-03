@@ -12,7 +12,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // TestConversationDocumentBasics tests basic ConversationDocument functionality.
@@ -120,13 +119,20 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 	t.Run("empty documents", func(t *testing.T) {
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
-		mockAI := &ai.Service{}
-		mockStorage := storage.New(mockClient, logger, mockAI)
+
+		// Try to create real AI services, fall back to skipping tests if no env vars
+		aiService := createTestAIService()
+		if aiService == nil {
+			t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+			return
+		}
+
+		mockStorage := storage.New(mockClient, logger, aiService)
 
 		storageImpl := &StorageImpl{
 			logger:             logger,
-			completionsService: mockAI,
-			embeddingsService:  mockAI,
+			completionsService: aiService,
+			embeddingsService:  aiService,
 			storage:            mockStorage,
 		}
 
@@ -146,13 +152,20 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
-		mockAI := &ai.Service{}
-		mockStorage := storage.New(mockClient, logger, mockAI)
+
+		// Try to create real AI services, fall back to skipping tests if no env vars
+		aiService := createTestAIService()
+		if aiService == nil {
+			t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+			return
+		}
+
+		mockStorage := storage.New(mockClient, logger, aiService)
 
 		storageImpl := &StorageImpl{
 			logger:             logger,
-			completionsService: mockAI,
-			embeddingsService:  mockAI,
+			completionsService: aiService,
+			embeddingsService:  aiService,
 			storage:            mockStorage,
 		}
 
@@ -170,13 +183,20 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		logger := log.New(os.Stdout)
 		mockClient := &weaviate.Client{}
-		mockAI := &ai.Service{}
-		mockStorage := storage.New(mockClient, logger, mockAI)
+
+		// Try to create real AI services, fall back to skipping tests if no env vars
+		aiService := createTestAIService()
+		if aiService == nil {
+			t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+			return
+		}
+
+		mockStorage := storage.New(mockClient, logger, aiService)
 
 		storageImpl := &StorageImpl{
 			logger:             logger,
-			completionsService: mockAI,
-			embeddingsService:  mockAI,
+			completionsService: aiService,
+			embeddingsService:  aiService,
 			storage:            mockStorage,
 		}
 

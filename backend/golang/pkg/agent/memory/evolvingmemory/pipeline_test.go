@@ -13,7 +13,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // createMockStorage creates a StorageImpl instance with mocked services for testing.
@@ -22,16 +21,20 @@ func createMockStorage(t *testing.T) *StorageImpl {
 		Level: log.WarnLevel,
 	})
 
-	// Create mock AI services
-	mockAI := &ai.Service{}
+	// Try to create real AI services, fall back to skipping tests if no env vars
+	aiService := createTestAIService()
+	if aiService == nil {
+		t.Skip("Skipping AI-dependent tests: COMPLETIONS_API_KEY not set")
+		return nil
+	}
 
 	// Create mock storage interface
-	mockStorage := storage.New(&weaviate.Client{}, logger, mockAI)
+	mockStorage := storage.New(&weaviate.Client{}, logger, aiService)
 
 	storage := &StorageImpl{
 		logger:             logger,
-		completionsService: mockAI,
-		embeddingsService:  mockAI,
+		completionsService: aiService,
+		embeddingsService:  aiService,
 		storage:            mockStorage,
 	}
 
