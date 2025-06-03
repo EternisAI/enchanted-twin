@@ -2,8 +2,14 @@
 // import { GetThreadDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { formatDistanceToNow } from 'date-fns'
-import { Eye, MoreHorizontal, ArrowLeft } from 'lucide-react'
-import { useNavigate } from '@tanstack/react-router'
+import { Eye, Maximize2 } from 'lucide-react'
+import { useNavigate, useRouter } from '@tanstack/react-router'
+import { motion } from 'framer-motion'
+import { getThreadById } from './data'
+import { CreateChatDocument, SendMessageDocument } from '@renderer/graphql/generated/graphql'
+import { useMutation } from '@apollo/client'
+import { useCallback } from 'react'
+import { client } from '@renderer/graphql/lib'
 
 interface HolonThreadDetailProps {
   threadId: string
@@ -11,64 +17,67 @@ interface HolonThreadDetailProps {
 
 export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) {
   const navigate = useNavigate()
+  const router = useRouter()
 
+  // Mock data for development
+  const loading = false
+  const error = null
   // TODO: Uncomment when backend is ready
   // const { data, loading, error } = useQuery(GetThreadDocument, {
   //   variables: { id: threadId, network: null }
   // })
 
-  // Mock data for development
-  const loading = false
-  const error = null
-  const data = {
-    getThread: {
-      id: threadId,
-      title: 'Hey Bay-Area poker twins!',
-      content:
-        "My twin and I are putting together a friendly $1/$2 No-Limit Hold'em cash game and we'd love a few more players. Here's the plan:\n\nWhere?\nSan Francisco, Mission District - exact location shared with confirmed players\n\nWhen?\nThis Saturday, January 20th, starting at 7:00 PM\n\nStakes?\n$1/$2 No-Limit Hold'em cash game\n$200-$500 buy-in range (your choice)\n\nWhat to expect?\n- Friendly, social atmosphere\n- No pressure, just good poker and good vibes\n- BYOB welcome, snacks provided\n- Games typically run 4-6 hours\n\nWho's interested? Drop a comment below or DM me directly. Looking to get 6-8 players total, so first come, first served!\n\n#SFPoker #BayAreaPoker #PokerTwins #CashGame",
-      imageURLs: [
-        'https://images.unsplash.com/photo-1541278107931-e006523892df?w=600&h=400&fit=crop',
-        'https://images.unsplash.com/photo-1606092195730-5d7b9af1efc5?w=600&h=400&fit=crop'
-      ],
-      author: {
-        alias: 'You',
-        identity: 'user123'
-      },
-      createdAt: '2024-01-15T10:37:00Z',
-      expiresAt: '2024-01-21T19:00:00Z',
-      views: 100,
-      messages: [
-        {
-          id: 'm1',
-          content: 'Count me in! What time exactly?',
-          author: { alias: 'PokerPro', identity: 'pp1' },
-          createdAt: '2024-01-15T11:00:00Z',
-          isDelivered: true,
-          actions: []
-        },
-        {
-          id: 'm2',
-          content: 'Sounds great! I can bring chips if needed.',
-          author: { alias: 'CardShark', identity: 'cs1' },
-          createdAt: '2024-01-15T11:30:00Z',
-          isDelivered: true,
-          actions: []
-        },
-        {
-          id: 'm3',
-          content: "Is this beginner friendly? I'm still learning.",
-          author: { alias: 'Newbie', identity: 'nb1' },
-          createdAt: '2024-01-15T12:00:00Z',
-          isDelivered: true,
-          actions: []
+  const thread = getThreadById(threadId)
+  const [createChat] = useMutation(CreateChatDocument)
+  const [sendMessage] = useMutation(SendMessageDocument)
+
+  const handleCreateChat = useCallback(
+    async (action: string) => {
+      // This should check if chat exists or create one
+      const chatId = `holon-${threadId}`
+
+      if (!chatId) return
+
+      try {
+        const { data: createData } = await createChat({
+          variables: { name: chatId, voice: false }
+        })
+        const newChatId = createData?.createChat?.id
+
+        if (newChatId) {
+          navigate({
+            to: '/chat/$chatId',
+            params: { chatId: newChatId },
+            search: { initialMessage: action, threadId }
+          })
+
+          await client.cache.evict({ fieldName: 'getChats' })
+          await router.invalidate({
+            filter: (match) => match.routeId === '/chat/$chatId'
+          })
+
+          sendMessage({
+            variables: {
+              chatId: newChatId,
+              text: action,
+              reasoning: false,
+              voice: false
+            }
+          })
         }
-      ],
-      actions: ['Join Game', 'Share', 'RSVP by Tomorrow']
-    }
-  }
+      } catch (error) {
+        console.error('Failed to create chat:', error)
+      }
+    },
+    [navigate, createChat, sendMessage, router, threadId]
+  )
 
   const handleBack = () => {
     navigate({ to: '/holon' })
+  }
+
+  const handleActionClick = (action: string) => {
+    handleCreateChat(action)
   }
 
   if (loading) {
@@ -79,7 +88,7 @@ export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) 
     )
   }
 
-  if (error || !data?.getThread) {
+  if (error || !thread) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-destructive">
@@ -89,126 +98,114 @@ export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) 
     )
   }
 
-  const thread = data.getThread
-
   return (
-    <div className="flex w-full overflow-y-auto justify-center mb-12">
-      <div className="max-w-2xl flex bg-gray-100 p-2 flex-col gap-6 rounded-lg">
-        <div className="rounded-lg bg-white">
-          <div className="flex flex-col gap-4 px-6 pt-3">
-            <div className="flex items-start justify-between border-b border-border pb-3">
-              <div className="space-y-2 flex-1">
-                <h2 className="text-lg font-semibold text-foreground">{thread.title}</h2>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="font-medium">
-                    {thread.author.alias || thread.author.identity}
-                  </span>
-                  <span>•</span>
-                  <span>
-                    {formatDistanceToNow(new Date(thread.createdAt), { addSuffix: true })}
-                  </span>
-                </div>
-              </div>
-              <Button variant="ghost" size="icon" onClick={handleBack}>
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          <div>
-            <div className="flex flex-col gap-4 p-6">
-              <div className="flex flex-col gap-4">
-                <p className="text-foreground whitespace-pre-wrap leading-relaxed text-base">
-                  {thread.content}
-                </p>
-
-                {thread.imageURLs && thread.imageURLs.length > 0 && (
-                  <div className="grid gap-4">
-                    {thread.imageURLs.length === 1 ? (
-                      <img
-                        src={thread.imageURLs[0]}
-                        alt="Thread image"
-                        className="w-full rounded-lg max-h-96 object-cover"
-                      />
-                    ) : (
-                      <div className="grid grid-cols-2 gap-4">
-                        {thread.imageURLs.map((imageUrl, index) => (
-                          <img
-                            key={index}
-                            src={imageUrl}
-                            alt={`Thread image ${index + 1}`}
-                            className="w-full h-48 rounded-lg object-cover"
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-6 text-sm text-muted-foreground border-t border-border py-4">
-                <div className="flex items-center gap-2">
-                  <Eye className="w-4 h-4" />
-                  <span>Read by {thread.views}</span>
-                </div>
-                <div>{thread.messages.length} messages</div>
-                {thread.expiresAt && (
-                  <div className="text-orange-500">
-                    Expires {formatDistanceToNow(new Date(thread.expiresAt), { addSuffix: true })}
-                  </div>
-                )}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5 }}
+      className="flex w-full h-full items-center overflow-y-auto flex flex-col gap-3 relative mb-18"
+    >
+      <div className="w-xl flex flex-col bg-gray-100 rounded-lg p-2">
+        {/*  */}
+        <div className="flex flex-col gap-6 bg-white rounded-lg p-3">
+          {/* header  */}
+          <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex flex-col ">
+              <h2 className="text-lg font-semibold text-foreground">{thread.title}</h2>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span className="font-medium">{thread.author.alias || thread.author.identity}</span>
+                <span>•</span>
+                <span>{formatDistanceToNow(new Date(thread.createdAt), { addSuffix: true })}</span>
               </div>
             </div>
+            <Button variant="ghost" size="icon" onClick={handleBack}>
+              <Maximize2 className="w-4 h-4" />
+            </Button>
           </div>
+
+          {/* body */}
+          {thread.imageURLs && thread.imageURLs.length > 0 && (
+            <div className="grid gap-4">
+              {thread.imageURLs.length === 1 ? (
+                <img
+                  src={thread.imageURLs[0]}
+                  alt="Thread image"
+                  className="w-full rounded-lg max-h-96 object-cover"
+                />
+              ) : (
+                <div className="grid grid-cols-2 gap-4">
+                  {thread.imageURLs.map((imageUrl, index) => (
+                    <img
+                      key={index}
+                      src={imageUrl}
+                      alt={`Thread image ${index + 1}`}
+                      className="w-full h-48 rounded-lg object-cover"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <p className="text-foreground whitespace-pre-wrap leading-relaxed text-base">
+            {thread.content}
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 w-xl">
+        <div className="px-2 flex w-full gap-6 text-sm text-muted-foreground">
+          <div className="flex items-center gap-2">
+            <Eye className="w-4 h-4" />
+            <span>Read by {thread.views}</span>
+          </div>
+          <div>{thread.messages.length} messages</div>
+          {thread.expiresAt && (
+            <div className="text-orange-500">
+              Expires {formatDistanceToNow(new Date(thread.expiresAt), { addSuffix: true })}
+            </div>
+          )}
         </div>
 
-        {/* Messages Section */}
         {thread.messages.length > 0 && (
-          <div className="space-y-4">
-            <h3 className="font-medium text-foreground text-lg">
-              Messages ({thread.messages.length})
-            </h3>
-            <div className="space-y-3">
-              {thread.messages.map((message) => (
-                <div
-                  key={message.id}
-                  className="border border-border rounded-lg p-4 bg-card hover:bg-accent/10 transition-colors"
-                >
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
-                    <span className="font-medium">
-                      {message.author.alias || message.author.identity}
-                    </span>
-                    <span>•</span>
-                    <span>
-                      {formatDistanceToNow(new Date(message.createdAt), {
-                        addSuffix: true
-                      })}
-                    </span>
-                  </div>
-                  <p className="text-foreground leading-relaxed">{message.content}</p>
+          <div className="flex flex-col gap-2">
+            {thread.messages.map((message) => (
+              <div
+                key={message.id}
+                className="flex flex-col gap-1 border border-border rounded-lg py-3 px-4 bg-card hover:bg-accent/10 transition-colors"
+              >
+                <div className="flex items-center gap-2 text-primary">
+                  <span className="font-semibold">
+                    {message.author.alias || message.author.identity}
+                  </span>
+                  <span className="text-muted-foreground text-sm">•</span>
+                  <span className="text-muted-foreground text-sm">
+                    {formatDistanceToNow(new Date(message.createdAt), {
+                      addSuffix: true
+                    })}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {thread.actions && thread.actions.length > 0 && (
-          <div className="flex flex-col gap-3 pb-24">
-            <h3 className="font-medium text-foreground">Actions</h3>
-            <div className="flex flex-wrap gap-3">
-              {thread.actions.map((action, index) => (
-                <Button
-                  key={index}
-                  variant={index === 0 ? 'default' : 'secondary'}
-                  className="min-w-fit"
-                >
-                  {action}
-                </Button>
-              ))}
-            </div>
+                <p className="text-sm text-foreground leading-relaxed">{message.content}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>
-    </div>
+
+      <div className="sticky w-xl bottom-0 left-0 right-0 bg-transparent backdrop-blur-xs border-t border-white/20 p-4">
+        <div className="flex justify-center items-center gap-4 w-full">
+          {thread.actions.map((action, index) => (
+            <Button
+              key={index}
+              variant={index === 0 ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => handleActionClick(action)}
+            >
+              {action}
+            </Button>
+          ))}
+        </div>
+      </div>
+    </motion.div>
   )
 }

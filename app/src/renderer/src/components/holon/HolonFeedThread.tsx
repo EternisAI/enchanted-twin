@@ -1,11 +1,18 @@
 import { formatDistanceToNow } from 'date-fns'
-import { MoreHorizontal, Eye } from 'lucide-react'
+import { Eye, Maximize2 } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
 
 import { Thread } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
+import { cn } from '@renderer/lib/utils'
 
-export default function HolonFeedItem({ thread }: { thread: Thread }) {
+export default function HolonFeedItem({
+  thread,
+  collapsed = false
+}: {
+  thread: Thread
+  collapsed?: boolean
+}) {
   const navigate = useNavigate()
 
   const handleMoreClick = () => {
@@ -16,13 +23,16 @@ export default function HolonFeedItem({ thread }: { thread: Thread }) {
   return (
     <div
       key={thread.id}
-      className="bg-card border border-border rounded-lg p-6 flex flex-col gap-3 hover:bg-accent/5 transition-colors"
+      className={cn(
+        'bg-card border border-border rounded-lg p-3 flex flex-col gap-3 hover:bg-accent/5 transition-colors',
+        collapsed && 'overflow-hidden max-h-[260px] relative pb-0'
+      )}
     >
-      <div className="flex items-start justify-between">
-        <div className="flex flex-col gap-2">
+      <div className="flex items-start justify-between border-b border-border pb-3">
+        <div className="flex flex-col ">
           <h3 className="font-semibold text-foreground text-lg">{thread.title}</h3>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-medium">{thread.author.alias || thread.author.identity}</span>
+            <span className="font-semibold">{thread.author.alias || thread.author.identity}</span>
             <span>•</span>
             <span>{formatDistanceToNow(new Date(thread.createdAt), { addSuffix: true })}</span>
           </div>
@@ -33,13 +43,11 @@ export default function HolonFeedItem({ thread }: { thread: Thread }) {
           className="text-muted-foreground"
           onClick={handleMoreClick}
         >
-          <MoreHorizontal className="w-4 h-4" />
+          <Maximize2 className="w-4 h-4" />
         </Button>
       </div>
 
       <div className="flex flex-col gap-2">
-        <p className="text-foreground whitespace-pre-wrap">{thread.content}</p>
-
         {thread.imageURLs && thread.imageURLs.length > 0 && (
           <div className="grid gap-2">
             {thread.imageURLs.length === 1 ? (
@@ -61,6 +69,11 @@ export default function HolonFeedItem({ thread }: { thread: Thread }) {
               </div>
             )}
           </div>
+        )}
+
+        <p className="text-foreground whitespace-pre-wrap">{thread.content}</p>
+        {collapsed && (
+          <div className="pointer-events-none absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-card to-transparent" />
         )}
       </div>
 
