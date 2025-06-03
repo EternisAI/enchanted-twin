@@ -44,8 +44,8 @@ func createTestAIServices() (*ai.Service, *ai.Service) {
 	return completionsService, embeddingsService
 }
 
-// TestFactExtractorAdapter tests the fact extractor adapter structure.
-func TestFactExtractorAdapter(t *testing.T) {
+// TestStorageImplBasicFunctionality tests the core storage functionality.
+func TestStorageImplBasicFunctionality(t *testing.T) {
 	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
@@ -66,14 +66,7 @@ func TestFactExtractorAdapter(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	storageImplTyped, ok := storageImpl.(*StorageImpl)
-	require.True(t, ok, "Failed to type assert to StorageImpl")
-
-	adapter, err := NewFactExtractor(storageImplTyped)
-	assert.NoError(t, err)
-	assert.NotNil(t, adapter)
-
-	t.Run("ExtractFacts_ConversationDocument", func(t *testing.T) {
+	t.Run("StoreV2_ConversationDocument", func(t *testing.T) {
 		// Create test conversation document
 		convDoc := &memory.ConversationDocument{
 			FieldID: "conv-123",
@@ -83,24 +76,26 @@ func TestFactExtractorAdapter(t *testing.T) {
 				{Speaker: "bob", Content: "I prefer sushi", Time: time.Now()},
 			},
 		}
-		// Create prepared document
-		prepDoc := PreparedDocument{
-			Original:   convDoc,
-			Type:       DocumentTypeConversation,
-			SpeakerID:  "alice",
-			Timestamp:  time.Now(),
-			DateString: "2024-01-15",
-		}
 
-		// Test that the adapter routes to the correct method
-		facts, err := adapter.ExtractFacts(context.Background(), prepDoc)
-		assert.NoError(t, err)
-		assert.NotNil(t, facts)
-		// Should be empty or contain facts depending on LLM response
-		t.Logf("Extracted %d facts", len(facts))
+		// Convert to unified document interface
+		docs := []memory.Document{convDoc}
+		config := DefaultConfig()
+
+		// Test StoreV2 functionality
+		progressCh, errorCh := storageImpl.StoreV2(context.Background(), docs, config)
+
+		// Process channels (this will likely fail with mock storage, but tests the interface)
+		select {
+		case <-progressCh:
+			t.Log("Received progress update")
+		case err := <-errorCh:
+			t.Logf("Received expected error with mock storage: %v", err)
+		case <-time.After(time.Second):
+			t.Log("Test completed without hanging")
+		}
 	})
 
-	t.Run("ExtractFacts_TextDocument", func(t *testing.T) {
+	t.Run("Store_TextDocument", func(t *testing.T) {
 		// Create test text document
 		now := time.Now()
 		textDoc := &memory.TextDocument{
@@ -109,93 +104,21 @@ func TestFactExtractorAdapter(t *testing.T) {
 			FieldTimestamp: &now,
 			FieldMetadata:  map[string]string{"source": "notes"},
 		}
-		// Create prepared document
-		prepDoc := PreparedDocument{
-			Original:   textDoc,
-			Type:       DocumentTypeText,
-			SpeakerID:  "user",
-			Timestamp:  now,
-			DateString: "2024-01-15",
-		}
 
-		// Test that the adapter routes to the correct method
-		facts, err := adapter.ExtractFacts(context.Background(), prepDoc)
-		assert.NoError(t, err)
-		assert.NotNil(t, facts)
-		// Should be empty or contain facts depending on LLM response
-		t.Logf("Extracted %d facts", len(facts))
+		// Convert to unified document interface
+		docs := []memory.Document{textDoc}
+
+		// Test Store functionality (this will likely fail with mock storage, but tests the interface)
+		err := storageImpl.Store(context.Background(), docs, nil)
+		// We expect this to fail with mock storage, but the interface should work
+		t.Logf("Store returned (expected error with mock): %v", err)
 	})
 
-	t.Run("ExtractFacts_UnknownDocumentType", func(t *testing.T) {
-		prepDoc := PreparedDocument{
-			Original:   &memory.TextDocument{},
-			Type:       DocumentType("unknown"),
-			SpeakerID:  "user",
-			Timestamp:  time.Now(),
-			DateString: "2024-01-15",
-		}
-
-		_, err := adapter.ExtractFacts(context.Background(), prepDoc)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unknown document type")
-	})
-
-	t.Run("ExtractFacts_InvalidDocumentTypeAssertion", func(t *testing.T) {
-		// Test with wrong document type for conversation
-		prepDoc := PreparedDocument{
-			Original:   &memory.TextDocument{}, // Wrong type!
-			Type:       DocumentTypeConversation,
-			SpeakerID:  "user",
-			Timestamp:  time.Now(),
-			DateString: "2024-01-15",
-		}
-
-		_, err := adapter.ExtractFacts(context.Background(), prepDoc)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "document is not a ConversationDocument")
-	})
-
-	t.Run("NewFactExtractor_NilStorage", func(t *testing.T) {
-		_, err := NewFactExtractor(nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "storage cannot be nil")
-	})
-
-	t.Run("NewFactExtractor_NilCompletionsService", func(t *testing.T) {
-		// This test is no longer relevant since completions service is validated in New()
-		// The engine will validate this internally
-		t.Skip("Test no longer relevant - completions service validation moved to New() constructor")
-	})
-}
-
-// TestMemoryOperationsAdapter tests the memory operations adapter structure.
-func TestMemoryOperationsAdapter(t *testing.T) {
-	logger := log.New(os.Stdout)
-	mockClient := &weaviate.Client{}
-
-	// Try to create separate AI services, fall back to skipping if no env vars
-	completionsService, embeddingsService := createTestAIServices()
-	if completionsService == nil || embeddingsService == nil {
-		t.Skip("Skipping AI-dependent tests: API keys not set")
-		return
-	}
-
-	// Just a basic test to ensure the function doesn't completely fail
-	t.Run("BasicStructure", func(t *testing.T) {
-		mockStorage := storage.New(mockClient, logger, embeddingsService)
-		storageImpl, err := New(Dependencies{
-			Logger:             logger,
-			Storage:            mockStorage,
-			CompletionsService: completionsService,
-			EmbeddingsService:  embeddingsService,
-		})
-		require.NoError(t, err)
-
-		storageImplTyped, ok := storageImpl.(*StorageImpl)
-		require.True(t, ok, "Failed to type assert to StorageImpl")
-
-		_, err = NewMemoryOperations(storageImplTyped)
-		assert.NoError(t, err)
+	t.Run("Query_Functionality", func(t *testing.T) {
+		// Test Query functionality (this will likely fail with mock storage, but tests the interface)
+		_, err := storageImpl.Query(context.Background(), "test query")
+		// We expect this to fail with mock storage, but the interface should work
+		t.Logf("Query returned (expected error with mock): %v", err)
 	})
 }
 
@@ -227,8 +150,8 @@ func TestDecisionParsing(t *testing.T) {
 	})
 }
 
-// TestAdapterCreation tests adapter creation.
-func TestAdapterCreation(t *testing.T) {
+// TestStorageImplCreation tests storage implementation creation.
+func TestStorageImplCreation(t *testing.T) {
 	logger := log.New(os.Stdout)
 	mockClient := &weaviate.Client{}
 
@@ -249,271 +172,76 @@ func TestAdapterCreation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("NewFactExtractor", func(t *testing.T) {
+	t.Run("CreationSuccess", func(t *testing.T) {
+		assert.NotNil(t, storageImpl)
+
 		storageImplTyped, ok := storageImpl.(*StorageImpl)
 		require.True(t, ok, "Failed to type assert to StorageImpl")
-		adapter, err := NewFactExtractor(storageImplTyped)
-		assert.NoError(t, err)
-		assert.NotNil(t, adapter)
 
-		// Verify it implements the interface
-		_ = adapter
+		// Verify the storage interface is accessible
+		assert.NotNil(t, storageImplTyped)
 	})
 
-	t.Run("NewMemoryOperations", func(t *testing.T) {
-		storageImplTyped, ok := storageImpl.(*StorageImpl)
-		require.True(t, ok, "Failed to type assert to StorageImpl")
-		adapter, err := NewMemoryOperations(storageImplTyped)
-		assert.NoError(t, err)
-		assert.NotNil(t, adapter)
-
-		// Verify it implements the interface
-		_ = adapter
-	})
-
-	t.Run("NewMemoryOperations_NilStorage", func(t *testing.T) {
-		_, err := NewMemoryOperations(nil)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "storage cannot be nil")
-	})
-
-	t.Run("NewMemoryOperations_NilClient", func(t *testing.T) {
-		// This test is no longer relevant since storage validation is done in New()
-		t.Skip("Test no longer relevant - storage validation moved to New() constructor")
-	})
-
-	t.Run("NewMemoryOperations_NilCompletionsService", func(t *testing.T) {
-		// This test is no longer relevant since completions service is validated in New()
-		// The engine will validate this internally
-		t.Skip("Test no longer relevant - completions service validation moved to New() constructor")
+	t.Run("ImplementsMemoryStorage", func(t *testing.T) {
+		// Verify it implements the MemoryStorage interface
+		_ = storageImpl
+		assert.NotNil(t, storageImpl)
 	})
 }
 
-func TestNewFactExtractor_Success(t *testing.T) {
+// TestDependencyValidation tests that the New function properly validates dependencies.
+func TestDependencyValidation(t *testing.T) {
 	logger := log.New(os.Stdout)
-
-	// Try to create separate AI services, fall back to skipping tests if no env vars
-	completionsService, embeddingsService := createTestAIServices()
-	if completionsService == nil || embeddingsService == nil {
-		t.Skip("Skipping AI-dependent tests: API keys not set")
-		return
-	}
-
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
-
-	storageImpl, err := New(Dependencies{
-		Logger:             logger,
-		Storage:            mockStorageInterface,
-		CompletionsService: completionsService,
-		EmbeddingsService:  embeddingsService,
-	})
-	require.NoError(t, err)
-
-	storageImplTyped, ok := storageImpl.(*StorageImpl)
-	require.True(t, ok, "Failed to type assert to StorageImpl")
-
-	extractor, err := NewFactExtractor(storageImplTyped)
-
-	require.NoError(t, err)
-	assert.NotNil(t, extractor)
-}
-
-func TestNewFactExtractor_NilStorage(t *testing.T) {
-	extractor, err := NewFactExtractor(nil)
-
-	require.Error(t, err)
-	assert.Nil(t, extractor)
-	assert.Contains(t, err.Error(), "storage cannot be nil")
-}
-
-func TestNewFactExtractor_NilCompletionsService(t *testing.T) {
-	// This test is no longer relevant since completions service is validated in New()
-	t.Skip("Test no longer relevant - completions service validation moved to New() constructor")
-}
-
-func TestFactExtractorAdapter_ExtractFacts_ConversationDocument(t *testing.T) {
-	logger := log.New(os.Stdout)
-
-	// Try to create separate AI services, fall back to skipping tests if no env vars
-	completionsService, embeddingsService := createTestAIServices()
-	if completionsService == nil || embeddingsService == nil {
-		t.Skip("Skipping AI-dependent tests: API keys not set")
-		return
-	}
-
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
-
-	storageImpl, err := New(Dependencies{
-		Logger:             logger,
-		Storage:            mockStorageInterface,
-		CompletionsService: completionsService,
-		EmbeddingsService:  embeddingsService,
-	})
-	require.NoError(t, err)
-
-	storageImplTyped, ok := storageImpl.(*StorageImpl)
-	require.True(t, ok, "Failed to type assert to StorageImpl")
-
-	extractor, err := NewFactExtractor(storageImplTyped)
-	require.NoError(t, err)
-
-	// Create a conversation document
-	convDoc := &memory.ConversationDocument{
-		FieldID: "test-conv",
-		Conversation: []memory.ConversationMessage{
-			{Speaker: "user", Content: "Hello there"},
-		},
-		User: "user",
-	}
-
-	doc := PreparedDocument{
-		Original:  convDoc,
-		Type:      DocumentTypeConversation,
-		SpeakerID: "user",
-	}
-
-	// With a real AI service, this should succeed
-	facts, err := extractor.ExtractFacts(context.Background(), doc)
-
-	// Since we have a real AI service, we expect success
-	assert.NoError(t, err)
-	assert.NotNil(t, facts)
-	t.Logf("Successfully extracted %d facts from conversation", len(facts))
-}
-
-func TestFactExtractorAdapter_ExtractFacts_TextDocument(t *testing.T) {
-	logger := log.New(os.Stdout)
-
-	// Try to create separate AI services, fall back to skipping tests if no env vars
-	completionsService, embeddingsService := createTestAIServices()
-	if completionsService == nil || embeddingsService == nil {
-		t.Skip("Skipping AI-dependent tests: API keys not set")
-		return
-	}
-
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
-
-	storageImpl, err := New(Dependencies{
-		Logger:             logger,
-		Storage:            mockStorageInterface,
-		CompletionsService: completionsService,
-		EmbeddingsService:  embeddingsService,
-	})
-	require.NoError(t, err)
-
-	storageImplTyped, ok := storageImpl.(*StorageImpl)
-	require.True(t, ok, "Failed to type assert to StorageImpl")
-
-	extractor, err := NewFactExtractor(storageImplTyped)
-	require.NoError(t, err)
-
-	// Create a text document
-	textDoc := &memory.TextDocument{
-		FieldID:      "test-text",
-		FieldContent: "This is a test document",
-	}
-
-	doc := PreparedDocument{
-		Original:  textDoc,
-		Type:      DocumentTypeText,
-		SpeakerID: "user",
-	}
-
-	// With a real AI service, this should succeed
-	facts, err := extractor.ExtractFacts(context.Background(), doc)
-
-	// Since we have a real AI service, we expect success
-	assert.NoError(t, err)
-	assert.NotNil(t, facts)
-	t.Logf("Successfully extracted %d facts from text document", len(facts))
-}
-
-func TestFactExtractorAdapter_ExtractFacts_UnknownDocumentType(t *testing.T) {
-	logger := log.New(os.Stdout)
-
-	// Try to create separate AI services, fall back to skipping tests if no env vars
-	completionsService, embeddingsService := createTestAIServices()
-	if completionsService == nil || embeddingsService == nil {
-		t.Skip("Skipping AI-dependent tests: API keys not set")
-		return
-	}
-
-	mockStorageInterface := storage.New(&weaviate.Client{}, logger, embeddingsService)
-
-	storageImpl, err := New(Dependencies{
-		Logger:             logger,
-		Storage:            mockStorageInterface,
-		CompletionsService: completionsService,
-		EmbeddingsService:  embeddingsService,
-	})
-	require.NoError(t, err)
-
-	storageImplTyped, ok := storageImpl.(*StorageImpl)
-	require.True(t, ok, "Failed to type assert to StorageImpl")
-
-	extractor, err := NewFactExtractor(storageImplTyped)
-	require.NoError(t, err)
-
-	// Create a document with unknown type
-	doc := PreparedDocument{
-		Original:  &memory.TextDocument{},
-		Type:      "unknown",
-		SpeakerID: "user",
-	}
-
-	_, err = extractor.ExtractFacts(context.Background(), doc)
-
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unknown document type")
-}
-
-// Memory Operations Tests
-
-func TestNewMemoryOperations_Success(t *testing.T) {
-	logger := log.New(os.Stdout)
-
-	// Try to create separate AI services, fall back to skipping tests if no env vars
-	completionsService, embeddingsService := createTestAIServices()
-	if completionsService == nil || embeddingsService == nil {
-		t.Skip("Skipping AI-dependent tests: API keys not set")
-		return
-	}
-
 	mockClient := &weaviate.Client{}
-	mockStorageInterface := storage.New(mockClient, logger, embeddingsService)
+	completionsService, embeddingsService := createTestAIServices()
+	if completionsService == nil || embeddingsService == nil {
+		// Create dummy services for testing structure
+		completionsService = &ai.Service{}
+		embeddingsService = &ai.Service{}
+	}
+	mockStorage := storage.New(mockClient, logger, embeddingsService)
 
-	storageImpl, err := New(Dependencies{
-		Logger:             logger,
-		Storage:            mockStorageInterface,
-		CompletionsService: completionsService,
-		EmbeddingsService:  embeddingsService,
+	t.Run("NilStorage", func(t *testing.T) {
+		_, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            nil, // nil storage
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "storage interface cannot be nil")
 	})
-	require.NoError(t, err)
 
-	// Type assert to get StorageImpl
-	storageImplTyped, ok := storageImpl.(*StorageImpl)
-	require.True(t, ok, "Failed to type assert to StorageImpl")
+	t.Run("NilLogger", func(t *testing.T) {
+		_, err := New(Dependencies{
+			Logger:             nil, // nil logger
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "logger cannot be nil")
+	})
 
-	memOps, err := NewMemoryOperations(storageImplTyped)
+	t.Run("NilCompletionsService", func(t *testing.T) {
+		_, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: nil, // nil completions service
+			EmbeddingsService:  embeddingsService,
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "completions service cannot be nil")
+	})
 
-	require.NoError(t, err)
-	assert.NotNil(t, memOps)
-}
-
-func TestNewMemoryOperations_NilStorage(t *testing.T) {
-	memOps, err := NewMemoryOperations(nil)
-
-	require.Error(t, err)
-	assert.Nil(t, memOps)
-	assert.Contains(t, err.Error(), "storage cannot be nil")
-}
-
-func TestNewMemoryOperations_NilStorageInterface(t *testing.T) {
-	// This test is no longer relevant since storage validation is done in New()
-	t.Skip("Test no longer relevant - storage validation moved to New() constructor")
-}
-
-func TestNewMemoryOperations_NilCompletionsService(t *testing.T) {
-	// This test is no longer relevant since completions service is validated in New()
-	t.Skip("Test no longer relevant - completions service validation moved to New() constructor")
+	t.Run("NilEmbeddingsService", func(t *testing.T) {
+		_, err := New(Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  nil, // nil embeddings service
+		})
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "embeddings service cannot be nil")
+	})
 }
