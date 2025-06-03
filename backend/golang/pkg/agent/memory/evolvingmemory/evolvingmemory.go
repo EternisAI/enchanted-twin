@@ -133,22 +133,6 @@ type ValidationRule struct {
 	Action           MemoryAction
 }
 
-// Interfaces for IO boundaries.
-type FactExtractor interface {
-	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error)
-}
-
-type MemoryOperations interface {
-	SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error)
-	DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error)
-	UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error
-	DeleteMemory(ctx context.Context, memoryID string) error
-}
-
-type StorageOperations interface {
-	StoreBatch(ctx context.Context, objects []*models.Object) error
-}
-
 type UpdateToolArguments struct {
 	MemoryID      string `json:"id"`
 	UpdatedMemory string `json:"updated_content"`
@@ -188,7 +172,6 @@ type StorageImpl struct {
 	logger       *log.Logger
 	orchestrator MemoryOrchestrator
 	storage      storage.Interface
-	engine       MemoryEngine // Keep reference for backward compatibility
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -222,14 +205,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 		logger:       deps.Logger,
 		orchestrator: orchestrator,
 		storage:      deps.Storage,
-		engine:       engine,
 	}, nil
-}
-
-// GetEngine returns the memory engine for backward compatibility.
-// TODO: Remove this method once adapters are fully migrated.
-func (s *StorageImpl) GetEngine() MemoryEngine {
-	return s.engine
 }
 
 // StoreConversations is an alias for Store to maintain backward compatibility.

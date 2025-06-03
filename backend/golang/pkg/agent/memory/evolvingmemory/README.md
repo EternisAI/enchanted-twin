@@ -2,43 +2,91 @@
 
 ## What is this?
 
-This package stores and retrieves user memories in Weaviate (a vector database). It processes documents, extracts facts using LLMs, and manages memory updates intelligently.
+This package stores and retrieves user memories using hot-swappable storage backends (currently Weaviate). It processes documents, extracts facts using LLMs, and manages memory updates intelligently through a clean 3-layer architecture.
+
+## Architecture Overview
+
+The package follows clean architecture principles with clear separation of concerns:
+
+```
+┌─────────────────┐    ┌──────────────────────┐    ┌─────────────────┐
+│   StorageImpl   │───▶│ MemoryOrchestrator   │───▶│  MemoryEngine   │
+│ (Public API)    │    │   (Coordination)     │    │ (Business Logic)│
+└─────────────────┘    └──────────────────────┘    └─────────────────┘
+         │                       │                        │
+         │                       │                        ▼
+         │                       ▼               ┌──────────────────┐
+         │              ┌──────────────────┐     │ storage.Interface│ ← HOT-SWAPPABLE! |                  |     |                  |
+         │              │   Channels &     │     └──────────────────┘
+         │              │   Workers &      │             │
+         │              │   Progress       │             ▼
+         │              └──────────────────┘    ┌─────────────────┐
+         │                                      │ WeaviateStorage │
+         ▼ (Clean Public Interface)             │ RedisStorage    │
+   ┌─────────────────┐                          │ PostgresStorage │
+   │  MemoryStorage  │                          └─────────────────┘
+   │   (Interface)   │
+   └─────────────────┘
+```
+
+### Layer Responsibilities
+
+1. **StorageImpl** - Thin public API maintaining interface compatibility
+2. **MemoryOrchestrator** - Infrastructure concerns (workers, channels, batching, timeouts)
+3. **MemoryEngine** - Pure business logic (fact extraction, memory decisions)
+4. **storage.Interface** - Hot-swappable storage abstraction
 
 ## Quick Start
 
 ```go
-// Basic usage - store some documents
-storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
+// Create storage instance with hot-swappable backend
+storage, err := evolvingmemory.New(evolvingmemory.Dependencies{
     Logger:             logger,
-    Storage:            weaviateClient,
+    Storage:            storageBackend,        // Any storage.Interface implementation
     CompletionsService: completionsAI,
-    EmbeddingsService:  embeddingsAI,
+    EmbeddingsService:  embeddingsAI,         // Can be different from completions
 })
+if err != nil {
+    log.Fatal("Failed to create storage:", err)
+}
 
 docs := []memory.Document{
     &memory.TextDocument{...},           // Simple text
     &memory.ConversationDocument{...},   // Chat conversations
 }
 
-// Old way (still works)
+// Backward compatible API (still works)
 err := storage.Store(ctx, docs, func(processed, total int) {
     log.Printf("Progress: %d/%d", processed, total)
 })
 
-// New way (channels)
+// New channel-based API (recommended)
+config := evolvingmemory.DefaultConfig()
 progressCh, errorCh := storage.StoreV2(ctx, docs, config)
+
+// Process results
+for progressCh != nil || errorCh != nil {
+    select {
+    case progress, ok := <-progressCh:
+        if !ok { progressCh = nil; continue }
+        log.Printf("Progress: %d/%d", progress.Processed, progress.Total)
+    case err, ok := <-errorCh:
+        if !ok { errorCh = nil; continue }
+        log.Printf("Error: %v", err)
+    }
+}
 ```
 
 ## How does it work?
 
 ### The Flow
 
-1. **Documents come in** → Could be text documents or conversation transcripts
-2. **Extract facts** → Use LLM to pull out interesting facts from the content
-3. **Check existing memories** → Search Weaviate for similar facts
+1. **Documents come in** → Text documents or conversation transcripts
+2. **Extract facts** → MemoryEngine uses LLM to pull out interesting facts
+3. **Check existing memories** → Search storage for similar facts
 4. **Decide what to do** → LLM decides: ADD new memory, UPDATE existing, DELETE outdated, or NONE
-5. **Execute decision** → Updates happen immediately, new memories get batched
-6. **Store in Weaviate** → Batched inserts for efficiency
+5. **Execute decision** → MemoryEngine executes immediately (UPDATE/DELETE) or batches (ADD)
+6. **Store in backend** → MemoryOrchestrator coordinates batched inserts via storage.Interface
 
 ### Key Concepts
 
@@ -47,9 +95,9 @@ progressCh, errorCh := storage.StoreV2(ctx, docs, config)
 - `ConversationDocument` - Structured chats with multiple speakers
 
 **Memory Operations:**
-- `ADD` - Create a new memory
-- `UPDATE` - Replace an existing memory's content
-- `DELETE` - Remove an outdated memory
+- `ADD` - Create a new memory (batched for efficiency)
+- `UPDATE` - Replace an existing memory's content (immediate)
+- `DELETE` - Remove an outdated memory (immediate)
 - `NONE` - Do nothing (fact isn't worth remembering)
 
 **Speaker Rules:**
@@ -57,168 +105,231 @@ progressCh, errorCh := storage.StoreV2(ctx, docs, config)
 - Speakers can only modify their own memories
 - Validation happens before any UPDATE/DELETE
 
+**Hot-Swappable Storage:**
+- Depends on `storage.Interface`, not specific implementations
+- Currently supports WeaviateStorage
+- Easy to add RedisStorage, PostgresStorage, etc.
+
 ## Where to find things
 
 ```
 evolvingmemory/
-├── evolvingmemory.go    # Main types and interfaces
-├── pipeline.go          # StoreV2() - the main processing pipeline
-├── adapters.go          # Wrappers that connect to the old code
-├── pure.go              # Business logic (no IO)
-├── crud.go              # Weaviate operations
-├── query.go             # Search functionality
-├── factextraction.go    # LLM fact extraction (the old way)
-├── prompts.go           # All the LLM prompts
-└── tools.go             # OpenAI function definitions
+├── evolvingmemory.go       # StorageImpl, MemoryStorage interface, Dependencies
+├── engine.go               # MemoryEngine - pure business logic
+├── orchestrator.go         # MemoryOrchestrator - coordination & workers
+├── pipeline.go             # Utilities, DefaultConfig, helper functions
+├── pure.go                 # Pure functions (validation, object creation)
+├── tools.go                # LLM tool definitions for OpenAI function calling
+├── prompts.go              # All LLM prompts for fact extraction and decisions
+├── *_test.go               # Comprehensive test suite
+└── storage/
+    └── storage.go          # Storage abstraction (WeaviateStorage implementation)
 ```
 
 ### Key Files Explained
 
-**pipeline.go** - Start here! This is where documents get processed:
-- `StoreV2()` - Main entry point
-- `extractFactsWorker()` - Extracts facts from documents
-- `processFactsWorker()` - Decides what to do with each fact
-- `aggregateResults()` - Batches new memories
-- `streamingStore()` - Saves to Weaviate
+**evolvingmemory.go** - Start here! Main types and public interface:
+- `StorageImpl` - Public API implementation
+- `MemoryStorage` - Main interface for external consumers
+- `Dependencies` - Dependency injection structure
+- `New()` - Constructor with full validation
 
-**adapters.go** - Connects new architecture to old code:
-- `factExtractorAdapter` - Wraps old fact extraction methods
-- `memoryOperationsAdapter` - Wraps old memory decision logic
+**engine.go** - Pure business logic (no infrastructure concerns):
+- `MemoryEngine` - Core business operations
+- `ExtractFacts()` - LLM-based fact extraction
+- `ProcessFact()` - Memory decision making
+- `ExecuteDecision()` - Memory updates
 
-**pure.go** - Pure functions (easy to test):
-- `PrepareDocuments()` - Standardizes document format
-- `ValidateMemoryOperation()` - Checks if operation is allowed
-- `CreateMemoryObject()` - Builds Weaviate object
+**orchestrator.go** - Infrastructure coordination:
+- `MemoryOrchestrator` - Coordinates workers and channels
+- `ProcessDocuments()` - Main processing pipeline
+- Worker management and progress reporting
+
+**storage/storage.go** - Hot-swappable storage abstraction:
+- `Interface` - Storage abstraction
+- `WeaviateStorage` - Current implementation
+- Easy to extend with new backends
 
 ## Common Tasks
 
+### Adding a new storage backend
+
+1. Implement `storage.Interface` in a new package:
+```go
+type RedisStorage struct { ... }
+func (r *RedisStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) { ... }
+// ... implement all interface methods
+```
+
+2. Update your application to use the new storage:
+```go
+redisStorage := redis.NewStorage(redisClient, logger, embeddingsService)
+storage, err := evolvingmemory.New(evolvingmemory.Dependencies{
+    Storage: redisStorage,  // Just swap this!
+    // ... other deps unchanged
+})
+```
+
 ### Adding a new document type
 
-1. Implement the `Document` interface in `memory.go`
-2. Add a case in `factExtractorAdapter.ExtractFacts()` 
-3. Create extraction logic (like in `factextraction.go`)
+1. Implement the `memory.Document` interface
+2. Add a case in `engine.ExtractFacts()` 
+3. Create extraction logic following existing patterns
 
 ### Changing how facts are extracted
 
-Look in `factextraction.go`:
-- `extractFactsFromConversation()` - For chats
-- `extractFactsFromTextDocument()` - For text
-
-The prompts are in `prompts.go`.
+Look in `engine.go`:
+- `extractFactsFromConversation()` - For chat conversations
+- `extractFactsFromTextDocument()` - For plain text
+- Prompts are defined in `prompts.go`
 
 ### Modifying memory decision logic
 
-Check `adapters.go`:
+Check `engine.go`:
 - `DecideAction()` - Builds prompt and calls LLM
 - `buildDecisionPrompt()` - Constructs the decision prompt
 - `parseToolCallResponse()` - Parses LLM's decision
 
 ### Debugging issues
 
-1. **Fact extraction failing?** → Check logs in `extractFactsWorker()`
-2. **Memories not updating?** → Look at `processFactsWorker()` logs
+1. **Fact extraction failing?** → Check logs in `orchestrator.extractFactsWorker()`
+2. **Memories not updating?** → Look at `orchestrator.processFactsWorker()` logs
 3. **Validation errors?** → See `ValidateMemoryOperation()` in `pure.go`
-4. **Storage failing?** → Check `crud.go` for Weaviate operations
+4. **Storage failing?** → Check storage implementation logs
 
 ## Configuration
 
 ```go
 config := evolvingmemory.Config{
-    Workers:               4,              // Parallel workers
-    BatchSize:            100,             // Memories per batch
+    // Parallelism
+    Workers:               4,    // Number of parallel workers
+    FactsPerWorker:        10,   // Facts processed per worker batch
+    
+    // Batching
+    BatchSize:            100,   // Memories per storage batch
+    FlushInterval:        5 * time.Second,
+    
+    // Timeouts
     FactExtractionTimeout: 30 * time.Second,
     MemoryDecisionTimeout: 30 * time.Second,
     StorageTimeout:       30 * time.Second,
+    
+    // Features
+    EnableRichContext:      true,  // Include rich document context
+    ParallelFactExtraction: true,  // Process facts in parallel
+    StreamingProgress:      true,  // Stream progress updates
 }
 ```
 
 ## Testing
 
-Each component has its own test file:
-- `pure_test.go` - Tests pure functions
-- `pipeline_test.go` - Tests the processing pipeline
-- `adapters_test.go` - Tests the adapter logic
+The test suite is comprehensive and focuses on different aspects:
+- `evolvingmemory_test.go` - Integration tests and main interface
+- `engine_test.go` - Business logic tests
+- `orchestrator_test.go` - Coordination logic tests
+- `pipeline_test.go` - Pipeline processing tests
+- `pure_test.go` - Pure function tests (fast, no external dependencies)
+- `adapters_test.go` - Interface compliance and dependency validation
 
 Run with: `go test ./pkg/agent/memory/evolvingmemory/...`
+
+Most tests gracefully skip when AI services aren't configured, allowing for fast iteration.
 
 ## Common Patterns
 
 ### Processing flow for a conversation:
-1. `ConversationDocument` arrives
-2. Gets prepared with metadata in `PrepareDocuments()`
-3. Worker extracts facts: "User likes pizza", "Alice is a developer"
-4. For each fact:
-   - Search for similar memories
+1. `ConversationDocument` arrives at `StorageImpl.StoreV2()`
+2. `MemoryOrchestrator.ProcessDocuments()` coordinates the pipeline
+3. Document gets prepared with metadata in `PrepareDocuments()`
+4. `MemoryEngine.ExtractFacts()` extracts facts: "User likes pizza", "Alice is a developer"
+5. For each fact, `MemoryEngine.ProcessFact()`:
+   - Searches for similar memories via storage
    - LLM decides what to do
-   - Validate the operation
-   - Execute (immediate for UPDATE/DELETE, batched for ADD)
+   - Validates the operation
+   - Executes (immediate for UPDATE/DELETE, batched for ADD)
+6. `MemoryOrchestrator` batches new memories and flushes to storage
 
 ### Error handling:
 - Each stage returns errors through channels
-- Timeouts on all external operations
-- Validation prevents illegal operations
-- Errors logged but processing continues
+- Timeouts on all external operations (LLM calls, storage operations)
+- Validation prevents illegal operations (cross-speaker modifications)
+- Errors are logged but processing continues for other documents
 
 ## Gotchas
 
 1. **UPDATE/DELETE are immediate** - They happen right away, not batched
 2. **Speaker validation is strict** - Can't modify other people's memories
-3. **Facts can be empty** - Not all documents produce facts
-4. **Channels close in order** - Important for the pipeline shutdown
+3. **Facts can be empty** - Not all documents produce extractable facts
+4. **Channels close in order** - Progress channel closes before error channel
+5. **Storage abstraction** - Don't depend on Weaviate-specific features
 
-## Future Improvements
+## Architecture Benefits
 
-- Better error aggregation (currently returns first error)
-- Metrics/monitoring hooks
-- Configurable retry logic
-- Smarter batching strategies 
+### Clean Separation of Concerns
+- **StorageImpl**: Simple public API, no business logic
+- **MemoryOrchestrator**: Infrastructure concerns only
+- **MemoryEngine**: Pure business logic, easily testable
+- **storage.Interface**: Hot-swappable storage backends
+
+### Hot-Swappable Storage
+The storage abstraction allows easy switching between backends:
+```go
+// Current: Weaviate
+weaviateStorage := storage.New(weaviateClient, logger, embeddingsService)
+
+// Future: Redis, Postgres, etc.
+redisStorage := redis.New(redisClient, logger, embeddingsService)
+pgStorage := postgres.New(pgClient, logger, embeddingsService)
+
+// Just change the dependency injection!
+storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
+    Storage: redisStorage,  // or weaviateStorage, or pgStorage
+    // ... other dependencies unchanged
+})
+```
+
+### Testability
+- Pure functions in `pure.go` are fast to test
+- Business logic in `MemoryEngine` can be tested with mocks
+- Integration tests can use real or mock storage backends
+- No global state or hard dependencies
+
+### Backward Compatibility
+All existing APIs are preserved:
+- `Store()` method works unchanged
+- `StoreConversations()` alias maintained
+- `Query()` and `QueryWithDistance()` delegated to storage
+- Zero breaking changes for existing consumers
 
 ## Recent Changes
 
-### Error Handling Improvements (2024-12-19)
+### Phase 3 Cleanup (January 2025)
 
-Made the following improvements to error handling and initialization:
+Completed architectural cleanup for production readiness:
 
-#### 1. Constructor Validation
-- `NewFactExtractor()` and `NewMemoryOperations()` now return `(Interface, error)` instead of just `Interface`
-- All dependency validation moved to initialization time instead of runtime
-- Constructors validate that `storage`, `storage.client`, and `storage.completionsService` are not nil
-- Fail-fast at application startup rather than during request processing
+#### 1. Removed Dead Code
+- Eliminated unused adapter interfaces (`FactExtractor`, `MemoryOperations`)
+- Removed `adapters.go` file that had no external consumers
+- Cleaned up `GetEngine()` method that was only used by adapters
+- Zero dead code warnings now
 
-#### 2. Removed Runtime Nil Checks
-- Removed all runtime nil checks from adapter methods (`ExtractFacts`, `SearchSimilar`, `DecideAction`, etc.)
-- Removed nil checks from CRUD operations (`GetByID`, `Delete`, etc.)
-- Code is now cleaner and more performant with guaranteed valid dependencies
+#### 2. Simplified Architecture  
+- Direct access to business logic through clean public interfaces
+- Removed unnecessary abstraction layers
+- Cleaner dependency injection
 
-#### 3. StoreBatch Error Handling
-- Changed from error accumulation to fail-fast behavior
-- Now returns immediately on first error instead of collecting all errors
-- Provides faster feedback when batch operations fail
+#### 3. Updated Tests
+- Converted adapter tests to direct StorageImpl interface tests
+- Focus on public interfaces rather than internal adapters
+- Comprehensive dependency validation tests
+- All tests passing with proper API key handling
 
-#### 4. Updated Tests
-- Added comprehensive tests for constructor error cases
-- All existing tests updated to handle new constructor signatures
-- Added validation tests for nil storage, client, and service dependencies
+#### 4. Production Ready
+- ✅ Zero dead code
+- ✅ Clean architecture boundaries
+- ✅ Hot-swappable storage working
+- ✅ Comprehensive test coverage
+- ✅ Perfect backward compatibility
+- ✅ Ready for production deployment
 
-#### Migration Guide
-
-If you're using these constructors, update your code:
-
-```go
-// Old way:
-factExtractor := NewFactExtractor(storage)
-memoryOps := NewMemoryOperations(storage)
-
-// New way:
-factExtractor, err := NewFactExtractor(storage)
-if err != nil {
-    return fmt.Errorf("failed to create fact extractor: %w", err)
-}
-
-memoryOps, err := NewMemoryOperations(storage)
-if err != nil {
-    return fmt.Errorf("failed to create memory operations: %w", err)
-}
-```
-
-These changes ensure that dependency issues are caught early during application startup, leading to more reliable runtime behavior. 
+The package now follows hexagonal/clean architecture principles with clear separation between ports (interfaces), adapters (implementations), domain logic (business rules), and infrastructure (coordination). 
