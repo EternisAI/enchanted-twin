@@ -156,6 +156,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 
 		logger.Info("Storing documents batch", "index", i, "batch_size", len(batch))
 
+
 		for j, doc := range batch {
 			logger.Info("Document being stored",
 				"batch_index", i,
@@ -170,6 +171,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 					return content
 				}())
 		}
+
 
 		err = mem.Store(ctx, batch, nil)
 		if err != nil {
@@ -187,6 +189,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
 	if err != nil {
 		return fmt.Errorf("failed to query memory: %w", err)
+
 	}
 
 	if len(result.Documents) > 0 {
@@ -265,6 +268,16 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	} else {
 		logger.Warn("No memories found in query result - skipping document reference test")
 	}
+
+	logger.Info("Waiting for all background fact processing to complete...")
+	select {
+	case <-time.After(3 * time.Second):
+	case <-ctx.Done():
+		return fmt.Errorf("context canceled during final wait: %w", ctx.Err())
+
+	}
+
+	logger.Info("🟢 Integration test completed successfully")
 
 	logger.Info("Waiting for all background fact processing to complete...")
 	select {
