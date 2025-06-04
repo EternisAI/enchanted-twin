@@ -430,6 +430,75 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		mockStorage.AssertExpectations(t)
 	})
+
+	t.Run("tags filtering", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Filter with tags - documents must contain ALL specified tags
+		filter := &memory.Filter{
+			Tags:  []string{"work", "important"},
+			Limit: intPtr(5),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{},
+			Documents: []memory.TextDocument{
+				{
+					FieldID:      "test-doc-1",
+					FieldContent: "Work meeting notes about important project",
+					FieldTags:    []string{"work", "important", "meeting"},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "project updates", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "project updates", filter)
+		require.NoError(t, err)
+		assert.Len(t, result.Documents, 1)
+		assert.Equal(t, "Work meeting notes about important project", result.Documents[0].Content())
+		assert.Contains(t, result.Documents[0].Tags(), "work")
+		assert.Contains(t, result.Documents[0].Tags(), "important")
+
+		mockStorage.AssertExpectations(t)
+	})
 }
 
 // TestFilterBehavior_EdgeCases tests edge cases in filter behavior.

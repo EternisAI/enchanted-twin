@@ -422,6 +422,16 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
 		}
 
+		if len(filter.Tags) > 0 {
+			// Use direct field filtering for tags - documents must contain ALL specified tags
+			tagsFilter := filters.Where().
+				WithPath([]string{tagsProperty}).
+				WithOperator(filters.ContainsAll).
+				WithValueText(filter.Tags...)
+			whereFilters = append(whereFilters, tagsFilter)
+			s.logger.Debug("Added tags filter", "tags", filter.Tags)
+		}
+
 		if len(whereFilters) > 0 {
 			combinedFilter := filters.Where().
 				WithOperator(filters.And).

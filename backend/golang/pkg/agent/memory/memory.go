@@ -9,10 +9,11 @@ import (
 
 // Filter provides structured filtering options for memory queries.
 type Filter struct {
-	Source      *string // Filter by document source
-	ContactName *string // Filter by contact/speaker name
-	Distance    float32 // Maximum semantic distance (0 = disabled)
-	Limit       *int    // Maximum number of results to return
+	Source      *string  // Filter by document source
+	ContactName *string  // Filter by contact/speaker name
+	Tags        []string // Filter by tags (documents must contain ALL specified tags)
+	Distance    float32  // Maximum semantic distance (0 = disabled)
+	Limit       *int     // Maximum number of results to return
 }
 
 // Document interface that both TextDocument and ConversationDocument implement.
