@@ -607,21 +607,21 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		WithLimit(10).
 		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
 
-	// Add WHERE filtering if metadata filters are provided
 	if len(metadataFilters) > 0 {
-		filterMap := metadataFilters[0] // Use first filter map if provided
+		filterMap := metadataFilters[0]
 		for key, value := range filterMap {
 			if key == "type" {
-				// Create a filter that looks for the type in the metadata JSON
-				// Since metadata is stored as JSON string, we need to use a Like operator
-				// to match the pattern: "type":"friend"
+				escapedValue := strings.ReplaceAll(value, `"`, `\"`)
+				escapedValue = strings.ReplaceAll(escapedValue, `*`, `\*`)
+				escapedValue = strings.ReplaceAll(escapedValue, `\`, `\\`)
+
 				whereFilter := filters.Where().
 					WithPath([]string{metadataProperty}).
 					WithOperator(filters.Like).
-					WithValueText(fmt.Sprintf(`*"%s":"%s"*`, key, value))
+					WithValueText(fmt.Sprintf(`*"%s":"%s"*`, key, escapedValue))
 
 				queryBuilder = queryBuilder.WithWhere(whereFilter)
-				s.logger.Debug("Added WHERE filter", "key", key, "value", value, "pattern", fmt.Sprintf(`*"%s":"%s"*`, key, value))
+				s.logger.Debug("Added WHERE filter", "key", key, "value", value, "pattern", fmt.Sprintf(`*"%s":"%s"*`, key, escapedValue))
 			}
 		}
 	}
