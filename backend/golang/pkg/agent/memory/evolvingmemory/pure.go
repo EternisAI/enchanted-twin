@@ -147,20 +147,6 @@ func CreateMemoryObjectWithDocumentReferences(fact ExtractedFact, decision Memor
 	return obj
 }
 
-// CreateMemoryObjectWithEmbedding builds the Weaviate object for ADD operations with embedding.
-func CreateMemoryObjectWithEmbedding(ctx context.Context, fact ExtractedFact, decision MemoryDecision, embeddingService *ai.Service) (*models.Object, error) {
-	obj := CreateMemoryObject(fact, decision)
-
-	// Generate embedding for the content
-	embedding, err := embeddingService.Embedding(ctx, fact.Content, openAIEmbedModel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate embedding: %w", err)
-	}
-
-	obj.Vector = toFloat32(embedding)
-	return obj, nil
-}
-
 // toFloat32 converts a slice of float64 to float32 for Weaviate compatibility.
 func toFloat32(embedding []float64) []float32 {
 	result := make([]float32, len(embedding))

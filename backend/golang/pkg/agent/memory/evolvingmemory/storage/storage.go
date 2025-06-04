@@ -719,19 +719,16 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 		return nil, fmt.Errorf("invalid properties type for object %s", memoryID)
 	}
 
-	// Get document reference IDs from the documentReferences property
 	refsInterface, exists := props[documentReferencesProperty]
 	if !exists {
-		// Fallback to old format for backward compatibility
 		metadataJSON, _ := props[metadataProperty].(string)
 		if metadataJSON != "" {
 			var metadata map[string]string
 			if err := json.Unmarshal([]byte(metadataJSON), &metadata); err == nil {
 				if oldDocID, exists := metadata["sourceDocumentId"]; exists && oldDocID != "" {
-					// This is old format - return with empty content for backward compatibility
 					return []*DocumentReference{{
 						ID:      oldDocID,
-						Content: "", // Will be empty in old format
+						Content: "",
 						Type:    metadata["sourceDocumentType"],
 					}}, nil
 				}
@@ -749,7 +746,6 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 		return nil, fmt.Errorf("no document references found for memory %s", memoryID)
 	}
 
-	// Convert interface{} array to string array
 	documentIDs := make([]string, len(refs))
 	for i, ref := range refs {
 		docID, ok := ref.(string)
@@ -759,7 +755,6 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 		documentIDs[i] = docID
 	}
 
-	// Retrieve each document from the document table
 	var references []*DocumentReference
 	for _, docID := range documentIDs {
 		storedDoc, err := s.GetStoredDocument(ctx, docID)
