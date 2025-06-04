@@ -756,10 +756,12 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	}
 
 	var references []*DocumentReference
+	var failedDocs []string
 	for _, docID := range documentIDs {
 		storedDoc, err := s.GetStoredDocument(ctx, docID)
 		if err != nil {
-			s.logger.Warnf("Failed to get stored document %s: %v", docID, err)
+			failedDocs = append(failedDocs, docID)
+			s.logger.Errorf("Failed to get stored document %s: %v", docID, err)
 			continue
 		}
 
@@ -771,10 +773,18 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	}
 
 	if len(references) == 0 {
+		if len(failedDocs) > 0 {
+			return nil, fmt.Errorf("all document retrievals failed. Failed documents: %v", failedDocs)
+		}
 		return nil, fmt.Errorf("no valid document references found for memory %s", memoryID)
 	}
 
-	return references, nil
+	var resultErr error
+	if len(failedDocs) > 0 {
+		resultErr = fmt.Errorf("failed to retrieve some documents: %v", failedDocs)
+	}
+
+	return references, resultErr
 }
 
 // StoreDocument stores a document in the separate document storage system.
