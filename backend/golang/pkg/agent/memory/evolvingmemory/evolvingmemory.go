@@ -170,7 +170,6 @@ type MemoryStorage interface {
 	StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error)
 
 	// Document reference operations - now supports multiple references per memory
-	GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error)
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 }
 
@@ -307,11 +306,6 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string) (memory.Query
 // QueryWithDistance implements the memory.Storage interface by delegating to the storage interface.
 func (s *StorageImpl) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
 	return s.storage.QueryWithDistance(ctx, queryText, metadataFilters...)
-}
-
-// GetDocumentReference retrieves the original document reference for a memory
-func (s *StorageImpl) GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error) {
-	return s.engine.GetDocumentReference(ctx, memoryID)
 }
 
 // GetDocumentReferences retrieves all document references for a memory
