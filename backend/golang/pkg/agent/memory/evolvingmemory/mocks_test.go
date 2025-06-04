@@ -46,8 +46,8 @@ func (m *MockStorage) DeleteAll(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
-	args := m.Called(ctx, queryText)
+func (m *MockStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	args := m.Called(ctx, queryText, filter)
 	if args.Get(0) == nil {
 		return memory.QueryResult{}, args.Error(1)
 	}
