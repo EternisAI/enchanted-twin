@@ -110,13 +110,11 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		return nil, fmt.Errorf("invalid properties type for object %s", id)
 	}
 
-	// Parse content
 	content, ok := props[contentProperty].(string)
 	if !ok {
 		return nil, fmt.Errorf("invalid content type for object %s", id)
 	}
 
-	// Parse timestamp
 	var timestamp *time.Time
 	if ts, ok := props[timestampProperty].(string); ok {
 		parsed, err := time.Parse(time.RFC3339, ts)
@@ -125,11 +123,34 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		}
 	}
 
-	// Parse metadata
 	metadata := make(map[string]string)
 	if metaStr, ok := props[metadataProperty].(string); ok {
 		if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
 			s.logger.Warnf("Failed to unmarshal metadata for object %s: %v", id, err)
+		}
+	}
+
+	var tags []string
+	if tagsInterface, ok := props[tagsProperty].([]interface{}); ok {
+		for _, tagInterface := range tagsInterface {
+			if tagStr, ok := tagInterface.(string); ok {
+				tags = append(tags, tagStr)
+			}
+		}
+	}
+
+	if docRefsInterface, ok := props[documentReferencesProperty].([]interface{}); ok {
+		var docRefs []string
+		for _, docRefInterface := range docRefsInterface {
+			if docRefStr, ok := docRefInterface.(string); ok {
+				docRefs = append(docRefs, docRefStr)
+			}
+		}
+		if len(docRefs) > 0 {
+			docRefsJSON, err := json.Marshal(docRefs)
+			if err == nil {
+				metadata[documentReferencesProperty] = string(docRefsJSON)
+			}
 		}
 	}
 
@@ -138,7 +159,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		FieldContent:   content,
 		FieldTimestamp: timestamp,
 		FieldMetadata:  metadata,
-		FieldTags:      []string{}, // Tags not currently stored
+		FieldTags:      tags,
 	}
 
 	return doc, nil
@@ -152,18 +173,15 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 		return fmt.Errorf("marshaling metadata: %w", err)
 	}
 
-	// Prepare properties
 	properties := map[string]interface{}{
 		contentProperty:  doc.Content(),
 		metadataProperty: string(metadataJSON),
 	}
 
-	// Add timestamp if provided
 	if doc.Timestamp() != nil {
 		properties[timestampProperty] = doc.Timestamp().Format(time.RFC3339)
 	}
 
-	// Perform the update
 	err = s.client.Data().Updater().
 		WithID(id).
 		WithClassName(ClassName).
@@ -209,7 +227,6 @@ func (s *WeaviateStorage) StoreBatch(ctx context.Context, objects []*models.Obje
 		return fmt.Errorf("batch storing objects: %w", err)
 	}
 
-	// Check for individual errors and fail on first error
 	for _, obj := range result {
 		if obj.Result.Errors != nil && len(obj.Result.Errors.Error) > 0 {
 			return fmt.Errorf("object error: %s", obj.Result.Errors.Error[0].Message)
@@ -246,7 +263,6 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 
 	s.logger.Info("Successfully deleted all memories by removing class", "class", ClassName)
 
-	// Recreate the schema
 	return s.EnsureSchemaExists(ctx)
 }
 
@@ -272,10 +288,8 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 	for _, class := range schema.Classes {
 		if class.Class == ClassName {
-			// Schema exists, validate it matches our expectations
 			s.logger.Infof("Schema for class %s already exists, validating...", ClassName)
 
-			// Basic validation - check properties exist
 			expectedProps := map[string]string{
 				contentProperty:            "text",
 				timestampProperty:          "date",
@@ -340,7 +354,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				IndexFilterable: &indexFilterable,
 			},
 		},
-		Vectorizer: "none", // We provide our own vectors
+		Vectorizer: "none",
 	}
 
 	err = s.client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
@@ -354,19 +368,16 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 // ensureDocumentClassExists ensures the document class schema exists.
 func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
-	// First, check if schema already exists
 	schema, err := s.client.Schema().Getter().Do(ctx)
 	if err != nil {
 		return fmt.Errorf("getting schema: %w", err)
 	}
 
-	// Check if our class already exists
 	for _, class := range schema.Classes {
 		if class.Class == DocumentClassName {
-			// Schema exists, validate it matches our expectations
+
 			s.logger.Infof("Schema for class %s already exists, validating...", DocumentClassName)
 
-			// Basic validation - check properties exist
 			expectedProps := map[string]string{
 				contentProperty:             "text",
 				documentContentHashProperty: "text",
@@ -383,7 +394,6 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 				}
 			}
 
-			// Check if all expected properties exist
 			for propName, propType := range expectedProps {
 				if existingType, exists := existingProps[propName]; exists {
 					if existingType != propType {
@@ -442,7 +452,7 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 				IndexFilterable: &indexFilterable,
 			},
 		},
-		Vectorizer: "none", // Documents don't need vectors
+		Vectorizer: "none",
 	}
 
 	err = s.client.Schema().ClassCreator().WithClass(classObj).Do(ctx)
@@ -705,82 +715,20 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		return nil, nil
 	}
 
-	typeField := weaviateGraphql.Field{Name: documentTypeProperty}
-	originalIDField := weaviateGraphql.Field{Name: documentOriginalIDProperty}
-	metadataField := weaviateGraphql.Field{Name: documentMetadataProperty}
-	createdAtField := weaviateGraphql.Field{Name: documentCreatedAtProperty}
-	contentField := weaviateGraphql.Field{Name: contentProperty}
-	additionalFields := weaviateGraphql.Field{
-		Name: "_additional",
-		Fields: []weaviateGraphql.Field{
-			{Name: "id"},
-		},
-	}
+	var allDocuments []*StoredDocument
 
-	pattern := fmt.Sprintf("(%s)", strings.Join(documentIDs, "|"))
-	whereFilter := filters.Where().
-		WithPath([]string{"_id"}).
-		WithOperator(filters.Like).
-		WithValueText(pattern)
-
-	result, err := s.client.GraphQL().Get().
-		WithClassName(DocumentClassName).
-		WithFields(contentField, typeField, originalIDField, metadataField, createdAtField, additionalFields).
-		WithWhere(whereFilter).
-		Do(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("executing batch document query: %w", err)
-	}
-
-	var documents []*StoredDocument
-	if result != nil && result.Data != nil {
-		if data, ok := result.Data["Get"].(map[string]interface{}); ok {
-			if docs, ok := data[DocumentClassName].([]interface{}); ok {
-				for _, doc := range docs {
-					if docMap, ok := doc.(map[string]interface{}); ok {
-						additional, _ := docMap["_additional"].(map[string]interface{})
-						id, _ := additional["id"].(string)
-
-						content, _ := docMap[contentProperty].(string)
-						docType, _ := docMap[documentTypeProperty].(string)
-						originalID, _ := docMap[documentOriginalIDProperty].(string)
-						contentHash, _ := docMap[documentContentHashProperty].(string)
-
-						var metadata map[string]string
-						if metaStr, ok := docMap[documentMetadataProperty].(string); ok {
-							if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
-								s.logger.Warn("Failed to unmarshal document metadata", "error", err)
-								metadata = make(map[string]string)
-							}
-						} else {
-							metadata = make(map[string]string)
-						}
-
-						var createdAt time.Time
-						if createdAtStr, ok := docMap[documentCreatedAtProperty].(string); ok {
-							if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-								createdAt = t
-							}
-						}
-
-						documents = append(documents, &StoredDocument{
-							ID:          id,
-							Content:     content,
-							Type:        docType,
-							OriginalID:  originalID,
-							ContentHash: contentHash,
-							Metadata:    metadata,
-							CreatedAt:   createdAt,
-						})
-					}
-				}
-			}
+	for _, docID := range documentIDs {
+		storedDoc, err := s.GetStoredDocument(ctx, docID)
+		if err != nil {
+			s.logger.Debug("Document not found", "id", docID, "error", err)
+			continue
 		}
+		allDocuments = append(allDocuments, storedDoc)
 	}
 
-	if len(documents) < len(documentIDs) {
+	if len(allDocuments) < len(documentIDs) {
 		foundIDs := make(map[string]bool)
-		for _, doc := range documents {
+		for _, doc := range allDocuments {
 			foundIDs[doc.ID] = true
 		}
 
@@ -793,7 +741,7 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		s.logger.Warn("Some documents were not found", "missing_ids", missingIDs)
 	}
 
-	return documents, nil
+	return allDocuments, nil
 }
 
 // GetDocumentReferences retrieves all document references for a memory.
