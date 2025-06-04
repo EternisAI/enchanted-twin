@@ -437,7 +437,9 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		// Filter with tags - documents must contain ALL specified tags
 		filter := &memory.Filter{
-			Tags:  []string{"work", "important"},
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "important"},
+			},
 			Limit: intPtr(5),
 		}
 
@@ -910,5 +912,343 @@ func TestPerformanceImplications(t *testing.T) {
 		// Distance filtering reduces result set size
 		filter.Distance = 0.8 // Strict similarity
 		assert.Equal(t, float32(0.8), filter.Distance)
+	})
+}
+
+// TestPolynomialTagsFiltering tests the new polynomial tags filtering capabilities.
+func TestPolynomialTagsFiltering(t *testing.T) {
+	t.Run("simple ALL logic (backward compatible)", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "important"},
+			},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.Len(t, filter.Tags.All, 2)
+		assert.Contains(t, filter.Tags.All, "work")
+		assert.Contains(t, filter.Tags.All, "important")
+		assert.Empty(t, filter.Tags.Any)
+		assert.Nil(t, filter.Tags.Expression)
+		assert.False(t, filter.Tags.IsEmpty())
+	})
+
+	t.Run("simple ANY logic", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Any: []string{"urgent", "deadline", "asap"},
+			},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.Empty(t, filter.Tags.All)
+		assert.Len(t, filter.Tags.Any, 3)
+		assert.Contains(t, filter.Tags.Any, "urgent")
+		assert.Contains(t, filter.Tags.Any, "deadline")
+		assert.Contains(t, filter.Tags.Any, "asap")
+		assert.Nil(t, filter.Tags.Expression)
+		assert.False(t, filter.Tags.IsEmpty())
+	})
+
+	t.Run("complex boolean expression - (A AND B) OR (C AND D)", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Expression: &memory.BooleanExpression{
+					Operator: memory.OR,
+					Left: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"work", "Q1"},
+					},
+					Right: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"personal", "urgent"},
+					},
+				},
+			},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.Empty(t, filter.Tags.All)
+		assert.Empty(t, filter.Tags.Any)
+		assert.NotNil(t, filter.Tags.Expression)
+		assert.Equal(t, memory.OR, filter.Tags.Expression.Operator)
+		assert.True(t, filter.Tags.Expression.IsBranch())
+		assert.False(t, filter.Tags.Expression.IsLeaf())
+		assert.False(t, filter.Tags.IsEmpty())
+
+		// Verify left branch: work AND Q1
+		leftExpr := filter.Tags.Expression.Left
+		assert.NotNil(t, leftExpr)
+		assert.Equal(t, memory.AND, leftExpr.Operator)
+		assert.True(t, leftExpr.IsLeaf())
+		assert.False(t, leftExpr.IsBranch())
+		assert.Contains(t, leftExpr.Tags, "work")
+		assert.Contains(t, leftExpr.Tags, "Q1")
+
+		// Verify right branch: personal AND urgent
+		rightExpr := filter.Tags.Expression.Right
+		assert.NotNil(t, rightExpr)
+		assert.Equal(t, memory.AND, rightExpr.Operator)
+		assert.True(t, rightExpr.IsLeaf())
+		assert.False(t, rightExpr.IsBranch())
+		assert.Contains(t, rightExpr.Tags, "personal")
+		assert.Contains(t, rightExpr.Tags, "urgent")
+	})
+
+	t.Run("empty tags filter", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: &memory.TagsFilter{},
+		}
+
+		assert.NotNil(t, filter.Tags)
+		assert.True(t, filter.Tags.IsEmpty())
+	})
+
+	t.Run("nil tags filter", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags: nil,
+		}
+
+		assert.Nil(t, filter.Tags)
+		// IsEmpty should handle nil gracefully
+		if filter.Tags != nil {
+			assert.True(t, filter.Tags.IsEmpty())
+		}
+	})
+}
+
+// TestTagsFilterAPI tests the API design and usability of the new tags filtering.
+func TestTagsFilterAPI(t *testing.T) {
+	t.Run("fluent API usage examples", func(t *testing.T) {
+		// Example 1: Simple work-related documents
+		workFilter := &memory.Filter{
+			Source: stringPtr("conversations"),
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "important"},
+			},
+		}
+		assert.Equal(t, "conversations", *workFilter.Source)
+		assert.Len(t, workFilter.Tags.All, 2)
+
+		// Example 2: Urgent items from any source
+		urgentFilter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Any: []string{"urgent", "asap", "deadline"},
+			},
+			Limit: intPtr(20),
+		}
+		assert.Len(t, urgentFilter.Tags.Any, 3)
+		assert.Equal(t, 20, *urgentFilter.Limit)
+
+		// Example 3: Complex project filtering
+		projectFilter := &memory.Filter{
+			Tags: &memory.TagsFilter{
+				Expression: &memory.BooleanExpression{
+					Operator: memory.OR,
+					Left: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"project", "alpha"},
+					},
+					Right: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"project", "beta"},
+					},
+				},
+			},
+			Distance: 0.8,
+		}
+		assert.NotNil(t, projectFilter.Tags.Expression)
+		assert.Equal(t, float32(0.8), projectFilter.Distance)
+	})
+
+	t.Run("expression validation", func(t *testing.T) {
+		// Valid leaf expression
+		leafExpr := &memory.BooleanExpression{
+			Operator: memory.AND,
+			Tags:     []string{"tag1", "tag2"},
+		}
+		assert.True(t, leafExpr.IsLeaf())
+		assert.False(t, leafExpr.IsBranch())
+
+		// Valid branch expression
+		branchExpr := &memory.BooleanExpression{
+			Operator: memory.OR,
+			Left: &memory.BooleanExpression{
+				Operator: memory.AND,
+				Tags:     []string{"left1"},
+			},
+			Right: &memory.BooleanExpression{
+				Operator: memory.OR,
+				Tags:     []string{"right1"},
+			},
+		}
+		assert.False(t, branchExpr.IsLeaf())
+		assert.True(t, branchExpr.IsBranch())
+
+		// Invalid expressions
+		emptyLeaf := &memory.BooleanExpression{
+			Operator: memory.AND,
+			Tags:     []string{}, // No tags
+		}
+		assert.False(t, emptyLeaf.IsLeaf())
+
+		incompleteBranch := &memory.BooleanExpression{
+			Operator: memory.OR,
+			Left:     leafExpr,
+			Right:    nil, // Missing operand
+		}
+		assert.False(t, incompleteBranch.IsBranch())
+	})
+}
+
+// TestTagsFilteringIntegrationUpgrade tests integration scenarios for the tags filtering upgrade.
+func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
+	t.Run("storage interface integration", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Test complex filter with multiple components
+		complexFilter := &memory.Filter{
+			Source:      stringPtr("conversations"),
+			ContactName: stringPtr("alice"),
+			Tags: &memory.TagsFilter{
+				Expression: &memory.BooleanExpression{
+					Operator: memory.OR,
+					Left: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"work", "Q1"},
+					},
+					Right: &memory.BooleanExpression{
+						Operator: memory.AND,
+						Tags:     []string{"personal", "urgent"},
+					},
+				},
+			},
+			Distance: 0.75,
+			Limit:    intPtr(8),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{},
+			Documents: []memory.TextDocument{
+				{
+					FieldID:      "complex-doc-1",
+					FieldContent: "Q1 work project with alice",
+					FieldSource:  "conversations",
+					FieldTags:    []string{"work", "Q1", "project"},
+					FieldMetadata: map[string]string{
+						"source":    "conversations",
+						"speakerID": "alice",
+					},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "project status", complexFilter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline (same as before)
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "project status", complexFilter)
+		require.NoError(t, err)
+
+		// Verify complex filtering worked
+		assert.Len(t, result.Documents, 1)
+		doc := result.Documents[0]
+		assert.Equal(t, "complex-doc-1", doc.ID())
+		assert.Contains(t, doc.Tags(), "work")
+		assert.Contains(t, doc.Tags(), "Q1")
+		assert.Equal(t, "conversations", doc.Source())
+		assert.Equal(t, "alice", doc.Metadata()["speakerID"])
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("performance comparison scenarios", func(t *testing.T) {
+		// Document the expected performance characteristics
+		performanceScenarios := []struct {
+			name        string
+			filter      *memory.Filter
+			expectation string
+		}{
+			{
+				name: "simple_all_tags",
+				filter: &memory.Filter{
+					Tags: &memory.TagsFilter{
+						All: []string{"work", "important"},
+					},
+				},
+				expectation: "Should use single ContainsAll query - very fast",
+			},
+			{
+				name: "simple_any_tags",
+				filter: &memory.Filter{
+					Tags: &memory.TagsFilter{
+						Any: []string{"urgent", "deadline"},
+					},
+				},
+				expectation: "Should use OR conditions - moderately fast",
+			},
+			{
+				name: "complex_expression",
+				filter: &memory.Filter{
+					Tags: &memory.TagsFilter{
+						Expression: &memory.BooleanExpression{
+							Operator: memory.AND,
+							Left: &memory.BooleanExpression{
+								Operator: memory.OR,
+								Tags:     []string{"project", "task"},
+							},
+							Right: &memory.BooleanExpression{
+								Operator: memory.AND,
+								Tags:     []string{"Q1", "important"},
+							},
+						},
+					},
+				},
+				expectation: "Should use nested boolean queries - slower but powerful",
+			},
+		}
+
+		for _, scenario := range performanceScenarios {
+			t.Run(scenario.name, func(t *testing.T) {
+				assert.NotNil(t, scenario.filter.Tags)
+				t.Logf("Filter: %+v", scenario.filter.Tags)
+				t.Logf("Performance expectation: %s", scenario.expectation)
+			})
+		}
 	})
 }

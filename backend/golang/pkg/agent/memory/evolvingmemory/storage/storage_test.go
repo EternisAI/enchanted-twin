@@ -441,60 +441,67 @@ func TestStorageInterface(t *testing.T) {
 func TestTagsFilteringIntegration(t *testing.T) {
 	t.Run("tags filtering with ContainsAll operator", func(t *testing.T) {
 		filter := &memory.Filter{
-			Tags:  []string{"work", "important"},
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "important"},
+			},
 			Limit: intPtr(5),
 		}
 
 		// Test the filter structure validation
 		assert.NotNil(t, filter.Tags)
-		assert.Len(t, filter.Tags, 2)
-		assert.Contains(t, filter.Tags, "work")
-		assert.Contains(t, filter.Tags, "important")
+		assert.Len(t, filter.Tags.All, 2)
+		assert.Contains(t, filter.Tags.All, "work")
+		assert.Contains(t, filter.Tags.All, "important")
 		assert.Equal(t, 5, *filter.Limit)
 
 		// Verify that tags filtering maps to the correct Weaviate schema field
 		// The storage implementation should use filters.ContainsAll with the tagsProperty field
 		expectedTags := []string{"work", "important"}
-		assert.Equal(t, expectedTags, filter.Tags)
+		assert.Equal(t, expectedTags, filter.Tags.All)
 	})
 
 	t.Run("schema alignment verification", func(t *testing.T) {
-		// Verify all Filter struct fields align with actual schema properties:
+		// This test verifies that our Filter.Tags field properly aligns with the Weaviate schema
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"), // Maps to sourceProperty
-			ContactName: stringPtr("alice"),         // Maps to speakerProperty
-			Tags:        []string{"work", "urgent"}, // Maps to tagsProperty ✅ NOW ALIGNED!
-			Distance:    0.8,                        // Used for nearVector queries
-			Limit:       intPtr(10),                 // Used for WithLimit
+			Source:      stringPtr("conversations"),
+			ContactName: stringPtr("alice"),
+			Tags: &memory.TagsFilter{
+				All: []string{"work", "urgent"},
+			},
+			Distance: 0.8,
+			Limit:    intPtr(10),
 		}
 
-		// All fields should be properly populated
+		// Verify all filter components are properly structured
 		assert.Equal(t, "conversations", *filter.Source)
 		assert.Equal(t, "alice", *filter.ContactName)
-		assert.Len(t, filter.Tags, 2)
-		assert.Contains(t, filter.Tags, "work")
-		assert.Contains(t, filter.Tags, "urgent")
+		assert.NotNil(t, filter.Tags)
+		assert.Len(t, filter.Tags.All, 2)
+		assert.Contains(t, filter.Tags.All, "work")
+		assert.Contains(t, filter.Tags.All, "urgent")
 		assert.Equal(t, float32(0.8), filter.Distance)
 		assert.Equal(t, 10, *filter.Limit)
 	})
 
-	t.Run("tags filtering behavior", func(t *testing.T) {
-		// Test that tags filtering correctly uses ContainsAll (documents must have ALL tags)
+	t.Run("comprehensive filter with all fields", func(t *testing.T) {
 		filter := &memory.Filter{
-			Tags: []string{"project", "meeting", "Q1"},
+			Tags: &memory.TagsFilter{
+				All: []string{"project", "meeting", "Q1"},
+			},
+			Limit: intPtr(20),
 		}
 
-		// This should find documents that contain ALL three tags
-		assert.Len(t, filter.Tags, 3)
+		// Test the filter structure validation
+		assert.NotNil(t, filter.Tags)
+		assert.Len(t, filter.Tags.All, 3)
+		assert.Contains(t, filter.Tags.All, "project")
+		assert.Contains(t, filter.Tags.All, "meeting")
+		assert.Contains(t, filter.Tags.All, "Q1")
+		assert.Equal(t, 20, *filter.Limit)
 
-		// An empty tags slice should not apply any tag filtering
-		emptyFilter := &memory.Filter{
-			Tags: []string{},
-		}
-		assert.Len(t, emptyFilter.Tags, 0)
-
-		// A nil filter should not break anything
-		var nilFilter *memory.Filter
-		assert.Nil(t, nilFilter)
+		// Verify that tags filtering maps to the correct Weaviate schema field
+		// The storage implementation should use filters.ContainsAll with the tagsProperty field
+		expectedTags := []string{"project", "meeting", "Q1"}
+		assert.Equal(t, expectedTags, filter.Tags.All)
 	})
 }

@@ -7,13 +7,37 @@ import (
 	"time"
 )
 
+// Boolean operators for tag filtering.
+const (
+	AND = "AND"
+	OR  = "OR"
+)
+
+// BooleanExpression represents a complex boolean expression for tag filtering.
+type BooleanExpression struct {
+	Operator string             `json:"operator"`
+	Tags     []string           `json:"tags,omitempty"`  // For leaf nodes
+	Left     *BooleanExpression `json:"left,omitempty"`  // For AND/OR nodes
+	Right    *BooleanExpression `json:"right,omitempty"` // For AND/OR nodes
+}
+
+// TagsFilter provides flexible tag filtering options supporting AND, OR, and complex boolean expressions.
+type TagsFilter struct {
+	// Simple cases (backward compatible)
+	All []string `json:"all,omitempty"` // Must contain ALL specified tags (AND logic)
+	Any []string `json:"any,omitempty"` // Must contain ANY of the specified tags (OR logic)
+
+	// Complex cases
+	Expression *BooleanExpression `json:"expression,omitempty"` // Complex boolean expressions
+}
+
 // Filter provides structured filtering options for memory queries.
 type Filter struct {
-	Source      *string  // Filter by document source
-	ContactName *string  // Filter by contact/speaker name
-	Tags        []string // Filter by tags (documents must contain ALL specified tags)
-	Distance    float32  // Maximum semantic distance (0 = disabled)
-	Limit       *int     // Maximum number of results to return
+	Source      *string     // Filter by document source
+	ContactName *string     // Filter by contact/speaker name
+	Tags        *TagsFilter // Filter by tags with boolean logic support
+	Distance    float32     // Maximum semantic distance (0 = disabled)
+	Limit       *int        // Maximum number of results to return
 }
 
 // Document interface that both TextDocument and ConversationDocument implement.
@@ -197,4 +221,22 @@ func ConversationDocumentsToDocuments(convDocs []ConversationDocument) []Documen
 		docs[i] = &doc
 	}
 	return docs
+}
+
+// IsEmpty returns true if the TagsFilter has no filtering criteria.
+func (tf *TagsFilter) IsEmpty() bool {
+	if tf == nil {
+		return true
+	}
+	return len(tf.All) == 0 && len(tf.Any) == 0 && tf.Expression == nil
+}
+
+// IsLeaf returns true if this is a leaf node (has tags).
+func (be *BooleanExpression) IsLeaf() bool {
+	return be != nil && len(be.Tags) > 0
+}
+
+// IsBranch returns true if this is a branch node (has left and right operands).
+func (be *BooleanExpression) IsBranch() bool {
+	return be != nil && be.Left != nil && be.Right != nil
 }

@@ -422,14 +422,16 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
 		}
 
-		if len(filter.Tags) > 0 {
-			// Use direct field filtering for tags - documents must contain ALL specified tags
-			tagsFilter := filters.Where().
-				WithPath([]string{tagsProperty}).
-				WithOperator(filters.ContainsAll).
-				WithValueText(filter.Tags...)
-			whereFilters = append(whereFilters, tagsFilter)
-			s.logger.Debug("Added tags filter", "tags", filter.Tags)
+		if filter.Tags != nil && !filter.Tags.IsEmpty() {
+			// Use the new TagsFilter structure
+			tagsFilter, err := s.buildTagsFilter(filter.Tags)
+			if err != nil {
+				return memory.QueryResult{}, fmt.Errorf("failed to build tags filter: %w", err)
+			}
+			if tagsFilter != nil {
+				whereFilters = append(whereFilters, tagsFilter)
+				s.logger.Debug("Added tags filter", "tagsFilter", filter.Tags)
+			}
 		}
 
 		if len(whereFilters) > 0 {
@@ -703,4 +705,126 @@ func (s *WeaviateStorage) addMetadataFields(ctx context.Context) error {
 
 	s.logger.Info("Successfully added new metadata fields to schema")
 	return nil
+}
+
+// buildTagsFilter creates a Weaviate filter from a TagsFilter structure.
+// It supports simple ALL/ANY logic as well as complex boolean expressions.
+func (s *WeaviateStorage) buildTagsFilter(tagsFilter *memory.TagsFilter) (*filters.WhereBuilder, error) {
+	if tagsFilter == nil || tagsFilter.IsEmpty() {
+		return nil, nil
+	}
+
+	// Handle simple ALL case (backward compatible)
+	if len(tagsFilter.All) > 0 {
+		s.logger.Debug("Building tags filter with ALL logic", "tags", tagsFilter.All)
+		return filters.Where().
+			WithPath([]string{tagsProperty}).
+			WithOperator(filters.ContainsAll).
+			WithValueText(tagsFilter.All...), nil
+	}
+
+	// Handle simple ANY case
+	if len(tagsFilter.Any) > 0 {
+		s.logger.Debug("Building tags filter with ANY logic", "tags", tagsFilter.Any)
+		// For ANY logic, we need to create OR conditions for each tag
+		var orFilters []*filters.WhereBuilder
+		for _, tag := range tagsFilter.Any {
+			tagFilter := filters.Where().
+				WithPath([]string{tagsProperty}).
+				WithOperator(filters.ContainsAny).
+				WithValueText(tag)
+			orFilters = append(orFilters, tagFilter)
+		}
+
+		if len(orFilters) == 1 {
+			return orFilters[0], nil
+		}
+
+		return filters.Where().
+			WithOperator(filters.Or).
+			WithOperands(orFilters), nil
+	}
+
+	// Handle complex boolean expression
+	if tagsFilter.Expression != nil {
+		s.logger.Debug("Building tags filter with complex expression")
+		return s.buildBooleanExpressionFilter(tagsFilter.Expression)
+	}
+
+	return nil, nil
+}
+
+// buildBooleanExpressionFilter recursively builds a Weaviate filter from a BooleanExpression.
+func (s *WeaviateStorage) buildBooleanExpressionFilter(expr *memory.BooleanExpression) (*filters.WhereBuilder, error) {
+	if expr == nil {
+		return nil, fmt.Errorf("boolean expression cannot be nil")
+	}
+
+	// Handle leaf nodes (tags)
+	if expr.IsLeaf() {
+		s.logger.Debug("Building leaf expression filter", "operator", expr.Operator, "tags", expr.Tags)
+
+		switch expr.Operator {
+		case memory.AND:
+			// For AND with multiple tags, use ContainsAll
+			return filters.Where().
+				WithPath([]string{tagsProperty}).
+				WithOperator(filters.ContainsAll).
+				WithValueText(expr.Tags...), nil
+		case memory.OR:
+			// For OR with multiple tags, create OR conditions
+			var orFilters []*filters.WhereBuilder
+			for _, tag := range expr.Tags {
+				tagFilter := filters.Where().
+					WithPath([]string{tagsProperty}).
+					WithOperator(filters.ContainsAny).
+					WithValueText(tag)
+				orFilters = append(orFilters, tagFilter)
+			}
+
+			if len(orFilters) == 1 {
+				return orFilters[0], nil
+			}
+
+			return filters.Where().
+				WithOperator(filters.Or).
+				WithOperands(orFilters), nil
+		default:
+			return nil, fmt.Errorf("unsupported boolean operator in leaf expression: %v", expr.Operator)
+		}
+	}
+
+	// Handle branch nodes (left and right operands)
+	if expr.IsBranch() {
+		s.logger.Debug("Building branch expression filter", "operator", expr.Operator)
+
+		leftFilter, err := s.buildBooleanExpressionFilter(expr.Left)
+		if err != nil {
+			return nil, fmt.Errorf("building left operand: %w", err)
+		}
+
+		rightFilter, err := s.buildBooleanExpressionFilter(expr.Right)
+		if err != nil {
+			return nil, fmt.Errorf("building right operand: %w", err)
+		}
+
+		if leftFilter == nil || rightFilter == nil {
+			return nil, fmt.Errorf("both left and right operands must be non-nil for branch expression")
+		}
+
+		switch expr.Operator {
+		case memory.AND:
+			return filters.Where().
+				WithOperator(filters.And).
+				WithOperands([]*filters.WhereBuilder{leftFilter, rightFilter}), nil
+		case memory.OR:
+			return filters.Where().
+				WithOperator(filters.Or).
+				WithOperands([]*filters.WhereBuilder{leftFilter, rightFilter}), nil
+		default:
+			return nil, fmt.Errorf("unsupported boolean operator in branch expression: %v", expr.Operator)
+		}
+	}
+
+	return nil, fmt.Errorf("boolean expression must be either a leaf node (with tags) or a branch node (with left/right operands)")
 }
