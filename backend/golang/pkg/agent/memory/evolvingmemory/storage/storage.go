@@ -67,7 +67,6 @@ type Interface interface {
 	EnsureSchemaExists(ctx context.Context) error
 
 	// Document reference operations - now supports multiple references
-	GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error)
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 
 	// Document storage operations
@@ -226,7 +225,6 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 	// Note: For v5 client, we need to delete the class and recreate it
 	// as batch delete with filters has changed significantly
 
-	// Check if class exists before trying to delete
 	exists, err := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 	if err != nil {
 		return fmt.Errorf("checking class existence before delete all for '%s': %w", ClassName, err)
@@ -236,10 +234,9 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 		return nil
 	}
 
-	// Delete the entire class
 	err = s.client.Schema().ClassDeleter().WithClassName(ClassName).Do(ctx)
 	if err != nil {
-		// Check if it was deleted concurrently
+
 		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 		if checkErr == nil && !existsAfterAttempt {
 			s.logger.Info("Class was deleted, possibly concurrently.", "class", ClassName)
@@ -256,12 +253,10 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 
 // EnsureSchemaExists ensures the Weaviate schema exists for both Memory and Document classes.
 func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
-	// Ensure memory class exists
 	if err := s.ensureMemoryClassExists(ctx); err != nil {
 		return err
 	}
 
-	// Ensure document class exists
 	if err := s.ensureDocumentClassExists(ctx); err != nil {
 		return err
 	}
@@ -271,13 +266,11 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 
 // ensureMemoryClassExists ensures the memory class schema exists
 func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
-	// First, check if schema already exists
 	schema, err := s.client.Schema().Getter().Do(ctx)
 	if err != nil {
 		return fmt.Errorf("getting schema: %w", err)
 	}
 
-	// Check if our class already exists
 	for _, class := range schema.Classes {
 		if class.Class == ClassName {
 			// Schema exists, validate it matches our expectations
@@ -299,14 +292,12 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				}
 			}
 
-			// Check if all expected properties exist (but allow missing ones for backward compatibility)
 			for propName, propType := range expectedProps {
 				if existingType, exists := existingProps[propName]; exists {
 					if existingType != propType {
 						return fmt.Errorf("property %s has type %s, expected %s", propName, existingType, propType)
 					}
 				} else {
-					// Missing property - this is OK for backward compatibility
 					s.logger.Infof("Property %s is missing from schema but will be added automatically", propName)
 				}
 			}
@@ -316,7 +307,6 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 		}
 	}
 
-	// Schema doesn't exist, create it
 	s.logger.Infof("Creating schema for class %s", ClassName)
 
 	indexFilterable := true
@@ -710,43 +700,7 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 	return memory.QueryWithDistanceResult{Documents: finalResults}, nil
 }
 
-// GetDocumentReference retrieves the original document information for a memory
-func (s *WeaviateStorage) GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error) {
-	result, err := s.client.Data().ObjectsGetter().
-		WithID(memoryID).
-		WithClassName(ClassName).
-		Do(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("getting object by ID: %w", err)
-	}
-
-	if len(result) == 0 {
-		return nil, fmt.Errorf("no object found with ID %s", memoryID)
-	}
-
-	obj := result[0]
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid properties type for object %s", memoryID)
-	}
-
-	sourceDocID, _ := props[documentOriginalIDProperty].(string)
-	sourceDocContent, _ := props[documentContentHashProperty].(string)
-	sourceDocType, _ := props[documentTypeProperty].(string)
-
-	// If no document reference properties are found, it might be an older memory
-	if sourceDocID == "" {
-		return nil, fmt.Errorf("no document reference found for memory %s", memoryID)
-	}
-
-	return &DocumentReference{
-		ID:      sourceDocID,
-		Content: sourceDocContent,
-		Type:    sourceDocType,
-	}, nil
-}
-
-// GetDocumentReferences retrieves all document references for a memory
+// GetDocumentReferences retrieves all document references for a memory from the separate document table
 func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(memoryID).
@@ -766,31 +720,67 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 		return nil, fmt.Errorf("invalid properties type for object %s", memoryID)
 	}
 
-	refs, _ := props[documentReferencesProperty].([]interface{})
-	refsLen := len(refs)
-	if refsLen == 0 {
+	// Get document reference IDs from the documentReferences property
+	refsInterface, exists := props[documentReferencesProperty]
+	if !exists {
+		// Fallback to old format for backward compatibility
+		metadataJSON, _ := props[metadataProperty].(string)
+		if metadataJSON != "" {
+			var metadata map[string]string
+			if err := json.Unmarshal([]byte(metadataJSON), &metadata); err == nil {
+				if oldDocID, exists := metadata["sourceDocumentId"]; exists && oldDocID != "" {
+					// This is old format - return with empty content for backward compatibility
+					return []*DocumentReference{{
+						ID:      oldDocID,
+						Content: "", // Will be empty in old format
+						Type:    metadata["sourceDocumentType"],
+					}}, nil
+				}
+			}
+		}
 		return nil, fmt.Errorf("no document references found for memory %s", memoryID)
 	}
 
-	documents := make([]*DocumentReference, refsLen)
-	for i, ref := range refs {
-		refMap, ok := ref.(map[string]interface{})
-		if !ok {
-			return nil, fmt.Errorf("invalid reference format for memory %s", memoryID)
-		}
-
-		refID, _ := refMap[documentOriginalIDProperty].(string)
-		refContent, _ := refMap[documentContentHashProperty].(string)
-		refType, _ := refMap[documentTypeProperty].(string)
-
-		documents[i] = &DocumentReference{
-			ID:      refID,
-			Content: refContent,
-			Type:    refType,
-		}
+	refs, ok := refsInterface.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid documentReferences format for memory %s", memoryID)
 	}
 
-	return documents, nil
+	if len(refs) == 0 {
+		return nil, fmt.Errorf("no document references found for memory %s", memoryID)
+	}
+
+	// Convert interface{} array to string array
+	documentIDs := make([]string, len(refs))
+	for i, ref := range refs {
+		docID, ok := ref.(string)
+		if !ok {
+			return nil, fmt.Errorf("invalid document reference ID format for memory %s", memoryID)
+		}
+		documentIDs[i] = docID
+	}
+
+	// Retrieve each document from the document table
+	var references []*DocumentReference
+	for _, docID := range documentIDs {
+		storedDoc, err := s.GetStoredDocument(ctx, docID)
+		if err != nil {
+			s.logger.Warnf("Failed to get stored document %s: %v", docID, err)
+			continue
+		}
+
+		references = append(references, &DocumentReference{
+			ID:      storedDoc.OriginalID,
+			Content: storedDoc.Content,
+			Type:    storedDoc.Type,
+		})
+	}
+
+	if len(references) == 0 {
+		return nil, fmt.Errorf("no valid document references found for memory %s", memoryID)
+	}
+
+	return references, nil
 }
 
 // StoreDocument stores a document in the separate document table with deduplication

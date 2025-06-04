@@ -156,6 +156,21 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 
 		logger.Info("Storing documents batch", "index", i, "batch_size", len(batch))
 
+		for j, doc := range batch {
+			logger.Info("Document being stored",
+				"batch_index", i,
+				"doc_index", j,
+				"doc_id", doc.ID(),
+				"content_length", len(doc.Content()),
+				"content_preview", func() string {
+					content := doc.Content()
+					if len(content) > 100 {
+						return content[:100] + "..."
+					}
+					return content
+				}())
+		}
+
 		err = mem.Store(ctx, batch, nil)
 		if err != nil {
 			return fmt.Errorf("failed to store documents: %w", err)
@@ -180,22 +195,56 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 			memoryID := doc.ID()
 			memoryContent := doc.Content()
 
-			logger.Info("Testing document reference", "memory_id", memoryID, "memory_content", memoryContent)
+			logger.Info("Testing document reference",
+				"memory_id", memoryID,
+				"memory_content", memoryContent,
+				"memory_content_length", len(memoryContent))
 
-			docRef, err := mem.GetDocumentReference(ctx, memoryID)
+			logger.Info("About to call GetDocumentReference", "memory_id", memoryID)
+
+			docRefs, err := mem.GetDocumentReferences(ctx, memoryID)
 			if err != nil {
+				logger.Error("Failed to get document reference",
+					"error", err,
+					"memory_id", memoryID)
 				return fmt.Errorf("failed to get document reference: %w", err)
 			}
 
+			if len(docRefs) == 0 {
+				logger.Error("No document references found", "memory_id", memoryID)
+				return fmt.Errorf("no document references found for memory %s", memoryID)
+			}
+
+			docRef := docRefs[0]
+
+			logger.Info("GetDocumentReference returned",
+				"memory_id", memoryID,
+				"docRef_id", docRef.ID,
+				"docRef_type", docRef.Type,
+				"docRef_content_length", len(docRef.Content),
+				"docRef_content_empty", docRef.Content == "")
+
 			if docRef.ID == "" {
+				logger.Error("Document reference validation failed: empty ID",
+					"memory_id", memoryID,
+					"docRef_id", docRef.ID,
+					"docRef_type", docRef.Type)
 				return fmt.Errorf("document reference has empty ID")
 			}
 
 			if docRef.Content == "" {
+				logger.Error("Document reference validation failed: empty content",
+					"memory_id", memoryID,
+					"docRef_id", docRef.ID,
+					"docRef_type", docRef.Type)
 				return fmt.Errorf("document reference has empty content")
 			}
 
 			if docRef.Type == "" {
+				logger.Error("Document reference validation failed: empty type",
+					"memory_id", memoryID,
+					"docRef_id", docRef.ID,
+					"docRef_content_length", len(docRef.Content))
 				return fmt.Errorf("document reference has empty type")
 			}
 
