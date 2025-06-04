@@ -72,6 +72,7 @@ type Interface interface {
 	// Document storage operations
 	StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
+	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
 }
 
 // WeaviateStorage implements the storage interface using Weaviate.
@@ -715,17 +716,98 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		return nil, nil
 	}
 
-	var allDocuments []*StoredDocument
-
-	for _, docID := range documentIDs {
-		storedDoc, err := s.GetStoredDocument(ctx, docID)
-		if err != nil {
-			s.logger.Debug("Document not found", "id", docID, "error", err)
-			continue
-		}
-		allDocuments = append(allDocuments, storedDoc)
+	// Build GraphQL query with WHERE filter for multiple IDs
+	fields := []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: documentContentHashProperty},
+		{Name: documentTypeProperty},
+		{Name: documentOriginalIDProperty},
+		{Name: documentMetadataProperty},
+		{Name: documentCreatedAtProperty},
+		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
 	}
 
+	// Create WHERE filter for multiple IDs using ContainsAny with spread operator
+	whereFilter := filters.Where().
+		WithPath([]string{"id"}).
+		WithOperator(filters.ContainsAny).
+		WithValueText(documentIDs...)
+
+	result, err := s.client.GraphQL().Get().
+		WithClassName(DocumentClassName).
+		WithFields(fields...).
+		WithWhere(whereFilter).
+		WithLimit(len(documentIDs)). // Ensure we can get all requested documents
+		Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("batch query for documents: %w", err)
+	}
+
+	if len(result.Errors) > 0 {
+		var errorMsgs []string
+		for _, err := range result.Errors {
+			errorMsgs = append(errorMsgs, err.Message)
+		}
+		return nil, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMsgs, "; "))
+	}
+
+	var allDocuments []*StoredDocument
+	data, ok := result.Data["Get"].(map[string]interface{})
+	if !ok {
+		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
+		return allDocuments, nil
+	}
+
+	classData, ok := data[DocumentClassName].([]interface{})
+	if !ok {
+		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", DocumentClassName)
+		return allDocuments, nil
+	}
+
+	// Process results
+	for _, item := range classData {
+		obj, okMap := item.(map[string]interface{})
+		if !okMap {
+			s.logger.Warn("Retrieved item is not a map, skipping", "item", item)
+			continue
+		}
+
+		additional, _ := obj["_additional"].(map[string]interface{})
+		id, _ := additional["id"].(string)
+
+		content, _ := obj[contentProperty].(string)
+		contentHash, _ := obj[documentContentHashProperty].(string)
+		docType, _ := obj[documentTypeProperty].(string)
+		originalID, _ := obj[documentOriginalIDProperty].(string)
+		metadataJSON, _ := obj[documentMetadataProperty].(string)
+		createdAt, _ := obj[documentCreatedAtProperty].(string)
+
+		var metadata map[string]string
+		if metadataJSON != "" {
+			if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+				s.logger.Warnf("Failed to unmarshal metadata for document %s: %v", id, err)
+				metadata = make(map[string]string)
+			}
+		} else {
+			metadata = make(map[string]string)
+		}
+
+		parsedCreatedAt, _ := time.Parse(time.RFC3339, createdAt)
+
+		doc := &StoredDocument{
+			ID:          id,
+			Content:     content,
+			Type:        docType,
+			OriginalID:  originalID,
+			ContentHash: contentHash,
+			Metadata:    metadata,
+			CreatedAt:   parsedCreatedAt,
+		}
+
+		allDocuments = append(allDocuments, doc)
+	}
+
+	// Log if some documents were not found
 	if len(allDocuments) < len(documentIDs) {
 		foundIDs := make(map[string]bool)
 		for _, doc := range allDocuments {
