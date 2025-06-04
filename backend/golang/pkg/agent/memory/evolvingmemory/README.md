@@ -361,8 +361,7 @@ evolvingmemory/
 - `ExtractFacts()` - LLM-based fact extraction
 - `ProcessFact()` - Memory decision making
 - `ExecuteDecision()` - Memory updates
-- `GetDocumentReference()` - Single document reference retrieval
-- `GetDocumentReferences()` - Multiple document references retrieval
+- `GetDocumentReferences()` - Document references retrieval
 
 **orchestrator.go** - Infrastructure coordination:
 - `MemoryOrchestrator` - Coordinates workers and channels
