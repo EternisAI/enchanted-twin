@@ -101,7 +101,7 @@ func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
-	result, err := s.memoryService.Query(ctx, "what do you know about me")
+	result, err := s.memoryService.Query(ctx, "what do you know about me", nil)
 	if err != nil {
 		s.logger.Error("Failed to fetch memories", "error", err)
 		return "", err
@@ -120,7 +120,7 @@ func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
 		return "", nil
 	}
 
-	result, err := s.memoryService.Query(ctx, "user memories personal experiences activities")
+	result, err := s.memoryService.Query(ctx, "user memories personal experiences activities", nil)
 	if err != nil {
 		s.logger.Error("Failed to fetch random memory", "error", err)
 		return "", err

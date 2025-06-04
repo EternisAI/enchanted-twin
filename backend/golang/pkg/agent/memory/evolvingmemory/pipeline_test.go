@@ -23,7 +23,7 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 
 	// Create mock storage interface
 	mockStorage := &MockStorage{}
-	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string")).Return(memory.QueryResult{
+	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("*memory.Filter")).Return(memory.QueryResult{
 		Facts:     []memory.MemoryFact{},
 		Documents: []memory.TextDocument{},
 	}, nil)
