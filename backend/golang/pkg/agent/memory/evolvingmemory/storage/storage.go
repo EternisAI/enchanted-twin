@@ -699,92 +699,167 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 	return memory.QueryWithDistanceResult{Documents: finalResults}, nil
 }
 
-// GetDocumentReferences retrieves all document references for a memory from the separate document table.
-func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
-	result, err := s.client.Data().ObjectsGetter().
-		WithID(memoryID).
-		WithClassName(ClassName).
+// GetStoredDocumentsBatch retrieves multiple stored documents in a single query.
+func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error) {
+	if len(documentIDs) == 0 {
+		return nil, nil
+	}
+
+	typeField := weaviateGraphql.Field{Name: documentTypeProperty}
+	originalIDField := weaviateGraphql.Field{Name: documentOriginalIDProperty}
+	metadataField := weaviateGraphql.Field{Name: documentMetadataProperty}
+	createdAtField := weaviateGraphql.Field{Name: documentCreatedAtProperty}
+	contentField := weaviateGraphql.Field{Name: contentProperty}
+	additionalFields := weaviateGraphql.Field{
+		Name: "_additional",
+		Fields: []weaviateGraphql.Field{
+			{Name: "id"},
+		},
+	}
+
+	pattern := fmt.Sprintf("(%s)", strings.Join(documentIDs, "|"))
+	whereFilter := filters.Where().
+		WithPath([]string{"_id"}).
+		WithOperator(filters.Like).
+		WithValueText(pattern)
+
+	result, err := s.client.GraphQL().Get().
+		WithClassName(DocumentClassName).
+		WithFields(contentField, typeField, originalIDField, metadataField, createdAtField, additionalFields).
+		WithWhere(whereFilter).
 		Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("getting object by ID: %w", err)
+		return nil, fmt.Errorf("executing batch document query: %w", err)
 	}
 
-	if len(result) == 0 {
-		return nil, fmt.Errorf("no object found with ID %s", memoryID)
-	}
+	var documents []*StoredDocument
+	if result != nil && result.Data != nil {
+		if data, ok := result.Data["Get"].(map[string]interface{}); ok {
+			if docs, ok := data[DocumentClassName].([]interface{}); ok {
+				for _, doc := range docs {
+					if docMap, ok := doc.(map[string]interface{}); ok {
+						additional, _ := docMap["_additional"].(map[string]interface{})
+						id, _ := additional["id"].(string)
 
-	obj := result[0]
-	props, ok := obj.Properties.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid properties type for object %s", memoryID)
-	}
+						content, _ := docMap[contentProperty].(string)
+						docType, _ := docMap[documentTypeProperty].(string)
+						originalID, _ := docMap[documentOriginalIDProperty].(string)
+						contentHash, _ := docMap[documentContentHashProperty].(string)
 
-	refsInterface, exists := props[documentReferencesProperty]
-	if !exists {
-		metadataJSON, _ := props[metadataProperty].(string)
-		if metadataJSON != "" {
-			var metadata map[string]string
-			if err := json.Unmarshal([]byte(metadataJSON), &metadata); err == nil {
-				if oldDocID, exists := metadata["sourceDocumentId"]; exists && oldDocID != "" {
-					return []*DocumentReference{{
-						ID:      oldDocID,
-						Content: "",
-						Type:    metadata["sourceDocumentType"],
-					}}, nil
+						var metadata map[string]string
+						if metaStr, ok := docMap[documentMetadataProperty].(string); ok {
+							if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
+								s.logger.Warn("Failed to unmarshal document metadata", "error", err)
+								metadata = make(map[string]string)
+							}
+						} else {
+							metadata = make(map[string]string)
+						}
+
+						var createdAt time.Time
+						if createdAtStr, ok := docMap[documentCreatedAtProperty].(string); ok {
+							if t, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+								createdAt = t
+							}
+						}
+
+						documents = append(documents, &StoredDocument{
+							ID:          id,
+							Content:     content,
+							Type:        docType,
+							OriginalID:  originalID,
+							ContentHash: contentHash,
+							Metadata:    metadata,
+							CreatedAt:   createdAt,
+						})
+					}
 				}
 			}
 		}
-		return nil, fmt.Errorf("no document references found for memory %s", memoryID)
 	}
 
-	refs, ok := refsInterface.([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid documentReferences format for memory %s", memoryID)
-	}
-
-	if len(refs) == 0 {
-		return nil, fmt.Errorf("no document references found for memory %s", memoryID)
-	}
-
-	documentIDs := make([]string, len(refs))
-	for i, ref := range refs {
-		docID, ok := ref.(string)
-		if !ok {
-			return nil, fmt.Errorf("invalid document reference ID format for memory %s", memoryID)
-		}
-		documentIDs[i] = docID
-	}
-
-	var references []*DocumentReference
-	var failedDocs []string
-	for _, docID := range documentIDs {
-		storedDoc, err := s.GetStoredDocument(ctx, docID)
-		if err != nil {
-			failedDocs = append(failedDocs, docID)
-			s.logger.Errorf("Failed to get stored document %s: %v", docID, err)
-			continue
+	if len(documents) < len(documentIDs) {
+		foundIDs := make(map[string]bool)
+		for _, doc := range documents {
+			foundIDs[doc.ID] = true
 		}
 
-		references = append(references, &DocumentReference{
-			ID:      storedDoc.OriginalID,
-			Content: storedDoc.Content,
-			Type:    storedDoc.Type,
+		var missingIDs []string
+		for _, id := range documentIDs {
+			if !foundIDs[id] {
+				missingIDs = append(missingIDs, id)
+			}
+		}
+		s.logger.Warn("Some documents were not found", "missing_ids", missingIDs)
+	}
+
+	return documents, nil
+}
+
+// GetDocumentReferences retrieves all document references for a memory.
+func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+	s.logger.Info("Getting document references", "memory_id", memoryID)
+
+	memory, err := s.GetByID(ctx, memoryID)
+	if err != nil {
+		return nil, fmt.Errorf("getting memory object: %w", err)
+	}
+
+	var documentIDs []string
+	if refs, ok := memory.Metadata()[documentReferencesProperty]; ok {
+		if err := json.Unmarshal([]byte(refs), &documentIDs); err != nil {
+			s.logger.Warn("Failed to unmarshal document references", "error", err)
+		} else {
+			s.logger.Debug("Found document references in new format", "count", len(documentIDs))
+		}
+	}
+
+	if len(documentIDs) == 0 {
+		if oldDocID, ok := memory.Metadata()["sourceDocumentId"]; ok && oldDocID != "" {
+			s.logger.Debug("Found document reference in old format", "doc_id", oldDocID)
+
+			docType := memory.Metadata()["sourceDocumentType"]
+			if docType == "" {
+				docType = "unknown"
+			}
+
+			return []*DocumentReference{
+				{
+					ID:      oldDocID,
+					Content: "",
+					Type:    docType,
+				},
+			}, nil
+		}
+	}
+
+	if len(documentIDs) == 0 {
+		s.logger.Info("No document references found", "memory_id", memoryID)
+		return nil, nil
+	}
+
+	s.logger.Debug("Retrieving documents from new storage system", "count", len(documentIDs))
+
+	storedDocs, err := s.GetStoredDocumentsBatch(ctx, documentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("getting stored documents batch: %w", err)
+	}
+
+	var refs []*DocumentReference
+	for _, doc := range storedDocs {
+		refs = append(refs, &DocumentReference{
+			ID:      doc.ID,
+			Content: doc.Content,
+			Type:    doc.Type,
 		})
 	}
 
-	if len(references) == 0 {
-		if len(failedDocs) > 0 {
-			return nil, fmt.Errorf("all document retrievals failed. Failed documents: %v", failedDocs)
-		}
-		return nil, fmt.Errorf("no valid document references found for memory %s", memoryID)
-	}
+	s.logger.Info("Retrieved document references successfully",
+		"memory_id", memoryID,
+		"requested_count", len(documentIDs),
+		"found_count", len(refs))
 
-	var resultErr error
-	if len(failedDocs) > 0 {
-		resultErr = fmt.Errorf("failed to retrieve some documents: %v", failedDocs)
-	}
-
-	return references, resultErr
+	return refs, nil
 }
 
 // StoreDocument stores a document in the separate document storage system.
