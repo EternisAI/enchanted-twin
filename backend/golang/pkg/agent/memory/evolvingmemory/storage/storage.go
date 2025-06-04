@@ -782,147 +782,89 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	return references, nil
 }
 
-// StoreDocument stores a document in the separate document table with deduplication.
+// StoreDocument stores a document in the separate document storage system.
+// It returns the document ID if successful.
 func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
-	contentHash := sha256.New()
-	contentHash.Write([]byte(content))
-	contentHashStr := hex.EncodeToString(contentHash.Sum(nil))
-
-	// Check if document with this content hash already exists
-	existingDoc, err := s.findDocumentByContentHash(ctx, contentHashStr)
-	if err == nil && existingDoc != nil {
-		// Document already exists, return existing ID
-		s.logger.Infof("Document with content hash %s already exists, reusing ID %s", contentHashStr, existingDoc.ID)
-		return existingDoc.ID, nil
-	}
-
-	// Serialize metadata to JSON
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return "", fmt.Errorf("marshaling metadata: %w", err)
-	}
-
-	doc := &models.Object{
-		Class: DocumentClassName,
-		Properties: map[string]interface{}{
-			contentProperty:             content,
-			documentContentHashProperty: contentHashStr,
-			documentTypeProperty:        docType,
-			documentOriginalIDProperty:  originalID,
-			documentMetadataProperty:    string(metadataJSON),
-			documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
-		},
-	}
-
-	// Use batch API like the existing StoreBatch method
-	batcher := s.client.Batch().ObjectsBatcher()
-	batcher = batcher.WithObjects(doc)
-
-	result, err := batcher.Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("storing document: %w", err)
-	}
-
-	// Check for errors
-	if len(result) == 0 {
-		return "", fmt.Errorf("no result from batch operation")
-	}
-
-	if result[0].Result.Errors != nil && len(result[0].Result.Errors.Error) > 0 {
-		return "", fmt.Errorf("object error: %s", result[0].Result.Errors.Error[0].Message)
-	}
-
-	// Since we can't easily get the ID from batch result, query for the document we just created
-	storedDoc, err := s.findDocumentByContentHash(ctx, contentHashStr)
-	if err != nil {
-		return "", fmt.Errorf("finding stored document: %w", err)
-	}
-
-	s.logger.Infof("Successfully stored document with ID %s and content hash %s", storedDoc.ID, contentHashStr)
-	return storedDoc.ID, nil
-}
-
-// findDocumentByContentHash looks for an existing document with the same content hash.
-func (s *WeaviateStorage) findDocumentByContentHash(ctx context.Context, contentHash string) (*StoredDocument, error) {
-	// Use GraphQL to query for documents with matching content hash
-	contentHashField := weaviateGraphql.Field{Name: documentContentHashProperty}
-	typeField := weaviateGraphql.Field{Name: documentTypeProperty}
-	originalIDField := weaviateGraphql.Field{Name: documentOriginalIDProperty}
-	metadataField := weaviateGraphql.Field{Name: documentMetadataProperty}
-	createdAtField := weaviateGraphql.Field{Name: documentCreatedAtProperty}
-	additionalFields := weaviateGraphql.Field{
-		Name: "_additional",
-		Fields: []weaviateGraphql.Field{
-			{Name: "id"},
-		},
-	}
+	hasher := sha256.New()
+	hasher.Write([]byte(content))
+	contentHash := hex.EncodeToString(hasher.Sum(nil))
 
 	whereFilter := filters.Where().
 		WithPath([]string{documentContentHashProperty}).
 		WithOperator(filters.Equal).
 		WithValueText(contentHash)
 
-	queryBuilder := s.client.GraphQL().Get().
+	fields := []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: documentContentHashProperty},
+		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
+	}
+
+	result, err := s.client.GraphQL().Get().
 		WithClassName(DocumentClassName).
+		WithFields(fields...).
 		WithWhere(whereFilter).
-		WithLimit(1).
-		WithFields(contentHashField, typeField, originalIDField, metadataField, createdAtField, additionalFields)
-
-	resp, err := queryBuilder.Do(ctx)
+		Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query for existing document: %w", err)
+		return "", fmt.Errorf("checking for existing document: %w", err)
 	}
 
-	if len(resp.Errors) > 0 {
-		var errorMsgs []string
-		for _, err := range resp.Errors {
-			errorMsgs = append(errorMsgs, err.Message)
-		}
-		return nil, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMsgs, "; "))
-	}
-
-	data, ok := resp.Data["Get"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("no 'Get' field in GraphQL response")
-	}
-
-	classData, ok := data[DocumentClassName].([]interface{})
-	if !ok || len(classData) == 0 {
-		return nil, fmt.Errorf("no existing document found with content hash %s", contentHash)
-	}
-
-	item := classData[0]
-	obj, ok := item.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid object format")
-	}
-
-	additional, _ := obj["_additional"].(map[string]interface{})
-	id, _ := additional["id"].(string)
-	docType, _ := obj[documentTypeProperty].(string)
-	originalID, _ := obj[documentOriginalIDProperty].(string)
-	metadataJSON, _ := obj[documentMetadataProperty].(string)
-	createdAtStr, _ := obj[documentCreatedAtProperty].(string)
-
-	var metadata map[string]string
-	if metadataJSON != "" {
-		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
-			s.logger.Warnf("Failed to unmarshal metadata for document %s: %v", id, err)
-			metadata = make(map[string]string)
+	if data, ok := result.Data["Get"].(map[string]interface{}); ok {
+		if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
+			for _, doc := range docs {
+				if docMap, ok := doc.(map[string]interface{}); ok {
+					if existingContent, ok := docMap[contentProperty].(string); ok {
+						if existingContent == content {
+							if additional, ok := docMap["_additional"].(map[string]interface{}); ok {
+								if id, ok := additional["id"].(string); ok {
+									s.logger.Debug("Found existing document with same content", "id", id)
+									return id, nil
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 
-	createdAt, _ := time.Parse(time.RFC3339, createdAtStr)
+	metadataJSON, err := json.Marshal(metadata)
+	if err != nil {
+		return "", fmt.Errorf("marshaling metadata: %w", err)
+	}
 
-	return &StoredDocument{
-		ID:          id,
-		Content:     "", // We don't need content for deduplication check
-		Type:        docType,
-		OriginalID:  originalID,
-		ContentHash: contentHash,
-		Metadata:    metadata,
-		CreatedAt:   createdAt,
-	}, nil
+	properties := map[string]interface{}{
+		contentProperty:             content,
+		documentContentHashProperty: contentHash,
+		documentTypeProperty:        docType,
+		documentOriginalIDProperty:  originalID,
+		documentMetadataProperty:    string(metadataJSON),
+		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
+	}
+
+	batcher := s.client.Batch().ObjectsBatcher()
+	obj := &models.Object{
+		Class:      DocumentClassName,
+		Properties: properties,
+	}
+	batcher = batcher.WithObjects(obj)
+
+	batchResult, err := batcher.Do(ctx)
+	if err != nil {
+		return "", fmt.Errorf("creating document: %w", err)
+	}
+
+	if len(batchResult) == 0 {
+		return "", fmt.Errorf("no result returned from document creation")
+	}
+
+	if batchResult[0].Result.Errors != nil && len(batchResult[0].Result.Errors.Error) > 0 {
+		return "", fmt.Errorf("error creating document: %s", batchResult[0].Result.Errors.Error[0].Message)
+	}
+
+	id := string(batchResult[0].ID)
+	s.logger.Debug("Stored new document", "id", id)
+	return id, nil
 }
 
 // GetStoredDocument retrieves a document from the separate document table.
