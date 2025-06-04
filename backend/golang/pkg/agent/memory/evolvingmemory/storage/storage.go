@@ -92,7 +92,8 @@ func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Serv
 		embeddingsService: embeddingsService,
 		vectorPool: sync.Pool{
 			New: func() interface{} {
-				return make([]float32, 0, 1536)
+				slice := make([]float32, 0, 3072)
+				return &slice
 			},
 		},
 	}
@@ -1034,17 +1035,21 @@ func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
 		return nil
 	}
 
-	pooledSlice := s.vectorPool.Get().([]float32)
-	pooledSlice = pooledSlice[:0] // Reset length but keep capacity
-
-	for _, val := range vector {
-		pooledSlice = append(pooledSlice, float32(val))
+	pooledSlicePtr, ok := s.vectorPool.Get().(*[]float32)
+	if !ok {
+		s.logger.Error("Failed to get vector pool")
+		return nil
 	}
 
-	// Create a copy to return since we'll put the original back in pool
-	result := make([]float32, len(pooledSlice))
-	copy(result, pooledSlice)
+	*pooledSlicePtr = (*pooledSlicePtr)[:0]
 
-	s.vectorPool.Put(pooledSlice)
+	for _, val := range vector {
+		*pooledSlicePtr = append(*pooledSlicePtr, float32(val))
+	}
+
+	result := make([]float32, len(*pooledSlicePtr))
+	copy(result, *pooledSlicePtr)
+
+	s.vectorPool.Put(pooledSlicePtr)
 	return result
 }
