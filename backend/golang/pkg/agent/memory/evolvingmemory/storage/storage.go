@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -80,6 +81,7 @@ type WeaviateStorage struct {
 	client            *weaviate.Client
 	logger            *log.Logger
 	embeddingsService *ai.Service
+	vectorPool        sync.Pool
 }
 
 // New creates a new WeaviateStorage instance.
@@ -88,6 +90,11 @@ func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Serv
 		client:            client,
 		logger:            logger,
 		embeddingsService: embeddingsService,
+		vectorPool: sync.Pool{
+			New: func() interface{} {
+				return make([]float32, 0, 1536)
+			},
+		},
 	}
 }
 
@@ -472,10 +479,7 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("failed to create embedding for query: %w", err)
 	}
-	queryVector32 := make([]float32, len(vector))
-	for i, val := range vector {
-		queryVector32[i] = float32(val)
-	}
+	queryVector32 := s.convertToFloat32(vector)
 
 	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
 
@@ -583,10 +587,7 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 	if err != nil {
 		return memory.QueryWithDistanceResult{}, fmt.Errorf("failed to create embedding for query: %w", err)
 	}
-	queryVector32 := make([]float32, len(vector))
-	for i, val := range vector {
-		queryVector32[i] = float32(val)
-	}
+	queryVector32 := s.convertToFloat32(vector)
 
 	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
 
@@ -1025,4 +1026,25 @@ func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID stri
 	}
 
 	return doc, nil
+}
+
+// convertToFloat32 efficiently converts []float64 to []float32 using memory pooling.
+func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
+	if len(vector) == 0 {
+		return nil
+	}
+
+	pooledSlice := s.vectorPool.Get().([]float32)
+	pooledSlice = pooledSlice[:0] // Reset length but keep capacity
+
+	for _, val := range vector {
+		pooledSlice = append(pooledSlice, float32(val))
+	}
+
+	// Create a copy to return since we'll put the original back in pool
+	result := make([]float32, len(pooledSlice))
+	copy(result, pooledSlice)
+
+	s.vectorPool.Put(pooledSlice)
+	return result
 }
