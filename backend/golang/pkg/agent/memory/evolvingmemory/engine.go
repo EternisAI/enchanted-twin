@@ -2,6 +2,7 @@ package evolvingmemory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/openai/openai-go"
@@ -28,6 +29,10 @@ type MemoryEngine interface {
 
 	// Storage operations
 	StoreBatch(ctx context.Context, objects []*models.Object) error
+
+	// Document reference operations
+	GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error)
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 }
 
 // memoryEngine implements MemoryEngine with pure business logic.
@@ -194,12 +199,107 @@ func (e *memoryEngine) DeleteMemory(ctx context.Context, memoryID string) error 
 	return e.storage.Delete(ctx, memoryID)
 }
 
-// CreateMemoryObject creates a memory object for storage.
+// CreateMemoryObject creates a memory object for storage with separate document storage.
 func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
-	return CreateMemoryObjectWithEmbedding(ctx, fact, decision, e.embeddingsService)
+	// First, store the document separately
+	documentID, err := e.storage.StoreDocument(
+		ctx,
+		fact.Source.Original.Content(),
+		string(fact.Source.Type),
+		fact.Source.Original.ID(),
+		fact.Source.Original.Metadata(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("storing document: %w", err)
+	}
+
+	// Create memory object with document reference
+	obj := CreateMemoryObjectWithDocumentReferences(fact, decision, []string{documentID})
+
+	// Generate embedding for the content
+	embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding: %w", err)
+	}
+
+	obj.Vector = toFloat32(embedding)
+	return obj, nil
 }
 
 // StoreBatch stores a batch of objects.
 func (e *memoryEngine) StoreBatch(ctx context.Context, objects []*models.Object) error {
 	return e.storage.StoreBatch(ctx, objects)
+}
+
+// GetDocumentReference retrieves the original document reference for a memory
+func (e *memoryEngine) GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error) {
+	// Get the first document reference (for backward compatibility)
+	refs, err := e.GetDocumentReferences(ctx, memoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(refs) == 0 {
+		return nil, fmt.Errorf("no document references found for memory %s", memoryID)
+	}
+
+	return refs[0], nil
+}
+
+// GetDocumentReferences retrieves all document references for a memory
+func (e *memoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+	// Get the memory to find document reference IDs
+	memory, err := e.storage.GetByID(ctx, memoryID)
+	if err != nil {
+		return nil, fmt.Errorf("getting memory: %w", err)
+	}
+
+	// Parse metadata to get document reference IDs
+	var documentIDs []string
+	if memory.FieldMetadata != nil {
+		// Try to get from new format first
+		if refsJSON, exists := memory.FieldMetadata["documentReferences"]; exists {
+			if err := json.Unmarshal([]byte(refsJSON), &documentIDs); err == nil && len(documentIDs) > 0 {
+				// Use new format
+			}
+		}
+
+		// Fallback to old format for backward compatibility
+		if len(documentIDs) == 0 {
+			if oldDocID, exists := memory.FieldMetadata["sourceDocumentId"]; exists && oldDocID != "" {
+				// This is old format - try to find document by original ID
+				return []*DocumentReference{{
+					ID:      oldDocID,
+					Content: "", // Will be empty in old format
+					Type:    memory.FieldMetadata["sourceDocumentType"],
+				}}, nil
+			}
+		}
+	}
+
+	if len(documentIDs) == 0 {
+		return nil, fmt.Errorf("no document references found for memory %s", memoryID)
+	}
+
+	// Retrieve each document from the document table
+	var references []*DocumentReference
+	for _, docID := range documentIDs {
+		storedDoc, err := e.storage.GetStoredDocument(ctx, docID)
+		if err != nil {
+			// Log but continue with other documents
+			continue
+		}
+
+		references = append(references, &DocumentReference{
+			ID:      storedDoc.OriginalID,
+			Content: storedDoc.Content,
+			Type:    storedDoc.Type,
+		})
+	}
+
+	if len(references) == 0 {
+		return nil, fmt.Errorf("no valid document references found for memory %s", memoryID)
+	}
+
+	return references, nil
 }

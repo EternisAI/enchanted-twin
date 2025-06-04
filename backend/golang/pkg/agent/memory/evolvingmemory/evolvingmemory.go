@@ -19,8 +19,12 @@ const (
 	timestampProperty = "timestamp"
 	tagsProperty      = "tags"
 	metadataProperty  = "metadataJson"
-	openAIEmbedModel  = "text-embedding-3-small"
-	openAIChatModel   = "gpt-4o-mini"
+	// New properties for document references
+	sourceDocumentIDProperty      = "sourceDocumentId"
+	sourceDocumentContentProperty = "sourceDocumentContent"
+	sourceDocumentTypeProperty    = "sourceDocumentType"
+	openAIEmbedModel              = "text-embedding-3-small"
+	openAIChatModel               = "gpt-4o-mini"
 
 	AddMemoryToolName    = "ADD"
 	UpdateMemoryToolName = "UPDATE"
@@ -152,11 +156,22 @@ type ExtractFactsToolArguments struct {
 	Facts []string `json:"facts"`
 }
 
+// DocumentReference holds reference to the original document that generated a memory fact
+type DocumentReference struct {
+	ID      string `json:"id"`
+	Content string `json:"content"`
+	Type    string `json:"type"`
+}
+
 // MemoryStorage is the main interface for hot-swappable storage implementations.
 // This interface encapsulates all memory storage operations and business logic.
 type MemoryStorage interface {
 	memory.Storage // Inherit the base storage interface
 	StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error)
+
+	// Document reference operations - now supports multiple references per memory
+	GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error)
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -172,6 +187,7 @@ type StorageImpl struct {
 	logger       *log.Logger
 	orchestrator MemoryOrchestrator
 	storage      storage.Interface
+	engine       MemoryEngine // Add engine reference for GetDocumentReference
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -205,6 +221,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 		logger:       deps.Logger,
 		orchestrator: orchestrator,
 		storage:      deps.Storage,
+		engine:       engine,
 	}, nil
 }
 
@@ -290,4 +307,14 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string) (memory.Query
 // QueryWithDistance implements the memory.Storage interface by delegating to the storage interface.
 func (s *StorageImpl) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
 	return s.storage.QueryWithDistance(ctx, queryText, metadataFilters...)
+}
+
+// GetDocumentReference retrieves the original document reference for a memory
+func (s *StorageImpl) GetDocumentReference(ctx context.Context, memoryID string) (*DocumentReference, error) {
+	return s.engine.GetDocumentReference(ctx, memoryID)
+}
+
+// GetDocumentReferences retrieves all document references for a memory
+func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+	return s.engine.GetDocumentReferences(ctx, memoryID)
 }
