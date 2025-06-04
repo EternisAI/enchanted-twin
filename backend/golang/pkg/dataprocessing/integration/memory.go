@@ -130,7 +130,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		return fmt.Errorf("failed to process source: %w", err)
 	}
 
-	logger.Info("==============✅ Data processed into %d documents===============", len(documents))
+	logger.Info("==============✅ Data processed into %s documents===============", len(documents))
 
 	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
 
