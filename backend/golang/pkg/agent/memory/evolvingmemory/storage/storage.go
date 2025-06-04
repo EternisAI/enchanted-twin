@@ -375,7 +375,6 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 
 	for _, class := range schema.Classes {
 		if class.Class == DocumentClassName {
-
 			s.logger.Infof("Schema for class %s already exists, validating...", DocumentClassName)
 
 			expectedProps := map[string]string{
