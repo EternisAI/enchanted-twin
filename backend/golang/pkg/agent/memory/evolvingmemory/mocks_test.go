@@ -69,15 +69,6 @@ func (m *MockStorage) EnsureSchemaExists(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockStorage) GetDocumentReference(ctx context.Context, memoryID string) (*storage.DocumentReference, error) {
-	args := m.Called(ctx, memoryID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	docRef, _ := args.Get(0).(*storage.DocumentReference)
-	return docRef, args.Error(1)
-}
-
 func (m *MockStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
 	args := m.Called(ctx, memoryID)
 	if args.Get(0) == nil {
