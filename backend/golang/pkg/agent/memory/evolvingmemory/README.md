@@ -374,6 +374,7 @@ evolvingmemory/
 - `WeaviateStorage` - Current implementation with document table
 - `StoreDocument()` - Document storage with deduplication
 - `GetStoredDocument()` - Document retrieval from document table
+- `GetStoredDocumentsBatch()` - Document retrieval in batch
 - Easy to extend with new backends
 
 ## Common Tasks
@@ -624,7 +625,29 @@ Completed architectural cleanup for production readiness:
 - ✅ 85-95% storage optimization achieved
 - ✅ Ready for production deployment
 
-The package now follows hexagonal/clean architecture principles with clear separation between ports (interfaces), adapters (implementations), domain logic (business rules), and infrastructure (coordination).
+### Batch Operation Optimization (January 2025)
+
+Fixed critical performance issue in document batch retrieval:
+
+#### 1. Efficient Batch Queries
+- **Fixed `GetStoredDocumentsBatch()`** - Replaced inefficient loop-based individual queries with proper Weaviate batch query
+- **Correct API usage** - Fixed Weaviate Go client v5 API call from `WithValueTextArray()` to `WithValueText(documentIDs...)` with spread operator
+- **Single GraphQL query** - Uses `ContainsAny` operator to retrieve multiple documents in one operation
+- **Algorithmic improvement** - O(n) individual queries reduced to O(1) batch query
+
+#### 2. Performance Benefits
+- **Reduced network calls** - Multiple document retrieval now uses single database query
+- **Lower latency** - Eliminates network round-trip overhead for each document
+- **Better resource utilization** - Reduces database connection usage and query overhead
+- **Improved scalability** - Performance improvement scales with number of documents per memory
+
+#### 3. Implementation Details
+- **Interface compliance** - Added missing `GetStoredDocumentsBatch` method to storage interface
+- **Proper error handling** - Comprehensive GraphQL error handling and result validation
+- **Missing document logging** - Logs when requested documents are not found for debugging
+- **Build verification** - All builds passing with the corrected API usage
+
+This optimization is particularly beneficial for memories that reference multiple documents, improving the efficiency of the `GetDocumentReferences()` operation significantly.
 
 ### Document Size Validation
 
