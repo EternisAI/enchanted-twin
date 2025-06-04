@@ -727,7 +727,6 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
 	}
 
-	// Create WHERE filter for multiple IDs using ContainsAny with spread operator
 	whereFilter := filters.Where().
 		WithPath([]string{"id"}).
 		WithOperator(filters.ContainsAny).
@@ -737,7 +736,7 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		WithClassName(DocumentClassName).
 		WithFields(fields...).
 		WithWhere(whereFilter).
-		WithLimit(len(documentIDs)). // Ensure we can get all requested documents
+		WithLimit(len(documentIDs)).
 		Do(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("batch query for documents: %w", err)
@@ -764,7 +763,6 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 		return allDocuments, nil
 	}
 
-	// Process results
 	for _, item := range classData {
 		obj, okMap := item.(map[string]interface{})
 		if !okMap {
