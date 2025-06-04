@@ -1,26 +1,18 @@
 import { PlusCircle } from 'lucide-react'
 import { motion } from 'framer-motion'
-import { useMutation } from '@apollo/client'
+import { useMutation, useQuery } from '@apollo/client'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 
 import { Button } from '../ui/button'
 import HolonFeedThread from './HolonFeedThread'
-import { mockHolonData } from './data'
-import { CreateChatDocument } from '@renderer/graphql/generated/graphql'
+import { CreateChatDocument, GetThreadsDocument } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 
-// Mock data for development
-const loading = false
-const error: Error | null = null
-const data = {
-  getThreads: mockHolonData.getThreads
-}
-
 export default function HolonFeed() {
-  // TODO: Uncomment when backend is ready
-  // const { data, loading, error } = useQuery(GetThreadsDocument, {
-  //   variables: { network: null }
-  // })
+  const { data, loading, error } = useQuery(GetThreadsDocument, {
+    variables: { network: null }
+  })
+
   const router = useRouter()
   const navigate = useNavigate()
   const [createChat] = useMutation(CreateChatDocument)

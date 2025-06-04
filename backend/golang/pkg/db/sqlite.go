@@ -89,6 +89,47 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		);
 		CREATE INDEX IF NOT EXISTS idx_friend_activity_chat_id ON friend_activity_tracking(chat_id);
 		CREATE INDEX IF NOT EXISTS idx_friend_activity_timestamp ON friend_activity_tracking(timestamp DESC);
+
+		CREATE TABLE IF NOT EXISTS authors (
+        identity   TEXT PRIMARY KEY,
+        alias      TEXT
+      	);
+
+		CREATE TABLE IF NOT EXISTS threads (
+			id               TEXT PRIMARY KEY,
+			title            TEXT NOT NULL,
+			content          TEXT NOT NULL,
+			author_identity  TEXT NOT NULL,
+			created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			expires_at       TIMESTAMP,
+			image_urls       JSON    NOT NULL DEFAULT '[]',
+			actions          JSON    NOT NULL DEFAULT '[]',
+			views            INTEGER NOT NULL DEFAULT 0,
+			FOREIGN KEY(author_identity) REFERENCES authors(identity) ON DELETE SET NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_threads_author ON threads(author_identity);
+
+
+		CREATE TABLE IF NOT EXISTS thread_messages (
+			id               TEXT PRIMARY KEY,
+			thread_id        TEXT NOT NULL,
+			author_identity  TEXT NOT NULL,
+			content          TEXT NOT NULL,
+			created_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			is_delivered     BOOLEAN   NOT NULL DEFAULT FALSE,
+			actions          JSON      NOT NULL DEFAULT '[]',
+			FOREIGN KEY(thread_id)       REFERENCES threads(id) ON DELETE CASCADE,
+			FOREIGN KEY(author_identity) REFERENCES authors(identity) ON DELETE SET NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_thread_messages_thread ON thread_messages(thread_id);
+		CREATE INDEX IF NOT EXISTS idx_thread_messages_author ON thread_messages(author_identity);
+		CREATE INDEX IF NOT EXISTS idx_thread_messages_created ON thread_messages(thread_id, created_at DESC);
+
+
+		CREATE TABLE IF NOT EXISTS holons (
+        	id           TEXT PRIMARY KEY, 
+        	name     TEXT NOT NULL
+      	);
 	`)
 	if err != nil {
 		return nil, err

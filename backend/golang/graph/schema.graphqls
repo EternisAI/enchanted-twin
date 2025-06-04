@@ -101,6 +101,7 @@ type Query {
   getAgentTasks: [AgentTask!]!
   getSetupProgress: [SetupProgress!]!
   whitelistStatus: Boolean!
+  getHolons(id: ID!): [String!]
   getThreads(network: String): [Thread!]!
   getThread(network: String, id: ID!): Thread
 }

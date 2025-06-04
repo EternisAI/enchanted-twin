@@ -49,6 +49,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -363,6 +364,9 @@ func main() {
 	}
 	logger.Info("Personality", "personality", personality)
 
+	holonService := holon.NewService()
+
+
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
 		Token:            envs.TelegramToken,
@@ -391,6 +395,7 @@ func main() {
 		aiService:         aiCompletionsService,
 		mcpService:        mcpService,
 		telegramService:   telegramService,
+		holonService:      holonService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
 	})
@@ -516,6 +521,7 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	holonService           *holon.Service
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
 }
@@ -539,6 +545,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
+		HolonService:           input.holonService,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
 	}
