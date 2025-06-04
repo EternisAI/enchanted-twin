@@ -169,7 +169,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		return fmt.Errorf("context canceled while waiting for processing to complete: %w", ctx.Err())
 	}
 
-	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
+	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source), nil)
 	if err != nil {
 		return fmt.Errorf("failed to query memory: %w", err)
 	}

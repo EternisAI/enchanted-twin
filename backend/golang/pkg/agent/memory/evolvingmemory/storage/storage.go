@@ -33,7 +33,7 @@ type Interface interface {
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
-	Query(ctx context.Context, queryText string) (memory.QueryResult, error)
+	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
 	QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 }
@@ -301,8 +301,8 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 }
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
-	s.logger.Info("Query method called", "query_text", queryText)
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
@@ -314,6 +314,12 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 	}
 
 	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
+
+	// Set distance filter if provided
+	if filter != nil && filter.Distance > 0 {
+		nearVector = nearVector.WithDistance(filter.Distance)
+		s.logger.Debug("Added distance filter", "distance", filter.Distance)
+	}
 
 	contentField := weaviateGraphql.Field{Name: contentProperty}
 	timestampField := weaviateGraphql.Field{Name: timestampProperty}
@@ -327,11 +333,51 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		},
 	}
 
+	// Set limit from filter or use default
+	limit := 10
+	if filter != nil && filter.Limit != nil {
+		limit = *filter.Limit
+	}
+
 	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
-		WithLimit(10).
+		WithLimit(limit).
 		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
+
+	// Add WHERE filtering if filter is provided
+	if filter != nil {
+		var whereFilters []*filters.WhereBuilder
+
+		if filter.Source != nil {
+			// For now, filter by checking if source is in the metadata JSON
+			// This is a temporary solution until we update the schema
+			sourceFilter := filters.Where().
+				WithPath([]string{metadataProperty}).
+				WithOperator(filters.Like).
+				WithValueText(fmt.Sprintf(`*"source":"%s"*`, *filter.Source))
+			whereFilters = append(whereFilters, sourceFilter)
+			s.logger.Debug("Added source filter", "source", *filter.Source)
+		}
+
+		if filter.ContactName != nil {
+			// Filter by contact name in metadata
+			contactFilter := filters.Where().
+				WithPath([]string{metadataProperty}).
+				WithOperator(filters.Like).
+				WithValueText(fmt.Sprintf(`*"speakerID":"%s"*`, *filter.ContactName))
+			whereFilters = append(whereFilters, contactFilter)
+			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
+		}
+
+		if len(whereFilters) > 0 {
+			combinedFilter := filters.Where().
+				WithOperator(filters.And).
+				WithOperands(whereFilters)
+			queryBuilder = queryBuilder.WithWhere(combinedFilter)
+			s.logger.Debug("Applied combined WHERE filters", "filter_count", len(whereFilters))
+		}
+	}
 
 	resp, err := queryBuilder.Do(ctx)
 	if err != nil {

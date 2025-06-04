@@ -7,6 +7,14 @@ import (
 	"time"
 )
 
+// Filter provides structured filtering options for memory queries.
+type Filter struct {
+	Source      *string // Filter by document source
+	ContactName *string // Filter by contact/speaker name
+	Distance    float32 // Maximum semantic distance (0 = disabled)
+	Limit       *int    // Maximum number of results to return
+}
+
 // Document interface that both TextDocument and ConversationDocument implement.
 type Document interface {
 	ID() string
@@ -162,7 +170,7 @@ type ProgressCallback func(processed, total int)
 
 type Storage interface {
 	Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
-	Query(ctx context.Context, query string) (QueryResult, error)
+	Query(ctx context.Context, query string, filter *Filter) (QueryResult, error)
 	QueryWithDistance(ctx context.Context, query string, metadataFilters ...map[string]string) (QueryWithDistanceResult, error)
 }
 

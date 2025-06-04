@@ -283,8 +283,8 @@ func (s *StorageImpl) StoreV2(ctx context.Context, documents []memory.Document, 
 }
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
-func (s *StorageImpl) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
-	return s.storage.Query(ctx, queryText)
+func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	return s.storage.Query(ctx, queryText, filter)
 }
 
 // QueryWithDistance implements the memory.Storage interface by delegating to the storage interface.
