@@ -40,7 +40,7 @@ func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (s
 	}
 	memoryDocuments := []string{}
 	for _, prompt := range personalityPrompts {
-		docs, err := a.memory.Query(ctx, prompt)
+		docs, err := a.memory.Query(ctx, prompt, nil)
 		if err != nil {
 			return "", err
 		}

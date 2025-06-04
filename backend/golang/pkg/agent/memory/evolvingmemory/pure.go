@@ -160,16 +160,30 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	// Get tags from the source document
 	tags := fact.Source.Original.Tags()
 
+	// Prepare properties with new direct fields
+	properties := map[string]interface{}{
+		"content":            fact.Content,
+		"metadataJson":       marshalMetadata(metadata), // Keep for backward compatibility
+		"timestamp":          fact.Source.Timestamp.Format(time.RFC3339),
+		"tags":               tags,
+		"documentReferences": []string{},
+	}
+
+	// Extract and store source as direct field
+	if source := fact.Source.Original.Source(); source != "" {
+		properties["source"] = source
+	} else if source, exists := metadata["source"]; exists {
+		properties["source"] = source
+	}
+
+	// Extract and store speakerID as direct field
+	if fact.SpeakerID != "" {
+		properties["speakerID"] = fact.SpeakerID
+	}
+
 	return &models.Object{
-		Class: ClassName,
-		Properties: map[string]interface{}{
-			"content":      fact.Content,
-			"metadataJson": marshalMetadata(metadata),
-			"timestamp":    fact.Source.Timestamp.Format(time.RFC3339),
-			"tags":         tags,
-			// Store document references as an array of IDs (will be populated by engine)
-			"documentReferences": []string{},
-		},
+		Class:      ClassName,
+		Properties: properties,
 	}
 }
 
@@ -337,7 +351,7 @@ func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (Memo
 // SearchSimilarMemories performs semantic search for similar memories.
 // This is pure business logic extracted from the adapter.
 func SearchSimilarMemories(ctx context.Context, fact string, speakerID string, storage storage.Interface) ([]ExistingMemory, error) {
-	result, err := storage.Query(ctx, fact)
+	result, err := storage.Query(ctx, fact, nil)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}

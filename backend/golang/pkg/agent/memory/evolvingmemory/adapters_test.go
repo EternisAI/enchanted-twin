@@ -56,7 +56,7 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 
 	// Create mock storage instead of using real Weaviate client
 	mockStorage := &MockStorage{}
-	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string")).Return(memory.QueryResult{
+	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("*memory.Filter")).Return(memory.QueryResult{
 		Facts:     []memory.MemoryFact{},
 		Documents: []memory.TextDocument{},
 	}, nil)
@@ -123,7 +123,7 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 
 	t.Run("Query_Functionality", func(t *testing.T) {
 		// Test Query functionality (this will likely fail with mock storage, but tests the interface)
-		_, err := storageImpl.Query(context.Background(), "test query")
+		_, err := storageImpl.Query(context.Background(), "test query", nil)
 		// We expect this to fail with mock storage, but the interface should work
 		t.Logf("Query returned (expected error with mock): %v", err)
 	})
