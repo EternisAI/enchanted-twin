@@ -113,6 +113,10 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 		metadata["speakerID"] = fact.SpeakerID
 	}
 
+	// Add document reference metadata for backward compatibility
+	metadata["sourceDocumentId"] = fact.Source.Original.ID()
+	metadata["sourceDocumentType"] = string(fact.Source.Type)
+
 	// Get tags from the source document
 	tags := fact.Source.Original.Tags()
 
@@ -123,8 +127,21 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 			"metadataJson": marshalMetadata(metadata),
 			"timestamp":    fact.Source.Timestamp.Format(time.RFC3339),
 			"tags":         tags,
+			// Store document references as an array of IDs (will be populated by engine)
+			"documentReferences": []string{},
 		},
 	}
+}
+
+// CreateMemoryObjectWithDocumentReferences builds the Weaviate object with document references.
+func CreateMemoryObjectWithDocumentReferences(fact ExtractedFact, decision MemoryDecision, documentIDs []string) *models.Object {
+	obj := CreateMemoryObject(fact, decision)
+
+	// Update with actual document references
+	props := obj.Properties.(map[string]interface{})
+	props["documentReferences"] = documentIDs
+
+	return obj
 }
 
 // CreateMemoryObjectWithEmbedding builds the Weaviate object for ADD operations with embedding.

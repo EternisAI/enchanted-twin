@@ -174,7 +174,49 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		return fmt.Errorf("failed to query memory: %w", err)
 	}
 
-	logger.Info("Query result", "result", result)
+	if len(result.Documents) > 0 {
+
+		for i, doc := range result.Documents[:min(3, len(result.Documents))] {
+			memoryID := doc.ID()
+			memoryContent := doc.Content()
+
+			logger.Info("Testing document reference", "memory_id", memoryID, "memory_content", memoryContent)
+
+			docRef, err := mem.GetDocumentReference(ctx, memoryID)
+			if err != nil {
+				return fmt.Errorf("failed to get document reference: %w", err)
+			}
+
+			if docRef.ID == "" {
+				return fmt.Errorf("document reference has empty ID")
+			}
+
+			if docRef.Content == "" {
+				return fmt.Errorf("document reference has empty content")
+			}
+
+			if docRef.Type == "" {
+				return fmt.Errorf("document reference has empty type")
+			}
+
+			logger.Info("Document reference retrieved successfully",
+				"test_number", i+1,
+				"memory_id", memoryID,
+				"source_doc_id", docRef.ID,
+				"source_doc_type", docRef.Type,
+				"source_content_length", len(docRef.Content))
+
+			contentSnippet := docRef.Content
+			if len(contentSnippet) > 100 {
+				contentSnippet = contentSnippet[:100] + "..."
+			}
+			logger.Info("Original document snippet", "snippet", contentSnippet)
+		}
+
+		logger.Info("✅ Document reference functionality test completed successfully")
+	} else {
+		logger.Warn("No memories found in query result - skipping document reference test")
+	}
 
 	logger.Info("Waiting for all background fact processing to complete...")
 	select {
