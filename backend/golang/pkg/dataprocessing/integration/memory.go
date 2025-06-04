@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
@@ -169,12 +170,50 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		return fmt.Errorf("context canceled while waiting for processing to complete: %w", ctx.Err())
 	}
 
-	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source), nil)
+	limit := 100
+	filter := memory.Filter{
+		Source:   &config.Source,
+		Distance: 0.7,
+		Limit:    &limit,
+	}
+	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source), &filter)
+	if err != nil {
+		return fmt.Errorf("failed to query memory: %w", err)
+	}
+	resultDocuments := result.Documents
+	if len(resultDocuments) == 0 {
+		return fmt.Errorf("failed to find memories")
+	}
+
+	invalidSource := "invalid-source"
+	filter = memory.Filter{
+		Source:   &invalidSource,
+		Distance: 0.7,
+		Limit:    &limit,
+	}
+	result, err = mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source), &filter)
 	if err != nil {
 		return fmt.Errorf("failed to query memory: %w", err)
 	}
 
-	logger.Info("Query result", "result", result)
+	resultDocuments = result.Documents
+	if len(resultDocuments) != 0 {
+		return fmt.Errorf("found memories for invalid source when none should exist")
+	}
+
+	filter = memory.Filter{
+		Source:   &config.Source,
+		Distance: 0.001,
+		Limit:    &limit,
+	}
+	result, err = mem.Query(ctx, "What do I know about gluon fields ?", &filter)
+	if err != nil {
+		return fmt.Errorf("failed to query memory: %w", err)
+	}
+	resultDocuments = result.Documents
+	if len(resultDocuments) != 0 {
+		return fmt.Errorf("failed to filter out documents for invalid query")
+	}
 
 	logger.Info("Waiting for all background fact processing to complete...")
 	select {
