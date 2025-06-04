@@ -180,10 +180,39 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	if err != nil {
 		return fmt.Errorf("failed to query memory: %w", err)
 	}
-
 	resultDocuments := result.Documents
 	if len(resultDocuments) == 0 {
-		return fmt.Errorf("no documents found in memory")
+		return fmt.Errorf("failed to find memories")
+	}
+
+	invalidSource := "invalid-source"
+	filter = memory.Filter{
+		Source:   &invalidSource,
+		Distance: 0.7,
+		Limit:    &limit,
+	}
+	result, err = mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source), &filter)
+	if err != nil {
+		return fmt.Errorf("failed to query memory: %w", err)
+	}
+
+	resultDocuments = result.Documents
+	if len(resultDocuments) != 0 {
+		return fmt.Errorf("found memories for invalid source when none should exist")
+	}
+
+	filter = memory.Filter{
+		Source:   &config.Source,
+		Distance: 0.001,
+		Limit:    &limit,
+	}
+	result, err = mem.Query(ctx, "What do I know about gluon fields ?", &filter)
+	if err != nil {
+		return fmt.Errorf("failed to query memory: %w", err)
+	}
+	resultDocuments = result.Documents
+	if len(resultDocuments) != 0 {
+		return fmt.Errorf("failed to filter out documents for invalid query")
 	}
 
 	logger.Info("Waiting for all background fact processing to complete...")
