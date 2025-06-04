@@ -225,7 +225,7 @@ func (e *memoryEngine) StoreBatch(ctx context.Context, objects []*models.Object)
 	return e.storage.StoreBatch(ctx, objects)
 }
 
-// GetDocumentReferences retrieves all document references for a memory
+// GetDocumentReferences retrieves all document references for a memory.
 func (e *memoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	storageRefs, err := e.storage.GetDocumentReferences(ctx, memoryID)
 	if err != nil {
