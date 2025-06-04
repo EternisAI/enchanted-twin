@@ -5,36 +5,30 @@ import { formatDistanceToNow } from 'date-fns'
 import { Eye, Maximize2 } from 'lucide-react'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
-import { getThreadById } from './data'
-import { CreateChatDocument, SendMessageDocument } from '@renderer/graphql/generated/graphql'
+import {
+  CreateChatDocument,
+  SendMessageDocument,
+  Thread
+} from '@renderer/graphql/generated/graphql'
 import { useMutation } from '@apollo/client'
 import { useCallback } from 'react'
 import { client } from '@renderer/graphql/lib'
 
 interface HolonThreadDetailProps {
-  threadId: string
+  thread: Thread
 }
 
-export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) {
+export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
   const navigate = useNavigate()
   const router = useRouter()
 
-  // Mock data for development
-  const loading = false
-  const error = null
-  // TODO: Uncomment when backend is ready
-  // const { data, loading, error } = useQuery(GetThreadDocument, {
-  //   variables: { id: threadId, network: null }
-  // })
-
-  const thread = getThreadById(threadId)
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
 
   const handleCreateChat = useCallback(
     async (action: string) => {
       // This should check if chat exists or create one
-      const chatId = `holon-${threadId}`
+      const chatId = `holon-${thread.id}`
 
       if (!chatId) return
 
@@ -48,7 +42,7 @@ export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) 
           navigate({
             to: '/chat/$chatId',
             params: { chatId: newChatId },
-            search: { initialMessage: action, threadId }
+            search: { initialMessage: action, threadId: thread.id }
           })
 
           await client.cache.evict({ fieldName: 'getChats' })
@@ -69,7 +63,7 @@ export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) 
         console.error('Failed to create chat:', error)
       }
     },
-    [navigate, createChat, sendMessage, router, threadId]
+    [navigate, createChat, sendMessage, router, thread.id]
   )
 
   const handleBack = () => {
@@ -78,24 +72,6 @@ export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) 
 
   const handleActionClick = (action: string) => {
     handleCreateChat(action)
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-muted-foreground">Loading thread...</div>
-      </div>
-    )
-  }
-
-  if (error || !thread) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-destructive">
-          {error ? 'Error loading thread' : 'Thread not found'}
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -194,7 +170,7 @@ export default function HolonThreadDetail({ threadId }: HolonThreadDetailProps) 
 
       <div className="sticky w-xl bottom-0 left-0 right-0 bg-transparent backdrop-blur-xs border-t border-white/20 p-4">
         <div className="flex justify-center items-center gap-4 w-full">
-          {thread.actions.map((action, index) => (
+          {thread.actions?.map((action, index) => (
             <Button
               key={index}
               variant={index === 0 ? 'default' : 'outline'}

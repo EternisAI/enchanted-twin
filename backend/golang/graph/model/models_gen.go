@@ -33,6 +33,11 @@ type AppNotification struct {
 	Link      *string `json:"link,omitempty"`
 }
 
+type Author struct {
+	Alias    *string `json:"alias,omitempty"`
+	Identity string  `json:"identity"`
+}
+
 type Chat struct {
 	ID        string     `json:"id"`
 	Name      string     `json:"name"`
@@ -150,6 +155,28 @@ type SetupProgress struct {
 }
 
 type Subscription struct {
+}
+
+type Thread struct {
+	ID        string           `json:"id"`
+	Title     string           `json:"title"`
+	Content   string           `json:"content"`
+	ImageURLs []string         `json:"imageURLs"`
+	Author    *Author          `json:"author"`
+	CreatedAt string           `json:"createdAt"`
+	ExpiresAt *string          `json:"expiresAt,omitempty"`
+	Messages  []*ThreadMessage `json:"messages"`
+	Actions   []string         `json:"actions,omitempty"`
+	Views     int32            `json:"views"`
+}
+
+type ThreadMessage struct {
+	ID          string   `json:"id"`
+	Author      *Author  `json:"author"`
+	Content     string   `json:"content"`
+	CreatedAt   string   `json:"createdAt"`
+	IsDelivered *bool    `json:"isDelivered,omitempty"`
+	Actions     []string `json:"actions,omitempty"`
 }
 
 type Tool struct {

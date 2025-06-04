@@ -8,6 +8,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
@@ -27,6 +28,7 @@ type Resolver struct {
 	MCPService             mcpserver.MCPService
 	DataProcessingWorkflow *workflows.DataProcessingWorkflows
 	TelegramService        *telegram.TelegramService
+	HolonService           *holon.Service
 	WhatsAppQRCode         *string // Current WhatsApp QR code
 	WhatsAppConnected      bool    // WhatsApp connection status
 }
