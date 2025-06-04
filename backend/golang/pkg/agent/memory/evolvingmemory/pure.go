@@ -15,6 +15,45 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
+const (
+	// Maximum allowed document size in characters.
+	maxDocumentSizeChars = 20000
+)
+
+// validateAndTruncateDocument validates document size and truncates if necessary.
+func validateAndTruncateDocument(doc memory.Document) memory.Document {
+	content := doc.Content()
+
+	if len(content) <= maxDocumentSizeChars {
+		return doc
+	}
+
+	truncatedContent := content[:maxDocumentSizeChars]
+
+	switch d := doc.(type) {
+	case *memory.TextDocument:
+		newDoc := *d
+		newDoc.FieldContent = truncatedContent
+		return &newDoc
+	case *memory.ConversationDocument:
+
+		metadata := d.Metadata()
+		if metadata == nil {
+			metadata = make(map[string]string)
+		}
+		return &memory.TextDocument{
+			FieldID:        d.FieldID,
+			FieldContent:   truncatedContent,
+			FieldTimestamp: d.Timestamp(),
+			FieldSource:    d.FieldSource,
+			FieldTags:      d.FieldTags,
+			FieldMetadata:  metadata,
+		}
+	default:
+		return doc
+	}
+}
+
 // PrepareDocuments converts raw documents into prepared documents with extracted metadata.
 func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, error) {
 	prepared := make([]PreparedDocument, 0, len(docs))
@@ -37,14 +76,15 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 }
 
 func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocument, error) {
+	validatedDoc := validateAndTruncateDocument(doc)
+
 	prepared := PreparedDocument{
-		Original:   doc,
+		Original:   validatedDoc,
 		Timestamp:  currentTime,
 		DateString: getCurrentDateForPrompt(),
 	}
 
-	// Determine document type and extract speaker info
-	switch d := doc.(type) {
+	switch d := validatedDoc.(type) {
 	case *memory.ConversationDocument:
 		prepared.Type = DocumentTypeConversation
 		// Use the User field as the speaker ID for conversation documents
@@ -57,11 +97,11 @@ func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocume
 		// In the current implementation, speakerID is hardcoded as "user" but
 		// for the new pipeline we'll treat it as document-level
 	default:
-		return PreparedDocument{}, fmt.Errorf("unknown document type: %T", doc)
+		return PreparedDocument{}, fmt.Errorf("unknown document type: %T", validatedDoc)
 	}
 
 	// Override timestamp if document provides one
-	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
+	if ts := validatedDoc.Timestamp(); ts != nil && !ts.IsZero() {
 		prepared.Timestamp = *ts
 	}
 
@@ -113,15 +153,20 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 		metadata["speakerID"] = fact.SpeakerID
 	}
 
+	// Add document reference metadata for backward compatibility
+	metadata["sourceDocumentId"] = fact.Source.Original.ID()
+	metadata["sourceDocumentType"] = string(fact.Source.Type)
+
 	// Get tags from the source document
 	tags := fact.Source.Original.Tags()
 
 	// Prepare properties with new direct fields
 	properties := map[string]interface{}{
-		"content":      fact.Content,
-		"metadataJson": marshalMetadata(metadata), // Keep for backward compatibility
-		"timestamp":    fact.Source.Timestamp.Format(time.RFC3339),
-		"tags":         tags,
+		"content":            fact.Content,
+		"metadataJson":       marshalMetadata(metadata), // Keep for backward compatibility
+		"timestamp":          fact.Source.Timestamp.Format(time.RFC3339),
+		"tags":               tags,
+		"documentReferences": []string{},
 	}
 
 	// Extract and store source as direct field
@@ -142,18 +187,18 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	}
 }
 
-// CreateMemoryObjectWithEmbedding builds the Weaviate object for ADD operations with embedding.
-func CreateMemoryObjectWithEmbedding(ctx context.Context, fact ExtractedFact, decision MemoryDecision, embeddingService *ai.Service) (*models.Object, error) {
+// CreateMemoryObjectWithDocumentReferences builds the Weaviate object with document references.
+func CreateMemoryObjectWithDocumentReferences(fact ExtractedFact, decision MemoryDecision, documentIDs []string) *models.Object {
 	obj := CreateMemoryObject(fact, decision)
 
-	// Generate embedding for the content
-	embedding, err := embeddingService.Embedding(ctx, fact.Content, openAIEmbedModel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate embedding: %w", err)
+	// Update with actual document references
+	props, ok := obj.Properties.(map[string]interface{})
+	if !ok {
+		return obj
 	}
+	props["documentReferences"] = documentIDs
 
-	obj.Vector = toFloat32(embedding)
-	return obj, nil
+	return obj
 }
 
 // toFloat32 converts a slice of float64 to float32 for Weaviate compatibility.
