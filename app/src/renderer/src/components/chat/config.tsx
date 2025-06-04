@@ -10,7 +10,8 @@ export type ToolName =
   | 'generate_image'
   | 'memory_tool'
   | 'schedule_task'
-  | 'generate_holon'
+  | 'preview_thread'
+  | 'send_to_holon'
 
 export const TOOL_CONFIG: Record<
   ToolName,
@@ -59,8 +60,13 @@ export const TOOL_CONFIG: Record<
     completed: 'Task Scheduled',
     url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fa/Line-style-icons-calendar-black.svg/510px-Line-style-icons-calendar-black.svg.png'
   },
-  generate_holon: {
-    inProgress: 'Generating Holon',
+  preview_thread: {
+    inProgress: 'Creating Preview',
+    completed: 'Preview Created',
+    component: HolonToolComponent
+  },
+  send_to_holon: {
+    inProgress: 'Sending to Holon',
     completed: 'Holon Generated',
     component: HolonToolComponent
   }
