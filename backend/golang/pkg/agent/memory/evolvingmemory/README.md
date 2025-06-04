@@ -197,6 +197,90 @@ The filtering system uses a **hybrid approach** for maximum performance and back
 
 **Backward Compatibility**: 100% maintained - pass `nil` filter to use original behavior.
 
+## Advanced Tags Filtering 🏷️
+
+The evolvingmemory package now supports **polynomial boolean logic** for tags filtering, enabling complex search patterns beyond simple AND operations.
+
+### Simple Usage
+
+```go
+// 📝 Simple AND (backward compatible): Find documents with ALL tags
+filter := &memory.Filter{
+    Tags: memory.NewTagsFilterAll("work", "important"),
+    Limit: intPtr(10),
+}
+
+// 🔍 Simple OR: Find documents with ANY of the tags  
+filter := &memory.Filter{
+    Tags: memory.NewTagsFilterAny("urgent", "deadline", "asap"),
+    Limit: intPtr(20),
+}
+```
+
+### Complex Boolean Expressions
+
+```go
+// 🌟 Complex query: (work AND Q1) OR (personal AND urgent)
+expr := memory.NewBooleanExpressionBranch(
+    memory.OR,
+    memory.NewBooleanExpressionLeaf(memory.AND, "work", "Q1"),
+    memory.NewBooleanExpressionLeaf(memory.AND, "personal", "urgent"),
+)
+
+filter := &memory.Filter{
+    Tags: memory.NewTagsFilterExpression(expr),
+    Source: stringPtr("conversations"),
+    Distance: 0.8,
+}
+
+result, err := storage.Query(ctx, "project updates", filter)
+```
+
+### Advanced Nested Logic
+
+```go
+// 🔥 Super complex: ((project AND alpha) OR (project AND beta)) AND important
+innerExpr := memory.NewBooleanExpressionBranch(
+    memory.OR,
+    memory.NewBooleanExpressionLeaf(memory.AND, "project", "alpha"),
+    memory.NewBooleanExpressionLeaf(memory.AND, "project", "beta"),
+)
+
+outerExpr := memory.NewBooleanExpressionBranch(
+    memory.AND,
+    innerExpr,
+    memory.NewBooleanExpressionLeaf(memory.OR, "important"),
+)
+
+filter := &memory.Filter{
+    Tags: memory.NewTagsFilterExpression(outerExpr),
+}
+```
+
+### Performance Characteristics
+
+- **Simple ALL** (`NewTagsFilterAll`): ⚡ **Very Fast** - Single `ContainsAll` query
+- **Simple ANY** (`NewTagsFilterAny`): ⚡ **Fast** - OR conditions  
+- **Complex Expressions**: 🐌 **Slower but Powerful** - Nested boolean queries
+
+### Backward Compatibility
+
+Old code patterns are automatically migrated:
+
+```go
+// ❌ Old way (no longer works):
+filter := &memory.Filter{
+    Tags: []string{"work", "important"}, // Compile error!
+}
+
+// ✅ New equivalent:
+filter := &memory.Filter{
+    Tags: memory.NewTagsFilterAll("work", "important"),
+}
+```
+
+## Integration with Other Filters
+
 ## Where to find things
 
 ```
