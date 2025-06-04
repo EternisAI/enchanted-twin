@@ -389,7 +389,7 @@ func (r *mutationResolver) Activate(ctx context.Context, inviteCode string) (boo
 func (r *mutationResolver) JoinHolon(ctx context.Context, network *string) (bool, error) {
 	// TODO: Get actual user ID from context
 	userID := "current-user"
-	return r.HolonService.JoinHolon(ctx, network, userID)
+	return r.HolonService.JoinHolon(ctx, userID)
 }
 
 // Profile is the resolver for the profile field.
@@ -661,12 +661,12 @@ func (r *queryResolver) GetHolons(ctx context.Context, id string) ([]string, err
 
 // GetThreads is the resolver for the getThreads field.
 func (r *queryResolver) GetThreads(ctx context.Context, network *string) ([]*model.Thread, error) {
-	return r.HolonService.GetThreads(ctx, network)
+	return r.HolonService.GetThreads(ctx)
 }
 
 // GetThread is the resolver for the getThread field.
 func (r *queryResolver) GetThread(ctx context.Context, network *string, id string) (*model.Thread, error) {
-	return r.HolonService.GetThread(ctx, network, id)
+	return r.HolonService.GetThread(ctx, id)
 }
 
 // MessageAdded is the resolver for the messageAdded field.

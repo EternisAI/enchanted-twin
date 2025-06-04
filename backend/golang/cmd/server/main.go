@@ -364,7 +364,7 @@ func main() {
 	}
 	logger.Info("Personality", "personality", personality)
 
-	holonService := holon.NewService()
+	holonService := holon.NewService(store)
 
 
 	telegramServiceInput := telegram.TelegramServiceInput{
