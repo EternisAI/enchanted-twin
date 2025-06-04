@@ -54,6 +54,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/tts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 	chatrepository "github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
+	"github.com/EternisAI/enchanted-twin/pkg/twinnetwork"
 	whatsapp "github.com/EternisAI/enchanted-twin/pkg/whatsapp"
 	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
@@ -292,6 +293,19 @@ func main() {
 	if err != nil {
 		logger.Error("Failed to register send to chat tool", "error", err)
 		panic(errors.Wrap(err, "Failed to register send to chat tool"))
+	}
+
+	// Register the create twin thread tool
+	createTwinThreadTool := twinnetwork.NewCreateTwinThreadTool(
+		envs.HolonZeroEndpoint, // You'll need to add this to your config
+		nc,
+		"EnchantedTwin-AI", // The name of this AI participant
+		store,              // Add the missing store parameter
+	)
+	err = toolRegistry.Register(createTwinThreadTool)
+	if err != nil {
+		logger.Error("Failed to register create twin thread tool", "error", err)
+		panic(errors.Wrap(err, "Failed to register create twin thread tool"))
 	}
 
 	// Initialize MCP Service with tool registry
