@@ -75,6 +75,15 @@ for progressCh != nil || errorCh != nil {
         log.Printf("Error: %v", err)
     }
 }
+
+// Query with advanced filtering (NEW!)
+filter := &memory.Filter{
+    Source:      stringPtr("conversations"),
+    ContactName: stringPtr("alice"),
+    Distance:    0.7,  // Max semantic distance
+    Limit:       intPtr(10),
+}
+result, err := storage.Query(ctx, "work discussions", filter)
 ```
 
 ## How does it work?
@@ -109,6 +118,84 @@ for progressCh != nil || errorCh != nil {
 - Depends on `storage.Interface`, not specific implementations
 - Currently supports WeaviateStorage
 - Easy to add RedisStorage, PostgresStorage, etc.
+
+## Advanced Filtering
+
+The memory system now supports powerful filtering capabilities for precise memory retrieval:
+
+### Filter Structure
+
+```go
+type Filter struct {
+    Source      *string // Filter by document source
+    ContactName *string // Filter by contact/speaker name  
+    Distance    float32 // Maximum semantic distance (0 = disabled)
+    Limit       *int    // Maximum number of results to return
+}
+```
+
+### Usage Examples
+
+```go
+// Filter by source
+filter := &memory.Filter{
+    Source: stringPtr("email"),
+}
+result, err := storage.Query(ctx, "work meetings", filter)
+
+// Filter by contact
+filter := &memory.Filter{
+    ContactName: stringPtr("alice"),
+}
+result, err := storage.Query(ctx, "alice's preferences", filter)
+
+// Limit results with semantic distance
+filter := &memory.Filter{
+    Distance: 0.7,
+    Limit:    intPtr(5),
+}
+result, err := storage.Query(ctx, "recent activities", filter)
+
+// Combined filtering
+filter := &memory.Filter{
+    Source:      stringPtr("conversations"),
+    ContactName: stringPtr("bob"),
+    Distance:    0.8,
+    Limit:       intPtr(10),
+}
+result, err := storage.Query(ctx, "work discussions", filter)
+
+// Helper functions
+func stringPtr(s string) *string { return &s }
+func intPtr(i int) *int { return &i }
+```
+
+### Schema Improvements
+
+The filtering system uses a **hybrid approach** for maximum performance and backward compatibility:
+
+**Direct Object Fields** (new, efficient):
+- `source` - Document source as a direct field
+- `speakerID` - Speaker/contact ID as a direct field  
+- Uses exact matching with `filters.Equal` operator
+
+**Legacy JSON Metadata** (backward compatible):
+- `metadataJson` - Still maintained for complex metadata
+- Automatically merges direct fields into metadata maps
+- Zero breaking changes for existing code
+
+**Migration Behavior:**
+- New schemas get both direct fields and JSON metadata
+- Existing schemas automatically get new fields added
+- All existing code continues to work unchanged
+
+### Performance Benefits
+
+- **Before**: `LIKE *"source":"value"*` pattern matching on JSON strings
+- **After**: Direct field queries with proper indexing
+- **Result**: Faster queries and cleaner Weaviate GraphQL
+
+**Backward Compatibility**: 100% maintained - pass `nil` filter to use original behavior.
 
 ## Where to find things
 
@@ -303,33 +390,37 @@ All existing APIs are preserved:
 
 ## Recent Changes
 
+### Advanced Filtering System
+
+**Major improvement**: Upgraded from JSON string pattern matching to proper object fields.
+
+#### What Changed:
+- **New Filter struct** with `Source`, `ContactName`, `Distance`, and `Limit` fields
+- **Hybrid schema approach**: Direct object fields + legacy JSON metadata  
+- **Performance boost**: `filters.Equal` on indexed fields vs `LIKE *pattern*` on JSON strings
+- **Auto-migration**: Existing schemas get new fields added automatically
+- **100% backward compatible**: All existing code works unchanged
+
+#### Benefits:
+- ✅ **Faster queries** - Direct field filtering instead of JSON pattern matching
+- ✅ **Cleaner API** - Structured Filter instead of complex query building  
+- ✅ **Better indexing** - Weaviate can properly index direct fields
+- ✅ **Future-proof** - Easy to add new filter fields
+- ✅ **Zero breaking changes** - Pass `nil` filter for original behavior
+
+#### Usage:
+```go
+// Old way (still works)
+result, err := storage.Query(ctx, "query text", nil)
+
+// New way (recommended)  
+filter := &memory.Filter{
+    Source: stringPtr("conversations"),
+    Limit:  intPtr(5),
+}
+result, err := storage.Query(ctx, "query text", filter)
+```
+
 ### Phase 3 Cleanup (January 2025)
 
-Completed architectural cleanup for production readiness:
-
-#### 1. Removed Dead Code
-- Eliminated unused adapter interfaces (`FactExtractor`, `MemoryOperations`)
-- Removed `adapters.go` file that had no external consumers
-- Cleaned up `GetEngine()` method that was only used by adapters
-- Zero dead code warnings now
-
-#### 2. Simplified Architecture  
-- Direct access to business logic through clean public interfaces
-- Removed unnecessary abstraction layers
-- Cleaner dependency injection
-
-#### 3. Updated Tests
-- Converted adapter tests to direct StorageImpl interface tests
-- Focus on public interfaces rather than internal adapters
-- Comprehensive dependency validation tests
-- All tests passing with proper API key handling
-
-#### 4. Production Ready
-- ✅ Zero dead code
-- ✅ Clean architecture boundaries
-- ✅ Hot-swappable storage working
-- ✅ Comprehensive test coverage
-- ✅ Perfect backward compatibility
-- ✅ Ready for production deployment
-
-The package now follows hexagonal/clean architecture principles with clear separation between ports (interfaces), adapters (implementations), domain logic (business rules), and infrastructure (coordination). 
+Completed architectural cleanup for production readiness: 

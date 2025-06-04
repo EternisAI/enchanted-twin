@@ -116,14 +116,29 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	// Get tags from the source document
 	tags := fact.Source.Original.Tags()
 
+	// Prepare properties with new direct fields
+	properties := map[string]interface{}{
+		"content":      fact.Content,
+		"metadataJson": marshalMetadata(metadata), // Keep for backward compatibility
+		"timestamp":    fact.Source.Timestamp.Format(time.RFC3339),
+		"tags":         tags,
+	}
+
+	// Extract and store source as direct field
+	if source := fact.Source.Original.Source(); source != "" {
+		properties["source"] = source
+	} else if source, exists := metadata["source"]; exists {
+		properties["source"] = source
+	}
+
+	// Extract and store speakerID as direct field
+	if fact.SpeakerID != "" {
+		properties["speakerID"] = fact.SpeakerID
+	}
+
 	return &models.Object{
-		Class: ClassName,
-		Properties: map[string]interface{}{
-			"content":      fact.Content,
-			"metadataJson": marshalMetadata(metadata),
-			"timestamp":    fact.Source.Timestamp.Format(time.RFC3339),
-			"tags":         tags,
-		},
+		Class:      ClassName,
+		Properties: properties,
 	}
 }
 
