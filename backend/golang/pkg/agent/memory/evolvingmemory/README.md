@@ -86,6 +86,7 @@ The evolving memory system now includes a sophisticated document storage archite
 - **Multiple document references per memory** - Each memory fact can reference multiple source documents
 - **Separate document table** - Documents stored in dedicated `SourceDocument` table with deduplication
 - **Content deduplication** - Documents with identical content stored only once using SHA256 hashing
+- **Document size validation** - Documents exceeding 20,000 characters are automatically truncated to prevent processing issues
 - **Backward compatibility** - Existing memories continue working seamlessly
 
 ### Storage Architecture
@@ -623,4 +624,71 @@ Completed architectural cleanup for production readiness:
 - ✅ 85-95% storage optimization achieved
 - ✅ Ready for production deployment
 
-The package now follows hexagonal/clean architecture principles with clear separation between ports (interfaces), adapters (implementations), domain logic (business rules), and infrastructure (coordination). 
+The package now follows hexagonal/clean architecture principles with clear separation between ports (interfaces), adapters (implementations), domain logic (business rules), and infrastructure (coordination).
+
+### Document Size Validation
+
+The system automatically validates and truncates documents that exceed the maximum allowed size:
+
+- **Maximum size limit**: 20,000 characters per document
+- **Automatic truncation**: Documents exceeding the limit are truncated to exactly 20,000 characters
+- **Transparent operation**: Truncation happens during document preparation and is invisible to the rest of the pipeline
+- **Interface preservation**: Truncated documents maintain the same `memory.Document` interface
+
+#### Validation Flow
+
+```go
+// During document preparation, size validation occurs automatically
+func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocument, error) {
+    // 1. Validate and potentially truncate the document
+    validatedDoc := validateAndTruncateDocument(doc)
+    
+    // 2. Continue with normal preparation using the validated document
+    prepared := PreparedDocument{
+        Original: validatedDoc,
+        // ... rest of preparation
+    }
+}
+
+// The validation function checks size and truncates if necessary
+func validateAndTruncateDocument(doc memory.Document) memory.Document {
+    content := doc.Content()
+    
+    // If content is within limits, return original document
+    if len(content) <= maxDocumentSizeChars {
+        return doc
+    }
+    
+    // Truncate content to maxDocumentSizeChars
+    truncatedContent := content[:maxDocumentSizeChars]
+    
+    return &truncatedDocument{
+        original:         doc,
+        truncatedContent: truncatedContent,
+    }
+}
+```
+
+#### Benefits of Size Validation
+
+1. **Performance Protection** - Prevents extremely large documents from causing memory or processing issues
+2. **Consistent Processing** - Ensures all documents are within reasonable size limits for LLM processing
+3. **Resource Management** - Prevents excessive memory usage during fact extraction and storage
+4. **Graceful Handling** - Large documents are truncated rather than rejected, preserving partial content
+
+#### Testing Size Validation
+
+```go
+// Test that documents are properly truncated
+func TestDocumentSizeValidation(t *testing.T) {
+    largeDoc := &memory.TextDocument{
+        FieldContent: strings.Repeat("Large content", 2000), // > 20,000 chars
+    }
+    
+    prepared, err := PrepareDocuments([]memory.Document{largeDoc}, time.Now())
+    assert.NoError(t, err)
+    assert.Equal(t, 20000, len(prepared[0].Original.Content()))
+}
+```
+
+Run document size validation tests with: `go test -v ./pkg/agent/memory/evolvingmemory/ -run TestDocumentSizeValidation` 

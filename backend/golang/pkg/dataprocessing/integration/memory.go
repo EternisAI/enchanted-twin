@@ -130,6 +130,8 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		return fmt.Errorf("failed to process source: %w", err)
 	}
 
+	logger.Info("==============✅ Data processed into %d documents===============", len(documents))
+
 	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
@@ -145,7 +147,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	if len(documents) == 0 {
 		return fmt.Errorf("no documents to store")
 	}
-	logger.Info("Storing documents", "source", config.Source, "count", len(documents))
+	logger.Info("...Storing documents", "source", config.Source, "count", len(documents))
 
 	for i := 0; i < len(documents); i += batchSize {
 		if err := ctx.Err(); err != nil {
@@ -183,6 +185,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	case <-ctx.Done():
 		return fmt.Errorf("context canceled while waiting for processing to complete: %w", ctx.Err())
 	}
+	logger.Info("==============✅ Memories stored===============")
 
 	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source))
 	if err != nil {
@@ -190,68 +193,31 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	}
 
 	if len(result.Documents) > 0 {
-		for i, doc := range result.Documents[:min(3, len(result.Documents))] {
+		for _, doc := range result.Documents[:min(3, len(result.Documents))] {
 			memoryID := doc.ID()
-			memoryContent := doc.Content()
-
-			logger.Info("Testing document reference",
-				"memory_id", memoryID,
-				"memory_content", memoryContent,
-				"memory_content_length", len(memoryContent))
-
-			logger.Info("About to call GetDocumentReference", "memory_id", memoryID)
 
 			docRefs, err := mem.GetDocumentReferences(ctx, memoryID)
 			if err != nil {
-				logger.Error("Failed to get document reference",
-					"error", err,
-					"memory_id", memoryID)
 				return fmt.Errorf("failed to get document reference: %w", err)
 			}
 
 			if len(docRefs) == 0 {
-				logger.Error("No document references found", "memory_id", memoryID)
 				return fmt.Errorf("no document references found for memory %s", memoryID)
 			}
 
 			docRef := docRefs[0]
 
-			logger.Info("GetDocumentReference returned",
-				"memory_id", memoryID,
-				"docRef_id", docRef.ID,
-				"docRef_type", docRef.Type,
-				"docRef_content_length", len(docRef.Content),
-				"docRef_content_empty", docRef.Content == "")
-
 			if docRef.ID == "" {
-				logger.Error("Document reference validation failed: empty ID",
-					"memory_id", memoryID,
-					"docRef_id", docRef.ID,
-					"docRef_type", docRef.Type)
-				return fmt.Errorf("document reference has empty ID")
+				return fmt.Errorf("document reference has empty ID for memory %s and type %s", memoryID, docRef.Type)
 			}
 
 			if docRef.Content == "" {
-				logger.Warn("Document reference has empty content (likely old format)",
-					"memory_id", memoryID,
-					"docRef_id", docRef.ID,
-					"docRef_type", docRef.Type)
+				return fmt.Errorf("document reference has empty content for id %s and type %s", docRef.ID, docRef.Type)
 			}
 
 			if docRef.Type == "" {
-				logger.Error("Document reference validation failed: empty type",
-					"memory_id", memoryID,
-					"docRef_id", docRef.ID,
-					"docRef_content_length", len(docRef.Content))
-				return fmt.Errorf("document reference has empty type")
+				return fmt.Errorf("document reference has empty type %s for id %s and content %s", docRef.Type, docRef.ID, docRef.Content)
 			}
-
-			logger.Info("Document reference retrieved successfully",
-				"test_number", i+1,
-				"memory_id", memoryID,
-				"source_doc_id", docRef.ID,
-				"source_doc_type", docRef.Type,
-				"source_content_length", len(docRef.Content))
 
 			if docRef.Content != "" {
 				contentSnippet := docRef.Content
@@ -260,13 +226,13 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 				}
 				logger.Info("Original document snippet", "snippet", contentSnippet)
 			} else {
-				logger.Info("No content available for this document reference (old format)")
+				return fmt.Errorf("no content available for this document reference (old format)")
 			}
 		}
 
-		logger.Info("✅ Document reference functionality test completed successfully")
+		logger.Info("==============✅ Document references found===============")
 	} else {
-		logger.Warn("No memories found in query result - skipping document reference test")
+		return fmt.Errorf("no memories found in query result - skipping document reference test")
 	}
 
 	logger.Info("Waiting for all background fact processing to complete...")
@@ -276,7 +242,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 		return fmt.Errorf("context canceled during final wait: %w", ctx.Err())
 	}
 
-	logger.Info("🟢 Integration test completed successfully")
+	logger.Info("==============🟢 Integration test completed successfully===============")
 
 	logger.Info("Waiting for all background fact processing to complete...")
 	select {
@@ -284,8 +250,6 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	case <-ctx.Done():
 		return fmt.Errorf("context canceled during final wait: %w", ctx.Err())
 	}
-
-	logger.Info("🟢 Integration test completed successfully")
 
 	return nil
 }
