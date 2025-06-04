@@ -611,16 +611,17 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		filterMap := metadataFilters[0]
 		for key, value := range filterMap {
 			if key == "type" {
+				escapedKey := strings.ReplaceAll(key, `"`, `\"`)
+				escapedKey = strings.ReplaceAll(escapedKey, `*`, `\*`)
 				escapedValue := strings.ReplaceAll(value, `"`, `\"`)
 				escapedValue = strings.ReplaceAll(escapedValue, `*`, `\*`)
 				escapedValue = strings.ReplaceAll(escapedValue, `\`, `\\`)
 
-				whereFilter := filters.Where().
+				queryBuilder = queryBuilder.WithWhere(filters.Where().
 					WithPath([]string{metadataProperty}).
 					WithOperator(filters.Like).
-					WithValueText(fmt.Sprintf(`*"%s":"%s"*`, key, escapedValue))
+					WithValueText(fmt.Sprintf(`*"%s":"%s"*`, escapedKey, escapedValue)))
 
-				queryBuilder = queryBuilder.WithWhere(whereFilter)
 				s.logger.Debug("Added WHERE filter", "key", key, "value", value, "pattern", fmt.Sprintf(`*"%s":"%s"*`, key, escapedValue))
 			}
 		}
