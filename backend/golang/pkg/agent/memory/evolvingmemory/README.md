@@ -151,13 +151,6 @@ Document stored once, facts reference by ID
 #### Retrieving Document References
 
 ```go
-// Get first document reference (backward compatibility)
-docRef, err := storage.GetDocumentReference(ctx, memoryID)
-if err != nil {
-    log.Printf("Error: %v", err)
-}
-fmt.Printf("Document: %s (Type: %s)\nContent: %s\n", 
-    docRef.ID, docRef.Type, docRef.Content)
 
 // Get all document references (multiple references support)
 docRefs, err := storage.GetDocumentReferences(ctx, memoryID)
