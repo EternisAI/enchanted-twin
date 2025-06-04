@@ -28,6 +28,8 @@ type MemoryEngine interface {
 
 	// Storage operations
 	StoreBatch(ctx context.Context, objects []*models.Object) error
+
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 }
 
 // memoryEngine implements MemoryEngine with pure business logic.
@@ -194,12 +196,50 @@ func (e *memoryEngine) DeleteMemory(ctx context.Context, memoryID string) error 
 	return e.storage.Delete(ctx, memoryID)
 }
 
-// CreateMemoryObject creates a memory object for storage.
+// CreateMemoryObject creates a memory object for storage with separate document storage.
 func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
-	return CreateMemoryObjectWithEmbedding(ctx, fact, decision, e.embeddingsService)
+	documentID, err := e.storage.StoreDocument(
+		ctx,
+		fact.Source.Original.Content(),
+		string(fact.Source.Type),
+		fact.Source.Original.ID(),
+		fact.Source.Original.Metadata(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("storing document: %w", err)
+	}
+
+	obj := CreateMemoryObjectWithDocumentReferences(fact, decision, []string{documentID})
+
+	embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding: %w", err)
+	}
+
+	obj.Vector = toFloat32(embedding)
+	return obj, nil
 }
 
 // StoreBatch stores a batch of objects.
 func (e *memoryEngine) StoreBatch(ctx context.Context, objects []*models.Object) error {
 	return e.storage.StoreBatch(ctx, objects)
+}
+
+// GetDocumentReferences retrieves all document references for a memory.
+func (e *memoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+	storageRefs, err := e.storage.GetDocumentReferences(ctx, memoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	refs := make([]*DocumentReference, len(storageRefs))
+	for i, storageRef := range storageRefs {
+		refs[i] = &DocumentReference{
+			ID:      storageRef.ID,
+			Content: storageRef.Content,
+			Type:    storageRef.Type,
+		}
+	}
+
+	return refs, nil
 }

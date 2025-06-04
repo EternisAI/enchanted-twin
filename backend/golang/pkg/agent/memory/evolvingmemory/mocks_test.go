@@ -69,6 +69,38 @@ func (m *MockStorage) EnsureSchemaExists(ctx context.Context) error {
 	return args.Error(0)
 }
 
+func (m *MockStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
+	args := m.Called(ctx, memoryID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	docRefs, _ := args.Get(0).([]*storage.DocumentReference)
+	return docRefs, args.Error(1)
+}
+
+func (m *MockStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
+	args := m.Called(ctx, content, docType, originalID, metadata)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockStorage) GetStoredDocument(ctx context.Context, documentID string) (*storage.StoredDocument, error) {
+	args := m.Called(ctx, documentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	storedDoc, _ := args.Get(0).(*storage.StoredDocument)
+	return storedDoc, args.Error(1)
+}
+
+func (m *MockStorage) GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*storage.StoredDocument, error) {
+	args := m.Called(ctx, documentIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	storedDocs, _ := args.Get(0).([]*storage.StoredDocument)
+	return storedDocs, args.Error(1)
+}
+
 // Ensure MockStorage implements the storage interface.
 var _ storage.Interface = (*MockStorage)(nil)
 
