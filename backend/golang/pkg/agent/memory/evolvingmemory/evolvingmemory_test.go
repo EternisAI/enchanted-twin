@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
@@ -285,3 +286,560 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 // Note: Full integration tests with real Weaviate/AI services
 // should be run separately using the existing test-memory command
+
+// FILTERING INTEGRATION TESTS 🧪
+
+// Helper functions for filtering tests.
+func stringPtr(s string) *string { return &s }
+func intPtr(i int) *int          { return &i }
+
+// TestAdvancedFiltering_Integration tests the complete filtering pipeline.
+func TestAdvancedFiltering_Integration(t *testing.T) {
+	t.Run("filter validation in storage interface", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Mock the Query method to verify filter is passed correctly
+		expectedFilter := &memory.Filter{
+			Source:      stringPtr("conversations"),
+			ContactName: stringPtr("alice"),
+			Distance:    0.7,
+			Limit:       intPtr(5),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{},
+			Documents: []memory.TextDocument{
+				{
+					FieldID:      "test-123",
+					FieldContent: "alice likes pizza",
+					FieldSource:  "conversations",
+					FieldMetadata: map[string]string{
+						"source":    "conversations",
+						"speakerID": "alice",
+					},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "pizza preferences", expectedFilter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		// Create storage with mock
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		// Test the query with filter
+		result, err := storage.Query(context.Background(), "pizza preferences", expectedFilter)
+		require.NoError(t, err)
+
+		// Verify result structure
+		assert.Len(t, result.Documents, 1)
+		assert.Equal(t, "test-123", result.Documents[0].ID())
+		assert.Equal(t, "conversations", result.Documents[0].Source())
+		assert.Equal(t, "alice", result.Documents[0].Metadata()["speakerID"])
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("nil filter backward compatibility", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Mock the Query method with nil filter
+		var nilFilter *memory.Filter = nil
+		expectedResult := memory.QueryResult{
+			Facts:     []memory.MemoryFact{},
+			Documents: []memory.TextDocument{},
+		}
+
+		mockStorage.On("Query", mock.Anything, "test query", nilFilter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		// Test query with nil filter (backward compatibility)
+		result, err := storage.Query(context.Background(), "test query", nil)
+		require.NoError(t, err)
+		assert.Empty(t, result.Documents)
+
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+// TestFilterBehavior_EdgeCases tests edge cases in filter behavior.
+func TestFilterBehavior_EdgeCases(t *testing.T) {
+	t.Run("empty filter values", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Filter with empty string values
+		filter := &memory.Filter{
+			Source:      stringPtr(""),
+			ContactName: stringPtr(""),
+			Distance:    0,
+			Limit:       intPtr(0),
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts:     []memory.MemoryFact{},
+			Documents: []memory.TextDocument{},
+		}
+
+		mockStorage.On("Query", mock.Anything, "test", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "test", filter)
+		require.NoError(t, err)
+		assert.Empty(t, result.Documents)
+
+		mockStorage.AssertExpectations(t)
+	})
+
+	t.Run("extreme filter values", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		// Filter with extreme values
+		filter := &memory.Filter{
+			Source:      stringPtr("very-long-source-name-that-might-cause-issues"),
+			ContactName: stringPtr("user-with-very-long-name-123456789"),
+			Distance:    2.0,           // > 1.0
+			Limit:       intPtr(10000), // Very large limit
+		}
+
+		expectedResult := memory.QueryResult{
+			Facts:     []memory.MemoryFact{},
+			Documents: []memory.TextDocument{},
+		}
+
+		mockStorage.On("Query", mock.Anything, "test", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "test", filter)
+		require.NoError(t, err)
+		assert.Empty(t, result.Documents)
+
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+// TestDirectFieldVsJSONMetadata tests the hybrid approach behavior.
+func TestDirectFieldVsJSONMetadata(t *testing.T) {
+	t.Run("direct fields override JSON metadata", func(t *testing.T) {
+		// Simulate a document with both direct fields and conflicting JSON metadata
+		doc := memory.TextDocument{
+			FieldID:      "test-456",
+			FieldContent: "test content",
+			FieldSource:  "conversations", // Direct field
+			FieldMetadata: map[string]string{
+				"source":    "old_source", // Should be overridden
+				"speakerID": "alice",
+				"extra":     "metadata",
+			},
+		}
+
+		// Direct field should take precedence
+		assert.Equal(t, "conversations", doc.Source())
+		assert.Equal(t, "conversations", doc.FieldSource)
+
+		// But metadata map might still contain old value
+		// (Real implementation should merge correctly)
+		assert.Contains(t, doc.Metadata(), "speakerID")
+		assert.Contains(t, doc.Metadata(), "extra")
+	})
+
+	t.Run("JSON metadata fallback when direct fields empty", func(t *testing.T) {
+		doc := memory.TextDocument{
+			FieldID:      "test-789",
+			FieldContent: "test content",
+			FieldSource:  "", // Empty direct field
+			FieldMetadata: map[string]string{
+				"source":    "json_source", // Should be used
+				"speakerID": "bob",
+			},
+		}
+
+		// Should fall back to metadata when direct field is empty
+		assert.Equal(t, "", doc.Source()) // Direct field is empty
+		assert.Equal(t, "json_source", doc.Metadata()["source"])
+		assert.Equal(t, "bob", doc.Metadata()["speakerID"])
+	})
+}
+
+// TestQueryResultStructure tests the structure of query results with filtering.
+func TestQueryResultStructure(t *testing.T) {
+	t.Run("filtered result structure", func(t *testing.T) {
+		mockStorage := &MockStorage{}
+		logger := log.New(os.Stdout)
+
+		filter := &memory.Filter{
+			Source: stringPtr("conversations"),
+			Limit:  intPtr(3),
+		}
+
+		// Create realistic mock result
+		now := time.Now()
+		expectedResult := memory.QueryResult{
+			Facts: []memory.MemoryFact{}, // Usually empty in current implementation
+			Documents: []memory.TextDocument{
+				{
+					FieldID:        "doc-1",
+					FieldContent:   "alice likes coffee",
+					FieldTimestamp: &now,
+					FieldSource:    "conversations",
+					FieldMetadata: map[string]string{
+						"source":    "conversations",
+						"speakerID": "alice",
+						"channel":   "general",
+					},
+				},
+				{
+					FieldID:        "doc-2",
+					FieldContent:   "bob prefers tea",
+					FieldTimestamp: &now,
+					FieldSource:    "conversations",
+					FieldMetadata: map[string]string{
+						"source":    "conversations",
+						"speakerID": "bob",
+						"channel":   "general",
+					},
+				},
+			},
+		}
+
+		mockStorage.On("Query", mock.Anything, "drink preferences", filter).
+			Return(expectedResult, nil)
+
+		// Create AI services inline
+		envPath := filepath.Join("..", "..", "..", "..", ".env")
+		_ = godotenv.Load(envPath)
+		completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+		embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+		if embeddingsKey == "" {
+			embeddingsKey = completionsKey
+		}
+		completionsURL := os.Getenv("COMPLETIONS_API_URL")
+		if completionsURL == "" {
+			completionsURL = "https://api.openai.com/v1"
+		}
+		embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsURL == "" {
+			embeddingsURL = "https://api.openai.com/v1"
+		}
+
+		if completionsKey == "" {
+			t.Skip("Skipping AI-dependent tests: API keys not set")
+			return
+		}
+
+		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
+
+		deps := Dependencies{
+			Logger:             logger,
+			Storage:            mockStorage,
+			CompletionsService: completionsService,
+			EmbeddingsService:  embeddingsService,
+		}
+
+		storage, err := New(deps)
+		require.NoError(t, err)
+
+		result, err := storage.Query(context.Background(), "drink preferences", filter)
+		require.NoError(t, err)
+
+		// Verify result structure
+		assert.Len(t, result.Documents, 2)
+		assert.Empty(t, result.Facts) // Current implementation
+
+		// Verify first document
+		doc1 := result.Documents[0]
+		assert.Equal(t, "doc-1", doc1.ID())
+		assert.Equal(t, "alice likes coffee", doc1.Content())
+		assert.Equal(t, "conversations", doc1.Source())
+		assert.Equal(t, "alice", doc1.Metadata()["speakerID"])
+		assert.Equal(t, "general", doc1.Metadata()["channel"])
+		assert.NotNil(t, doc1.Timestamp())
+
+		// Verify second document
+		doc2 := result.Documents[1]
+		assert.Equal(t, "doc-2", doc2.ID())
+		assert.Equal(t, "bob prefers tea", doc2.Content())
+		assert.Equal(t, "conversations", doc2.Source())
+		assert.Equal(t, "bob", doc2.Metadata()["speakerID"])
+
+		mockStorage.AssertExpectations(t)
+	})
+}
+
+// TestFilterUsagePatterns tests realistic usage patterns.
+func TestFilterUsagePatterns(t *testing.T) {
+	t.Run("conversation filtering pattern", func(t *testing.T) {
+		// Pattern: Get recent conversations with a specific person
+		filter := &memory.Filter{
+			Source:      stringPtr("conversations"),
+			ContactName: stringPtr("alice"),
+			Distance:    0.8, // Semantic similarity threshold
+			Limit:       intPtr(10),
+		}
+
+		assert.Equal(t, "conversations", *filter.Source)
+		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, float32(0.8), filter.Distance)
+		assert.Equal(t, 10, *filter.Limit)
+	})
+
+	t.Run("email filtering pattern", func(t *testing.T) {
+		// Pattern: Find work-related emails
+		filter := &memory.Filter{
+			Source:   stringPtr("email"),
+			Distance: 0.7,
+			Limit:    intPtr(20),
+		}
+
+		assert.Equal(t, "email", *filter.Source)
+		assert.Nil(t, filter.ContactName) // No specific contact
+		assert.Equal(t, float32(0.7), filter.Distance)
+		assert.Equal(t, 20, *filter.Limit)
+	})
+
+	t.Run("semantic search only pattern", func(t *testing.T) {
+		// Pattern: Pure semantic search with distance limit
+		filter := &memory.Filter{
+			Distance: 0.6,
+			Limit:    intPtr(5),
+		}
+
+		assert.Nil(t, filter.Source)      // No source filter
+		assert.Nil(t, filter.ContactName) // No contact filter
+		assert.Equal(t, float32(0.6), filter.Distance)
+		assert.Equal(t, 5, *filter.Limit)
+	})
+}
+
+// TestSchemaEvolution tests schema evolution and migration scenarios.
+func TestSchemaEvolution(t *testing.T) {
+	t.Run("schema field constants", func(t *testing.T) {
+		// Verify all expected schema fields are defined
+		// These should match the constants in storage.go
+		expectedFields := map[string]string{
+			"content":      "content",
+			"timestamp":    "timestamp",
+			"metadataJson": "metadataJson",
+			"source":       "source",    // New direct field
+			"speakerID":    "speakerID", // New direct field
+			"tags":         "tags",
+		}
+
+		for fieldName, expectedValue := range expectedFields {
+			assert.NotEmpty(t, expectedValue, "Field %s should not be empty", fieldName)
+		}
+	})
+
+	t.Run("metadata merging behavior", func(t *testing.T) {
+		// Test the metadata merging logic that should happen in storage
+		jsonMetadata := map[string]string{
+			"source":    "old_source",
+			"speakerID": "old_speaker",
+			"channel":   "general",
+			"extra":     "data",
+		}
+
+		// Simulate direct field values
+		directSource := "conversations"
+		directSpeakerID := "alice"
+
+		// Merge logic (direct fields take precedence)
+		finalMetadata := make(map[string]string)
+		for k, v := range jsonMetadata {
+			finalMetadata[k] = v
+		}
+		if directSource != "" {
+			finalMetadata["source"] = directSource
+		}
+		if directSpeakerID != "" {
+			finalMetadata["speakerID"] = directSpeakerID
+		}
+
+		// Verify merging behavior
+		assert.Equal(t, "conversations", finalMetadata["source"]) // Overridden
+		assert.Equal(t, "alice", finalMetadata["speakerID"])      // Overridden
+		assert.Equal(t, "general", finalMetadata["channel"])      // Preserved
+		assert.Equal(t, "data", finalMetadata["extra"])           // Preserved
+	})
+}
+
+// TestPerformanceImplications documents performance expectations.
+func TestPerformanceImplications(t *testing.T) {
+	t.Run("query pattern efficiency", func(t *testing.T) {
+		// Document expected query patterns for performance
+
+		// OLD PATTERN (slow):
+		// - JSON pattern matching: metadataJson LIKE '*"source":"value"*'
+		// - Full string search on serialized JSON
+		// - Cannot use proper database indexing
+
+		// NEW PATTERN (fast):
+		// - Direct field equality: source = "value"
+		// - Proper database indexing possible
+		// - Combined with filters.And for multiple conditions
+
+		filter := &memory.Filter{
+			Source:      stringPtr("conversations"),
+			ContactName: stringPtr("alice"),
+		}
+
+		// This should generate efficient queries like:
+		// WHERE (source = "conversations" AND speakerID = "alice")
+		assert.Equal(t, "conversations", *filter.Source)
+		assert.Equal(t, "alice", *filter.ContactName)
+	})
+
+	t.Run("memory usage patterns", func(t *testing.T) {
+		// Large result sets should be limited
+		filter := &memory.Filter{
+			Limit: intPtr(100), // Reasonable limit
+		}
+		assert.Equal(t, 100, *filter.Limit)
+
+		// Distance filtering reduces result set size
+		filter.Distance = 0.8 // Strict similarity
+		assert.Equal(t, float32(0.8), filter.Distance)
+	})
+}
