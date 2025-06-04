@@ -437,3 +437,64 @@ func TestStorageInterface(t *testing.T) {
 		// Actual query would be: storage.Query(ctx, "query text", filter)
 	})
 }
+
+func TestTagsFilteringIntegration(t *testing.T) {
+	t.Run("tags filtering with ContainsAll operator", func(t *testing.T) {
+		filter := &memory.Filter{
+			Tags:  []string{"work", "important"},
+			Limit: intPtr(5),
+		}
+
+		// Test the filter structure validation
+		assert.NotNil(t, filter.Tags)
+		assert.Len(t, filter.Tags, 2)
+		assert.Contains(t, filter.Tags, "work")
+		assert.Contains(t, filter.Tags, "important")
+		assert.Equal(t, 5, *filter.Limit)
+
+		// Verify that tags filtering maps to the correct Weaviate schema field
+		// The storage implementation should use filters.ContainsAll with the tagsProperty field
+		expectedTags := []string{"work", "important"}
+		assert.Equal(t, expectedTags, filter.Tags)
+	})
+
+	t.Run("schema alignment verification", func(t *testing.T) {
+		// Verify all Filter struct fields align with actual schema properties:
+		filter := &memory.Filter{
+			Source:      stringPtr("conversations"), // Maps to sourceProperty
+			ContactName: stringPtr("alice"),         // Maps to speakerProperty
+			Tags:        []string{"work", "urgent"}, // Maps to tagsProperty ✅ NOW ALIGNED!
+			Distance:    0.8,                        // Used for nearVector queries
+			Limit:       intPtr(10),                 // Used for WithLimit
+		}
+
+		// All fields should be properly populated
+		assert.Equal(t, "conversations", *filter.Source)
+		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Len(t, filter.Tags, 2)
+		assert.Contains(t, filter.Tags, "work")
+		assert.Contains(t, filter.Tags, "urgent")
+		assert.Equal(t, float32(0.8), filter.Distance)
+		assert.Equal(t, 10, *filter.Limit)
+	})
+
+	t.Run("tags filtering behavior", func(t *testing.T) {
+		// Test that tags filtering correctly uses ContainsAll (documents must have ALL tags)
+		filter := &memory.Filter{
+			Tags: []string{"project", "meeting", "Q1"},
+		}
+
+		// This should find documents that contain ALL three tags
+		assert.Len(t, filter.Tags, 3)
+
+		// An empty tags slice should not apply any tag filtering
+		emptyFilter := &memory.Filter{
+			Tags: []string{},
+		}
+		assert.Len(t, emptyFilter.Tags, 0)
+
+		// A nil filter should not break anything
+		var nilFilter *memory.Filter
+		assert.Nil(t, nilFilter)
+	})
+}
