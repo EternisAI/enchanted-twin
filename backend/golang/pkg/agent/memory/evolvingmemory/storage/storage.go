@@ -26,9 +26,9 @@ const (
 	timestampProperty = "timestamp"
 	metadataProperty  = "metadataJson"
 	tagsProperty      = "tags"
-	// Updated properties for document references - now stores multiple reference IDs
+	// Updated properties for document references - now stores multiple reference IDs.
 	documentReferencesProperty = "documentReferences" // Array of document IDs
-	// Document table properties
+	// Document table properties.
 	documentContentHashProperty = "contentHash"
 	documentTypeProperty        = "documentType"
 	documentOriginalIDProperty  = "originalId"
@@ -37,14 +37,14 @@ const (
 	openAIEmbedModel            = "text-embedding-3-small"
 )
 
-// DocumentReference holds the original document information
+// DocumentReference holds the original document information.
 type DocumentReference struct {
 	ID      string
 	Content string
 	Type    string
 }
 
-// StoredDocument represents a document in the separate document table
+// StoredDocument represents a document in the separate document table.
 type StoredDocument struct {
 	ID          string
 	Content     string
@@ -236,7 +236,6 @@ func (s *WeaviateStorage) DeleteAll(ctx context.Context) error {
 
 	err = s.client.Schema().ClassDeleter().WithClassName(ClassName).Do(ctx)
 	if err != nil {
-
 		existsAfterAttempt, checkErr := s.client.Schema().ClassExistenceChecker().WithClassName(ClassName).Do(ctx)
 		if checkErr == nil && !existsAfterAttempt {
 			s.logger.Info("Class was deleted, possibly concurrently.", "class", ClassName)
@@ -264,7 +263,7 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 	return nil
 }
 
-// ensureMemoryClassExists ensures the memory class schema exists
+// ensureMemoryClassExists ensures the memory class schema exists.
 func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 	schema, err := s.client.Schema().Getter().Do(ctx)
 	if err != nil {
@@ -353,7 +352,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 	return nil
 }
 
-// ensureDocumentClassExists ensures the document class schema exists
+// ensureDocumentClassExists ensures the document class schema exists.
 func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 	// First, check if schema already exists
 	schema, err := s.client.Schema().Getter().Do(ctx)
@@ -700,7 +699,7 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 	return memory.QueryWithDistanceResult{Documents: finalResults}, nil
 }
 
-// GetDocumentReferences retrieves all document references for a memory from the separate document table
+// GetDocumentReferences retrieves all document references for a memory from the separate document table.
 func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(memoryID).
@@ -783,7 +782,7 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	return references, nil
 }
 
-// StoreDocument stores a document in the separate document table with deduplication
+// StoreDocument stores a document in the separate document table with deduplication.
 func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
 	contentHash := sha256.New()
 	contentHash.Write([]byte(content))
@@ -843,7 +842,7 @@ func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, o
 	return storedDoc.ID, nil
 }
 
-// findDocumentByContentHash looks for an existing document with the same content hash
+// findDocumentByContentHash looks for an existing document with the same content hash.
 func (s *WeaviateStorage) findDocumentByContentHash(ctx context.Context, contentHash string) (*StoredDocument, error) {
 	// Use GraphQL to query for documents with matching content hash
 	contentHashField := weaviateGraphql.Field{Name: documentContentHashProperty}
@@ -926,7 +925,7 @@ func (s *WeaviateStorage) findDocumentByContentHash(ctx context.Context, content
 	}, nil
 }
 
-// GetStoredDocument retrieves a document from the separate document table
+// GetStoredDocument retrieves a document from the separate document table.
 func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(documentID).

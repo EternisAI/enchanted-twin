@@ -190,7 +190,6 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	}
 
 	if len(result.Documents) > 0 {
-
 		for i, doc := range result.Documents[:min(3, len(result.Documents))] {
 			memoryID := doc.ID()
 			memoryContent := doc.Content()

@@ -19,7 +19,7 @@ const (
 	timestampProperty = "timestamp"
 	tagsProperty      = "tags"
 	metadataProperty  = "metadataJson"
-	// New properties for document references
+	// New properties for document references.
 	sourceDocumentIDProperty      = "sourceDocumentId"
 	sourceDocumentContentProperty = "sourceDocumentContent"
 	sourceDocumentTypeProperty    = "sourceDocumentType"
@@ -156,7 +156,7 @@ type ExtractFactsToolArguments struct {
 	Facts []string `json:"facts"`
 }
 
-// DocumentReference holds reference to the original document that generated a memory fact
+// DocumentReference holds reference to the original document that generated a memory fact.
 type DocumentReference struct {
 	ID      string `json:"id"`
 	Content string `json:"content"`
@@ -308,7 +308,7 @@ func (s *StorageImpl) QueryWithDistance(ctx context.Context, queryText string, m
 	return s.storage.QueryWithDistance(ctx, queryText, metadataFilters...)
 }
 
-// GetDocumentReferences retrieves all document references for a memory
+// GetDocumentReferences retrieves all document references for a memory.
 func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	return s.engine.GetDocumentReferences(ctx, memoryID)
 }

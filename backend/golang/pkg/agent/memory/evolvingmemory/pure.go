@@ -138,7 +138,10 @@ func CreateMemoryObjectWithDocumentReferences(fact ExtractedFact, decision Memor
 	obj := CreateMemoryObject(fact, decision)
 
 	// Update with actual document references
-	props := obj.Properties.(map[string]interface{})
+	props, ok := obj.Properties.(map[string]interface{})
+	if !ok {
+		return obj
+	}
 	props["documentReferences"] = documentIDs
 
 	return obj
