@@ -22,6 +22,8 @@ const (
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
 	metadataProperty  = "metadataJson"
+	sourceProperty    = "source"
+	speakerProperty   = "speakerID"
 	tagsProperty      = "tags"
 	openAIEmbedModel  = "text-embedding-3-small"
 )
@@ -89,6 +91,10 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		}
 	}
 
+	// Parse direct fields
+	source, _ := props[sourceProperty].(string)
+	speakerID, _ := props[speakerProperty].(string)
+
 	// Parse metadata
 	metadata := make(map[string]string)
 	if metaStr, ok := props[metadataProperty].(string); ok {
@@ -97,11 +103,20 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		}
 	}
 
+	// Merge direct fields into metadata (they take precedence)
+	if source != "" {
+		metadata["source"] = source
+	}
+	if speakerID != "" {
+		metadata["speakerID"] = speakerID
+	}
+
 	doc := &memory.TextDocument{
 		FieldID:        string(obj.ID),
 		FieldContent:   content,
 		FieldTimestamp: timestamp,
 		FieldMetadata:  metadata,
+		FieldSource:    source,     // Populate the direct source field
 		FieldTags:      []string{}, // Tags not currently stored
 	}
 
@@ -110,7 +125,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 
 // Update updates an existing memory document in Weaviate.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	// Prepare metadata JSON
+	// Prepare metadata JSON (for backward compatibility)
 	metadataJSON, err := json.Marshal(doc.Metadata())
 	if err != nil {
 		return fmt.Errorf("marshaling metadata: %w", err)
@@ -119,7 +134,19 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	// Prepare properties
 	properties := map[string]interface{}{
 		contentProperty:  doc.Content(),
-		metadataProperty: string(metadataJSON),
+		metadataProperty: string(metadataJSON), // Keep for backward compatibility
+	}
+
+	// Extract and store source as direct field
+	if source := doc.Source(); source != "" {
+		properties[sourceProperty] = source
+	} else if source, exists := doc.Metadata()["source"]; exists {
+		properties[sourceProperty] = source
+	}
+
+	// Extract and store speakerID as direct field
+	if speakerID, exists := doc.Metadata()["speakerID"]; exists {
+		properties[speakerProperty] = speakerID
 	}
 
 	// Add timestamp if provided
@@ -232,7 +259,7 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 			s.logger.Infof("Schema for class %s already exists, validating...", ClassName)
 
 			// Basic validation - check properties exist
-			expectedProps := map[string]string{
+			requiredProps := map[string]string{
 				contentProperty:   "text",
 				timestampProperty: "date",
 				metadataProperty:  "text",
@@ -246,13 +273,27 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 				}
 			}
 
-			// Check if all expected properties exist
-			for propName, propType := range expectedProps {
+			// Check if all expected properties exist - allow missing new fields for migration
+			for propName, propType := range requiredProps {
 				if existingType, exists := existingProps[propName]; !exists {
-					return fmt.Errorf("missing property %s in existing schema", propName)
+					return fmt.Errorf("missing required property %s in existing schema", propName)
 				} else if existingType != propType {
-					return fmt.Errorf("property %s has type %s, expected %s", propName, existingType, propType)
+					return fmt.Errorf("required property %s has type %s, expected %s", propName, existingType, propType)
 				}
+			}
+
+			// Check if new fields exist, if not we need to add them
+			needsUpdate := false
+			if _, exists := existingProps[sourceProperty]; !exists {
+				needsUpdate = true
+			}
+			if _, exists := existingProps[speakerProperty]; !exists {
+				needsUpdate = true
+			}
+
+			if needsUpdate {
+				s.logger.Info("Schema needs update to add new metadata fields")
+				return s.addMetadataFields(ctx)
 			}
 
 			s.logger.Info("Schema validation successful")
@@ -280,7 +321,17 @@ func (s *WeaviateStorage) EnsureSchemaExists(ctx context.Context) error {
 			{
 				Name:        metadataProperty,
 				DataType:    []string{"text"},
-				Description: "JSON-encoded metadata for the memory",
+				Description: "JSON-encoded metadata for the memory (legacy)",
+			},
+			{
+				Name:        sourceProperty,
+				DataType:    []string{"text"},
+				Description: "Source of the memory document",
+			},
+			{
+				Name:        speakerProperty,
+				DataType:    []string{"text"},
+				Description: "Speaker/contact ID for the memory",
 			},
 			{
 				Name:        tagsProperty,
@@ -324,6 +375,8 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 	contentField := weaviateGraphql.Field{Name: contentProperty}
 	timestampField := weaviateGraphql.Field{Name: timestampProperty}
 	metaField := weaviateGraphql.Field{Name: metadataProperty}
+	sourceField := weaviateGraphql.Field{Name: sourceProperty}
+	speakerField := weaviateGraphql.Field{Name: speakerProperty}
 	tagsField := weaviateGraphql.Field{Name: tagsProperty}
 	additionalFields := weaviateGraphql.Field{
 		Name: "_additional",
@@ -343,29 +396,28 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
 		WithLimit(limit).
-		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
+		WithFields(contentField, timestampField, metaField, sourceField, speakerField, tagsField, additionalFields)
 
 	// Add WHERE filtering if filter is provided
 	if filter != nil {
 		var whereFilters []*filters.WhereBuilder
 
 		if filter.Source != nil {
-			// For now, filter by checking if source is in the metadata JSON
-			// This is a temporary solution until we update the schema
+			// Use direct field filtering instead of JSON pattern matching
 			sourceFilter := filters.Where().
-				WithPath([]string{metadataProperty}).
-				WithOperator(filters.Like).
-				WithValueText(fmt.Sprintf(`*"source":"%s"*`, *filter.Source))
+				WithPath([]string{sourceProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(*filter.Source)
 			whereFilters = append(whereFilters, sourceFilter)
 			s.logger.Debug("Added source filter", "source", *filter.Source)
 		}
 
 		if filter.ContactName != nil {
-			// Filter by contact name in metadata
+			// Use direct field filtering for speaker ID
 			contactFilter := filters.Where().
-				WithPath([]string{metadataProperty}).
-				WithOperator(filters.Like).
-				WithValueText(fmt.Sprintf(`*"speakerID":"%s"*`, *filter.ContactName))
+				WithPath([]string{speakerProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(*filter.ContactName)
 			whereFilters = append(whereFilters, contactFilter)
 			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
 		}
@@ -415,6 +467,8 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 
 		content, _ := obj[contentProperty].(string)
 		metadataJSON, _ := obj[metadataProperty].(string)
+		source, _ := obj[sourceProperty].(string)
+		speakerID, _ := obj[speakerProperty].(string)
 
 		var parsedTimestamp *time.Time
 		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
@@ -429,11 +483,20 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 		additional, _ := obj["_additional"].(map[string]interface{})
 		id, _ := additional["id"].(string)
 
+		// Start with metadata from JSON (for backward compatibility)
 		metaMap := make(map[string]string)
 		if metadataJSON != "" {
 			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
 				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
 			}
+		}
+
+		// Merge direct fields into metadata (they take precedence)
+		if source != "" {
+			metaMap["source"] = source
+		}
+		if speakerID != "" {
+			metaMap["speakerID"] = speakerID
 		}
 
 		var tags []string
@@ -450,6 +513,7 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 			FieldContent:   content,
 			FieldTimestamp: parsedTimestamp,
 			FieldMetadata:  metaMap,
+			FieldSource:    source, // Populate the direct source field
 			FieldTags:      tags,
 		})
 	}
@@ -545,6 +609,8 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 
 		content, _ := obj[contentProperty].(string)
 		metadataJSON, _ := obj[metadataProperty].(string)
+		source, _ := obj[sourceProperty].(string)
+		speakerID, _ := obj[speakerProperty].(string)
 
 		var parsedTimestamp *time.Time
 		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
@@ -560,11 +626,20 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		id, _ := additional["id"].(string)
 		distance, _ := additional["distance"].(float64)
 
+		// Start with metadata from JSON (for backward compatibility)
 		metaMap := make(map[string]string)
 		if metadataJSON != "" {
 			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
 				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
 			}
+		}
+
+		// Merge direct fields into metadata (they take precedence)
+		if source != "" {
+			metaMap["source"] = source
+		}
+		if speakerID != "" {
+			metaMap["speakerID"] = speakerID
 		}
 
 		var tags []string
@@ -582,6 +657,7 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 				FieldContent:   content,
 				FieldTimestamp: parsedTimestamp,
 				FieldMetadata:  metaMap,
+				FieldSource:    source, // Populate the direct source field
 				FieldTags:      tags,
 			},
 			Distance: float32(distance),
@@ -589,4 +665,32 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 	}
 	s.logger.Info("QueryWithDistance processed successfully.", "num_results_returned_after_filtering", len(finalResults))
 	return memory.QueryWithDistanceResult{Documents: finalResults}, nil
+}
+
+// addMetadataFields adds the new metadata fields to the existing schema.
+func (s *WeaviateStorage) addMetadataFields(ctx context.Context) error {
+	// Add source property
+	if err := s.client.Schema().PropertyCreator().
+		WithClassName(ClassName).
+		WithProperty(&models.Property{
+			Name:        sourceProperty,
+			DataType:    []string{"text"},
+			Description: "Source of the memory document",
+		}).Do(ctx); err != nil {
+		return fmt.Errorf("failed to add source property: %w", err)
+	}
+
+	// Add speakerID property
+	if err := s.client.Schema().PropertyCreator().
+		WithClassName(ClassName).
+		WithProperty(&models.Property{
+			Name:        speakerProperty,
+			DataType:    []string{"text"},
+			Description: "Speaker/contact ID for the memory",
+		}).Do(ctx); err != nil {
+		return fmt.Errorf("failed to add speakerID property: %w", err)
+	}
+
+	s.logger.Info("Successfully added new metadata fields to schema")
+	return nil
 }
