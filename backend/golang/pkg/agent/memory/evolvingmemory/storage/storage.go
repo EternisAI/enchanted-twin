@@ -26,6 +26,8 @@ const (
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
 	metadataProperty  = "metadataJson"
+	sourceProperty    = "source"
+	speakerProperty   = "speakerID"
 	tagsProperty      = "tags"
 	// Updated properties for document references - now stores multiple reference IDs.
 	documentReferencesProperty = "documentReferences" // Array of document IDs
@@ -63,7 +65,7 @@ type Interface interface {
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
-	Query(ctx context.Context, queryText string) (memory.QueryResult, error)
+	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
 	QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 
@@ -132,6 +134,11 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		}
 	}
 
+	// Parse direct fields
+	source, _ := props[sourceProperty].(string)
+	speakerID, _ := props[speakerProperty].(string)
+
+	// Parse metadata
 	metadata := make(map[string]string)
 	if metaStr, ok := props[metadataProperty].(string); ok {
 		if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
@@ -162,12 +169,20 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 			}
 		}
 	}
+	// Merge direct fields into metadata (they take precedence)
+	if source != "" {
+		metadata["source"] = source
+	}
+	if speakerID != "" {
+		metadata["speakerID"] = speakerID
+	}
 
 	doc := &memory.TextDocument{
 		FieldID:        string(obj.ID),
 		FieldContent:   content,
 		FieldTimestamp: timestamp,
 		FieldMetadata:  metadata,
+		FieldSource:    source, // Populate the direct source field
 		FieldTags:      tags,
 	}
 
@@ -176,7 +191,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 
 // Update updates an existing memory document in Weaviate.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	// Prepare metadata JSON
+	// Prepare metadata JSON (for backward compatibility)
 	metadataJSON, err := json.Marshal(doc.Metadata())
 	if err != nil {
 		return fmt.Errorf("marshaling metadata: %w", err)
@@ -184,7 +199,19 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 
 	properties := map[string]interface{}{
 		contentProperty:  doc.Content(),
-		metadataProperty: string(metadataJSON),
+		metadataProperty: string(metadataJSON), // Keep for backward compatibility
+	}
+
+	// Extract and store source as direct field
+	if source := doc.Source(); source != "" {
+		properties[sourceProperty] = source
+	} else if source, exists := doc.Metadata()["source"]; exists {
+		properties[sourceProperty] = source
+	}
+
+	// Extract and store speakerID as direct field
+	if speakerID, exists := doc.Metadata()["speakerID"]; exists {
+		properties[speakerProperty] = speakerID
 	}
 
 	if doc.Timestamp() != nil {
@@ -314,17 +341,30 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				}
 			}
 
+			// Check if all expected properties exist - allow missing new fields for migration
 			for propName, propType := range expectedProps {
-				if existingType, exists := existingProps[propName]; exists {
-					if existingType != propType {
-						return fmt.Errorf("property %s has type %s, expected %s", propName, existingType, propType)
-					}
-				} else {
-					s.logger.Infof("Property %s is missing from schema but will be added automatically", propName)
+				if existingType, exists := existingProps[propName]; !exists {
+					return fmt.Errorf("missing required property %s in existing schema", propName)
+				} else if existingType != propType {
+					return fmt.Errorf("required property %s has type %s, expected %s", propName, existingType, propType)
 				}
 			}
 
-			s.logger.Info("Memory schema validation successful")
+			// Check if new fields exist, if not we need to add them
+			needsUpdate := false
+			if _, exists := existingProps[sourceProperty]; !exists {
+				needsUpdate = true
+			}
+			if _, exists := existingProps[speakerProperty]; !exists {
+				needsUpdate = true
+			}
+
+			if needsUpdate {
+				s.logger.Info("Schema needs update to add new metadata fields")
+				return s.addMetadataFields(ctx)
+			}
+
+			s.logger.Info("Schema validation successful")
 			return nil
 		}
 	}
@@ -349,7 +389,17 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 			{
 				Name:        metadataProperty,
 				DataType:    []string{"text"},
-				Description: "JSON-encoded metadata for the memory",
+				Description: "JSON-encoded metadata for the memory (legacy)",
+			},
+			{
+				Name:        sourceProperty,
+				DataType:    []string{"text"},
+				Description: "Source of the memory document",
+			},
+			{
+				Name:        speakerProperty,
+				DataType:    []string{"text"},
+				Description: "Speaker/contact ID for the memory",
 			},
 			{
 				Name:        tagsProperty,
@@ -473,8 +523,8 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 }
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
-	s.logger.Info("Query method called", "query_text", queryText)
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
@@ -484,9 +534,17 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 
 	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
 
+	// Set distance filter if provided
+	if filter != nil && filter.Distance > 0 {
+		nearVector = nearVector.WithDistance(filter.Distance)
+		s.logger.Debug("Added distance filter", "distance", filter.Distance)
+	}
+
 	contentField := weaviateGraphql.Field{Name: contentProperty}
 	timestampField := weaviateGraphql.Field{Name: timestampProperty}
 	metaField := weaviateGraphql.Field{Name: metadataProperty}
+	sourceField := weaviateGraphql.Field{Name: sourceProperty}
+	speakerField := weaviateGraphql.Field{Name: speakerProperty}
 	tagsField := weaviateGraphql.Field{Name: tagsProperty}
 	additionalFields := weaviateGraphql.Field{
 		Name: "_additional",
@@ -496,11 +554,62 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		},
 	}
 
+	// Set limit from filter or use default
+	limit := 10
+	if filter != nil && filter.Limit != nil {
+		limit = *filter.Limit
+	}
+
 	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
-		WithLimit(10).
-		WithFields(contentField, timestampField, metaField, tagsField, additionalFields)
+		WithLimit(limit).
+		WithFields(contentField, timestampField, metaField, sourceField, speakerField, tagsField, additionalFields)
+
+	// Add WHERE filtering if filter is provided
+	if filter != nil {
+		var whereFilters []*filters.WhereBuilder
+
+		if filter.Source != nil {
+			// Use direct field filtering instead of JSON pattern matching
+			sourceFilter := filters.Where().
+				WithPath([]string{sourceProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(*filter.Source)
+			whereFilters = append(whereFilters, sourceFilter)
+			s.logger.Debug("Added source filter", "source", *filter.Source)
+		}
+
+		if filter.ContactName != nil {
+			// Use direct field filtering for speaker ID
+			contactFilter := filters.Where().
+				WithPath([]string{speakerProperty}).
+				WithOperator(filters.Equal).
+				WithValueText(*filter.ContactName)
+			whereFilters = append(whereFilters, contactFilter)
+			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
+		}
+
+		if filter.Tags != nil && !filter.Tags.IsEmpty() {
+			// Use the new TagsFilter structure
+			tagsFilter, err := s.buildTagsFilter(filter.Tags)
+			if err != nil {
+				return memory.QueryResult{}, fmt.Errorf("failed to build tags filter: %w", err)
+			}
+			if tagsFilter != nil {
+				whereFilters = append(whereFilters, tagsFilter)
+				s.logger.Debug("Added tags filter", "tagsFilter", filter.Tags)
+			}
+		}
+
+		if len(whereFilters) > 0 {
+			combinedFilter := filters.Where().
+				WithOperator(filters.And).
+				WithOperands(whereFilters)
+			queryBuilder = queryBuilder.WithWhere(combinedFilter)
+			s.logger.Debug("Applied combined WHERE filters", "filter_count", len(whereFilters))
+		}
+	}
 
 	resp, err := queryBuilder.Do(ctx)
 	if err != nil {
@@ -538,6 +647,8 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 
 		content, _ := obj[contentProperty].(string)
 		metadataJSON, _ := obj[metadataProperty].(string)
+		source, _ := obj[sourceProperty].(string)
+		speakerID, _ := obj[speakerProperty].(string)
 
 		var parsedTimestamp *time.Time
 		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
@@ -552,11 +663,20 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 		additional, _ := obj["_additional"].(map[string]interface{})
 		id, _ := additional["id"].(string)
 
+		// Start with metadata from JSON (for backward compatibility)
 		metaMap := make(map[string]string)
 		if metadataJSON != "" {
 			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
 				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
 			}
+		}
+
+		// Merge direct fields into metadata (they take precedence)
+		if source != "" {
+			metaMap["source"] = source
+		}
+		if speakerID != "" {
+			metaMap["speakerID"] = speakerID
 		}
 
 		var tags []string
@@ -573,6 +693,7 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string) (memory.Q
 			FieldContent:   content,
 			FieldTimestamp: parsedTimestamp,
 			FieldMetadata:  metaMap,
+			FieldSource:    source, // Populate the direct source field
 			FieldTags:      tags,
 		})
 	}
@@ -666,6 +787,8 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 
 		content, _ := obj[contentProperty].(string)
 		metadataJSON, _ := obj[metadataProperty].(string)
+		source, _ := obj[sourceProperty].(string)
+		speakerID, _ := obj[speakerProperty].(string)
 
 		var parsedTimestamp *time.Time
 		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
@@ -681,11 +804,20 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 		id, _ := additional["id"].(string)
 		distance, _ := additional["distance"].(float64)
 
+		// Start with metadata from JSON (for backward compatibility)
 		metaMap := make(map[string]string)
 		if metadataJSON != "" {
 			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
 				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
 			}
+		}
+
+		// Merge direct fields into metadata (they take precedence)
+		if source != "" {
+			metaMap["source"] = source
+		}
+		if speakerID != "" {
+			metaMap["speakerID"] = speakerID
 		}
 
 		var tags []string
@@ -703,6 +835,7 @@ func (s *WeaviateStorage) QueryWithDistance(ctx context.Context, queryText strin
 				FieldContent:   content,
 				FieldTimestamp: parsedTimestamp,
 				FieldMetadata:  metaMap,
+				FieldSource:    source, // Populate the direct source field
 				FieldTags:      tags,
 			},
 			Distance: float32(distance),
@@ -1052,4 +1185,154 @@ func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
 
 	s.vectorPool.Put(pooledSlicePtr)
 	return result
+}
+
+// addMetadataFields adds the new metadata fields to the existing schema.
+func (s *WeaviateStorage) addMetadataFields(ctx context.Context) error {
+	// Add source property
+	if err := s.client.Schema().PropertyCreator().
+		WithClassName(ClassName).
+		WithProperty(&models.Property{
+			Name:        sourceProperty,
+			DataType:    []string{"text"},
+			Description: "Source of the memory document",
+		}).Do(ctx); err != nil {
+		return fmt.Errorf("failed to add source property: %w", err)
+	}
+
+	// Add speakerID property
+	if err := s.client.Schema().PropertyCreator().
+		WithClassName(ClassName).
+		WithProperty(&models.Property{
+			Name:        speakerProperty,
+			DataType:    []string{"text"},
+			Description: "Speaker/contact ID for the memory",
+		}).Do(ctx); err != nil {
+		return fmt.Errorf("failed to add speakerID property: %w", err)
+	}
+
+	s.logger.Info("Successfully added new metadata fields to schema")
+	return nil
+}
+
+// buildTagsFilter creates a Weaviate filter from a TagsFilter structure.
+// It supports simple ALL/ANY logic as well as complex boolean expressions.
+func (s *WeaviateStorage) buildTagsFilter(tagsFilter *memory.TagsFilter) (*filters.WhereBuilder, error) {
+	if tagsFilter == nil || tagsFilter.IsEmpty() {
+		return nil, nil
+	}
+
+	// Handle simple ALL case (backward compatible)
+	if len(tagsFilter.All) > 0 {
+		s.logger.Debug("Building tags filter with ALL logic", "tags", tagsFilter.All)
+		return filters.Where().
+			WithPath([]string{tagsProperty}).
+			WithOperator(filters.ContainsAll).
+			WithValueText(tagsFilter.All...), nil
+	}
+
+	// Handle simple ANY case
+	if len(tagsFilter.Any) > 0 {
+		s.logger.Debug("Building tags filter with ANY logic", "tags", tagsFilter.Any)
+		// For ANY logic, we need to create OR conditions for each tag
+		var orFilters []*filters.WhereBuilder
+		for _, tag := range tagsFilter.Any {
+			tagFilter := filters.Where().
+				WithPath([]string{tagsProperty}).
+				WithOperator(filters.ContainsAny).
+				WithValueText(tag)
+			orFilters = append(orFilters, tagFilter)
+		}
+
+		if len(orFilters) == 1 {
+			return orFilters[0], nil
+		}
+
+		return filters.Where().
+			WithOperator(filters.Or).
+			WithOperands(orFilters), nil
+	}
+
+	// Handle complex boolean expression
+	if tagsFilter.Expression != nil {
+		s.logger.Debug("Building tags filter with complex expression")
+		return s.buildBooleanExpressionFilter(tagsFilter.Expression)
+	}
+
+	return nil, nil
+}
+
+// buildBooleanExpressionFilter recursively builds a Weaviate filter from a BooleanExpression.
+func (s *WeaviateStorage) buildBooleanExpressionFilter(expr *memory.BooleanExpression) (*filters.WhereBuilder, error) {
+	if expr == nil {
+		return nil, fmt.Errorf("boolean expression cannot be nil")
+	}
+
+	// Handle leaf nodes (tags)
+	if expr.IsLeaf() {
+		s.logger.Debug("Building leaf expression filter", "operator", expr.Operator, "tags", expr.Tags)
+
+		switch expr.Operator {
+		case memory.AND:
+			// For AND with multiple tags, use ContainsAll
+			return filters.Where().
+				WithPath([]string{tagsProperty}).
+				WithOperator(filters.ContainsAll).
+				WithValueText(expr.Tags...), nil
+		case memory.OR:
+			// For OR with multiple tags, create OR conditions
+			var orFilters []*filters.WhereBuilder
+			for _, tag := range expr.Tags {
+				tagFilter := filters.Where().
+					WithPath([]string{tagsProperty}).
+					WithOperator(filters.ContainsAny).
+					WithValueText(tag)
+				orFilters = append(orFilters, tagFilter)
+			}
+
+			if len(orFilters) == 1 {
+				return orFilters[0], nil
+			}
+
+			return filters.Where().
+				WithOperator(filters.Or).
+				WithOperands(orFilters), nil
+		default:
+			return nil, fmt.Errorf("unsupported boolean operator in leaf expression: %v", expr.Operator)
+		}
+	}
+
+	// Handle branch nodes (left and right operands)
+	if expr.IsBranch() {
+		s.logger.Debug("Building branch expression filter", "operator", expr.Operator)
+
+		leftFilter, err := s.buildBooleanExpressionFilter(expr.Left)
+		if err != nil {
+			return nil, fmt.Errorf("building left operand: %w", err)
+		}
+
+		rightFilter, err := s.buildBooleanExpressionFilter(expr.Right)
+		if err != nil {
+			return nil, fmt.Errorf("building right operand: %w", err)
+		}
+
+		if leftFilter == nil || rightFilter == nil {
+			return nil, fmt.Errorf("both left and right operands must be non-nil for branch expression")
+		}
+
+		switch expr.Operator {
+		case memory.AND:
+			return filters.Where().
+				WithOperator(filters.And).
+				WithOperands([]*filters.WhereBuilder{leftFilter, rightFilter}), nil
+		case memory.OR:
+			return filters.Where().
+				WithOperator(filters.Or).
+				WithOperands([]*filters.WhereBuilder{leftFilter, rightFilter}), nil
+		default:
+			return nil, fmt.Errorf("unsupported boolean operator in branch expression: %v", expr.Operator)
+		}
+	}
+
+	return nil, fmt.Errorf("boolean expression must be either a leaf node (with tags) or a branch node (with left/right operands)")
 }
