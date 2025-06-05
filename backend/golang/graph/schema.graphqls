@@ -101,7 +101,7 @@ type Query {
   getAgentTasks: [AgentTask!]!
   getSetupProgress: [SetupProgress!]!
   whitelistStatus: Boolean!
-  getHolons(id: ID!): [String!]
+  getHolons(userId: ID!): [String!]
   getThreads(network: String): [Thread!]!
   getThread(network: String, id: ID!): Thread
 }
@@ -140,7 +140,7 @@ type Mutation {
   removeMCPServer(id: String!): Boolean!
   startWhatsAppConnection: Boolean!
   activate(inviteCode: String!): Boolean!
-  joinHolon(network: String): Boolean!
+  joinHolon(userId: String!, network: String): Boolean!
 }
 
 type Subscription {

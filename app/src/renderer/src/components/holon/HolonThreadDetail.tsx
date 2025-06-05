@@ -28,7 +28,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
   const handleCreateChat = useCallback(
     async (action: string) => {
       const chatId = `holon-${thread.id}`
-      const text = `Send to holon thread id ${thread.id}: ${action}`
+      const text = `Send to holon thread id ${thread.id} the following message: ${action}`
 
       try {
         const { data: createData } = await createChat({
@@ -173,6 +173,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
               key={index}
               variant={index === 0 ? 'default' : 'outline'}
               size="sm"
+              className="capitalize"
               onClick={() => handleActionClick(action)}
             >
               {action}
