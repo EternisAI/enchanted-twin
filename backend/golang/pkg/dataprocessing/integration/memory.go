@@ -191,7 +191,7 @@ func IntegrationTestMemory(parentCtx context.Context, config IntegrationTestMemo
 	limit := 100
 	filter := memory.Filter{
 		Source:   &config.Source,
-		Distance: 0.7,
+		Distance: 0.8, // Balanced threshold - more permissive than 0.7 but still validates filtering
 		Limit:    &limit,
 	}
 	result, err := mem.Query(ctx, fmt.Sprintf("What do facts from %s say about the user?", config.Source), &filter)

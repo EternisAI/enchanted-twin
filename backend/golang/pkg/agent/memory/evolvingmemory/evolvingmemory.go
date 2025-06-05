@@ -88,10 +88,34 @@ type ExtractStructuredFactsToolArguments struct {
 
 // Processing pipeline types.
 type ExtractedFact struct {
-	StructuredFact StructuredFact // The new structured fact data
-	Content        string         // Deprecated: kept for backward compatibility, will be derived from StructuredFact
-	SpeakerID      string
-	Source         PreparedDocument
+	// Structured fact fields (primary data)
+	Category        string  `json:"category"`
+	Subject         string  `json:"subject"`
+	Attribute       string  `json:"attribute"`
+	Value           string  `json:"value"`
+	TemporalContext *string `json:"temporal_context,omitempty"`
+	Sensitivity     string  `json:"sensitivity"`
+	Importance      int     `json:"importance"`
+
+	// Legacy fields
+	Content   string // Derived from structured fields for backward compatibility
+	SpeakerID string
+	Source    PreparedDocument
+}
+
+// GenerateContent creates a searchable content string from structured fact fields.
+func (f *ExtractedFact) GenerateContent() {
+	content := f.Value
+	if f.Subject != "" && f.Subject != "user" {
+		content = f.Subject + " " + content
+	}
+	if f.Attribute != "" {
+		content = f.Attribute + ": " + content
+	}
+	if f.TemporalContext != nil && *f.TemporalContext != "" {
+		content += " (" + *f.TemporalContext + ")"
+	}
+	f.Content = content
 }
 
 // Memory actions.
