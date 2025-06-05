@@ -34,16 +34,30 @@ func (s *Service) GetThread(ctx context.Context, threadID string) (*model.Thread
 		return nil, err
 	}
 
-	err = s.repo.IncrementThreadViews(ctx, threadID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to increment thread views: %w", err)
-	}
+	s.repo.IncrementThreadViews(ctx, threadID)
 
 	return thread, nil
 }
 
-func (s *Service) JoinHolon(ctx context.Context, userID string) (bool, error) {
-	return true, nil
+func (s *Service) JoinHolonNetwork(ctx context.Context, userID string, networkName string) error {
+	isInHolon, err := s.repo.IsUserInHolon(ctx, userID, networkName)
+	if err != nil {
+		return fmt.Errorf("failed to check holon membership: %w", err)
+	}
+
+	_, err = s.repo.CreateOrUpdateAuthor(ctx, userID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to create/update author: %w", err)
+	}
+
+	if !isInHolon {
+		err = s.repo.AddUserToHolon(ctx, userID, networkName)
+		if err != nil {
+			return fmt.Errorf("failed to add user to holon network: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (s *Service) SendToHolon(ctx context.Context, threadPreviewID, title, content, authorIdentity string, imageURLs []string, actions []string) (*model.Thread, error) {
@@ -59,14 +73,14 @@ func (s *Service) SendToHolon(ctx context.Context, threadPreviewID, title, conte
 
 func (s *Service) CreateThreadMessage(ctx context.Context, threadID, authorIdentity, content string, actions []string, isDelivered *bool) (*model.ThreadMessage, error) {
 	messageID := uuid.New().String()
-	
+
 	return s.repo.CreateThreadMessage(ctx, messageID, threadID, authorIdentity, content, actions, isDelivered)
 }
 
 func (s *Service) AddMessageToThread(ctx context.Context, threadID, message, authorIdentity string, imageURLs []string) (*model.ThreadMessage, error) {
 	actions := []string{}
 	isDelivered := false
-	
+
 	return s.CreateThreadMessage(ctx, threadID, authorIdentity, message, actions, &isDelivered)
 }
 

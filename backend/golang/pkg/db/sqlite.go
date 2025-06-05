@@ -91,8 +91,8 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		CREATE INDEX IF NOT EXISTS idx_friend_activity_timestamp ON friend_activity_tracking(timestamp DESC);
 
 		CREATE TABLE IF NOT EXISTS authors (
-        identity   TEXT PRIMARY KEY,
-        alias      TEXT
+			identity   TEXT PRIMARY KEY,
+			alias      TEXT
       	);
 
 		CREATE TABLE IF NOT EXISTS threads (
@@ -125,11 +125,23 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		CREATE INDEX IF NOT EXISTS idx_thread_messages_author ON thread_messages(author_identity);
 		CREATE INDEX IF NOT EXISTS idx_thread_messages_created ON thread_messages(thread_id, created_at DESC);
 
-
 		CREATE TABLE IF NOT EXISTS holons (
         	id           TEXT PRIMARY KEY, 
         	name     TEXT NOT NULL
       	);
+
+		INSERT OR IGNORE INTO holons (id, name) VALUES ('holon-default-network', 'HolonNetwork');
+
+		CREATE TABLE IF NOT EXISTS holon_participants (
+			holon_id        TEXT NOT NULL,
+			author_identity TEXT NOT NULL,
+			joined_at       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY (holon_id, author_identity),
+			FOREIGN KEY (holon_id)        REFERENCES holons(id)     ON DELETE CASCADE,
+			FOREIGN KEY (author_identity) REFERENCES authors(identity) ON DELETE CASCADE
+		);
+		CREATE INDEX IF NOT EXISTS idx_holon_participants_holon  ON holon_participants(holon_id);
+		CREATE INDEX IF NOT EXISTS idx_holon_participants_author ON holon_participants(author_identity);
 	`)
 	if err != nil {
 		return nil, err

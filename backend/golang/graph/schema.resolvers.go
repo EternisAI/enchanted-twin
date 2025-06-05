@@ -385,11 +385,18 @@ func (r *mutationResolver) Activate(ctx context.Context, inviteCode string) (boo
 	return auth.Activate(ctx, r.Logger, r.Store, inviteCode)
 }
 
-// JoinHolon is the resolver for the joinHolon field.
-func (r *mutationResolver) JoinHolon(ctx context.Context, network *string) (bool, error) {
-	// TODO: Get actual user ID from context
-	userID := "current-user"
-	return r.HolonService.JoinHolon(ctx, userID)
+func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network *string) (bool, error) {
+	networkName := "HolonNetwork"
+	if network != nil && *network != "" {
+		networkName = *network
+	}
+
+	err := r.HolonService.JoinHolonNetwork(ctx, userID, networkName)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -654,9 +661,8 @@ func (r *queryResolver) WhitelistStatus(ctx context.Context) (bool, error) {
 	return auth.IsWhitelisted(ctx, r.Logger, r.Store)
 }
 
-// GetHolons is the resolver for the getHolons field.
-func (r *queryResolver) GetHolons(ctx context.Context, id string) ([]string, error) {
-	return r.HolonService.GetHolons(ctx, id)
+func (r *queryResolver) GetHolons(ctx context.Context, userId string) ([]string, error) {
+	return r.HolonService.GetHolons(ctx, userId)
 }
 
 // GetThreads is the resolver for the getThreads field.

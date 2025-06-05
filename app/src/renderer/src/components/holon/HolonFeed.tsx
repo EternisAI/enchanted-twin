@@ -10,7 +10,8 @@ import { client } from '@renderer/graphql/lib'
 
 export default function HolonFeed() {
   const { data, loading, error } = useQuery(GetThreadsDocument, {
-    variables: { network: null }
+    variables: { network: null },
+    fetchPolicy: 'network-only'
   })
 
   const router = useRouter()
@@ -81,12 +82,14 @@ export default function HolonFeed() {
             threads.map((thread) => <HolonFeedThread key={thread.id} thread={thread} />)
           )}
 
-          <div className="flex justify-center py-6">
-            <Button variant="default" size="sm">
-              <PlusCircle className="w-4 h-4" />
-              Fetch More
-            </Button>
-          </div>
+          {threads.length > 3 && (
+            <div className="flex justify-center py-6">
+              <Button variant="default" size="sm">
+                <PlusCircle className="w-4 h-4" />
+                Fetch More
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

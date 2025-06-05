@@ -24,15 +24,15 @@ func NewRepository(db *sqlx.DB) *Repository {
 }
 
 type dbThread struct {
-	ID             string `db:"id"`
-	Title          string `db:"title"`
-	Content        string `db:"content"`
-	AuthorIdentity string `db:"author_identity"`
-	CreatedAt      string `db:"created_at"`
+	ID             string  `db:"id"`
+	Title          string  `db:"title"`
+	Content        string  `db:"content"`
+	AuthorIdentity string  `db:"author_identity"`
+	CreatedAt      string  `db:"created_at"`
 	ExpiresAt      *string `db:"expires_at"`
-	ImageURLs      string `db:"image_urls"`
-	Actions        string `db:"actions"`
-	Views          int32  `db:"views"`
+	ImageURLs      string  `db:"image_urls"`
+	Actions        string  `db:"actions"`
+	Views          int32   `db:"views"`
 }
 
 type dbThreadMessage struct {
@@ -113,7 +113,6 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 		&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
 		&dbThread.Views, &author.Identity, &author.Alias,
 	)
-
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("thread not found")
@@ -165,7 +164,6 @@ func (r *Repository) CreateThread(ctx context.Context, id, title, content string
 		INSERT INTO threads (id, title, content, author_identity, created_at, expires_at, image_urls, actions, views)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
 	`, id, title, content, authorIdentity, now, expiresAt, string(imageURLsJSON), string(actionsJSON))
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert thread: %w", err)
 	}
@@ -260,7 +258,6 @@ func (r *Repository) CreateThreadMessage(ctx context.Context, id, threadID, auth
 		INSERT INTO thread_messages (id, thread_id, author_identity, content, created_at, is_delivered, actions)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, id, threadID, authorIdentity, content, now, delivered, string(actionsJSON))
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert thread message: %w", err)
 	}
@@ -288,7 +285,6 @@ func (r *Repository) CreateThreadMessage(ctx context.Context, id, threadID, auth
 		&dbMessage.CreatedAt, &dbMessage.IsDelivered, &dbMessage.Actions,
 		&author.Identity, &author.Alias,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf("failed to get created thread message: %w", err)
 	}
@@ -298,7 +294,7 @@ func (r *Repository) CreateThreadMessage(ctx context.Context, id, threadID, auth
 
 func (r *Repository) GetHolons(ctx context.Context, userID string) ([]string, error) {
 	query := "SELECT name FROM holons ORDER BY name"
-	
+
 	var holonNames []string
 	err := r.db.SelectContext(ctx, &holonNames, query)
 	if err != nil {
@@ -314,6 +310,73 @@ func (r *Repository) IncrementThreadViews(ctx context.Context, threadID string) 
 		return fmt.Errorf("failed to increment thread views: %w", err)
 	}
 	return nil
+}
+
+func (r *Repository) CreateOrUpdateAuthor(ctx context.Context, identity, alias string) (*model.Author, error) {
+	// Use INSERT OR REPLACE to create or update the author
+	_, err := r.db.ExecContext(ctx, `
+		INSERT OR REPLACE INTO authors (identity, alias) 
+		VALUES (?, ?)
+	`, identity, alias)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create/update author: %w", err)
+	}
+
+	// Return the created/updated author
+	var dbAuthor dbAuthor
+	err = r.db.QueryRowContext(ctx, "SELECT identity, alias FROM authors WHERE identity = ?", identity).Scan(
+		&dbAuthor.Identity, &dbAuthor.Alias,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get created/updated author: %w", err)
+	}
+
+	return &model.Author{
+		Identity: dbAuthor.Identity,
+		Alias:    dbAuthor.Alias,
+	}, nil
+}
+
+func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkName string) error {
+	var holonID string
+	err := r.db.QueryRowContext(ctx, "SELECT id FROM holons WHERE name = ?", networkName).Scan(&holonID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("holon network '%s' not found", networkName)
+		}
+		return fmt.Errorf("failed to find holon network: %w", err)
+	}
+
+	_, err = r.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO holon_participants (holon_id, author_identity) 
+		VALUES (?, ?)
+	`, holonID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to add user to holon: %w", err)
+	}
+
+	return nil
+}
+
+func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkName string) (bool, error) {
+	var holonID string
+	err := r.db.QueryRowContext(ctx, "SELECT id FROM holons WHERE name = ?", networkName).Scan(&holonID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, fmt.Errorf("holon network '%s' not found", networkName)
+		}
+		return false, fmt.Errorf("failed to find holon network: %w", err)
+	}
+
+	var exists bool
+	err = r.db.QueryRowContext(ctx, `
+		SELECT EXISTS(SELECT 1 FROM holon_participants WHERE holon_id = ? AND author_identity = ?)
+	`, holonID, userID).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("failed to check user holon membership: %w", err)
+	}
+
+	return exists, nil
 }
 
 func (r *Repository) dbThreadToModel(ctx context.Context, dbThread *dbThread, author *dbAuthor) (*model.Thread, error) {
@@ -370,4 +433,4 @@ func (r *Repository) dbThreadMessageToModel(dbMessage *dbThreadMessage, author *
 	}
 
 	return message, nil
-} 
+}

@@ -166,7 +166,7 @@ type ComplexityRoot struct {
 		DeleteAgentTask           func(childComplexity int, id string) int
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
-		JoinHolon                 func(childComplexity int, network *string) int
+		JoinHolon                 func(childComplexity int, userID string, network *string) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
 		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool, voice bool) int
@@ -315,7 +315,7 @@ type MutationResolver interface {
 	RemoveMCPServer(ctx context.Context, id string) (bool, error)
 	StartWhatsAppConnection(ctx context.Context) (bool, error)
 	Activate(ctx context.Context, inviteCode string) (bool, error)
-	JoinHolon(ctx context.Context, network *string) (bool, error)
+	JoinHolon(ctx context.Context, userID string, network *string) (bool, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -963,7 +963,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.JoinHolon(childComplexity, args["network"].(*string)), true
+		return e.complexity.Mutation.JoinHolon(childComplexity, args["userId"].(string), args["network"].(*string)), true
 
 	case "Mutation.refreshExpiredOAuthTokens":
 		if e.complexity.Mutation.RefreshExpiredOAuthTokens == nil {
@@ -2004,13 +2004,31 @@ func (ec *executionContext) field_Mutation_deleteDataSource_argsID(
 func (ec *executionContext) field_Mutation_joinHolon_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := ec.field_Mutation_joinHolon_argsNetwork(ctx, rawArgs)
+	arg0, err := ec.field_Mutation_joinHolon_argsUserID(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["network"] = arg0
+	args["userId"] = arg0
+	arg1, err := ec.field_Mutation_joinHolon_argsNetwork(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["network"] = arg1
 	return args, nil
 }
+func (ec *executionContext) field_Mutation_joinHolon_argsUserID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+	if tmp, ok := rawArgs["userId"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
 func (ec *executionContext) field_Mutation_joinHolon_argsNetwork(
 	ctx context.Context,
 	rawArgs map[string]any,
@@ -6732,7 +6750,7 @@ func (ec *executionContext) _Mutation_joinHolon(ctx context.Context, field graph
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().JoinHolon(rctx, fc.Args["network"].(*string))
+		return ec.resolvers.Mutation().JoinHolon(rctx, fc.Args["userId"].(string), fc.Args["network"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
