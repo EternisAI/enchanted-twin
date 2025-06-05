@@ -31,6 +31,14 @@ const (
 	tagsProperty      = "tags"
 	// Updated properties for document references - now stores multiple reference IDs.
 	documentReferencesProperty = "documentReferences" // Array of document IDs
+	// Structured fact properties for the new system.
+	factCategoryProperty        = "factCategory"
+	factSubjectProperty         = "factSubject"
+	factAttributeProperty       = "factAttribute"
+	factValueProperty           = "factValue"
+	factTemporalContextProperty = "factTemporalContext"
+	factSensitivityProperty     = "factSensitivity"
+	factImportanceProperty      = "factImportance"
 	// Document table properties.
 	documentContentHashProperty = "contentHash"
 	documentTypeProperty        = "documentType"
@@ -326,14 +334,6 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 		if class.Class == ClassName {
 			s.logger.Infof("Schema for class %s already exists, validating...", ClassName)
 
-			expectedProps := map[string]string{
-				contentProperty:            "text",
-				timestampProperty:          "date",
-				metadataProperty:           "text",
-				tagsProperty:               "text[]",
-				documentReferencesProperty: "text[]",
-			}
-
 			existingProps := make(map[string]string)
 			for _, prop := range class.Properties {
 				for _, dt := range prop.DataType {
@@ -341,27 +341,43 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				}
 			}
 
-			// Check if all expected properties exist - allow missing new fields for migration
-			for propName, propType := range expectedProps {
+			// Define core legacy properties that MUST exist
+			coreProps := map[string]string{
+				contentProperty:            "text",
+				timestampProperty:          "date",
+				metadataProperty:           "text",
+				tagsProperty:               "text[]",
+				documentReferencesProperty: "text[]",
+			}
+
+			// Check core properties exist with correct types
+			for propName, propType := range coreProps {
 				if existingType, exists := existingProps[propName]; !exists {
-					return fmt.Errorf("missing required property %s in existing schema", propName)
+					return fmt.Errorf("missing required core property %s in existing schema", propName)
 				} else if existingType != propType {
-					return fmt.Errorf("required property %s has type %s, expected %s", propName, existingType, propType)
+					return fmt.Errorf("core property %s has type %s, expected %s", propName, existingType, propType)
 				}
 			}
 
-			// Check if new fields exist, if not we need to add them
-			needsUpdate := false
-			if _, exists := existingProps[sourceProperty]; !exists {
-				needsUpdate = true
+			// Check if new structured fact fields exist, if not we need to add them
+			newFields := []string{
+				sourceProperty, speakerProperty,
+				factCategoryProperty, factSubjectProperty, factAttributeProperty,
+				factValueProperty, factTemporalContextProperty, factSensitivityProperty,
+				factImportanceProperty,
 			}
-			if _, exists := existingProps[speakerProperty]; !exists {
-				needsUpdate = true
+
+			needsUpdate := false
+			for _, field := range newFields {
+				if _, exists := existingProps[field]; !exists {
+					needsUpdate = true
+					break
+				}
 			}
 
 			if needsUpdate {
-				s.logger.Info("Schema needs update to add new metadata fields")
-				return s.addMetadataFields(ctx)
+				s.logger.Info("Schema needs update to add new structured fact fields")
+				return s.addStructuredFactFields(ctx)
 			}
 
 			s.logger.Info("Schema validation successful")
@@ -374,12 +390,12 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 	indexFilterable := true
 	classObj := &models.Class{
 		Class:       ClassName,
-		Description: "A memory entry in the evolving memory system",
+		Description: "A memory entry in the evolving memory system with structured facts",
 		Properties: []*models.Property{
 			{
 				Name:        contentProperty,
 				DataType:    []string{"text"},
-				Description: "The content of the memory",
+				Description: "The content of the memory (deprecated: now derived from structured fact)",
 			},
 			{
 				Name:        timestampProperty,
@@ -411,6 +427,42 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				DataType:        []string{"text[]"},
 				Description:     "Array of document IDs that generated this memory",
 				IndexFilterable: &indexFilterable,
+			},
+			// Structured fact properties
+			{
+				Name:        factCategoryProperty,
+				DataType:    []string{"text"},
+				Description: "Category of the structured fact (e.g., preference, health, etc.)",
+			},
+			{
+				Name:        factSubjectProperty,
+				DataType:    []string{"text"},
+				Description: "Subject of the fact (typically 'user' or specific entity name)",
+			},
+			{
+				Name:        factAttributeProperty,
+				DataType:    []string{"text"},
+				Description: "Specific property or attribute being described",
+			},
+			{
+				Name:        factValueProperty,
+				DataType:    []string{"text"},
+				Description: "Descriptive phrase with context for the fact",
+			},
+			{
+				Name:        factTemporalContextProperty,
+				DataType:    []string{"text"},
+				Description: "Temporal context for the fact (optional)",
+			},
+			{
+				Name:        factSensitivityProperty,
+				DataType:    []string{"text"},
+				Description: "Sensitivity level of the fact (high, medium, low)",
+			},
+			{
+				Name:        factImportanceProperty,
+				DataType:    []string{"int"},
+				Description: "Importance score of the fact (1-3)",
 			},
 		},
 		Vectorizer: "none",
@@ -1187,9 +1239,9 @@ func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
 	return result
 }
 
-// addMetadataFields adds the new metadata fields to the existing schema.
-func (s *WeaviateStorage) addMetadataFields(ctx context.Context) error {
-	// Add source property
+// addStructuredFactFields adds the new structured fact fields to the existing schema.
+func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
+	// Add source property (if not exists)
 	if err := s.client.Schema().PropertyCreator().
 		WithClassName(ClassName).
 		WithProperty(&models.Property{
@@ -1197,10 +1249,10 @@ func (s *WeaviateStorage) addMetadataFields(ctx context.Context) error {
 			DataType:    []string{"text"},
 			Description: "Source of the memory document",
 		}).Do(ctx); err != nil {
-		return fmt.Errorf("failed to add source property: %w", err)
+		s.logger.Warnf("Failed to add source property (may already exist): %v", err)
 	}
 
-	// Add speakerID property
+	// Add speakerID property (if not exists)
 	if err := s.client.Schema().PropertyCreator().
 		WithClassName(ClassName).
 		WithProperty(&models.Property{
@@ -1208,10 +1260,57 @@ func (s *WeaviateStorage) addMetadataFields(ctx context.Context) error {
 			DataType:    []string{"text"},
 			Description: "Speaker/contact ID for the memory",
 		}).Do(ctx); err != nil {
-		return fmt.Errorf("failed to add speakerID property: %w", err)
+		s.logger.Warnf("Failed to add speakerID property (may already exist): %v", err)
 	}
 
-	s.logger.Info("Successfully added new metadata fields to schema")
+	// Add structured fact properties
+	structuredFactProperties := []*models.Property{
+		{
+			Name:        factCategoryProperty,
+			DataType:    []string{"text"},
+			Description: "Category of the structured fact (e.g., preference, health, etc.)",
+		},
+		{
+			Name:        factSubjectProperty,
+			DataType:    []string{"text"},
+			Description: "Subject of the fact (typically 'user' or specific entity name)",
+		},
+		{
+			Name:        factAttributeProperty,
+			DataType:    []string{"text"},
+			Description: "Specific property or attribute being described",
+		},
+		{
+			Name:        factValueProperty,
+			DataType:    []string{"text"},
+			Description: "Descriptive phrase with context for the fact",
+		},
+		{
+			Name:        factTemporalContextProperty,
+			DataType:    []string{"text"},
+			Description: "Temporal context for the fact (optional)",
+		},
+		{
+			Name:        factSensitivityProperty,
+			DataType:    []string{"text"},
+			Description: "Sensitivity level of the fact (high, medium, low)",
+		},
+		{
+			Name:        factImportanceProperty,
+			DataType:    []string{"int"},
+			Description: "Importance score of the fact (1-3)",
+		},
+	}
+
+	for _, prop := range structuredFactProperties {
+		if err := s.client.Schema().PropertyCreator().
+			WithClassName(ClassName).
+			WithProperty(prop).Do(ctx); err != nil {
+			return fmt.Errorf("failed to add structured fact property %s: %w", prop.Name, err)
+		}
+	}
+
+	s.logger.Info("Successfully added new structured fact fields to schema")
 	return nil
 }
 
