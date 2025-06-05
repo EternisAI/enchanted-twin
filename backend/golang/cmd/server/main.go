@@ -366,6 +366,23 @@ func main() {
 
 	holonService := holon.NewService(store)
 
+	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
+	if err := toolRegistry.Register(threadPreviewTool); err != nil {
+		logger.Error("Failed to register thread preview tool", "error", err)
+		// panic(errors.Wrap(err, "Failed to register thread preview tool"))
+	}
+
+	sendToHolonTool := holon.NewSendToHolonTool(holonService)
+	if err := toolRegistry.Register(sendToHolonTool); err != nil {
+		logger.Error("Failed to register send to holon tool", "error", err)
+		// panic(errors.Wrap(err, "Failed to register send to holon tool"))
+	}
+
+	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(holonService)
+	if err := toolRegistry.Register(sendMessageToHolonTool); err != nil {
+		logger.Error("Failed to register send message to holon tool", "error", err)
+		// panic(errors.Wrap(err, "Failed to register send message to holon tool"))
+	}
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,

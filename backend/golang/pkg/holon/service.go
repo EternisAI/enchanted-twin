@@ -63,6 +63,13 @@ func (s *Service) CreateThreadMessage(ctx context.Context, threadID, authorIdent
 	return s.repo.CreateThreadMessage(ctx, messageID, threadID, authorIdentity, content, actions, isDelivered)
 }
 
+func (s *Service) AddMessageToThread(ctx context.Context, threadID, message, authorIdentity string, imageURLs []string) (*model.ThreadMessage, error) {
+	actions := []string{}
+	isDelivered := false
+	
+	return s.CreateThreadMessage(ctx, threadID, authorIdentity, message, actions, &isDelivered)
+}
+
 func extractTitleFromContent(content string) string {
 	if len(content) == 0 {
 		return "Untitled Thread"
