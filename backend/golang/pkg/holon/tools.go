@@ -33,6 +33,15 @@ func (t *ThreadPreviewTool) Execute(ctx context.Context, inputs map[string]any) 
 		}, fmt.Errorf("context parameter is required")
 	}
 
+	authorIdentity, ok := inputs["author_identity"].(string)
+	if !ok || authorIdentity == "" {
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "preview_thread",
+			ToolParams: inputs,
+			ToolError:  "author_identity parameter is required and must be a non-empty string",
+		}, fmt.Errorf("author_identity parameter is required")
+	}
+
 	var content string
 	if c, ok := inputs["content"].(string); ok && c != "" {
 		content = c
@@ -44,11 +53,6 @@ func (t *ThreadPreviewTool) Execute(ctx context.Context, inputs map[string]any) 
 
 	previewID := "preview-" + time.Now().Format("20060102150405")
 	title := extractTitleFromContent(content)
-
-	authorIdentity := "current-user"
-	if author, ok := inputs["author_identity"].(string); ok && author != "" {
-		authorIdentity = author
-	}
 
 	var imageURLs []string
 	if urls, ok := inputs["image_urls"].([]interface{}); ok {
@@ -66,7 +70,7 @@ func (t *ThreadPreviewTool) Execute(ctx context.Context, inputs map[string]any) 
 		"author_identity": authorIdentity,
 		"image_urls":      imageURLs,
 	}
-	
+
 	structuredJSON, err := json.Marshal(structuredData)
 	if err != nil {
 		return &agenttypes.StructuredToolResult{
@@ -90,7 +94,7 @@ func (t *ThreadPreviewTool) Definition() openai.ChatCompletionToolParam {
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
 			Name:        "preview_thread",
-			Description: param.NewOpt("Generate a preview of a thread for a holon network. The LLM will use the context to create appropriate title and content. This must be called before send_to_holon."),
+			Description: param.NewOpt("Generate a preview of a thread for a holon network. The LLM will use the context to create appropriate title and content."),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
@@ -104,7 +108,7 @@ func (t *ThreadPreviewTool) Definition() openai.ChatCompletionToolParam {
 					},
 					"author_identity": map[string]any{
 						"type":        "string",
-						"description": "Optional author identity (defaults to 'current-user')",
+						"description": "The identity of the thread author (must be a valid user ID from the authors table)",
 					},
 					"image_urls": map[string]any{
 						"type":        "array",
@@ -117,7 +121,7 @@ func (t *ThreadPreviewTool) Definition() openai.ChatCompletionToolParam {
 						"description": "Optional array of actions for the thread (defaults to ['like', 'reply', 'share'])",
 					},
 				},
-				"required": []string{"context"},
+				"required": []string{"context", "author_identity"},
 			},
 		},
 	}
@@ -134,16 +138,6 @@ func NewSendToHolonTool(service *Service) *SendToHolonTool {
 }
 
 func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error) {
-	// Check if user_confirmed is true
-	userConfirmed, ok := inputs["user_confirmed"].(bool)
-	if !ok || !userConfirmed {
-		return &agenttypes.StructuredToolResult{
-			ToolName:   "send_to_holon",
-			ToolParams: inputs,
-			ToolError:  "user_confirmed parameter must be set to true. This tool should only be called after the user has confirmed the preview is good to go.",
-		}, fmt.Errorf("user confirmation required")
-	}
-
 	previewID, ok := inputs["id"].(string)
 	if !ok || previewID == "" {
 		return &agenttypes.StructuredToolResult{
@@ -175,7 +169,11 @@ func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (a
 
 	authorIdentity, ok := inputs["author_identity"].(string)
 	if !ok || authorIdentity == "" {
-		authorIdentity = "current-user"
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "send_to_holon",
+			ToolParams: inputs,
+			ToolError:  "author_identity parameter is required and must be a non-empty string",
+		}, fmt.Errorf("author_identity parameter is required")
 	}
 
 	// Extract imageURLs array
@@ -201,10 +199,9 @@ func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (a
 		}
 	}
 	if actions == nil {
-		actions = []string{"like", "reply", "share"}
+		actions = []string{"Like", "Reply"}
 	}
 
-	// Use the service to publish the thread
 	publishedThread, err := t.Service.SendToHolon(ctx, previewID, title, content, authorIdentity, imageURLs, actions)
 	if err != nil {
 		return &agenttypes.StructuredToolResult{
@@ -214,23 +211,15 @@ func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (a
 		}, err
 	}
 
-	networkName := "default-holon"
-	if network, ok := inputs["network"].(string); ok && network != "" {
-		networkName = network
-	}
-
 	// Create structured JSON for the content field
 	structuredData := map[string]any{
-		"thread_id":    publishedThread.ID,
-		"title":        publishedThread.Title,
-		"content":      publishedThread.Content,
-		"network":      networkName,
-		"published_at": publishedThread.CreatedAt,
-		"views":        int(publishedThread.Views),
-		"status":       "published",
-		"message":      fmt.Sprintf("Thread successfully published to %s! Thread ID: %s", networkName, publishedThread.ID),
+		"id":        publishedThread.ID,
+		"title":     publishedThread.Title,
+		"content":   publishedThread.Content,
+		"createdAt": publishedThread.CreatedAt,
+		"views":     int(publishedThread.Views),
 	}
-	
+
 	structuredJSON, err := json.Marshal(structuredData)
 	if err != nil {
 		return &agenttypes.StructuredToolResult{
@@ -254,7 +243,7 @@ func (t *SendToHolonTool) Definition() openai.ChatCompletionToolParam {
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
 			Name:        "send_to_holon",
-			Description: param.NewOpt("Publish a previewed thread to a holon network. This will make the thread live and visible to other holon members. IMPORTANT: This tool should only be called after preview_thread has been called and the user has explicitly confirmed the preview is good to go."),
+			Description: param.NewOpt("Publish a previewed thread to a holon network. This will make the thread live and visible to other holon members. CRITICAL: Only call this tool when the user has explicitly confirmed they want to publish the preview. Look for confirmation phrases like 'yes', 'publish it', 'looks good', 'send it', 'go ahead', or similar. Do NOT call this tool unless the user has clearly indicated they approve of the preview."),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
@@ -267,12 +256,12 @@ func (t *SendToHolonTool) Definition() openai.ChatCompletionToolParam {
 						"description": "The title of the thread",
 					},
 					"content": map[string]any{
-						"type":        "string", 
+						"type":        "string",
 						"description": "The main content/body of the thread",
 					},
 					"author_identity": map[string]any{
 						"type":        "string",
-						"description": "The identity of the thread author (defaults to 'current-user')",
+						"description": "The identity of the thread author (must be a valid user ID from the authors table)",
 					},
 					"image_urls": map[string]any{
 						"type":        "array",
@@ -280,20 +269,12 @@ func (t *SendToHolonTool) Definition() openai.ChatCompletionToolParam {
 						"description": "Optional array of image URLs to include with the thread",
 					},
 					"actions": map[string]any{
-						"type":        "array", 
+						"type":        "array",
 						"items":       map[string]any{"type": "string"},
-						"description": "Available actions for the thread (defaults to ['like', 'reply', 'share'])",
-					},
-					"network": map[string]any{
-						"type":        "string",
-						"description": "Optional holon network override (e.g., 'ai-research-holon')",
-					},
-					"user_confirmed": map[string]any{
-						"type":        "boolean",
-						"description": "Must be set to true to confirm the user has approved the preview",
+						"description": "Available actions for the thread. For normal posts: ['Reply']. For invitations: ['Accept the invitation', 'Reply']. Defaults to ['Reply']",
 					},
 				},
-				"required": []string{"id", "title", "content", "user_confirmed"},
+				"required": []string{"id", "title", "content", "author_identity"},
 			},
 		},
 	}
@@ -330,7 +311,11 @@ func (t *AddMessageToThreadTool) Execute(ctx context.Context, inputs map[string]
 
 	authorIdentity, ok := inputs["author_identity"].(string)
 	if !ok || authorIdentity == "" {
-		authorIdentity = "current-user"
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "add_message_to_thread",
+			ToolParams: inputs,
+			ToolError:  "author_identity parameter is required and must be a non-empty string",
+		}, fmt.Errorf("author_identity parameter is required")
 	}
 
 	// Extract optional image URLs
@@ -358,15 +343,13 @@ func (t *AddMessageToThreadTool) Execute(ctx context.Context, inputs map[string]
 
 	// Create structured JSON for the content field
 	structuredData := map[string]any{
-		"message_id":       addedMessage.ID,
-		"thread_id":        threadID,
-		"message":          addedMessage.Content,
-		"author_identity":  addedMessage.Author,
-		"created_at":       addedMessage.CreatedAt,
-		"status":           "sent",
-		"message_response": fmt.Sprintf("Message successfully added to thread %s! Message ID: %s", threadID, addedMessage.ID),
+		"id":        addedMessage.ID,
+		"threadId":  threadID,
+		"content":   addedMessage.Content,
+		"author":    addedMessage.Author,
+		"createdAt": addedMessage.CreatedAt,
 	}
-	
+
 	structuredJSON, err := json.Marshal(structuredData)
 	if err != nil {
 		return &agenttypes.StructuredToolResult{
@@ -404,7 +387,7 @@ func (t *AddMessageToThreadTool) Definition() openai.ChatCompletionToolParam {
 					},
 					"author_identity": map[string]any{
 						"type":        "string",
-						"description": "The identity of the message author (defaults to 'current-user')",
+						"description": "The identity of the message author (must be a valid user ID from the authors table)",
 					},
 					"image_urls": map[string]any{
 						"type":        "array",
@@ -412,7 +395,7 @@ func (t *AddMessageToThreadTool) Definition() openai.ChatCompletionToolParam {
 						"description": "Optional array of image URLs to include with the message",
 					},
 				},
-				"required": []string{"thread_id", "message"},
+				"required": []string{"thread_id", "message", "author_identity"},
 			},
 		},
 	}
@@ -444,4 +427,3 @@ func generateSuggestedTags(content string) []string {
 
 	return tags
 }
-

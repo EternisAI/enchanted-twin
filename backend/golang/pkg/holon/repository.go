@@ -293,12 +293,18 @@ func (r *Repository) CreateThreadMessage(ctx context.Context, id, threadID, auth
 }
 
 func (r *Repository) GetHolons(ctx context.Context, userID string) ([]string, error) {
-	query := "SELECT name FROM holons ORDER BY name"
+	query := `
+		SELECT h.name 
+		FROM holons h
+		INNER JOIN holon_participants hp ON h.id = hp.holon_id
+		WHERE hp.author_identity = ?
+		ORDER BY h.name
+	`
 
 	var holonNames []string
-	err := r.db.SelectContext(ctx, &holonNames, query)
+	err := r.db.SelectContext(ctx, &holonNames, query, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get holons: %w", err)
+		return nil, fmt.Errorf("failed to get user's holons: %w", err)
 	}
 
 	return holonNames, nil
@@ -337,37 +343,16 @@ func (r *Repository) CreateOrUpdateAuthor(ctx context.Context, identity, alias s
 	}, nil
 }
 
-func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkName string) error {
+func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkIdentifier string) (bool, error) {
 	var holonID string
-	err := r.db.QueryRowContext(ctx, "SELECT id FROM holons WHERE name = ?", networkName).Scan(&holonID)
+	err := r.db.QueryRowContext(ctx, "SELECT id FROM holons WHERE id = ? OR name = ?", networkIdentifier, networkIdentifier).Scan(&holonID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("holon network '%s' not found", networkName)
-		}
-		return fmt.Errorf("failed to find holon network: %w", err)
-	}
-
-	_, err = r.db.ExecContext(ctx, `
-		INSERT OR IGNORE INTO holon_participants (holon_id, author_identity) 
-		VALUES (?, ?)
-	`, holonID, userID)
-	if err != nil {
-		return fmt.Errorf("failed to add user to holon: %w", err)
-	}
-
-	return nil
-}
-
-func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkName string) (bool, error) {
-	var holonID string
-	err := r.db.QueryRowContext(ctx, "SELECT id FROM holons WHERE name = ?", networkName).Scan(&holonID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, fmt.Errorf("holon network '%s' not found", networkName)
+			return false, fmt.Errorf("holon network '%s' not found", networkIdentifier)
 		}
 		return false, fmt.Errorf("failed to find holon network: %w", err)
 	}
-
+	
 	var exists bool
 	err = r.db.QueryRowContext(ctx, `
 		SELECT EXISTS(SELECT 1 FROM holon_participants WHERE holon_id = ? AND author_identity = ?)
@@ -375,8 +360,37 @@ func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkName stri
 	if err != nil {
 		return false, fmt.Errorf("failed to check user holon membership: %w", err)
 	}
-
+	
 	return exists, nil
+}
+
+func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifier string) error {
+	var holonID string
+	err := r.db.QueryRowContext(ctx, "SELECT id FROM holons WHERE id = ? OR name = ?", networkIdentifier, networkIdentifier).Scan(&holonID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("holon network '%s' not found", networkIdentifier)
+		}
+		return fmt.Errorf("failed to find holon network: %w", err)
+	}
+	
+	result, err := r.db.ExecContext(ctx, `
+		INSERT OR IGNORE INTO holon_participants (holon_id, author_identity) 
+		VALUES (?, ?)
+	`, holonID, userID)
+	if err != nil {
+		fmt.Printf("DEBUG: Error inserting into holon_participants: %v\n", err)
+		return fmt.Errorf("failed to add user to holon: %w", err)
+	}
+	
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		fmt.Printf("DEBUG: Error getting rows affected: %v\n", err)
+	} else {
+		fmt.Printf("DEBUG: Rows affected by INSERT: %d\n", rowsAffected)
+	}
+	
+	return nil
 }
 
 func (r *Repository) dbThreadToModel(ctx context.Context, dbThread *dbThread, author *dbAuthor) (*model.Thread, error) {

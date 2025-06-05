@@ -358,10 +358,14 @@ query GetThread($network: String, $id: ID!) {
   }
 }
 
-mutation StartWhatsAppConnection {
-  startWhatsAppConnection
+query GetHolons($userId: ID!) {
+  getHolons(userId: $userId)
 }
 
-mutation JoinHolon($network: String) {
-  joinHolon(network: $network)
+mutation JoinHolon($userId: String!, $network: String) {
+  joinHolon(userId: $userId, network: $network)
+}
+
+mutation StartWhatsAppConnection {
+  startWhatsAppConnection
 }
