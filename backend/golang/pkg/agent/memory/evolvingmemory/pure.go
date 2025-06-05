@@ -213,15 +213,6 @@ func CreateMemoryObjectWithDocumentReferences(fact ExtractedFact, decision Memor
 	return obj
 }
 
-// toFloat32 converts a slice of float64 to float32 for Weaviate compatibility.
-func toFloat32(embedding []float64) []float32 {
-	result := make([]float32, len(embedding))
-	for i, v := range embedding {
-		result[i] = float32(v)
-	}
-	return result
-}
-
 // marshalMetadata converts a metadata map to JSON string for storage.
 func marshalMetadata(metadata map[string]string) string {
 	if len(metadata) == 0 {
