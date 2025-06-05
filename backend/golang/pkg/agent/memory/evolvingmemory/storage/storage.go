@@ -1241,77 +1241,102 @@ func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
 
 // addStructuredFactFields adds the new structured fact fields to the existing schema.
 func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
-	// Add source property (if not exists)
-	if err := s.client.Schema().PropertyCreator().
-		WithClassName(ClassName).
-		WithProperty(&models.Property{
+	// Get existing properties to check what needs to be added
+	existingProps, err := s.getExistingProperties(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get existing properties: %w", err)
+	}
+
+	// Define all required structured fact properties
+	requiredProps := map[string]*models.Property{
+		sourceProperty: {
 			Name:        sourceProperty,
 			DataType:    []string{"text"},
 			Description: "Source of the memory document",
-		}).Do(ctx); err != nil {
-		s.logger.Warnf("Failed to add source property (may already exist): %v", err)
-	}
-
-	// Add speakerID property (if not exists)
-	if err := s.client.Schema().PropertyCreator().
-		WithClassName(ClassName).
-		WithProperty(&models.Property{
+		},
+		speakerProperty: {
 			Name:        speakerProperty,
 			DataType:    []string{"text"},
 			Description: "Speaker/contact ID for the memory",
-		}).Do(ctx); err != nil {
-		s.logger.Warnf("Failed to add speakerID property (may already exist): %v", err)
-	}
-
-	// Add structured fact properties
-	structuredFactProperties := []*models.Property{
-		{
+		},
+		factCategoryProperty: {
 			Name:        factCategoryProperty,
 			DataType:    []string{"text"},
 			Description: "Category of the structured fact (e.g., preference, health, etc.)",
 		},
-		{
+		factSubjectProperty: {
 			Name:        factSubjectProperty,
 			DataType:    []string{"text"},
 			Description: "Subject of the fact (typically 'user' or specific entity name)",
 		},
-		{
+		factAttributeProperty: {
 			Name:        factAttributeProperty,
 			DataType:    []string{"text"},
 			Description: "Specific property or attribute being described",
 		},
-		{
+		factValueProperty: {
 			Name:        factValueProperty,
 			DataType:    []string{"text"},
 			Description: "Descriptive phrase with context for the fact",
 		},
-		{
+		factTemporalContextProperty: {
 			Name:        factTemporalContextProperty,
 			DataType:    []string{"text"},
 			Description: "Temporal context for the fact (optional)",
 		},
-		{
+		factSensitivityProperty: {
 			Name:        factSensitivityProperty,
 			DataType:    []string{"text"},
 			Description: "Sensitivity level of the fact (high, medium, low)",
 		},
-		{
+		factImportanceProperty: {
 			Name:        factImportanceProperty,
 			DataType:    []string{"int"},
 			Description: "Importance score of the fact (1-3)",
 		},
 	}
 
-	for _, prop := range structuredFactProperties {
-		if err := s.client.Schema().PropertyCreator().
-			WithClassName(ClassName).
-			WithProperty(prop).Do(ctx); err != nil {
-			s.logger.Warnf("Failed to add structured fact property %s (may already exist): %v", prop.Name, err)
+	// Add only missing properties with proper error handling
+	addedProps := []string{}
+	for propName, propDef := range requiredProps {
+		if _, exists := existingProps[propName]; !exists {
+			if err := s.client.Schema().PropertyCreator().
+				WithClassName(ClassName).
+				WithProperty(propDef).Do(ctx); err != nil {
+				return fmt.Errorf("failed to add required property %s: %w", propName, err)
+			}
+			addedProps = append(addedProps, propName)
+			s.logger.Info("Added new property to schema", "property", propName)
 		}
 	}
 
-	s.logger.Info("Successfully added new structured fact fields to schema")
+	if len(addedProps) > 0 {
+		s.logger.Info("Successfully added structured fact fields to schema", "added_properties", addedProps)
+	} else {
+		s.logger.Info("All structured fact fields already exist in schema")
+	}
 	return nil
+}
+
+// getExistingProperties retrieves existing properties from the schema.
+func (s *WeaviateStorage) getExistingProperties(ctx context.Context) (map[string]string, error) {
+	schema, err := s.client.Schema().Getter().Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schema: %w", err)
+	}
+
+	existingProps := make(map[string]string)
+	for _, class := range schema.Classes {
+		if class.Class == ClassName {
+			for _, prop := range class.Properties {
+				if len(prop.DataType) > 0 {
+					existingProps[prop.Name] = prop.DataType[0]
+				}
+			}
+			break
+		}
+	}
+	return existingProps, nil
 }
 
 // buildTagsFilter creates a Weaviate filter from a TagsFilter structure.

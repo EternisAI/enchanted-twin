@@ -451,33 +451,8 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 		// Convert structured facts to enriched content strings for better semantic search
 		for _, structuredFact := range args.Facts {
-			// Create a comprehensive searchable string that includes context about the user
-			var contentParts []string
-
-			// Add subject context (helps with user-related queries)
-			if structuredFact.Subject != "" && structuredFact.Subject != "user" {
-				contentParts = append(contentParts, structuredFact.Subject)
-			}
-
-			// Add the main value
-			contentParts = append(contentParts, structuredFact.Value)
-
-			// Add attribute for context
-			if structuredFact.Attribute != "" {
-				contentParts = append(contentParts, "("+structuredFact.Attribute+")")
-			}
-
-			// Add temporal context
-			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
-				contentParts = append(contentParts, "("+*structuredFact.TemporalContext+")")
-			}
-
-			// For user-related facts, ensure they're findable in user queries
-			factString := strings.Join(contentParts, " ")
-			if structuredFact.Subject == "user" || strings.Contains(strings.ToLower(factString), "user") {
-				factString = "User: " + factString
-			}
-
+			// Use shared content generation method
+			factString := structuredFact.GenerateContent()
 			extractedFacts = append(extractedFacts, factString)
 		}
 	}
@@ -519,33 +494,8 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 		// Convert structured facts to enriched content strings for better semantic search
 		for _, structuredFact := range args.Facts {
-			// Create a comprehensive searchable string that includes context about the user
-			var contentParts []string
-
-			// Add subject context (helps with user-related queries)
-			if structuredFact.Subject != "" && structuredFact.Subject != "user" {
-				contentParts = append(contentParts, structuredFact.Subject)
-			}
-
-			// Add the main value
-			contentParts = append(contentParts, structuredFact.Value)
-
-			// Add attribute for context
-			if structuredFact.Attribute != "" {
-				contentParts = append(contentParts, "("+structuredFact.Attribute+")")
-			}
-
-			// Add temporal context
-			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
-				contentParts = append(contentParts, "("+*structuredFact.TemporalContext+")")
-			}
-
-			// For user-related facts, ensure they're findable in user queries
-			factString := strings.Join(contentParts, " ")
-			if structuredFact.Subject == "user" || strings.Contains(strings.ToLower(factString), "user") {
-				factString = "User: " + factString
-			}
-
+			// Use shared content generation method
+			factString := structuredFact.GenerateContent()
 			extractedFacts = append(extractedFacts, factString)
 		}
 	}
