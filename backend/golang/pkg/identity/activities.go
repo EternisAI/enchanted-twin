@@ -39,8 +39,12 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		"I am uncomfortable with",
 	}
 	memoryDocuments := []string{}
+	limit := 30
 	for _, prompt := range personalityPrompts {
-		docs, err := a.memory.Query(ctx, prompt, nil)
+		filter := memory.Filter{
+			Limit: &limit,
+		}
+		docs, err := a.memory.Query(ctx, prompt, &filter)
 		if err != nil {
 			return "", err
 		}
@@ -56,8 +60,6 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		return "", err
 	}
 
-	a.logger.Info("System prompt", "system_prompt", systemPrompt)
-
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(systemPrompt),
 		openai.UserMessage(strings.Join(memoryDocuments, "\n")),
@@ -67,8 +69,6 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 	if err != nil {
 		return "", err
 	}
-
-	a.logger.Info("Response_content", "response_content", response.Content)
 
 	return response.Content, nil
 }
