@@ -67,8 +67,8 @@ export const TOOL_CONFIG: Record<
   },
   send_to_holon: {
     inProgress: 'Sending to Holon',
-    completed: 'Holon Generated',
-    component: HolonToolComponent
+    completed: 'Holon Generated'
+    // component: HolonToolComponent
   }
 }
 

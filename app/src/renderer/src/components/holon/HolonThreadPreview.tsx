@@ -149,7 +149,7 @@ export default function HolonThreadPreview({
             <Button
               variant="ghost"
               size="sm"
-              className="absolute top-0 right-0 transition-opacity"
+              className="absolute bottom-[-1] right-0 transition-opacity"
               onClick={() => setIsEditingContent(true)}
             >
               <Edit3 className="w-4 h-4" />
@@ -157,7 +157,7 @@ export default function HolonThreadPreview({
           </div>
         )}
 
-        <div className="sticky w-xl bottom-0 left-0 right-0 bg-transparent backdrop-blur-xs border-t border-white/20 py-1">
+        <div className=" w-xl bg-transparent backdrop-blur-xs border-t border-white/20 py-1">
           <div className="flex items-center gap-4 w-full">
             {actions.map((action, index) => (
               <Button

@@ -27,10 +27,8 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
 
   const handleCreateChat = useCallback(
     async (action: string) => {
-      // This should check if chat exists or create one
       const chatId = `holon-${thread.id}`
-
-      if (!chatId) return
+      const text = `Send to holon thread id ${thread.id}: ${action}`
 
       try {
         const { data: createData } = await createChat({
@@ -42,7 +40,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
           navigate({
             to: '/chat/$chatId',
             params: { chatId: newChatId },
-            search: { initialMessage: action, threadId: thread.id }
+            search: { initialMessage: text, threadId: thread.id }
           })
 
           await client.cache.evict({ fieldName: 'getChats' })
@@ -53,7 +51,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
           sendMessage({
             variables: {
               chatId: newChatId,
-              text: action,
+              text: text,
               reasoning: false,
               voice: false
             }
