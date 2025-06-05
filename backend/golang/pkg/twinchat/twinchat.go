@@ -106,7 +106,7 @@ func (s *Service) Execute(
 	return &response, nil
 }
 
-func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool, userMemoryProfile string) (string, error) {
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	if err != nil {
 		return "", err
@@ -124,12 +124,13 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 	}
 
 	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
-		UserName:      userProfile.Name,
-		Bio:           userProfile.Bio,
-		EmailAccounts: emailAccounts,
-		ChatID:        &chatID,
-		CurrentTime:   time.Now().Format(time.RFC3339),
-		IsVoice:       isVoice,
+		UserName:          userProfile.Name,
+		Bio:               userProfile.Bio,
+		EmailAccounts:     emailAccounts,
+		ChatID:            &chatID,
+		CurrentTime:       time.Now().Format(time.RFC3339),
+		IsVoice:           isVoice,
+		UserMemoryProfile: userMemoryProfile,
 	})
 	if err != nil {
 		return "", err
@@ -162,7 +163,12 @@ func (s *Service) SendMessage(
 		messages = messages_
 	}
 
-	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
+	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
 	if err != nil {
 		return nil, err
 	}
@@ -174,12 +180,6 @@ func (s *Service) SendMessage(
 	// if userProfile.Bio != nil {
 	// 	systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
 	// }
-
-	userProfile, err := s.identityService.GetUserProfile(ctx)
-	if err != nil {
-		return nil, err
-	}
-	systemPrompt += fmt.Sprintf("Here are some details about the user that you can use to personalize your response: %s. ", userProfile)
 
 	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
 	if err != nil {
