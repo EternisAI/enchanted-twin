@@ -29,7 +29,7 @@ type identityActivities struct {
 	completionsModel string
 }
 
-func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (string, error) {
+func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (string, error) {
 	personalityPrompts := []string{
 		"My personality",
 		"What do I want to do lately",
@@ -75,5 +75,5 @@ func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (s
 
 func (a *identityActivities) RegisterWorkflowsAndActivities(worker worker.Worker) {
 	worker.RegisterWorkflow(DerivePersonalityWorkflow)
-	worker.RegisterActivity(a.GeneratePersonalityActivity)
+	worker.RegisterActivity(a.GenerateUserProfileActivity)
 }
