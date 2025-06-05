@@ -356,12 +356,20 @@ func main() {
 	}
 
 	identitySvc := identity.NewIdentityService(temporalClient)
-	personality, err := identitySvc.GetPersonality(context.Background())
-	if err != nil {
-		logger.Error("Failed to get personality", "error", err)
-		panic(errors.Wrap(err, "Failed to get personality"))
-	}
-	logger.Info("Personality", "personality", personality)
+
+	// TODO: remove this after testing
+	go func() {
+		for {
+			userProfile, err := identitySvc.GetUserProfile(context.Background())
+			if err != nil {
+				logger.Error("Failed to get user profile", "error", err)
+				panic(errors.Wrap(err, "Failed to get user profile"))
+			}
+			logger.Info("User profile", "user_profile", userProfile)
+
+			time.Sleep(time.Second * 10)
+		}
+	}()
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -597,7 +605,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 }
 
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
-	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Minute*1, identity.DerivePersonalityWorkflow, nil)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}

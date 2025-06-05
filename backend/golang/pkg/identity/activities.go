@@ -32,10 +32,10 @@ type identityActivities struct {
 func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (string, error) {
 	personalityPrompts := []string{
 		"My personality",
-		"What makes me happy",
-		"What makes me angry",
+		"What do I want to do lately",
+		"What are my job and hobbies",
+		"Who are my friends and main relationships",
 		"I am interested in",
-		"Things that excite me",
 		"I am uncomfortable with",
 	}
 	memoryDocuments := []string{}
@@ -49,10 +49,14 @@ func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (s
 		}
 	}
 
+	a.logger.Info("Memory documents", "memory_documents", memoryDocuments)
+
 	systemPrompt, err := prompts.BuildIdentityPersonalitySystemPrompt()
 	if err != nil {
 		return "", err
 	}
+
+	a.logger.Info("System prompt", "system_prompt", systemPrompt)
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(systemPrompt),
@@ -63,6 +67,8 @@ func (a *identityActivities) GeneratePersonalityActivity(ctx context.Context) (s
 	if err != nil {
 		return "", err
 	}
+
+	a.logger.Info("Response_content", "response_content", response.Content)
 
 	return response.Content, nil
 }
