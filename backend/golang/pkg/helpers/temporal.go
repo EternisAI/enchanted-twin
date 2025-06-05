@@ -18,13 +18,20 @@ func CreateScheduleIfNotExists(
 	workflowArgs []any,
 ) error {
 	ctx := context.Background()
-	handle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
-	if handle == nil {
+
+	// Try to get handle to check if schedule exists
+	scheduleHandle := temporalClient.ScheduleClient().GetHandle(ctx, scheduleID)
+
+	// Check if schedule exists by attempting to describe it
+	_, err := scheduleHandle.Describe(ctx)
+	if err == nil {
+		// Schedule already exists
 		logger.Info("Schedule already exists, skipping creation", "scheduleID", scheduleID)
 		return nil
 	}
 
-	_, err := temporalClient.ScheduleClient().Create(ctx, client.ScheduleOptions{
+	// Schedule doesn't exist, create it
+	_, err = temporalClient.ScheduleClient().Create(ctx, client.ScheduleOptions{
 		ID: scheduleID,
 		Spec: client.ScheduleSpec{
 			Intervals: []client.ScheduleIntervalSpec{
