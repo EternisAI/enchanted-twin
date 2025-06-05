@@ -58,6 +58,15 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 	}, nil
 }
 
+// convertEmbedding converts a slice of float64 to float32 for vector operations.
+func convertEmbedding(embedding []float64) []float32 {
+	result := make([]float32, len(embedding))
+	for i, v := range embedding {
+		result[i] = float32(v)
+	}
+	return result
+}
+
 // ExtractFacts extracts facts from a document using pure business logic.
 func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error) {
 	return ExtractFactsFromDocument(ctx, doc, e.completionsService)
@@ -116,7 +125,7 @@ func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, 
 			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
 		}
 
-		if err := e.UpdateMemory(ctx, decision.TargetID, fact.Content, toFloat32(embedding)); err != nil {
+		if err := e.UpdateMemory(ctx, decision.TargetID, fact.Content, convertEmbedding(embedding)); err != nil {
 			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("update failed: %w", err)}, nil
 		}
 
@@ -216,7 +225,7 @@ func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFac
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
 
-	obj.Vector = toFloat32(embedding)
+	obj.Vector = convertEmbedding(embedding)
 	return obj, nil
 }
 
