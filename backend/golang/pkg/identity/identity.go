@@ -2,7 +2,6 @@ package identity
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"go.temporal.io/sdk/client"
@@ -40,9 +39,6 @@ func (s *IdentityService) GetUserProfile(ctx context.Context) (string, error) {
 
 	workflowID := recentAction.StartWorkflowResult.WorkflowID
 	runID := recentAction.StartWorkflowResult.FirstExecutionRunID
-
-	fmt.Println("==workflowID", workflowID)
-	fmt.Println("==runID", runID)
 
 	var output DerivePersonalityOutput
 	run := s.temporalClient.GetWorkflow(ctx, workflowID, runID)
