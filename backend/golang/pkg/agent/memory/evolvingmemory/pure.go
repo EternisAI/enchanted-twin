@@ -418,9 +418,9 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		return []string{}, nil
 	}
 
-	// Dead simple: static prompt + JSON conversation
+	// Use new structured fact extraction prompt for conversations
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(ConversationFactExtractionPrompt),
+		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(conversationJSON),
 	}
 
@@ -435,12 +435,20 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			continue
 		}
 
-		var args ExtractFactsToolArguments
+		var args ExtractStructuredFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			continue
 		}
 
-		extractedFacts = append(extractedFacts, args.Facts...)
+		// Convert structured facts to simple strings for backward compatibility
+		for _, structuredFact := range args.Facts {
+			// Create a readable string from the structured fact
+			factString := structuredFact.Value
+			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
+				factString += " (" + *structuredFact.TemporalContext + ")"
+			}
+			extractedFacts = append(extractedFacts, factString)
+		}
 	}
 
 	return extractedFacts, nil
@@ -458,7 +466,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 	}
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(TextFactExtractionPrompt),
+		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
@@ -473,12 +481,20 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			continue
 		}
 
-		var args ExtractFactsToolArguments
+		var args ExtractStructuredFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			continue
 		}
 
-		extractedFacts = append(extractedFacts, args.Facts...)
+		// Convert structured facts to simple strings for backward compatibility
+		for _, structuredFact := range args.Facts {
+			// Create a readable string from the structured fact
+			factString := structuredFact.Value
+			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
+				factString += " (" + *structuredFact.TemporalContext + ")"
+			}
+			extractedFacts = append(extractedFacts, factString)
+		}
 	}
 
 	return extractedFacts, nil

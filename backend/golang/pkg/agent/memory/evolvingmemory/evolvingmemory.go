@@ -71,11 +71,27 @@ type PreparedDocument struct {
 	DateString string // Pre-formatted
 }
 
+// Structured fact types for the new extraction system.
+type StructuredFact struct {
+	Category        string  `json:"category"`
+	Subject         string  `json:"subject"`
+	Attribute       string  `json:"attribute"`
+	Value           string  `json:"value"`
+	TemporalContext *string `json:"temporal_context,omitempty"`
+	Sensitivity     string  `json:"sensitivity"`
+	Importance      int     `json:"importance"`
+}
+
+type ExtractStructuredFactsToolArguments struct {
+	Facts []StructuredFact `json:"facts"`
+}
+
 // Processing pipeline types.
 type ExtractedFact struct {
-	Content   string
-	SpeakerID string
-	Source    PreparedDocument
+	StructuredFact StructuredFact // The new structured fact data
+	Content        string         // Deprecated: kept for backward compatibility, will be derived from StructuredFact
+	SpeakerID      string
+	Source         PreparedDocument
 }
 
 // Memory actions.
@@ -150,10 +166,6 @@ type DeleteToolArguments struct {
 
 type NoneToolArguments struct {
 	Reason string `json:"reason"`
-}
-
-type ExtractFactsToolArguments struct {
-	Facts []string `json:"facts"`
 }
 
 // DocumentReference holds reference to the original document that generated a memory fact.
