@@ -654,6 +654,15 @@ func (s *WeaviateStorage) buildQueryFields() []weaviateGraphql.Field {
 		{Name: sourceProperty},
 		{Name: speakerProperty},
 		{Name: tagsProperty},
+		{Name: documentReferencesProperty},
+		// Structured fact fields
+		{Name: factCategoryProperty},
+		{Name: factSubjectProperty},
+		{Name: factAttributeProperty},
+		{Name: factValueProperty},
+		{Name: factTemporalContextProperty},
+		{Name: factSensitivityProperty},
+		{Name: factImportanceProperty},
 		{
 			Name: "_additional",
 			Fields: []weaviateGraphql.Field{
@@ -697,6 +706,103 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 		if tagsFilter != nil {
 			whereFilters = append(whereFilters, tagsFilter)
 			s.logger.Debug("Added tags filter", "tagsFilter", filter.Tags)
+		}
+	}
+
+	// Structured fact filters
+	if filter.FactCategory != nil {
+		categoryFilter := filters.Where().
+			WithPath([]string{factCategoryProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactCategory)
+		whereFilters = append(whereFilters, categoryFilter)
+		s.logger.Debug("Added fact category filter", "category", *filter.FactCategory)
+	}
+
+	if filter.FactSubject != nil {
+		subjectFilter := filters.Where().
+			WithPath([]string{factSubjectProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactSubject)
+		whereFilters = append(whereFilters, subjectFilter)
+		s.logger.Debug("Added fact subject filter", "subject", *filter.FactSubject)
+	}
+
+	if filter.FactAttribute != nil {
+		attributeFilter := filters.Where().
+			WithPath([]string{factAttributeProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactAttribute)
+		whereFilters = append(whereFilters, attributeFilter)
+		s.logger.Debug("Added fact attribute filter", "attribute", *filter.FactAttribute)
+	}
+
+	if filter.FactValue != nil {
+		// Use Like operator for partial matching on fact values
+		valueFilter := filters.Where().
+			WithPath([]string{factValueProperty}).
+			WithOperator(filters.Like).
+			WithValueText("*" + *filter.FactValue + "*")
+		whereFilters = append(whereFilters, valueFilter)
+		s.logger.Debug("Added fact value filter", "value", *filter.FactValue)
+	}
+
+	if filter.FactTemporalContext != nil {
+		temporalFilter := filters.Where().
+			WithPath([]string{factTemporalContextProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactTemporalContext)
+		whereFilters = append(whereFilters, temporalFilter)
+		s.logger.Debug("Added fact temporal context filter", "temporal_context", *filter.FactTemporalContext)
+	}
+
+	if filter.FactSensitivity != nil {
+		sensitivityFilter := filters.Where().
+			WithPath([]string{factSensitivityProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactSensitivity)
+		whereFilters = append(whereFilters, sensitivityFilter)
+		s.logger.Debug("Added fact sensitivity filter", "sensitivity", *filter.FactSensitivity)
+	}
+
+	// Fact importance filtering (exact, min, max)
+	if filter.FactImportance != nil {
+		importanceFilter := filters.Where().
+			WithPath([]string{factImportanceProperty}).
+			WithOperator(filters.Equal).
+			WithValueInt(int64(*filter.FactImportance))
+		whereFilters = append(whereFilters, importanceFilter)
+		s.logger.Debug("Added fact importance filter", "importance", *filter.FactImportance)
+	} else {
+		// Handle importance range filtering
+		var importanceRangeFilters []*filters.WhereBuilder
+
+		if filter.FactImportanceMin != nil {
+			minFilter := filters.Where().
+				WithPath([]string{factImportanceProperty}).
+				WithOperator(filters.GreaterThanEqual).
+				WithValueInt(int64(*filter.FactImportanceMin))
+			importanceRangeFilters = append(importanceRangeFilters, minFilter)
+			s.logger.Debug("Added fact importance min filter", "min_importance", *filter.FactImportanceMin)
+		}
+
+		if filter.FactImportanceMax != nil {
+			maxFilter := filters.Where().
+				WithPath([]string{factImportanceProperty}).
+				WithOperator(filters.LessThanEqual).
+				WithValueInt(int64(*filter.FactImportanceMax))
+			importanceRangeFilters = append(importanceRangeFilters, maxFilter)
+			s.logger.Debug("Added fact importance max filter", "max_importance", *filter.FactImportanceMax)
+		}
+
+		// Combine range filters with AND
+		if len(importanceRangeFilters) == 1 {
+			whereFilters = append(whereFilters, importanceRangeFilters[0])
+		} else if len(importanceRangeFilters) == 2 {
+			rangeFilter := filters.Where().
+				WithOperator(filters.And).
+				WithOperands(importanceRangeFilters)
+			whereFilters = append(whereFilters, rangeFilter)
 		}
 	}
 

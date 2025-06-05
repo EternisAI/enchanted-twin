@@ -38,6 +38,19 @@ type Filter struct {
 	Tags        *TagsFilter // Filter by tags with boolean logic support
 	Distance    float32     // Maximum semantic distance (0 = disabled)
 	Limit       *int        // Maximum number of results to return
+
+	// Structured fact filtering fields
+	FactCategory        *string // Filter by fact category (profile_stable, preference, goal_plan, etc.)
+	FactSubject         *string // Filter by fact subject (user, entity names)
+	FactAttribute       *string // Filter by fact attribute (specific property being described)
+	FactValue           *string // Filter by fact value (partial match on descriptive content)
+	FactTemporalContext *string // Filter by temporal context (dates, time references)
+	FactSensitivity     *string // Filter by sensitivity level (high, medium, low)
+	FactImportance      *int    // Filter by importance score (1, 2, 3)
+
+	// Ranges for numeric/date fields
+	FactImportanceMin *int // Minimum importance score (inclusive)
+	FactImportanceMax *int // Maximum importance score (inclusive)
 }
 
 // Document interface that both TextDocument and ConversationDocument implement.
@@ -236,7 +249,7 @@ func (be *BooleanExpression) IsLeaf() bool {
 	return be != nil && len(be.Tags) > 0
 }
 
-// IsBranch returns true if this is a branch node (has left and right operands).
+// IsBranch returns true if this is a branch node (has left/right operands).
 func (be *BooleanExpression) IsBranch() bool {
 	return be != nil && be.Left != nil && be.Right != nil
 }
