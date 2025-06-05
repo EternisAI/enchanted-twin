@@ -22,6 +22,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -45,6 +46,7 @@ type Service struct {
 	reasoningModel   string
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
+	identityService  *identity.IdentityService
 }
 
 func NewService(
@@ -57,6 +59,7 @@ func NewService(
 	userStorage *db.Store,
 	completionsModel string,
 	reasoningModel string,
+	identityService *identity.IdentityService,
 ) *Service {
 	return &Service{
 		logger:           logger,
@@ -68,6 +71,7 @@ func NewService(
 		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
 		userStorage:      userStorage,
+		identityService:  identityService,
 	}
 }
 
@@ -170,6 +174,12 @@ func (s *Service) SendMessage(
 	// if userProfile.Bio != nil {
 	// 	systemPrompt += fmt.Sprintf("Details about the user: %s. ", *userProfile.Bio)
 	// }
+
+	userProfile, err := s.identityService.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+	systemPrompt += fmt.Sprintf("===User profile: %s. ", userProfile)
 
 	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
 	if err != nil {
