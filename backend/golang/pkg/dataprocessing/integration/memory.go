@@ -470,7 +470,7 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	}
 
 	// Test 13: Invalid/non-existent category (should return no results)
-	logger.Info("Testing filtering with wrong importance...")
+	logger.Info("Testing filtering with high importance...")
 	filter = &memory.Filter{
 		FactImportanceMin: intPtr(3),
 		Source:            &source,
@@ -483,7 +483,7 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	logger.Info("Wrong importance test completed", "results_count", len(result.Documents))
 	logger.Info("result", "result", result.Documents)
 	if len(result.Documents) == 0 {
-		return fmt.Errorf("expected  results for wrong importance")
+		return fmt.Errorf("expected at least 1 result for high importance")
 	}
 
 	logger.Info("==============✅ All structured fact filtering tests completed===============")
