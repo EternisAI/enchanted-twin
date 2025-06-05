@@ -291,6 +291,10 @@ mutation CompleteOAuthFlow($state: String!, $authCode: String!) {
   completeOAuthFlow(state: $state, authCode: $authCode)
 }
 
+mutation CompleteOAuthFlowComposition($accountId: String!, $provider: String!) {
+  completeOAuthFlowComposio(accountId: $accountId, provider: $provider)
+}
+
 mutation DeleteAgentTask($id: ID!) {
   deleteAgentTask(id: $id)
 }

@@ -6,7 +6,8 @@ import {
   StartOAuthFlowMutation,
   StartOAuthFlowMutationVariables,
   McpServerType,
-  ConnectMcpServerDocument
+  ConnectMcpServerDocument,
+  CompleteOAuthFlowCompositionDocument
 } from '@renderer/graphql/generated/graphql'
 import { useEffect, useState } from 'react'
 import { Button } from '../ui/button'
@@ -29,33 +30,65 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/
 import { Check, Trash2 } from 'lucide-react'
 import icon from '../../../../../resources/icon.png'
 
-const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> = {
+interface ProviderConfig {
+  provider: string
+  scope: string
+  icon: React.ReactNode
+  connectMethod: 'oauth' | 'direct' | 'env'
+  completionMethod: 'standard' | 'composition' | 'none'
+  needsOAuthCallback: boolean
+}
+
+const PROVIDER_CONFIG: Record<McpServerType, ProviderConfig> = {
   GOOGLE: {
     provider: 'google',
     scope:
-      'openid email profile https://www.googleapis.com/auth/drive https://mail.google.com/ https://www.googleapis.com/auth/calendar'
+      'openid email profile https://www.googleapis.com/auth/drive https://mail.google.com/ https://www.googleapis.com/auth/calendar',
+    icon: <Google />,
+    connectMethod: 'oauth',
+    completionMethod: 'standard',
+    needsOAuthCallback: true
   },
   SLACK: {
     provider: 'slack',
-    scope:
-      'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read'
+    scope: 'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read',
+    icon: <Slack />,
+    connectMethod: 'oauth',
+    completionMethod: 'standard',
+    needsOAuthCallback: true
   },
   TWITTER: {
     provider: 'twitter',
-    scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read'
+    scope: 'like.read tweet.read users.read offline.access tweet.write bookmark.read',
+    icon: <XformerlyTwitter />,
+    connectMethod: 'oauth',
+    completionMethod: 'composition',
+    needsOAuthCallback: true
   },
-  SCREENPIPE: { provider: 'screenpipe', scope: '' },
-  OTHER: { provider: 'other', scope: '' },
-  ENCHANTED: { provider: 'enchanted', scope: '' }
-}
-
-const PROVIDER_ICON_MAP: Record<McpServerType, React.ReactNode> = {
-  GOOGLE: <Google />,
-  SLACK: <Slack />,
-  TWITTER: <XformerlyTwitter />,
-  SCREENPIPE: <></>,
-  OTHER: <></>,
-  ENCHANTED: <img src={icon} alt="Enchanted" className="w-8 h-8" />
+  SCREENPIPE: {
+    provider: 'screenpipe',
+    scope: '',
+    icon: <></>,
+    connectMethod: 'direct',
+    completionMethod: 'none',
+    needsOAuthCallback: false
+  },
+  OTHER: {
+    provider: 'other',
+    scope: '',
+    icon: <></>,
+    connectMethod: 'env',
+    completionMethod: 'none',
+    needsOAuthCallback: false
+  },
+  ENCHANTED: {
+    provider: 'enchanted',
+    scope: '',
+    icon: <img src={icon} alt="Enchanted" className="w-8 h-8" />,
+    connectMethod: 'direct',
+    completionMethod: 'none',
+    needsOAuthCallback: false
+  }
 }
 
 interface MCPServerItemProps {
@@ -71,7 +104,10 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
 
   const [startOAuthFlow] = useMutation(StartOAuthFlowDocument)
   const [completeOAuthFlow] = useMutation(CompleteOAuthFlowDocument)
+  const [completeOAuthFlowComposition] = useMutation(CompleteOAuthFlowCompositionDocument)
   const [connectMCPServer] = useMutation(ConnectMcpServerDocument)
+
+  const config = PROVIDER_CONFIG[server.type]
 
   const handleRemove = () => {
     if (onRemove) {
@@ -100,21 +136,16 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   async function handleOAuthFlow(
-    serverType: string,
+    config: ProviderConfig,
     startOAuthFlow: MutationFunction<StartOAuthFlowMutation, StartOAuthFlowMutationVariables>
   ) {
     try {
-      const providerInfo = PROVIDER_MAP[serverType] || {
-        provider: serverType.toLowerCase(),
-        scope: ''
-      }
-
       setAuthStateId(server.id)
 
       const { data } = await startOAuthFlow({
         variables: {
-          provider: providerInfo.provider,
-          scope: providerInfo.scope
+          provider: config.provider,
+          scope: config.scope
         }
       })
 
@@ -132,61 +163,82 @@ export default function MCPServerItem({ server, onConnect, onRemove }: MCPServer
   }
 
   const handleEnableToolsToggle = async (enabled: boolean) => {
-    // Enchanted and Screenpipe are handled by the backend without OAuth
-    if (server.type === McpServerType.Enchanted || server.type === McpServerType.Screenpipe) {
-      handleConnectMcpServer()
-      return
+    switch (config.connectMethod) {
+      case 'direct':
+        handleConnectMcpServer()
+        break
+      case 'env':
+        setShowEnvInputs(enabled)
+        break
+      case 'oauth':
+        if (enabled) {
+          await handleOAuthFlow(config, startOAuthFlow)
+        }
+        break
     }
+  }
 
-    if (server.type === 'OTHER') {
-      setShowEnvInputs(enabled)
-      return
-    }
-
-    if (enabled) {
-      await handleOAuthFlow(server.type, startOAuthFlow)
+  const handleOAuthCompletion = async (data: {
+    code: string
+    state: string
+    connectedAccountId: string
+  }) => {
+    try {
+      if (config.completionMethod === 'composition') {
+        const { data: completionData } = await completeOAuthFlowComposition({
+          variables: { accountId: data.connectedAccountId, provider: config.provider }
+        })
+        console.log('OAuth completion data:', completionData)
+        if (completionData?.completeOAuthFlowComposio) {
+          toast.success(`Connected successfully to ${completionData.completeOAuthFlowComposio}!`)
+        }
+      } else if (config.completionMethod === 'standard') {
+        const { data: completionData } = await completeOAuthFlow({
+          variables: { state: data.state, authCode: data.code }
+        })
+        console.log('OAuth completion data:', completionData)
+        if (completionData?.completeOAuthFlow) {
+          toast.success(`Connected successfully to ${completionData.completeOAuthFlow}!`)
+        }
+      }
+    } catch (err) {
+      console.error('OAuth completion failed:', err)
+    } finally {
+      onConnect()
+      window.api.analytics.capture('server_connected', {
+        server: server.name,
+        type: server.type
+      })
+      setAuthStateId(null)
     }
   }
 
   useEffect(() => {
-    if (
-      server.type === 'OTHER' ||
-      server.type === McpServerType.Enchanted ||
-      server.type === McpServerType.Screenpipe
-    )
-      return
+    if (!config.needsOAuthCallback) return
 
-    window.api.onOAuthCallback(async ({ code, state }) => {
+    window.api.onOAuthCallback(async ({ code, state, connectedAccountId }) => {
       if (!authStateId) {
         console.log(`${server.name} is Skipping OAuth callback for different server`)
         return
       }
 
-      try {
-        const { data } = await completeOAuthFlow({ variables: { state, authCode: code } })
-        console.log('OAuth completion data:', data)
-        if (data?.completeOAuthFlow) {
-          toast.success(`Connected successfully to ${data.completeOAuthFlow}!`)
-          onConnect()
-
-          window.api.analytics.capture('server_connected', {
-            server: server.name,
-            type: server.type
-          })
-        }
-      } catch (err) {
-        console.error('OAuth completion failed:', err)
-      } finally {
-        setAuthStateId(null)
-      }
+      await handleOAuthCompletion({ code, state, connectedAccountId })
     })
-  }, [completeOAuthFlow, server.name, server.type, onConnect, authStateId])
+  }, [
+    completeOAuthFlow,
+    completeOAuthFlowComposition,
+    server.name,
+    server.type,
+    onConnect,
+    authStateId,
+    config.needsOAuthCallback
+  ])
 
   return (
     <Card className="p-4 w-[350px] max-w-full">
       <div className="font-semibold text-lg flex flex-wrap items-center justify-between lg:flex-row flex-col gap-4">
         <div className="flex items-center gap-2">
-          {PROVIDER_ICON_MAP[server.type]}
+          {config.icon}
           <span className="font-semibold text-lg">{server.name}</span>
         </div>
         <div className="flex items-center gap-2">

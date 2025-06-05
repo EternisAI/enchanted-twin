@@ -24,9 +24,16 @@ function startOAuthCallbackServer(callbackPath: string): Promise<http.Server> {
           const parsedUrl = new URL(`http://localhost:${DEFAULT_OAUTH_SERVER_PORT}${req.url}`)
           const code = parsedUrl.searchParams.get('code')
           const state = parsedUrl.searchParams.get('state')
+          const connectedAccountId = parsedUrl.searchParams.get('connectedAccountId')
+          const appName = parsedUrl.searchParams.get('appName')
 
-          if (code && state && windowManager.mainWindow) {
-            windowManager.mainWindow.webContents.send('oauth-callback', { code, state })
+          if (((code && state) || (connectedAccountId && appName)) && windowManager.mainWindow) {
+            windowManager.mainWindow.webContents.send('oauth-callback', {
+              code,
+              state,
+              connectedAccountId,
+              appName
+            })
             res.writeHead(200, { 'Content-Type': 'text/html' })
             res.end(`
               <!DOCTYPE html>

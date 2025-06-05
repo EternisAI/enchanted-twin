@@ -29,7 +29,14 @@ interface IApi {
   setNativeTheme: (theme: 'system' | 'light' | 'dark') => Promise<'light' | 'dark'>
   onNativeThemeUpdated: (callback: (theme: 'light' | 'dark') => void) => void
   openOAuthUrl: (url: string, redirectUri?: string) => void
-  onOAuthCallback: (callback: (data: { state: string; code: string }) => void) => void
+  onOAuthCallback: (
+    callback: (data: {
+      state: string
+      code: string
+      connectedAccountId: string
+      appName: string
+    }) => void
+  ) => void
   openLogsFolder: () => Promise<boolean>
   openAppDataFolder: () => Promise<boolean>
   deleteAppData: () => Promise<boolean>

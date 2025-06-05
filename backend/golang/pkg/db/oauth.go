@@ -162,7 +162,7 @@ type OAuthConfig struct {
 var oauthConfig = map[string]OAuthConfig{
 	"twitter": {
 		ClientID:      "bEFtUmtyNm1wUFNtRUlqQTdmQmE6MTpjaQ",
-		RedirectURI:   "http://127.0.0.1:8085/callback",
+		RedirectURI:   "http://127.0.0.1:8080/callback",
 		AuthEndpoint:  "https://twitter.com/i/oauth2/authorize",
 		TokenEndpoint: "https://api.twitter.com/2/oauth2/token",
 		UserEndpoint:  "https://api.twitter.com/2/users/me",
