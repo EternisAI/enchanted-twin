@@ -285,6 +285,8 @@ func main() {
 		panic(errors.Wrap(err, "Failed to register telegram tool"))
 	}
 
+	identitySvc := identity.NewIdentityService(temporalClient)
+
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
@@ -295,6 +297,7 @@ func main() {
 		store,
 		envs.CompletionsModel,
 		envs.ReasoningModel,
+		identitySvc,
 	)
 
 	sendToChatTool := twinchat.NewSendToChatTool(chatStorage, nc)
@@ -354,14 +357,6 @@ func main() {
 		logger.Error("Failed to bootstrap periodic workflows", "error", err)
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
 	}
-
-	identitySvc := identity.NewIdentityService(temporalClient)
-	personality, err := identitySvc.GetPersonality(context.Background())
-	if err != nil {
-		logger.Error("Failed to get personality", "error", err)
-		panic(errors.Wrap(err, "Failed to get personality"))
-	}
-	logger.Info("Personality", "personality", personality)
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -597,7 +592,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 }
 
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
-	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour*12, identity.DerivePersonalityWorkflow, nil)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}
