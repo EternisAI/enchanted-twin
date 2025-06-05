@@ -179,7 +179,7 @@ func (s *Service) SendMessage(
 	if err != nil {
 		return nil, err
 	}
-	systemPrompt += fmt.Sprintf("===User profile: %s. ", userProfile)
+	systemPrompt += fmt.Sprintf("Here are some details about the user that you can use to personalize your response: %s. ", userProfile)
 
 	oauthTokens, err := s.userStorage.GetOAuthTokensArray(ctx, "google")
 	if err != nil {
