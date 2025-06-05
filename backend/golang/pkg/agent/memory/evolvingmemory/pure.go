@@ -272,10 +272,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 // This is the secure version that properly separates system instructions from user content.
 func BuildSeparateMemoryDecisionPrompts(fact string, similar []ExistingMemory) (systemPrompt string, userPrompt string) {
 	// System prompt contains only instructions and guidelines - no user content
-	systemPrompt = ConversationMemoryUpdatePrompt + `
-
-Based on the guidelines above, analyze the provided context and decide what action should be taken for the new fact.
-Use the appropriate tool to indicate your decision.`
+	systemPrompt = MemoryUpdatePrompt
 
 	// User prompt contains only the user data to be analyzed
 	existingMemoriesContentForPrompt := []string{}
@@ -440,13 +437,35 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			continue
 		}
 
-		// Convert structured facts to simple strings for backward compatibility
+		// Convert structured facts to enriched content strings for better semantic search
 		for _, structuredFact := range args.Facts {
-			// Create a readable string from the structured fact
-			factString := structuredFact.Value
-			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
-				factString += " (" + *structuredFact.TemporalContext + ")"
+			// Create a comprehensive searchable string that includes context about the user
+			var contentParts []string
+
+			// Add subject context (helps with user-related queries)
+			if structuredFact.Subject != "" && structuredFact.Subject != "user" {
+				contentParts = append(contentParts, structuredFact.Subject)
 			}
+
+			// Add the main value
+			contentParts = append(contentParts, structuredFact.Value)
+
+			// Add attribute for context
+			if structuredFact.Attribute != "" {
+				contentParts = append(contentParts, "("+structuredFact.Attribute+")")
+			}
+
+			// Add temporal context
+			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
+				contentParts = append(contentParts, "("+*structuredFact.TemporalContext+")")
+			}
+
+			// For user-related facts, ensure they're findable in user queries
+			factString := strings.Join(contentParts, " ")
+			if structuredFact.Subject == "user" || strings.Contains(strings.ToLower(factString), "user") {
+				factString = "User: " + factString
+			}
+
 			extractedFacts = append(extractedFacts, factString)
 		}
 	}
@@ -486,13 +505,35 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			continue
 		}
 
-		// Convert structured facts to simple strings for backward compatibility
+		// Convert structured facts to enriched content strings for better semantic search
 		for _, structuredFact := range args.Facts {
-			// Create a readable string from the structured fact
-			factString := structuredFact.Value
-			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
-				factString += " (" + *structuredFact.TemporalContext + ")"
+			// Create a comprehensive searchable string that includes context about the user
+			var contentParts []string
+
+			// Add subject context (helps with user-related queries)
+			if structuredFact.Subject != "" && structuredFact.Subject != "user" {
+				contentParts = append(contentParts, structuredFact.Subject)
 			}
+
+			// Add the main value
+			contentParts = append(contentParts, structuredFact.Value)
+
+			// Add attribute for context
+			if structuredFact.Attribute != "" {
+				contentParts = append(contentParts, "("+structuredFact.Attribute+")")
+			}
+
+			// Add temporal context
+			if structuredFact.TemporalContext != nil && *structuredFact.TemporalContext != "" {
+				contentParts = append(contentParts, "("+*structuredFact.TemporalContext+")")
+			}
+
+			// For user-related facts, ensure they're findable in user queries
+			factString := strings.Join(contentParts, " ")
+			if structuredFact.Subject == "user" || strings.Contains(strings.ToLower(factString), "user") {
+				factString = "User: " + factString
+			}
+
 			extractedFacts = append(extractedFacts, factString)
 		}
 	}
