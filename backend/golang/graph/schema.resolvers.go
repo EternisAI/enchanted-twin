@@ -13,12 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -26,6 +20,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -385,6 +384,7 @@ func (r *mutationResolver) Activate(ctx context.Context, inviteCode string) (boo
 	return auth.Activate(ctx, r.Logger, r.Store, inviteCode)
 }
 
+// JoinHolon is the resolver for the joinHolon field.
 func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network *string) (bool, error) {
 	networkName := "HolonNetwork"
 	if network != nil && *network != "" {
@@ -661,13 +661,14 @@ func (r *queryResolver) WhitelistStatus(ctx context.Context) (bool, error) {
 	return auth.IsWhitelisted(ctx, r.Logger, r.Store)
 }
 
-func (r *queryResolver) GetHolons(ctx context.Context, userId string) ([]string, error) {
-	return r.HolonService.GetHolons(ctx, userId)
+// GetHolons is the resolver for the getHolons field.
+func (r *queryResolver) GetHolons(ctx context.Context, userID string) ([]string, error) {
+	return r.HolonService.GetHolons(ctx, userID)
 }
 
 // GetThreads is the resolver for the getThreads field.
-func (r *queryResolver) GetThreads(ctx context.Context, network *string) ([]*model.Thread, error) {
-	return r.HolonService.GetThreads(ctx)
+func (r *queryResolver) GetThreads(ctx context.Context, network *string, first int32, offset int32) ([]*model.Thread, error) {
+	return r.HolonService.GetThreads(ctx, first, offset)
 }
 
 // GetThread is the resolver for the getThread field.
@@ -1041,10 +1042,8 @@ func (r *Resolver) Subscription() SubscriptionResolver { return &subscriptionRes
 // UserProfile returns UserProfileResolver implementation.
 func (r *Resolver) UserProfile() UserProfileResolver { return &userProfileResolver{r} }
 
-type (
-	chatResolver         struct{ *Resolver }
-	mutationResolver     struct{ *Resolver }
-	queryResolver        struct{ *Resolver }
-	subscriptionResolver struct{ *Resolver }
-	userProfileResolver  struct{ *Resolver }
-)
+type chatResolver struct{ *Resolver }
+type mutationResolver struct{ *Resolver }
+type queryResolver struct{ *Resolver }
+type subscriptionResolver struct{ *Resolver }
+type userProfileResolver struct{ *Resolver }

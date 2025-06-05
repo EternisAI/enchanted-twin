@@ -24,8 +24,8 @@ func (s *Service) GetHolons(ctx context.Context, userID string) ([]string, error
 	return s.repo.GetHolons(ctx, userID)
 }
 
-func (s *Service) GetThreads(ctx context.Context) ([]*model.Thread, error) {
-	return s.repo.GetThreads(ctx)
+func (s *Service) GetThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
+	return s.repo.GetThreads(ctx, first, offset)
 }
 
 func (s *Service) GetThread(ctx context.Context, threadID string) (*model.Thread, error) {

@@ -102,7 +102,7 @@ type Query {
   getSetupProgress: [SetupProgress!]!
   whitelistStatus: Boolean!
   getHolons(userId: ID!): [String!]
-  getThreads(network: String): [Thread!]!
+  getThreads(network: String, first: Int! = 10, offset: Int! = 0): [Thread!]!
   getThread(network: String, id: ID!): Thread
 }
 
