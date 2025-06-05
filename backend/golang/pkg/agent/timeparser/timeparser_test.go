@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
 )
 
 func TestTimeParserTool_Execute(t *testing.T) {
@@ -323,7 +324,7 @@ func TestTimeParserTool_Definition(t *testing.T) {
 	}
 }
 
-// Benchmark tests
+// Benchmark tests.
 func BenchmarkTimeParserTool_Execute(b *testing.B) {
 	logger := log.New(os.Stderr)
 	tool := NewTimeParserTool(logger)
