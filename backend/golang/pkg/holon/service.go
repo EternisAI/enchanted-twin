@@ -3,6 +3,7 @@ package holon
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -10,13 +11,17 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
+// Service provides higher-level operations over the holon data store
 type Service struct {
-	repo *Repository
+	store *db.Store
+	repo  *Repository
 }
 
+// NewService creates a new holon service
 func NewService(store *db.Store) *Service {
 	return &Service{
-		repo: NewRepository(store.DB()),
+		store: store,
+		repo:  NewRepository(store.DB()),
 	}
 }
 
@@ -82,6 +87,25 @@ func (s *Service) AddMessageToThread(ctx context.Context, threadID, message, aut
 	isDelivered := false
 
 	return s.CreateThreadMessage(ctx, threadID, authorIdentity, message, actions, &isDelivered)
+}
+
+func (s *Service) GetTotalHolonCount() (int, error) {
+	ctx := context.Background()
+	repo := NewRepository(s.store.DB())
+
+	// Get count of threads as a proxy for holons
+	count, err := repo.GetThreadCount(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get thread count: %w", err)
+	}
+
+	return count, nil
+}
+
+func (s *Service) GetLastSyncTime() (*time.Time, error) {
+	// In a real implementation, you'd store this in the database
+	// For now, we'll just return nil which indicates no sync has occurred
+	return nil, nil
 }
 
 func extractTitleFromContent(content string) string {

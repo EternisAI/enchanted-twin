@@ -366,6 +366,16 @@ func main() {
 
 	holonService := holon.NewService(store)
 
+	// Initialize HolonZero API fetcher service
+	holonManager, err := holon.StartHolonServices(store)
+	if err != nil {
+		logger.Error("Failed to start HolonZero fetcher service", "error", err)
+		// Don't panic - the service can run without the fetcher
+	} else {
+		logger.Info("HolonZero API fetcher service started successfully")
+		defer holonManager.Stop()
+	}
+
 	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
 	if err := toolRegistry.Register(threadPreviewTool); err != nil {
 		logger.Error("Failed to register thread preview tool", "error", err)

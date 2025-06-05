@@ -394,6 +394,18 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 	return nil
 }
 
+// GetThreadCount returns the total number of threads in the repository
+func (r *Repository) GetThreadCount(ctx context.Context) (int, error) {
+	var count int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT COUNT(*) FROM threads
+	`).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get thread count: %w", err)
+	}
+	return count, nil
+}
+
 func (r *Repository) dbThreadToModel(ctx context.Context, dbThread *dbThread, author *dbAuthor) (*model.Thread, error) {
 	var imageURLs []string
 	if err := json.Unmarshal([]byte(dbThread.ImageURLs), &imageURLs); err != nil {
