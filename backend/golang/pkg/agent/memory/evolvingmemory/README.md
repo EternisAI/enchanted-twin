@@ -136,30 +136,69 @@ properties := map[string]interface{}{
 - **Category-labeled**: `"...(goal_plan) (2025-01-15)"`
 - **Rich context**: Subject + attribute + value + temporal info
 
-### Query Capabilities
+### Query Capabilities 🚀
 
-With structured facts, you can now query by:
+With structured facts, you can now filter by **any combination** of fact properties:
 
 ```go
-// By category (future feature)
-facts := storage.QueryByCategory(ctx, "preference") 
-
-// By importance level
-facts := storage.QueryByImportance(ctx, 3) // Life-changing events only
-
-// By sensitivity (privacy controls)  
-facts := storage.QueryBySensitivity(ctx, "low") // Public info only
-
-// By subject
-facts := storage.QueryBySubject(ctx, "alice") // Facts about Alice
-
-// Combined semantic + structured search
+// ✅ By category - all implemented categories
 filter := &memory.Filter{
-    Source: stringPtr("conversations"),
-    Distance: 0.8,
+    FactCategory: stringPtr("preference"),
 }
-result := storage.Query(ctx, "work preferences", filter)
+result, err := storage.Query(ctx, "user preferences", filter)
+
+// ✅ By importance level - precise control
+filter := &memory.Filter{
+    FactImportance: intPtr(3), // importance = 3
+}
+result, err := storage.Query(ctx, "life-changing events", filter)
+
+// ✅ By sensitivity (GDPR-ready privacy controls)
+filter := &memory.Filter{
+    FactSensitivity: stringPtr("high"), // sensitivity = "high"
+}
+result, err := storage.Query(ctx, "sensitive information", filter)
+
+// ✅ By subject - facts about specific people/entities
+filter := &memory.Filter{
+    FactSubject: stringPtr("alice"),
+}
+result, err := storage.Query(ctx, "facts about alice", filter)
+
+// ✅ By attribute - specific properties
+filter := &memory.Filter{
+    FactAttribute: stringPtr("health_metric"),
+}
+result, err := storage.Query(ctx, "health measurements", filter)
+
+// ✅ By temporal context - time-based filtering
+filter := &memory.Filter{
+    FactTemporalContext: stringPtr("2025-01"),
+}
+result, err := storage.Query(ctx, "january events", filter)
+
+// ✅ By fact value - partial text matching
+filter := &memory.Filter{
+    FactValue: stringPtr("coffee"),
+}
+result, err := storage.Query(ctx, "coffee-related preferences", filter)
+
+// ✅ Combined semantic + structured search - the power combo!
+filter := &memory.Filter{
+    Source:            stringPtr("conversations"),
+    FactCategory:      stringPtr("preference"),
+    FactImportanceMin: intPtr(2),
+    Distance:          0.8,
+    Limit:             intPtr(10),
+}
+result, err := storage.Query(ctx, "important preferences from conversations", filter)
 ```
+
+**Performance Benefits:**
+- **Direct field indexing** - No more JSON pattern matching
+- **Semantic + structured hybrid** - Best of both worlds
+- **Privacy-first querying** - Built-in GDPR compliance
+- **Importance-based prioritization** - Focus on what matters
 
 ## Quick Start
 
@@ -409,6 +448,19 @@ type Filter struct {
     Tags        *TagsFilter // Complex boolean tag expressions
     Distance    float32     // Maximum semantic distance (0 = disabled)
     Limit       *int        // Maximum number of results to return
+    
+    // Structured fact filtering fields
+    FactCategory        *string   // Filter by fact category (profile_stable, preference, goal_plan, etc.)
+    FactSubject         *string   // Filter by fact subject (user, entity names)
+    FactAttribute       *string   // Filter by fact attribute (specific property being described)
+    FactValue           *string   // Filter by fact value (partial match on descriptive content)
+    FactTemporalContext *string   // Filter by temporal context (dates, time references)
+    FactSensitivity     *string   // Filter by sensitivity level (high, medium, low)
+    FactImportance      *int      // Filter by importance score (1, 2, 3)
+    
+    // Ranges for numeric/date fields
+    FactImportanceMin *int    // Minimum importance score (inclusive)
+    FactImportanceMax *int    // Maximum importance score (inclusive)
 }
 ```
 
@@ -434,7 +486,12 @@ The filtering system uses **direct object fields** for performance while maintai
 
 ### Usage Examples
 
+#### Basic Filtering (Backward Compatible)
 ```go
+// Helper functions for pointer creation
+func stringPtr(s string) *string { return &s }
+func intPtr(i int) *int { return &i }
+
 // Filter by source
 filter := &memory.Filter{
     Source: stringPtr("email"),
@@ -453,19 +510,163 @@ filter := &memory.Filter{
     Limit:    intPtr(5),
 }
 result, err := storage.Query(ctx, "recent activities", filter)
+```
 
-// Combined filtering
+#### Structured Fact Filtering 🔥
+
+```go
+// Filter by fact category - get all preferences
 filter := &memory.Filter{
-    Source:      stringPtr("conversations"),
-    ContactName: stringPtr("bob"),
-    Distance:    0.8,
-    Limit:       intPtr(10),
+    FactCategory: stringPtr("preference"),
 }
-result, err := storage.Query(ctx, "work discussions", filter)
+result, err := storage.Query(ctx, "user preferences", filter)
 
-// Helper functions
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int { return &i }
+// Filter by importance - only critical facts (importance = 3)
+filter := &memory.Filter{
+    FactImportance: intPtr(3),
+}
+result, err := storage.Query(ctx, "life events", filter)
+
+// Filter by sensitivity - only public information
+filter := &memory.Filter{
+    FactSensitivity: stringPtr("low"),
+}
+result, err := storage.Query(ctx, "general interests", filter)
+
+// High importance facts only (importance >= 2)
+filter := &memory.Filter{
+    FactImportanceMin: intPtr(2),
+}
+result, err := storage.Query(ctx, "significant memories", filter)
+
+// Filter by subject - facts about Alice
+filter := &memory.Filter{
+    FactSubject: stringPtr("alice"),
+}
+result, err := storage.Query(ctx, "alice information", filter)
+
+// Filter by attribute - all health metrics
+filter := &memory.Filter{
+    FactAttribute: stringPtr("health_metric"),
+}
+result, err := storage.Query(ctx, "health data", filter)
+```
+
+#### Advanced Combined Filtering
+
+```go
+// Preferences from conversations with high importance
+filter := &memory.Filter{
+    Source:         stringPtr("conversations"),
+    FactCategory:   stringPtr("preference"),
+    FactImportance: intPtr(3),
+    Limit:          intPtr(10),
+}
+result, err := storage.Query(ctx, "important preferences", filter)
+
+// Alice's work-related facts with medium/high sensitivity
+filter := &memory.Filter{
+    FactSubject:     stringPtr("alice"),
+    FactCategory:    stringPtr("context_env"),
+    FactSensitivity: stringPtr("medium"),
+    Source:          stringPtr("conversations"),
+    Distance:        0.8,
+}
+result, err := storage.Query(ctx, "alice work environment", filter)
+
+// Health facts from last month with high importance
+filter := &memory.Filter{
+    FactCategory:        stringPtr("health"),
+    FactTemporalContext: stringPtr("2025-01"),
+    FactImportanceMin:   intPtr(2),
+    Limit:               intPtr(20),
+}
+result, err := storage.Query(ctx, "recent health updates", filter)
+
+// Skills and goals with any importance level
+filter := &memory.Filter{
+    FactCategory:      stringPtr("skill"),
+    FactImportanceMin: intPtr(1),
+    FactImportanceMax: intPtr(3),
+    ContactName:       stringPtr("user"),
+    Distance:          0.7,
+}
+result, err := storage.Query(ctx, "user skills", filter)
+```
+
+#### Privacy & GDPR Compliant Filtering
+
+```go
+// Only low sensitivity facts for external APIs
+filter := &memory.Filter{
+    FactSensitivity: stringPtr("low"),
+    FactCategory:    stringPtr("preference"),
+    Limit:           intPtr(50),
+}
+result, err := storage.Query(ctx, "public preferences", filter)
+
+// High sensitivity facts (requires special permissions)
+filter := &memory.Filter{
+    FactSensitivity: stringPtr("high"),
+    FactImportance:  intPtr(3),
+    ContactName:     stringPtr("user"),
+}
+result, err := storage.Query(ctx, "private critical information", filter)
+```
+
+#### Importance-Based Querying
+
+```go
+// Life-changing events only (importance = 3)
+filter := &memory.Filter{
+    FactImportance: intPtr(3),
+}
+result, err := storage.Query(ctx, "major life events", filter)
+
+// Meaningful information affecting decisions (importance >= 2)
+filter := &memory.Filter{
+    FactImportanceMin: intPtr(2),
+}
+result, err := storage.Query(ctx, "decision-relevant facts", filter)
+
+// Importance range: meaningful to critical (2-3)
+filter := &memory.Filter{
+    FactImportanceMin: intPtr(2),
+    FactImportanceMax: intPtr(3),
+}
+result, err := storage.Query(ctx, "significant facts", filter)
+```
+
+#### Category-Specific Queries
+
+```go
+// All user preferences
+filter := &memory.Filter{
+    FactCategory: stringPtr("preference"),
+    FactSubject:  stringPtr("user"),
+}
+result, err := storage.Query(ctx, "user preferences", filter)
+
+// Goals and plans
+filter := &memory.Filter{
+    FactCategory: stringPtr("goal_plan"),
+    Distance:     0.9,
+}
+result, err := storage.Query(ctx, "future plans", filter)
+
+// Relationship information
+filter := &memory.Filter{
+    FactCategory:   stringPtr("relationship"),
+    FactImportance: intPtr(2),
+}
+result, err := storage.Query(ctx, "important relationships", filter)
+
+// Health and wellness data
+filter := &memory.Filter{
+    FactCategory:    stringPtr("health"),
+    FactSensitivity: stringPtr("high"),
+}
+result, err := storage.Query(ctx, "health information", filter)
 ```
 
 ### Performance Benefits
