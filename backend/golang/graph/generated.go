@@ -197,7 +197,7 @@ type ComplexityRoot struct {
 		GetChatSuggestions func(childComplexity int, chatID string) int
 		GetChats           func(childComplexity int, first int32, offset int32) int
 		GetDataSources     func(childComplexity int) int
-		GetHolons          func(childComplexity int, id string) int
+		GetHolons          func(childComplexity int, userID string) int
 		GetMCPServers      func(childComplexity int) int
 		GetOAuthStatus     func(childComplexity int) int
 		GetSetupProgress   func(childComplexity int) int
@@ -330,7 +330,7 @@ type QueryResolver interface {
 	GetAgentTasks(ctx context.Context) ([]*model.AgentTask, error)
 	GetSetupProgress(ctx context.Context) ([]*model.SetupProgress, error)
 	WhitelistStatus(ctx context.Context) (bool, error)
-	GetHolons(ctx context.Context, id string) ([]string, error)
+	GetHolons(ctx context.Context, userID string) ([]string, error)
 	GetThreads(ctx context.Context, network *string) ([]*model.Thread, error)
 	GetThread(ctx context.Context, network *string, id string) (*model.Thread, error)
 }
@@ -1167,7 +1167,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.GetHolons(childComplexity, args["id"].(string)), true
+		return e.complexity.Query.GetHolons(childComplexity, args["userId"].(string)), true
 
 	case "Query.getMCPServers":
 		if e.complexity.Query.GetMCPServers == nil {
@@ -2401,19 +2401,19 @@ func (ec *executionContext) field_Query_getChats_argsOffset(
 func (ec *executionContext) field_Query_getHolons_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
 	var err error
 	args := map[string]any{}
-	arg0, err := ec.field_Query_getHolons_argsID(ctx, rawArgs)
+	arg0, err := ec.field_Query_getHolons_argsUserID(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["id"] = arg0
+	args["userId"] = arg0
 	return args, nil
 }
-func (ec *executionContext) field_Query_getHolons_argsID(
+func (ec *executionContext) field_Query_getHolons_argsUserID(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (string, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
-	if tmp, ok := rawArgs["id"]; ok {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("userId"))
+	if tmp, ok := rawArgs["userId"]; ok {
 		return ec.unmarshalNID2string(ctx, tmp)
 	}
 
@@ -7814,7 +7814,7 @@ func (ec *executionContext) _Query_getHolons(ctx context.Context, field graphql.
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetHolons(rctx, fc.Args["id"].(string))
+		return ec.resolvers.Query().GetHolons(rctx, fc.Args["userId"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

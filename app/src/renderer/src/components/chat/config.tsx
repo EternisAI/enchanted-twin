@@ -1,5 +1,6 @@
 import { ToolCall } from '@renderer/graphql/generated/graphql'
 import HolonToolComponent from '../holon/HolonToolComponent'
+import HolonCreatedComponent from '../holon/HolonCreatedComponent'
 
 export type ToolName =
   | 'search_tool'
@@ -67,8 +68,8 @@ export const TOOL_CONFIG: Record<
   },
   send_to_holon: {
     inProgress: 'Sending to Holon',
-    completed: 'Holon Generated'
-    // component: HolonToolComponent
+    completed: 'Holon Generated',
+    component: HolonCreatedComponent
   }
 }
 
