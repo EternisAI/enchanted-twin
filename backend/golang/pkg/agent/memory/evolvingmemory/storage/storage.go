@@ -31,6 +31,14 @@ const (
 	tagsProperty      = "tags"
 	// Updated properties for document references - now stores multiple reference IDs.
 	documentReferencesProperty = "documentReferences" // Array of document IDs
+	// Structured fact properties for the new system.
+	factCategoryProperty        = "factCategory"
+	factSubjectProperty         = "factSubject"
+	factAttributeProperty       = "factAttribute"
+	factValueProperty           = "factValue"
+	factTemporalContextProperty = "factTemporalContext"
+	factSensitivityProperty     = "factSensitivity"
+	factImportanceProperty      = "factImportance"
 	// Document table properties.
 	documentContentHashProperty = "contentHash"
 	documentTypeProperty        = "documentType"
@@ -326,14 +334,6 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 		if class.Class == ClassName {
 			s.logger.Infof("Schema for class %s already exists, validating...", ClassName)
 
-			expectedProps := map[string]string{
-				contentProperty:            "text",
-				timestampProperty:          "date",
-				metadataProperty:           "text",
-				tagsProperty:               "text[]",
-				documentReferencesProperty: "text[]",
-			}
-
 			existingProps := make(map[string]string)
 			for _, prop := range class.Properties {
 				for _, dt := range prop.DataType {
@@ -341,27 +341,43 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				}
 			}
 
-			// Check if all expected properties exist - allow missing new fields for migration
-			for propName, propType := range expectedProps {
+			// Define core legacy properties that MUST exist
+			coreProps := map[string]string{
+				contentProperty:            "text",
+				timestampProperty:          "date",
+				metadataProperty:           "text",
+				tagsProperty:               "text[]",
+				documentReferencesProperty: "text[]",
+			}
+
+			// Check core properties exist with correct types
+			for propName, propType := range coreProps {
 				if existingType, exists := existingProps[propName]; !exists {
-					return fmt.Errorf("missing required property %s in existing schema", propName)
+					return fmt.Errorf("missing required core property %s in existing schema", propName)
 				} else if existingType != propType {
-					return fmt.Errorf("required property %s has type %s, expected %s", propName, existingType, propType)
+					return fmt.Errorf("core property %s has type %s, expected %s", propName, existingType, propType)
 				}
 			}
 
-			// Check if new fields exist, if not we need to add them
-			needsUpdate := false
-			if _, exists := existingProps[sourceProperty]; !exists {
-				needsUpdate = true
+			// Check if new structured fact fields exist, if not we need to add them
+			newFields := []string{
+				sourceProperty, speakerProperty,
+				factCategoryProperty, factSubjectProperty, factAttributeProperty,
+				factValueProperty, factTemporalContextProperty, factSensitivityProperty,
+				factImportanceProperty,
 			}
-			if _, exists := existingProps[speakerProperty]; !exists {
-				needsUpdate = true
+
+			needsUpdate := false
+			for _, field := range newFields {
+				if _, exists := existingProps[field]; !exists {
+					needsUpdate = true
+					break
+				}
 			}
 
 			if needsUpdate {
-				s.logger.Info("Schema needs update to add new metadata fields")
-				return s.addMetadataFields(ctx)
+				s.logger.Info("Schema needs update to add new structured fact fields")
+				return s.addStructuredFactFields(ctx)
 			}
 
 			s.logger.Info("Schema validation successful")
@@ -374,12 +390,12 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 	indexFilterable := true
 	classObj := &models.Class{
 		Class:       ClassName,
-		Description: "A memory entry in the evolving memory system",
+		Description: "A memory entry in the evolving memory system with structured facts",
 		Properties: []*models.Property{
 			{
 				Name:        contentProperty,
 				DataType:    []string{"text"},
-				Description: "The content of the memory",
+				Description: "The content of the memory (deprecated: now derived from structured fact)",
 			},
 			{
 				Name:        timestampProperty,
@@ -411,6 +427,42 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				DataType:        []string{"text[]"},
 				Description:     "Array of document IDs that generated this memory",
 				IndexFilterable: &indexFilterable,
+			},
+			// Structured fact properties
+			{
+				Name:        factCategoryProperty,
+				DataType:    []string{"text"},
+				Description: "Category of the structured fact (e.g., preference, health, etc.)",
+			},
+			{
+				Name:        factSubjectProperty,
+				DataType:    []string{"text"},
+				Description: "Subject of the fact (typically 'user' or specific entity name)",
+			},
+			{
+				Name:        factAttributeProperty,
+				DataType:    []string{"text"},
+				Description: "Specific property or attribute being described",
+			},
+			{
+				Name:        factValueProperty,
+				DataType:    []string{"text"},
+				Description: "Descriptive phrase with context for the fact",
+			},
+			{
+				Name:        factTemporalContextProperty,
+				DataType:    []string{"text"},
+				Description: "Temporal context for the fact (optional)",
+			},
+			{
+				Name:        factSensitivityProperty,
+				DataType:    []string{"text"},
+				Description: "Sensitivity level of the fact (high, medium, low)",
+			},
+			{
+				Name:        factImportanceProperty,
+				DataType:    []string{"int"},
+				Description: "Importance score of the fact (1-3)",
 			},
 		},
 		Vectorizer: "none",
@@ -526,179 +578,366 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
+	// Step 1: Generate query vector
+	queryVector, err := s.generateQueryVector(ctx, queryText)
+	if err != nil {
+		return memory.QueryResult{}, fmt.Errorf("generating query vector: %w", err)
+	}
+
+	// Step 2: Build GraphQL query
+	queryBuilder, err := s.buildQueryBuilder(queryVector, filter)
+	if err != nil {
+		return memory.QueryResult{}, fmt.Errorf("building query: %w", err)
+	}
+
+	// Step 3 & 4: Execute and process
+	return s.executeAndProcessQuery(ctx, queryBuilder)
+}
+
+// generateQueryVector converts query text to embedding vector.
+func (s *WeaviateStorage) generateQueryVector(ctx context.Context, queryText string) ([]float32, error) {
 	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to create embedding for query: %w", err)
+		return nil, fmt.Errorf("failed to create embedding: %w", err)
 	}
-	queryVector32 := s.convertToFloat32(vector)
+	return s.convertToFloat32(vector), nil
+}
 
-	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
+// buildQueryBuilder constructs GraphQL query with filters and vector search.
+func (s *WeaviateStorage) buildQueryBuilder(queryVector []float32, filter *memory.Filter) (*weaviateGraphql.GetBuilder, error) {
+	// 1. Create nearVector search
+	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector)
 
-	// Set distance filter if provided
+	// 2. Apply distance filter if provided
 	if filter != nil && filter.Distance > 0 {
 		nearVector = nearVector.WithDistance(filter.Distance)
 		s.logger.Debug("Added distance filter", "distance", filter.Distance)
 	}
 
-	contentField := weaviateGraphql.Field{Name: contentProperty}
-	timestampField := weaviateGraphql.Field{Name: timestampProperty}
-	metaField := weaviateGraphql.Field{Name: metadataProperty}
-	sourceField := weaviateGraphql.Field{Name: sourceProperty}
-	speakerField := weaviateGraphql.Field{Name: speakerProperty}
-	tagsField := weaviateGraphql.Field{Name: tagsProperty}
-	additionalFields := weaviateGraphql.Field{
-		Name: "_additional",
-		Fields: []weaviateGraphql.Field{
-			{Name: "id"},
-			{Name: "distance"},
-		},
-	}
+	// 3. Define fields to retrieve
+	fields := s.buildQueryFields()
 
-	// Set limit from filter or use default
+	// 4. Set limit
 	limit := 10
 	if filter != nil && filter.Limit != nil {
 		limit = *filter.Limit
 	}
 
+	// 5. Build base query
 	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
 		WithLimit(limit).
-		WithFields(contentField, timestampField, metaField, sourceField, speakerField, tagsField, additionalFields)
+		WithFields(fields...)
 
-	// Add WHERE filtering if filter is provided
+	// 6. Add WHERE filters
 	if filter != nil {
-		var whereFilters []*filters.WhereBuilder
-
-		if filter.Source != nil {
-			// Use direct field filtering instead of JSON pattern matching
-			sourceFilter := filters.Where().
-				WithPath([]string{sourceProperty}).
-				WithOperator(filters.Equal).
-				WithValueText(*filter.Source)
-			whereFilters = append(whereFilters, sourceFilter)
-			s.logger.Debug("Added source filter", "source", *filter.Source)
+		whereBuilder, err := s.buildWhereFilters(filter)
+		if err != nil {
+			return nil, fmt.Errorf("building WHERE filters: %w", err)
 		}
-
-		if filter.ContactName != nil {
-			// Use direct field filtering for speaker ID
-			contactFilter := filters.Where().
-				WithPath([]string{speakerProperty}).
-				WithOperator(filters.Equal).
-				WithValueText(*filter.ContactName)
-			whereFilters = append(whereFilters, contactFilter)
-			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
-		}
-
-		if filter.Tags != nil && !filter.Tags.IsEmpty() {
-			// Use the new TagsFilter structure
-			tagsFilter, err := s.buildTagsFilter(filter.Tags)
-			if err != nil {
-				return memory.QueryResult{}, fmt.Errorf("failed to build tags filter: %w", err)
-			}
-			if tagsFilter != nil {
-				whereFilters = append(whereFilters, tagsFilter)
-				s.logger.Debug("Added tags filter", "tagsFilter", filter.Tags)
-			}
-		}
-
-		if len(whereFilters) > 0 {
-			combinedFilter := filters.Where().
-				WithOperator(filters.And).
-				WithOperands(whereFilters)
-			queryBuilder = queryBuilder.WithWhere(combinedFilter)
-			s.logger.Debug("Applied combined WHERE filters", "filter_count", len(whereFilters))
+		if whereBuilder != nil {
+			queryBuilder = queryBuilder.WithWhere(whereBuilder)
+			s.logger.Debug("Applied combined WHERE filters")
 		}
 	}
 
+	return queryBuilder, nil
+}
+
+// buildQueryFields defines all fields we want to retrieve from GraphQL query.
+func (s *WeaviateStorage) buildQueryFields() []weaviateGraphql.Field {
+	return []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: timestampProperty},
+		{Name: metadataProperty},
+		{Name: sourceProperty},
+		{Name: speakerProperty},
+		{Name: tagsProperty},
+		{Name: documentReferencesProperty},
+		// Structured fact fields
+		{Name: factCategoryProperty},
+		{Name: factSubjectProperty},
+		{Name: factAttributeProperty},
+		{Name: factValueProperty},
+		{Name: factTemporalContextProperty},
+		{Name: factSensitivityProperty},
+		{Name: factImportanceProperty},
+		{
+			Name: "_additional",
+			Fields: []weaviateGraphql.Field{
+				{Name: "id"},
+				{Name: "distance"},
+			},
+		},
+	}
+}
+
+// buildWhereFilters builds WHERE clause filters from memory.Filter.
+func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.WhereBuilder, error) {
+	var whereFilters []*filters.WhereBuilder
+
+	// Source filter
+	if filter.Source != nil {
+		sourceFilter := filters.Where().
+			WithPath([]string{sourceProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.Source)
+		whereFilters = append(whereFilters, sourceFilter)
+		s.logger.Debug("Added source filter", "source", *filter.Source)
+	}
+
+	// Contact filter
+	if filter.ContactName != nil {
+		contactFilter := filters.Where().
+			WithPath([]string{speakerProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.ContactName)
+		whereFilters = append(whereFilters, contactFilter)
+		s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
+	}
+
+	// Tags filter (reuse existing buildTagsFilter method)
+	if filter.Tags != nil && !filter.Tags.IsEmpty() {
+		tagsFilter, err := s.buildTagsFilter(filter.Tags)
+		if err != nil {
+			return nil, fmt.Errorf("building tags filter: %w", err)
+		}
+		if tagsFilter != nil {
+			whereFilters = append(whereFilters, tagsFilter)
+			s.logger.Debug("Added tags filter", "tagsFilter", filter.Tags)
+		}
+	}
+
+	// Structured fact filters
+	if filter.FactCategory != nil {
+		categoryFilter := filters.Where().
+			WithPath([]string{factCategoryProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactCategory)
+		whereFilters = append(whereFilters, categoryFilter)
+		s.logger.Debug("Added fact category filter", "category", *filter.FactCategory)
+	}
+
+	if filter.FactSubject != nil {
+		subjectFilter := filters.Where().
+			WithPath([]string{factSubjectProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactSubject)
+		whereFilters = append(whereFilters, subjectFilter)
+		s.logger.Debug("Added fact subject filter", "subject", *filter.FactSubject)
+	}
+
+	if filter.FactAttribute != nil {
+		attributeFilter := filters.Where().
+			WithPath([]string{factAttributeProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactAttribute)
+		whereFilters = append(whereFilters, attributeFilter)
+		s.logger.Debug("Added fact attribute filter", "attribute", *filter.FactAttribute)
+	}
+
+	if filter.FactValue != nil {
+		// Use Like operator for partial matching on fact values
+		valueFilter := filters.Where().
+			WithPath([]string{factValueProperty}).
+			WithOperator(filters.Like).
+			WithValueText("*" + *filter.FactValue + "*")
+		whereFilters = append(whereFilters, valueFilter)
+		s.logger.Debug("Added fact value filter", "value", *filter.FactValue)
+	}
+
+	if filter.FactTemporalContext != nil {
+		temporalFilter := filters.Where().
+			WithPath([]string{factTemporalContextProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactTemporalContext)
+		whereFilters = append(whereFilters, temporalFilter)
+		s.logger.Debug("Added fact temporal context filter", "temporal_context", *filter.FactTemporalContext)
+	}
+
+	if filter.FactSensitivity != nil {
+		sensitivityFilter := filters.Where().
+			WithPath([]string{factSensitivityProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.FactSensitivity)
+		whereFilters = append(whereFilters, sensitivityFilter)
+		s.logger.Debug("Added fact sensitivity filter", "sensitivity", *filter.FactSensitivity)
+	}
+
+	// Fact importance filtering (exact, min, max)
+	if filter.FactImportance != nil {
+		importanceFilter := filters.Where().
+			WithPath([]string{factImportanceProperty}).
+			WithOperator(filters.Equal).
+			WithValueInt(int64(*filter.FactImportance))
+		whereFilters = append(whereFilters, importanceFilter)
+		s.logger.Debug("Added fact importance filter", "importance", *filter.FactImportance)
+	} else {
+		// Handle importance range filtering
+		var importanceRangeFilters []*filters.WhereBuilder
+
+		if filter.FactImportanceMin != nil {
+			minFilter := filters.Where().
+				WithPath([]string{factImportanceProperty}).
+				WithOperator(filters.GreaterThanEqual).
+				WithValueInt(int64(*filter.FactImportanceMin))
+			importanceRangeFilters = append(importanceRangeFilters, minFilter)
+			s.logger.Debug("Added fact importance min filter", "min_importance", *filter.FactImportanceMin)
+		}
+
+		if filter.FactImportanceMax != nil {
+			maxFilter := filters.Where().
+				WithPath([]string{factImportanceProperty}).
+				WithOperator(filters.LessThanEqual).
+				WithValueInt(int64(*filter.FactImportanceMax))
+			importanceRangeFilters = append(importanceRangeFilters, maxFilter)
+			s.logger.Debug("Added fact importance max filter", "max_importance", *filter.FactImportanceMax)
+		}
+
+		// Combine range filters with AND
+		if len(importanceRangeFilters) == 1 {
+			whereFilters = append(whereFilters, importanceRangeFilters[0])
+		} else if len(importanceRangeFilters) == 2 {
+			rangeFilter := filters.Where().
+				WithOperator(filters.And).
+				WithOperands(importanceRangeFilters)
+			whereFilters = append(whereFilters, rangeFilter)
+		}
+	}
+
+	// Combine all filters with AND
+	if len(whereFilters) == 0 {
+		return nil, nil
+	}
+
+	if len(whereFilters) == 1 {
+		return whereFilters[0], nil
+	}
+
+	return filters.Where().
+		WithOperator(filters.And).
+		WithOperands(whereFilters), nil
+}
+
+// executeAndProcessQuery runs the GraphQL query and transforms results.
+func (s *WeaviateStorage) executeAndProcessQuery(ctx context.Context, queryBuilder *weaviateGraphql.GetBuilder) (memory.QueryResult, error) {
+	// Execute query
 	resp, err := queryBuilder.Do(ctx)
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to execute Weaviate query: %w", err)
+		return memory.QueryResult{}, fmt.Errorf("executing Weaviate query: %w", err)
 	}
 
+	// Check for GraphQL errors
 	if len(resp.Errors) > 0 {
 		var errorMsgs []string
 		for _, err := range resp.Errors {
 			errorMsgs = append(errorMsgs, err.Message)
 		}
-		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMsgs, "; "))
+		return memory.QueryResult{}, fmt.Errorf("GraphQL errors: %s", strings.Join(errorMsgs, "; "))
 	}
 
-	finalResults := []memory.TextDocument{}
+	// Parse and transform results
+	documents, err := s.parseQueryResponse(resp)
+	if err != nil {
+		return memory.QueryResult{}, fmt.Errorf("parsing query response: %w", err)
+	}
+
+	s.logger.Info("Query completed successfully", "results_count", len(documents))
+	return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: documents}, nil
+}
+
+// parseQueryResponse transforms GraphQL response to memory.TextDocument objects.
+func (s *WeaviateStorage) parseQueryResponse(resp *models.GraphQLResponse) ([]memory.TextDocument, error) {
+	// Extract data from response
 	data, ok := resp.Data["Get"].(map[string]interface{})
 	if !ok {
 		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
-		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
+		return []memory.TextDocument{}, nil
 	}
 
 	classData, ok := data[ClassName].([]interface{})
 	if !ok {
 		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
-		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
+		return []memory.TextDocument{}, nil
 	}
+
 	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
 
+	var documents []memory.TextDocument
 	for _, item := range classData {
-		obj, okMap := item.(map[string]interface{})
-		if !okMap {
-			s.logger.Warn("Retrieved item is not a map, skipping", "item", item)
+		doc, err := s.parseDocumentItem(item)
+		if err != nil {
+			s.logger.Warn("Failed to parse document item", "error", err)
 			continue
 		}
-
-		content, _ := obj[contentProperty].(string)
-		metadataJSON, _ := obj[metadataProperty].(string)
-		source, _ := obj[sourceProperty].(string)
-		speakerID, _ := obj[speakerProperty].(string)
-
-		var parsedTimestamp *time.Time
-		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
-			t, pErr := time.Parse(time.RFC3339, tsStr)
-			if pErr == nil {
-				parsedTimestamp = &t
-			} else {
-				s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", pErr)
-			}
-		}
-
-		additional, _ := obj["_additional"].(map[string]interface{})
-		id, _ := additional["id"].(string)
-
-		// Start with metadata from JSON (for backward compatibility)
-		metaMap := make(map[string]string)
-		if metadataJSON != "" {
-			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
-				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
-			}
-		}
-
-		// Merge direct fields into metadata (they take precedence)
-		if source != "" {
-			metaMap["source"] = source
-		}
-		if speakerID != "" {
-			metaMap["speakerID"] = speakerID
-		}
-
-		var tags []string
-		if tagsInterface, tagsOk := obj[tagsProperty].([]interface{}); tagsOk {
-			for _, tagInterfaceItem := range tagsInterface {
-				if tagStr, okTag := tagInterfaceItem.(string); okTag {
-					tags = append(tags, tagStr)
-				}
-			}
-		}
-
-		finalResults = append(finalResults, memory.TextDocument{
-			FieldID:        id,
-			FieldContent:   content,
-			FieldTimestamp: parsedTimestamp,
-			FieldMetadata:  metaMap,
-			FieldSource:    source, // Populate the direct source field
-			FieldTags:      tags,
-		})
+		documents = append(documents, doc)
 	}
-	s.logger.Info("Query processed successfully.", "num_results_returned_after_filtering", len(finalResults))
-	return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
+
+	return documents, nil
+}
+
+// parseDocumentItem converts a single GraphQL item to memory.TextDocument.
+func (s *WeaviateStorage) parseDocumentItem(item interface{}) (memory.TextDocument, error) {
+	obj, ok := item.(map[string]interface{})
+	if !ok {
+		return memory.TextDocument{}, fmt.Errorf("item is not a map")
+	}
+
+	// Extract basic fields
+	content, _ := obj[contentProperty].(string)
+	metadataJSON, _ := obj[metadataProperty].(string)
+	source, _ := obj[sourceProperty].(string)
+	speakerID, _ := obj[speakerProperty].(string)
+
+	// Parse timestamp
+	var parsedTimestamp *time.Time
+	if tsStr, ok := obj[timestampProperty].(string); ok {
+		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
+			parsedTimestamp = &t
+		} else {
+			s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", err)
+		}
+	}
+
+	// Extract ID from _additional
+	additional, _ := obj["_additional"].(map[string]interface{})
+	id, _ := additional["id"].(string)
+
+	// Build metadata map
+	metaMap := make(map[string]string)
+	if metadataJSON != "" {
+		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
+			s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", err)
+		}
+	}
+
+	// Merge direct fields into metadata (they take precedence)
+	if source != "" {
+		metaMap["source"] = source
+	}
+	if speakerID != "" {
+		metaMap["speakerID"] = speakerID
+	}
+
+	// Extract tags
+	var tags []string
+	if tagsInterface, ok := obj[tagsProperty].([]interface{}); ok {
+		for _, tagItem := range tagsInterface {
+			if tagStr, ok := tagItem.(string); ok {
+				tags = append(tags, tagStr)
+			}
+		}
+	}
+
+	return memory.TextDocument{
+		FieldID:        id,
+		FieldContent:   content,
+		FieldTimestamp: parsedTimestamp,
+		FieldMetadata:  metaMap,
+		FieldSource:    source,
+		FieldTags:      tags,
+	}, nil
 }
 
 // QueryWithDistance retrieves memories relevant to the query text with similarity distances, with optional metadata filtering.
@@ -1187,32 +1426,113 @@ func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
 	return result
 }
 
-// addMetadataFields adds the new metadata fields to the existing schema.
-func (s *WeaviateStorage) addMetadataFields(ctx context.Context) error {
-	// Add source property
-	if err := s.client.Schema().PropertyCreator().
-		WithClassName(ClassName).
-		WithProperty(&models.Property{
+// addStructuredFactFields adds the new structured fact fields to the existing schema.
+func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
+	// Get existing properties to check what needs to be added
+	existingProps, err := s.getExistingProperties(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get existing properties: %w", err)
+	}
+
+	// Define all required structured fact properties
+	requiredProps := map[string]*models.Property{
+		sourceProperty: {
 			Name:        sourceProperty,
 			DataType:    []string{"text"},
 			Description: "Source of the memory document",
-		}).Do(ctx); err != nil {
-		return fmt.Errorf("failed to add source property: %w", err)
-	}
-
-	// Add speakerID property
-	if err := s.client.Schema().PropertyCreator().
-		WithClassName(ClassName).
-		WithProperty(&models.Property{
+		},
+		speakerProperty: {
 			Name:        speakerProperty,
 			DataType:    []string{"text"},
 			Description: "Speaker/contact ID for the memory",
-		}).Do(ctx); err != nil {
-		return fmt.Errorf("failed to add speakerID property: %w", err)
+		},
+		factCategoryProperty: {
+			Name:        factCategoryProperty,
+			DataType:    []string{"text"},
+			Description: "Category of the structured fact (e.g., preference, health, etc.)",
+		},
+		factSubjectProperty: {
+			Name:        factSubjectProperty,
+			DataType:    []string{"text"},
+			Description: "Subject of the fact (typically 'user' or specific entity name)",
+		},
+		factAttributeProperty: {
+			Name:        factAttributeProperty,
+			DataType:    []string{"text"},
+			Description: "Specific property or attribute being described",
+		},
+		factValueProperty: {
+			Name:        factValueProperty,
+			DataType:    []string{"text"},
+			Description: "Descriptive phrase with context for the fact",
+		},
+		factTemporalContextProperty: {
+			Name:        factTemporalContextProperty,
+			DataType:    []string{"text"},
+			Description: "Temporal context for the fact (optional)",
+		},
+		factSensitivityProperty: {
+			Name:        factSensitivityProperty,
+			DataType:    []string{"text"},
+			Description: "Sensitivity level of the fact (high, medium, low)",
+		},
+		factImportanceProperty: {
+			Name:        factImportanceProperty,
+			DataType:    []string{"int"},
+			Description: "Importance score of the fact (1-3)",
+		},
 	}
 
-	s.logger.Info("Successfully added new metadata fields to schema")
+	// Add only missing properties with proper error handling and validation
+	addedProps := []string{}
+	for propName, propDef := range requiredProps {
+		if existingType, exists := existingProps[propName]; exists {
+			// Validate that existing property matches expected type
+			expectedType := propDef.DataType[0]
+			if existingType != expectedType {
+				return fmt.Errorf("property %s exists with incompatible type %s, expected %s",
+					propName, existingType, expectedType)
+			}
+			s.logger.Debug("Property already exists with correct type", "property", propName, "type", expectedType)
+		} else {
+			// Add missing property
+			if err := s.client.Schema().PropertyCreator().
+				WithClassName(ClassName).
+				WithProperty(propDef).Do(ctx); err != nil {
+				return fmt.Errorf("failed to add required property %s: %w", propName, err)
+			}
+			addedProps = append(addedProps, propName)
+			s.logger.Info("Added new property to schema", "property", propName)
+		}
+	}
+
+	if len(addedProps) > 0 {
+		s.logger.Info("Successfully added structured fact fields to schema", "added_properties", addedProps)
+	} else {
+		s.logger.Info("All structured fact fields already exist in schema")
+	}
 	return nil
+}
+
+// getExistingProperties retrieves existing properties from the schema.
+func (s *WeaviateStorage) getExistingProperties(ctx context.Context) (map[string]string, error) {
+	schema, err := s.client.Schema().Getter().Do(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schema: %w", err)
+	}
+
+	existingProps := make(map[string]string)
+	for _, class := range schema.Classes {
+		if class.Class == ClassName {
+			for _, prop := range class.Properties {
+				if len(prop.DataType) > 0 {
+					existingProps[prop.Name] = prop.DataType[0]
+				}
+			}
+			break
+		}
+	}
+	return existingProps, nil
 }
 
 // buildTagsFilter creates a Weaviate filter from a TagsFilter structure.

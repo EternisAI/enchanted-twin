@@ -167,6 +167,18 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 		"timestamp":          fact.Source.Timestamp.Format(time.RFC3339),
 		"tags":               tags,
 		"documentReferences": []string{},
+		// Store structured fact fields
+		"factCategory":    fact.Category,
+		"factSubject":     fact.Subject,
+		"factAttribute":   fact.Attribute,
+		"factValue":       fact.Value,
+		"factSensitivity": fact.Sensitivity,
+		"factImportance":  fact.Importance,
+	}
+
+	// Store temporal context if present
+	if fact.TemporalContext != nil {
+		properties["factTemporalContext"] = *fact.TemporalContext
 	}
 
 	// Extract and store source as direct field
@@ -199,15 +211,6 @@ func CreateMemoryObjectWithDocumentReferences(fact ExtractedFact, decision Memor
 	props["documentReferences"] = documentIDs
 
 	return obj
-}
-
-// toFloat32 converts a slice of float64 to float32 for Weaviate compatibility.
-func toFloat32(embedding []float64) []float32 {
-	result := make([]float32, len(embedding))
-	for i, v := range embedding {
-		result[i] = float32(v)
-	}
-	return result
 }
 
 // marshalMetadata converts a metadata map to JSON string for storage.
@@ -272,10 +275,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 // This is the secure version that properly separates system instructions from user content.
 func BuildSeparateMemoryDecisionPrompts(fact string, similar []ExistingMemory) (systemPrompt string, userPrompt string) {
 	// System prompt contains only instructions and guidelines - no user content
-	systemPrompt = ConversationMemoryUpdatePrompt + `
-
-Based on the guidelines above, analyze the provided context and decide what action should be taken for the new fact.
-Use the appropriate tool to indicate your decision.`
+	systemPrompt = MemoryUpdatePrompt
 
 	// User prompt contains only the user data to be analyzed
 	existingMemoriesContentForPrompt := []string{}
@@ -418,9 +418,9 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		return []string{}, nil
 	}
 
-	// Dead simple: static prompt + JSON conversation
+	// Use new structured fact extraction prompt for conversations
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(ConversationFactExtractionPrompt),
+		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(conversationJSON),
 	}
 
@@ -435,12 +435,17 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			continue
 		}
 
-		var args ExtractFactsToolArguments
+		var args ExtractStructuredFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			continue
 		}
 
-		extractedFacts = append(extractedFacts, args.Facts...)
+		// Convert structured facts to enriched content strings for better semantic search
+		for _, structuredFact := range args.Facts {
+			// Use shared content generation method
+			factString := structuredFact.GenerateContent()
+			extractedFacts = append(extractedFacts, factString)
+		}
 	}
 
 	return extractedFacts, nil
@@ -458,7 +463,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 	}
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(TextFactExtractionPrompt),
+		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
@@ -473,12 +478,17 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			continue
 		}
 
-		var args ExtractFactsToolArguments
+		var args ExtractStructuredFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			continue
 		}
 
-		extractedFacts = append(extractedFacts, args.Facts...)
+		// Convert structured facts to enriched content strings for better semantic search
+		for _, structuredFact := range args.Facts {
+			// Use shared content generation method
+			factString := structuredFact.GenerateContent()
+			extractedFacts = append(extractedFacts, factString)
+		}
 	}
 
 	return extractedFacts, nil

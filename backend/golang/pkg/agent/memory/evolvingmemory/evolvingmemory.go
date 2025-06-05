@@ -3,6 +3,7 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -71,9 +72,70 @@ type PreparedDocument struct {
 	DateString string // Pre-formatted
 }
 
+// Structured fact types for the new extraction system.
+type StructuredFact struct {
+	Category        string  `json:"category"`
+	Subject         string  `json:"subject"`
+	Attribute       string  `json:"attribute"`
+	Value           string  `json:"value"`
+	TemporalContext *string `json:"temporal_context,omitempty"`
+	Sensitivity     string  `json:"sensitivity"`
+	Importance      int     `json:"importance"`
+}
+
+// GenerateContent creates a searchable content string from structured fact data.
+func (sf *StructuredFact) GenerateContent() string {
+	var contentParts []string
+
+	// Add subject if it's not user (to avoid redundancy)
+	if sf.Subject != "" && sf.Subject != "user" {
+		contentParts = append(contentParts, sf.Subject)
+	}
+
+	// Add the main value
+	contentParts = append(contentParts, sf.Value)
+
+	// Add attribute for context if available
+	if sf.Attribute != "" {
+		contentParts = append(contentParts, "("+sf.Attribute+")")
+	}
+
+	// Add category label for searchability
+	if sf.Category != "" {
+		contentParts = append(contentParts, "("+sf.Category+")")
+	}
+
+	// Add temporal context if available
+	if sf.TemporalContext != nil && *sf.TemporalContext != "" {
+		contentParts = append(contentParts, "("+*sf.TemporalContext+")")
+	}
+
+	// Join parts and prefix with "User:" if appropriate
+	content := strings.Join(contentParts, " ")
+	if sf.Subject == "user" || strings.Contains(strings.ToLower(sf.Value), "user") {
+		content = "User: " + content
+	}
+
+	return content
+}
+
+type ExtractStructuredFactsToolArguments struct {
+	Facts []StructuredFact `json:"facts"`
+}
+
 // Processing pipeline types.
 type ExtractedFact struct {
-	Content   string
+	// Structured fact fields (primary data)
+	Category        string  `json:"category"`
+	Subject         string  `json:"subject"`
+	Attribute       string  `json:"attribute"`
+	Value           string  `json:"value"`
+	TemporalContext *string `json:"temporal_context,omitempty"`
+	Sensitivity     string  `json:"sensitivity"`
+	Importance      int     `json:"importance"`
+
+	// Legacy fields
+	Content   string // Derived from structured fields for backward compatibility
 	SpeakerID string
 	Source    PreparedDocument
 }
@@ -150,10 +212,6 @@ type DeleteToolArguments struct {
 
 type NoneToolArguments struct {
 	Reason string `json:"reason"`
-}
-
-type ExtractFactsToolArguments struct {
-	Facts []string `json:"facts"`
 }
 
 // DocumentReference holds reference to the original document that generated a memory fact.
