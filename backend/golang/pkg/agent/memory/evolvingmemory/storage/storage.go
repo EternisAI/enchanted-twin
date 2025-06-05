@@ -1483,10 +1483,19 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 		},
 	}
 
-	// Add only missing properties with proper error handling
+	// Add only missing properties with proper error handling and validation
 	addedProps := []string{}
 	for propName, propDef := range requiredProps {
-		if _, exists := existingProps[propName]; !exists {
+		if existingType, exists := existingProps[propName]; exists {
+			// Validate that existing property matches expected type
+			expectedType := propDef.DataType[0]
+			if existingType != expectedType {
+				return fmt.Errorf("property %s exists with incompatible type %s, expected %s",
+					propName, existingType, expectedType)
+			}
+			s.logger.Debug("Property already exists with correct type", "property", propName, "type", expectedType)
+		} else {
+			// Add missing property
 			if err := s.client.Schema().PropertyCreator().
 				WithClassName(ClassName).
 				WithProperty(propDef).Do(ctx); err != nil {
