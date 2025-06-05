@@ -371,7 +371,6 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	if err != nil {
 		return fmt.Errorf("failed to query with fact sensitivity filter: %w", err)
 	}
-	logger.Info("Sensitivity filtering test completed", "results_count", len(result.Documents))
 
 	// Test 6: Combined structured fact filtering
 	logger.Info("Testing combined structured fact filtering...")
@@ -386,7 +385,6 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	if err != nil {
 		return fmt.Errorf("failed to query with combined structured fact filters: %w", err)
 	}
-	logger.Info("Combined filtering test completed", "results_count", len(result.Documents))
 
 	// Test 7: Value partial matching
 	logger.Info("Testing fact value partial matching...")
@@ -399,7 +397,6 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	if err != nil {
 		return fmt.Errorf("failed to query with fact value filter: %w", err)
 	}
-	logger.Info("Value partial matching test completed", "results_count", len(result.Documents))
 
 	// Test 8: Temporal context filtering
 	logger.Info("Testing fact temporal context filtering...")
@@ -412,7 +409,6 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	if err != nil {
 		return fmt.Errorf("failed to query with fact temporal context filter: %w", err)
 	}
-	logger.Info("Temporal context filtering test completed", "results_count", len(result.Documents))
 
 	// Test 9: Mixed legacy and structured filtering
 	logger.Info("Testing mixed legacy and structured filtering...")
@@ -429,7 +425,6 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	if err != nil {
 		return fmt.Errorf("failed to query with mixed legacy and structured filters: %w", err)
 	}
-	logger.Info("Mixed filtering test completed", "results_count", len(result.Documents))
 
 	// Test 10: Complex filtering scenario (realistic use case)
 	logger.Info("Testing complex realistic filtering scenario...")
@@ -446,7 +441,6 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	if err != nil {
 		return fmt.Errorf("failed to query with complex structured fact filters: %w", err)
 	}
-	logger.Info("Complex filtering test completed", "results_count", len(result.Documents))
 
 	// Test 11: Attribute filtering
 	logger.Info("Testing fact attribute filtering...")
@@ -459,7 +453,6 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 	if err != nil {
 		return fmt.Errorf("failed to query with fact attribute filter: %w", err)
 	}
-	logger.Info("Attribute filtering test completed", "results_count", len(result.Documents))
 
 	// Test 12: Invalid/non-existent category (should return no results)
 	logger.Info("Testing filtering with non-existent category...")
@@ -473,9 +466,25 @@ func testStructuredFactFiltering(ctx context.Context, mem evolvingmemory.MemoryS
 		return fmt.Errorf("failed to query with non-existent category filter: %w", err)
 	}
 	if len(result.Documents) != 0 {
-		logger.Warn("Expected no results for non-existent category", "actual_count", len(result.Documents))
+		return fmt.Errorf("expected no results for non-existent category")
 	}
-	logger.Info("Non-existent category test completed", "results_count", len(result.Documents))
+
+	// Test 13: Invalid/non-existent category (should return no results)
+	logger.Info("Testing filtering with wrong importance...")
+	filter = &memory.Filter{
+		FactImportanceMin: intPtr(3),
+		Source:            &source,
+		Limit:             intPtr(limit),
+	}
+	result, err = mem.Query(ctx, "What do you know about me?", filter)
+	if err != nil {
+		return fmt.Errorf("failed to query with non-existent category filter: %w", err)
+	}
+	logger.Info("Wrong importance test completed", "results_count", len(result.Documents))
+	logger.Info("result", "result", result.Documents)
+	if len(result.Documents) == 0 {
+		return fmt.Errorf("expected  results for wrong importance")
+	}
 
 	logger.Info("==============✅ All structured fact filtering tests completed===============")
 	return nil
