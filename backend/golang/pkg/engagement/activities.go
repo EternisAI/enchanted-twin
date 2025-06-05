@@ -135,11 +135,11 @@ func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
 }
 
 func (s *FriendService) FetchIdentity(ctx context.Context) (string, error) {
-	personality, err := s.identityService.GetPersonality(ctx)
+	userProfile, err := s.identityService.GetUserProfile(ctx)
 	if err != nil {
-		return "", fmt.Errorf("failed to get personality: %w", err)
+		return "", fmt.Errorf("failed to get user profile: %w", err)
 	}
-	return personality, nil
+	return userProfile, nil
 }
 
 type GeneratePokeMessageInput struct {
