@@ -578,179 +578,260 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
+	// Step 1: Generate query vector
+	queryVector, err := s.generateQueryVector(ctx, queryText)
+	if err != nil {
+		return memory.QueryResult{}, fmt.Errorf("generating query vector: %w", err)
+	}
+
+	// Step 2: Build GraphQL query
+	queryBuilder, err := s.buildQueryBuilder(queryVector, filter)
+	if err != nil {
+		return memory.QueryResult{}, fmt.Errorf("building query: %w", err)
+	}
+
+	// Step 3 & 4: Execute and process
+	return s.executeAndProcessQuery(ctx, queryBuilder)
+}
+
+// generateQueryVector converts query text to embedding vector.
+func (s *WeaviateStorage) generateQueryVector(ctx context.Context, queryText string) ([]float32, error) {
 	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to create embedding for query: %w", err)
+		return nil, fmt.Errorf("failed to create embedding: %w", err)
 	}
-	queryVector32 := s.convertToFloat32(vector)
+	return s.convertToFloat32(vector), nil
+}
 
-	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector32)
+// buildQueryBuilder constructs GraphQL query with filters and vector search.
+func (s *WeaviateStorage) buildQueryBuilder(queryVector []float32, filter *memory.Filter) (*weaviateGraphql.GetBuilder, error) {
+	// 1. Create nearVector search
+	nearVector := s.client.GraphQL().NearVectorArgBuilder().WithVector(queryVector)
 
-	// Set distance filter if provided
+	// 2. Apply distance filter if provided
 	if filter != nil && filter.Distance > 0 {
 		nearVector = nearVector.WithDistance(filter.Distance)
 		s.logger.Debug("Added distance filter", "distance", filter.Distance)
 	}
 
-	contentField := weaviateGraphql.Field{Name: contentProperty}
-	timestampField := weaviateGraphql.Field{Name: timestampProperty}
-	metaField := weaviateGraphql.Field{Name: metadataProperty}
-	sourceField := weaviateGraphql.Field{Name: sourceProperty}
-	speakerField := weaviateGraphql.Field{Name: speakerProperty}
-	tagsField := weaviateGraphql.Field{Name: tagsProperty}
-	additionalFields := weaviateGraphql.Field{
-		Name: "_additional",
-		Fields: []weaviateGraphql.Field{
-			{Name: "id"},
-			{Name: "distance"},
-		},
-	}
+	// 3. Define fields to retrieve
+	fields := s.buildQueryFields()
 
-	// Set limit from filter or use default
+	// 4. Set limit
 	limit := 10
 	if filter != nil && filter.Limit != nil {
 		limit = *filter.Limit
 	}
 
+	// 5. Build base query
 	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
 		WithLimit(limit).
-		WithFields(contentField, timestampField, metaField, sourceField, speakerField, tagsField, additionalFields)
+		WithFields(fields...)
 
-	// Add WHERE filtering if filter is provided
+	// 6. Add WHERE filters
 	if filter != nil {
-		var whereFilters []*filters.WhereBuilder
-
-		if filter.Source != nil {
-			// Use direct field filtering instead of JSON pattern matching
-			sourceFilter := filters.Where().
-				WithPath([]string{sourceProperty}).
-				WithOperator(filters.Equal).
-				WithValueText(*filter.Source)
-			whereFilters = append(whereFilters, sourceFilter)
-			s.logger.Debug("Added source filter", "source", *filter.Source)
+		whereBuilder, err := s.buildWhereFilters(filter)
+		if err != nil {
+			return nil, fmt.Errorf("building WHERE filters: %w", err)
 		}
-
-		if filter.ContactName != nil {
-			// Use direct field filtering for speaker ID
-			contactFilter := filters.Where().
-				WithPath([]string{speakerProperty}).
-				WithOperator(filters.Equal).
-				WithValueText(*filter.ContactName)
-			whereFilters = append(whereFilters, contactFilter)
-			s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
-		}
-
-		if filter.Tags != nil && !filter.Tags.IsEmpty() {
-			// Use the new TagsFilter structure
-			tagsFilter, err := s.buildTagsFilter(filter.Tags)
-			if err != nil {
-				return memory.QueryResult{}, fmt.Errorf("failed to build tags filter: %w", err)
-			}
-			if tagsFilter != nil {
-				whereFilters = append(whereFilters, tagsFilter)
-				s.logger.Debug("Added tags filter", "tagsFilter", filter.Tags)
-			}
-		}
-
-		if len(whereFilters) > 0 {
-			combinedFilter := filters.Where().
-				WithOperator(filters.And).
-				WithOperands(whereFilters)
-			queryBuilder = queryBuilder.WithWhere(combinedFilter)
-			s.logger.Debug("Applied combined WHERE filters", "filter_count", len(whereFilters))
+		if whereBuilder != nil {
+			queryBuilder = queryBuilder.WithWhere(whereBuilder)
+			s.logger.Debug("Applied combined WHERE filters")
 		}
 	}
 
+	return queryBuilder, nil
+}
+
+// buildQueryFields defines all fields we want to retrieve from GraphQL query.
+func (s *WeaviateStorage) buildQueryFields() []weaviateGraphql.Field {
+	return []weaviateGraphql.Field{
+		{Name: contentProperty},
+		{Name: timestampProperty},
+		{Name: metadataProperty},
+		{Name: sourceProperty},
+		{Name: speakerProperty},
+		{Name: tagsProperty},
+		{
+			Name: "_additional",
+			Fields: []weaviateGraphql.Field{
+				{Name: "id"},
+				{Name: "distance"},
+			},
+		},
+	}
+}
+
+// buildWhereFilters builds WHERE clause filters from memory.Filter.
+func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.WhereBuilder, error) {
+	var whereFilters []*filters.WhereBuilder
+
+	// Source filter
+	if filter.Source != nil {
+		sourceFilter := filters.Where().
+			WithPath([]string{sourceProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.Source)
+		whereFilters = append(whereFilters, sourceFilter)
+		s.logger.Debug("Added source filter", "source", *filter.Source)
+	}
+
+	// Contact filter
+	if filter.ContactName != nil {
+		contactFilter := filters.Where().
+			WithPath([]string{speakerProperty}).
+			WithOperator(filters.Equal).
+			WithValueText(*filter.ContactName)
+		whereFilters = append(whereFilters, contactFilter)
+		s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
+	}
+
+	// Tags filter (reuse existing buildTagsFilter method)
+	if filter.Tags != nil && !filter.Tags.IsEmpty() {
+		tagsFilter, err := s.buildTagsFilter(filter.Tags)
+		if err != nil {
+			return nil, fmt.Errorf("building tags filter: %w", err)
+		}
+		if tagsFilter != nil {
+			whereFilters = append(whereFilters, tagsFilter)
+			s.logger.Debug("Added tags filter", "tagsFilter", filter.Tags)
+		}
+	}
+
+	// Combine all filters with AND
+	if len(whereFilters) == 0 {
+		return nil, nil
+	}
+
+	if len(whereFilters) == 1 {
+		return whereFilters[0], nil
+	}
+
+	return filters.Where().
+		WithOperator(filters.And).
+		WithOperands(whereFilters), nil
+}
+
+// executeAndProcessQuery runs the GraphQL query and transforms results.
+func (s *WeaviateStorage) executeAndProcessQuery(ctx context.Context, queryBuilder *weaviateGraphql.GetBuilder) (memory.QueryResult, error) {
+	// Execute query
 	resp, err := queryBuilder.Do(ctx)
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("failed to execute Weaviate query: %w", err)
+		return memory.QueryResult{}, fmt.Errorf("executing Weaviate query: %w", err)
 	}
 
+	// Check for GraphQL errors
 	if len(resp.Errors) > 0 {
 		var errorMsgs []string
 		for _, err := range resp.Errors {
 			errorMsgs = append(errorMsgs, err.Message)
 		}
-		return memory.QueryResult{}, fmt.Errorf("GraphQL query errors: %s", strings.Join(errorMsgs, "; "))
+		return memory.QueryResult{}, fmt.Errorf("GraphQL errors: %s", strings.Join(errorMsgs, "; "))
 	}
 
-	finalResults := []memory.TextDocument{}
+	// Parse and transform results
+	documents, err := s.parseQueryResponse(resp)
+	if err != nil {
+		return memory.QueryResult{}, fmt.Errorf("parsing query response: %w", err)
+	}
+
+	s.logger.Info("Query completed successfully", "results_count", len(documents))
+	return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: documents}, nil
+}
+
+// parseQueryResponse transforms GraphQL response to memory.TextDocument objects.
+func (s *WeaviateStorage) parseQueryResponse(resp *models.GraphQLResponse) ([]memory.TextDocument, error) {
+	// Extract data from response
 	data, ok := resp.Data["Get"].(map[string]interface{})
 	if !ok {
 		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
-		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
+		return []memory.TextDocument{}, nil
 	}
 
 	classData, ok := data[ClassName].([]interface{})
 	if !ok {
 		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
-		return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
+		return []memory.TextDocument{}, nil
 	}
+
 	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
 
+	var documents []memory.TextDocument
 	for _, item := range classData {
-		obj, okMap := item.(map[string]interface{})
-		if !okMap {
-			s.logger.Warn("Retrieved item is not a map, skipping", "item", item)
+		doc, err := s.parseDocumentItem(item)
+		if err != nil {
+			s.logger.Warn("Failed to parse document item", "error", err)
 			continue
 		}
-
-		content, _ := obj[contentProperty].(string)
-		metadataJSON, _ := obj[metadataProperty].(string)
-		source, _ := obj[sourceProperty].(string)
-		speakerID, _ := obj[speakerProperty].(string)
-
-		var parsedTimestamp *time.Time
-		if tsStr, tsOk := obj[timestampProperty].(string); tsOk {
-			t, pErr := time.Parse(time.RFC3339, tsStr)
-			if pErr == nil {
-				parsedTimestamp = &t
-			} else {
-				s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", pErr)
-			}
-		}
-
-		additional, _ := obj["_additional"].(map[string]interface{})
-		id, _ := additional["id"].(string)
-
-		// Start with metadata from JSON (for backward compatibility)
-		metaMap := make(map[string]string)
-		if metadataJSON != "" {
-			if errJson := json.Unmarshal([]byte(metadataJSON), &metaMap); errJson != nil {
-				s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", errJson)
-			}
-		}
-
-		// Merge direct fields into metadata (they take precedence)
-		if source != "" {
-			metaMap["source"] = source
-		}
-		if speakerID != "" {
-			metaMap["speakerID"] = speakerID
-		}
-
-		var tags []string
-		if tagsInterface, tagsOk := obj[tagsProperty].([]interface{}); tagsOk {
-			for _, tagInterfaceItem := range tagsInterface {
-				if tagStr, okTag := tagInterfaceItem.(string); okTag {
-					tags = append(tags, tagStr)
-				}
-			}
-		}
-
-		finalResults = append(finalResults, memory.TextDocument{
-			FieldID:        id,
-			FieldContent:   content,
-			FieldTimestamp: parsedTimestamp,
-			FieldMetadata:  metaMap,
-			FieldSource:    source, // Populate the direct source field
-			FieldTags:      tags,
-		})
+		documents = append(documents, doc)
 	}
-	s.logger.Info("Query processed successfully.", "num_results_returned_after_filtering", len(finalResults))
-	return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: finalResults}, nil
+
+	return documents, nil
+}
+
+// parseDocumentItem converts a single GraphQL item to memory.TextDocument.
+func (s *WeaviateStorage) parseDocumentItem(item interface{}) (memory.TextDocument, error) {
+	obj, ok := item.(map[string]interface{})
+	if !ok {
+		return memory.TextDocument{}, fmt.Errorf("item is not a map")
+	}
+
+	// Extract basic fields
+	content, _ := obj[contentProperty].(string)
+	metadataJSON, _ := obj[metadataProperty].(string)
+	source, _ := obj[sourceProperty].(string)
+	speakerID, _ := obj[speakerProperty].(string)
+
+	// Parse timestamp
+	var parsedTimestamp *time.Time
+	if tsStr, ok := obj[timestampProperty].(string); ok {
+		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
+			parsedTimestamp = &t
+		} else {
+			s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", err)
+		}
+	}
+
+	// Extract ID from _additional
+	additional, _ := obj["_additional"].(map[string]interface{})
+	id, _ := additional["id"].(string)
+
+	// Build metadata map
+	metaMap := make(map[string]string)
+	if metadataJSON != "" {
+		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
+			s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", err)
+		}
+	}
+
+	// Merge direct fields into metadata (they take precedence)
+	if source != "" {
+		metaMap["source"] = source
+	}
+	if speakerID != "" {
+		metaMap["speakerID"] = speakerID
+	}
+
+	// Extract tags
+	var tags []string
+	if tagsInterface, ok := obj[tagsProperty].([]interface{}); ok {
+		for _, tagItem := range tagsInterface {
+			if tagStr, ok := tagItem.(string); ok {
+				tags = append(tags, tagStr)
+			}
+		}
+	}
+
+	return memory.TextDocument{
+		FieldID:        id,
+		FieldContent:   content,
+		FieldTimestamp: parsedTimestamp,
+		FieldMetadata:  metaMap,
+		FieldSource:    source,
+		FieldTags:      tags,
+	}, nil
 }
 
 // QueryWithDistance retrieves memories relevant to the query text with similarity distances, with optional metadata filtering.
