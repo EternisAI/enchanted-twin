@@ -302,8 +302,8 @@ query GetWhatsAppStatus {
   }
 }
 
-query GetThreads($network: String) {
-  getThreads(network: $network) {
+query GetThreads($network: String, $first: Int! = 10, $offset: Int! = 0) {
+  getThreads(network: $network, first: $first, offset: $offset) {
     id
     title
     content

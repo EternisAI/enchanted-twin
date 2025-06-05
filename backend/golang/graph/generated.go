@@ -202,7 +202,7 @@ type ComplexityRoot struct {
 		GetOAuthStatus     func(childComplexity int) int
 		GetSetupProgress   func(childComplexity int) int
 		GetThread          func(childComplexity int, network *string, id string) int
-		GetThreads         func(childComplexity int, network *string) int
+		GetThreads         func(childComplexity int, network *string, first int32, offset int32) int
 		GetTools           func(childComplexity int) int
 		GetWhatsAppStatus  func(childComplexity int) int
 		Profile            func(childComplexity int) int
@@ -331,7 +331,7 @@ type QueryResolver interface {
 	GetSetupProgress(ctx context.Context) ([]*model.SetupProgress, error)
 	WhitelistStatus(ctx context.Context) (bool, error)
 	GetHolons(ctx context.Context, userID string) ([]string, error)
-	GetThreads(ctx context.Context, network *string) ([]*model.Thread, error)
+	GetThreads(ctx context.Context, network *string, first int32, offset int32) ([]*model.Thread, error)
 	GetThread(ctx context.Context, network *string, id string) (*model.Thread, error)
 }
 type SubscriptionResolver interface {
@@ -1212,7 +1212,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Query.GetThreads(childComplexity, args["network"].(*string)), true
+		return e.complexity.Query.GetThreads(childComplexity, args["network"].(*string), args["first"].(int32), args["offset"].(int32)), true
 
 	case "Query.getTools":
 		if e.complexity.Query.GetTools == nil {
@@ -2470,6 +2470,16 @@ func (ec *executionContext) field_Query_getThreads_args(ctx context.Context, raw
 		return nil, err
 	}
 	args["network"] = arg0
+	arg1, err := ec.field_Query_getThreads_argsFirst(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["first"] = arg1
+	arg2, err := ec.field_Query_getThreads_argsOffset(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["offset"] = arg2
 	return args, nil
 }
 func (ec *executionContext) field_Query_getThreads_argsNetwork(
@@ -2482,6 +2492,32 @@ func (ec *executionContext) field_Query_getThreads_argsNetwork(
 	}
 
 	var zeroVal *string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_getThreads_argsFirst(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (int32, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("first"))
+	if tmp, ok := rawArgs["first"]; ok {
+		return ec.unmarshalNInt2int32(ctx, tmp)
+	}
+
+	var zeroVal int32
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Query_getThreads_argsOffset(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (int32, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("offset"))
+	if tmp, ok := rawArgs["offset"]; ok {
+		return ec.unmarshalNInt2int32(ctx, tmp)
+	}
+
+	var zeroVal int32
 	return zeroVal, nil
 }
 
@@ -7866,7 +7902,7 @@ func (ec *executionContext) _Query_getThreads(ctx context.Context, field graphql
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Query().GetThreads(rctx, fc.Args["network"].(*string))
+		return ec.resolvers.Query().GetThreads(rctx, fc.Args["network"].(*string), fc.Args["first"].(int32), fc.Args["offset"].(int32))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

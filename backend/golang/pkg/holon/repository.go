@@ -50,7 +50,7 @@ type dbAuthor struct {
 	Alias    *string `db:"alias"`
 }
 
-func (r *Repository) GetThreads(ctx context.Context) ([]*model.Thread, error) {
+func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
 		       t.image_urls, t.actions, t.views,
@@ -58,9 +58,10 @@ func (r *Repository) GetThreads(ctx context.Context) ([]*model.Thread, error) {
 		FROM threads t
 		JOIN authors a ON t.author_identity = a.identity
 		ORDER BY t.created_at DESC
+		LIMIT ? OFFSET ?
 	`
 
-	rows, err := r.db.QueryContext(ctx, query)
+	rows, err := r.db.QueryContext(ctx, query, first, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query threads: %w", err)
 	}
