@@ -167,6 +167,18 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 		"timestamp":          fact.Source.Timestamp.Format(time.RFC3339),
 		"tags":               tags,
 		"documentReferences": []string{},
+		// Store structured fact fields
+		"factCategory":    fact.Category,
+		"factSubject":     fact.Subject,
+		"factAttribute":   fact.Attribute,
+		"factValue":       fact.Value,
+		"factSensitivity": fact.Sensitivity,
+		"factImportance":  fact.Importance,
+	}
+
+	// Store temporal context if present
+	if fact.TemporalContext != nil {
+		properties["factTemporalContext"] = *fact.TemporalContext
 	}
 
 	// Extract and store source as direct field

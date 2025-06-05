@@ -103,21 +103,6 @@ type ExtractedFact struct {
 	Source    PreparedDocument
 }
 
-// GenerateContent creates a searchable content string from structured fact fields.
-func (f *ExtractedFact) GenerateContent() {
-	content := f.Value
-	if f.Subject != "" && f.Subject != "user" {
-		content = f.Subject + " " + content
-	}
-	if f.Attribute != "" {
-		content = f.Attribute + ": " + content
-	}
-	if f.TemporalContext != nil && *f.TemporalContext != "" {
-		content += " (" + *f.TemporalContext + ")"
-	}
-	f.Content = content
-}
-
 // Memory actions.
 type MemoryAction string
 

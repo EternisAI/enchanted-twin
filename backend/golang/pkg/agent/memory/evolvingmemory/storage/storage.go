@@ -1306,7 +1306,7 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 		if err := s.client.Schema().PropertyCreator().
 			WithClassName(ClassName).
 			WithProperty(prop).Do(ctx); err != nil {
-			return fmt.Errorf("failed to add structured fact property %s: %w", prop.Name, err)
+			s.logger.Warnf("Failed to add structured fact property %s (may already exist): %v", prop.Name, err)
 		}
 	}
 
