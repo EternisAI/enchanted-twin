@@ -226,6 +226,8 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 		Storage:            storageInterface,
 		CompletionsService: openAiService.Service,
 		EmbeddingsService:  aiEmbeddingsService,
+		CompletionsModel:   config.CompletionsModel,
+		EmbeddingsModel:    config.EmbeddingsModel,
 	})
 	require.NoError(t, err)
 
@@ -370,10 +372,10 @@ func getTestConfig(t *testing.T) testConfig {
 	embeddingsApiKey := getEnvOrDefault("TEST_EMBEDDINGS_API_KEY", os.Getenv("EMBEDDINGS_API_KEY"))
 
 	if completionsApiKey == "" {
-		t.Fatal("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
+		t.Skip("Skipping integration test: No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
 	}
 	if embeddingsApiKey == "" {
-		t.Fatal("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
+		t.Skip("Skipping integration test: No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
 	return testConfig{
