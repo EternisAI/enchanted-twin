@@ -165,7 +165,7 @@ func (s *Service) SendMessage(
 
 	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
 	if err != nil {
-		return nil, err
+		userMemoryProfile = ""
 	}
 
 	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
