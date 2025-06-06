@@ -118,15 +118,6 @@ func (m *MockCompletionsService) Completions(ctx context.Context, messages []ope
 	return msg, args.Error(1)
 }
 
-func (m *MockCompletionsService) CompletionsWithTemperature(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, temperature float64) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, messages, tools, model, temperature)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
-}
-
 func (m *MockCompletionsService) CompletionsWithMessages(ctx context.Context, messages []ai.Message, tools []openai.ChatCompletionToolParam, model string) (ai.Message, error) {
 	args := m.Called(ctx, messages, tools, model)
 	if args.Get(0) == nil {
@@ -193,15 +184,6 @@ func (m *MockEmbeddingsService) Embeddings(ctx context.Context, inputs []string,
 	}
 	embeddings, _ := args.Get(0).([][]float64)
 	return embeddings, args.Error(1)
-}
-
-func (m *MockEmbeddingsService) CompletionsWithTemperature(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string, temperature float64) (openai.ChatCompletionMessage, error) {
-	args := m.Called(ctx, messages, tools, model, temperature)
-	if args.Get(0) == nil {
-		return openai.ChatCompletionMessage{}, args.Error(1)
-	}
-	msg, _ := args.Get(0).(openai.ChatCompletionMessage)
-	return msg, args.Error(1)
 }
 
 func (m *MockEmbeddingsService) Embedding(ctx context.Context, input string, model string) ([]float64, error) {
