@@ -864,7 +864,7 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	// Test 4: More precise querying
 	t.Run("More precise querying", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 

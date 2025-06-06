@@ -847,12 +847,11 @@ func (s *WeaviateStorage) executeAndProcessQuery(ctx context.Context, queryBuild
 	return memory.QueryResult{Facts: facts, Documents: documents}, nil
 }
 
-// convertDocumentsToFacts converts TextDocuments to MemoryFacts for the memory tool
+// convertDocumentsToFacts converts TextDocuments to MemoryFacts for the memory tool.
 func (s *WeaviateStorage) convertDocumentsToFacts(documents []memory.TextDocument) []memory.MemoryFact {
 	facts := make([]memory.MemoryFact, 0, len(documents))
 
 	for _, doc := range documents {
-
 		speaker := "user"
 		if speakerID, exists := doc.Metadata()["speakerID"]; exists && speakerID != "" {
 			speaker = speakerID

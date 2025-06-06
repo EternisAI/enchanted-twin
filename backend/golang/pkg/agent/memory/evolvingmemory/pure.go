@@ -439,11 +439,9 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		openai.UserMessage(conversationJSON),
 	}
 
-
 	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(conversationJSON))
 
-	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
-
+	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		log.Printf("LLM completion FAILED for conversation %s: %v", convDoc.ID(), err)
 		return nil, fmt.Errorf("LLM completion error for speaker %s, conversation %s: %w", speakerID, convDoc.ID(), err)
@@ -539,11 +537,9 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		openai.UserMessage(content),
 	}
 
-
 	log.Printf("Sending to LLM - System prompt length: %d, User message length: %d", len(FactExtractionPrompt), len(content))
 
-	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
-
+	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		log.Printf("LLM completion FAILED for document %s: %v", textDoc.ID(), err)
 		return nil, fmt.Errorf("LLM completion error for speaker %s, document %s: %w", speakerID, textDoc.ID(), err)
