@@ -17,7 +17,7 @@ type TwinChatSystemPrompt struct {
 	EmailAccounts     []string
 	IsVoice           bool
 	UserMemoryProfile string
-	HolonThreadID *string
+	HolonThreadID     *string
 }
 
 func BuildTwinChatSystemPrompt(data TwinChatSystemPrompt) (string, error) {
