@@ -3,11 +3,11 @@ package holon
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	clog "github.com/charmbracelet/log"
 )
 
 // HolonZeroClient defines the interface for interacting with the HolonZero API
@@ -25,43 +25,46 @@ type FetcherService struct {
 	client     HolonZeroClient
 	repository *Repository
 	config     FetcherConfig
+	logger     *clog.Logger
 	stopChan   chan struct{}
 	running    bool
 }
 
 // FetcherConfig holds configuration for the fetcher service
 type FetcherConfig struct {
-	APIBaseURL     string
-	FetchInterval  time.Duration
-	BatchSize      int
-	MaxRetries     int
-	RetryDelay     time.Duration
-	EnableLogging  bool
+	APIBaseURL    string
+	FetchInterval time.Duration
+	BatchSize     int
+	MaxRetries    int
+	RetryDelay    time.Duration
+	EnableLogging bool
 }
 
 // DefaultFetcherConfig returns a sensible default configuration
 func DefaultFetcherConfig() FetcherConfig {
 	return FetcherConfig{
-		APIBaseURL:     "http://localhost:8080",
-		FetchInterval:  5 * time.Minute,
-		BatchSize:      50,
-		MaxRetries:     3,
-		RetryDelay:     30 * time.Second,
-		EnableLogging:  true,
+		APIBaseURL:    "http://localhost:8080",
+		FetchInterval: 5 * time.Minute,
+		BatchSize:     50,
+		MaxRetries:    3,
+		RetryDelay:    30 * time.Second,
+		EnableLogging: true,
 	}
 }
 
 // NewFetcherService creates a new HolonZero API fetcher service
-func NewFetcherService(store *db.Store, config FetcherConfig) *FetcherService {
+func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logger) *FetcherService {
 	client := NewAPIClient(
 		config.APIBaseURL,
 		WithTimeout(30*time.Second),
+		WithLogger(logger),
 	)
 
 	return &FetcherService{
 		client:     client,
 		repository: NewRepository(store.DB()),
 		config:     config,
+		logger:     logger,
 		stopChan:   make(chan struct{}),
 		running:    false,
 	}
@@ -119,12 +122,12 @@ func (f *FetcherService) IsRunning() bool {
 // performSync executes a complete sync operation with retry logic
 func (f *FetcherService) performSync(ctx context.Context) error {
 	var lastErr error
-	
+
 	for attempt := 1; attempt <= f.config.MaxRetries; attempt++ {
 		if err := f.syncData(ctx); err != nil {
 			lastErr = err
 			f.logError(fmt.Sprintf("Sync attempt %d failed", attempt), err)
-			
+
 			if attempt < f.config.MaxRetries {
 				f.logInfo(fmt.Sprintf("Retrying in %v...", f.config.RetryDelay))
 				time.Sleep(f.config.RetryDelay)
@@ -137,7 +140,7 @@ func (f *FetcherService) performSync(ctx context.Context) error {
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("sync failed after %d attempts: %w", f.config.MaxRetries, lastErr)
 }
 
@@ -498,13 +501,13 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 
 // SyncStatus represents the current status of the fetcher
 type SyncStatus struct {
-	Running     bool       `json:"running"`
-	LastSync    *time.Time `json:"last_sync,omitempty"`
-	NextSync    time.Time  `json:"next_sync"`
-	SyncCount   int        `json:"sync_count"`
-	ErrorCount  int        `json:"error_count"`
-	LastError   string     `json:"last_error,omitempty"`
-	TotalItems  int        `json:"total_items"`
+	Running    bool       `json:"running"`
+	LastSync   *time.Time `json:"last_sync,omitempty"`
+	NextSync   time.Time  `json:"next_sync"`
+	SyncCount  int        `json:"sync_count"`
+	ErrorCount int        `json:"error_count"`
+	LastError  string     `json:"last_error,omitempty"`
+	TotalItems int        `json:"total_items"`
 }
 
 // GetSyncStatus returns the current status of the fetcher service
@@ -527,7 +530,7 @@ func (f *FetcherService) GetSyncStatus(ctx context.Context) (*SyncStatus, error)
 
 	// Calculate next sync time based on the current time and fetch interval
 	nextSync := time.Now().Add(f.config.FetchInterval)
-	
+
 	return &SyncStatus{
 		Running:    f.running,
 		LastSync:   &metadata.ServerTime,
@@ -541,32 +544,32 @@ func (f *FetcherService) GetSyncStatus(ctx context.Context) (*SyncStatus, error)
 // ForceSync triggers an immediate synchronization
 func (f *FetcherService) ForceSync(ctx context.Context) error {
 	f.logInfo("Manual sync requested")
-	
+
 	// If not running, return error
 	if !f.running {
 		return fmt.Errorf("fetcher service is not running")
 	}
-	
+
 	// Perform sync directly
 	if err := f.performSync(ctx); err != nil {
 		f.logError("Manual sync failed", err)
 		return fmt.Errorf("manual sync failed: %w", err)
 	}
-	
+
 	f.logInfo("Manual sync completed successfully")
 	return nil
 }
 
 // logInfo logs an informational message if logging is enabled
 func (f *FetcherService) logInfo(msg string) {
-	if f.config.EnableLogging {
-		log.Printf("[HOLON FETCHER] INFO: %s", msg)
+	if f.config.EnableLogging && f.logger != nil {
+		f.logger.Info(msg)
 	}
 }
 
 // logError logs an error message if logging is enabled
 func (f *FetcherService) logError(msg string, err error) {
-	if f.config.EnableLogging {
-		log.Printf("[HOLON FETCHER] ERROR: %s: %v", msg, err)
+	if f.config.EnableLogging && f.logger != nil {
+		f.logger.Error(msg, "error", err)
 	}
 }
