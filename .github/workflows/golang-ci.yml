@@ -68,3 +68,30 @@ jobs:
           else
             echo "✅ No dead code found"
           fi
+
+      - name: Run integration tests
+        if: steps.changes.outputs.backend == 'true'
+        env:
+          COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
+          EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
+          TELEGRAM_CHAT_SERVER: ${{ secrets.TELEGRAM_CHAT_SERVER }}
+        run: |
+          # Create output directory if it doesn't exist
+          mkdir -p ./output
+
+          # Check if required API keys are available
+          if [ -z "$COMPLETIONS_API_KEY" ] || [ -z "$EMBEDDINGS_API_KEY" ]; then
+            echo "❌ Integration tests failed - API keys not available"
+            echo "Please set COMPLETIONS_API_KEY and EMBEDDINGS_API_KEY in GitHub secrets"
+            exit 1
+          fi
+
+          # Check if integration test data exists (using misc directory which is the default)
+          if [ ! -d "pkg/dataprocessing/integration/testdata/misc" ]; then
+            echo "❌ Integration tests failed - test data not available"
+            echo "Expected testdata/misc directory not found"
+            exit 1
+          fi
+
+          echo "🧪 Running integration tests..."
+          make test-integration

@@ -30,7 +30,7 @@ func DerivePersonalityWorkflow(ctx workflow.Context) (DerivePersonalityOutput, e
 	var a *identityActivities
 
 	var personality string
-	if err := workflow.ExecuteActivity(ctx, a.GeneratePersonalityActivity).Get(ctx, &personality); err != nil {
+	if err := workflow.ExecuteActivity(ctx, a.GenerateUserProfileActivity).Get(ctx, &personality); err != nil {
 		return DerivePersonalityOutput{}, err
 	}
 

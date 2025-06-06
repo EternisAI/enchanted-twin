@@ -41,14 +41,29 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
 
+	// Create temporary database
+	dbFile, err := os.CreateTemp("", "test_*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp db file: %v", err)
+	}
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
+
+	ctx := context.Background()
+	store, err := db.NewStore(ctx, dbFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close() //nolint:errcheck
+
 	// Test the function
 	records, err := helpers.ReadJSONL[types.Record](tempFile.Name())
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
 
-	telegramProcessor := NewTelegramProcessor()
-	docs, err := telegramProcessor.ToDocuments(records)
+	telegramProcessor := NewTelegramProcessor(store)
+	docs, err := telegramProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
 	}
@@ -155,8 +170,8 @@ func TestProcessDirectoryInput(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	// Test processing directory (should find result.json)
-	processor := NewTelegramProcessor()
-	records, err := processor.ProcessFile(ctx, tempDir, store)
+	processor := NewTelegramProcessor(store)
+	records, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
@@ -249,8 +264,8 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	// Test processing directory (should find telegram_export.json)
-	processor := NewTelegramProcessor()
-	records, err := processor.ProcessFile(ctx, tempDir, store)
+	processor := NewTelegramProcessor(store)
+	records, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
@@ -304,8 +319,8 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	// Test processing directory with no JSON files (should return error)
-	processor := NewTelegramProcessor()
-	records, err := processor.ProcessFile(ctx, tempDir, store)
+	processor := NewTelegramProcessor(store)
+	records, err := processor.ProcessFile(ctx, tempDir)
 
 	// Verify error is returned
 	if err == nil {

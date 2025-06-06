@@ -18,5 +18,11 @@ The Go backend starts an **embedded Weaviate server** at runtime (see `bootstrap
 
 • It serves on the port defined by the `WEAVIATE_PORT` environment variable (defaults to `51414`).
 
+### Integration tests memory 
 
-### Test memory 
+Command exmaple 
+```
+TEST_SOURCE=misc TEST_INPUT_PATH=testdata/misc make test-integration
+```
+
+note: add your data in backend/golang/pkg/dataprocessing/integration/testdata
