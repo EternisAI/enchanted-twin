@@ -81,15 +81,17 @@ jobs:
 
           # Check if required API keys are available
           if [ -z "$COMPLETIONS_API_KEY" ] || [ -z "$EMBEDDINGS_API_KEY" ]; then
-            echo "⏭️ Skipping integration tests - API keys not available"
-            exit 0
+            echo "❌ Integration tests failed - API keys not available"
+            echo "Please set COMPLETIONS_API_KEY and EMBEDDINGS_API_KEY in GitHub secrets"
+            exit 1
           fi
 
-          # Check if sample data exists
-          if [ ! -f "cmd/memory-test/sample-data/chatgpt.zip" ]; then
-            echo "⏭️ Skipping integration tests - sample data not available"
-            exit 0
+          # Check if integration test data exists (using misc directory which is the default)
+          if [ ! -d "pkg/dataprocessing/integration/testdata/misc" ]; then
+            echo "❌ Integration tests failed - test data not available"
+            echo "Expected testdata/misc directory not found"
+            exit 1
           fi
 
           echo "🧪 Running integration tests..."
-          go run cmd/memory-test/main.go
+          make test-integration
