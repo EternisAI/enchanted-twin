@@ -241,8 +241,16 @@ func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Reco
 			case []interface{}:
 				for _, msgInterface := range v {
 					if msgMap, ok := msgInterface.(map[string]interface{}); ok {
-						role, _ := msgMap["Role"].(string)
-						text, _ := msgMap["Text"].(string)
+						role, ok := msgMap["Role"].(string)
+						if !ok {
+							log.Printf("Warning: Role is not a string for message: %v", msgMap)
+							continue
+						}
+						text, ok := msgMap["Text"].(string)
+						if !ok {
+							log.Printf("Warning: Text is not a string for message: %v", msgMap)
+							continue
+						}
 						if role != "" && text != "" {
 							messages = append(messages, ConversationMessage{
 								Role: role,
