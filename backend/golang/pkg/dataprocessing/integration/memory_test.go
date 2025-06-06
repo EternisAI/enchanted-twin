@@ -426,7 +426,7 @@ func TestMemoryIntegration(t *testing.T) {
 			Limit:  &limit,
 		}
 
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What are recent expenses?"), &filter)
+		result, err := env.memory.Query(env.ctx, "What are recent expenses?", &filter)
 		require.NoError(t, err)
 		assert.NotEmpty(t, result.Documents, "should find memories with more precise query")
 
