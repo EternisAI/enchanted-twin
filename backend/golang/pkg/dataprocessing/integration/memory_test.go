@@ -13,6 +13,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -63,6 +65,28 @@ type testEnvironment struct {
 	cancel         context.CancelFunc
 }
 
+// deterministicAIService wraps ai.Service to use temperature 0.0 for deterministic testing.
+type deterministicAIService struct {
+	*ai.Service
+}
+
+// Completions overrides the default method to use temperature 0.0 for deterministic results.
+func (d *deterministicAIService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+	return d.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
+		Messages:    messages,
+		Model:       model,
+		Tools:       tools,
+		Temperature: param.Opt[float64]{Value: 0.0}, // Deterministic temperature
+	})
+}
+
+// newDeterministicAIService creates a test AI service that uses temperature 0.0.
+func newDeterministicAIService(logger *log.Logger, apiKey, baseURL string) *deterministicAIService {
+	return &deterministicAIService{
+		Service: ai.NewOpenAIService(logger, apiKey, baseURL),
+	}
+}
+
 func setupSharedInfrastructure() {
 	setupOnce.Do(func() {
 		var err error
@@ -107,7 +131,7 @@ func setupSharedInfrastructure() {
 
 		// Initialize schema once
 		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), "https://api.openai.com/v1")
-		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
+		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, "text-embedding-3-small")
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}
@@ -190,18 +214,20 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 		completionsModel = "gpt-4o-mini"
 	}
 
-	openAiService := ai.NewOpenAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
+	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService, completionsModel, store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store)
 
 	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
 		Storage:            storageInterface,
-		CompletionsService: openAiService,
+		CompletionsService: openAiService.Service,
 		EmbeddingsService:  aiEmbeddingsService,
+		CompletionsModel:   config.CompletionsModel,
+		EmbeddingsModel:    config.EmbeddingsModel,
 	})
 	require.NoError(t, err)
 
@@ -346,10 +372,10 @@ func getTestConfig(t *testing.T) testConfig {
 	embeddingsApiKey := getEnvOrDefault("TEST_EMBEDDINGS_API_KEY", os.Getenv("EMBEDDINGS_API_KEY"))
 
 	if completionsApiKey == "" {
-		t.Fatal("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
+		t.Skip("Skipping integration test: No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
 	}
 	if embeddingsApiKey == "" {
-		t.Fatal("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
+		t.Skip("Skipping integration test: No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
 	return testConfig{
@@ -724,6 +750,47 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	result, err = env.memory.Query(env.ctx, "anything", &invalidFilter)
 	require.NoError(t, err)
 	assert.Empty(t, result.Documents, "should not find memories for invalid source")
+
+	// Test 4: More precise querying
+	t.Run("More precise querying", func(t *testing.T) {
+		if len(env.documents) == 0 {
+			env.loadDocuments(t)
+			env.storeDocuments(t)
+		}
+
+		limit := 50
+		filter := memory.Filter{
+			Source: &env.config.Source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, "What are recent expenses?", &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories with more precise query")
+
+		keywords := []string{"purchase", "paid", "invoice", "$", "spent"}
+		keywordsFound := make(map[string]bool)
+
+		for _, doc := range result.Documents {
+			env.logger.Info("Fact expenses", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+
+			for _, keyword := range keywords {
+				if strings.Contains(strings.ToLower(doc.Content()), keyword) {
+					keywordsFound[keyword] = true
+				}
+			}
+		}
+		keywordsFoundCount := 0
+		for _, keyword := range keywords {
+			if keywordsFound[keyword] {
+				keywordsFoundCount++
+			}
+			if !keywordsFound[keyword] {
+				env.logger.Info("Keyword not found", "keyword", keyword)
+			}
+		}
+		assert.True(t, keywordsFoundCount > 2, "should find expenses facts but didn't find relevant keywords")
+	})
 }
 
 func TestMain(m *testing.M) {

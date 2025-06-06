@@ -164,7 +164,7 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	}
 }
 
-func InitSchema(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service) error {
+func InitSchema(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) error {
 	logger.Debug("Starting schema initialization")
 	start := time.Now()
 
