@@ -61,10 +61,12 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		CREATE TABLE IF NOT EXISTS chats (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
-			voice BOOLEAN NOT NULL DEFAULT FALSE,
+			category TEXT NOT NULL DEFAULT 'TEXT',
+			holon_thread_id TEXT,
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_chats_id ON chats(id);
+		CREATE INDEX IF NOT EXISTS idx_chats_category ON chats(category);
 
 		CREATE TABLE IF NOT EXISTS messages (
 			id TEXT PRIMARY KEY,

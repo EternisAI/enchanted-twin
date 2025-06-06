@@ -29,7 +29,7 @@ import (
 type Storage interface {
 	GetChat(ctx context.Context, id string) (model.Chat, error)
 	GetChats(ctx context.Context) ([]*model.Chat, error)
-	CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error)
+	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error)
 	DeleteChat(ctx context.Context, chatID string) error
 	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
 	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
@@ -119,6 +119,12 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 		}
 	}
 
+	chat, err := s.storage.GetChat(ctx, chatID)
+	if err != nil {
+		return "", err
+	}
+	holonThreadId := chat.HolonThreadID
+
 	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
 		UserName:      userProfile.Name,
 		Bio:           userProfile.Bio,
@@ -126,6 +132,7 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 		ChatID:        &chatID,
 		CurrentTime:   time.Now().Format(time.RFC3339),
 		IsVoice:       isVoice,
+		HolonThreadID: holonThreadId,
 	})
 	if err != nil {
 		return "", err
@@ -144,7 +151,12 @@ func (s *Service) SendMessage(
 
 	messages := make([]*model.Message, 0)
 	if chatID == "" {
-		chat, err := s.storage.CreateChat(ctx, "New chat", isVoice)
+		// Determine category based on isVoice parameter
+		category := model.ChatCategoryText
+		if isVoice {
+			category = model.ChatCategoryVoice
+		}
+		chat, err := s.storage.CreateChat(ctx, "New chat", category, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -448,8 +460,8 @@ func (s *Service) GetChat(ctx context.Context, chatID string) (model.Chat, error
 	return s.storage.GetChat(ctx, chatID)
 }
 
-func (s *Service) CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error) {
-	return s.storage.CreateChat(ctx, name, voice)
+func (s *Service) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error) {
+	return s.storage.CreateChat(ctx, name, category, holonThreadID)
 }
 
 func (s *Service) GetMessagesByChatId(
@@ -614,7 +626,7 @@ func (s *Service) SendAssistantMessage(
 	now := time.Now()
 
 	if chatID == "" {
-		chat, err := s.storage.CreateChat(ctx, "New chat", false)
+		chat, err := s.storage.CreateChat(ctx, "New chat", model.ChatCategoryText, nil)
 		if err != nil {
 			return nil, err
 		}

@@ -65,28 +65,32 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query threads: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	var threads []*model.Thread
 	for rows.Next() {
-		var dbThread dbThread
-		var author dbAuthor
+		var thread dbThread
+		var threadAuthor dbAuthor
 
 		err := rows.Scan(
-			&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
-			&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
-			&dbThread.Views, &author.Identity, &author.Alias,
+			&thread.ID, &thread.Title, &thread.Content, &thread.AuthorIdentity,
+			&thread.CreatedAt, &thread.ExpiresAt, &thread.ImageURLs, &thread.Actions,
+			&thread.Views, &threadAuthor.Identity, &threadAuthor.Alias,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan thread row: %w", err)
 		}
 
-		thread, err := r.dbThreadToModel(ctx, &dbThread, &author)
+		threadModel, err := r.dbThreadToModel(ctx, &thread, &threadAuthor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert thread to model: %w", err)
 		}
 
-		threads = append(threads, thread)
+		threads = append(threads, threadModel)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -106,13 +110,13 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 		WHERE t.id = ?
 	`
 
-	var dbThread dbThread
-	var author dbAuthor
+	var thread dbThread
+	var threadAuthor dbAuthor
 
 	err := r.db.QueryRowContext(ctx, query, threadID).Scan(
-		&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
-		&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
-		&dbThread.Views, &author.Identity, &author.Alias,
+		&thread.ID, &thread.Title, &thread.Content, &thread.AuthorIdentity,
+		&thread.CreatedAt, &thread.ExpiresAt, &thread.ImageURLs, &thread.Actions,
+		&thread.Views, &threadAuthor.Identity, &threadAuthor.Alias,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -121,12 +125,12 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
 
-	thread, err := r.dbThreadToModel(ctx, &dbThread, &author)
+	threadModel, err := r.dbThreadToModel(ctx, &thread, &threadAuthor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert thread to model: %w", err)
 	}
 
-	return thread, nil
+	return threadModel, nil
 }
 
 func (r *Repository) CreateThread(ctx context.Context, id, title, content string, authorIdentity string, imageURLs []string, actions []string, expiresAt *string) (*model.Thread, error) {
@@ -193,23 +197,28 @@ func (r *Repository) GetThreadMessages(ctx context.Context, threadID string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("failed to query thread messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			// Ignore error on close during defer
+			_ = cerr
+		}
+	}()
 
 	var messages []*model.ThreadMessage
 	for rows.Next() {
 		var dbMessage dbThreadMessage
-		var author dbAuthor
+		var messageAuthor dbAuthor
 
 		err := rows.Scan(
 			&dbMessage.ID, &dbMessage.ThreadID, &dbMessage.AuthorIdentity, &dbMessage.Content,
 			&dbMessage.CreatedAt, &dbMessage.IsDelivered, &dbMessage.Actions,
-			&author.Identity, &author.Alias,
+			&messageAuthor.Identity, &messageAuthor.Alias,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan thread message row: %w", err)
 		}
 
-		message, err := r.dbThreadMessageToModel(&dbMessage, &author)
+		message, err := r.dbThreadMessageToModel(&dbMessage, &messageAuthor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert thread message to model: %w", err)
 		}
@@ -330,17 +339,17 @@ func (r *Repository) CreateOrUpdateAuthor(ctx context.Context, identity, alias s
 	}
 
 	// Return the created/updated author
-	var dbAuthor dbAuthor
+	var authorRecord dbAuthor
 	err = r.db.QueryRowContext(ctx, "SELECT identity, alias FROM authors WHERE identity = ?", identity).Scan(
-		&dbAuthor.Identity, &dbAuthor.Alias,
+		&authorRecord.Identity, &authorRecord.Alias,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get created/updated author: %w", err)
 	}
 
 	return &model.Author{
-		Identity: dbAuthor.Identity,
-		Alias:    dbAuthor.Alias,
+		Identity: authorRecord.Identity,
+		Alias:    authorRecord.Alias,
 	}, nil
 }
 
@@ -353,7 +362,7 @@ func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkIdentifie
 		}
 		return false, fmt.Errorf("failed to find holon network: %w", err)
 	}
-	
+
 	var exists bool
 	err = r.db.QueryRowContext(ctx, `
 		SELECT EXISTS(SELECT 1 FROM holon_participants WHERE holon_id = ? AND author_identity = ?)
@@ -361,7 +370,7 @@ func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkIdentifie
 	if err != nil {
 		return false, fmt.Errorf("failed to check user holon membership: %w", err)
 	}
-	
+
 	return exists, nil
 }
 
@@ -374,7 +383,7 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 		}
 		return fmt.Errorf("failed to find holon network: %w", err)
 	}
-	
+
 	result, err := r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO holon_participants (holon_id, author_identity) 
 		VALUES (?, ?)
@@ -383,14 +392,14 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 		fmt.Printf("DEBUG: Error inserting into holon_participants: %v\n", err)
 		return fmt.Errorf("failed to add user to holon: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		fmt.Printf("DEBUG: Error getting rows affected: %v\n", err)
 	} else {
 		fmt.Printf("DEBUG: Rows affected by INSERT: %d\n", rowsAffected)
 	}
-	
+
 	return nil
 }
 
