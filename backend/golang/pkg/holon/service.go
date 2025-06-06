@@ -68,7 +68,7 @@ func (s *Service) JoinHolonNetwork(ctx context.Context, userID string, networkNa
 func (s *Service) SendToHolon(ctx context.Context, threadPreviewID, title, content, authorIdentity string, imageURLs []string, actions []string) (*model.Thread, error) {
 	threadID := "published-" + threadPreviewID
 
-	publishedThread, err := s.repo.CreateThread(ctx, threadID, title, content, authorIdentity, imageURLs, actions, nil)
+	publishedThread, err := s.repo.CreateThread(ctx, threadID, title, content, authorIdentity, imageURLs, actions, nil, "pending")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create thread: %w", err)
 	}

@@ -33,6 +33,7 @@ type dbThread struct {
 	ImageURLs      string  `db:"image_urls"`
 	Actions        string  `db:"actions"`
 	Views          int32   `db:"views"`
+	State          string  `db:"state"`
 }
 
 type dbThreadMessage struct {
@@ -53,7 +54,7 @@ type dbAuthor struct {
 func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
-		       t.image_urls, t.actions, t.views,
+		       t.image_urls, t.actions, t.views, t.state,
 		       a.identity, a.alias
 		FROM threads t
 		JOIN authors a ON t.author_identity = a.identity
@@ -75,7 +76,7 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 		err := rows.Scan(
 			&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
 			&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
-			&dbThread.Views, &author.Identity, &author.Alias,
+			&dbThread.Views, &dbThread.State, &author.Identity, &author.Alias,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan thread row: %w", err)
@@ -99,7 +100,7 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
-		       t.image_urls, t.actions, t.views,
+		       t.image_urls, t.actions, t.views, t.state,
 		       a.identity, a.alias
 		FROM threads t
 		JOIN authors a ON t.author_identity = a.identity
@@ -112,7 +113,7 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 	err := r.db.QueryRowContext(ctx, query, threadID).Scan(
 		&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
 		&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
-		&dbThread.Views, &author.Identity, &author.Alias,
+		&dbThread.Views, &dbThread.State, &author.Identity, &author.Alias,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -129,7 +130,7 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 	return thread, nil
 }
 
-func (r *Repository) CreateThread(ctx context.Context, id, title, content string, authorIdentity string, imageURLs []string, actions []string, expiresAt *string) (*model.Thread, error) {
+func (r *Repository) CreateThread(ctx context.Context, id, title, content string, authorIdentity string, imageURLs []string, actions []string, expiresAt *string, state string) (*model.Thread, error) {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -162,9 +163,9 @@ func (r *Repository) CreateThread(ctx context.Context, id, title, content string
 	now := time.Now().Format(time.RFC3339)
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO threads (id, title, content, author_identity, created_at, expires_at, image_urls, actions, views)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
-	`, id, title, content, authorIdentity, now, expiresAt, string(imageURLsJSON), string(actionsJSON))
+		INSERT INTO threads (id, title, content, author_identity, created_at, expires_at, image_urls, actions, views, state)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+	`, id, title, content, authorIdentity, now, expiresAt, string(imageURLsJSON), string(actionsJSON), state)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert thread: %w", err)
 	}
@@ -353,7 +354,7 @@ func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkIdentifie
 		}
 		return false, fmt.Errorf("failed to find holon network: %w", err)
 	}
-	
+
 	var exists bool
 	err = r.db.QueryRowContext(ctx, `
 		SELECT EXISTS(SELECT 1 FROM holon_participants WHERE holon_id = ? AND author_identity = ?)
@@ -361,7 +362,7 @@ func (r *Repository) IsUserInHolon(ctx context.Context, userID, networkIdentifie
 	if err != nil {
 		return false, fmt.Errorf("failed to check user holon membership: %w", err)
 	}
-	
+
 	return exists, nil
 }
 
@@ -374,7 +375,7 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 		}
 		return fmt.Errorf("failed to find holon network: %w", err)
 	}
-	
+
 	result, err := r.db.ExecContext(ctx, `
 		INSERT OR IGNORE INTO holon_participants (holon_id, author_identity) 
 		VALUES (?, ?)
@@ -383,14 +384,14 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 		fmt.Printf("DEBUG: Error inserting into holon_participants: %v\n", err)
 		return fmt.Errorf("failed to add user to holon: %w", err)
 	}
-	
+
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
 		fmt.Printf("DEBUG: Error getting rows affected: %v\n", err)
 	} else {
 		fmt.Printf("DEBUG: Rows affected by INSERT: %d\n", rowsAffected)
 	}
-	
+
 	return nil
 }
 
@@ -404,6 +405,64 @@ func (r *Repository) GetThreadCount(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("failed to get thread count: %w", err)
 	}
 	return count, nil
+}
+
+// GetPendingThreads returns all threads with state 'pending'
+func (r *Repository) GetPendingThreads(ctx context.Context) ([]*model.Thread, error) {
+	query := `
+		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
+		       t.image_urls, t.actions, t.views, t.state,
+		       a.identity, a.alias
+		FROM threads t
+		JOIN authors a ON t.author_identity = a.identity
+		WHERE t.state = 'pending'
+		ORDER BY t.created_at ASC
+	`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pending threads: %w", err)
+	}
+	defer rows.Close()
+
+	var threads []*model.Thread
+	for rows.Next() {
+		var dbThread dbThread
+		var author dbAuthor
+
+		err := rows.Scan(
+			&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
+			&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
+			&dbThread.Views, &dbThread.State, &author.Identity, &author.Alias,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan pending thread row: %w", err)
+		}
+
+		thread, err := r.dbThreadToModel(ctx, &dbThread, &author)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert pending thread to model: %w", err)
+		}
+
+		threads = append(threads, thread)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating pending threads: %w", err)
+	}
+
+	return threads, nil
+}
+
+// UpdateThreadState updates the state of a thread
+func (r *Repository) UpdateThreadState(ctx context.Context, threadID, state string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE threads SET state = ? WHERE id = ?
+	`, state, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to update thread state: %w", err)
+	}
+	return nil
 }
 
 func (r *Repository) dbThreadToModel(ctx context.Context, dbThread *dbThread, author *dbAuthor) (*model.Thread, error) {
