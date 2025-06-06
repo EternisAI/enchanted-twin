@@ -30,11 +30,6 @@ go test -v ./pkg/dataprocessing/integration/... -run TestStructuredFactFiltering
 go test -v ./pkg/dataprocessing/integration/... -run TestMemoryIntegration/BasicQuerying
 ```
 
-### Legacy integration test (using cmd/memory-test)
-```bash
-make test-memory
-```
-
 ## Environment Variables
 
 The integration tests use the same environment variable loading mechanism as the main application (via `.env` file and `config.LoadConfig()`):
@@ -53,7 +48,7 @@ The integration tests use the same environment variable loading mechanism as the
 - `TEST_EMBEDDINGS_MODEL` - Model to use for embeddings (defaults to "text-embedding-3-small")
 - `TEST_EMBEDDINGS_API_URL` - URL for embeddings service (defaults to "https://api.openai.com/v1")
 
-The tests will automatically use your existing `.env` file (the same one used by `make run` or `make test-memory`). If you want to override any settings specifically for tests, use the `TEST_*` prefixed variables.
+The tests will automatically use your existing `.env` file (the same one used by `make run`). If you want to override any settings specifically for tests, use the `TEST_*` prefixed variables.
 
 ## Test Structure
 
@@ -130,7 +125,7 @@ The `testdata/` directory contains sample data for different sources:
 
 ## Default Values
 
-The tests use the same defaults as `cmd/memory-test/main.go`:
+The tests use the following defaults:
 
 - **Source**: "chatgpt"
 - **Input Path**: "testdata/chatgpt.zip"
