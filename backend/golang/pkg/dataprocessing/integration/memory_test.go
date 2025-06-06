@@ -324,10 +324,10 @@ func getTestConfig(t *testing.T) testConfig {
 	embeddingsApiKey := getEnvOrDefault("TEST_EMBEDDINGS_API_KEY", os.Getenv("EMBEDDINGS_API_KEY"))
 
 	if completionsApiKey == "" {
-		t.Error("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
+		t.Fatal("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
 	}
 	if embeddingsApiKey == "" {
-		t.Error("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
+		t.Fatal("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
 	return testConfig{
@@ -389,6 +389,34 @@ func TestMemoryIntegration(t *testing.T) {
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
 		require.NoError(t, err)
 		assert.NotEmpty(t, result.Documents, "should find memories with valid source")
+
+		for _, doc := range result.Documents {
+			env.logger.Info("Document", "id", doc.ID(), "content", doc.Content())
+		}
+	})
+
+	t.Run("Important facts", func(t *testing.T) {
+		if len(env.documents) == 0 {
+			env.loadDocuments(t)
+			env.storeDocuments(t)
+		}
+
+		// Memory processing is now complete since storeDocuments() waits for completion
+
+		limit := 100
+		filter := memory.Filter{
+			FactImportanceMin: intPtr(3),
+			Source:            &env.config.Source,
+			Limit:             &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What are the most important facts about me?"), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find important facts about the user")
+
+		for _, doc := range result.Documents {
+			env.logger.Info("Document", "id", doc.ID(), "content", doc.Content())
+		}
 	})
 
 	t.Run("DocumentReferences", func(t *testing.T) {
