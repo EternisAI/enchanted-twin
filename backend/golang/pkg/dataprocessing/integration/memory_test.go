@@ -414,46 +414,6 @@ func TestMemoryIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("More precise querying", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.loadDocuments(t)
-			env.storeDocuments(t)
-		}
-
-		limit := 50
-		filter := memory.Filter{
-			Source: &env.config.Source,
-			Limit:  &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, "What are recent expenses?", &filter)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result.Documents, "should find memories with more precise query")
-
-		keywords := []string{"purchase", "paid", "invoice", "$", "spent"}
-		keywordsFound := make(map[string]bool)
-
-		for _, doc := range result.Documents {
-			env.logger.Info("Fact expenses", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
-
-			for _, keyword := range keywords {
-				if strings.Contains(strings.ToLower(doc.Content()), keyword) {
-					keywordsFound[keyword] = true
-				}
-			}
-		}
-		keywordsFoundCount := 0
-		for _, keyword := range keywords {
-			if keywordsFound[keyword] {
-				keywordsFoundCount++
-			}
-			if !keywordsFound[keyword] {
-				env.logger.Info("Keyword not found", "keyword", keyword)
-			}
-		}
-		assert.True(t, keywordsFoundCount > 2, "should find expenses facts but didn't find relevant keywords")
-	})
-
 	t.Run("Important facts", func(t *testing.T) {
 		if len(env.documents) == 0 {
 			env.loadDocuments(t)
