@@ -25,7 +25,7 @@ func HolonSyncWorkflow(
 	input HolonSyncWorkflowInput,
 ) (HolonSyncWorkflowOutput, error) {
 	logger := workflow.GetLogger(ctx)
-	logger.Info("Starting holon sync workflow", "force_sync", input.ForceSync)
+	logger.Debug("Starting holon sync workflow", "force_sync", input.ForceSync)
 
 	// Configure activity options with appropriate timeouts and retry policy
 	activityOptions := workflow.ActivityOptions{
@@ -54,7 +54,7 @@ func HolonSyncWorkflow(
 		}, err
 	}
 
-	logger.Info("Holon sync workflow completed successfully",
+	logger.Debug("Holon sync workflow completed successfully",
 		"participants", result.ParticipantCount,
 		"threads", result.ThreadCount,
 		"replies", result.ReplyCount)

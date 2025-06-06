@@ -110,7 +110,7 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 
 // Start initializes and starts all holon services
 func (m *Manager) Start() error {
-	m.logger.Info("Starting Holon Manager...")
+	m.logger.Debug("Starting Holon Manager...")
 
 	// Setup Temporal schedule if enabled
 	if m.scheduleEnabled {
@@ -119,7 +119,7 @@ func (m *Manager) Start() error {
 			// Don't fail completely, fall back to ticker-based sync
 			m.scheduleEnabled = false
 		} else {
-			m.logger.Info("Holon Temporal schedule configured successfully")
+			m.logger.Debug("Holon Temporal schedule configured successfully")
 		}
 	}
 
@@ -132,17 +132,17 @@ func (m *Manager) Start() error {
 				m.logger.Error("Fetcher service error", "error", err)
 			}
 		}()
-		m.logger.Info("HolonZero API fetcher service started (ticker-based)")
+		m.logger.Debug("HolonZero API fetcher service started (ticker-based)")
 	} else if m.scheduleEnabled {
-		m.logger.Info("HolonZero API sync using Temporal schedule")
+		m.logger.Debug("HolonZero API sync using Temporal schedule")
 	} else {
-		m.logger.Info("HolonZero API fetcher service disabled or not configured")
+		m.logger.Debug("HolonZero API fetcher service disabled or not configured")
 	}
 
 	// Set up graceful shutdown
 	go m.handleShutdown()
 
-	m.logger.Info("Holon Manager started successfully")
+	m.logger.Debug("Holon Manager started successfully")
 	return nil
 }
 
@@ -181,7 +181,7 @@ func (m *Manager) TriggerSyncWorkflow(forceSync bool) error {
 		return fmt.Errorf("failed to start holon sync workflow: %w", err)
 	}
 
-	m.logger.Info("Manual holon sync workflow triggered", "workflowID", execution.GetID())
+	m.logger.Debug("Manual holon sync workflow triggered", "workflowID", execution.GetID())
 	return nil
 }
 
@@ -191,7 +191,7 @@ func (m *Manager) PauseSyncSchedule() error {
 		return fmt.Errorf("temporal client or schedule ID not configured")
 	}
 
-	m.logger.Info("Pausing holon sync schedule", "scheduleID", m.config.ScheduleID)
+	m.logger.Debug("Pausing holon sync schedule", "scheduleID", m.config.ScheduleID)
 
 	handle := m.temporalClient.ScheduleClient().GetHandle(context.Background(), m.config.ScheduleID)
 	err := handle.Pause(context.Background(), temporal.SchedulePauseOptions{})
@@ -208,7 +208,7 @@ func (m *Manager) ResumeSyncSchedule() error {
 		return fmt.Errorf("temporal client or schedule ID not configured")
 	}
 
-	m.logger.Info("Resuming holon sync schedule", "scheduleID", m.config.ScheduleID)
+	m.logger.Debug("Resuming holon sync schedule", "scheduleID", m.config.ScheduleID)
 
 	handle := m.temporalClient.ScheduleClient().GetHandle(context.Background(), m.config.ScheduleID)
 	err := handle.Unpause(context.Background(), temporal.ScheduleUnpauseOptions{})
@@ -286,7 +286,7 @@ func (m *Manager) GetSyncStatus() (*ManagerSyncStatus, error) {
 
 // Stop gracefully shuts down the holon manager
 func (m *Manager) Stop() error {
-	m.logger.Info("Stopping Holon Manager...")
+	m.logger.Debug("Stopping Holon Manager...")
 
 	// Cancel context to stop all services
 	m.cancel()
@@ -300,7 +300,7 @@ func (m *Manager) Stop() error {
 
 	select {
 	case <-done:
-		m.logger.Info("All holon services stopped gracefully")
+		m.logger.Debug("All holon services stopped gracefully")
 	case <-time.After(30 * time.Second):
 		m.logger.Warn("Timeout waiting for holon services to stop")
 	}
@@ -315,7 +315,7 @@ func (m *Manager) handleShutdown() {
 
 	select {
 	case sig := <-sigChan:
-		m.logger.Info("Received shutdown signal", "signal", sig)
+		m.logger.Debug("Received shutdown signal", "signal", sig)
 		m.Stop()
 	case <-m.ctx.Done():
 		// Context was cancelled
@@ -488,7 +488,7 @@ func (m *Manager) StartTemporalWorker(ctx context.Context, temporalClient client
 		return fmt.Errorf("temporal client cannot be nil")
 	}
 
-	m.logger.Info("Starting temporal worker for holon activities", "taskQueue", taskQueue)
+	m.logger.Debug("Starting temporal worker for holon activities", "taskQueue", taskQueue)
 
 	// Create activities handler
 	activities := NewHolonSyncActivities(m.logger, m)
@@ -508,7 +508,7 @@ func (m *Manager) StartTemporalWorker(ctx context.Context, temporalClient client
 		return fmt.Errorf("failed to start temporal worker: %w", err)
 	}
 
-	m.logger.Info("Temporal worker started successfully")
+	m.logger.Debug("Temporal worker started successfully")
 
 	// Store worker reference for shutdown
 	m.temporalWorker = temporalWorker
@@ -525,7 +525,7 @@ func (m *Manager) StartScheduledSync(ctx context.Context, temporalClient client.
 		return fmt.Errorf("sync interval must be at least 1 minute")
 	}
 
-	m.logger.Info("Setting up scheduled holon sync", "interval", interval)
+	m.logger.Debug("Setting up scheduled holon sync", "interval", interval)
 
 	// Use the helper function to create the schedule
 	scheduleID := "holon-sync-schedule"
@@ -543,7 +543,7 @@ func (m *Manager) StartScheduledSync(ctx context.Context, temporalClient client.
 		return fmt.Errorf("failed to create holon sync schedule: %w", err)
 	}
 
-	m.logger.Info("Holon sync schedule created successfully", "scheduleID", scheduleID)
+	m.logger.Debug("Holon sync schedule created successfully", "scheduleID", scheduleID)
 
 	return nil
 }
@@ -554,7 +554,7 @@ func (m *Manager) TriggerSync(ctx context.Context, temporalClient client.Client)
 		return fmt.Errorf("temporal client cannot be nil")
 	}
 
-	m.logger.Info("Triggering manual holon sync")
+	m.logger.Debug("Triggering manual holon sync")
 
 	// Start the workflow
 	workflowOptions := client.StartWorkflowOptions{
@@ -569,14 +569,14 @@ func (m *Manager) TriggerSync(ctx context.Context, temporalClient client.Client)
 		return fmt.Errorf("failed to start manual sync workflow: %w", err)
 	}
 
-	m.logger.Info("Manual sync workflow started", "workflowID", workflowRun.GetID())
+	m.logger.Debug("Manual sync workflow started", "workflowID", workflowRun.GetID())
 	return nil
 }
 
 // StopTemporalWorker stops the Temporal worker if it's running
 func (m *Manager) StopTemporalWorker(ctx context.Context) {
 	if m.temporalWorker != nil {
-		m.logger.Info("Stopping temporal worker")
+		m.logger.Debug("Stopping temporal worker")
 		m.temporalWorker.Stop()
 		m.temporalWorker = nil
 	}
@@ -585,7 +585,7 @@ func (m *Manager) StopTemporalWorker(ctx context.Context) {
 // CancelScheduledSync cancels the scheduled sync if it exists
 func (m *Manager) CancelScheduledSync(ctx context.Context) error {
 	if m.syncScheduleHandle != nil {
-		m.logger.Info("Canceling scheduled sync")
+		m.logger.Debug("Canceling scheduled sync")
 		err := m.syncScheduleHandle.Delete(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to cancel scheduled sync: %w", err)
