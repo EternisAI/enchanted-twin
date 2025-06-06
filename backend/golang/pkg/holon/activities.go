@@ -37,7 +37,7 @@ func (a *HolonSyncActivities) RegisterWorkflowsAndActivities(worker worker.Worke
 
 // SyncParticipants is an activity that syncs participants from the holon API
 func (a *HolonSyncActivities) SyncParticipants(ctx context.Context) error {
-	a.logger.Info("Starting holon participants sync activity")
+	a.logger.Debug("Starting holon participants sync activity")
 
 	if a.manager.fetcherService == nil {
 		return fmt.Errorf("fetcher service is not available")
@@ -49,13 +49,13 @@ func (a *HolonSyncActivities) SyncParticipants(ctx context.Context) error {
 		return err
 	}
 
-	a.logger.Info("Holon participants sync completed successfully")
+	a.logger.Debug("Holon participants sync completed successfully")
 	return nil
 }
 
 // SyncThreads is an activity that syncs threads from the holon API
 func (a *HolonSyncActivities) SyncThreads(ctx context.Context) error {
-	a.logger.Info("Starting holon threads sync activity")
+	a.logger.Debug("Starting holon threads sync activity")
 
 	if a.manager.fetcherService == nil {
 		return fmt.Errorf("fetcher service is not available")
@@ -67,13 +67,13 @@ func (a *HolonSyncActivities) SyncThreads(ctx context.Context) error {
 		return err
 	}
 
-	a.logger.Info("Holon threads sync completed successfully")
+	a.logger.Debug("Holon threads sync completed successfully")
 	return nil
 }
 
 // SyncReplies is an activity that syncs replies from the holon API
 func (a *HolonSyncActivities) SyncReplies(ctx context.Context) error {
-	a.logger.Info("Starting holon replies sync activity")
+	a.logger.Debug("Starting holon replies sync activity")
 
 	if a.manager.fetcherService == nil {
 		return fmt.Errorf("fetcher service is not available")
@@ -85,6 +85,6 @@ func (a *HolonSyncActivities) SyncReplies(ctx context.Context) error {
 		return err
 	}
 
-	a.logger.Info("Holon replies sync completed successfully")
+	a.logger.Debug("Holon replies sync completed successfully")
 	return nil
 }

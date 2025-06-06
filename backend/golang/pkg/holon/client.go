@@ -65,7 +65,7 @@ func WithLogger(logger *clog.Logger) ClientOption {
 func (c *APIClient) doRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	// Log the request path if logger is available
 	if c.logger != nil {
-		c.logger.Info("HolonZero API request", "method", method, "path", path, "url", c.baseURL+path)
+		c.logger.Debug("HolonZero API request", "method", method, "path", path, "url", c.baseURL+path)
 	}
 
 	var reqBody io.Reader
@@ -95,7 +95,7 @@ func (c *APIClient) doRequest(ctx context.Context, method, path string, body int
 
 	// Log successful response
 	if c.logger != nil {
-		c.logger.Info("HolonZero API response", "method", method, "path", path, "status", resp.StatusCode)
+		c.logger.Debug("HolonZero API response", "method", method, "path", path, "status", resp.StatusCode)
 	}
 
 	return resp, nil

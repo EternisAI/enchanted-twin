@@ -77,7 +77,7 @@ func (f *FetcherService) Start(ctx context.Context) error {
 	}
 
 	f.running = true
-	f.logInfo("Starting HolonZero API fetcher service")
+	f.logDebug("Starting HolonZero API fetcher service")
 
 	// Perform initial fetch
 	if err := f.performSync(ctx); err != nil {
@@ -91,11 +91,11 @@ func (f *FetcherService) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			f.logInfo("Context cancelled, stopping fetcher service")
+			f.logDebug("Context cancelled, stopping fetcher service")
 			f.running = false
 			return ctx.Err()
 		case <-f.stopChan:
-			f.logInfo("Stop signal received, stopping fetcher service")
+			f.logDebug("Stop signal received, stopping fetcher service")
 			f.running = false
 			return nil
 		case <-ticker.C:
@@ -109,7 +109,7 @@ func (f *FetcherService) Start(ctx context.Context) error {
 // Stop gracefully stops the fetching process
 func (f *FetcherService) Stop() {
 	if f.running {
-		f.logInfo("Stopping HolonZero API fetcher service")
+		f.logDebug("Stopping HolonZero API fetcher service")
 		close(f.stopChan)
 	}
 }
@@ -129,13 +129,13 @@ func (f *FetcherService) performSync(ctx context.Context) error {
 			f.logError(fmt.Sprintf("Sync attempt %d failed", attempt), err)
 
 			if attempt < f.config.MaxRetries {
-				f.logInfo(fmt.Sprintf("Retrying in %v...", f.config.RetryDelay))
+				f.logDebug(fmt.Sprintf("Retrying in %v...", f.config.RetryDelay))
 				time.Sleep(f.config.RetryDelay)
 				continue
 			}
 		} else {
 			if attempt > 1 {
-				f.logInfo(fmt.Sprintf("Sync succeeded on attempt %d", attempt))
+				f.logDebug(fmt.Sprintf("Sync succeeded on attempt %d", attempt))
 			}
 			return nil
 		}
@@ -146,7 +146,7 @@ func (f *FetcherService) performSync(ctx context.Context) error {
 
 // syncData performs the actual data synchronization
 func (f *FetcherService) syncData(ctx context.Context) error {
-	f.logInfo("Starting data synchronization from HolonZero API")
+	f.logDebug("Starting data synchronization from HolonZero API")
 
 	// First check API health
 	if err := f.checkAPIHealth(ctx); err != nil {
@@ -168,7 +168,7 @@ func (f *FetcherService) syncData(ctx context.Context) error {
 		return fmt.Errorf("failed to sync replies: %w", err)
 	}
 
-	f.logInfo("Data synchronization completed successfully")
+	f.logDebug("Data synchronization completed successfully")
 	return nil
 }
 
@@ -183,7 +183,7 @@ func (f *FetcherService) checkAPIHealth(ctx context.Context) error {
 		return fmt.Errorf("API is not healthy: %s", health.Status)
 	}
 
-	f.logInfo("API health check passed")
+	f.logDebug("API health check passed")
 	return nil
 }
 
@@ -194,7 +194,7 @@ func (f *FetcherService) syncParticipants(ctx context.Context) error {
 		return fmt.Errorf("failed to fetch participants: %w", err)
 	}
 
-	f.logInfo(fmt.Sprintf("Fetched %d participants from API", len(participants)))
+	f.logDebug(fmt.Sprintf("Fetched %d participants from API", len(participants)))
 
 	for _, participant := range participants {
 		// Create or update author in the database
@@ -210,7 +210,7 @@ func (f *FetcherService) syncParticipants(ctx context.Context) error {
 		}
 	}
 
-	f.logInfo(fmt.Sprintf("Successfully synced %d participants", len(participants)))
+	f.logDebug(fmt.Sprintf("Successfully synced %d participants", len(participants)))
 	return nil
 }
 
@@ -230,7 +230,7 @@ func (f *FetcherService) syncThreads(ctx context.Context) error {
 		}
 
 		allThreads = append(allThreads, threadsResp.Threads...)
-		f.logInfo(fmt.Sprintf("Fetched page %d: %d threads", page, len(threadsResp.Threads)))
+		f.logDebug(fmt.Sprintf("Fetched page %d: %d threads", page, len(threadsResp.Threads)))
 
 		if !threadsResp.HasMore || len(threadsResp.Threads) == 0 {
 			break
@@ -238,7 +238,7 @@ func (f *FetcherService) syncThreads(ctx context.Context) error {
 		page++
 	}
 
-	f.logInfo(fmt.Sprintf("Fetched %d total threads from API", len(allThreads)))
+	f.logDebug(fmt.Sprintf("Fetched %d total threads from API", len(allThreads)))
 
 	// Store threads in database
 	for _, thread := range allThreads {
@@ -265,12 +265,12 @@ func (f *FetcherService) syncThreads(ctx context.Context) error {
 		)
 		if err != nil {
 			// If thread already exists, that's okay - we could implement update logic here
-			f.logInfo(fmt.Sprintf("Thread %s may already exist or failed to create: %v", threadID, err))
+			f.logDebug(fmt.Sprintf("Thread %s may already exist or failed to create: %v", threadID, err))
 			continue
 		}
 	}
 
-	f.logInfo(fmt.Sprintf("Successfully synced %d threads", len(allThreads)))
+	f.logDebug(fmt.Sprintf("Successfully synced %d threads", len(allThreads)))
 	return nil
 }
 
@@ -327,18 +327,18 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 			)
 			if err != nil {
 				// If reply already exists, that's okay
-				f.logInfo(fmt.Sprintf("Reply %s may already exist or failed to create: %v", messageID, err))
+				f.logDebug(fmt.Sprintf("Reply %s may already exist or failed to create: %v", messageID, err))
 				continue
 			}
 		}
 
 		totalReplies += len(allReplies)
 		if len(allReplies) > 0 {
-			f.logInfo(fmt.Sprintf("Synced %d replies for thread %d", len(allReplies), thread.ID))
+			f.logDebug(fmt.Sprintf("Synced %d replies for thread %d", len(allReplies), thread.ID))
 		}
 	}
 
-	f.logInfo(fmt.Sprintf("Successfully synced %d total replies", totalReplies))
+	f.logDebug(fmt.Sprintf("Successfully synced %d total replies", totalReplies))
 	return nil
 }
 
@@ -349,7 +349,7 @@ func (f *FetcherService) SyncParticipants(ctx context.Context) ([]Participant, e
 		return nil, fmt.Errorf("failed to fetch participants: %w", err)
 	}
 
-	f.logInfo(fmt.Sprintf("Fetched %d participants from API", len(participants)))
+	f.logDebug(fmt.Sprintf("Fetched %d participants from API", len(participants)))
 
 	for _, participant := range participants {
 		// Create or update author in the database
@@ -365,7 +365,7 @@ func (f *FetcherService) SyncParticipants(ctx context.Context) ([]Participant, e
 		}
 	}
 
-	f.logInfo(fmt.Sprintf("Successfully synced %d participants", len(participants)))
+	f.logDebug(fmt.Sprintf("Successfully synced %d participants", len(participants)))
 	return participants, nil
 }
 
@@ -385,7 +385,7 @@ func (f *FetcherService) SyncThreads(ctx context.Context) ([]Thread, error) {
 		}
 
 		allThreads = append(allThreads, threadsResp.Threads...)
-		f.logInfo(fmt.Sprintf("Fetched page %d: %d threads", page, len(threadsResp.Threads)))
+		f.logDebug(fmt.Sprintf("Fetched page %d: %d threads", page, len(threadsResp.Threads)))
 
 		if !threadsResp.HasMore || len(threadsResp.Threads) == 0 {
 			break
@@ -393,7 +393,7 @@ func (f *FetcherService) SyncThreads(ctx context.Context) ([]Thread, error) {
 		page++
 	}
 
-	f.logInfo(fmt.Sprintf("Fetched %d total threads from API", len(allThreads)))
+	f.logDebug(fmt.Sprintf("Fetched %d total threads from API", len(allThreads)))
 
 	// Store threads in database
 	for _, thread := range allThreads {
@@ -420,12 +420,12 @@ func (f *FetcherService) SyncThreads(ctx context.Context) ([]Thread, error) {
 		)
 		if err != nil {
 			// If thread already exists, that's okay - we could implement update logic here
-			f.logInfo(fmt.Sprintf("Thread %s may already exist or failed to create: %v", threadID, err))
+			f.logDebug(fmt.Sprintf("Thread %s may already exist or failed to create: %v", threadID, err))
 			continue
 		}
 	}
 
-	f.logInfo(fmt.Sprintf("Successfully synced %d threads", len(allThreads)))
+	f.logDebug(fmt.Sprintf("Successfully synced %d threads", len(allThreads)))
 	return allThreads, nil
 }
 
@@ -484,18 +484,18 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 			)
 			if err != nil {
 				// If reply already exists, that's okay
-				f.logInfo(fmt.Sprintf("Reply %s may already exist or failed to create: %v", messageID, err))
+				f.logDebug(fmt.Sprintf("Reply %s may already exist or failed to create: %v", messageID, err))
 				continue
 			}
 		}
 
 		totalReplies += len(threadReplies)
 		if len(threadReplies) > 0 {
-			f.logInfo(fmt.Sprintf("Synced %d replies for thread %d", len(threadReplies), thread.ID))
+			f.logDebug(fmt.Sprintf("Synced %d replies for thread %d", len(threadReplies), thread.ID))
 		}
 	}
 
-	f.logInfo(fmt.Sprintf("Successfully synced %d total replies", totalReplies))
+	f.logDebug(fmt.Sprintf("Successfully synced %d total replies", totalReplies))
 	return allReplies, nil
 }
 
@@ -543,7 +543,7 @@ func (f *FetcherService) GetSyncStatus(ctx context.Context) (*SyncStatus, error)
 
 // ForceSync triggers an immediate synchronization
 func (f *FetcherService) ForceSync(ctx context.Context) error {
-	f.logInfo("Manual sync requested")
+	f.logDebug("Manual sync requested")
 
 	// If not running, return error
 	if !f.running {
@@ -556,14 +556,14 @@ func (f *FetcherService) ForceSync(ctx context.Context) error {
 		return fmt.Errorf("manual sync failed: %w", err)
 	}
 
-	f.logInfo("Manual sync completed successfully")
+	f.logDebug("Manual sync completed successfully")
 	return nil
 }
 
-// logInfo logs an informational message if logging is enabled
-func (f *FetcherService) logInfo(msg string) {
+// logDebug logs a debug message if logging is enabled
+func (f *FetcherService) logDebug(msg string) {
 	if f.config.EnableLogging && f.logger != nil {
-		f.logger.Info(msg)
+		f.logger.Debug(msg)
 	}
 }
 
