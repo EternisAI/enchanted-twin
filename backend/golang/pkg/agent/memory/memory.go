@@ -7,6 +7,52 @@ import (
 	"time"
 )
 
+// Boolean operators for tag filtering.
+const (
+	AND = "AND"
+	OR  = "OR"
+)
+
+// BooleanExpression represents a complex boolean expression for tag filtering.
+type BooleanExpression struct {
+	Operator string             `json:"operator"`
+	Tags     []string           `json:"tags,omitempty"`  // For leaf nodes
+	Left     *BooleanExpression `json:"left,omitempty"`  // For AND/OR nodes
+	Right    *BooleanExpression `json:"right,omitempty"` // For AND/OR nodes
+}
+
+// TagsFilter provides flexible tag filtering options supporting AND, OR, and complex boolean expressions.
+type TagsFilter struct {
+	// Simple cases (backward compatible)
+	All []string `json:"all,omitempty"` // Must contain ALL specified tags (AND logic)
+	Any []string `json:"any,omitempty"` // Must contain ANY of the specified tags (OR logic)
+
+	// Complex cases
+	Expression *BooleanExpression `json:"expression,omitempty"` // Complex boolean expressions
+}
+
+// Filter provides structured filtering options for memory queries.
+type Filter struct {
+	Source      *string     // Filter by document source
+	ContactName *string     // Filter by contact/speaker name
+	Tags        *TagsFilter // Filter by tags with boolean logic support
+	Distance    float32     // Maximum semantic distance (0 = disabled)
+	Limit       *int        // Maximum number of results to return
+
+	// Structured fact filtering fields
+	FactCategory        *string // Filter by fact category (profile_stable, preference, goal_plan, etc.)
+	FactSubject         *string // Filter by fact subject (user, entity names)
+	FactAttribute       *string // Filter by fact attribute (specific property being described)
+	FactValue           *string // Filter by fact value (partial match on descriptive content)
+	FactTemporalContext *string // Filter by temporal context (dates, time references)
+	FactSensitivity     *string // Filter by sensitivity level (high, medium, low)
+	FactImportance      *int    // Filter by importance score (1, 2, 3)
+
+	// Ranges for numeric/date fields
+	FactImportanceMin *int // Minimum importance score (inclusive)
+	FactImportanceMax *int // Maximum importance score (inclusive)
+}
+
 // Document interface that both TextDocument and ConversationDocument implement.
 type Document interface {
 	ID() string
@@ -139,18 +185,9 @@ type MemoryFact struct {
 	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
-type DocumentWithDistance struct {
-	Document TextDocument
-	Distance float32
-}
-
 type QueryResult struct {
 	Facts     []MemoryFact   `json:"facts"`
 	Documents []TextDocument `json:"documents,omitempty"` // For backward compatibility
-}
-
-type QueryWithDistanceResult struct {
-	Documents []DocumentWithDistance
 }
 
 type ProgressUpdate struct {
@@ -162,8 +199,7 @@ type ProgressCallback func(processed, total int)
 
 type Storage interface {
 	Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
-	Query(ctx context.Context, query string) (QueryResult, error)
-	QueryWithDistance(ctx context.Context, query string, metadataFilters ...map[string]string) (QueryWithDistanceResult, error)
+	Query(ctx context.Context, query string, filter *Filter) (QueryResult, error)
 }
 
 // Helper functions to convert slices to Document interface
@@ -188,4 +224,22 @@ func ConversationDocumentsToDocuments(convDocs []ConversationDocument) []Documen
 		docs[i] = &doc
 	}
 	return docs
+}
+
+// IsEmpty returns true if the TagsFilter has no filtering criteria.
+func (tf *TagsFilter) IsEmpty() bool {
+	if tf == nil {
+		return true
+	}
+	return len(tf.All) == 0 && len(tf.Any) == 0 && tf.Expression == nil
+}
+
+// IsLeaf returns true if this is a leaf node (has tags).
+func (be *BooleanExpression) IsLeaf() bool {
+	return be != nil && len(be.Tags) > 0
+}
+
+// IsBranch returns true if this is a branch node (has left/right operands).
+func (be *BooleanExpression) IsBranch() bool {
+	return be != nil && be.Left != nil && be.Right != nil
 }

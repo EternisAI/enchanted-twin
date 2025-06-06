@@ -46,8 +46,8 @@ func (m *MockStorage) DeleteAll(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockStorage) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
-	args := m.Called(ctx, queryText)
+func (m *MockStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	args := m.Called(ctx, queryText, filter)
 	if args.Get(0) == nil {
 		return memory.QueryResult{}, args.Error(1)
 	}
@@ -55,18 +55,41 @@ func (m *MockStorage) Query(ctx context.Context, queryText string) (memory.Query
 	return result, args.Error(1)
 }
 
-func (m *MockStorage) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
-	args := m.Called(ctx, queryText, metadataFilters)
-	if args.Get(0) == nil {
-		return memory.QueryWithDistanceResult{}, args.Error(1)
-	}
-	result, _ := args.Get(0).(memory.QueryWithDistanceResult)
-	return result, args.Error(1)
-}
-
 func (m *MockStorage) EnsureSchemaExists(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
+}
+
+func (m *MockStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
+	args := m.Called(ctx, memoryID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	docRefs, _ := args.Get(0).([]*storage.DocumentReference)
+	return docRefs, args.Error(1)
+}
+
+func (m *MockStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
+	args := m.Called(ctx, content, docType, originalID, metadata)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockStorage) GetStoredDocument(ctx context.Context, documentID string) (*storage.StoredDocument, error) {
+	args := m.Called(ctx, documentID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	storedDoc, _ := args.Get(0).(*storage.StoredDocument)
+	return storedDoc, args.Error(1)
+}
+
+func (m *MockStorage) GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*storage.StoredDocument, error) {
+	args := m.Called(ctx, documentIDs)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	storedDocs, _ := args.Get(0).([]*storage.StoredDocument)
+	return storedDocs, args.Error(1)
 }
 
 // Ensure MockStorage implements the storage interface.
