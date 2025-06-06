@@ -1056,7 +1056,7 @@ storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
 All existing APIs are preserved:
 - `Store()` method works unchanged
 - `StoreConversations()` alias maintained
-- `Query()` and `QueryWithDistance()` delegated to storage
+- `Query()` delegated to storage
 - Zero breaking changes for existing consumers
 - Old memory format automatically enhanced with structured fields where possible
 
