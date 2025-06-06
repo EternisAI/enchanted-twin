@@ -99,10 +99,10 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 		scheduleEnabled: temporalClient != nil,
 	}
 
-	// Create sync activities
+	// Create sync activities (but don't register them here - they're registered in the worker bootstrap)
 	if manager.scheduleEnabled {
 		manager.syncActivities = NewHolonSyncActivities(logger, manager)
-		manager.syncActivities.RegisterWorkflowsAndActivities(worker)
+		// Note: RegisterWorkflowsAndActivities is called in bootstrapTemporalWorker to avoid duplicate registration
 	}
 
 	return manager

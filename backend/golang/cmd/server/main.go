@@ -368,7 +368,7 @@ func main() {
 
 	// Initialize HolonZero API fetcher service with the main logger
 	config := holon.DefaultManagerConfig()
-	holonManager := holon.NewManager(store, config, logger, nil, nil)
+	holonManager := holon.NewManager(store, config, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
 		// Don't panic - the service can run without the fetcher
@@ -529,6 +529,12 @@ func bootstrapTemporalWorker(
 		Store:           input.store,
 	})
 	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
+
+	// Register holon sync activities
+	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
+	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
+	holonSyncActivities.RegisterWorkflowsAndActivities(w)
+
 	err := w.Start()
 	if err != nil {
 		input.logger.Error("Error starting worker", "error", err)
@@ -636,5 +642,19 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 	if err != nil {
 		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}
+
+	// Create holon sync schedule
+	err = helpers.CreateScheduleIfNotExists(
+		logger, 
+		temporalClient, 
+		"holon-sync-schedule", 
+		5*time.Minute, 
+		holon.HolonSyncWorkflow, 
+		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
+	)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create holon sync schedule")
+	}
+
 	return nil
 }

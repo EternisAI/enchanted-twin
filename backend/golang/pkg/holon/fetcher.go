@@ -18,6 +18,7 @@ type HolonZeroClient interface {
 	ListThreadsPaginated(ctx context.Context, query *ThreadsQuery) (*PaginatedThreadsResponse, error)
 	GetThreadRepliesPaginated(ctx context.Context, threadID int, query *RepliesQuery) (*PaginatedRepliesResponse, error)
 	GetSyncMetadata(ctx context.Context) (*SyncMetadataResponse, error)
+	CreateThread(ctx context.Context, req CreateThreadRequest) (*Thread, error)
 }
 
 // FetcherService handles syncing data from HolonZero API to local database
@@ -262,6 +263,7 @@ func (f *FetcherService) syncThreads(ctx context.Context) error {
 			imageURLs,
 			actions,
 			expiresAt,
+			"received",
 		)
 		if err != nil {
 			// If thread already exists, that's okay - we could implement update logic here
@@ -417,6 +419,7 @@ func (f *FetcherService) SyncThreads(ctx context.Context) ([]Thread, error) {
 			imageURLs,
 			actions,
 			expiresAt,
+			"received",
 		)
 		if err != nil {
 			// If thread already exists, that's okay - we could implement update logic here
@@ -497,6 +500,55 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 
 	f.logDebug(fmt.Sprintf("Successfully synced %d total replies", totalReplies))
 	return allReplies, nil
+}
+
+// PushPendingThreads pushes all pending threads to the HolonZero API and updates their state
+func (f *FetcherService) PushPendingThreads(ctx context.Context) error {
+	f.logDebug("Starting to push pending threads to HolonZero API")
+
+	// Get all pending threads from the repository
+	pendingThreads, err := f.repository.GetPendingThreads(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get pending threads: %w", err)
+	}
+
+	if len(pendingThreads) == 0 {
+		f.logDebug("No pending threads to push")
+		return nil
+	}
+
+	f.logDebug(fmt.Sprintf("Found %d pending threads to push", len(pendingThreads)))
+
+	// Push each pending thread to the API
+	for _, thread := range pendingThreads {
+		// Create the request payload for the HolonZero API
+		createReq := CreateThreadRequest{
+			Title:   thread.Title,
+			Content: thread.Content,
+		}
+
+		// Push thread to the HolonZero API
+		apiThread, err := f.client.CreateThread(ctx, createReq)
+		if err != nil {
+			f.logError(fmt.Sprintf("Failed to push thread %s to API", thread.ID), err)
+			// Continue with other threads even if one fails
+			continue
+		}
+
+		// Update the thread state to 'broadcasted' on successful push
+		err = f.repository.UpdateThreadState(ctx, thread.ID, "broadcasted")
+		if err != nil {
+			f.logError(fmt.Sprintf("Failed to update thread %s state to broadcasted", thread.ID), err)
+			// Continue with other threads even if state update fails
+			continue
+		}
+
+		f.logDebug(fmt.Sprintf("Successfully pushed thread %s (local) -> %d (API) and updated state to broadcasted",
+			thread.ID, apiThread.ID))
+	}
+
+	f.logDebug(fmt.Sprintf("Completed pushing pending threads"))
+	return nil
 }
 
 // SyncStatus represents the current status of the fetcher

@@ -1,23 +1,11 @@
 package holon
 
 import (
-	"context"
-	"fmt"
 	"time"
 
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 )
-
-// HolonSyncWorkflowOutput defines the output for the holon sync workflow
-type HolonSyncWorkflowOutput struct {
-	Success          bool      `json:"success"`
-	ParticipantCount int       `json:"participant_count"`
-	ThreadCount      int       `json:"thread_count"`
-	ReplyCount       int       `json:"reply_count"`
-	LastSyncTime     time.Time `json:"last_sync_time"`
-	Error            string    `json:"error,omitempty"`
-}
 
 // HolonSyncWorkflow orchestrates the periodic synchronization with HolonZero API
 func HolonSyncWorkflow(
@@ -58,37 +46,6 @@ func HolonSyncWorkflow(
 		"participants", result.ParticipantCount,
 		"threads", result.ThreadCount,
 		"replies", result.ReplyCount)
-
-	return result, nil
-}
-
-// SyncHolonDataActivity performs the actual data synchronization
-func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input HolonSyncWorkflowInput) (HolonSyncWorkflowOutput, error) {
-	result := HolonSyncWorkflowOutput{
-		Success:      true,
-		LastSyncTime: time.Now(),
-	}
-
-	// Sync participants
-	if err := a.SyncParticipants(ctx); err != nil {
-		result.Success = false
-		result.Error = fmt.Sprintf("failed to sync participants: %v", err)
-		return result, err
-	}
-
-	// Sync threads
-	if err := a.SyncThreads(ctx); err != nil {
-		result.Success = false
-		result.Error = fmt.Sprintf("failed to sync threads: %v", err)
-		return result, err
-	}
-
-	// Sync replies
-	if err := a.SyncReplies(ctx); err != nil {
-		result.Success = false
-		result.Error = fmt.Sprintf("failed to sync replies: %v", err)
-		return result, err
-	}
 
 	return result, nil
 }
