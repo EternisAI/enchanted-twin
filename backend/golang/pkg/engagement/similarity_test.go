@@ -57,7 +57,7 @@ func TestCheckForSimilarFriendMessages(t *testing.T) {
 	// Test case 1: No similar messages found
 	mockMemoryService.On("Query", ctx, testMessage, expectedFilter).Return(
 		memory.QueryResult{
-			Documents: []memory.TextDocument{},
+			Facts: []memory.MemoryFact{},
 		}, nil)
 
 	isSimilar, err := friendService.CheckForSimilarFriendMessages(ctx, testMessage)
@@ -69,11 +69,13 @@ func TestCheckForSimilarFriendMessages(t *testing.T) {
 	mockMemoryService.ExpectedCalls = nil // Reset mock
 	mockMemoryService.On("Query", ctx, testMessage, expectedFilter).Return(
 		memory.QueryResult{
-			Documents: []memory.TextDocument{
+			Facts: []memory.MemoryFact{
 				{
-					FieldSource:  "friend",
-					FieldContent: "How are you feeling today?",
-					FieldMetadata: map[string]string{
+					ID:      "test-id",
+					Source:  "friend",
+					Content: "How are you feeling today?",
+					Speaker: "friend",
+					Metadata: map[string]string{
 						"type":          "friend",
 						"activity_type": "question",
 					},
