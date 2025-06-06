@@ -37,10 +37,12 @@ type memoryEngine struct {
 	completionsService *ai.Service
 	embeddingsService  *ai.Service
 	storage            storage.Interface
+	completionsModel   string
+	embeddingsModel    string
 }
 
 // NewMemoryEngine creates a new MemoryEngine instance.
-func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Service, storage storage.Interface) (MemoryEngine, error) {
+func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Service, storage storage.Interface, completionsModel, embeddingsModel string) (MemoryEngine, error) {
 	if completionsService == nil {
 		return nil, fmt.Errorf("completions service cannot be nil")
 	}
@@ -50,11 +52,19 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 	if storage == nil {
 		return nil, fmt.Errorf("storage cannot be nil")
 	}
+	if completionsModel == "" {
+		return nil, fmt.Errorf("completions model cannot be empty")
+	}
+	if embeddingsModel == "" {
+		return nil, fmt.Errorf("embeddings model cannot be empty")
+	}
 
 	return &memoryEngine{
 		completionsService: completionsService,
 		embeddingsService:  embeddingsService,
 		storage:            storage,
+		completionsModel:   completionsModel,
+		embeddingsModel:    embeddingsModel,
 	}, nil
 }
 
@@ -69,7 +79,7 @@ func convertEmbedding(embedding []float64) []float32 {
 
 // ExtractFacts extracts facts from a document using pure business logic.
 func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
-	return ExtractFactsFromDocument(ctx, doc, e.completionsService)
+	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel)
 }
 
 // ProcessFact processes a single fact through the complete memory pipeline.
@@ -120,7 +130,7 @@ func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, 
 	// Execute based on action
 	switch decision.Action {
 	case UPDATE:
-		embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
+		embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, e.embeddingsModel)
 		if err != nil {
 			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
 		}
@@ -156,7 +166,7 @@ func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, 
 
 // SearchSimilar searches for similar memories.
 func (e *memoryEngine) SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error) {
-	return SearchSimilarMemories(ctx, fact, speakerID, e.storage)
+	return SearchSimilarMemories(ctx, fact, speakerID, e.storage, e.embeddingsModel)
 }
 
 // DecideAction decides what action to take with a fact given similar memories.
@@ -177,7 +187,7 @@ func (e *memoryEngine) DecideAction(ctx context.Context, fact string, similar []
 		noneMemoryTool,
 	}
 
-	response, err := e.completionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, openAIChatModel)
+	response, err := e.completionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, e.completionsModel)
 	if err != nil {
 		return MemoryDecision{}, fmt.Errorf("LLM decision failed: %w", err)
 	}
@@ -220,7 +230,7 @@ func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFac
 
 	obj := CreateMemoryObjectWithDocumentReferences(fact, decision, []string{documentID})
 
-	embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
+	embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, e.embeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}

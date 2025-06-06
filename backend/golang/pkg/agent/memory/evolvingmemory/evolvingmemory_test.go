@@ -155,6 +155,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		})
 		require.NoError(t, err)
 
@@ -210,6 +212,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		})
 		require.NoError(t, err)
 
@@ -263,6 +267,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		})
 		require.NoError(t, err)
 
@@ -533,7 +539,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("Query", mock.Anything, "pizza preferences", expectedFilter).
+		mockStorage.On("Query", mock.Anything, "pizza preferences", expectedFilter, mock.AnythingOfType("string")).
 			Return(expectedResult, nil)
 
 		// Create AI services inline
@@ -567,6 +573,8 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		}
 
 		storage, err := New(deps)
@@ -596,7 +604,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 			Documents: []memory.TextDocument{},
 		}
 
-		mockStorage.On("Query", mock.Anything, "test query", nilFilter).
+		mockStorage.On("Query", mock.Anything, "test query", nilFilter, mock.AnythingOfType("string")).
 			Return(expectedResult, nil)
 
 		// Create AI services inline
@@ -629,6 +637,8 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		}
 
 		storage, err := New(deps)
@@ -665,7 +675,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("Query", mock.Anything, "project updates", filter).
+		mockStorage.On("Query", mock.Anything, "project updates", filter, mock.AnythingOfType("string")).
 			Return(expectedResult, nil)
 
 		// Create AI services inline
@@ -698,6 +708,8 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		}
 
 		storage, err := New(deps)
@@ -733,7 +745,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 			Documents: []memory.TextDocument{},
 		}
 
-		mockStorage.On("Query", mock.Anything, "test", filter).
+		mockStorage.On("Query", mock.Anything, "test", filter, mock.AnythingOfType("string")).
 			Return(expectedResult, nil)
 
 		// Create AI services inline
@@ -766,6 +778,8 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		}
 
 		storage, err := New(deps)
@@ -795,7 +809,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 			Documents: []memory.TextDocument{},
 		}
 
-		mockStorage.On("Query", mock.Anything, "test", filter).
+		mockStorage.On("Query", mock.Anything, "test", filter, mock.AnythingOfType("string")).
 			Return(expectedResult, nil)
 
 		// Create AI services inline
@@ -828,6 +842,8 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		}
 
 		storage, err := New(deps)
@@ -925,7 +941,7 @@ func TestQueryResultStructure(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("Query", mock.Anything, "drink preferences", filter).
+		mockStorage.On("Query", mock.Anything, "drink preferences", filter, mock.AnythingOfType("string")).
 			Return(expectedResult, nil)
 
 		// Create AI services inline
@@ -958,6 +974,8 @@ func TestQueryResultStructure(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		}
 
 		storage, err := New(deps)
@@ -1483,7 +1501,7 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 			},
 		}
 
-		mockStorage.On("Query", mock.Anything, "project status", complexFilter).
+		mockStorage.On("Query", mock.Anything, "project status", complexFilter, mock.AnythingOfType("string")).
 			Return(expectedResult, nil)
 
 		// Create AI services inline (same as before)
@@ -1516,6 +1534,8 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		}
 
 		storage, err := New(deps)

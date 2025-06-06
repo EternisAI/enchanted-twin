@@ -249,7 +249,7 @@ func aggregateErrors(errors []error) error {
 
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
-func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, completionsService *ai.Service) ([]ExtractedFact, error) {
+func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	currentSystemDate := doc.Timestamp.Format("2006-01-02")
 	docEventDateStr := doc.DateString
 
@@ -261,7 +261,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 		}
 
 		// Extract for the document-level context (no specific speaker)
-		return extractFactsFromConversation(ctx, *convDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService)
+		return extractFactsFromConversation(ctx, *convDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService, completionsModel)
 
 	case DocumentTypeText:
 		textDoc, ok := doc.Original.(*memory.TextDocument)
@@ -269,7 +269,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 			return nil, fmt.Errorf("expected TextDocument but got %T", doc.Original)
 		}
 
-		return extractFactsFromTextDocument(ctx, *textDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService)
+		return extractFactsFromTextDocument(ctx, *textDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService, completionsModel)
 
 	default:
 		return nil, fmt.Errorf("unsupported document type: %s", doc.Type)
@@ -355,8 +355,8 @@ func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (Memo
 
 // SearchSimilarMemories performs semantic search for similar memories.
 // This is pure business logic extracted from the adapter.
-func SearchSimilarMemories(ctx context.Context, fact string, speakerID string, storage storage.Interface) ([]ExistingMemory, error) {
-	result, err := storage.Query(ctx, fact, nil)
+func SearchSimilarMemories(ctx context.Context, fact string, speakerID string, storage storage.Interface, embeddingsModel string) ([]ExistingMemory, error) {
+	result, err := storage.Query(ctx, fact, nil, embeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}
@@ -408,7 +408,7 @@ func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service) ([]ExtractedFact, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -429,7 +429,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		openai.UserMessage(conversationJSON),
 	}
 
-	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
+	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		return nil, fmt.Errorf("LLM completion error for speaker %s, conversation %s: %w", speakerID, convDoc.ID(), err)
 	}
@@ -466,7 +466,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service) ([]ExtractedFact, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -484,7 +484,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		openai.UserMessage(content),
 	}
 
-	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, openAIChatModel)
+	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		return nil, fmt.Errorf("LLM completion error for speaker %s, document %s: %w", speakerID, textDoc.ID(), err)
 	}
