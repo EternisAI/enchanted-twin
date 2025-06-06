@@ -13,6 +13,8 @@ import (
 	"github.com/charmbracelet/log"
 	"github.com/google/uuid"
 	"github.com/joho/godotenv"
+	"github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -61,6 +63,28 @@ type testEnvironment struct {
 	documents      []memory.Document
 	ctx            context.Context
 	cancel         context.CancelFunc
+}
+
+// deterministicAIService wraps ai.Service to use temperature 0.0 for deterministic testing.
+type deterministicAIService struct {
+	*ai.Service
+}
+
+// Completions overrides the default method to use temperature 0.0 for deterministic results.
+func (d *deterministicAIService) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
+	return d.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
+		Messages:    messages,
+		Model:       model,
+		Tools:       tools,
+		Temperature: param.Opt[float64]{Value: 0.0}, // Deterministic temperature
+	})
+}
+
+// newDeterministicAIService creates a test AI service that uses temperature 0.0.
+func newDeterministicAIService(logger *log.Logger, apiKey, baseURL string) *deterministicAIService {
+	return &deterministicAIService{
+		Service: ai.NewOpenAIService(logger, apiKey, baseURL),
+	}
 }
 
 func setupSharedInfrastructure() {
@@ -190,17 +214,17 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 		completionsModel = "gpt-4o-mini"
 	}
 
-	openAiService := ai.NewOpenAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
+	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService, completionsModel, store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store)
 
 	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
 		Storage:            storageInterface,
-		CompletionsService: openAiService,
+		CompletionsService: openAiService.Service,
 		EmbeddingsService:  aiEmbeddingsService,
 	})
 	require.NoError(t, err)
