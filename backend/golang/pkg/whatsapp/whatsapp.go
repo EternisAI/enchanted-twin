@@ -479,9 +479,40 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			if len(contactDocuments) > 0 {
-				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), nil)
+				logger.Info("Storing WhatsApp contacts through evolvingmemory fact extraction", "count", len(contactDocuments))
+				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), func(processed, total int) {
+					logger.Info("WhatsApp contacts storage progress", "processed", processed, "total", total)
+				})
 				if err != nil {
 					logger.Error("Error storing WhatsApp contacts", "error", err)
+				} else {
+					logger.Info("WhatsApp contacts stored successfully through evolvingmemory", "count", len(contactDocuments))
+
+					testFilter := &memory.Filter{
+						Source: func() *string { s := "whatsapp"; return &s }(),
+						Tags: &memory.TagsFilter{
+							All: []string{"whatsapp", "contact"},
+						},
+						Limit: func() *int { l := 10; return &l }(),
+					}
+
+					time.Sleep(2 * time.Second)
+
+					result, queryErr := memoryStorage.Query(ctx, "WhatsApp contacts", testFilter)
+					if queryErr != nil {
+						logger.Error("Debug query for WhatsApp contacts failed", "error", queryErr)
+					} else {
+						logger.Info("Debug query for WhatsApp contacts successful",
+							"facts_count", len(result.Facts),
+							"documents_count", len(result.Documents))
+
+						if len(result.Facts) > 0 {
+							logger.Info("Sample WhatsApp contact fact", "content", result.Facts[0].Content, "source", result.Facts[0].Source)
+						}
+						if len(result.Documents) > 0 {
+							logger.Info("Sample WhatsApp contact document", "content", result.Documents[0].Content(), "source", result.Documents[0].Source())
+						}
+					}
 				}
 			}
 
@@ -511,11 +542,61 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			if len(conversationDocuments) > 0 {
-				err = memoryStorage.Store(ctx, memory.ConversationDocumentsToDocuments(conversationDocuments), nil)
+				logger.Info("Storing WhatsApp conversations through evolvingmemory fact extraction", "count", len(conversationDocuments))
+
+				// Log sample conversation content before storage
+				if len(conversationDocuments) > 0 {
+					sampleConv := conversationDocuments[0]
+					logger.Info("Sample conversation before storage",
+						"id", sampleConv.FieldID,
+						"source", sampleConv.FieldSource,
+						"user", sampleConv.User,
+						"people_count", len(sampleConv.People),
+						"messages_count", len(sampleConv.Conversation),
+						"content_preview", func() string {
+							content := sampleConv.Content()
+							if len(content) > 200 {
+								return content[:200] + "..."
+							}
+							return content
+						}())
+				}
+
+				err = memoryStorage.Store(ctx, memory.ConversationDocumentsToDocuments(conversationDocuments), func(processed, total int) {
+					logger.Info("WhatsApp conversations storage progress", "processed", processed, "total", total)
+				})
 				if err != nil {
 					logger.Error("Error storing WhatsApp conversation documents", "error", err)
 				} else {
-					logger.Info("WhatsApp conversation documents storage completed successfully", "count", len(conversationDocuments))
+					logger.Info("WhatsApp conversation documents storage completed successfully through evolvingmemory", "count", len(conversationDocuments))
+
+					// Debug: Immediately try to query back the stored conversations
+					testFilter := &memory.Filter{
+						Source: func() *string { s := "whatsapp"; return &s }(),
+						Tags: &memory.TagsFilter{
+							All: []string{"whatsapp", "conversation"},
+						},
+						Limit: func() *int { l := 10; return &l }(),
+					}
+
+					// Give it a moment for indexing
+					time.Sleep(2 * time.Second)
+
+					result, queryErr := memoryStorage.Query(ctx, "WhatsApp conversations", testFilter)
+					if queryErr != nil {
+						logger.Error("Debug query for WhatsApp conversations failed", "error", queryErr)
+					} else {
+						logger.Info("Debug query for WhatsApp conversations successful",
+							"facts_count", len(result.Facts),
+							"documents_count", len(result.Documents))
+
+						if len(result.Facts) > 0 {
+							logger.Info("Sample WhatsApp conversation fact", "content", result.Facts[0].Content, "source", result.Facts[0].Source)
+						}
+						if len(result.Documents) > 0 {
+							logger.Info("Sample WhatsApp conversation document", "content", result.Documents[0].Content(), "source", result.Documents[0].Source())
+						}
+					}
 				}
 			}
 			UpdateSyncStatus(SyncStatus{
