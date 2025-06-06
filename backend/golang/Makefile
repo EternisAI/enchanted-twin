@@ -33,6 +33,3 @@ run-telegram-chat:
 deadcode:
 	@echo "=== Checking for transitively dead functions ==="
 	@go run golang.org/x/tools/cmd/deadcode@latest ./...
-
-test-memory:
-	go run cmd/memory-test/main.go

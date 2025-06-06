@@ -85,11 +85,11 @@ jobs:
             exit 0
           fi
 
-          # Check if sample data exists
-          if [ ! -f "cmd/memory-test/sample-data/chatgpt.zip" ]; then
-            echo "⏭️ Skipping integration tests - sample data not available"
+          # Check if integration test data exists
+          if [ ! -f "pkg/dataprocessing/integration/testdata/chatgpt.zip" ]; then
+            echo "⏭️ Skipping integration tests - test data not available"
             exit 0
           fi
 
           echo "🧪 Running integration tests..."
-          go run cmd/memory-test/main.go
+          make test-integration
