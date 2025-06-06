@@ -439,7 +439,6 @@ func TestMemoryIntegration(t *testing.T) {
 			env.logger.Info("Important fact", "id", doc.ID(), "content", doc.Content())
 		}
 
-		// Check if any document contains "Fields Medal"
 		foundFieldsMedal := false
 		for _, doc := range result.Documents {
 			if strings.Contains(strings.ToLower(doc.Content()), "fields medal") {
@@ -450,239 +449,239 @@ func TestMemoryIntegration(t *testing.T) {
 		assert.True(t, foundFieldsMedal, "should find a document containing 'Fields Medal'")
 	})
 
-	// t.Run("DocumentReferences", func(t *testing.T) {
-	// 	if len(env.documents) == 0 {
-	// 		env.loadDocuments(t)
-	// 		env.storeDocuments(t)
-	// 	}
+	t.Run("DocumentReferences", func(t *testing.T) {
+		if len(env.documents) == 0 {
+			env.loadDocuments(t)
+			env.storeDocuments(t)
+		}
 
-	// 	limit := 3
-	// 	filter := memory.Filter{
-	// 		Source:   &env.config.Source,
-	// 		Distance: 0.8,
-	// 		Limit:    &limit,
-	// 	}
+		limit := 3
+		filter := memory.Filter{
+			Source:   &env.config.Source,
+			Distance: 0.8,
+			Limit:    &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
-	// 	require.NoError(t, err)
-	// 	require.NotEmpty(t, result.Documents)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+		require.NoError(t, err)
+		require.NotEmpty(t, result.Documents)
 
-	// 	for _, doc := range result.Documents[:min(3, len(result.Documents))] {
-	// 		memoryID := doc.ID()
+		for _, doc := range result.Documents[:min(3, len(result.Documents))] {
+			memoryID := doc.ID()
 
-	// 		docRefs, err := env.memory.GetDocumentReferences(env.ctx, memoryID)
-	// 		require.NoError(t, err)
-	// 		assert.NotEmpty(t, docRefs, "should have document references")
+			docRefs, err := env.memory.GetDocumentReferences(env.ctx, memoryID)
+			require.NoError(t, err)
+			assert.NotEmpty(t, docRefs, "should have document references")
 
-	// 		docRef := docRefs[0]
-	// 		assert.NotEmpty(t, docRef.ID, "document reference should have ID")
-	// 		assert.NotEmpty(t, docRef.Content, "document reference should have content")
-	// 		assert.NotEmpty(t, docRef.Type, "document reference should have type")
-	// 	}
-	// })
+			docRef := docRefs[0]
+			assert.NotEmpty(t, docRef.ID, "document reference should have ID")
+			assert.NotEmpty(t, docRef.Content, "document reference should have content")
+			assert.NotEmpty(t, docRef.Type, "document reference should have type")
+		}
+	})
 
-	// t.Run("SourceFiltering", func(t *testing.T) {
-	// 	if len(env.documents) == 0 {
-	// 		env.loadDocuments(t)
-	// 		env.storeDocuments(t)
-	// 	}
+	t.Run("SourceFiltering", func(t *testing.T) {
+		if len(env.documents) == 0 {
+			env.loadDocuments(t)
+			env.storeDocuments(t)
+		}
 
-	// 	limit := 100
+		limit := 100
 
-	// 	invalidSource := "invalid-source"
-	// 	filter := memory.Filter{
-	// 		Source:   &invalidSource,
-	// 		Distance: 0.7,
-	// 		Limit:    &limit,
-	// 	}
+		invalidSource := "invalid-source"
+		filter := memory.Filter{
+			Source:   &invalidSource,
+			Distance: 0.7,
+			Limit:    &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
-	// 	require.NoError(t, err)
-	// 	assert.Empty(t, result.Documents, "should not find memories for invalid source")
-	// })
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+		require.NoError(t, err)
+		assert.Empty(t, result.Documents, "should not find memories for invalid source")
+	})
 
-	// t.Run("DistanceFiltering", func(t *testing.T) {
-	// 	if len(env.documents) == 0 {
-	// 		env.loadDocuments(t)
-	// 		env.storeDocuments(t)
-	// 	}
+	t.Run("DistanceFiltering", func(t *testing.T) {
+		if len(env.documents) == 0 {
+			env.loadDocuments(t)
+			env.storeDocuments(t)
+		}
 
-	// 	limit := 100
-	// 	filter := memory.Filter{
-	// 		Source:   &env.config.Source,
-	// 		Distance: 0.001, // Very restrictive threshold
-	// 		Limit:    &limit,
-	// 	}
+		limit := 100
+		filter := memory.Filter{
+			Source:   &env.config.Source,
+			Distance: 0.001, // Very restrictive threshold
+			Limit:    &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, "What do I know about gluon fields ?", &filter)
-	// 	require.NoError(t, err)
-	// 	assert.Empty(t, result.Documents, "should filter out documents for highly specific query")
-	// })
+		result, err := env.memory.Query(env.ctx, "What do I know about gluon fields ?", &filter)
+		require.NoError(t, err)
+		assert.Empty(t, result.Documents, "should filter out documents for highly specific query")
+	})
 }
 
-// func TestStructuredFactFiltering(t *testing.T) {
-// 	if testing.Short() {
-// 		t.Skip("Skipping integration test in short mode")
-// 	}
+func TestStructuredFactFiltering(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
-// 	env := setupTestEnvironment(t)
-// 	defer env.cleanup(t)
+	env := setupTestEnvironment(t)
+	defer env.cleanup(t)
 
-// 	// Setup data
-// 	env.loadDocuments(t)
-// 	env.storeDocuments(t)
+	// Setup data
+	env.loadDocuments(t)
+	env.storeDocuments(t)
 
-// 	limit := 100
+	limit := 100
 
-// 	testCases := []struct {
-// 		name        string
-// 		filter      memory.Filter
-// 		query       string
-// 		expectEmpty bool
-// 	}{
-// 		{
-// 			name: "FactCategoryFiltering",
-// 			filter: memory.Filter{
-// 				FactCategory: stringPtr("preference"),
-// 				Source:       &env.config.Source,
-// 				Limit:        &limit,
-// 			},
-// 			query: "user preferences",
-// 		},
-// 		{
-// 			name: "FactSubjectFiltering",
-// 			filter: memory.Filter{
-// 				FactSubject: stringPtr("user"),
-// 				Source:      &env.config.Source,
-// 				Limit:       &limit,
-// 			},
-// 			query: "facts about user",
-// 		},
-// 		{
-// 			name: "FactImportanceFiltering",
-// 			filter: memory.Filter{
-// 				FactImportance: intPtr(3),
-// 				Source:         &env.config.Source,
-// 				Limit:          &limit,
-// 			},
-// 			query: "important facts",
-// 		},
-// 		{
-// 			name: "FactImportanceRangeFiltering",
-// 			filter: memory.Filter{
-// 				FactImportanceMin: intPtr(2),
-// 				FactImportanceMax: intPtr(3),
-// 				Source:            &env.config.Source,
-// 				Limit:             &limit,
-// 			},
-// 			query: "medium to high importance facts",
-// 		},
-// 		{
-// 			name: "FactSensitivityFiltering",
-// 			filter: memory.Filter{
-// 				FactSensitivity: stringPtr("low"),
-// 				Source:          &env.config.Source,
-// 				Limit:           &limit,
-// 			},
-// 			query: "public information",
-// 		},
-// 		{
-// 			name: "CombinedStructuredFiltering",
-// 			filter: memory.Filter{
-// 				FactCategory:   stringPtr("preference"),
-// 				FactSubject:    stringPtr("user"),
-// 				FactImportance: intPtr(2),
-// 				Source:         &env.config.Source,
-// 				Limit:          &limit,
-// 			},
-// 			query: "user preferences with medium importance",
-// 		},
-// 		{
-// 			name: "FactValuePartialMatching",
-// 			filter: memory.Filter{
-// 				FactValue: stringPtr("coffee"),
-// 				Source:    &env.config.Source,
-// 				Limit:     &limit,
-// 			},
-// 			query: "coffee related facts",
-// 		},
-// 		{
-// 			name: "FactTemporalContextFiltering",
-// 			filter: memory.Filter{
-// 				FactTemporalContext: stringPtr("2024"),
-// 				Source:              &env.config.Source,
-// 				Limit:               &limit,
-// 			},
-// 			query: "facts from 2024",
-// 		},
-// 		{
-// 			name: "MixedLegacyAndStructuredFiltering",
-// 			filter: memory.Filter{
-// 				Source:         &env.config.Source,
-// 				Distance:       0.8,
-// 				Limit:          &limit,
-// 				FactCategory:   stringPtr("preference"),
-// 				FactImportance: intPtr(3),
-// 			},
-// 			query: "high priority preferences",
-// 		},
-// 		{
-// 			name: "ComplexRealisticFiltering",
-// 			filter: memory.Filter{
-// 				FactCategory:        stringPtr("goal_plan"),
-// 				FactSubject:         stringPtr("user"),
-// 				FactSensitivity:     stringPtr("medium"),
-// 				FactImportanceMin:   intPtr(2),
-// 				FactTemporalContext: stringPtr("Q1"),
-// 				Source:              &env.config.Source,
-// 				Limit:               &limit,
-// 			},
-// 			query: "user goals for Q1 with medium sensitivity and high importance",
-// 		},
-// 		{
-// 			name: "FactAttributeFiltering",
-// 			filter: memory.Filter{
-// 				FactAttribute: stringPtr("health_metric"),
-// 				Source:        &env.config.Source,
-// 				Limit:         &limit,
-// 			},
-// 			query: "health metrics",
-// 		},
-// 		{
-// 			name: "NonExistentCategoryFiltering",
-// 			filter: memory.Filter{
-// 				FactCategory: stringPtr("nonexistent_category"),
-// 				Source:       &env.config.Source,
-// 				Limit:        &limit,
-// 			},
-// 			query:       "facts from non-existent category",
-// 			expectEmpty: true,
-// 		},
-// 		{
-// 			name: "WrongImportanceFiltering",
-// 			filter: memory.Filter{
-// 				FactImportanceMin: intPtr(10),
-// 				Source:            &env.config.Source,
-// 				Limit:             &limit,
-// 			},
-// 			query:       "What do you know about me?",
-// 			expectEmpty: true,
-// 		},
-// 	}
+	testCases := []struct {
+		name        string
+		filter      memory.Filter
+		query       string
+		expectEmpty bool
+	}{
+		{
+			name: "FactCategoryFiltering",
+			filter: memory.Filter{
+				FactCategory: stringPtr("preference"),
+				Source:       &env.config.Source,
+				Limit:        &limit,
+			},
+			query: "user preferences",
+		},
+		{
+			name: "FactSubjectFiltering",
+			filter: memory.Filter{
+				FactSubject: stringPtr("user"),
+				Source:      &env.config.Source,
+				Limit:       &limit,
+			},
+			query: "facts about user",
+		},
+		{
+			name: "FactImportanceFiltering",
+			filter: memory.Filter{
+				FactImportance: intPtr(3),
+				Source:         &env.config.Source,
+				Limit:          &limit,
+			},
+			query: "important facts",
+		},
+		{
+			name: "FactImportanceRangeFiltering",
+			filter: memory.Filter{
+				FactImportanceMin: intPtr(2),
+				FactImportanceMax: intPtr(3),
+				Source:            &env.config.Source,
+				Limit:             &limit,
+			},
+			query: "medium to high importance facts",
+		},
+		{
+			name: "FactSensitivityFiltering",
+			filter: memory.Filter{
+				FactSensitivity: stringPtr("low"),
+				Source:          &env.config.Source,
+				Limit:           &limit,
+			},
+			query: "public information",
+		},
+		{
+			name: "CombinedStructuredFiltering",
+			filter: memory.Filter{
+				FactCategory:   stringPtr("preference"),
+				FactSubject:    stringPtr("user"),
+				FactImportance: intPtr(2),
+				Source:         &env.config.Source,
+				Limit:          &limit,
+			},
+			query: "user preferences with medium importance",
+		},
+		{
+			name: "FactValuePartialMatching",
+			filter: memory.Filter{
+				FactValue: stringPtr("coffee"),
+				Source:    &env.config.Source,
+				Limit:     &limit,
+			},
+			query: "coffee related facts",
+		},
+		{
+			name: "FactTemporalContextFiltering",
+			filter: memory.Filter{
+				FactTemporalContext: stringPtr("2024"),
+				Source:              &env.config.Source,
+				Limit:               &limit,
+			},
+			query: "facts from 2024",
+		},
+		{
+			name: "MixedLegacyAndStructuredFiltering",
+			filter: memory.Filter{
+				Source:         &env.config.Source,
+				Distance:       0.8,
+				Limit:          &limit,
+				FactCategory:   stringPtr("preference"),
+				FactImportance: intPtr(3),
+			},
+			query: "high priority preferences",
+		},
+		{
+			name: "ComplexRealisticFiltering",
+			filter: memory.Filter{
+				FactCategory:        stringPtr("goal_plan"),
+				FactSubject:         stringPtr("user"),
+				FactSensitivity:     stringPtr("medium"),
+				FactImportanceMin:   intPtr(2),
+				FactTemporalContext: stringPtr("Q1"),
+				Source:              &env.config.Source,
+				Limit:               &limit,
+			},
+			query: "user goals for Q1 with medium sensitivity and high importance",
+		},
+		{
+			name: "FactAttributeFiltering",
+			filter: memory.Filter{
+				FactAttribute: stringPtr("health_metric"),
+				Source:        &env.config.Source,
+				Limit:         &limit,
+			},
+			query: "health metrics",
+		},
+		{
+			name: "NonExistentCategoryFiltering",
+			filter: memory.Filter{
+				FactCategory: stringPtr("nonexistent_category"),
+				Source:       &env.config.Source,
+				Limit:        &limit,
+			},
+			query:       "facts from non-existent category",
+			expectEmpty: true,
+		},
+		{
+			name: "WrongImportanceFiltering",
+			filter: memory.Filter{
+				FactImportanceMin: intPtr(10),
+				Source:            &env.config.Source,
+				Limit:             &limit,
+			},
+			query:       "What do you know about me?",
+			expectEmpty: true,
+		},
+	}
 
-// 	for _, tc := range testCases {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			result, err := env.memory.Query(env.ctx, tc.query, &tc.filter)
-// 			require.NoError(t, err)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := env.memory.Query(env.ctx, tc.query, &tc.filter)
+			require.NoError(t, err)
 
-// 			if tc.expectEmpty {
-// 				assert.Empty(t, result.Documents, "expected no results for test case: %s", tc.name)
-// 			} else {
-// 				env.logger.Info("Test completed", "name", tc.name, "results_count", len(result.Documents))
-// 			}
-// 		})
-// 	}
-// }
+			if tc.expectEmpty {
+				assert.Empty(t, result.Documents, "expected no results for test case: %s", tc.name)
+			} else {
+				env.logger.Info("Test completed", "name", tc.name, "results_count", len(result.Documents))
+			}
+		})
+	}
+}
 
 func stringPtr(s string) *string { return &s }
 func intPtr(i int) *int          { return &i }
