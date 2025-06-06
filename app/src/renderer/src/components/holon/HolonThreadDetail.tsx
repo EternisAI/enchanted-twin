@@ -64,7 +64,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
   )
 
   const handleBack = () => {
-    navigate({ to: '/holon' })
+    router.history.back()
   }
 
   const handleActionClick = (action: string) => {
