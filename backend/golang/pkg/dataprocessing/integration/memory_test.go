@@ -462,6 +462,94 @@ func TestMemoryIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Query gmail", func(t *testing.T) {
+		source := "gmail"
+		inputPath := "testdata/google_export_sample.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query telegram", func(t *testing.T) {
+		source := "telegram"
+		inputPath := "testdata/telegram_export_sample.json"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query X", func(t *testing.T) {
+		source := "x"
+		inputPath := "testdata/x_export_sample.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query slack", func(t *testing.T) {
+		source := "slack"
+		inputPath := "testdata/slack_export_sample.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
 	t.Run("Important facts", func(t *testing.T) {
 		if len(env.documents) == 0 {
 			env.loadDocuments(t, env.config.Source, env.config.InputPath)
