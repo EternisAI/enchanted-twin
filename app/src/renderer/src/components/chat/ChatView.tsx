@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from 'react'
+
 import MessageList from './MessageList'
 import MessageInput from './MessageInput'
-import { Chat } from '@renderer/graphql/generated/graphql'
+import { Chat, ChatCategory } from '@renderer/graphql/generated/graphql'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
@@ -9,6 +10,7 @@ import VoiceModeChatView, { VoiceModeSwitch } from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
 import { Role } from '@renderer/graphql/generated/graphql'
+import HolonThreadContext from '../holon/HolonThreadContext'
 
 interface ChatViewProps {
   chat: Chat
@@ -111,6 +113,9 @@ export default function ChatView({ chat }: ChatViewProps) {
         <div className="flex w-full justify-center">
           <div className="flex flex-col max-w-4xl items-center p-4 w-full">
             <div className="w-full flex flex-col gap-2">
+              {chat.category === ChatCategory.Holon && chat.holonThreadId && (
+                <HolonThreadContext threadId={chat.holonThreadId} />
+              )}
               <MessageList messages={messages} isWaitingTwinResponse={isWaitingTwinResponse} />
               {error && (
                 <div className="py-2 px-4 mt-2 rounded-md border border-red-500 bg-red-500/10 text-red-500">
