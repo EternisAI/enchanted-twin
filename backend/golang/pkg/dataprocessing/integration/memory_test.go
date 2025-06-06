@@ -399,22 +399,59 @@ func TestMemoryIntegration(t *testing.T) {
 			env.storeDocuments(t)
 		}
 
-		// Memory processing is now complete since storeDocuments() waits for completion
-
 		limit := 100
 		filter := memory.Filter{
-			Source:   &env.config.Source,
-			Distance: 0.8,
-			Limit:    &limit,
+			Source: &env.config.Source,
+			Limit:  &limit,
 		}
 
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result.Documents, "should find memories with valid source")
+		assert.NotEmpty(t, result.Documents, "should find memories with basic query")
 
 		for _, doc := range result.Documents {
-			env.logger.Info("Document", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+			env.logger.Info("Basic fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
 		}
+	})
+
+	t.Run("More precise querying", func(t *testing.T) {
+		if len(env.documents) == 0 {
+			env.loadDocuments(t)
+			env.storeDocuments(t)
+		}
+
+		limit := 50
+		filter := memory.Filter{
+			Source: &env.config.Source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What are recent expenses?"), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories with more precise query")
+
+		keywords := []string{"purchase", "paid", "invoice", "$", "spent"}
+		keywordsFound := make(map[string]bool)
+
+		for _, doc := range result.Documents {
+			env.logger.Info("Fact expenses", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+
+			for _, keyword := range keywords {
+				if strings.Contains(strings.ToLower(doc.Content()), keyword) {
+					keywordsFound[keyword] = true
+				}
+			}
+		}
+		keywordsFoundCount := 0
+		for _, keyword := range keywords {
+			if keywordsFound[keyword] {
+				keywordsFoundCount++
+			}
+			if !keywordsFound[keyword] {
+				env.logger.Info("Keyword not found", "keyword", keyword)
+			}
+		}
+		assert.True(t, keywordsFoundCount > 2, "should find expenses facts but didn't find relevant keywords")
 	})
 
 	t.Run("Important facts", func(t *testing.T) {
