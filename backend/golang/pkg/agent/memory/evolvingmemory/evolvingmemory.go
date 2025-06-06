@@ -3,6 +3,7 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -20,12 +21,6 @@ const (
 	timestampProperty = "timestamp"
 	tagsProperty      = "tags"
 	metadataProperty  = "metadataJson"
-	// New properties for document references.
-	sourceDocumentIDProperty      = "sourceDocumentId"
-	sourceDocumentContentProperty = "sourceDocumentContent"
-	sourceDocumentTypeProperty    = "sourceDocumentType"
-	openAIEmbedModel              = "text-embedding-3-small"
-	openAIChatModel               = "gpt-4o-mini"
 
 	AddMemoryToolName    = "ADD"
 	UpdateMemoryToolName = "UPDATE"
@@ -33,6 +28,19 @@ const (
 	NoneMemoryToolName   = "NONE"
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
+
+var (
+	openAIEmbedModel = getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small")
+	openAIChatModel  = getEnvOrDefault("COMPLETIONS_MODEL", "gpt-4o-mini")
+)
+
+// getEnvOrDefault returns the value of an environment variable or a default value if not set.
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
 // Document types.
 type DocumentType string

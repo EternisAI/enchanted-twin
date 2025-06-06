@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -19,6 +20,14 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
+
+// getEnvOrDefault returns the value of an environment variable or a default value if not set.
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
 
 const (
 	ClassName         = "TextDocument"
@@ -45,8 +54,9 @@ const (
 	documentOriginalIDProperty  = "originalId"
 	documentMetadataProperty    = "metadata"
 	documentCreatedAtProperty   = "createdAt"
-	openAIEmbedModel            = "text-embedding-3-small"
 )
+
+var openAIEmbedModel = getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small")
 
 // DocumentReference holds the original document information.
 type DocumentReference struct {
