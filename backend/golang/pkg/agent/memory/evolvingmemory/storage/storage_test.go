@@ -408,8 +408,7 @@ func TestStorageInterface(t *testing.T) {
 			"Delete",
 			"StoreBatch",
 			"DeleteAll",
-			"Query",             // NEW: supports Filter parameter
-			"QueryWithDistance", // EXISTING: backward compatibility
+			"Query",
 			"EnsureSchemaExists",
 		}
 
