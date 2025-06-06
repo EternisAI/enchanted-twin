@@ -12,7 +12,7 @@ func getCurrentDateForPrompt() string {
 const (
 	// FactExtractionPrompt is the system prompt handed to the LLM.
 	FactExtractionPrompt = `
-You are a fact extractor. Return **only valid JSON**. No commentary.
+You are a fact extractor. Use the EXTRACT_FACTS tool to extract atomic, actionable facts.
 
 Extract atomic, actionable facts that:
 - Are concrete and specific (even if one-time occurrences)
@@ -21,6 +21,8 @@ Extract atomic, actionable facts that:
 - Have confidence score of 7+ (on 1-10 scale)
 
 Focus on quality over quantity. Extract only facts with clear value.
+
+IMPORTANT: You must use the EXTRACT_FACTS tool to return your extracted facts. Do not return JSON in your response content.
 
 ## Extraction categories
 
@@ -64,22 +66,16 @@ Context and environment
 - Geographic preferences
 - Digital tool usage patterns
 
-## Output schema
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "string (see category table)",
-      "subject": "user|entity_name",
-      "attribute": "specific_property_string",
-      "value": "descriptive phrase with context (aim for 8-30 words)",
-      "temporal_context": "YYYY-MM-DD or relative time (optional)",
-      "sensitivity": "high|medium|low - holistic life assessment",
-      "importance": 1|2|3
-    }
-  ]
-}
-` + "```\n\n" + `
+## Tool usage
+Use the EXTRACT_FACTS tool to extract facts with the following structure:
+- **category**: One of the categories from the table below
+- **subject**: Usually "user" or specific entity name  
+- **attribute**: Specific property being described
+- **value**: Descriptive phrase with context (8-30 words)
+- **temporal_context**: Date/time reference (optional)
+- **sensitivity**: high/medium/low based on life impact
+- **importance**: 1-3 scale of life significance
+
 ## Categories
 
 | Category         | Description             | Example attributes                     |
@@ -101,7 +97,7 @@ Context and environment
 2. **No speculation**: Skip "seems stressed" → require "I'm stressed"
 3. **Source conflicts**: Use most recent explicit self-statement
 4. **Relationships**: Emit separate atomic facts for each attribute (role, meeting_frequency, last_contact)
-5. **Confidence threshold**: Only extract facts with confidence 7+ (on 1-10 scale) – filter but don’t include in output
+5. **Confidence threshold**: Only extract facts with confidence 7+ (on 1-10 scale) – filter but don't include in output
 6. **Sensitivity assessment**: Consider impact across all life domains (personal, professional, social, health, financial)
 7. **Importance scoring**:  
    - 1 = Minor detail worth noting  
@@ -127,195 +123,70 @@ Context and environment
 
 ### Multiple facts from one input
 Input: "Just switched my running to mornings – 6 am works way better than evenings for me now. I'm training for the May marathon."
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "routine",
-      "subject": "user",
-      "attribute": "exercise_time",
-      "value": "switched to 6 am morning runs, finds them better than evening runs",
-      "sensitivity": "low",
-      "importance": 2
-    },
-    {
-      "category": "goal_plan",
-      "subject": "user",
-      "attribute": "athletic_goal",
-      "value": "training for a marathon scheduled in May 2025",
-      "temporal_context": "2025-05",
-      "sensitivity": "low",
-      "importance": 3
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- routine/exercise_time: "switched to 6 am morning runs, finds them better than evening runs" (importance: 2)
+- goal_plan/athletic_goal: "training for a marathon scheduled in May 2025" (importance: 3)
+
 ### Relationship with multiple attributes
 Input: "Meeting with Sarah from product again tomorrow. She's basically my main collaborator these days – we sync every Tuesday."
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "relationship",
-      "subject": "Sarah",
-      "attribute": "role",
-      "value": "product team member who is user's main collaborator",
-      "sensitivity": "low",
-      "importance": 2
-    },
-    {
-      "category": "relationship",
-      "subject": "Sarah",
-      "attribute": "meeting_frequency",
-      "value": "syncs with user every Tuesday for regular collaboration",
-      "sensitivity": "low",
-      "importance": 2
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- relationship/role: "product team member who is user's main collaborator" (importance: 2)
+- relationship/meeting_frequency: "syncs with user every Tuesday for regular collaboration" (importance: 2)
+
 ### Health fact (moderate sensitivity)
 Input: "Crushed my 10 k run today in 48 minutes! My VO2 max is up to 52 according to my watch"
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "health",
-      "subject": "user",
-      "attribute": "10k_time",
-      "value": "completed 10 k run in 48 minutes showing strong fitness level",
-      "temporal_context": "today",
-      "sensitivity": "medium",
-      "importance": 2
-    },
-    {
-      "category": "health",
-      "subject": "user",
-      "attribute": "vo2_max",
-      "value": "VO2 max measured at 52 by fitness watch indicating good cardiovascular fitness",
-      "sensitivity": "medium",
-      "importance": 2
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- health/10k_time: "completed 10 k run in 48 minutes showing strong fitness level" (importance: 2, sensitivity: medium)
+- health/vo2_max: "VO2 max measured at 52 by fitness watch indicating good cardiovascular fitness" (importance: 2, sensitivity: medium)
+
 ### Affective marker with high sensitivity
 Input: "Presentations always trigger my anxiety – happened again before the board meeting"
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "affective_marker",
-      "subject": "user",
-      "attribute": "stress_trigger",
-      "value": "experiences anxiety triggered by presentations, confirmed at recent board meeting",
-      "sensitivity": "high",
-      "importance": 3
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- affective_marker/stress_trigger: "experiences anxiety triggered by presentations, confirmed at recent board meeting" (importance: 3, sensitivity: high)
+
 ### Negative example (no extraction)
 Input: "I guess I'm sort of a night owl these days, or maybe not, hard to say"
-` + "```json\n" + `
-{ "facts": [] }
-` + "```\n" + `
-Reason: Ambiguous, unstable claim (confidence below 7)
+
+Use EXTRACT_FACTS tool with empty facts array - reason: Ambiguous, unstable claim (confidence below 7)
 
 ### Life milestone example (MUST extract)
 Input: "Finally signed the lease! Moving to Brooklyn next month"
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "event",
-      "subject": "user",
-      "attribute": "relocation",
-      "value": "moving to Brooklyn with lease signed",
-      "temporal_context": "next month",
-      "sensitivity": "medium",
-      "importance": 3
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- event/relocation: "moving to Brooklyn with lease signed" (importance: 3, temporal_context: "next month")
+
 ### Job change example (MUST extract)
 Input: "Got the offer! Starting as Senior Engineer at TechCorp in January"
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "event",
-      "subject": "user",
-      "attribute": "job_change",
-      "value": "accepted Senior Engineer position at TechCorp starting January",
-      "temporal_context": "January",
-      "sensitivity": "medium",
-      "importance": 3
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- event/job_change: "accepted Senior Engineer position at TechCorp starting January" (importance: 3, temporal_context: "January")
+
 ### Health milestone example (MUST extract)
 Input: "Doctor confirmed I'm fully recovered from the surgery – cleared for all activities"
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "health",
-      "subject": "user",
-      "attribute": "recovery_status",
-      "value": "fully recovered from surgery with doctor clearance for all activities",
-      "sensitivity": "high",
-      "importance": 3
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- health/recovery_status: "fully recovered from surgery with doctor clearance for all activities" (importance: 3, sensitivity: high)
+
 ### Major purchase example (MUST extract)
 Input: "Just bought my first house! Closing was yesterday, keys in hand"
-` + "```json\n" + `
-{
-  "facts": [
-    {
-      "category": "event",
-      "subject": "user",
-      "attribute": "home_purchase",
-      "value": "purchased first house with closing completed",
-      "temporal_context": "yesterday",
-      "sensitivity": "medium",
-      "importance": 3
-    }
-  ]
-}
-` + "```\n\n" + `
+
+Use EXTRACT_FACTS tool to extract:
+- event/home_purchase: "purchased first house with closing completed" (importance: 3, temporal_context: "yesterday")
+
 ### Mundane examples (DO NOT extract)
 Input: "Grabbed lunch at that new sandwich place downtown"
-` + "```json\n" + `
-{ "facts": [] }
-` + "```\n" + `
-Reason: One-off dining experience without lasting significance
+Use EXTRACT_FACTS tool with empty facts array - reason: One-off dining experience without lasting significance
 
 Input: "Feeling pretty tired today, long week"
-` + "```json\n" + `
-{ "facts": [] }
-` + "```\n" + `
-Reason: Temporary state, not a lasting pattern or significant development
+Use EXTRACT_FACTS tool with empty facts array - reason: Temporary state, not a lasting pattern or significant development
 
 Input: "Thinking I might want to learn Spanish someday"
-` + "```json\n" + `
-{ "facts": [] }
-` + "```\n" + `
-Reason: Vague consideration without commitment or concrete plans
+Use EXTRACT_FACTS tool with empty facts array - reason: Vague consideration without commitment or concrete plans
 
-## Chunk metadata (DO NOT OUTPUT)
-` + "```json\n" + `
-{
-  "chunk_id": "conv_12345_chunk_3",
-  "previous_facts_hash": "a7b9c2...",
-  "timestamp": "2024-03-15T10:30:00Z"
-}
-` + "```\n\n" + `
 ## Do NOT extract
 - Speculation or interpretation
 - One-off events without pattern
