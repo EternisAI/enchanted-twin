@@ -28,7 +28,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// Shared test infrastructure
+// Shared test infrastructure.
 var (
 	sharedWeaviateServer *rest.Server
 	sharedWeaviateClient *weaviate.Client
@@ -147,7 +147,7 @@ func clearWeaviateData(t *testing.T) {
 			continue
 		}
 
-		if result != nil && len(result) > 0 {
+		if len(result) > 0 {
 			for _, obj := range result {
 				if obj.ID != "" {
 					err := sharedWeaviateClient.Data().Deleter().

@@ -441,6 +441,7 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 		documents = append(documents, memory.TextDocument{
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
+			FieldSource:    record.Source,
 			FieldMetadata:  metadata,
 			FieldTags:      tags,
 		})
