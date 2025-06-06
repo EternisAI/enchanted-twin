@@ -57,35 +57,32 @@ func (s *FriendService) CheckForSimilarFriendMessages(ctx context.Context, messa
 
 	s.logger.Info("Checking for similarity with previous friend messages", "message", message)
 
-	// Create a filtered query to only search friend messages
-	result, err := s.memoryService.QueryWithDistance(ctx, message, map[string]string{
-		"type": FriendMetadataType,
-	})
+	// Create a filter to only search friend messages with distance threshold
+	// Use tags to filter for sent messages (documents are tagged with "sent_message")
+	filter := &memory.Filter{
+		Distance: SimilarityThreshold, // Use the threshold as max distance
+		Tags: &memory.TagsFilter{
+			All: []string{"sent_message"}, // Only messages we've sent
+		},
+	}
+
+	result, err := s.memoryService.Query(ctx, message, filter)
 	if err != nil {
 		s.logger.Error("Failed to query for similar friend messages", "error", err)
 		return false, fmt.Errorf("failed to query for similar friend messages: %w", err)
 	}
 
-	s.logger.Debug("Query with distance result (friend messages only)", "total_documents", len(result.Documents))
+	s.logger.Debug("Query result (friend messages only)", "total_documents", len(result.Documents))
 
-	for _, docWithDistance := range result.Documents {
-		s.logger.Debug("Checking friend document",
-			"distance", docWithDistance.Distance,
+	// If we got any results, it means there are similar messages within the threshold
+	if len(result.Documents) > 0 {
+		s.logger.Info("Found similar friend message, skipping send",
 			"threshold", SimilarityThreshold,
-			"activity_type", docWithDistance.Document.FieldMetadata["activity_type"],
-			"content_preview", docWithDistance.Document.FieldContent[:min(50, len(docWithDistance.Document.FieldContent))])
-
-		if docWithDistance.Distance < SimilarityThreshold {
-			s.logger.Info("Found similar friend message, skipping send",
-				"distance", docWithDistance.Distance,
-				"threshold", SimilarityThreshold,
-				"similar_message", docWithDistance.Document.FieldContent[:min(100, len(docWithDistance.Document.FieldContent))])
-			return true, nil
-		}
+			"similar_message", result.Documents[0].FieldContent[:min(100, len(result.Documents[0].FieldContent))])
+		return true, nil
 	}
 
-	s.logger.Info("No similar friend messages found, safe to send",
-		"total_friend_documents_checked", len(result.Documents))
+	s.logger.Info("No similar friend messages found, safe to send")
 	return false, nil
 }
 

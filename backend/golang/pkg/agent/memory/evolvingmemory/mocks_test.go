@@ -55,15 +55,6 @@ func (m *MockStorage) Query(ctx context.Context, queryText string, filter *memor
 	return result, args.Error(1)
 }
 
-func (m *MockStorage) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
-	args := m.Called(ctx, queryText, metadataFilters)
-	if args.Get(0) == nil {
-		return memory.QueryWithDistanceResult{}, args.Error(1)
-	}
-	result, _ := args.Get(0).(memory.QueryWithDistanceResult)
-	return result, args.Error(1)
-}
-
 func (m *MockStorage) EnsureSchemaExists(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
