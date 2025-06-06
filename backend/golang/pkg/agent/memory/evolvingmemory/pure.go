@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -248,26 +249,30 @@ func aggregateErrors(errors []error) error {
 
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
-func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, completionsService *ai.Service) ([]string, error) {
-	currentDate := getCurrentDateForPrompt()
+func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, completionsService *ai.Service) ([]ExtractedFact, error) {
+	currentSystemDate := doc.Timestamp.Format("2006-01-02")
+	docEventDateStr := doc.DateString
 
 	switch doc.Type {
 	case DocumentTypeConversation:
 		convDoc, ok := doc.Original.(*memory.ConversationDocument)
 		if !ok {
-			return nil, fmt.Errorf("document is not a ConversationDocument")
+			return nil, fmt.Errorf("expected ConversationDocument but got %T", doc.Original)
 		}
-		return extractFactsFromConversation(ctx, *convDoc, doc.SpeakerID, currentDate, doc.DateString, completionsService)
+
+		// Extract for the document-level context (no specific speaker)
+		return extractFactsFromConversation(ctx, *convDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService)
 
 	case DocumentTypeText:
 		textDoc, ok := doc.Original.(*memory.TextDocument)
 		if !ok {
-			return nil, fmt.Errorf("document is not a TextDocument")
+			return nil, fmt.Errorf("expected TextDocument but got %T", doc.Original)
 		}
-		return extractFactsFromTextDocument(ctx, *textDoc, doc.SpeakerID, currentDate, doc.DateString, completionsService)
+
+		return extractFactsFromTextDocument(ctx, *textDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService)
 
 	default:
-		return nil, fmt.Errorf("unknown document type: %s", doc.Type)
+		return nil, fmt.Errorf("unsupported document type: %s", doc.Type)
 	}
 }
 
@@ -403,7 +408,7 @@ func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service) ([]string, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -415,7 +420,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	}
 
 	if len(convDoc.Conversation) == 0 {
-		return []string{}, nil
+		return []ExtractedFact{}, nil
 	}
 
 	// Use new structured fact extraction prompt for conversations
@@ -429,7 +434,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		return nil, fmt.Errorf("LLM completion error for speaker %s, conversation %s: %w", speakerID, convDoc.ID(), err)
 	}
 
-	var extractedFacts []string
+	var extractedFacts []ExtractedFact
 	for _, toolCall := range llmResponse.ToolCalls {
 		if toolCall.Function.Name != ExtractFactsToolName {
 			continue
@@ -444,7 +449,16 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		for _, structuredFact := range args.Facts {
 			// Use shared content generation method
 			factString := structuredFact.GenerateContent()
-			extractedFacts = append(extractedFacts, factString)
+			extractedFacts = append(extractedFacts, ExtractedFact{
+				Content:         factString,
+				Category:        structuredFact.Category,
+				Subject:         structuredFact.Subject,
+				Attribute:       structuredFact.Attribute,
+				Value:           structuredFact.Value,
+				Sensitivity:     structuredFact.Sensitivity,
+				Importance:      structuredFact.Importance,
+				TemporalContext: structuredFact.TemporalContext,
+			})
 		}
 	}
 
@@ -452,15 +466,18 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service) ([]string, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
 
 	content := textDoc.Content()
 	if content == "" {
-		return []string{}, nil
+		return []ExtractedFact{}, nil
 	}
+
+	// Add logging to see what content is being processed
+	log.Printf("Extracting facts from text document: ID=%s, Content=%s", textDoc.ID(), content[:min(200, len(content))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
@@ -472,24 +489,54 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		return nil, fmt.Errorf("LLM completion error for speaker %s, document %s: %w", speakerID, textDoc.ID(), err)
 	}
 
-	var extractedFacts []string
-	for _, toolCall := range llmResponse.ToolCalls {
+	log.Printf("LLM response for document %s: ToolCalls=%d, Content=%s", textDoc.ID(), len(llmResponse.ToolCalls), llmResponse.Content[:min(200, len(llmResponse.Content))])
+
+	var extractedFacts []ExtractedFact
+	for i, toolCall := range llmResponse.ToolCalls {
+		log.Printf("  ToolCall %d: Name=%s, Arguments=%s", i+1, toolCall.Function.Name, toolCall.Function.Arguments[:min(500, len(toolCall.Function.Arguments))])
+
 		if toolCall.Function.Name != ExtractFactsToolName {
 			continue
 		}
 
 		var args ExtractStructuredFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			log.Printf("Failed to unmarshal tool arguments: %v", err)
 			continue
+		}
+
+		// Log the structured facts being extracted
+		log.Printf("Extracted %d structured facts from document %s", len(args.Facts), textDoc.ID())
+		for i, structuredFact := range args.Facts {
+			log.Printf("  Fact %d: Category=%s, Subject=%s, Value=%s, Importance=%d",
+				i+1, structuredFact.Category, structuredFact.Subject, structuredFact.Value, structuredFact.Importance)
 		}
 
 		// Convert structured facts to enriched content strings for better semantic search
 		for _, structuredFact := range args.Facts {
 			// Use shared content generation method
 			factString := structuredFact.GenerateContent()
-			extractedFacts = append(extractedFacts, factString)
+			extractedFacts = append(extractedFacts, ExtractedFact{
+				Content:         factString,
+				Category:        structuredFact.Category,
+				Subject:         structuredFact.Subject,
+				Attribute:       structuredFact.Attribute,
+				Value:           structuredFact.Value,
+				Sensitivity:     structuredFact.Sensitivity,
+				Importance:      structuredFact.Importance,
+				TemporalContext: structuredFact.TemporalContext,
+			})
+			log.Printf("Generated fact content: %s", factString)
 		}
 	}
 
+	log.Printf("Total extracted facts from document %s: %d", textDoc.ID(), len(extractedFacts))
 	return extractedFacts, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

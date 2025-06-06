@@ -15,7 +15,7 @@ import (
 // This interface contains no orchestration concerns (channels, workers, progress reporting).
 type MemoryEngine interface {
 	// Core business operations
-	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error)
+	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error)
 	ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error)
 	ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error)
 
@@ -68,7 +68,7 @@ func convertEmbedding(embedding []float64) []float32 {
 }
 
 // ExtractFacts extracts facts from a document using pure business logic.
-func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error) {
+func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
 	return ExtractFactsFromDocument(ctx, doc, e.completionsService)
 }
 

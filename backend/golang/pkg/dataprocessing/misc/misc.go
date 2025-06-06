@@ -321,13 +321,15 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 				return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
 			}
 
-			fmt.Printf("isHumanReadable: %t\n", isHumanReadable)
+			fmt.Printf("File %s: isHumanReadable: %t\n", fileName, isHumanReadable)
 
 			if !isHumanReadable {
 				return nil, fmt.Errorf("file %s does not contain human-readable content", filePath)
 			}
 		}
 	}
+
+	fmt.Printf("Processing file %s: content length=%d, preview=%s\n", fileName, len(textContent), textContent[:min(200, len(textContent))])
 
 	if len(textContent) == 0 {
 		emptyRecord := types.Record{
@@ -363,7 +365,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 		}
 
 		chunk := textContent[i:end]
-		records = append(records, types.Record{
+		record := types.Record{
 			Data: map[string]interface{}{
 				"content":  chunk,
 				"filename": fileName,
@@ -379,10 +381,21 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 			},
 			Timestamp: timestamp,
 			Source:    s.Name(),
-		})
+		}
+		records = append(records, record)
+
+		fmt.Printf("Created record for %s chunk %d: content_length=%d\n", fileName, i/s.chunkSize, len(chunk))
 	}
 
+	fmt.Printf("File %s processed into %d records\n", fileName, len(records))
 	return records, nil
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }
 
 func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
@@ -414,8 +427,10 @@ func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath 
 }
 
 func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
+	fmt.Printf("Converting %d records to documents\n", len(records))
+
 	documents := make([]memory.TextDocument, 0, len(records))
-	for _, record := range records {
+	for i, record := range records {
 		metadata := map[string]string{}
 
 		content := ""
@@ -438,13 +453,18 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 			}
 		}
 
-		documents = append(documents, memory.TextDocument{
+		doc := memory.TextDocument{
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
 			FieldSource:    record.Source,
 			FieldMetadata:  metadata,
 			FieldTags:      tags,
-		})
+		}
+
+		fmt.Printf("Document %d: ID=%s, Source=%s, Content_length=%d, Preview=%s\n",
+			i, doc.ID(), doc.Source(), len(doc.Content()), doc.Content()[:min(100, len(doc.Content()))])
+
+		documents = append(documents, doc)
 	}
 
 	var documents_ []memory.Document
@@ -452,6 +472,7 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 		documents_ = append(documents_, &document)
 	}
 
+	fmt.Printf("Converted %d records to %d documents\n", len(records), len(documents_))
 	return documents_, nil
 }
 

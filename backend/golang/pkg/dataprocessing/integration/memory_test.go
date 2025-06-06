@@ -241,11 +241,32 @@ func (env *testEnvironment) loadDocuments(t *testing.T) {
 	records, err := helpers.ReadJSONL[types.Record](env.config.OutputPath)
 	require.NoError(t, err)
 
+	env.logger.Info("Records processed", "count", len(records))
+	for i, record := range records {
+		env.logger.Info("Record", "index", i, "source", record.Source, "content_preview", truncateString(record.Data["content"], 100))
+	}
+
 	documents, err := env.dataprocessing.ToDocuments(env.ctx, env.config.Source, records)
 	require.NoError(t, err)
 
 	require.NotEmpty(t, documents, "no documents to test with")
 	env.documents = documents
+
+	env.logger.Info("Documents converted", "count", len(documents))
+	for i, doc := range documents {
+		env.logger.Info("Document", "index", i, "id", doc.ID(), "source", doc.Source(), "content_preview", truncateString(doc.Content(), 150))
+	}
+}
+
+func truncateString(s interface{}, maxLen int) string {
+	str, ok := s.(string)
+	if !ok {
+		return fmt.Sprintf("%v", s)
+	}
+	if len(str) <= maxLen {
+		return str
+	}
+	return str[:maxLen] + "..."
 }
 
 func (env *testEnvironment) storeDocuments(t *testing.T) {
@@ -391,7 +412,7 @@ func TestMemoryIntegration(t *testing.T) {
 		assert.NotEmpty(t, result.Documents, "should find memories with valid source")
 
 		for _, doc := range result.Documents {
-			env.logger.Info("Document", "id", doc.ID(), "content", doc.Content())
+			env.logger.Info("Document", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
 		}
 	})
 
@@ -401,21 +422,37 @@ func TestMemoryIntegration(t *testing.T) {
 			env.storeDocuments(t)
 		}
 
-		// Memory processing is now complete since storeDocuments() waits for completion
+		// First, test a basic query without filters to ensure data exists
+		env.logger.Info("Testing basic query without filters to verify data exists")
+		basicResult, err := env.memory.Query(env.ctx, "What are facts about me?", nil)
+		require.NoError(t, err)
+		env.logger.Info("Basic query result", "count", len(basicResult.Documents))
 
+		for i, doc := range basicResult.Documents {
+			if i < 5 { // Show first 5 results
+				env.logger.Info("Basic query document", "index", i, "id", doc.ID(), "content", doc.Content()[:min(200, len(doc.Content()))])
+			}
+		}
+
+		if len(basicResult.Documents) == 0 {
+			env.logger.Error("No documents found in basic query - data storage issue!")
+		}
+
+		// Now test with importance filter
 		limit := 100
 		filter := memory.Filter{
 			FactImportanceMin: intPtr(3),
-			Source:            &env.config.Source,
 			Limit:             &limit,
 		}
 
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What are the most important facts about me?"), &filter)
+		result, err := env.memory.Query(env.ctx, "What are the most important facts about me?", &filter)
 		require.NoError(t, err)
+
+		env.logger.Info("Importance filtered query result", "count", len(result.Documents))
 		assert.NotEmpty(t, result.Documents, "should find important facts about the user")
 
 		for _, doc := range result.Documents {
-			env.logger.Info("Document", "id", doc.ID(), "content", doc.Content())
+			env.logger.Info("Important fact", "id", doc.ID(), "content", doc.Content())
 		}
 	})
 
