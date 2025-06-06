@@ -259,10 +259,10 @@ func (env *testEnvironment) cleanup(t *testing.T) {
 	}
 }
 
-func (env *testEnvironment) loadDocuments(t *testing.T) {
+func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string) {
 	t.Helper()
 
-	_, err := env.dataprocessing.ProcessSource(env.ctx, env.config.Source, env.config.InputPath, env.config.OutputPath)
+	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
 	records, err := helpers.ReadJSONL[types.Record](env.config.OutputPath)
@@ -273,7 +273,7 @@ func (env *testEnvironment) loadDocuments(t *testing.T) {
 		env.logger.Info("Record", "index", i, "source", record.Source, "content_preview", truncateString(record.Data["content"], 100))
 	}
 
-	documents, err := env.dataprocessing.ToDocuments(env.ctx, env.config.Source, records)
+	documents, err := env.dataprocessing.ToDocuments(env.ctx, source, records)
 	require.NoError(t, err)
 
 	require.NotEmpty(t, documents, "no documents to test with")
@@ -407,7 +407,7 @@ func TestMemoryIntegration(t *testing.T) {
 	defer env.cleanup(t)
 
 	t.Run("DataProcessingAndStorage", func(t *testing.T) {
-		env.loadDocuments(t)
+		env.loadDocuments(t, env.config.Source, env.config.InputPath)
 		assert.NotEmpty(t, env.documents)
 		env.logger.Info("Documents loaded", "count", len(env.documents))
 		env.logger.Info("Documents", "documents", env.documents)
@@ -421,7 +421,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("BasicQuerying", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -440,9 +440,119 @@ func TestMemoryIntegration(t *testing.T) {
 		}
 	})
 
+	t.Run("Query chatgpt", func(t *testing.T) {
+		source := "chatgpt"
+		inputPath := "testdata/chatgpt.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query gmail", func(t *testing.T) {
+		source := "gmail"
+		inputPath := "testdata/google_export_sample.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query telegram", func(t *testing.T) {
+		source := "telegram"
+		inputPath := "testdata/telegram_export_sample.json"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query X", func(t *testing.T) {
+		source := "x"
+		inputPath := "testdata/x_export_sample.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query slack", func(t *testing.T) {
+		source := "slack"
+		inputPath := "testdata/slack_export_sample.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
 	t.Run("Important facts", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -474,7 +584,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("DocumentReferences", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -505,7 +615,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("SourceFiltering", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -525,7 +635,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("DistanceFiltering", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -551,7 +661,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 	defer env.cleanup(t)
 
 	// Setup data
-	env.loadDocuments(t)
+	env.loadDocuments(t, env.config.Source, env.config.InputPath)
 	env.storeDocuments(t)
 
 	limit := 100
@@ -718,7 +828,7 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	defer env.cleanup(t)
 
 	// Test 1: Data processing and storage
-	env.loadDocuments(t)
+	env.loadDocuments(t, env.config.Source, env.config.InputPath)
 	assert.NotEmpty(t, env.documents)
 	env.logger.Info("Documents loaded successfully", "count", len(env.documents))
 
@@ -754,7 +864,7 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	// Test 4: More precise querying
 	t.Run("More precise querying", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
