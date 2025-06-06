@@ -79,7 +79,7 @@ export default function VoiceOnboardingContainer() {
 
 function VoiceOnboarding() {
   const navigate = useNavigate()
-  const { speak, stop, isSpeaking } = useTTS()
+  const { speak, stop, isSpeaking, getFreqData } = useTTS()
 
   const [stepIdx, setStepIdx] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
@@ -163,7 +163,7 @@ function VoiceOnboarding() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
       >
-        <OnboardingVoiceAnimation run={isSpeaking} />
+        <OnboardingVoiceAnimation run={isSpeaking} getFreqData={getFreqData} />
       </motion.div>
 
       <div></div>
