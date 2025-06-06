@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
@@ -26,11 +25,6 @@ type InitializeWorkflowResponse struct{}
 type InitializeStateQuery struct {
 	State model.IndexingState
 }
-
-const (
-	OLLAMA_COMPLETIONS_MODEL = "gemma3:1b"
-	OLLAMA_EMBEDDING_MODEL   = "nomic-embed-text"
-)
 
 func (w *DataProcessingWorkflows) InitializeWorkflow(
 	ctx workflow.Context,
@@ -83,28 +77,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 		errMsg := "No data sources found"
 		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
 		return InitializeWorkflowResponse{}, errors.New(errMsg)
-	}
-
-	indexingState = model.IndexingStateDownloadingModel
-	w.publishIndexingStatus(ctx, indexingState, []*model.DataSource{}, 0, 0, nil)
-
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_COMPLETIONS_MODEL).
-		Get(ctx, nil)
-	if err != nil {
-		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
-		indexingState = model.IndexingStateFailed
-		errMsg := err.Error()
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
-		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to download Ollama model")
-	}
-
-	err = workflow.ExecuteActivity(ctx, w.DownloadOllamaModel, OLLAMA_EMBEDDING_MODEL).Get(ctx, nil)
-	if err != nil {
-		workflow.GetLogger(ctx).Error("Failed to download Ollama model", "error", err)
-		errMsg := err.Error()
-		indexingState = model.IndexingStateFailed
-		w.publishIndexingStatus(ctx, indexingState, dataSources, 0, 0, &errMsg)
-		return InitializeWorkflowResponse{}, errors.Wrap(err, "failed to download Ollama model")
 	}
 
 	for _, dataSource := range fetchDataSourcesResponse.DataSources {
@@ -446,71 +418,5 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(
 	}
 
 	w.Logger.Info("Successfully published indexing status", "subject", input.Subject)
-	return nil
-}
-
-type DownloadModelProgress struct {
-	PercentageProgress float64
-}
-
-func (w *DataProcessingWorkflows) DownloadOllamaModel(ctx context.Context, modelName string) error {
-	if w.OllamaClient == nil {
-		w.Logger.Info("Ollama client is nil, skipping model download")
-		return nil
-	}
-
-	models, err := w.OllamaClient.List(ctx)
-	if err != nil {
-		w.Logger.Error("Failed to list ollama models", "error", err)
-		return err
-	}
-
-	modelFound := false
-	for _, model := range models.Models {
-		if model.Name == modelName {
-			modelFound = true
-			break
-		}
-	}
-
-	if modelFound {
-		w.Logger.Info("Model already downloaded", "modelName", modelName)
-		return nil
-	}
-
-	req := &ollamaapi.PullRequest{
-		Model: modelName,
-	}
-
-	pullProgressFunc := func(progress ollamaapi.ProgressResponse) error {
-		if progress.Total == 0 {
-			return nil
-		}
-
-		percentageProgress := float64(progress.Completed) / float64(progress.Total) * 100
-
-		w.Logger.Info("Download progress", "percentageProgress", percentageProgress)
-		userMessageJson, err := json.Marshal(DownloadModelProgress{
-			PercentageProgress: percentageProgress,
-		})
-		if err != nil {
-			return err
-		}
-
-		err = w.Nc.Publish("onboarding.download_model.progress", userMessageJson)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	err = w.OllamaClient.Pull(context.Background(), req, pullProgressFunc)
-	if err != nil {
-		return err
-	}
-
-	w.Logger.Info("Model downloaded", "modelName", modelName)
-
 	return nil
 }
