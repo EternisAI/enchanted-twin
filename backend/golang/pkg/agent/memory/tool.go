@@ -36,7 +36,7 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 	}
 
 	// For now, search across all speakers
-	result, err := t.Memory.Query(ctx, query)
+	result, err := t.Memory.Query(ctx, query, nil)
 	if err != nil {
 		return nil, err
 	}
