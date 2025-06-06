@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -24,7 +23,6 @@ import (
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
-	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -75,16 +73,6 @@ func main() {
 	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
-
-	var ollamaClient *ollamaapi.Client
-	if envs.OllamaBaseURL != "" {
-		baseURL, err := url.Parse(envs.OllamaBaseURL)
-		if err != nil {
-			logger.Error("Failed to parse Ollama base URL", "error", err)
-		} else {
-			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
-		}
-	}
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -342,7 +330,6 @@ func main() {
 			envs:                 envs,
 			store:                store,
 			nc:                   nc,
-			ollamaClient:         ollamaClient,
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
 			toolsRegistry:        toolRegistry,
@@ -429,7 +416,6 @@ type bootstrapTemporalWorkerInput struct {
 	envs                 *config.Config
 	store                *db.Store
 	nc                   *nats.Conn
-	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
 	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
@@ -464,7 +450,6 @@ func bootstrapTemporalWorker(
 		Config:        input.envs,
 		Store:         input.store,
 		Nc:            input.nc,
-		OllamaClient:  input.ollamaClient,
 		Memory:        input.memory,
 		OpenAIService: input.aiCompletionsService,
 	}
