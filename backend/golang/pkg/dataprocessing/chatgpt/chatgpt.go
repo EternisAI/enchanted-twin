@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -89,14 +90,13 @@ func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]
 	var records []types.Record
 
 	for i, conversation := range conversations {
-		if i%10 == 0 {
-			if err := ctx.Err(); err != nil {
-				return nil, fmt.Errorf("context canceled during conversation processing: %w", err)
-			}
+		if err := ctx.Err(); err != nil {
+			return nil, fmt.Errorf("context canceled during conversation processing: %w", err)
 		}
 
 		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
 		if err != nil {
+			log.Printf("Warning: Failed to parse timestamp for conversation %d (create_time: %f): %v", i, conversation.CreateTime, err)
 			continue
 		}
 
