@@ -249,28 +249,52 @@ func (env *testEnvironment) loadDocuments(t *testing.T) {
 }
 
 func (env *testEnvironment) storeDocuments(t *testing.T) {
-	t.Helper()
+	env.logger.Info("Documents loaded successfully", "count", len(env.documents))
 
-	batchSize := 20
-	for i := 0; i < len(env.documents); i += batchSize {
-		select {
-		case <-env.ctx.Done():
-			t.Fatalf("context canceled during document storage: %v", env.ctx.Err())
-		default:
-		}
-
-		batch := env.documents[i:min(i+batchSize, len(env.documents))]
-		err := env.memory.Store(env.ctx, batch, nil)
-		require.NoError(t, err)
-	}
-
-	// Wait longer for memory processing to complete, including fact extraction
 	env.logger.Info("Waiting for memory processing to complete...")
-	select {
-	case <-time.After(10 * time.Second):
-	case <-env.ctx.Done():
-		t.Fatalf("context canceled while waiting for processing: %v", env.ctx.Err())
+
+	config := evolvingmemory.DefaultConfig()
+	progressCh, errorCh := env.memory.StoreV2(env.ctx, env.documents, config)
+
+	// Properly wait for completion by consuming channels until they close
+	var errors []error
+	var progressUpdates []evolvingmemory.Progress
+
+	// Use a timeout to prevent hanging if something goes wrong
+	timeout := time.After(2 * time.Minute)
+
+	for progressCh != nil || errorCh != nil {
+		select {
+		case progress, ok := <-progressCh:
+			if !ok {
+				progressCh = nil
+				continue
+			}
+			progressUpdates = append(progressUpdates, progress)
+			env.logger.Infof("Progress: %d/%d (stage: %s)", progress.Processed, progress.Total, progress.Stage)
+
+		case err, ok := <-errorCh:
+			if !ok {
+				errorCh = nil
+				continue
+			}
+			errors = append(errors, err)
+			env.logger.Errorf("Processing error: %v", err)
+
+		case <-timeout:
+			t.Fatal("Memory processing timed out after 2 minutes")
+
+		case <-env.ctx.Done():
+			t.Fatal("Context cancelled during memory processing")
+		}
 	}
+
+	// Check for errors
+	if len(errors) > 0 {
+		t.Fatalf("Memory processing failed with %d errors, first error: %v", len(errors), errors[0])
+	}
+
+	env.logger.Info("Documents stored successfully")
 }
 
 func getTestConfig(t *testing.T) testConfig {
@@ -354,6 +378,8 @@ func TestMemoryIntegration(t *testing.T) {
 			env.loadDocuments(t)
 			env.storeDocuments(t)
 		}
+
+		// Memory processing is now complete since storeDocuments() waits for completion
 
 		limit := 100
 		filter := memory.Filter{
