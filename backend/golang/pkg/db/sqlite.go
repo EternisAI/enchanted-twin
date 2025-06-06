@@ -237,6 +237,14 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE threads ADD COLUMN state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'broadcasted', 'received', 'hidden', 'visible'));
+	`)
+	if err != nil && err.Error() != "duplicate column name: state" {
+		// Ignore error if column already exists
+		return nil, err
+	}
+
 	store := &Store{db: db}
 
 	if err = store.InitOAuth(ctx); err != nil {
