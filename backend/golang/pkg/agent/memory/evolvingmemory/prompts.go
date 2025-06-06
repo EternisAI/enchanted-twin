@@ -10,105 +10,194 @@ func getCurrentDateForPrompt() string {
 }
 
 const (
-	// SpeakerAgnosticFactRetrievalPrompt was FactRetrievalPrompt. It's session-level, not speaker-focused.
-	// NOTE: "{document_event_date}" and "{current_system_date}" will be dynamically replaced in Go.
-	SpeakerAgnosticFactRetrievalPrompt = `You are a Personal Information Organizer, specialized in accurately storing facts, user memories, and preferences. Your primary role is to extract relevant pieces of information from conversations and organize them into distinct, manageable facts. This allows for easy retrieval and personalization in future interactions.
+	// FactExtractionPrompt is the system prompt handed to the LLM.
+	FactExtractionPrompt = `
+You are a fact extractor. Use the EXTRACT_FACTS tool to extract atomic, actionable facts.
 
-The conversation you are analyzing primarily occurred around the date: {document_event_date}.
-For your reference, the current system date is {current_system_date}.
+Extract atomic, actionable facts that:
+- Are concrete and specific (even if one-time occurrences)
+- Are explicitly stated (no interpretation or psychoanalysis)
+- Have clear supporting evidence
+- Have confidence score of 7+ (on 1-10 scale)
 
-Below are the types of information you need to focus on. Ensure that each extracted fact is self-contained and provides complete context, including who the fact is about (e.g., "Melanie enjoys pottery" not "User enjoys pottery").
+Focus on quality over quantity. Extract only facts with clear value.
 
-Types of Information to Remember:
-1. Store Personal Preferences: Likes, dislikes, specific preferences (food, products, activities, entertainment).
-2. Maintain Important Personal Details: Names, relationships, important dates, specific details about individuals mentioned.
-3. Track Plans and Intentions: Upcoming events, trips, goals, shared plans.
-4. Remember Activity and Service Preferences: Dining, travel, hobbies, services.
-5. Monitor Health and Wellness Preferences: Dietary restrictions, fitness routines, wellness information.
-6. Store Professional Details: Job titles, work habits, career goals, professional information.
-7. Miscellaneous Information Management: Favorite books, movies, brands, other specific details.
+IMPORTANT: You must use the EXTRACT_FACTS tool to return your extracted facts. Do not return JSON in your response content.
 
-Extract all relevant facts from the conversation text below. Ensure each fact is a complete, self-contained statement.
-Conversation Text:
-{conversation_text}
+## Extraction categories
+
+Personal facts about the user
+
+- Core identity (name, age, location, occupation)
+- Preferences (food, music, activities, communication style)
+- Values and beliefs
+- Goals and aspirations
+- Challenges and pain points
+- Routines and habits
+- Skills and expertise
+
+Relationship mapping
+
+- Key people in their life (family, friends, colleagues)
+- Relationship dynamics and quality
+- Shared activities and contexts
+- Communication patterns with different people
+
+Temporal patterns
+
+- Daily / weekly routines
+- Seasonal patterns
+- Life phases and transitions
+- Project timelines
+- Recurring events
+
+Emotional and cognitive patterns
+
+- Stress triggers and coping mechanisms
+- Sources of joy and fulfillment
+- Decision-making patterns
+- Learning preferences
+- Communication style variations by context
+
+Context and environment
+
+- Work environment and culture
+- Living situation
+- Geographic preferences
+- Digital tool usage patterns
+
+## Tool usage
+Use the EXTRACT_FACTS tool to extract facts with the following structure:
+- **category**: One of the categories from the table below
+- **subject**: Usually "user" or specific entity name  
+- **attribute**: Specific property being described
+- **value**: Descriptive phrase with context (8-30 words)
+- **temporal_context**: Date/time reference (optional)
+- **sensitivity**: high/medium/low based on life impact
+- **importance**: 1-3 scale of life significance
+
+## Categories
+
+| Category         | Description             | Example attributes                     |
+|------------------|-------------------------|----------------------------------------|
+| profile_stable   | Core identity           | name, age, occupation, location        |
+| preference       | Likes / dislikes        | food, tools, communication_style       |
+| goal_plan        | Targets with timelines  | career_goal, fitness_target            |
+| routine          | Recurring activities    | exercise_time, work_schedule           |
+| skill            | Abilities and expertise | programming_language, tool_proficiency |
+| relationship     | People attributes       | role, meeting_frequency, last_contact  |
+| health           | Physical / mental state | fitness_metric, medical_condition      |
+| context_env      | Environment             | work_culture, neighborhood             |
+| affective_marker | Emotional patterns      | stress_trigger, joy_source             |
+| event            | Time-bound occurrences  | travel, meetings, appointments         |
+
+## Extraction rules
+
+1. **Atomic facts only**: "Prefers Thai food" not "likes Asian cuisine"
+2. **No speculation**: Skip "seems stressed" → require "I'm stressed"
+3. **Source conflicts**: Use most recent explicit self-statement
+4. **Relationships**: Emit separate atomic facts for each attribute (role, meeting_frequency, last_contact)
+5. **Confidence threshold**: Only extract facts with confidence 7+ (on 1-10 scale) – filter but don't include in output
+6. **Sensitivity assessment**: Consider impact across all life domains (personal, professional, social, health, financial)
+7. **Importance scoring**:  
+   - 1 = Minor detail worth noting  
+   - 2 = Meaningful information affecting decisions / relationships  
+   - 3 = Major life factor with significant ongoing impact
+8. **Time format**: Use 24-hour format (06:00, 14:30)
+9. **Skip mundane things**: Facts must be worth remembering over time
+
+## What to ALWAYS extract (importance 3):
+- Life milestones: moving, job changes, relationship status changes, major purchases
+- Health developments: diagnoses, significant fitness achievements, medical procedures
+- Major goals / commitments: training for events, education plans, career targets
+- Family changes: new family members, deaths, major family events
+- Financial milestones: home purchases, debt payoff, major investments
+
+## Granularity guide
+
+❌ Too coarse: "User is ambitious"  
+✅ Just right: "Targets promotion to Senior Engineer by Q3 2025"  
+❌ Too fine: "Ate sandwich at 12:47"
+
+## Examples
+
+### Multiple facts from one input
+Input: "Just switched my running to mornings – 6 am works way better than evenings for me now. I'm training for the May marathon."
+
+Use EXTRACT_FACTS tool to extract:
+- routine/exercise_time: "switched to 6 am morning runs, finds them better than evening runs" (importance: 2)
+- goal_plan/athletic_goal: "training for a marathon scheduled in May 2025" (importance: 3)
+
+### Relationship with multiple attributes
+Input: "Meeting with Sarah from product again tomorrow. She's basically my main collaborator these days – we sync every Tuesday."
+
+Use EXTRACT_FACTS tool to extract:
+- relationship/role: "product team member who is user's main collaborator" (importance: 2)
+- relationship/meeting_frequency: "syncs with user every Tuesday for regular collaboration" (importance: 2)
+
+### Health fact (moderate sensitivity)
+Input: "Crushed my 10 k run today in 48 minutes! My VO2 max is up to 52 according to my watch"
+
+Use EXTRACT_FACTS tool to extract:
+- health/10k_time: "completed 10 k run in 48 minutes showing strong fitness level" (importance: 2, sensitivity: medium)
+- health/vo2_max: "VO2 max measured at 52 by fitness watch indicating good cardiovascular fitness" (importance: 2, sensitivity: medium)
+
+### Affective marker with high sensitivity
+Input: "Presentations always trigger my anxiety – happened again before the board meeting"
+
+Use EXTRACT_FACTS tool to extract:
+- affective_marker/stress_trigger: "experiences anxiety triggered by presentations, confirmed at recent board meeting" (importance: 3, sensitivity: high)
+
+### Negative example (no extraction)
+Input: "I guess I'm sort of a night owl these days, or maybe not, hard to say"
+
+Use EXTRACT_FACTS tool with empty facts array - reason: Ambiguous, unstable claim (confidence below 7)
+
+### Life milestone example (MUST extract)
+Input: "Finally signed the lease! Moving to Brooklyn next month"
+
+Use EXTRACT_FACTS tool to extract:
+- event/relocation: "moving to Brooklyn with lease signed" (importance: 3, temporal_context: "next month")
+
+### Job change example (MUST extract)
+Input: "Got the offer! Starting as Senior Engineer at TechCorp in January"
+
+Use EXTRACT_FACTS tool to extract:
+- event/job_change: "accepted Senior Engineer position at TechCorp starting January" (importance: 3, temporal_context: "January")
+
+### Health milestone example (MUST extract)
+Input: "Doctor confirmed I'm fully recovered from the surgery – cleared for all activities"
+
+Use EXTRACT_FACTS tool to extract:
+- health/recovery_status: "fully recovered from surgery with doctor clearance for all activities" (importance: 3, sensitivity: high)
+
+### Major purchase example (MUST extract)
+Input: "Just bought my first house! Closing was yesterday, keys in hand"
+
+Use EXTRACT_FACTS tool to extract:
+- event/home_purchase: "purchased first house with closing completed" (importance: 3, temporal_context: "yesterday")
+
+### Mundane examples (DO NOT extract)
+Input: "Grabbed lunch at that new sandwich place downtown"
+Use EXTRACT_FACTS tool with empty facts array - reason: One-off dining experience without lasting significance
+
+Input: "Feeling pretty tired today, long week"
+Use EXTRACT_FACTS tool with empty facts array - reason: Temporary state, not a lasting pattern or significant development
+
+Input: "Thinking I might want to learn Spanish someday"
+Use EXTRACT_FACTS tool with empty facts array - reason: Vague consideration without commitment or concrete plans
+
+## Do NOT extract
+- Speculation or interpretation
+- One-off events without pattern
+- Quotes from others about the user
+- Temporary states (<2 weeks)
+- Granular timestamps
+- Value judgments
 `
-
-	// New Speaker-Focused Fact Extraction Prompt.
-	SpeakerFocusedFactExtractionPrompt = `
-You are a Personal Information Organizer. Your task is to extract simple, factual information that is explicitly stated by the PrimarySpeaker in the provided text.
-
-IMPORTANT RULES:
-1. Extract ONLY facts that are directly and explicitly stated by the PrimarySpeaker
-2. Do NOT create stories, narratives, or infer information not present in the text
-3. Do NOT assume emotional states, journeys, or personal growth
-4. If the text contains only contact information or metadata, extract only the basic facts present
-5. If no clear facts are stated by the PrimarySpeaker, return an empty list
-
-For your reference, the current system date is {current_system_date}.
-The PrimarySpeaker for whom you are extracting memories is: {primary_speaker_name}.
-The conversation you are analyzing primarily occurred around the date: {document_event_date}.
-
-Guidelines for fact extraction:
-
-1. **Simple Factual Statements Only:** Extract only clear, direct statements such as:
-   * Basic personal information explicitly mentioned
-   * Activities or preferences directly stated
-   * Factual details about work, location, or interests
-   * Specific events or plans mentioned by the PrimarySpeaker
-
-2. **Contact Information:** If the text contains contact information:
-   * Extract only the basic contact details present
-   * Do NOT invent personal details, activities, or characteristics
-   * Example: "Contact name is John Smith" (if explicitly stated)
-
-3. **Format Requirements:**
-   * Each fact should be a simple, complete sentence
-   * Include the PrimarySpeaker's name in each fact for context
-   * Use only information directly present in the text
-   * Do NOT add timeframes unless explicitly mentioned
-   * Do NOT add emotional context unless explicitly stated
-
-4. **What NOT to extract:**
-   * Assumed personality traits or characteristics
-   * Inferred activities or hobbies not mentioned
-   * Emotional states or personal growth journeys
-   * Family planning or life goals unless explicitly stated
-   * Any information not directly present in the text
-
-The conversation history has been provided as a series of messages. Extract facts ONLY from statements made by {primary_speaker_name}.
-
-If the provided text does not contain conversational content or explicit statements from {primary_speaker_name}, return an empty list of facts.
-
-Extracted facts for {primary_speaker_name}:
-`
-
-	// New QA System Prompt, inspired by memzero's MEMORY_ANSWER_PROMPT and its usage.
-	SpeakerFocusedQASystemPrompt = `You are an expert at answering questions. Your task is to provide accurate and concise answers to the USER'S QUESTION based SOLELY on the provided MEMORIES for each speaker.
-
-Guidelines:
-- Extract relevant information from the memories provided for {speaker1_name} and {speaker2_name} to answer the USER'S QUESTION.
-- If the provided memories do not contain sufficient information to answer the question, state that you cannot answer based on the provided memories for these speakers.
-- Ensure that the answers are clear, concise, and directly address the USER'S QUESTION.
-- Do not use any prior knowledge.
-
-MEMORIES for {speaker1_name} (related to the question):
-{{.Speaker1Memories}}
-
-MEMORIES for {speaker2_name} (related to the question):
-{{.Speaker2Memories}}
-
-USER'S QUESTION:
-{{.Question}}
-
-Your Answer:
-`
-
-	// DefaultUpdateMemoryPrompt is the base prompt for the LLM to decide how to update memory.
-	// The calling Go function will append context (existing memories, new facts) and final tool-use instructions.
-	DefaultUpdateMemoryPrompt = `You are a smart memory manager which controls the memory of a system.
+	// MemoryUpdatePrompt - Comprehensive memory management decision system for conversations.
+	MemoryUpdatePrompt = `You are a smart memory manager which controls the memory of a system for the primary user.
 You can perform four operations: (1) add into the memory, (2) update the memory, (3) delete from the memory, and (4) no change.
-
-Based on the above four operations, the memory will change.
 
 Compare newly retrieved facts with the existing memory. For each new fact, decide whether to:
 - ADD: Add it to the memory as a new element
@@ -118,107 +207,102 @@ Compare newly retrieved facts with the existing memory. For each new fact, decid
 
 There are specific guidelines to select which operation to perform:
 
-1. **Add**: If the retrieved facts contain new information not present in the memory, then you have to add it by generating a new ID in the id field.
+1. **Add**: If the retrieved facts contain new information not present in the memory, then you have to add it.
 - **Example**:
     - Old Memory:
         [
             {
                 "id" : "0",
-                "text" : "User is a software engineer"
+                "text" : "The primary user is a software engineer"
             }
         ]
-    - Retrieved facts: ["Name is John"]
+    - Retrieved facts: ["The primary user's name is John"]
     - New Memory:
         {
             "memory" : [
                 {
                     "id" : "0",
-                    "text" : "User is a software engineer",
+                    "text" : "The primary user is a software engineer",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "Name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "ADD"
                 }
             ]
-
         }
 
 2. **Update**: If the retrieved facts contain information that is already present in the memory but the information is totally different, then you have to update it. 
 If the retrieved fact contains information that conveys the same thing as the elements present in the memory, then you have to keep the fact which has the most information. 
-Example (a) -- if the memory contains "User likes to play cricket" and the retrieved fact is "Loves to play cricket with friends", then update the memory with the retrieved facts.
-Example (b) -- if the memory contains "Likes cheese pizza" and the retrieved fact is "Loves cheese pizza", then you do not need to update it because they convey the same information.
-If the direction is to update the memory, then you have to update it.
+Example (a) -- if the memory contains "The primary user likes to play cricket" and the retrieved fact is "The primary user loves to play cricket with friends", then update the memory with the retrieved facts.
+Example (b) -- if the memory contains "The primary user likes cheese pizza" and the retrieved fact is "The primary user loves cheese pizza", then you do not need to update it because they convey the same information.
 Please keep in mind while updating you have to keep the same ID.
-Please note to return the IDs in the output from the input IDs only and do not generate any new ID.
 - **Example**:
     - Old Memory:
         [
             {
                 "id" : "0",
-                "text" : "I really like cheese pizza"
+                "text" : "The primary user really likes cheese pizza"
             },
             {
                 "id" : "1",
-                "text" : "User is a software engineer"
+                "text" : "The primary user is a software engineer"
             },
             {
                 "id" : "2",
-                "text" : "User likes to play cricket"
+                "text" : "The primary user likes to play cricket"
             }
         ]
-    - Retrieved facts: ["Loves chicken pizza", "Loves to play cricket with friends"]
+    - Retrieved facts: ["The primary user loves chicken pizza", "The primary user loves to play cricket with friends"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "Loves cheese and chicken pizza",
+                    "text" : "The primary user loves cheese and chicken pizza",
                     "event" : "UPDATE",
-                    "old_memory" : "I really like cheese pizza"
+                    "old_memory" : "The primary user really likes cheese pizza"
                 },
                 {
                     "id" : "1",
-                    "text" : "User is a software engineer",
+                    "text" : "The primary user is a software engineer",
                     "event" : "NONE"
                 },
                 {
                     "id" : "2",
-                    "text" : "Loves to play cricket with friends",
+                    "text" : "The primary user loves to play cricket with friends",
                     "event" : "UPDATE",
-                    "old_memory" : "User likes to play cricket"
+                    "old_memory" : "The primary user likes to play cricket"
                 }
             ]
         }
 
-
-3. **Delete**: If the retrieved facts contain information that contradicts the information present in the memory, then you have to delete it. Or if the direction is to delete the memory, then you have to delete it.
-Please note to return the IDs in the output from the input IDs only and do not generate any new ID.
+3. **Delete**: If the retrieved facts contain information that contradicts the information present in the memory, then you have to delete it.
 - **Example**:
     - Old Memory:
         [
             {
                 "id" : "0",
-                "text" : "Name is John"
+                "text" : "The primary user's name is John"
             },
             {
                 "id" : "1",
-                "text" : "Loves cheese pizza"
+                "text" : "The primary user loves cheese pizza"
             }
         ]
-    - Retrieved facts: ["Dislikes cheese pizza"]
+    - Retrieved facts: ["The primary user dislikes cheese pizza"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "Name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "Loves cheese pizza",
+                    "text" : "The primary user loves cheese pizza",
                     "event" : "DELETE"
                 }
         ]
@@ -230,28 +314,31 @@ Please note to return the IDs in the output from the input IDs only and do not g
         [
             {
                 "id" : "0",
-                "text" : "Name is John"
+                "text" : "The primary user's name is John"
             },
             {
                 "id" : "1",
-                "text" : "Loves cheese pizza"
+                "text" : "The primary user loves cheese pizza"
             }
         ]
-    - Retrieved facts: ["Name is John"]
+    - Retrieved facts: ["The primary user's name is John"]
     - New Memory:
         {
         "memory" : [
                 {
                     "id" : "0",
-                    "text" : "Name is John",
+                    "text" : "The primary user's name is John",
                     "event" : "NONE"
                 },
                 {
                     "id" : "1",
-                    "text" : "Loves cheese pizza",
+                    "text" : "The primary user loves cheese pizza",
                     "event" : "NONE"
                 }
             ]
         }
+
+Based on the guidelines above, analyze the provided context and decide what action should be taken for the new fact.
+Use the appropriate tool to indicate your decision.
 `
 )

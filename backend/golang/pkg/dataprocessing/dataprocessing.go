@@ -16,10 +16,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/google_addresses"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/misc"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/slack"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
@@ -29,35 +29,30 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// Record represents a single data record that will be written to CSV.
-type Record struct {
-	Data      map[string]any
-	Timestamp time.Time
-	Source    string
-}
+func validateInputPath(inputPath string) error {
+	cleanPath := filepath.Clean(inputPath)
 
-// Source interface defines methods that each data source must implement.
-type Source interface {
-	// ProcessFile processes the input file and returns records
-	ProcessFile(filepath string, userName string) ([]Record, error)
-	// Name returns the source identifier
-	Name() string
-	// Sync returns the records from the source
-	Sync(ctx context.Context) ([]types.Record, error)
-}
-
-// ToCSVRecord converts a Record to a CSV record format.
-func (r Record) ToCSVRecord() ([]string, error) {
-	dataJSON, err := json.Marshal(r.Data)
+	info, err := os.Stat(cleanPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("input path does not exist: %s", cleanPath)
+	}
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("error accessing input path: %v", err)
 	}
 
-	return []string{
-		string(dataJSON),
-		r.Timestamp.Format(time.RFC3339),
-		r.Source,
-	}, nil
+	_ = info
+	return nil
+}
+
+func validateOutputPath(outputPath string) error {
+	cleanPath := filepath.Clean(outputPath)
+
+	dir := filepath.Dir(cleanPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("cannot create output directory: %v", err)
+	}
+
+	return nil
 }
 
 func extractZip(zipPath string) (extractedPath string, err error) {
@@ -258,7 +253,29 @@ func extractTarGz(tarGzPath string) (extractedPath string, err error) {
 	return tempDir, nil
 }
 
-func ProcessSource(sourceType string, inputPath string, outputPath string, name string, openAiService *ai.Service, completionsModel string) (bool, error) {
+type DataProcessingService struct {
+	openAiService    *ai.Service
+	completionsModel string
+	store            *db.Store
+}
+
+func NewDataProcessingService(openAiService *ai.Service, completionsModel string, store *db.Store) *DataProcessingService {
+	return &DataProcessingService{
+		openAiService:    openAiService,
+		completionsModel: completionsModel,
+		store:            store,
+	}
+}
+
+func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType string, inputPath string, outputPath string) (bool, error) {
+	if err := validateInputPath(inputPath); err != nil {
+		return false, fmt.Errorf("invalid input path: %v", err)
+	}
+
+	if err := validateOutputPath(outputPath); err != nil {
+		return false, fmt.Errorf("invalid output path: %v", err)
+	}
+
 	var records []types.Record
 	var err error
 
@@ -285,43 +302,31 @@ func ProcessSource(sourceType string, inputPath string, outputPath string, name 
 
 	switch strings.ToLower(sourceType) {
 	case "telegram":
-		if name == "" {
-			return false, fmt.Errorf("telegram requires a username")
-		}
-		source := telegram.New()
-		records, err = source.ProcessFile(inputPath, name)
+		processor := telegram.NewTelegramProcessor(s.store)
+		records, err = processor.ProcessFile(context.Background(), inputPath)
 	case "slack":
-		if name == "" {
-			return false, fmt.Errorf("slack requires a username")
-		}
-		source := slack.New(inputPath)
-		records, err = source.ProcessDirectory(name)
+		source := slack.NewSlackProcessor(s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	case "gmail":
-		if name == "" {
-			return false, fmt.Errorf("gmail requires an email")
-		}
-		source := gmail.New()
-		records, err = source.ProcessDirectory(inputPath, name)
+		source := gmail.NewGmailProcessor(s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	case "x":
-		if name == "" {
-			return false, fmt.Errorf("x requires a username")
-		}
-		source := x.New(inputPath)
-		records, err = source.ProcessDirectory(name)
+		source := x.NewXProcessor(s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	case "whatsapp":
-		source := whatsapp.New()
-		records, err = source.ProcessFile(inputPath)
-	case "google_addresses":
-		source := google_addresses.New(inputPath)
-		records, err = source.ProcessFile(inputPath)
+		source := whatsapp.NewWhatsappProcessor(s.store)
+		records, err = source.ProcessFile(context.Background(), inputPath)
 	case "chatgpt":
-		source := chatgpt.New(inputPath)
-		records, err = source.ProcessDirectory(name)
+		chatgptProcessor := chatgpt.NewChatGPTProcessor(s.store)
+		records, err = chatgptProcessor.ProcessDirectory(context.Background(), inputPath)
 	case "misc":
-		source := misc.New(openAiService, completionsModel)
-		records, err = source.ProcessDirectory(inputPath)
+		source := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store)
+		records, err = source.ProcessDirectory(context.Background(), inputPath)
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
+	}
+	if err != nil {
+		return false, err
 	}
 
 	err = SaveRecords(records, outputPath)
@@ -332,14 +337,69 @@ func ProcessSource(sourceType string, inputPath string, outputPath string, name 
 	return true, nil
 }
 
-func SaveRecords(records []types.Record, outputPath string) error {
-	// Create the output directory if it doesn't exist
-	outputDir := filepath.Dir(outputPath)
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return fmt.Errorf("error creating output directory: %v", err)
+func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType string, records []types.Record) ([]memory.Document, error) {
+	var documents []memory.Document
+	var err error
+
+	sourceType = strings.ToLower(sourceType)
+	switch sourceType {
+	case "chatgpt":
+		chatgptProcessor := chatgpt.NewChatGPTProcessor(s.store)
+		documents, err = chatgptProcessor.ToDocuments(ctx, records)
+		if err != nil {
+			return nil, err
+		}
+	case "telegram":
+		telegramProcessor := telegram.NewTelegramProcessor(s.store)
+		documents, err = telegramProcessor.ToDocuments(ctx, records)
+		if err != nil {
+			return nil, err
+		}
+	case "slack":
+		slackProcessor := slack.NewSlackProcessor(s.store)
+		documents, err = slackProcessor.ToDocuments(ctx, records)
+		if err != nil {
+			return nil, err
+		}
+	case "gmail":
+		gmailProcessor := gmail.NewGmailProcessor(s.store)
+		documents, err = gmailProcessor.ToDocuments(ctx, records)
+		if err != nil {
+			return nil, err
+		}
+	case "whatsapp":
+		whatsappProcessor := whatsapp.NewWhatsappProcessor(s.store)
+		documents, err = whatsappProcessor.ToDocuments(ctx, records)
+		if err != nil {
+			return nil, err
+		}
+	case "x":
+		xProcessor := x.NewXProcessor(s.store)
+		documents, err = xProcessor.ToDocuments(ctx, records)
+		if err != nil {
+			return nil, err
+		}
+	case "misc":
+		miscProcessor := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store)
+		documents, err = miscProcessor.ToDocuments(ctx, records)
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("unsupported source type: %s", sourceType)
 	}
 
-	file, err := os.Create(outputPath)
+	return documents, nil
+}
+
+func SaveRecords(records []types.Record, outputPath string) error {
+	// Validate and clean the output path
+	cleanPath := filepath.Clean(outputPath)
+	if err := validateOutputPath(cleanPath); err != nil {
+		return fmt.Errorf("invalid output path: %v", err)
+	}
+
+	file, err := os.Create(cleanPath)
 	if err != nil {
 		return fmt.Errorf("error creating output file: %v", err)
 	}
@@ -350,7 +410,7 @@ func SaveRecords(records []types.Record, outputPath string) error {
 	}()
 
 	// Determine output format based on file extension
-	ext := strings.ToLower(filepath.Ext(outputPath))
+	ext := strings.ToLower(filepath.Ext(cleanPath))
 	switch ext {
 	case ".json":
 		// For JSON output, create a slice of records with their data
@@ -430,7 +490,7 @@ func SaveRecords(records []types.Record, outputPath string) error {
 		return fmt.Errorf("unsupported output format: %s (use .csv, .jsonl, .json)", ext)
 	}
 
-	fmt.Printf("Successfully processed %d records and wrote to %s\n", len(records), outputPath)
+	fmt.Printf("Successfully processed %d records and wrote to %s\n", len(records), cleanPath)
 	return nil
 }
 
@@ -441,9 +501,11 @@ func Sync(ctx context.Context, sourceName string, accessToken string, store *db.
 	var authorized bool
 	switch sourceName {
 	case "gmail":
-		records, authorized, err = gmail.New().Sync(ctx, accessToken)
+		gmailProcessor := gmail.NewGmailProcessor(store)
+		records, authorized, err = gmailProcessor.Sync(ctx, accessToken)
 	case "x":
-		records, authorized, err = x.New("").Sync(ctx, accessToken)
+		xProcessor := x.NewXProcessor(store)
+		records, authorized, err = xProcessor.Sync(ctx, accessToken)
 	default:
 		return nil, fmt.Errorf("unsupported source: %s", sourceName)
 	}

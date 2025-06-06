@@ -3,7 +3,11 @@ import { electronApp, is, optimizer } from '@electron-toolkit/utils'
 import log from 'electron-log/main'
 import { registerNotificationIpc } from './notifications'
 import { registerMediaPermissionHandlers, registerPermissionIpc } from './mediaPermissions'
-import { registerScreenpipeIpc, cleanupScreenpipe } from './screenpipe'
+import {
+  registerScreenpipeIpc,
+  cleanupScreenpipe,
+  autoStartScreenpipeIfEnabled
+} from './screenpipe'
 import { registerAccessibilityIpc } from './accessibilityPermissions'
 import { windowManager } from './windows'
 import { registerIpcHandlers } from './ipcHandlers'
@@ -42,6 +46,7 @@ app.whenReady().then(async () => {
   setupMenu()
 
   startKokoro(mainWindow)
+  autoStartScreenpipeIfEnabled()
 
   electronApp.setAppUserModelId('com.electron')
 

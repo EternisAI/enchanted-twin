@@ -1,3 +1,5 @@
+// owner: slimane@eternis.ai
+
 package x
 
 import (
@@ -10,42 +12,37 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
 
 const (
 	TypeLike          = "like"
 	TypeTweet         = "tweets"
 	TypeDirectMessage = "direct_messages"
+	TypeAccount       = "account"
 )
 
-type Source struct {
-	inputPath string
+type XProcessor struct {
+	store *db.Store
 }
 
-func New(inputPath string) *Source {
-	return &Source{
-		inputPath: inputPath,
-	}
+func NewXProcessor(store *db.Store) processor.Processor {
+	return &XProcessor{store: store}
 }
 
-func (s *Source) Name() string {
+func (s *XProcessor) Name() string {
 	return "x"
 }
 
-func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
+func (s *XProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
@@ -63,11 +60,23 @@ func (s *Source) ProcessFile(filePath string) ([]types.Record, error) {
 		fileType = TypeTweet
 	case strings.Contains(fileName, "direct-messages"):
 		fileType = TypeDirectMessage
+	case strings.Contains(fileName, "account"):
+		fileType = TypeAccount
 	default:
 		return nil, fmt.Errorf("unsupported X/Twitter file type: %s", fileName)
 	}
 
 	fmt.Printf("Detected file type: %s\n", fileType)
+
+	if fileType == TypeAccount {
+		err := s.processAccountFile(ctx, content)
+		if err != nil {
+			fmt.Printf("Error processing account file: %v\n", err)
+			return nil, err
+		}
+		fmt.Printf("Successfully processed account file\n")
+		return []types.Record{}, nil
+	}
 
 	records, err := parseTwitterFileSimple(content, fileType)
 	if err != nil {
@@ -104,10 +113,10 @@ func ParseTwitterTimestamp(timestampStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("failed to parse timestamp: %s", timestampStr)
 }
 
-func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
+func (s *XProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 
-	err := filepath.Walk(s.inputPath, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(inputPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -125,7 +134,7 @@ func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
 			return nil
 		}
 
-		records, err := s.ProcessFile(path)
+		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
 			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
 			return nil
@@ -142,13 +151,50 @@ func (s *Source) ProcessDirectory(userName string) ([]types.Record, error) {
 }
 
 func isXDataFile(fileName string) bool {
-	supportedFiles := []string{"like.js", "tweets.js", "direct-messages.js"}
+	if strings.HasPrefix(fileName, "._") {
+		return false
+	}
+
+	supportedFiles := []string{"like.js", "tweets.js", "direct-messages.js", "account.js"}
 	for _, supported := range supportedFiles {
-		if strings.Contains(fileName, supported) {
+		if fileName == supported {
 			return true
 		}
 	}
 	return false
+}
+
+type Like struct {
+	Like struct {
+		TweetID     string `json:"tweetId"`
+		FullText    string `json:"fullText"`
+		ExpandedURL string `json:"expandedUrl"`
+	} `json:"like"`
+}
+
+type Tweet struct {
+	Tweet struct {
+		CreatedAt     string `json:"created_at"`
+		ID            string `json:"id_str"`
+		FullText      string `json:"full_text"`
+		RetweetCount  string `json:"retweet_count"`
+		FavoriteCount string `json:"favorite_count"`
+		Lang          string `json:"lang"`
+	} `json:"tweet"`
+}
+
+type DMConversation struct {
+	DMConversation struct {
+		ConversationID string `json:"conversationId"`
+		Messages       []struct {
+			MessageCreate struct {
+				SenderID    string `json:"senderId"`
+				RecipientID string `json:"recipientId"`
+				Text        string `json:"text"`
+				CreatedAt   string `json:"createdAt"`
+			} `json:"messageCreate"`
+		} `json:"messages"`
+	} `json:"dmConversation"`
 }
 
 type TwitterUserResponse struct {
@@ -157,44 +203,6 @@ type TwitterUserResponse struct {
 		Name     string `json:"name"`
 		Username string `json:"username"`
 	} `json:"data"`
-}
-
-func GetUserIDByUsername(username string, bearerToken string) (string, error) {
-	url := fmt.Sprintf("https://api.twitter.com/2/users/by?usernames=%s", username)
-
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return "", fmt.Errorf("error creating request: %v", err)
-	}
-
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", bearerToken))
-
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("error making request: %v", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf(
-			"API request failed with status %d: %s",
-			resp.StatusCode,
-			string(body),
-		)
-	}
-
-	var userResponse TwitterUserResponse
-	if err := json.NewDecoder(resp.Body).Decode(&userResponse); err != nil {
-		return "", fmt.Errorf("error decoding response: %v", err)
-	}
-
-	if len(userResponse.Data) == 0 {
-		return "", fmt.Errorf("no user found with username: %s", username)
-	}
-
-	return userResponse.Data[0].ID, nil
 }
 
 type LikeData struct {
@@ -222,7 +230,18 @@ type DirectMessageData struct {
 	Type           string `json:"type"`
 }
 
-func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
+type Account struct {
+	Account struct {
+		Email              string `json:"email"`
+		CreatedVia         string `json:"createdVia"`
+		Username           string `json:"username"`
+		AccountID          string `json:"accountId"`
+		CreatedAt          string `json:"createdAt"`
+		AccountDisplayName string `json:"accountDisplayName"`
+	} `json:"account"`
+}
+
+func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	documents := make([]memory.TextDocument, 0, len(records))
 	for _, record := range records {
 		content := ""
@@ -244,10 +263,9 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 			content = getString("fullText")
 			tweetId := getString("tweetId")
 			metadata = map[string]string{
-				"type":   "like",
-				"id":     tweetId,
-				"url":    getString("expandedUrl"),
-				"source": "x",
+				"type": "like",
+				"id":   tweetId,
+				"url":  getString("expandedUrl"),
 			}
 			tags = append(tags, "like")
 
@@ -261,30 +279,140 @@ func ToDocuments(records []types.Record) ([]memory.TextDocument, error) {
 				"id":            id,
 				"favoriteCount": favoriteCount,
 				"retweetCount":  retweetCount,
-				"source":        "x",
 			}
 			tags = append(tags, "tweet")
 
-		case "direct_message":
+		case "directMessage":
 			content = getString("text")
 			metadata = map[string]string{
-				"type":   "direct_message",
-				"source": "x",
+				"type": "direct_message",
 			}
 			tags = append(tags, "direct_message")
 		}
 
 		documents = append(documents, memory.TextDocument{
-			Content:   content,
-			Timestamp: &record.Timestamp,
-			Tags:      tags,
-			Metadata:  metadata,
+			FieldSource:    "x",
+			FieldContent:   content,
+			FieldTimestamp: &record.Timestamp,
+			FieldTags:      tags,
+			FieldMetadata:  metadata,
 		})
 	}
-	return documents, nil
+
+	var documents_ []memory.Document
+	for _, document := range documents {
+		documents_ = append(documents_, &document)
+	}
+
+	return documents_, nil
 }
 
-func (s *Source) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
+func (s *XProcessor) extractUsername(ctx context.Context, account Account) (string, error) {
+	if s.store == nil {
+		return "", fmt.Errorf("store is nil")
+	}
+
+	extractedUsername := ""
+	if account.Account.Username != "" {
+		sourceUsername := db.SourceUsername{
+			Source:   s.Name(),
+			Username: account.Account.Username,
+		}
+
+		if account.Account.AccountID != "" {
+			sourceUsername.UserID = &account.Account.AccountID
+		}
+		if account.Account.AccountDisplayName != "" {
+			sourceUsername.FirstName = &account.Account.AccountDisplayName
+		}
+		if account.Account.Email != "" {
+			sourceUsername.PhoneNumber = &account.Account.Email // Using phone number field for email
+		}
+		if account.Account.CreatedVia != "" {
+			sourceUsername.Bio = &account.Account.CreatedVia
+		}
+
+		fmt.Printf("Saving username to database: %v\n", sourceUsername)
+
+		if err := s.store.SetSourceUsername(ctx, sourceUsername); err != nil {
+			fmt.Printf("Warning: Failed to save username to database: %v\n", err)
+			return "", err
+		}
+
+		extractedUsername = account.Account.Username
+	}
+
+	return extractedUsername, nil
+}
+
+func (s *XProcessor) processAccountFile(ctx context.Context, content []byte) error {
+	contentStr := string(content)
+
+	arrayPrefix := "window.YTD.account.part0 = "
+	if !strings.Contains(contentStr, arrayPrefix) {
+		return fmt.Errorf("invalid format: JavaScript array prefix not found")
+	}
+
+	contentStr = strings.TrimPrefix(contentStr, arrayPrefix)
+
+	accountStart := strings.Index(contentStr, `"account"`)
+	if accountStart == -1 {
+		return fmt.Errorf("account object not found")
+	}
+
+	usernameRegex := regexp.MustCompile(`"username"\s*:\s*"([^"]+)"`)
+	usernameMatch := usernameRegex.FindStringSubmatch(contentStr)
+	if len(usernameMatch) < 2 {
+		return fmt.Errorf("username not found in account file")
+	}
+
+	emailRegex := regexp.MustCompile(`"email"\s*:\s*"([^"]+)"`)
+	emailMatch := emailRegex.FindStringSubmatch(contentStr)
+
+	accountIdRegex := regexp.MustCompile(`"accountId"\s*:\s*"([^"]+)"`)
+	accountIdMatch := accountIdRegex.FindStringSubmatch(contentStr)
+
+	displayNameRegex := regexp.MustCompile(`"accountDisplayName"\s*:\s*"([^"]+)"`)
+	displayNameMatch := displayNameRegex.FindStringSubmatch(contentStr)
+
+	createdViaRegex := regexp.MustCompile(`"createdVia"\s*:\s*"([^"]+)"`)
+	createdViaMatch := createdViaRegex.FindStringSubmatch(contentStr)
+
+	account := Account{
+		Account: struct {
+			Email              string `json:"email"`
+			CreatedVia         string `json:"createdVia"`
+			Username           string `json:"username"`
+			AccountID          string `json:"accountId"`
+			CreatedAt          string `json:"createdAt"`
+			AccountDisplayName string `json:"accountDisplayName"`
+		}{
+			Username: usernameMatch[1],
+		},
+	}
+
+	if len(emailMatch) >= 2 {
+		account.Account.Email = emailMatch[1]
+	}
+	if len(accountIdMatch) >= 2 {
+		account.Account.AccountID = accountIdMatch[1]
+	}
+	if len(displayNameMatch) >= 2 {
+		account.Account.AccountDisplayName = displayNameMatch[1]
+	}
+	if len(createdViaMatch) >= 2 {
+		account.Account.CreatedVia = createdViaMatch[1]
+	}
+
+	_, err := s.extractUsername(ctx, account)
+	if err != nil {
+		return fmt.Errorf("failed to extract username: %w", err)
+	}
+
+	return nil
+}
+
+func (s *XProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
 	// Create HTTP client with OAuth token
 	client := &http.Client{
 		Timeout: 30 * time.Second,

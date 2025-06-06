@@ -10,6 +10,9 @@ import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
 import { extractReasoningAndReply, getToolUrl } from '../config'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
+import { Tooltip } from '@renderer/components/ui/tooltip'
+import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -32,6 +35,7 @@ export default function VoiceModeChatView({
   error
 }: VoiceModeChatViewProps) {
   const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
+
   const triggeredRef = useRef(false)
 
   // const lastAssistantMessage = useMemo(() => {
@@ -109,7 +113,7 @@ export default function VoiceModeChatView({
             isWaitingTwinResponse={isLoading || isSpeaking}
             onSend={onSendMessage}
             onStop={stop}
-            isReasonSelected={true}
+            isReasonSelected={false}
             voiceMode
           />
         </div>
@@ -125,21 +129,29 @@ export function VoiceModeSwitch({
   voiceMode: boolean
   setVoiceMode: (voiceMode: boolean) => void
 }) {
+  const { isVoiceReady } = useDependencyStatus()
+
   return (
-    <div className="flex justify-end w-full gap-2">
-      <Switch
-        id="voiceMode"
-        className="data-[state=unchecked]:bg-foreground/30"
-        checked={voiceMode}
-        onCheckedChange={() => {
-          setVoiceMode(!voiceMode)
-        }}
-      >
-        Voice Output
-      </Switch>
-      <label className="text-sm" htmlFor="voiceMode">
-        Voice Output
-      </label>
-    </div>
+    <Tooltip>
+      <div className="flex justify-end w-full gap-2">
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="voiceMode"
+              className="data-[state=unchecked]:bg-foreground/30"
+              checked={voiceMode}
+              onCheckedChange={() => {
+                setVoiceMode(!voiceMode)
+              }}
+              disabled={!voiceMode && !isVoiceReady}
+            />
+            <label className="text-sm" htmlFor="voiceMode">
+              Voice Output
+            </label>
+          </div>
+        </TooltipTrigger>
+      </div>
+      <TooltipContent>{isVoiceReady ? '' : 'Installing dependencies...'}</TooltipContent>
+    </Tooltip>
   )
 }

@@ -1,0 +1,36 @@
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize] # Runs on new PRs and updates
+
+jobs:
+  code-review:
+    runs-on: ubuntu-latest
+    steps:
+      # Check out the code to allow git diff operations
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Fetch full history for accurate diffs
+
+      - name: Run Code Review with Claude
+        id: code-review
+        uses: anthropics/claude-code-action@beta
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          timeout_minutes: "10"
+          direct_prompt: |
+            Please review this pull request and provide comprehensive feedback.
+
+            Focus on:
+            - Code quality and best practices
+            - Potential bugs or issues
+            - Performance considerations
+            - Security implications
+            - Test coverage
+            - Documentation updates if needed
+
+            Provide constructive feedback with specific suggestions for improvement.
+            Use inline comments to highlight specific areas of concern.

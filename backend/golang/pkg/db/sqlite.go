@@ -79,6 +79,16 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_id ON messages(chat_id);
 		CREATE INDEX IF NOT EXISTS idx_messages_chat_created ON messages(chat_id, created_at DESC);
+
+		CREATE TABLE IF NOT EXISTS friend_activity_tracking (
+			id TEXT PRIMARY KEY,
+			chat_id TEXT NOT NULL,
+			activity_type TEXT NOT NULL,
+			timestamp TIMESTAMP NOT NULL,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE INDEX IF NOT EXISTS idx_friend_activity_chat_id ON friend_activity_tracking(chat_id);
+		CREATE INDEX IF NOT EXISTS idx_friend_activity_timestamp ON friend_activity_tracking(timestamp DESC);
 	`)
 	if err != nil {
 		return nil, err
@@ -154,6 +164,26 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
+	// Create source_usernames table if it doesn't exist
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS source_usernames (
+			id TEXT PRIMARY KEY,
+			source TEXT NOT NULL,
+			username TEXT NOT NULL,
+			user_id TEXT,
+			first_name TEXT,
+			last_name TEXT,
+			phone_number TEXT,
+			bio TEXT,
+			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+		);
+		CREATE UNIQUE INDEX IF NOT EXISTS idx_source_usernames_source ON source_usernames(source);
+	`)
+	if err != nil {
+		return nil, err
+	}
+
 	store := &Store{db: db}
 
 	if err = store.InitOAuth(ctx); err != nil {
@@ -208,4 +238,65 @@ func (s *Store) GetAllKeys(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	return keys, nil
+}
+
+type SourceUsername struct {
+	ID          string  `db:"id" json:"id"`
+	Source      string  `db:"source" json:"source"`
+	Username    string  `db:"username" json:"username"`
+	UserID      *string `db:"user_id" json:"user_id,omitempty"`
+	FirstName   *string `db:"first_name" json:"first_name,omitempty"`
+	LastName    *string `db:"last_name" json:"last_name,omitempty"`
+	PhoneNumber *string `db:"phone_number" json:"phone_number,omitempty"`
+	Bio         *string `db:"bio" json:"bio,omitempty"`
+	CreatedAt   string  `db:"created_at" json:"created_at"`
+	UpdatedAt   string  `db:"updated_at" json:"updated_at"`
+}
+
+func (s *Store) SetSourceUsername(ctx context.Context, sourceUsername SourceUsername) error {
+	if sourceUsername.ID == "" {
+		sourceUsername.ID = uuid.New().String()
+	}
+
+	_, err := s.db.ExecContext(
+		ctx,
+		`INSERT OR REPLACE INTO source_usernames 
+		(id, source, username, user_id, first_name, last_name, phone_number, bio, updated_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+		sourceUsername.ID,
+		sourceUsername.Source,
+		sourceUsername.Username,
+		sourceUsername.UserID,
+		sourceUsername.FirstName,
+		sourceUsername.LastName,
+		sourceUsername.PhoneNumber,
+		sourceUsername.Bio,
+	)
+	return err
+}
+
+func (s *Store) GetSourceUsername(ctx context.Context, source string) (*SourceUsername, error) {
+	var sourceUsername SourceUsername
+	err := s.db.GetContext(ctx, &sourceUsername, "SELECT * FROM source_usernames WHERE source = ?", source)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &sourceUsername, nil
+}
+
+func (s *Store) GetAllSourceUsernames(ctx context.Context) ([]SourceUsername, error) {
+	var sourceUsernames []SourceUsername
+	err := s.db.SelectContext(ctx, &sourceUsernames, "SELECT * FROM source_usernames ORDER BY source")
+	if err != nil {
+		return nil, err
+	}
+	return sourceUsernames, nil
+}
+
+func (s *Store) DeleteSourceUsername(ctx context.Context, source string) error {
+	_, err := s.db.ExecContext(ctx, "DELETE FROM source_usernames WHERE source = ?", source)
+	return err
 }

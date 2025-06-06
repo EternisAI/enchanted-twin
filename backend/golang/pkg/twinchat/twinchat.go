@@ -22,9 +22,19 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
+
+type Storage interface {
+	GetChat(ctx context.Context, id string) (model.Chat, error)
+	GetChats(ctx context.Context) ([]*model.Chat, error)
+	CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error)
+	DeleteChat(ctx context.Context, chatID string) error
+	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
+	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
+}
 
 type Service struct {
 	aiService        *ai.Service
@@ -36,6 +46,7 @@ type Service struct {
 	reasoningModel   string
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
+	identityService  *identity.IdentityService
 }
 
 func NewService(
@@ -48,6 +59,7 @@ func NewService(
 	userStorage *db.Store,
 	completionsModel string,
 	reasoningModel string,
+	identityService *identity.IdentityService,
 ) *Service {
 	return &Service{
 		logger:           logger,
@@ -59,6 +71,7 @@ func NewService(
 		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
 		userStorage:      userStorage,
+		identityService:  identityService,
 	}
 }
 
@@ -93,7 +106,7 @@ func (s *Service) Execute(
 	return &response, nil
 }
 
-func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool, userMemoryProfile string) (string, error) {
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	if err != nil {
 		return "", err
@@ -111,12 +124,13 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 	}
 
 	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
-		UserName:      userProfile.Name,
-		Bio:           userProfile.Bio,
-		EmailAccounts: emailAccounts,
-		ChatID:        &chatID,
-		CurrentTime:   time.Now().Format(time.RFC3339),
-		IsVoice:       isVoice,
+		UserName:          userProfile.Name,
+		Bio:               userProfile.Bio,
+		EmailAccounts:     emailAccounts,
+		ChatID:            &chatID,
+		CurrentTime:       time.Now().Format(time.RFC3339),
+		IsVoice:           isVoice,
+		UserMemoryProfile: userMemoryProfile,
 	})
 	if err != nil {
 		return "", err
@@ -132,12 +146,30 @@ func (s *Service) SendMessage(
 	isVoice bool,
 ) (*model.Message, error) {
 	now := time.Now()
-	messages, err := s.storage.GetMessagesByChatId(ctx, chatID)
-	if err != nil {
-		return nil, err
+
+	messages := make([]*model.Message, 0)
+	if chatID == "" {
+		chat, err := s.storage.CreateChat(ctx, "New chat", isVoice)
+		if err != nil {
+			return nil, err
+		}
+		s.logger.Info("Created new chat", "chat_id", chat.ID)
+		chatID = chat.ID
+	} else {
+		messages_, err := s.storage.GetMessagesByChatId(ctx, chatID)
+		if err != nil {
+			return nil, err
+		}
+		messages = messages_
 	}
 
-	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
+	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
+	if err != nil {
+		s.logger.Error("failed to get user memory profile", "error", err)
+		userMemoryProfile = ""
+	}
+
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +443,7 @@ func (s *Service) SendMessage(
 	return &model.Message{
 		ID:          idAssistant,
 		Text:        &response.Content,
-		Role:        model.RoleUser,
+		Role:        model.RoleAssistant,
 		ImageUrls:   response.ImageURLs,
 		CreatedAt:   time.Now().Format(time.RFC3339),
 		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
@@ -528,25 +560,125 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	slidingWindow := 10
 	messagesWindow := helpers.SafeLastN(messages, slidingWindow)
 
-	content := ""
+	var conversationMessages []memory.ConversationMessage
+	var people []string
+	peopleMap := make(map[string]bool)
+	primaryUser := "primaryUser"
+
 	for _, message := range messagesWindow {
 		if message.Role.String() == "system" {
 			continue
 		}
-		content += fmt.Sprintf("%s: %s\n", message.Role.String(), *message.Text)
+
+		var speaker string
+		if message.Role == model.RoleUser {
+			speaker = primaryUser
+		} else {
+			speaker = "assistant"
+		}
+
+		if !peopleMap[speaker] {
+			people = append(people, speaker)
+			peopleMap[speaker] = true
+		}
+
+		createdAt, err := time.Parse(time.RFC3339, message.CreatedAt)
+		if err != nil {
+			createdAt = time.Now()
+		}
+
+		if message.Text != nil {
+			conversationMessages = append(conversationMessages, memory.ConversationMessage{
+				Speaker: speaker,
+				Content: *message.Text,
+				Time:    createdAt,
+			})
+		}
 	}
 
-	prompt := fmt.Sprintf("The following conversation is between a human and an AI assistant:\n\n%s", content)
+	if len(conversationMessages) == 0 {
+		s.logger.Info("No messages to index", "chat_id", chatID)
+		return nil
+	}
 
-	doc := memory.TextDocument{
-		ID:      uuid.New().String(),
-		Content: prompt,
-		Metadata: map[string]string{
-			"source": "chat",
+	doc := memory.ConversationDocument{
+		FieldID:      uuid.New().String(),
+		FieldSource:  "chat",
+		People:       people,
+		User:         primaryUser,
+		Conversation: conversationMessages,
+		FieldMetadata: map[string]string{
+			"chat_id": chatID,
 		},
 	}
 
-	s.logger.Info("Indexing conversation", "chat_id", chatID, "content", prompt)
+	s.logger.Info("Indexing conversation", "chat_id", chatID, "messages_count", len(conversationMessages))
 
-	return s.memoryService.Store(ctx, []memory.TextDocument{doc}, nil)
+	return s.memoryService.Store(ctx, memory.ConversationDocumentsToDocuments([]memory.ConversationDocument{doc}), nil)
+}
+
+func (s *Service) SendAssistantMessage(
+	ctx context.Context,
+	chatID string,
+	message string,
+) (*model.Message, error) {
+	now := time.Now()
+
+	if chatID == "" {
+		chat, err := s.storage.CreateChat(ctx, "New chat", false)
+		if err != nil {
+			return nil, err
+		}
+		s.logger.Info("Created new chat", "chat_id", chat.ID)
+		chatID = chat.ID
+	}
+
+	assistantMessageId := uuid.New().String()
+	createdAt := time.Now().Format(time.RFC3339)
+
+	assistantMessageDb := repository.Message{
+		ID:           assistantMessageId,
+		ChatID:       chatID,
+		Text:         message,
+		Role:         model.RoleAssistant.String(),
+		CreatedAtStr: now.Format(time.RFC3339Nano),
+	}
+
+	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
+	if err != nil {
+		return nil, err
+	}
+
+	assistantNatsMsg := model.Message{
+		ID:        assistantMessageId,
+		Text:      &message,
+		ImageUrls: []string{},
+		CreatedAt: createdAt,
+		Role:      model.RoleAssistant,
+	}
+
+	assistantNatsMsgJSON, err := json.Marshal(assistantNatsMsg)
+	if err != nil {
+		s.logger.Error("failed to marshal assistant NATS message", "error", err)
+	} else {
+		subject := fmt.Sprintf("chat.%s", chatID)
+		if err := s.nc.Publish(subject, assistantNatsMsgJSON); err != nil {
+			s.logger.Error("failed to publish assistant message to NATS", "error", err)
+		}
+	}
+
+	go func() {
+		err := s.IndexConversation(context.Background(), chatID)
+		if err != nil {
+			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
+		}
+	}()
+
+	return &model.Message{
+		ID:        idAssistant,
+		Text:      &message,
+		Role:      model.RoleAssistant,
+		ImageUrls: []string{},
+		CreatedAt: createdAt,
+	}, nil
 }

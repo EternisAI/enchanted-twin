@@ -17,39 +17,82 @@ func parseLikesAlternative(arrayContent string) ([]types.Record, error) {
 		arrayContent[:min(100, len(arrayContent))],
 	)
 
-	likeObjRegex := regexp.MustCompile(
-		`\{\s*"?like"?:\s*\{[\s\S]*?tweetId[\s\S]*?fullText[\s\S]*?expandedUrl[\s\S]*?\}\s*\}`,
-	)
-	likeMatches := likeObjRegex.FindAllString(arrayContent, -1)
+	// Find like objects using a more robust approach
+	likeStartRegex := regexp.MustCompile(`\{\s*"?like"?\s*:\s*\{`)
+	likeStartMatches := likeStartRegex.FindAllStringIndex(arrayContent, -1)
 
-	fmt.Printf("Found %d like objects with regex\n", len(likeMatches))
+	fmt.Printf("Found %d like objects with regex\n", len(likeStartMatches))
 
-	for i, likeObj := range likeMatches {
+	for i, startMatch := range likeStartMatches {
 		fmt.Printf("Processing like object %d\n", i)
 
-		tweetIDRegex := regexp.MustCompile(`"?tweetId"?:\s*"([^"]+)"`)
+		// Find the end of this like object by counting braces
+		start := startMatch[0]
+
+		// Find the actual end by counting braces from the start of the like content
+		likeContentStart := startMatch[1] - 1 // Position of the opening brace of like content
+		braceCount := 1
+		actualEnd := likeContentStart + 1
+
+		for actualEnd < len(arrayContent) && braceCount > 0 {
+			switch arrayContent[actualEnd] {
+			case '{':
+				braceCount++
+			case '}':
+				braceCount--
+			}
+			actualEnd++
+		}
+
+		// Include the closing brace of the outer object
+		outerBraceCount := 1
+		for actualEnd < len(arrayContent) && outerBraceCount > 0 {
+			switch arrayContent[actualEnd] {
+			case '{':
+				outerBraceCount++
+			case '}':
+				outerBraceCount--
+			}
+			actualEnd++
+		}
+
+		likeObj := arrayContent[start:actualEnd]
+
+		// Handle both quoted and unquoted keys
+		tweetIDRegex := regexp.MustCompile(`"?tweetId"?\s*:\s*"([^"]+)"`)
 		tweetIDMatch := tweetIDRegex.FindStringSubmatch(likeObj)
 		if len(tweetIDMatch) < 2 {
+			fmt.Printf("Could not find tweetId in like object %d\n", i)
 			continue
 		}
 		tweetID := tweetIDMatch[1]
 
-		fullTextRegex := regexp.MustCompile(`"?fullText"?:(?:\s*"([^"]*)"|[^,\n]*'([^']*)')`)
+		// Handle multiline fullText with more flexible regex
+		fullTextRegex := regexp.MustCompile(`"?fullText"?\s*:\s*"((?:[^"\\]|\\.|\n)*)"`)
 		fullTextMatch := fullTextRegex.FindStringSubmatch(likeObj)
-		if len(fullTextMatch) < 2 {
-			continue
-		}
-		fullText := fullTextMatch[1]
-		if fullText == "" && len(fullTextMatch) > 2 {
-			fullText = fullTextMatch[2] // Handle text in single quotes
+		var fullText string
+		if len(fullTextMatch) >= 2 {
+			fullText = fullTextMatch[1]
 		}
 
-		expandedURLRegex := regexp.MustCompile(`"?expandedUrl"?:\s*"([^"]+)"`)
-		expandedURLMatch := expandedURLRegex.FindStringSubmatch(likeObj)
-		if len(expandedURLMatch) < 2 {
-			continue
+		// If still empty, try multiline with string concatenation
+		if fullText == "" {
+			multilineRegex := regexp.MustCompile(`"?fullText"?\s*:\s*\n?\s*"([^"]*(?:\n[^"]*)*)"`)
+			multilineMatch := multilineRegex.FindStringSubmatch(likeObj)
+			if len(multilineMatch) >= 2 {
+				fullText = multilineMatch[1]
+			}
 		}
-		expandedURL := expandedURLMatch[1]
+
+		expandedURLRegex := regexp.MustCompile(`"?expandedUrl"?\s*:\s*"([^"]*)"`)
+		expandedURLMatch := expandedURLRegex.FindStringSubmatch(likeObj)
+		var expandedURL string
+		if len(expandedURLMatch) >= 2 {
+			expandedURL = expandedURLMatch[1]
+		}
+
+		fmt.Printf("Extracted like - tweetId: %s, fullText: %.50s..., expandedUrl: %s\n",
+			tweetID, fullText, expandedURL)
 
 		data := map[string]interface{}{
 			"type":        "like",

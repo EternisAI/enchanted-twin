@@ -21,6 +21,7 @@ export default function ScreenpipePanel() {
   const [status, setStatus] = useState<ScreenpipeStatus>({ isRunning: false, isInstalled: true })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoStart, setAutoStart] = useState<boolean>(false)
   const [permissions, setPermissions] = useState<Record<string, MediaStatusType>>({
     screen: 'loading',
     microphone: 'loading',
@@ -30,7 +31,9 @@ export default function ScreenpipePanel() {
   const fetchStatus = async () => {
     try {
       const status = await window.api.screenpipe.getStatus()
+      const autoStartSetting = await window.api.screenpipe.getAutoStart()
       setStatus(status)
+      setAutoStart(autoStartSetting)
     } catch (err: unknown) {
       setError(`Failed to fetch screenpipe status: ${err}`)
     }
@@ -122,13 +125,20 @@ export default function ScreenpipePanel() {
     <Card className="w-full">
       <CardHeader className="text-lg font-semibold flex items-center justify-between">
         <span>Screenpipe</span>
-        <span
-          className={`text-sm font-medium px-2 py-1 rounded-full ${
-            status.isRunning ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}
-        >
-          {status.isRunning ? 'Running' : 'Stopped'}
-        </span>
+        <div className="flex gap-2">
+          {autoStart && (
+            <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 text-blue-800">
+              Auto-start
+            </span>
+          )}
+          <span
+            className={`text-sm font-medium px-2 py-1 rounded-full ${
+              status.isRunning ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}
+          >
+            {status.isRunning ? 'Running' : 'Stopped'}
+          </span>
+        </div>
       </CardHeader>
       <div className="flex flex-col gap-4 px-6">
         {error && (
@@ -151,8 +161,12 @@ export default function ScreenpipePanel() {
           {!status.isInstalled
             ? 'Screenpipe needs to be installed first.'
             : status.isRunning
-              ? 'Screenpipe is currently active and streaming.'
-              : 'Screenpipe is not running. Start it to enable screen streaming.'}
+              ? autoStart
+                ? 'Screenpipe is currently active and will auto-start on app launch.'
+                : 'Screenpipe is currently active.'
+              : autoStart
+                ? 'Screenpipe is not running but will auto-start on next app launch.'
+                : 'Screenpipe is not running. Start it to enable screen streaming.'}
         </p>
         <div className="flex gap-2">
           {!status.isInstalled ? (

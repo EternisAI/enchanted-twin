@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useMutation } from '@apollo/client'
 import { motion } from 'framer-motion'
+import { useNavigate } from '@tanstack/react-router'
 
 import MessageInput from '@renderer/components/chat/MessageInput'
 import { UserMessageBubble } from '@renderer/components/chat/Message'
 import { Message, Role, UpdateProfileDocument } from '@renderer/graphql/generated/graphql'
 import { useTTS } from '@renderer/hooks/useTTS'
-import { Animation, OnboardingDoneAnimation } from './Animations'
-import { useMutation } from '@apollo/client'
+import { OnboardingVoiceAnimation, OnboardingDoneAnimation } from './Animations'
+import { useTheme } from '@renderer/lib/theme'
+import { Button } from '@renderer/components/ui/button'
+import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
+import { useTitlebarColor } from '@renderer/hooks/useTitlebarColor'
 
 type Ask = (answers: string[]) => string
 
@@ -37,41 +42,49 @@ const STEPS: Step[] = [
 ]
 
 export default function VoiceOnboardingContainer() {
-  const installationStatus = useKokoroInstallationStatus()
+  const navigate = useNavigate()
+  const { theme } = useTheme()
+  const { isCompleted } = useOnboardingStore()
+  const { updateTitlebarColor } = useTitlebarColor()
 
-  const areDependenciesReady =
-    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
+  useEffect(() => {
+    if (isCompleted) {
+      navigate({ to: '/' })
+    }
+  }, [isCompleted, navigate])
 
-  console.log('areDependenciesReady', areDependenciesReady)
+  useEffect(() => {
+    updateTitlebarColor('onboarding')
+
+    return () => {
+      updateTitlebarColor('app')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div
       className="w-full h-full"
       style={{
-        background: 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
+        background:
+          theme === 'light'
+            ? 'linear-gradient(180deg, #6068E9 0%, #A5AAF9 100%)'
+            : 'linear-gradient(180deg, #18181B 0%, #000 100%)'
       }}
     >
-      {areDependenciesReady ? (
-        <VoiceOnboarding />
-      ) : (
-        <div className="flex flex-col justify-center items-center h-full gap-4">
-          <div className="w-24 h-24 border-4 border-white border-t-transparent rounded-full animate-spin " />
-          <p className="text-white text-lg text-center">Adding dependencies...</p>
-          <p className="text-white text-md text-center">
-            {installationStatus.status} - {installationStatus.progress}%
-          </p>
-        </div>
-      )}
+      <VoiceOnboarding />
     </div>
   )
 }
 
 function VoiceOnboarding() {
+  const navigate = useNavigate()
   const { speak, stop, isSpeaking } = useTTS()
 
   const [stepIdx, setStepIdx] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
   const [triggerAnimation, setTriggerAnimation] = useState(false)
+  const { completeOnboarding } = useOnboardingStore()
 
   const [updateProfile] = useMutation(UpdateProfileDocument)
 
@@ -110,7 +123,6 @@ function VoiceOnboarding() {
 
     const nextPrompt = STEPS[nextIdx].ask(nextAnswers)
     speak(nextPrompt)
-    await new Promise((resolve) => setTimeout(resolve, 3000))
     setStepIdx(nextIdx)
   }
 
@@ -131,7 +143,18 @@ function VoiceOnboarding() {
   }, [answers])
 
   return (
-    <div className="w-full h-full flex flex-col justify-between items-center">
+    <div className="w-full h-full flex flex-col justify-between items-center relative">
+      <Button
+        onClick={() => {
+          completeOnboarding()
+          navigate({ to: '/' })
+        }}
+        variant="outline"
+        size="sm"
+        className="absolute bottom-4 right-4 text-white hover:text-black"
+      >
+        Skip
+      </Button>
       {triggerAnimation && <OnboardingDoneAnimation />}
 
       <motion.div
@@ -140,7 +163,7 @@ function VoiceOnboarding() {
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.8, ease: 'easeOut', delay: 0.4 }}
       >
-        <Animation run={true} /> {/* TODO: We could use isSpeaking to run */}
+        <OnboardingVoiceAnimation run={isSpeaking} />
       </motion.div>
 
       <div></div>
@@ -183,7 +206,7 @@ function VoiceOnboarding() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: 'easeOut', delay: 0.8 }}
-          className="z-1"
+          className="z-1 relative"
         >
           <MessageInput
             onSend={handleSendMessage}
@@ -196,49 +219,6 @@ function VoiceOnboarding() {
       </div>
     </div>
   )
-}
-
-interface InstallationStatus {
-  dependency: string
-  progress: number
-  status: string
-  error?: string
-}
-
-function useKokoroInstallationStatus() {
-  const [installationStatus, setInstallationStatus] = useState<InstallationStatus>({
-    dependency: 'TTS',
-    progress: 0,
-    status: 'Not started'
-  })
-
-  const fetchCurrentState = async () => {
-    try {
-      const currentState = await window.api.launch.getCurrentState()
-      if (currentState) {
-        setInstallationStatus(currentState)
-      }
-    } catch (error) {
-      console.error('Failed to fetch current state:', error)
-    }
-  }
-
-  useEffect(() => {
-    fetchCurrentState()
-
-    const removeListener = window.api.launch.onProgress((data) => {
-      console.log('Launch progress update received:', data)
-      setInstallationStatus(data)
-    })
-
-    window.api.launch.notifyReady()
-
-    return () => {
-      removeListener()
-    }
-  }, [])
-
-  return installationStatus
 }
 
 // Progress is 0 to 1
