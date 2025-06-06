@@ -137,7 +137,7 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 		CurrentTime:       time.Now().Format(time.RFC3339),
 		IsVoice:           isVoice,
 		UserMemoryProfile: userMemoryProfile,
-		HolonThreadID: holonThreadId,
+		HolonThreadID:     holonThreadId,
 	})
 	if err != nil {
 		return "", err

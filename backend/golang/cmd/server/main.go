@@ -359,7 +359,6 @@ func main() {
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
 	}
 
-
 	holonService := holon.NewService(store)
 
 	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
@@ -379,7 +378,7 @@ func main() {
 		logger.Error("Failed to register send message to holon tool", "error", err)
 		// panic(errors.Wrap(err, "Failed to register send message to holon tool"))
 	}
-	
+
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
 		Token:            envs.TelegramToken,
