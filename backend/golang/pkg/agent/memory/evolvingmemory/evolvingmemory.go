@@ -3,7 +3,6 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -28,19 +27,6 @@ const (
 	NoneMemoryToolName   = "NONE"
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
-
-var (
-	openAIEmbedModel = getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small")
-	openAIChatModel  = getEnvOrDefault("COMPLETIONS_MODEL", "gpt-4o-mini")
-)
-
-// getEnvOrDefault returns the value of an environment variable or a default value if not set.
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
 
 // Document types.
 type DocumentType string
@@ -245,14 +231,17 @@ type Dependencies struct {
 	Storage            storage.Interface
 	CompletionsService *ai.Service
 	EmbeddingsService  *ai.Service
+	CompletionsModel   string
+	EmbeddingsModel    string
 }
 
 // StorageImpl implements MemoryStorage using any storage backend.
 type StorageImpl struct {
-	logger       *log.Logger
-	orchestrator MemoryOrchestrator
-	storage      storage.Interface
-	engine       MemoryEngine // Add engine reference for GetDocumentReference
+	logger          *log.Logger
+	orchestrator    MemoryOrchestrator
+	storage         storage.Interface
+	engine          MemoryEngine // Add engine reference for GetDocumentReference
+	embeddingsModel string
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -271,7 +260,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	// Create the memory engine with business logic
-	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsService, deps.Storage)
+	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsService, deps.Storage, deps.CompletionsModel, deps.EmbeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory engine: %w", err)
 	}
@@ -283,10 +272,11 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	return &StorageImpl{
-		logger:       deps.Logger,
-		orchestrator: orchestrator,
-		storage:      deps.Storage,
-		engine:       engine,
+		logger:          deps.Logger,
+		orchestrator:    orchestrator,
+		storage:         deps.Storage,
+		engine:          engine,
+		embeddingsModel: deps.EmbeddingsModel,
 	}, nil
 }
 
@@ -366,7 +356,7 @@ func (s *StorageImpl) StoreV2(ctx context.Context, documents []memory.Document, 
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
 func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
-	return s.storage.Query(ctx, queryText, filter)
+	return s.storage.Query(ctx, queryText, filter, s.embeddingsModel)
 }
 
 // GetDocumentReferences retrieves all document references for a memory.

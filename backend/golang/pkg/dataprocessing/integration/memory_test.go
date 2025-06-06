@@ -131,7 +131,7 @@ func setupSharedInfrastructure() {
 
 		// Initialize schema once
 		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), "https://api.openai.com/v1")
-		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
+		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, "text-embedding-3-small")
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}

@@ -201,7 +201,7 @@ func main() {
 
 	logger.Info("Initializing Weaviate schema")
 	schemaInitStart := time.Now()
-	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService); err != nil {
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
@@ -218,6 +218,8 @@ func main() {
 		Storage:            storageInterface,
 		CompletionsService: aiCompletionsService,
 		EmbeddingsService:  aiEmbeddingsService,
+		CompletionsModel:   envs.CompletionsModel,
+		EmbeddingsModel:    envs.EmbeddingsModel,
 	})
 	if err != nil {
 		logger.Error("Failed to create evolving memory", "error", err)
