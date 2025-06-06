@@ -10,12 +10,15 @@ import (
 	"net/url"
 	"strconv"
 	"time"
+
+	clog "github.com/charmbracelet/log"
 )
 
 // APIClient represents the HolonZero API client
 type APIClient struct {
 	baseURL    string
 	httpClient *http.Client
+	logger     *clog.Logger
 }
 
 // NewAPIClient creates a new HolonZero API client
@@ -51,8 +54,20 @@ func WithTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
+// WithLogger sets a logger for the API client
+func WithLogger(logger *clog.Logger) ClientOption {
+	return func(c *APIClient) {
+		c.logger = logger
+	}
+}
+
 // doRequest performs an HTTP request and handles common response processing
 func (c *APIClient) doRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
+	// Log the request path if logger is available
+	if c.logger != nil {
+		c.logger.Info("HolonZero API request", "method", method, "path", path, "url", c.baseURL+path)
+	}
+
 	var reqBody io.Reader
 	if body != nil {
 		jsonData, err := json.Marshal(body)
@@ -72,7 +87,15 @@ func (c *APIClient) doRequest(ctx context.Context, method, path string, body int
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
+		if c.logger != nil {
+			c.logger.Error("HolonZero API request failed", "method", method, "path", path, "error", err)
+		}
 		return nil, fmt.Errorf("failed to perform request: %w", err)
+	}
+
+	// Log successful response
+	if c.logger != nil {
+		c.logger.Info("HolonZero API response", "method", method, "path", path, "status", resp.StatusCode)
 	}
 
 	return resp, nil
@@ -108,7 +131,7 @@ func (c *APIClient) handleResponse(resp *http.Response, result interface{}) erro
 
 // GetHealth checks the health status of the application
 func (c *APIClient) GetHealth(ctx context.Context) (*HealthResponse, error) {
-	resp, err := c.doRequest(ctx, "GET", "/api/v1/health", nil)
+	resp, err := c.doRequest(ctx, "GET", "/health", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +146,7 @@ func (c *APIClient) GetHealth(ctx context.Context) (*HealthResponse, error) {
 
 // GetStatus gets detailed status information
 func (c *APIClient) GetStatus(ctx context.Context) (map[string]interface{}, error) {
-	resp, err := c.doRequest(ctx, "GET", "/api/v1/status", nil)
+	resp, err := c.doRequest(ctx, "GET", "/status", nil)
 	if err != nil {
 		return nil, err
 	}

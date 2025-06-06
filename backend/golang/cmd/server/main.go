@@ -366,9 +366,10 @@ func main() {
 
 	holonService := holon.NewService(store)
 
-	// Initialize HolonZero API fetcher service
-	holonManager, err := holon.StartHolonServices(store)
-	if err != nil {
+	// Initialize HolonZero API fetcher service with the main logger
+	config := holon.DefaultManagerConfig()
+	holonManager := holon.NewManager(store, config, logger, nil, nil)
+	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
 		// Don't panic - the service can run without the fetcher
 	} else {

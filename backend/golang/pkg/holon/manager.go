@@ -83,7 +83,7 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 			RetryDelay:    config.RetryDelay,
 			EnableLogging: config.EnableLogging,
 		}
-		fetcherService = NewFetcherService(store, fetcherConfig)
+		fetcherService = NewFetcherService(store, fetcherConfig, logger)
 	}
 
 	manager := &Manager{
