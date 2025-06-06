@@ -23,7 +23,7 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 
 	// Create mock storage interface
 	mockStorage := &MockStorage{}
-	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("*memory.Filter")).Return(memory.QueryResult{
+	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("*memory.Filter"), mock.AnythingOfType("string")).Return(memory.QueryResult{
 		Facts:     []memory.MemoryFact{},
 		Documents: []memory.TextDocument{},
 	}, nil)
@@ -35,6 +35,8 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 		Storage:            mockStorage,
 		CompletionsService: completionsService,
 		EmbeddingsService:  embeddingsService,
+		CompletionsModel:   "gpt-4.1-mini",
+		EmbeddingsModel:    "text-embedding-3-small",
 	})
 	if err != nil {
 		return nil, err

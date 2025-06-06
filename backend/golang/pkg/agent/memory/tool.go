@@ -52,6 +52,19 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 			fact.Timestamp.Format("2006-01-02 15:04:05"),
 		)
 	}
+	for i, doc := range result.Documents {
+		timeStr := "N/A"
+		if doc.Timestamp() != nil {
+			timeStr = doc.Timestamp().Format("2006-01-02 15:04:05")
+		}
+		resultText += fmt.Sprintf(
+			"Memory %d: %s (Source: %s, Time: %s)\n",
+			i+1,
+			doc.Content(),
+			doc.Source(),
+			timeStr,
+		)
+	}
 
 	t.Logger.Debug(
 		"Memory tool result",
