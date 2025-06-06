@@ -45,7 +45,6 @@ const (
 	documentOriginalIDProperty  = "originalId"
 	documentMetadataProperty    = "metadata"
 	documentCreatedAtProperty   = "createdAt"
-	openAIEmbedModel            = "text-embedding-3-small"
 )
 
 // DocumentReference holds the original document information.
@@ -73,7 +72,7 @@ type Interface interface {
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
-	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
+	Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 
 	// Document reference operations - now supports multiple references
@@ -574,11 +573,11 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 }
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	// Step 1: Generate query vector
-	queryVector, err := s.generateQueryVector(ctx, queryText)
+	queryVector, err := s.generateQueryVector(ctx, queryText, embeddingsModel)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("generating query vector: %w", err)
 	}
@@ -594,8 +593,8 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 }
 
 // generateQueryVector converts query text to embedding vector.
-func (s *WeaviateStorage) generateQueryVector(ctx context.Context, queryText string) ([]float32, error) {
-	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
+func (s *WeaviateStorage) generateQueryVector(ctx context.Context, queryText, embeddingsModel string) ([]float32, error) {
+	vector, err := s.embeddingsService.Embedding(ctx, queryText, embeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embedding: %w", err)
 	}

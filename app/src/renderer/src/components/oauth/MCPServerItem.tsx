@@ -37,7 +37,7 @@ const PROVIDER_MAP: Record<McpServerType, { provider: string; scope: string }> =
   },
   SLACK: {
     provider: 'slack',
-    scope: 'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read'
+    scope: 'channels:read,groups:read,channels:history,groups:history,im:read,mpim:read,search:read,users:read'
   },
   TWITTER: {
     provider: 'twitter',
