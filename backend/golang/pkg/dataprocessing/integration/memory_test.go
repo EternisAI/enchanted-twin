@@ -233,10 +233,10 @@ func (env *testEnvironment) cleanup(t *testing.T) {
 	}
 }
 
-func (env *testEnvironment) loadDocuments(t *testing.T) {
+func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string) {
 	t.Helper()
 
-	_, err := env.dataprocessing.ProcessSource(env.ctx, env.config.Source, env.config.InputPath, env.config.OutputPath)
+	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
 	records, err := helpers.ReadJSONL[types.Record](env.config.OutputPath)
@@ -381,7 +381,7 @@ func TestMemoryIntegration(t *testing.T) {
 	defer env.cleanup(t)
 
 	t.Run("DataProcessingAndStorage", func(t *testing.T) {
-		env.loadDocuments(t)
+		env.loadDocuments(t, env.config.Source, env.config.InputPath)
 		assert.NotEmpty(t, env.documents)
 		env.logger.Info("Documents loaded", "count", len(env.documents))
 		env.logger.Info("Documents", "documents", env.documents)
@@ -395,7 +395,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("BasicQuerying", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -416,7 +416,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("Important facts", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -448,7 +448,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("DocumentReferences", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -479,7 +479,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("SourceFiltering", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -499,7 +499,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("DistanceFiltering", func(t *testing.T) {
 		if len(env.documents) == 0 {
-			env.loadDocuments(t)
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -525,7 +525,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 	defer env.cleanup(t)
 
 	// Setup data
-	env.loadDocuments(t)
+	env.loadDocuments(t, env.config.Source, env.config.InputPath)
 	env.storeDocuments(t)
 
 	limit := 100
@@ -692,7 +692,7 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	defer env.cleanup(t)
 
 	// Test 1: Data processing and storage
-	env.loadDocuments(t)
+	env.loadDocuments(t, env.config.Source, env.config.InputPath)
 	assert.NotEmpty(t, env.documents)
 	env.logger.Info("Documents loaded successfully", "count", len(env.documents))
 
