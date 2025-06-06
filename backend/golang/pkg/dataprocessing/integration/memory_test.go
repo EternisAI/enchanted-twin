@@ -258,7 +258,6 @@ func (env *testEnvironment) storeDocuments(t *testing.T) {
 
 	// Properly wait for completion by consuming channels until they close
 	var errors []error
-	var progressUpdates []evolvingmemory.Progress
 
 	// Use a timeout to prevent hanging if something goes wrong
 	timeout := time.After(2 * time.Minute)
@@ -270,7 +269,6 @@ func (env *testEnvironment) storeDocuments(t *testing.T) {
 				progressCh = nil
 				continue
 			}
-			progressUpdates = append(progressUpdates, progress)
 			env.logger.Infof("Progress: %d/%d (stage: %s)", progress.Processed, progress.Total, progress.Stage)
 
 		case err, ok := <-errorCh:
@@ -285,7 +283,7 @@ func (env *testEnvironment) storeDocuments(t *testing.T) {
 			t.Fatal("Memory processing timed out after 2 minutes")
 
 		case <-env.ctx.Done():
-			t.Fatal("Context cancelled during memory processing")
+			t.Fatal("Context canceled during memory processing")
 		}
 	}
 
