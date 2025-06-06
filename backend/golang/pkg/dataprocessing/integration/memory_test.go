@@ -247,7 +247,7 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 		env.logger.Info("Record", "index", i, "source", record.Source, "content_preview", truncateString(record.Data["content"], 100))
 	}
 
-	documents, err := env.dataprocessing.ToDocuments(env.ctx, env.config.Source, records)
+	documents, err := env.dataprocessing.ToDocuments(env.ctx, source, records)
 	require.NoError(t, err)
 
 	require.NotEmpty(t, documents, "no documents to test with")
@@ -411,6 +411,28 @@ func TestMemoryIntegration(t *testing.T) {
 
 		for _, doc := range result.Documents {
 			env.logger.Info("Basic fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		}
+	})
+
+	t.Run("Query chatgpt", func(t *testing.T) {
+		source := "chatgpt"
+		inputPath := "testdata/chatgpt.zip"
+
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
+
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
+
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+
+		for _, doc := range result.Documents {
+			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
 		}
 	})
 
