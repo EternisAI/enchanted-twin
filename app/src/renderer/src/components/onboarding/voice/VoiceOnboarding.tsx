@@ -79,7 +79,7 @@ export default function VoiceOnboardingContainer() {
 
 function VoiceOnboarding() {
   const navigate = useNavigate()
-  const { speak, stop, isSpeaking, getFreqData } = useTTS()
+  const { speak, stop, isSpeaking, getFreqData, speakWithEvents } = useTTS()
 
   const [stepIdx, setStepIdx] = useState(0)
   const [answers, setAnswers] = useState<string[]>([])
@@ -122,7 +122,8 @@ function VoiceOnboarding() {
     }
 
     const nextPrompt = STEPS[nextIdx].ask(nextAnswers)
-    speak(nextPrompt)
+    const { started } = speakWithEvents(nextPrompt)
+    await started
     setStepIdx(nextIdx)
   }
 
