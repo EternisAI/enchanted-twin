@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/openai/openai-go"
@@ -70,15 +71,20 @@ func (a *Agent) ExecuteStream(
 		return toolResult, nil
 	}
 
+	languageModel := a.CompletionsModel
+	if reasoning {
+		languageModel = a.ReasoningModel
+	} else {
+		if strings.Contains(languageModel, "qwen3") {
+			// HACK: qwen3 supports non-reasoning mode for faster responses with special tag `/no_think`
+			messages[len(messages)-1] = openai.UserMessage(messages[len(messages)-1].OfUser.Content.OfString.Value + "/no_think")
+		}
+	}
+
 	for step := 0; step < MAX_STEPS; step++ {
 		stepContent := ""
 		stepCalls := []openai.ChatCompletionMessageToolCall{}
 		stepResults := []types.ToolResult{}
-
-		languageModel := a.CompletionsModel
-		if reasoning {
-			languageModel = a.ReasoningModel
-		}
 
 		stream := a.aiService.CompletionsStream(ctx, messages, toolDefs, languageModel)
 

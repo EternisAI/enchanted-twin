@@ -845,6 +845,37 @@ func (s *WeaviateStorage) executeAndProcessQuery(ctx context.Context, queryBuild
 	return memory.QueryResult{Facts: facts}, nil
 }
 
+// convertDocumentsToFacts converts TextDocuments to MemoryFacts for the memory tool.
+func (s *WeaviateStorage) convertDocumentsToFacts(documents []memory.TextDocument) []memory.MemoryFact {
+	facts := make([]memory.MemoryFact, 0, len(documents))
+
+	for _, doc := range documents {
+		speaker := "user"
+		if speakerID, exists := doc.Metadata()["speakerID"]; exists && speakerID != "" {
+			speaker = speakerID
+		}
+
+		timestamp := time.Now()
+		if doc.Timestamp() != nil {
+			timestamp = *doc.Timestamp()
+		}
+
+		fact := memory.MemoryFact{
+			ID:        doc.ID(),
+			Speaker:   speaker,
+			Content:   doc.Content(),
+			Timestamp: timestamp,
+			Source:    doc.Source(),
+			Metadata:  doc.Metadata(),
+		}
+
+		facts = append(facts, fact)
+	}
+
+	s.logger.Debug("Converted documents to facts", "documents_count", len(documents), "facts_count", len(facts))
+	return facts
+}
+
 // parseQueryResponseToFacts transforms GraphQL response to MemoryFacts.
 func (s *WeaviateStorage) parseQueryResponseToFacts(resp *models.GraphQLResponse) ([]memory.MemoryFact, error) {
 	// Extract data from response
