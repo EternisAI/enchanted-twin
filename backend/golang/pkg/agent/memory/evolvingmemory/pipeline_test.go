@@ -21,9 +21,8 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 	embeddingsService := ai.NewOpenAIService(logger, "test-key", "https://enchanted.ngrok.pro/v1")
 
 	mockStorage := &MockStorage{}
-	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("*memory.Filter"), mock.AnythingOfType("string")).Return(memory.QueryResult{
-		Facts:     []memory.MemoryFact{},
-		Documents: []memory.TextDocument{},
+	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.Anything, mock.AnythingOfType("string")).Return(memory.QueryResult{
+		Facts: []memory.MemoryFact{},
 	}, nil)
 	mockStorage.On("EnsureSchemaExists", mock.Anything).Return(nil)
 	mockStorage.On("StoreBatch", mock.Anything, mock.Anything).Return(nil)
