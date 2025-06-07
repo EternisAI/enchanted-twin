@@ -396,7 +396,6 @@ func getTestConfig(t *testing.T) testConfig {
 	}
 
 	completionsApiKey := os.Getenv("COMPLETIONS_API_KEY")
-	embeddingsApiKey := os.Getenv("EMBEDDINGS_API_KEY")
 
 	if completionsApiKey == "" {
 		t.Fatalf("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
@@ -420,7 +419,6 @@ func getTestConfig(t *testing.T) testConfig {
 		EmbeddingsModel:   embeddingsModel,
 		EmbeddingsApiKey:  embeddingsApiKey,
 		EmbeddingsApiUrl:  "https://api.openai.com/v1",
-
 	}
 }
 
@@ -931,8 +929,6 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	// 	}
 	// 	assert.True(t, keywordsFoundCount > 2, "should find expenses facts but didn't find relevant keywords")
 	// })
- 
-
 }
 
 func TestMain(m *testing.M) {
