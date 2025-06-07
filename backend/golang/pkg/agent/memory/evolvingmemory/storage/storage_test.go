@@ -107,48 +107,37 @@ func TestDirectFieldFiltering(t *testing.T) {
 func TestSchemaFields(t *testing.T) {
 	t.Run("hybrid metadata merging", func(t *testing.T) {
 		// Test data representing a document with both direct fields and JSON metadata
-		source := "conversations"
 		speakerID := "alice"
-		metadataJSON := `{"source":"old_source","speakerID":"old_speaker","extra":"value"}`
+		metadataJSON := `{"speakerID":"old_speaker","extra":"value"}`
 
 		// Parse metadata JSON
 		metadata := make(map[string]string)
 		err := json.Unmarshal([]byte(metadataJSON), &metadata)
 		require.NoError(t, err)
 
-		// Merge direct fields (they should take precedence)
-		if source != "" {
-			metadata["source"] = source
-		}
+		// Only add speakerID to metadata
 		if speakerID != "" {
 			metadata["speakerID"] = speakerID
 		}
 
-		// Verify direct fields override JSON values
-		assert.Equal(t, "conversations", metadata["source"]) // Not "old_source"
-		assert.Equal(t, "alice", metadata["speakerID"])      // Not "old_speaker"
-		assert.Equal(t, "value", metadata["extra"])          // Preserved from JSON
+		assert.Equal(t, "alice", metadata["speakerID"]) // Not "old_speaker"
+		assert.Equal(t, "value", metadata["extra"])     // Preserved from JSON
 	})
 
-	t.Run("empty direct fields fallback to JSON", func(t *testing.T) {
-		source := ""
+	t.Run("speakerID from JSON when direct field empty", func(t *testing.T) {
 		speakerID := ""
-		metadataJSON := `{"source":"json_source","speakerID":"json_speaker"}`
+		metadataJSON := `{"speakerID":"json_speaker"}`
 
 		metadata := make(map[string]string)
 		err := json.Unmarshal([]byte(metadataJSON), &metadata)
 		require.NoError(t, err)
 
 		// Only merge non-empty direct fields
-		if source != "" {
-			metadata["source"] = source
-		}
 		if speakerID != "" {
 			metadata["speakerID"] = speakerID
 		}
 
 		// Should preserve JSON values when direct fields are empty
-		assert.Equal(t, "json_source", metadata["source"])
 		assert.Equal(t, "json_speaker", metadata["speakerID"])
 	})
 }
@@ -261,8 +250,6 @@ func TestDocumentWithDirectFields(t *testing.T) {
 
 		metadata := conv.Metadata()
 
-		// Should include source and user in metadata
-		assert.Equal(t, "conversations", metadata["source"])
 		assert.Equal(t, "alice", metadata["user"])
 		assert.Equal(t, "general", metadata["channel"])
 
@@ -275,7 +262,6 @@ func TestDocumentWithDirectFields(t *testing.T) {
 func TestQueryResultParsing(t *testing.T) {
 	t.Run("parse result with direct fields", func(t *testing.T) {
 		// Simulate a Weaviate result object
-		source := "conversations"
 		speakerID := "alice"
 		metadataJSON := `{"extra":"value","old_source":"ignore"}`
 
@@ -284,10 +270,7 @@ func TestQueryResultParsing(t *testing.T) {
 		err := json.Unmarshal([]byte(metadataJSON), &metaMap)
 		require.NoError(t, err)
 
-		// Merge direct fields (they take precedence)
-		if source != "" {
-			metaMap["source"] = source
-		}
+		// Only add speakerID to metadata, source stays as direct field
 		if speakerID != "" {
 			metaMap["speakerID"] = speakerID
 		}
@@ -295,19 +278,18 @@ func TestQueryResultParsing(t *testing.T) {
 		doc := memory.TextDocument{
 			FieldID:       "test-123",
 			FieldContent:  "test content",
-			FieldSource:   source,  // Direct field
-			FieldMetadata: metaMap, // Merged metadata
+			FieldSource:   "conversations", // Direct field
+			FieldMetadata: metaMap,         // Merged metadata
 		}
 
 		// Verify direct field is used
 		assert.Equal(t, "conversations", doc.Source())
 		assert.Equal(t, "conversations", doc.FieldSource)
 
-		// Verify metadata merging
-		assert.Equal(t, "conversations", doc.Metadata()["source"]) // From direct field
-		assert.Equal(t, "alice", doc.Metadata()["speakerID"])      // From direct field
-		assert.Equal(t, "value", doc.Metadata()["extra"])          // From JSON
-		assert.NotEqual(t, "ignore", doc.Metadata()["source"])     // JSON overridden
+		// Verify field separation
+		assert.Equal(t, "conversations", doc.Source())        // From direct field
+		assert.Equal(t, "alice", doc.Metadata()["speakerID"]) // In metadata
+		assert.Equal(t, "value", doc.Metadata()["extra"])     // From JSON
 	})
 }
 
@@ -383,14 +365,12 @@ func TestMigrationScenarios(t *testing.T) {
 		// 4. Work with new filtering when direct fields are populated
 
 		// Simulate old document (no direct fields)
-		metadataJSON := `{"source":"conversations","speakerID":"alice"}`
+		metadataJSON := `{"speakerID":"alice"}`
 
 		metadata := make(map[string]string)
 		err := json.Unmarshal([]byte(metadataJSON), &metadata)
 		require.NoError(t, err)
 
-		// Old documents can still be filtered via metadata
-		assert.Equal(t, "conversations", metadata["source"])
 		assert.Equal(t, "alice", metadata["speakerID"])
 	})
 }

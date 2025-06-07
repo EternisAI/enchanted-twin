@@ -185,8 +185,6 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	// Extract and store source as direct field
 	if source := fact.Source.Original.Source(); source != "" {
 		properties["source"] = source
-	} else if source, exists := metadata["source"]; exists {
-		properties["source"] = source
 	}
 
 	// Extract and store speakerID as direct field
