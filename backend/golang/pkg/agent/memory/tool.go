@@ -46,8 +46,7 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 
 	t.Logger.Info("Memory query completed",
 		"query", query,
-		"facts_found", len(result.Facts),
-		"documents_found", len(result.Documents))
+		"facts_found", len(result.Facts))
 
 	// Log first few results for debugging
 	for i, fact := range result.Facts {

@@ -527,14 +527,10 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						logger.Error("Debug query for WhatsApp contacts failed", "error", queryErr)
 					} else {
 						logger.Info("Debug query for WhatsApp contacts successful",
-							"facts_count", len(result.Facts),
-							"documents_count", len(result.Documents))
+							"facts_count", len(result.Facts))
 
 						if len(result.Facts) > 0 {
 							logger.Info("Sample WhatsApp contact fact", "content", result.Facts[0].Content, "source", result.Facts[0].Source)
-						}
-						if len(result.Documents) > 0 {
-							logger.Info("Sample WhatsApp contact document", "content", result.Documents[0].Content(), "source", result.Documents[0].Source())
 						}
 					}
 				}
@@ -637,14 +633,10 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						logger.Error("Debug query for WhatsApp conversations failed", "error", queryErr)
 					} else {
 						logger.Info("Debug query for WhatsApp conversations successful",
-							"facts_count", len(result.Facts),
-							"documents_count", len(result.Documents))
+							"facts_count", len(result.Facts))
 
 						if len(result.Facts) > 0 {
 							logger.Info("Sample WhatsApp conversation fact", "content", result.Facts[0].Content, "source", result.Facts[0].Source)
-						}
-						if len(result.Documents) > 0 {
-							logger.Info("Sample WhatsApp conversation document", "content", result.Documents[0].Content(), "source", result.Documents[0].Source())
 						}
 					}
 				}
