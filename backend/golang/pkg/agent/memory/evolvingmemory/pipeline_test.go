@@ -3,6 +3,7 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
@@ -18,8 +19,8 @@ import (
 // createMockStorage creates a StorageImpl instance with mocked services for testing.
 func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 	// Create real AI services for testing but with test endpoints
-	completionsService := ai.NewOpenAIService(logger, "test-key", "https://api.openai.com/v1")
-	embeddingsService := ai.NewOpenAIService(logger, "test-key", "https://api.openai.com/v1")
+	completionsService := ai.NewOpenAIService(logger, os.Getenv("COMPLETIONS_API_KEY"), os.Getenv("COMPLETIONS_API_URL"))
+	embeddingsService := ai.NewOpenAIService(logger, os.Getenv("EMBEDDINGS_API_KEY"), os.Getenv("EMBEDDINGS_API_URL"))
 
 	// Create mock storage interface
 	mockStorage := &MockStorage{}
