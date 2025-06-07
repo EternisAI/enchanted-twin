@@ -925,7 +925,6 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	// 	}
 	// 	assert.True(t, keywordsFoundCount > 2, "should find expenses facts but didn't find relevant keywords")
 	// })
-
 }
 
 func TestMain(m *testing.M) {

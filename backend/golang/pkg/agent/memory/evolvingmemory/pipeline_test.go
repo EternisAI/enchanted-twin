@@ -3,7 +3,6 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -18,11 +17,9 @@ import (
 
 // createMockStorage creates a StorageImpl instance with mocked services for testing.
 func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
-	// Create real AI services for testing but with test endpoints
-	completionsService := ai.NewOpenAIService(logger, os.Getenv("COMPLETIONS_API_KEY"), os.Getenv("COMPLETIONS_API_URL"))
-	embeddingsService := ai.NewOpenAIService(logger, os.Getenv("EMBEDDINGS_API_KEY"), os.Getenv("EMBEDDINGS_API_URL"))
+	completionsService := ai.NewOpenAIService(logger, "test-key", "https://enchanted.ngrok.pro/v1")
+	embeddingsService := ai.NewOpenAIService(logger, "test-key", "https://enchanted.ngrok.pro/v1")
 
-	// Create mock storage interface
 	mockStorage := &MockStorage{}
 	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("*memory.Filter"), mock.AnythingOfType("string")).Return(memory.QueryResult{
 		Facts:     []memory.MemoryFact{},
@@ -36,8 +33,8 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 		Storage:            mockStorage,
 		CompletionsService: completionsService,
 		EmbeddingsService:  embeddingsService,
-		CompletionsModel:   "gpt-4.1-mini",
-		EmbeddingsModel:    "text-embedding-3-small",
+		CompletionsModel:   "qwen3:8b",
+		EmbeddingsModel:    "nomic-embed-text:latest",
 	})
 	if err != nil {
 		return nil, err
@@ -58,9 +55,9 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 50, config.FactsPerWorker)
 	assert.Equal(t, 100, config.BatchSize)
 	assert.Equal(t, 30*time.Second, config.FlushInterval)
-	assert.Equal(t, 30*time.Second, config.FactExtractionTimeout)
-	assert.Equal(t, 30*time.Second, config.MemoryDecisionTimeout)
-	assert.Equal(t, 30*time.Second, config.StorageTimeout)
+	assert.Equal(t, 20*time.Minute, config.FactExtractionTimeout)
+	assert.Equal(t, 20*time.Minute, config.MemoryDecisionTimeout)
+	assert.Equal(t, 20*time.Minute, config.StorageTimeout)
 	assert.True(t, config.EnableRichContext)
 	assert.True(t, config.ParallelFactExtraction)
 	assert.True(t, config.StreamingProgress)
