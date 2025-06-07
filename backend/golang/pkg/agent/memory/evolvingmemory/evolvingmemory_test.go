@@ -147,7 +147,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -212,7 +212,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		}
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -281,7 +281,7 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
@@ -596,7 +596,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -669,7 +669,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -748,7 +748,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -826,7 +826,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -898,7 +898,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -1039,7 +1039,7 @@ func TestQueryResultStructure(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
@@ -1608,7 +1608,7 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 
 		completionsModel := os.Getenv("COMPLETIONS_MODEL")
 		if completionsModel == "" {
-			completionsModel = "gpt-4o-mini"
+			completionsModel = "gpt-41-mini"
 		}
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
