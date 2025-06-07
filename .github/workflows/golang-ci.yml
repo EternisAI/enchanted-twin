@@ -75,7 +75,6 @@ jobs:
           COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
           EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
           TELEGRAM_CHAT_SERVER: ${{ secrets.TELEGRAM_CHAT_SERVER }}
-          # Use same model as local environment for deterministic results
         run: |
           # Create output directory if it doesn't exist
           mkdir -p ./output
