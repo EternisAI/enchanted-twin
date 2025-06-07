@@ -890,6 +890,7 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 
 	// Note: disabled for now, because results vary too much depending on the model used
 	// Test 4: More precise querying
+
 	// t.Run("More precise querying", func(t *testing.T) {
 	// 	if len(env.documents) == 0 {
 	// 		env.loadDocuments(t, env.config.Source, env.config.InputPath)
@@ -924,6 +925,7 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	// 	}
 	// 	assert.True(t, keywordsFoundCount > 2, "should find expenses facts but didn't find relevant keywords")
 	// })
+
 }
 
 func TestMain(m *testing.M) {
