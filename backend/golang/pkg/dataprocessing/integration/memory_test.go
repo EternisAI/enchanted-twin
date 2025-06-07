@@ -280,8 +280,8 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 	env.documents = documents
 
 	env.logger.Info("Documents converted", "count", len(documents))
-	for i, doc := range documents {
-		env.logger.Info("Document", "index", i, "id", doc.ID(), "source", doc.Source(), "content_preview", truncateString(doc.Content(), 150))
+	for i, fact := range documents {
+		env.logger.Info("Document", "index", i, "id", fact.ID, "source", fact.Source, "content_preview", truncateString(fact.Content, 150))
 	}
 }
 
@@ -455,10 +455,10 @@ func TestMemoryIntegration(t *testing.T) {
 
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-		for _, doc := range result.Documents {
-			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
 		}
 	})
 
@@ -477,10 +477,10 @@ func TestMemoryIntegration(t *testing.T) {
 
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-		for _, doc := range result.Documents {
-			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
 		}
 	})
 
@@ -499,10 +499,10 @@ func TestMemoryIntegration(t *testing.T) {
 
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-		for _, doc := range result.Documents {
-			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
 		}
 	})
 
@@ -521,10 +521,10 @@ func TestMemoryIntegration(t *testing.T) {
 
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-		for _, doc := range result.Documents {
-			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
 		}
 	})
 
@@ -543,10 +543,10 @@ func TestMemoryIntegration(t *testing.T) {
 
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result.Documents, "should find memories from %s source", source)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-		for _, doc := range result.Documents {
-			env.logger.Info(source, "fact", "id", doc.ID(), "content", doc.Content(), "source", doc.Source())
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
 		}
 	})
 
