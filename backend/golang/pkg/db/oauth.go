@@ -187,7 +187,7 @@ var oauthConfig = map[string]OAuthConfig{
 		AuthEndpoint:  "https://slack.com/oauth/v2/authorize",
 		TokenEndpoint: "https://slack.com/api/oauth.v2.access",
 		UserEndpoint:  "https://slack.com/api/users.identity",
-		DefaultScope:  "identity.basic identity.email identity.avatar identity.team",
+		DefaultScope:  "identity.basic identity.email identity.avatar identity.team users:read",
 	},
 }
 

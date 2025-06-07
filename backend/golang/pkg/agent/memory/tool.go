@@ -35,10 +35,46 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 		return nil, errors.New("query must be a string")
 	}
 
+	t.Logger.Info("=== MEMORY TOOL QUERY START ===", "query", query)
+
 	// For now, search across all speakers
-	result, err := t.Memory.Query(ctx, query)
+	result, err := t.Memory.Query(ctx, query, nil)
 	if err != nil {
+		t.Logger.Error("Memory query failed", "error", err, "query", query)
 		return nil, err
+	}
+
+	t.Logger.Info("Memory query completed",
+		"query", query,
+		"facts_found", len(result.Facts),
+		"documents_found", len(result.Documents))
+
+	// Log first few results for debugging
+	for i, fact := range result.Facts {
+		if i >= 3 { // Only log first 3 to avoid spam
+			break
+		}
+		t.Logger.Info("Memory result sample",
+			"index", i+1,
+			"content", fact.Content,
+			"speaker", fact.Speaker,
+			"source", fact.Source,
+			"timestamp", fact.Timestamp.Format("2006-01-02 15:04:05"))
+	}
+
+	if len(result.Facts) == 0 {
+		t.Logger.Warn("No facts found for query - this suggests a semantic search issue", "query", query)
+
+		// Try some test queries to debug
+		testQueries := []string{"WhatsApp", "contact", "Ornella", "name"}
+		for _, testQuery := range testQueries {
+			testResult, testErr := t.Memory.Query(ctx, testQuery, nil)
+			if testErr == nil {
+				t.Logger.Info("Test query result",
+					"test_query", testQuery,
+					"facts_found", len(testResult.Facts))
+			}
+		}
 	}
 
 	resultText := ""
@@ -52,6 +88,19 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 			fact.Timestamp.Format("2006-01-02 15:04:05"),
 		)
 	}
+	for i, doc := range result.Documents {
+		timeStr := "N/A"
+		if doc.Timestamp() != nil {
+			timeStr = doc.Timestamp().Format("2006-01-02 15:04:05")
+		}
+		resultText += fmt.Sprintf(
+			"Memory %d: %s (Source: %s, Time: %s)\n",
+			i+1,
+			doc.Content(),
+			doc.Source(),
+			timeStr,
+		)
+	}
 
 	t.Logger.Debug(
 		"Memory tool result",
@@ -60,6 +109,8 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 		"response",
 		resultText,
 	)
+
+	t.Logger.Info("=== MEMORY TOOL QUERY END ===")
 
 	return types.SimpleToolResult(resultText), nil
 }

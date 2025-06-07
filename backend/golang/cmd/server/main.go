@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -24,7 +23,6 @@ import (
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 	"github.com/nats-io/nats.go"
-	ollamaapi "github.com/ollama/ollama/api"
 	"github.com/pkg/errors"
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
@@ -36,6 +34,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/notifications"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	schedulerTools "github.com/EternisAI/enchanted-twin/pkg/agent/scheduler/tools"
@@ -74,16 +73,6 @@ func main() {
 	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
-
-	var ollamaClient *ollamaapi.Client
-	if envs.OllamaBaseURL != "" {
-		baseURL, err := url.Parse(envs.OllamaBaseURL)
-		if err != nil {
-			logger.Error("Failed to parse Ollama base URL", "error", err)
-		} else {
-			ollamaClient = ollamaapi.NewClient(baseURL, http.DefaultClient)
-		}
-	}
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
@@ -214,7 +203,7 @@ func main() {
 
 	logger.Info("Initializing Weaviate schema")
 	schemaInitStart := time.Now()
-	if err := bootstrap.InitSchema(weaviateClient, logger); err != nil {
+	if err := bootstrap.InitSchema(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel); err != nil {
 		logger.Error("Failed to initialize Weaviate schema", "error", err)
 		panic(errors.Wrap(err, "Failed to initialize Weaviate schema"))
 	}
@@ -222,7 +211,18 @@ func main() {
 
 	logger.Info("Creating evolving memory instance")
 	memoryCreateStart := time.Now()
-	mem, err := evolvingmemory.New(logger, weaviateClient, aiCompletionsService, aiEmbeddingsService)
+
+	// Create storage interface first
+	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService)
+
+	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+		Logger:             logger,
+		Storage:            storageInterface,
+		CompletionsService: aiCompletionsService,
+		EmbeddingsService:  aiEmbeddingsService,
+		CompletionsModel:   envs.CompletionsModel,
+		EmbeddingsModel:    envs.EmbeddingsModel,
+	})
 	if err != nil {
 		logger.Error("Failed to create evolving memory", "error", err)
 		panic(errors.Wrap(err, "Failed to create evolving memory"))
@@ -289,6 +289,8 @@ func main() {
 		panic(errors.Wrap(err, "Failed to register telegram tool"))
 	}
 
+	identitySvc := identity.NewIdentityService(temporalClient)
+
 	twinChatService := twinchat.NewService(
 		logger,
 		aiCompletionsService,
@@ -299,6 +301,7 @@ func main() {
 		store,
 		envs.CompletionsModel,
 		envs.ReasoningModel,
+		identitySvc,
 	)
 
 	sendToChatTool := twinchat.NewSendToChatTool(chatStorage, nc)
@@ -341,7 +344,6 @@ func main() {
 			envs:                 envs,
 			store:                store,
 			nc:                   nc,
-			ollamaClient:         ollamaClient,
 			memory:               mem,
 			aiCompletionsService: aiCompletionsService,
 			toolsRegistry:        toolRegistry,
@@ -358,14 +360,6 @@ func main() {
 		logger.Error("Failed to bootstrap periodic workflows", "error", err)
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
 	}
-
-	identitySvc := identity.NewIdentityService(temporalClient)
-	personality, err := identitySvc.GetPersonality(context.Background())
-	if err != nil {
-		logger.Error("Failed to get personality", "error", err)
-		panic(errors.Wrap(err, "Failed to get personality"))
-	}
-	logger.Info("Personality", "personality", personality)
 
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
@@ -436,7 +430,6 @@ type bootstrapTemporalWorkerInput struct {
 	envs                 *config.Config
 	store                *db.Store
 	nc                   *nats.Conn
-	ollamaClient         *ollamaapi.Client
 	memory               memory.Storage
 	toolsRegistry        tools.ToolRegistry
 	aiCompletionsService *ai.Service
@@ -471,7 +464,6 @@ func bootstrapTemporalWorker(
 		Config:        input.envs,
 		Store:         input.store,
 		Nc:            input.nc,
-		OllamaClient:  input.ollamaClient,
 		Memory:        input.memory,
 		OpenAIService: input.aiCompletionsService,
 	}
@@ -601,7 +593,7 @@ func gqlSchema(input *graph.Resolver) graphql.ExecutableSchema {
 }
 
 func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client) error {
-	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour, identity.DerivePersonalityWorkflow, nil)
+	err := helpers.CreateScheduleIfNotExists(logger, temporalClient, identity.PersonalityWorkflowID, time.Hour*12, identity.DerivePersonalityWorkflow, nil)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}

@@ -22,6 +22,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -45,6 +46,7 @@ type Service struct {
 	reasoningModel   string
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
+	identityService  *identity.IdentityService
 }
 
 func NewService(
@@ -57,6 +59,7 @@ func NewService(
 	userStorage *db.Store,
 	completionsModel string,
 	reasoningModel string,
+	identityService *identity.IdentityService,
 ) *Service {
 	return &Service{
 		logger:           logger,
@@ -68,6 +71,7 @@ func NewService(
 		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
 		userStorage:      userStorage,
+		identityService:  identityService,
 	}
 }
 
@@ -102,7 +106,7 @@ func (s *Service) Execute(
 	return &response, nil
 }
 
-func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool, userMemoryProfile string) (string, error) {
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	if err != nil {
 		return "", err
@@ -120,12 +124,13 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 	}
 
 	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
-		UserName:      userProfile.Name,
-		Bio:           userProfile.Bio,
-		EmailAccounts: emailAccounts,
-		ChatID:        &chatID,
-		CurrentTime:   time.Now().Format(time.RFC3339),
-		IsVoice:       isVoice,
+		UserName:          userProfile.Name,
+		Bio:               userProfile.Bio,
+		EmailAccounts:     emailAccounts,
+		ChatID:            &chatID,
+		CurrentTime:       time.Now().Format(time.RFC3339),
+		IsVoice:           isVoice,
+		UserMemoryProfile: userMemoryProfile,
 	})
 	if err != nil {
 		return "", err
@@ -158,7 +163,13 @@ func (s *Service) SendMessage(
 		messages = messages_
 	}
 
-	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
+	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
+	if err != nil {
+		s.logger.Error("failed to get user memory profile", "error", err)
+		userMemoryProfile = ""
+	}
+
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
 	if err != nil {
 		return nil, err
 	}

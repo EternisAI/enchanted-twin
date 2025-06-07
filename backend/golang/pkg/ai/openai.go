@@ -46,9 +46,10 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 
 func (s *Service) Completions(ctx context.Context, messages []openai.ChatCompletionMessageParamUnion, tools []openai.ChatCompletionToolParam, model string) (openai.ChatCompletionMessage, error) {
 	return s.ParamsCompletions(ctx, openai.ChatCompletionNewParams{
-		Messages: messages,
-		Model:    model,
-		Tools:    tools,
+		Messages:    messages,
+		Model:       model,
+		Tools:       tools,
+		Temperature: param.Opt[float64]{Value: 1.0},
 	})
 }
 

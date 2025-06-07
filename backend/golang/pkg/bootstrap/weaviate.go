@@ -16,7 +16,8 @@ import (
 	"github.com/weaviate/weaviate/adapters/handlers/rest"
 	"github.com/weaviate/weaviate/adapters/handlers/rest/operations"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port string, dataPath string) (*rest.Server, error) {
@@ -163,11 +164,13 @@ func BootstrapWeaviateServer(ctx context.Context, logger *log.Logger, port strin
 	}
 }
 
-func InitSchema(client *weaviate.Client, logger *log.Logger) error {
+func InitSchema(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) error {
 	logger.Debug("Starting schema initialization")
 	start := time.Now()
 
-	if err := evolvingmemory.EnsureSchemaExistsInternal(client, logger); err != nil {
+	// Create storage instance and call EnsureSchemaExists
+	storageInstance := storage.New(client, logger, embeddingsService)
+	if err := storageInstance.EnsureSchemaExists(context.Background()); err != nil {
 		return err
 	}
 
