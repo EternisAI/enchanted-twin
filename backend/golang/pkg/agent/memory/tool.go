@@ -46,8 +46,7 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 
 	t.Logger.Info("Memory query completed",
 		"query", query,
-		"facts_found", len(result.Facts),
-		"documents_found", len(result.Documents))
+		"facts_found", len(result.Facts))
 
 	// Log first few results for debugging
 	for i, fact := range result.Facts {
@@ -79,25 +78,16 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 
 	resultText := ""
 	for i, fact := range result.Facts {
+		timeStr := "N/A"
+		if !fact.Timestamp.IsZero() {
+			timeStr = fact.Timestamp.Format("2006-01-02 15:04:05")
+		}
 		resultText += fmt.Sprintf(
 			"Memory %d: %s (Speaker: %s, Source: %s, Time: %s)\n",
 			i+1,
 			fact.Content,
 			fact.Speaker,
 			fact.Source,
-			fact.Timestamp.Format("2006-01-02 15:04:05"),
-		)
-	}
-	for i, doc := range result.Documents {
-		timeStr := "N/A"
-		if doc.Timestamp() != nil {
-			timeStr = doc.Timestamp().Format("2006-01-02 15:04:05")
-		}
-		resultText += fmt.Sprintf(
-			"Memory %d: %s (Source: %s, Time: %s)\n",
-			i+1,
-			doc.Content(),
-			doc.Source(),
 			timeStr,
 		)
 	}
