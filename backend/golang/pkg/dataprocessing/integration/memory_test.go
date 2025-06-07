@@ -368,8 +368,8 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Fatalf("Failed to create output directory %s: %v", outputDir, err)
 	}
 
-	completionsApiKey := getEnvOrDefault("TEST_COMPLETIONS_API_KEY", os.Getenv("COMPLETIONS_API_KEY"))
-	embeddingsApiKey := getEnvOrDefault("TEST_EMBEDDINGS_API_KEY", os.Getenv("EMBEDDINGS_API_KEY"))
+	completionsApiKey := os.Getenv("COMPLETIONS_API_KEY")
+	embeddingsApiKey := os.Getenv("EMBEDDINGS_API_KEY")
 
 	if completionsApiKey == "" {
 		t.Skip("Skipping integration test: No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
@@ -378,17 +378,16 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Skip("Skipping integration test: No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
-	// TODO: better solutuon using .env but must align with CI
 	return testConfig{
 		Source:            source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,
-		CompletionsModel:  "openai/gpt-4.1-mini",
+		CompletionsModel:  getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1-mini"),
 		CompletionsApiKey: completionsApiKey,
-		CompletionsApiUrl: "https://openrouter.ai/api/v1",
-		EmbeddingsModel:   "openai/text-embedding-3-small",
+		CompletionsApiUrl: getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
+		EmbeddingsModel:   getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small"),
 		EmbeddingsApiKey:  embeddingsApiKey,
-		EmbeddingsApiUrl:  "https://api.openai.com/v1",
+		EmbeddingsApiUrl:  getEnvOrDefault("EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
 	}
 }
 
