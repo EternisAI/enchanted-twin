@@ -378,16 +378,17 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Skip("Skipping integration test: No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
+	// TODO: better solutuon using .env but must align with CI
 	return testConfig{
 		Source:            source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,
-		CompletionsModel:  getEnvOrDefault("TEST_COMPLETIONS_MODEL", "gpt-4o-mini"),
+		CompletionsModel:  "openai/gpt-4.1-mini",
 		CompletionsApiKey: completionsApiKey,
-		CompletionsApiUrl: getEnvOrDefault("TEST_COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
-		EmbeddingsModel:   getEnvOrDefault("TEST_EMBEDDINGS_MODEL", "text-embedding-3-small"),
+		CompletionsApiUrl: "https://openrouter.ai/api/v1",
+		EmbeddingsModel:   "openai/text-embedding-3-small",
 		EmbeddingsApiKey:  embeddingsApiKey,
-		EmbeddingsApiUrl:  getEnvOrDefault("TEST_EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
+		EmbeddingsApiUrl:  "https://api.openai.com/v1",
 	}
 }
 
