@@ -146,6 +146,15 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			return
 		}
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
@@ -156,8 +165,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		})
 		require.NoError(t, err)
 
@@ -202,6 +211,14 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
@@ -213,8 +230,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		})
 		require.NoError(t, err)
 
@@ -263,13 +280,23 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		storageImpl, err := New(Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		})
 		require.NoError(t, err)
 
@@ -569,14 +596,22 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		// Create storage with mock
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -633,13 +668,21 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -708,13 +751,21 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -781,13 +832,21 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -844,13 +903,22 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -975,13 +1043,22 @@ func TestQueryResultStructure(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -1532,13 +1609,22 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
