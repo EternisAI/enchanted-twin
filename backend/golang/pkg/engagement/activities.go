@@ -72,13 +72,13 @@ func (s *FriendService) CheckForSimilarFriendMessages(ctx context.Context, messa
 		return false, fmt.Errorf("failed to query for similar friend messages: %w", err)
 	}
 
-	s.logger.Debug("Query result (friend messages only)", "total_documents", len(result.Documents))
+	s.logger.Debug("Query result (friend messages only)", "total_documents", len(result.Facts))
 
 	// If we got any results, it means there are similar messages within the threshold
-	if len(result.Documents) > 0 {
+	if len(result.Facts) > 0 {
 		s.logger.Info("Found similar friend message, skipping send",
 			"threshold", SimilarityThreshold,
-			"similar_message", result.Documents[0].FieldContent[:min(100, len(result.Documents[0].FieldContent))])
+			"similar_message", result.Facts[0].Content[:min(100, len(result.Facts[0].Content))])
 		return true, nil
 	}
 
@@ -104,12 +104,12 @@ func (s *FriendService) FetchMemory(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	if len(result.Documents) == 0 {
+	if len(result.Facts) == 0 {
 		return "No memories found", nil
 	}
 
-	randomIndex := rand.Intn(len(result.Documents))
-	return result.Documents[randomIndex].FieldContent, nil
+	randomIndex := rand.Intn(len(result.Facts))
+	return result.Facts[randomIndex].Content, nil
 }
 
 func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
@@ -123,12 +123,12 @@ func (s *FriendService) FetchRandomMemory(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	if len(result.Documents) == 0 {
+	if len(result.Facts) == 0 {
 		return "No memories found", nil
 	}
 
-	randomIndex := rand.Intn(len(result.Documents))
-	return result.Documents[randomIndex].FieldContent, nil
+	randomIndex := rand.Intn(len(result.Facts))
+	return result.Facts[randomIndex].Content, nil
 }
 
 func (s *FriendService) FetchIdentity(ctx context.Context) (string, error) {
