@@ -43,13 +43,17 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 
 	resultText := ""
 	for i, fact := range result.Facts {
+		timeStr := "N/A"
+		if !fact.Timestamp.IsZero() {
+			timeStr = fact.Timestamp.Format("2006-01-02 15:04:05")
+		}
 		resultText += fmt.Sprintf(
 			"Memory %d: %s (Speaker: %s, Source: %s, Time: %s)\n",
 			i+1,
 			fact.Content,
 			fact.Speaker,
 			fact.Source,
-			fact.Timestamp.Format("2006-01-02 15:04:05"),
+			timeStr,
 		)
 	}
 
