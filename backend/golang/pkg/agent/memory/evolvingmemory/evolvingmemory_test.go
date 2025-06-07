@@ -49,14 +49,15 @@ func TestTextDocumentBasics(t *testing.T) {
 		FieldID:        "text-456",
 		FieldContent:   "The user's favorite color is blue.",
 		FieldTimestamp: &now,
-		FieldMetadata:  map[string]string{"source": "notes"},
+		FieldSource:    "notes",
+		FieldMetadata:  map[string]string{},
 	}
 
 	// Test Document interface methods
 	assert.Equal(t, "text-456", textDoc.ID())
 	assert.Equal(t, "The user's favorite color is blue.", textDoc.Content())
 	assert.Equal(t, &now, textDoc.Timestamp())
-	assert.Equal(t, "notes", textDoc.Metadata()["source"])
+	assert.Equal(t, "notes", textDoc.Source())
 }
 
 func TestValidationRules(t *testing.T) {
@@ -313,17 +314,19 @@ func TestDocumentDeduplicationEdgeCases(t *testing.T) {
 			FieldID:        "doc-meta-1",
 			FieldContent:   "Same content different metadata",
 			FieldTimestamp: &now,
-			FieldMetadata:  map[string]string{"source": "user"},
+			FieldSource:    "user",
+			FieldMetadata:  map[string]string{},
 		}
 		doc2 := &memory.TextDocument{
 			FieldID:        "doc-meta-2",
 			FieldContent:   "Same content different metadata",
 			FieldTimestamp: &now,
-			FieldMetadata:  map[string]string{"source": "system"},
+			FieldSource:    "system",
+			FieldMetadata:  map[string]string{},
 		}
 
 		assert.Equal(t, doc1.Content(), doc2.Content())
-		assert.NotEqual(t, doc1.Metadata()["source"], doc2.Metadata()["source"])
+		assert.NotEqual(t, doc1.Source(), doc2.Source())
 	})
 
 	t.Run("empty documents deduplication", func(t *testing.T) {
@@ -889,20 +892,19 @@ func TestDirectFieldVsJSONMetadata(t *testing.T) {
 		assert.Contains(t, doc.Metadata(), "extra")
 	})
 
-	t.Run("JSON metadata fallback when direct fields empty", func(t *testing.T) {
+	t.Run("Direct field behavior when empty", func(t *testing.T) {
 		doc := memory.TextDocument{
 			FieldID:      "test-789",
 			FieldContent: "test content",
 			FieldSource:  "", // Empty direct field
 			FieldMetadata: map[string]string{
-				"source":    "json_source", // Should be used
 				"speakerID": "bob",
 			},
 		}
 
-		// Should fall back to metadata when direct field is empty
-		assert.Equal(t, "", doc.Source()) // Direct field is empty
-		assert.Equal(t, "json_source", doc.Metadata()["source"])
+		// Direct field is used regardless of metadata content
+		assert.Equal(t, "", doc.Source()) // Direct field is empty, so Source() returns empty
+
 		assert.Equal(t, "bob", doc.Metadata()["speakerID"])
 	})
 }
@@ -1085,7 +1087,6 @@ func TestSchemaEvolution(t *testing.T) {
 		}
 
 		// Simulate direct field values
-		directSource := "conversations"
 		directSpeakerID := "alice"
 
 		// Merge logic (direct fields take precedence)
@@ -1093,18 +1094,16 @@ func TestSchemaEvolution(t *testing.T) {
 		for k, v := range jsonMetadata {
 			finalMetadata[k] = v
 		}
-		if directSource != "" {
-			finalMetadata["source"] = directSource
-		}
+
 		if directSpeakerID != "" {
 			finalMetadata["speakerID"] = directSpeakerID
 		}
 
 		// Verify merging behavior
-		assert.Equal(t, "conversations", finalMetadata["source"]) // Overridden
-		assert.Equal(t, "alice", finalMetadata["speakerID"])      // Overridden
-		assert.Equal(t, "general", finalMetadata["channel"])      // Preserved
-		assert.Equal(t, "data", finalMetadata["extra"])           // Preserved
+
+		assert.Equal(t, "alice", finalMetadata["speakerID"]) // Overridden
+		assert.Equal(t, "general", finalMetadata["channel"]) // Preserved
+		assert.Equal(t, "data", finalMetadata["extra"])      // Preserved
 	})
 }
 
