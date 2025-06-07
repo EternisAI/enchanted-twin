@@ -405,11 +405,11 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Skip("Skipping integration test: No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
-	completionsModel := getEnvOrDefault("TEST_COMPLETIONS_MODEL", os.Getenv("COMPLETIONS_MODEL"))
+	completionsModel := os.Getenv("COMPLETIONS_MODEL")
 	if completionsModel == "" {
 		completionsModel = "gpt-41-mini"
 	}
-	embeddingsModel := getEnvOrDefault("TEST_EMBEDDINGS_MODEL", os.Getenv("EMBEDDINGS_MODEL"))
+	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 	if embeddingsModel == "" {
 		embeddingsModel = "text-embedding-3-small"
 	}
