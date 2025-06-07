@@ -220,7 +220,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	completionsModel := config.CompletionsModel
 	if completionsModel == "" {
-		completionsModel = "gpt-4-1-mini"
+		completionsModel = "gpt-4o-mini"
 	}
 
 	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
@@ -395,17 +395,16 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Fatalf("Failed to create output directory %s: %v", outputDir, err)
 	}
 
-	completionsApiKey := getEnvOrDefault("TEST_COMPLETIONS_API_KEY", os.Getenv("COMPLETIONS_API_KEY"))
-	embeddingsApiKey := getEnvOrDefault("TEST_EMBEDDINGS_API_KEY", os.Getenv("EMBEDDINGS_API_KEY"))
-
+	completionsApiKey := os.Getenv("COMPLETIONS_API_KEY")
 	if completionsApiKey == "" {
-		t.Skip("Skipping integration test: No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
+		t.Fatalf("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
 	}
+	embeddingsApiKey := os.Getenv("EMBEDDINGS_API_KEY")
 	if embeddingsApiKey == "" {
-		t.Skip("Skipping integration test: No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
+		t.Fatalf("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
-	completionsModel := "gpt-4-1-mini"
+	completionsModel := "gpt-4o-mini"
 
 	embeddingsModel := "text-embedding-3-small"
 
