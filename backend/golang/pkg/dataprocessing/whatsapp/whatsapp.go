@@ -189,38 +189,115 @@ func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 }
 
 func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	// TODO:  build ConversationDocument instead of TextDocument
-	documents := make([]memory.TextDocument, 0, len(records))
+	conversationMap := make(map[string]*memory.ConversationDocument)
+
 	for _, record := range records {
 		content, ok := record.Data["text"].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to convert text field to string")
+		if !ok || strings.TrimSpace(content) == "" {
+			continue
 		}
 
-		fromName, ok := record.Data["fromname"].(string)
+		chatSessionInterface, ok := record.Data["chatsession"]
 		if !ok {
-			return nil, fmt.Errorf("failed to convert fromname field to string")
+			continue
 		}
 
-		toName, ok := record.Data["toname"].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to convert toname field to string")
+		var chatSession string
+		switch v := chatSessionInterface.(type) {
+		case int:
+			chatSession = fmt.Sprintf("%d", v)
+		case int64:
+			chatSession = fmt.Sprintf("%d", v)
+		case float64:
+			chatSession = fmt.Sprintf("%.0f", v)
+		case string:
+			chatSession = v
+		default:
+			continue
 		}
 
-		documents = append(documents, memory.TextDocument{
-			FieldSource:    "whatsapp",
-			FieldContent:   content,
-			FieldTimestamp: &record.Timestamp,
-			FieldTags:      []string{"whatsapp"},
-			FieldMetadata: map[string]string{
-				"from": fromName,
-				"to":   toName,
-			},
+		isFromMe, ok := record.Data["isfromme"]
+		if !ok {
+			continue
+		}
+
+		var fromMe bool
+		switch v := isFromMe.(type) {
+		case int:
+			fromMe = v == 1
+		case int64:
+			fromMe = v == 1
+		case float64:
+			fromMe = v == 1
+		case bool:
+			fromMe = v
+		default:
+			continue
+		}
+
+		var speaker string
+		var participants []string
+
+		if fromMe {
+			speaker = "me"
+			toName, _ := record.Data["toname"].(string)
+			if strings.TrimSpace(toName) != "" {
+				participants = []string{"me", toName}
+			} else {
+				participants = []string{"me"}
+			}
+		} else {
+			fromName, _ := record.Data["fromname"].(string)
+			if strings.TrimSpace(fromName) != "" {
+				speaker = fromName
+				participants = []string{"me", fromName}
+			} else {
+				speaker = "unknown"
+				participants = []string{"me", "unknown"}
+			}
+		}
+
+		conversation, exists := conversationMap[chatSession]
+		if !exists {
+			conversationMap[chatSession] = &memory.ConversationDocument{
+				FieldID:      fmt.Sprintf("whatsapp-chat-%s", chatSession),
+				FieldSource:  "whatsapp",
+				FieldTags:    []string{"whatsapp", "conversation", "chat"},
+				People:       participants,
+				User:         "me",
+				Conversation: []memory.ConversationMessage{},
+				FieldMetadata: map[string]string{
+					"type":         "conversation",
+					"chat_session": chatSession,
+				},
+			}
+			conversation = conversationMap[chatSession]
+		}
+
+		conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+			Speaker: speaker,
+			Content: content,
+			Time:    record.Timestamp,
 		})
+
+		peopleMap := make(map[string]bool)
+		for _, person := range conversation.People {
+			peopleMap[person] = true
+		}
+		for _, participant := range participants {
+			if !peopleMap[participant] {
+				conversation.People = append(conversation.People, participant)
+				peopleMap[participant] = true
+			}
+		}
 	}
-	var documents_ []memory.Document
-	for _, document := range documents {
-		documents_ = append(documents_, &document)
+
+	var conversationDocuments []memory.ConversationDocument
+	for _, conversation := range conversationMap {
+		if len(conversation.Conversation) > 0 {
+			conversationDocuments = append(conversationDocuments, *conversation)
+		}
 	}
-	return documents_, nil
+
+	return memory.ConversationDocumentsToDocuments(conversationDocuments), nil
 }
