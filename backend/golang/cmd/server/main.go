@@ -87,6 +87,15 @@ func main() {
 	}
 	logger.Info("NATS client started")
 
+	// Start LiveKit server
+	liveKitServer, err := bootstrap.StartLiveKitServer(logger, envs.LiveKitPort, envs.LiveKitAPIKey, envs.LiveKitAPISecret)
+	if err != nil {
+		logger.Error("LiveKit server bootstrap failed", "error", err)
+		panic(errors.Wrap(err, "LiveKit server bootstrap failed"))
+	}
+	defer liveKitServer.Stop()
+	logger.Info("LiveKit server started successfully")
+
 	go func() {
 		for evt := range whatsappQRChan {
 			switch evt.Event {
@@ -377,6 +386,7 @@ func main() {
 		telegramService:   telegramService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
+		liveKitService:    liveKitServer,
 	})
 
 	go func() {
@@ -500,6 +510,7 @@ type graphqlServerInput struct {
 	telegramService        *telegram.TelegramService
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
+	liveKitService         *bootstrap.LiveKitServer
 }
 
 func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
@@ -523,6 +534,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		TelegramService:        input.telegramService,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
+		LiveKitService:         input.liveKitService,
 	}
 
 	srv := handler.New(gqlSchema(resolver))

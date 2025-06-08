@@ -26,6 +26,11 @@ type Config struct {
 	WeaviatePort       string
 	EnchantedMcpURL    string
 	InviteServerURL    string
+	// LiveKit configuration
+	LiveKitURL       string
+	LiveKitAPIKey    string
+	LiveKitAPISecret string
+	LiveKitPort      string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -68,6 +73,11 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		InviteServerURL:    getEnv("INVITE_SERVER_URL", "", printEnv),
+		// LiveKit configuration with defaults
+		LiveKitURL:       getEnv("LIVEKIT_URL", "ws://localhost:7880", printEnv),
+		LiveKitAPIKey:    getEnv("LIVEKIT_API_KEY", "devkey", printEnv),
+		LiveKitAPISecret: getEnv("LIVEKIT_API_SECRET", "secret1234567890abcdef1234567890", printEnv),
+		LiveKitPort:      getEnv("LIVEKIT_PORT", "7880", printEnv),
 	}
 	return conf, nil
 }

@@ -6,12 +6,19 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/workflows"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat"
 )
+
+// LiveKitService interface to avoid circular dependency with main package
+type LiveKitService interface {
+	CreateRoom(roomName string) (*bootstrap.Room, error)
+	GenerateAccessToken(roomName, participantName string) (string, error)
+}
 
 // This file will not be regenerated automatically.
 //
@@ -27,6 +34,7 @@ type Resolver struct {
 	MCPService             mcpserver.MCPService
 	DataProcessingWorkflow *workflows.DataProcessingWorkflows
 	TelegramService        *telegram.TelegramService
-	WhatsAppQRCode         *string // Current WhatsApp QR code
-	WhatsAppConnected      bool    // WhatsApp connection status
+	WhatsAppQRCode         *string        // Current WhatsApp QR code
+	WhatsAppConnected      bool           // WhatsApp connection status
+	LiveKitService         LiveKitService // LiveKit room management service
 }
