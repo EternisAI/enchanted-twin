@@ -1,4 +1,4 @@
-module github.cometernisai/enchanted-twin/backend/golang/cmd/tee-api
+module github.com/eternisai/enchanted-twin/backend/golang/cmd/tee-api
 
 go 1.24.2
 
