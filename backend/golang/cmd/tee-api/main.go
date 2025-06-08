@@ -56,7 +56,7 @@ func main() {
 		orig := p.Director
 		p.Director = func(r *http.Request) {
 			orig(r)
-			log.Printf("📤 Forwarding %s %s%s to %s", r.Method, r.Host, r.RequestURI, target.String()+r.RequestURI)
+			logger.Info("📤 Forwarding request", "method", r.Method, "host", r.Host, "uri", r.RequestURI, "target", target.String()+r.RequestURI)
 
 			r.Host = target.Host
 
@@ -64,8 +64,8 @@ func main() {
 			r.Header.Set("Authorization", "Bearer "+apiKey)
 
 			// Handle User-Agent header
-			if userAgent := r.Header.Get("User-Agent"); strings.Contains(userAgent, "OpenAI/Go") {
-			} else {
+			userAgent := r.Header.Get("User-Agent")
+			if !strings.Contains(userAgent, "OpenAI/Go") {
 				r.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 			}
 
