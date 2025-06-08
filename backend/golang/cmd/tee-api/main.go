@@ -79,11 +79,8 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:         ":12000",
-		Handler:      handler,
-		ReadTimeout:  0,
-		WriteTimeout: 0,
-		IdleTimeout:  0,
+		Addr:    ":12000",
+		Handler: handler,
 	}
 
 	logger.Info("🔁  proxy listening on :12000")
