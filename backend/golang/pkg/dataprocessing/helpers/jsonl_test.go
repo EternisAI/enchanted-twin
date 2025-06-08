@@ -345,7 +345,7 @@ func createEmptyFile(t *testing.T) string {
 
 	file, err := os.Create(tempFile)
 	require.NoError(t, err)
-	file.Close()
+	file.Close() //nolint:errcheck
 
 	return tempFile
 }
