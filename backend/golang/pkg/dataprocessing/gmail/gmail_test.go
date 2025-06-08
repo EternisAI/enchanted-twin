@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func TestGmailProcessor(t *testing.T) {
@@ -424,11 +423,9 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 }
 
 func TestToDocuments(t *testing.T) {
-	// Create a temporary test file with anonymized sample data
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.jsonl")
 
-	// Anonymized sample data based on the provided email
 	sampleData := `{"data":{"content":"Welcome aboard, testuser! Here are some tips to get you started\n\n---\n\nSign in\n===\nhttps://example.com/auth/sign_in\n\n---\n\nWelcome Checklist\n===\nLet's get you started on this new social frontier:\n\n1. Personalize your profile\n   Boost your interactions by having a comprehensive profile.\n   * https://example.com/web/start/profile\n\n2. Personalize your home feed\n   Following interesting people is what this platform is all about.\n   * https://example.com/web/start/follows\n\n3. Make your first post\n   Say hello to the world with text, photos, videos, or polls.\n   * https://example.com/web\n\n4. Share your profile\n   Let your friends know how to find you.\n   * https://example.com/web/start/share\n\n5. Download apps\n   Download our official apps.\n   * iOS: https://example.com/ios\n   * Android: https://example.com/android\n\n---\n\nWho to follow\n===\nFollow well-known accounts\n\n* user1 · @user1\n  https://example.com/web/@user1\n* user2 · @user2\n  https://example.com/web/@user2\n\nhttps://example.com/web/explore/suggestions\n\n---\n\nTrending hashtags\n===\nExplore what's trending since past 2 days\n\nhttps://example.com/web/explore/tags\n\n---\n\nStay in control of your own timeline\n===\nYou know best what you want to see on your home feed. No algorithms or ads to\nwaste your time. Follow anyone across any server from a single account\nand receive their posts in chronological order, and make your corner of the\ninternet a little more like you.\n\nBuild your audience in confidence\n===\nThis platform provides you with a unique possibility of managing your audience\nwithout middlemen. Deployed on your own infrastructure allows you to\nfollow and be followed from any other server online and is under no\none's control but yours.\n\nModerating the way it should be\n===\nThis platform puts decision making back in your hands. Each server creates their own\nrules and regulations, which are enforced locally and not top-down like\ncorporate social media, making it the most flexible in responding to the needs\nof different groups of people. Join a server with the rules you agree with, or\nhost your own.\n\nUnparalleled creativity\n===\nThis platform supports audio, video and picture posts, accessibility descriptions,\npolls, content warnings, animated avatars, custom emojis, thumbnail crop\ncontrol, and more, to help you express yourself online. Whether you're\npublishing your art, your music, or your podcast, this platform is there for you.\n\n---\n\nPlatform hosted on example.com\nChange email preferences: https://example.com/settings/preferences","from":"support@example.com","myMessage":false,"subject":"Welcome to the Platform","to":"testuser@example.com"},"timestamp":"2025-02-25T09:46:33Z","source":"gmail"}`
 
 	err := os.WriteFile(tmpFile, []byte(sampleData), 0o644)
@@ -436,8 +433,11 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	// Test ToDocuments function
-	records, err := helpers.ReadJSONL[types.Record](tmpFile)
+	count, err := helpers.CountJSONLLines(tmpFile)
+	if err != nil {
+		t.Fatalf("Failed to count JSONL lines: %v", err)
+	}
+	records, err := helpers.ReadJSONLBatch(tmpFile, 0, count)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
@@ -447,22 +447,18 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
 
-	// Verify we got one document
 	if len(documents) != 1 {
 		t.Fatalf("Expected 1 document, got %d", len(documents))
 	}
 
 	doc := documents[0]
 
-	// Test document fields
 	expectedTime, _ := time.Parse(time.RFC3339, "2025-02-25T09:46:33Z")
 
-	// Test content separately since it's a string comparison
 	if !strings.Contains(doc.Content(), "Welcome aboard, testuser!") {
 		t.Errorf("Expected content to contain 'Welcome aboard, testuser!'")
 	}
 
-	// Test other fields
 	tests := []struct {
 		name     string
 		got      interface{}
@@ -479,7 +475,6 @@ func TestToDocuments(t *testing.T) {
 		})
 	}
 
-	// Test Tags
 	expectedTags := []string{"google", "email"}
 	if len(doc.Tags()) != len(expectedTags) {
 		t.Errorf("Expected %d tags, got %d", len(expectedTags), len(doc.Tags()))
@@ -497,7 +492,6 @@ func TestToDocuments(t *testing.T) {
 		}
 	}
 
-	// Test Metadata
 	expectedMetadata := map[string]string{
 		"from":    "support@example.com",
 		"to":      "testuser@example.com",
@@ -567,7 +561,6 @@ With multiple lines.`,
 }
 
 func TestProcessSingleEmail(t *testing.T) {
-	// Sample mbox content based on the user's provided sample
 	content := `From 1828754568043628583@xxx Mon Apr 07 14:31:02 +0000 2025
 X-GM-THIRD: 1828754568043628583
 X-Gmail-Labels: =?UTF-8?Q?Forward_to_janedoe@live.fr,Bo=C3=AEte_de_r=C3=A9ception,Non_lus?=

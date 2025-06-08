@@ -503,7 +503,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	log.Printf("=== CONVERSATION FACT EXTRACTION SUMMARY ===")
 	log.Printf("Conversation %s: Extracted %d total facts", convDoc.ID(), len(extractedFacts))
 	if len(extractedFacts) == 0 {
-		log.Printf("NO FACTS EXTRACTED from conversation - This may explain why WhatsApp conversations aren't queryable")
+		log.Printf("NO FACTS EXTRACTED from conversation")
 	}
 	log.Printf("=== CONVERSATION FACT EXTRACTION END ===")
 
@@ -600,12 +600,11 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		}
 	}
 
-	log.Printf("=== FACT EXTRACTION SUMMARY ===")
-	log.Printf("Document %s: Extracted %d total facts", textDoc.ID(), len(extractedFacts))
 	if len(extractedFacts) == 0 {
-		log.Printf("NO FACTS EXTRACTED - This may explain why WhatsApp documents aren't queryable")
+		log.Printf("=== NO FACTS EXTRACTED from document %s ===", textDoc.ID())
+	} else {
+		log.Printf("=== Document %s: Extracted %d total facts ===", textDoc.ID(), len(extractedFacts))
 	}
-	log.Printf("=== FACT EXTRACTION END ===")
 
 	return extractedFacts, nil
 }
