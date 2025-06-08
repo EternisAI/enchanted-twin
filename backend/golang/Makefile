@@ -33,3 +33,6 @@ run-telegram-chat:
 deadcode:
 	@echo "=== Checking for transitively dead functions ==="
 	@go run golang.org/x/tools/cmd/deadcode@latest ./...
+
+migrate-sqlite:
+	sqlc generate
