@@ -435,6 +435,9 @@ func TestToDocuments(t *testing.T) {
 	}
 
 	count, err := helpers.CountJSONLLines(tmpFile)
+	if err != nil {
+		t.Fatalf("Failed to count JSONL lines: %v", err)
+	}
 	records, err := helpers.ReadJSONLBatch[types.Record](tmpFile, 0, count)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)

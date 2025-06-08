@@ -54,6 +54,9 @@ func TestToDocuments(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	count, err := helpers.CountJSONLLines(tempFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to count JSONL lines: %v", err)
+	}
 	records, err := helpers.ReadJSONLBatch[types.Record](tempFile.Name(), 0, count)
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)

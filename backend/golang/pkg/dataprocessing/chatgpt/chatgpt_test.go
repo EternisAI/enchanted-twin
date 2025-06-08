@@ -222,7 +222,9 @@ func TestJSONLRoundTrip(t *testing.T) {
 	require.NoError(t, err, "Failed to save records to JSONL")
 
 	count, err := helpers.CountJSONLLines(jsonlPath)
+	require.NoError(t, err, "Failed to read records from JSONL")
 	readRecords, err := helpers.ReadJSONLBatch[types.Record](jsonlPath, 0, count)
+
 	require.NoError(t, err, "Failed to read records from JSONL")
 
 	require.Len(t, readRecords, 1, "Expected 1 record after reading from JSONL")

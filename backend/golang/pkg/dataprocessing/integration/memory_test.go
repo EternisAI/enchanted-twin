@@ -275,6 +275,9 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 	require.NoError(t, err)
 
 	count, err := helpers.CountJSONLLines(env.config.OutputPath)
+	if err != nil {
+		t.Fatalf("Failed to count JSONL lines: %v", err)
+	}
 	records, err := helpers.ReadJSONLBatch[types.Record](env.config.OutputPath, 0, count)
 	require.NoError(t, err)
 
