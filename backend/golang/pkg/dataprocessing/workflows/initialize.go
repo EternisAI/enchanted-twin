@@ -401,12 +401,19 @@ func (w *DataProcessingWorkflows) GetBatchesActivity(
 	ctx context.Context,
 	input GetBatchesActivityInput,
 ) (GetBatchesActivityResponse, error) {
-	records, err := helpers.ReadJSONL[types.Record](input.ProcessedPath)
+	if input.BatchSize <= 0 {
+		return GetBatchesActivityResponse{}, errors.New("batch size must be positive")
+	}
+	if input.ProcessedPath == "" {
+		return GetBatchesActivityResponse{}, errors.New("processed path cannot be empty")
+	}
+
+	lineCount, err := helpers.CountJSONLLines(input.ProcessedPath)
 	if err != nil {
 		return GetBatchesActivityResponse{}, err
 	}
 
-	totalBatches := (len(records) + input.BatchSize - 1) / input.BatchSize
+	totalBatches := (lineCount + input.BatchSize - 1) / input.BatchSize
 	return GetBatchesActivityResponse{TotalBatches: totalBatches}, nil
 }
 
@@ -429,18 +436,24 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 	ctx context.Context,
 	input IndexBatchActivityInput,
 ) (IndexBatchActivityResponse, error) {
-	records, err := helpers.ReadJSONL[types.Record](input.ProcessedPath)
+	if input.BatchIndex < 0 {
+		return IndexBatchActivityResponse{}, errors.New("batch index cannot be negative")
+	}
+	if input.BatchSize <= 0 {
+		return IndexBatchActivityResponse{}, errors.New("batch size must be positive")
+	}
+	if input.ProcessedPath == "" {
+		return IndexBatchActivityResponse{}, errors.New("processed path cannot be empty")
+	}
+
+	startIdx := input.BatchIndex * input.BatchSize
+
+	records, err := helpers.ReadJSONLBatch[types.Record](input.ProcessedPath, startIdx, input.BatchSize)
 	if err != nil {
 		return IndexBatchActivityResponse{}, err
 	}
 
-	startIdx := input.BatchIndex * input.BatchSize
-	endIdx := startIdx + input.BatchSize
-	if endIdx > len(records) {
-		endIdx = len(records)
-	}
-
-	if startIdx >= len(records) {
+	if len(records) == 0 {
 		return IndexBatchActivityResponse{
 			BatchIndex:      input.BatchIndex,
 			DocumentsStored: 0,
@@ -448,15 +461,13 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 		}, nil
 	}
 
-	batchRecords := records[startIdx:endIdx]
-
 	dataprocessingService := dataprocessing.NewDataProcessingService(
 		w.OpenAIService,
 		w.Config.CompletionsModel,
 		w.Store,
 	)
 
-	documents, err := dataprocessingService.ToDocuments(ctx, input.DataSourceName, batchRecords)
+	documents, err := dataprocessingService.ToDocuments(ctx, input.DataSourceName, records)
 	if err != nil {
 		return IndexBatchActivityResponse{}, err
 	}
@@ -499,12 +510,6 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(
 		return errors.New("NATS connection is not connected")
 	}
 
-	w.Logger.Info("Publishing indexing status",
-		"subject", input.Subject,
-		"data", string(input.Data),
-		"connected", w.Nc.IsConnected(),
-		"status", w.Nc.Status().String())
-
 	err := w.Nc.Publish(input.Subject, input.Data)
 	if err != nil {
 		w.Logger.Error("Failed to publish indexing status",
@@ -515,6 +520,5 @@ func (w *DataProcessingWorkflows) PublishIndexingStatus(
 		return err
 	}
 
-	w.Logger.Info("Successfully published indexing status", "subject", input.Subject)
 	return nil
 }
