@@ -40,6 +40,14 @@ func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Servic
 	}
 }
 
+func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getToken func() string, baseUrl string) *Service {
+	client := openai.NewClient(option.WithAPIKey(getToken()), option.WithBaseURL(proxyUrl), option.WithHeader("X-BASE-URL", baseUrl))
+	return &Service{
+		client: &client,
+		logger: logger,
+	}
+}
+
 func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompletionNewParams) (openai.ChatCompletionMessage, error) {
 	completion, err := s.client.Chat.Completions.New(ctx, params)
 	if err != nil {
