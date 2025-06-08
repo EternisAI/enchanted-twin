@@ -4,16 +4,15 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/charmbracelet/log"
+	_ "github.com/lib/pq"
+	"go.uber.org/zap"
+
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/holons"
-	"github.com/charmbracelet/log"
-
-	_ "github.com/lib/pq"
-
-	"go.uber.org/zap"
 )
 
-// DB wraps the database connection and provides additional functionality
+// DB wraps the database connection and provides additional functionality.
 type DB struct {
 	*sql.DB
 	ConfigQueries *config.Queries
@@ -21,7 +20,7 @@ type DB struct {
 	logger        *log.Logger
 }
 
-// New creates a new database connection
+// New creates a new database connection.
 func New(sqlDB *sql.DB, logger *log.Logger) (*DB, error) {
 	// Test the connection
 	if err := sqlDB.Ping(); err != nil {
@@ -50,7 +49,7 @@ func New(sqlDB *sql.DB, logger *log.Logger) (*DB, error) {
 	}, nil
 }
 
-// Health checks if the database connection is healthy
+// Health checks if the database connection is healthy.
 func (db *DB) Health() error {
 	return db.Ping()
 }
