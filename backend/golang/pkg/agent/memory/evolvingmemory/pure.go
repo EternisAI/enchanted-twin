@@ -361,15 +361,13 @@ func SearchSimilarMemories(ctx context.Context, fact string, speakerID string, s
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}
 
-	memories := make([]ExistingMemory, 0, len(result.Documents))
-	for _, doc := range result.Documents {
+	memories := make([]ExistingMemory, 0, len(result.Facts))
+	for _, fact := range result.Facts {
 		mem := ExistingMemory{
-			ID:       doc.ID(),
-			Content:  doc.Content(),
-			Metadata: doc.Metadata(),
-		}
-		if doc.Timestamp() != nil {
-			mem.Timestamp = *doc.Timestamp()
+			ID:        fact.ID,
+			Content:   fact.Content,
+			Metadata:  fact.Metadata,
+			Timestamp: fact.Timestamp,
 		}
 		memories = append(memories, mem)
 	}

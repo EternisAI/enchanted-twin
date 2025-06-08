@@ -3,6 +3,7 @@ package evolvingmemory
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -145,6 +146,15 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			return
 		}
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
@@ -155,8 +165,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		})
 		require.NoError(t, err)
 
@@ -201,6 +211,14 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			t.Skip("Skipping AI-dependent tests: API keys not set")
 			return
 		}
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
@@ -212,8 +230,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		})
 		require.NoError(t, err)
 
@@ -262,13 +280,23 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 
 		mockStorage := storage.New(mockClient, logger, embeddingsService)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		storageImpl, err := New(Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		})
 		require.NoError(t, err)
 
@@ -525,13 +553,14 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		}
 
 		expectedResult := memory.QueryResult{
-			Facts: []memory.MemoryFact{},
-			Documents: []memory.TextDocument{
+			Facts: []memory.MemoryFact{
 				{
-					FieldID:      "test-123",
-					FieldContent: "alice likes pizza",
-					FieldSource:  "conversations",
-					FieldMetadata: map[string]string{
+					ID:        "test-123",
+					Content:   "alice likes pizza",
+					Speaker:   "alice",
+					Source:    "conversations",
+					Timestamp: time.Now(),
+					Metadata: map[string]string{
 						"source":    "conversations",
 						"speakerID": "alice",
 					},
@@ -567,14 +596,22 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		// Create storage with mock
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -585,10 +622,10 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify result structure
-		assert.Len(t, result.Documents, 1)
-		assert.Equal(t, "test-123", result.Documents[0].ID())
-		assert.Equal(t, "conversations", result.Documents[0].Source())
-		assert.Equal(t, "alice", result.Documents[0].Metadata()["speakerID"])
+		assert.Len(t, result.Facts, 1)
+		assert.Equal(t, "test-123", result.Facts[0].ID)
+		assert.Equal(t, "conversations", result.Facts[0].Source)
+		assert.Equal(t, "alice", result.Facts[0].Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -600,8 +637,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		// Mock the Query method with nil filter
 		var nilFilter *memory.Filter = nil
 		expectedResult := memory.QueryResult{
-			Facts:     []memory.MemoryFact{},
-			Documents: []memory.TextDocument{},
+			Facts: []memory.MemoryFact{},
 		}
 
 		mockStorage.On("Query", mock.Anything, "test query", nilFilter, mock.AnythingOfType("string")).
@@ -632,13 +668,21 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -647,7 +691,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		// Test query with nil filter (backward compatibility)
 		result, err := storage.Query(context.Background(), "test query", nil)
 		require.NoError(t, err)
-		assert.Empty(t, result.Documents)
+		assert.Empty(t, result.Facts)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -665,12 +709,16 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		}
 
 		expectedResult := memory.QueryResult{
-			Facts: []memory.MemoryFact{},
-			Documents: []memory.TextDocument{
+			Facts: []memory.MemoryFact{
 				{
-					FieldID:      "test-doc-1",
-					FieldContent: "Work meeting notes about important project",
-					FieldTags:    []string{"work", "important", "meeting"},
+					ID:        "test-doc-1",
+					Content:   "Work meeting notes about important project",
+					Speaker:   "alice",
+					Source:    "conversations",
+					Timestamp: time.Now(),
+					Metadata: map[string]string{
+						"tags": `["work","important","meeting"]`,
+					},
 				},
 			},
 		}
@@ -703,13 +751,21 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -717,10 +773,14 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		result, err := storage.Query(context.Background(), "project updates", filter)
 		require.NoError(t, err)
-		assert.Len(t, result.Documents, 1)
-		assert.Equal(t, "Work meeting notes about important project", result.Documents[0].Content())
-		assert.Contains(t, result.Documents[0].Tags(), "work")
-		assert.Contains(t, result.Documents[0].Tags(), "important")
+		assert.Len(t, result.Facts, 1)
+		assert.Equal(t, "Work meeting notes about important project", result.Facts[0].Content)
+		// Tags are now stored in metadata as JSON
+		var tags []string
+		err = json.Unmarshal([]byte(result.Facts[0].Metadata["tags"]), &tags)
+		require.NoError(t, err)
+		assert.Contains(t, tags, "work")
+		assert.Contains(t, tags, "important")
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -741,8 +801,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 		}
 
 		expectedResult := memory.QueryResult{
-			Facts:     []memory.MemoryFact{},
-			Documents: []memory.TextDocument{},
+			Facts: []memory.MemoryFact{},
 		}
 
 		mockStorage.On("Query", mock.Anything, "test", filter, mock.AnythingOfType("string")).
@@ -773,13 +832,21 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -787,7 +854,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		result, err := storage.Query(context.Background(), "test", filter)
 		require.NoError(t, err)
-		assert.Empty(t, result.Documents)
+		assert.Empty(t, result.Facts)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -805,8 +872,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 		}
 
 		expectedResult := memory.QueryResult{
-			Facts:     []memory.MemoryFact{},
-			Documents: []memory.TextDocument{},
+			Facts: []memory.MemoryFact{},
 		}
 
 		mockStorage.On("Query", mock.Anything, "test", filter, mock.AnythingOfType("string")).
@@ -837,13 +903,22 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -851,7 +926,7 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		result, err := storage.Query(context.Background(), "test", filter)
 		require.NoError(t, err)
-		assert.Empty(t, result.Documents)
+		assert.Empty(t, result.Facts)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -914,28 +989,27 @@ func TestQueryResultStructure(t *testing.T) {
 		// Create realistic mock result
 		now := time.Now()
 		expectedResult := memory.QueryResult{
-			Facts: []memory.MemoryFact{}, // Usually empty in current implementation
-			Documents: []memory.TextDocument{
+			Facts: []memory.MemoryFact{
 				{
-					FieldID:        "doc-1",
-					FieldContent:   "alice likes coffee",
-					FieldTimestamp: &now,
-					FieldSource:    "conversations",
-					FieldMetadata: map[string]string{
-						"source":    "conversations",
-						"speakerID": "alice",
-						"channel":   "general",
+					ID:        "doc-1",
+					Content:   "alice likes coffee",
+					Timestamp: now,
+					Source:    "conversations",
+					Speaker:   "alice",
+					Metadata: map[string]string{
+						"source":  "conversations",
+						"channel": "general",
 					},
 				},
 				{
-					FieldID:        "doc-2",
-					FieldContent:   "bob prefers tea",
-					FieldTimestamp: &now,
-					FieldSource:    "conversations",
-					FieldMetadata: map[string]string{
-						"source":    "conversations",
-						"speakerID": "bob",
-						"channel":   "general",
+					ID:        "doc-2",
+					Content:   "bob prefers tea",
+					Timestamp: now,
+					Source:    "conversations",
+					Speaker:   "bob",
+					Metadata: map[string]string{
+						"source":  "conversations",
+						"channel": "general",
 					},
 				},
 			},
@@ -969,13 +1043,22 @@ func TestQueryResultStructure(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -985,24 +1068,21 @@ func TestQueryResultStructure(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify result structure
-		assert.Len(t, result.Documents, 2)
-		assert.Empty(t, result.Facts) // Current implementation
+		assert.Len(t, result.Facts, 2)
 
-		// Verify first document
-		doc1 := result.Documents[0]
-		assert.Equal(t, "doc-1", doc1.ID())
-		assert.Equal(t, "alice likes coffee", doc1.Content())
-		assert.Equal(t, "conversations", doc1.Source())
-		assert.Equal(t, "alice", doc1.Metadata()["speakerID"])
-		assert.Equal(t, "general", doc1.Metadata()["channel"])
-		assert.NotNil(t, doc1.Timestamp())
+		// Verify first fact
+		fact1 := result.Facts[0]
+		assert.Equal(t, "doc-1", fact1.ID)
+		assert.Equal(t, "alice likes coffee", fact1.Content)
+		assert.Equal(t, "conversations", fact1.Source)
+		assert.Equal(t, "alice", fact1.Speaker)
 
-		// Verify second document
-		doc2 := result.Documents[1]
-		assert.Equal(t, "doc-2", doc2.ID())
-		assert.Equal(t, "bob prefers tea", doc2.Content())
-		assert.Equal(t, "conversations", doc2.Source())
-		assert.Equal(t, "bob", doc2.Metadata()["speakerID"])
+		// Verify second fact
+		fact2 := result.Facts[1]
+		assert.Equal(t, "doc-2", fact2.ID)
+		assert.Equal(t, "bob prefers tea", fact2.Content)
+		assert.Equal(t, "conversations", fact2.Source)
+		assert.Equal(t, "bob", fact2.Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -1486,16 +1566,16 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 		}
 
 		expectedResult := memory.QueryResult{
-			Facts: []memory.MemoryFact{},
-			Documents: []memory.TextDocument{
+			Facts: []memory.MemoryFact{
 				{
-					FieldID:      "complex-doc-1",
-					FieldContent: "Q1 work project with alice",
-					FieldSource:  "conversations",
-					FieldTags:    []string{"work", "Q1", "project"},
-					FieldMetadata: map[string]string{
-						"source":    "conversations",
-						"speakerID": "alice",
+					ID:        "complex-doc-1",
+					Content:   "Q1 work project with alice",
+					Source:    "conversations",
+					Speaker:   "alice",
+					Timestamp: time.Now(),
+					Metadata: map[string]string{
+						"source": "conversations",
+						"tags":   `["work","Q1","project"]`,
 					},
 				},
 			},
@@ -1529,13 +1609,22 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
+		completionsModel := os.Getenv("COMPLETIONS_MODEL")
+		if completionsModel == "" {
+			completionsModel = "gpt-4.1-mini"
+		}
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small"
+		}
+
 		deps := Dependencies{
 			Logger:             logger,
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
-			CompletionsModel:   "gpt-4.1-mini",
-			EmbeddingsModel:    "text-embedding-3-small",
+			CompletionsModel:   completionsModel,
+			EmbeddingsModel:    embeddingsModel,
 		}
 
 		storage, err := New(deps)
@@ -1545,13 +1634,13 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify complex filtering worked
-		assert.Len(t, result.Documents, 1)
-		doc := result.Documents[0]
-		assert.Equal(t, "complex-doc-1", doc.ID())
-		assert.Contains(t, doc.Tags(), "work")
-		assert.Contains(t, doc.Tags(), "Q1")
-		assert.Equal(t, "conversations", doc.Source())
-		assert.Equal(t, "alice", doc.Metadata()["speakerID"])
+		assert.Len(t, result.Facts, 1)
+		fact := result.Facts[0]
+		assert.Equal(t, "complex-doc-1", fact.ID)
+		assert.Contains(t, fact.Metadata["tags"], "work")
+		assert.Contains(t, fact.Metadata["tags"], "Q1")
+		assert.Equal(t, "conversations", fact.Source)
+		assert.Equal(t, "alice", fact.Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})

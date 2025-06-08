@@ -186,8 +186,7 @@ type MemoryFact struct {
 }
 
 type QueryResult struct {
-	Facts     []MemoryFact   `json:"facts"`
-	Documents []TextDocument `json:"documents,omitempty"` // For backward compatibility
+	Facts []MemoryFact `json:"facts"`
 }
 
 type ProgressUpdate struct {
