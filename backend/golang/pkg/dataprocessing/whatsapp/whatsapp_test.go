@@ -290,7 +290,8 @@ func TestToDocumentsEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, documents, 1, "Should create document even with unknown sender")
 
-		convDoc := documents[0].(*memory.ConversationDocument)
+		convDoc, ok := documents[0].(*memory.ConversationDocument)
+		require.True(t, ok)
 		assert.Equal(t, "unknown", convDoc.Conversation[0].Speaker)
 		assert.Contains(t, convDoc.People, "unknown")
 	})
@@ -313,7 +314,8 @@ func TestToDocumentsEdgeCases(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, documents, 1, "Should create document for single message")
 
-		convDoc := documents[0].(*memory.ConversationDocument)
+		convDoc, ok := documents[0].(*memory.ConversationDocument)
+		require.True(t, ok)
 		assert.Len(t, convDoc.Conversation, 1, "Should have one message")
 		assert.Equal(t, "me", convDoc.Conversation[0].Speaker)
 		assert.Equal(t, "Hello there!", convDoc.Conversation[0].Content)
@@ -379,7 +381,8 @@ func TestToDocumentsParticipantDetection(t *testing.T) {
 	require.NoError(t, err)
 	assert.Len(t, documents, 1, "All messages should be grouped in one conversation")
 
-	convDoc := documents[0].(*memory.ConversationDocument)
+	convDoc, ok := documents[0].(*memory.ConversationDocument)
+	require.True(t, ok)
 
 	expectedParticipants := []string{"me", "Alice", "Bob"}
 	for _, participant := range expectedParticipants {
