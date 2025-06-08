@@ -43,10 +43,10 @@ func (s *Service) CompletionsStream(
 		s.logger.Debug("Starting stream", "model", model, "messages_count", len(messages), "tools_count", len(tools))
 
 		// Add timeout context to prevent hanging
-		ctx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Minute)
 		defer cancel()
 
-		stream := s.client.Chat.Completions.NewStreaming(ctx, params)
+		stream := s.client.Chat.Completions.NewStreaming(timeoutCtx, params)
 		defer func() {
 			if err := stream.Close(); err != nil {
 				s.logger.Error("Error closing stream", "error", err)
