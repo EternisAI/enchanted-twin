@@ -12,8 +12,10 @@ import (
 )
 
 var allowedBaseURLs = map[string]string{
-	"https://openrouter.ai/api/v1": os.Getenv("OPENROUTER_API_KEY"),
-	"https://api.openai.com":       os.Getenv("OPENAI_API_KEY"),
+	"https://openrouter.ai/api/v1":                 os.Getenv("OPENROUTER_API_KEY"),
+	"https://api.openai.com":                       os.Getenv("OPENAI_API_KEY"),
+	"https://qwen2-5-72b.model.tinfoil.sh/v1":      os.Getenv("TINFOIL_API_KEY"),
+	"https://nomic-embed-text.model.tinfoil.sh/v1": os.Getenv("TINFOIL_API_KEY"),
 }
 
 func main() {
