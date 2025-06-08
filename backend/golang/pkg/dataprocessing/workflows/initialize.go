@@ -122,7 +122,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			dataSources[i].IsIndexed = false
 			w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, nil)
 		}
-
 	}
 
 	indexingState = model.IndexingStateIndexingData
@@ -174,6 +173,9 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
+		failedBatches := 0
+		successfulBatches := 0
+
 		for batchIndex := 0; batchIndex < getBatchesResponse.TotalBatches; batchIndex++ {
 			indexBatchInput := IndexBatchActivityInput{
 				DataSourceID:   dataSourceDB.ID,
@@ -188,39 +190,70 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			err = workflow.ExecuteActivity(ctx, w.IndexBatchActivity, indexBatchInput).
 				Get(ctx, &indexBatchResponse)
 			if err != nil {
+				failedBatches++
 				workflow.GetLogger(ctx).Error("Failed to index batch",
 					"error", err,
 					"dataSource", dataSourceDB.Name,
-					"batch", batchIndex)
-				dataSources[i].HasError = true
-				errMsg := err.Error()
-				w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
-				break
+					"batch", batchIndex,
+					"failedBatches", failedBatches,
+					"totalBatches", getBatchesResponse.TotalBatches)
+
+				failureRate := float64(failedBatches) / float64(batchIndex+1)
+				if failureRate > 0.5 && failedBatches > 3 {
+					workflow.GetLogger(ctx).Error("High failure rate detected, marking data source as failed",
+						"dataSource", dataSourceDB.Name,
+						"failureRate", failureRate,
+						"failedBatches", failedBatches)
+					dataSources[i].HasError = true
+					errMsg := fmt.Sprintf("High batch failure rate: %d/%d batches failed", failedBatches, batchIndex+1)
+					w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
+					break
+				}
+			} else {
+				successfulBatches++
+				workflow.GetLogger(ctx).Info("Batch indexed successfully",
+					"dataSource", dataSourceDB.Name,
+					"batch", batchIndex+1,
+					"total", getBatchesResponse.TotalBatches,
+					"documentsStored", indexBatchResponse.DocumentsStored,
+					"successfulBatches", successfulBatches,
+					"failedBatches", failedBatches)
 			}
 
 			batchProgress := float64(batchIndex+1) / float64(getBatchesResponse.TotalBatches) * 100
 			dataSources[i].IndexProgress = int32(batchProgress)
 			w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, nil)
+		}
 
-			workflow.GetLogger(ctx).Info("Batch indexed successfully",
+		finalFailureRate := float64(failedBatches) / float64(getBatchesResponse.TotalBatches)
+
+		if failedBatches > 0 {
+			workflow.GetLogger(ctx).Warn("Batch processing completed with some failures",
 				"dataSource", dataSourceDB.Name,
-				"batch", batchIndex+1,
-				"total", getBatchesResponse.TotalBatches,
-				"documentsStored", indexBatchResponse.DocumentsStored)
+				"successfulBatches", successfulBatches,
+				"failedBatches", failedBatches,
+				"totalBatches", getBatchesResponse.TotalBatches,
+				"finalFailureRate", finalFailureRate)
 		}
 
 		if !dataSources[i].HasError {
-			dataSources[i].IsIndexed = true
-			dataSources[i].IndexProgress = 100
+			if finalFailureRate > 0.8 {
+				dataSources[i].HasError = true
+				errMsg := fmt.Sprintf("Too many batch failures: %d/%d batches failed", failedBatches, getBatchesResponse.TotalBatches)
+				w.publishIndexingStatus(ctx, indexingState, dataSources, 100, 0, &errMsg)
+			} else {
+				dataSources[i].IsIndexed = true
+				dataSources[i].IndexProgress = 100
 
-			updateStateInput := UpdateDataSourceStateActivityInput{
-				DataSourceID: dataSources[i].ID,
-				IsIndexed:    true,
-				HasError:     false,
-			}
-			err = workflow.ExecuteActivity(ctx, w.UpdateDataSourceStateActivity, updateStateInput).Get(ctx, nil)
-			if err != nil {
-				workflow.GetLogger(ctx).Error("Failed to update data source state", "error", err)
+				updateStateInput := UpdateDataSourceStateActivityInput{
+					DataSourceID: dataSources[i].ID,
+					IsIndexed:    true,
+					HasError:     false,
+				}
+				err = workflow.ExecuteActivity(ctx, w.UpdateDataSourceStateActivity, updateStateInput).Get(ctx, nil)
+				if err != nil {
+					workflow.GetLogger(ctx).Error("Failed to update data source state", "error", err)
+				}
 			}
 		}
 	}
