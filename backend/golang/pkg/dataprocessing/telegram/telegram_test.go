@@ -12,7 +12,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -57,7 +56,7 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
-	records, err := helpers.ReadJSONLBatch[types.Record](tempFile.Name(), 0, count)
+	records, err := helpers.ReadJSONLBatch(tempFile.Name(), 0, count)
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}

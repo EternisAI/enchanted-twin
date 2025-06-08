@@ -44,7 +44,7 @@ func CountJSONLLines(filePath string) (int, error) {
 	return lineCount, nil
 }
 
-func ReadJSONLBatch[T any](filePath string, startIndex, batchSize int) ([]T, error) {
+func ReadJSONLBatch(filePath string, startIndex, batchSize int) ([]types.Record, error) {
 	if filePath == "" {
 		return nil, errors.New("filePath cannot be empty")
 	}
@@ -70,14 +70,14 @@ func ReadJSONLBatch[T any](filePath string, startIndex, batchSize int) ([]T, err
 	buf := make([]byte, 0, 64*1024)
 	scanner.Buffer(buf, maxCapacity)
 
-	var results []T
+	var results []types.Record
 	lineIndex := 0
 	endIndex := startIndex + batchSize
 
 	for scanner.Scan() {
 		if lineIndex >= startIndex && lineIndex < endIndex {
 			line := scanner.Bytes()
-			var item T
+			var item types.Record
 			if err := json.Unmarshal(line, &item); err != nil {
 				return nil, errors.Wrapf(err, "failed to unmarshal line %d", lineIndex)
 			}
@@ -100,16 +100,9 @@ func ReadJSONLBatch[T any](filePath string, startIndex, batchSize int) ([]T, err
 	}
 
 	if len(results) > 0 {
-		if records, ok := any(results).([]types.Record); ok {
-			sort.Slice(records, func(i, j int) bool {
-				return records[i].Timestamp.Before(records[j].Timestamp)
-			})
-			sortedResults, ok := any(records).([]T)
-			if !ok {
-				return nil, errors.New("failed to convert sorted records back to []T")
-			}
-			results = sortedResults
-		}
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].Timestamp.Before(results[j].Timestamp)
+		})
 	}
 
 	return results, nil

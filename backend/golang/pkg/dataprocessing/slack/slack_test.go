@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func TestToDocuments(t *testing.T) {
@@ -37,7 +36,7 @@ func TestToDocuments(t *testing.T) {
 	}
 
 	count, err := helpers.CountJSONLLines(tempFile.Name())
-	records, err := helpers.ReadJSONLBatch[types.Record](tempFile.Name(), 0, count)
+	records, err := helpers.ReadJSONLBatch(tempFile.Name(), 0, count)
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}

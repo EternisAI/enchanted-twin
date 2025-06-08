@@ -13,7 +13,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -448,7 +447,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 
 	startIdx := input.BatchIndex * input.BatchSize
 
-	records, err := helpers.ReadJSONLBatch[types.Record](input.ProcessedPath, startIdx, input.BatchSize)
+	records, err := helpers.ReadJSONLBatch(input.ProcessedPath, startIdx, input.BatchSize)
 	if err != nil {
 		return IndexBatchActivityResponse{}, err
 	}

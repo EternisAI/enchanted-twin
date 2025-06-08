@@ -27,7 +27,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
@@ -278,7 +277,7 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 	if err != nil {
 		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
-	records, err := helpers.ReadJSONLBatch[types.Record](env.config.OutputPath, 0, count)
+	records, err := helpers.ReadJSONLBatch(env.config.OutputPath, 0, count)
 	require.NoError(t, err)
 
 	env.logger.Info("Records processed", "count", len(records))

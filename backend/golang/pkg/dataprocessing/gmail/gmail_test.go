@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
 func TestGmailProcessor(t *testing.T) {
@@ -438,7 +437,7 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
-	records, err := helpers.ReadJSONLBatch[types.Record](tmpFile, 0, count)
+	records, err := helpers.ReadJSONLBatch(tmpFile, 0, count)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
