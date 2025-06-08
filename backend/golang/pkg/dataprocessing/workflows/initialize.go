@@ -123,7 +123,6 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, nil)
 		}
 
-		w.publishIndexingStatus(ctx, indexingState, dataSources, progress, 0, nil)
 	}
 
 	indexingState = model.IndexingStateIndexingData
