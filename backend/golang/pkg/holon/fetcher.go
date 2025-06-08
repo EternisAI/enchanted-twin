@@ -568,12 +568,23 @@ func (f *FetcherService) shouldSkipThread(thread Thread) bool {
 		return false
 	}
 
-	// Skip if this thread was created by us and has a dedup ID
-	// (indicating it was originally created by this instance)
+	// Skip if this thread was created by us and we already have it in our database
+	// In our system, the dedupThreadId from HolonZero corresponds to our local thread ID
 	if thread.CreatorID == *f.participantID && thread.DedupThreadID != "" {
-		f.logDebug(fmt.Sprintf("Skipping thread %d (dedup ID: %s) - originally created by this instance",
-			thread.ID, thread.DedupThreadID))
-		return true
+		// Check if we already have a thread with this ID in our local database
+		ctx := context.Background()
+		existingThread, err := f.repository.GetThread(ctx, thread.DedupThreadID)
+		if err == nil && existingThread != nil {
+			f.logDebug(fmt.Sprintf("Skipping thread %d (dedup ID: %s) - already exists in local database",
+				thread.ID, thread.DedupThreadID))
+			return true
+		}
+
+		// If we get an error checking for the thread, log it but don't skip
+		// This ensures we don't miss threads due to temporary database issues
+		if err != nil {
+			f.logDebug(fmt.Sprintf("Could not check if thread %s exists locally: %v", thread.DedupThreadID, err))
+		}
 	}
 
 	return false
