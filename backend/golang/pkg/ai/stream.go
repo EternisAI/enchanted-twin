@@ -91,7 +91,7 @@ func (s *Service) CompletionsStream(
 
 			select {
 			case <-ctx.Done():
-				s.logger.Error("Context cancelled during streaming", "error", ctx.Err())
+				s.logger.Error("Context canceled during streaming", "error", ctx.Err())
 				errCh <- ctx.Err()
 				return
 			default:
