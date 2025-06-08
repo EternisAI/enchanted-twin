@@ -42,28 +42,9 @@ func NewHolonSyncActivities(logger *clog.Logger, manager *Manager) *HolonSyncAct
 func (a *HolonSyncActivities) RegisterWorkflowsAndActivities(worker worker.Worker) {
 	worker.RegisterWorkflow(HolonSyncWorkflow)
 	worker.RegisterActivity(a.SyncHolonDataActivity)
-	worker.RegisterActivity(a.SyncParticipants)
 	worker.RegisterActivity(a.SyncThreads)
 	worker.RegisterActivity(a.SyncReplies)
 	worker.RegisterActivity(a.PushPendingThreads)
-}
-
-// SyncParticipants is an activity that syncs participants from the holon API
-func (a *HolonSyncActivities) SyncParticipants(ctx context.Context) error {
-	a.logger.Debug("Starting holon participants sync activity")
-
-	if a.manager.fetcherService == nil {
-		return fmt.Errorf("fetcher service is not available")
-	}
-
-	_, err := a.manager.fetcherService.SyncParticipants(ctx)
-	if err != nil {
-		a.logger.Error("Failed to sync participants", "error", err)
-		return err
-	}
-
-	a.logger.Debug("Holon participants sync completed successfully")
-	return nil
 }
 
 // SyncThreads is an activity that syncs threads from the holon API
@@ -133,15 +114,6 @@ func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input H
 		result.Error = fmt.Sprintf("failed to push pending threads: %v", err)
 		return result, err
 	}
-
-	// Sync participants
-	participants, err := a.manager.fetcherService.SyncParticipants(ctx)
-	if err != nil {
-		result.Success = false
-		result.Error = fmt.Sprintf("failed to sync participants: %v", err)
-		return result, err
-	}
-	result.ParticipantCount = len(participants)
 
 	// Sync threads
 	threads, err := a.manager.fetcherService.SyncThreads(ctx)
