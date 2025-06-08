@@ -88,6 +88,9 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		}
 
 	case "google":
+		// Remote authentication is now handled automatically by the holon service
+		// when it's initialized, so we don't need to do it here anymore
+
 		_, err = r.MCPService.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
 			Name:    model.MCPServerTypeGoogle.String(),
 			Command: "npx",

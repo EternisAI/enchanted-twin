@@ -364,11 +364,12 @@ func main() {
 	}
 	logger.Info("Personality", "personality", personality)
 
-	holonService := holon.NewService(store)
+	// Create holon service with configuration
+	holonConfig := holon.DefaultManagerConfig()
+	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
 
 	// Initialize HolonZero API fetcher service with the main logger
-	config := holon.DefaultManagerConfig()
-	holonManager := holon.NewManager(store, config, logger, temporalClient, temporalWorker)
+	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
 		// Don't panic - the service can run without the fetcher

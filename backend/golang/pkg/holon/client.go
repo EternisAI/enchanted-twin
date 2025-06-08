@@ -19,6 +19,7 @@ type APIClient struct {
 	baseURL    string
 	httpClient *http.Client
 	logger     *clog.Logger
+	authToken  string
 }
 
 // NewAPIClient creates a new HolonZero API client
@@ -61,6 +62,13 @@ func WithLogger(logger *clog.Logger) ClientOption {
 	}
 }
 
+// WithAuthToken sets the Bearer authentication token
+func WithAuthToken(token string) ClientOption {
+	return func(c *APIClient) {
+		c.authToken = token
+	}
+}
+
 // doRequest performs an HTTP request and handles common response processing
 func (c *APIClient) doRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	// Log the request path if logger is available
@@ -84,6 +92,11 @@ func (c *APIClient) doRequest(ctx context.Context, method, path string, body int
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	
+	// Add Bearer token if available
+	if c.authToken != "" {
+		req.Header.Set("Authorization", "Bearer "+c.authToken)
+	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -157,6 +170,23 @@ func (c *APIClient) GetStatus(ctx context.Context) (map[string]interface{}, erro
 	}
 
 	return result, nil
+}
+
+// Authentication endpoints
+
+// AuthenticateParticipant authenticates a participant using OAuth token
+func (c *APIClient) AuthenticateParticipant(ctx context.Context) (*ParticipantAuthResponse, error) {
+	resp, err := c.doRequest(ctx, "POST", "/api/v1/auth/participant", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var result ParticipantAuthResponse
+	if err := c.handleResponse(resp, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
 
 // Participant endpoints
