@@ -50,7 +50,7 @@ func TestReadJSONLBatch(t *testing.T) {
 	}
 
 	tempFile := createTestJSONLFile(t, testRecords)
-	defer os.Remove(tempFile)
+	defer os.Remove(tempFile) //nolint:errcheck
 
 	t.Run("Normal operation - read all records", func(t *testing.T) {
 		records, err := ReadJSONLBatch(tempFile, 0, 10)
@@ -140,7 +140,7 @@ func TestReadJSONLBatch_ErrorCases(t *testing.T) {
 
 	t.Run("Invalid JSON in file", func(t *testing.T) {
 		tempFile := createInvalidJSONLFile(t)
-		defer os.Remove(tempFile)
+		defer os.Remove(tempFile) //nolint:errcheck
 
 		records, err := ReadJSONLBatch(tempFile, 0, 10)
 		assert.Error(t, err)
@@ -152,7 +152,7 @@ func TestReadJSONLBatch_ErrorCases(t *testing.T) {
 func TestReadJSONLBatch_EdgeCases(t *testing.T) {
 	t.Run("Empty file", func(t *testing.T) {
 		tempFile := createEmptyFile(t)
-		defer os.Remove(tempFile)
+		defer os.Remove(tempFile) //nolint:errcheck
 
 		records, err := ReadJSONLBatch(tempFile, 0, 10)
 		require.NoError(t, err)
@@ -171,7 +171,7 @@ func TestReadJSONLBatch_EdgeCases(t *testing.T) {
 		}
 
 		tempFile := createTestJSONLFile(t, testRecord)
-		defer os.Remove(tempFile)
+		defer os.Remove(tempFile) //nolint:errcheck
 
 		records, err := ReadJSONLBatch(tempFile, 0, 10)
 		require.NoError(t, err)
@@ -194,7 +194,7 @@ func TestReadJSONLBatch_EdgeCases(t *testing.T) {
 		}
 
 		tempFile := createTestJSONLFile(t, testRecords)
-		defer os.Remove(tempFile)
+		defer os.Remove(tempFile) //nolint:errcheck
 
 		// Read first record
 		records, err := ReadJSONLBatch(tempFile, 0, 1)
@@ -230,7 +230,7 @@ func TestReadJSONLBatch_Sorting(t *testing.T) {
 	}
 
 	tempFile := createTestJSONLFile(t, testRecords)
-	defer os.Remove(tempFile)
+	defer os.Remove(tempFile) //nolint:errcheck
 
 	t.Run("Records are sorted by timestamp ascending", func(t *testing.T) {
 		records, err := ReadJSONLBatch(tempFile, 0, 10)
@@ -260,7 +260,7 @@ func TestCountJSONLLines(t *testing.T) {
 	}
 
 	tempFile := createTestJSONLFile(t, testRecords)
-	defer os.Remove(tempFile)
+	defer os.Remove(tempFile) //nolint:errcheck
 
 	t.Run("Count lines in normal file", func(t *testing.T) {
 		count, err := CountJSONLLines(tempFile)
@@ -270,7 +270,7 @@ func TestCountJSONLLines(t *testing.T) {
 
 	t.Run("Count lines in empty file", func(t *testing.T) {
 		emptyFile := createEmptyFile(t)
-		defer os.Remove(emptyFile)
+		defer os.Remove(emptyFile) //nolint:errcheck
 
 		count, err := CountJSONLLines(emptyFile)
 		require.NoError(t, err)
@@ -299,7 +299,7 @@ func createTestJSONLFile(t *testing.T, records []types.Record) string {
 
 	file, err := os.Create(tempFile)
 	require.NoError(t, err)
-	defer file.Close()
+	defer file.Close() //nolint:errcheck
 
 	for _, record := range records {
 		jsonRecord := struct {
