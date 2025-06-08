@@ -4,6 +4,7 @@ install:
 	brew install golangci-lint
 
 run:
+	cd cmd/tee-api && go run main.go &
 	go run cmd/server/main.go
 
 build:

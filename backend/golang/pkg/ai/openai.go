@@ -5,12 +5,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
 	"github.com/openai/openai-go/packages/param"
+	"github.com/tinfoilsh/tinfoil-go"
 )
 
 type Config struct {
@@ -41,18 +43,18 @@ func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Servic
 	}
 }
 
-func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getToken func() string, baseUrl string) *Service {
-	client := openai.NewClient(option.WithAPIKey(getToken()), option.WithBaseURL(proxyUrl), option.WithHeader("X-BASE-URL", baseUrl))
-	return &Service{
-		client: &client,
-		logger: logger,
-	}
-}
+func NewOpenAIServiceTinfoil(logger *log.Logger, baseUrl string, apiKey string) *Service {
 
-func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getToken func() string, baseUrl string) *Service {
-	client := openai.NewClient(option.WithAPIKey(getToken()), option.WithBaseURL(proxyUrl), option.WithHeader("X-BASE-URL", baseUrl))
+	urls := strings.Split(baseUrl, ",")
+
+	client, _ := tinfoil.NewClientWithParams(
+		urls[0],
+		urls[1],
+		option.WithAPIKey(apiKey),
+	)
+
 	return &Service{
-		client: &client,
+		client: client.Client,
 		logger: logger,
 	}
 }

@@ -8,8 +8,6 @@ import (
 	"os"
 	"strings"
 	"time"
-
-	"github.com/charmbracelet/log"
 )
 
 var allowedBaseURLs = map[string]string{
