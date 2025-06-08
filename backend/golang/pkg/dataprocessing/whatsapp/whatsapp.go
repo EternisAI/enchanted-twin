@@ -189,6 +189,13 @@ func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 }
 
 func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
+	if len(records) == 0 {
+		return []memory.Document{}, nil
+	}
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
 	conversationMap := make(map[string]*memory.ConversationDocument)
 
 	for _, record := range records {
