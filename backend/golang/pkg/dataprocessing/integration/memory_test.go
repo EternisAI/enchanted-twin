@@ -274,7 +274,8 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
-	records, err := helpers.ReadJSONL[types.Record](env.config.OutputPath)
+	count, err := helpers.CountJSONLLines(env.config.OutputPath)
+	records, err := helpers.ReadJSONLBatch[types.Record](env.config.OutputPath, 0, count)
 	require.NoError(t, err)
 
 	env.logger.Info("Records processed", "count", len(records))
