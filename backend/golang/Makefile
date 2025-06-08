@@ -34,5 +34,5 @@ deadcode:
 	@echo "=== Checking for transitively dead functions ==="
 	@go run golang.org/x/tools/cmd/deadcode@latest ./...
 
-migrate-sqlite:
-	sqlc generate
+sqlc-generate:
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate
