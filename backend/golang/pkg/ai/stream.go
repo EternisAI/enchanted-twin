@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"time"
 
 	"github.com/openai/openai-go"
 )
@@ -39,19 +40,28 @@ func (s *Service) CompletionsStream(
 			Tools:    tools,
 		}
 
-		stream := s.client.Chat.Completions.NewStreaming(ctx, params)
+		s.logger.Debug("Starting stream", "model", model, "messages_count", len(messages), "tools_count", len(tools))
+
+		// Add timeout context to prevent hanging
+		timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Minute)
+		defer cancel()
+
+		stream := s.client.Chat.Completions.NewStreaming(timeoutCtx, params)
 		defer func() {
-			_ = stream.Close()
+			if err := stream.Close(); err != nil {
+				s.logger.Error("Error closing stream", "error", err)
+			}
 		}()
 
 		acc := openai.ChatCompletionAccumulator{}
 
 		for stream.Next() {
 			chunk := stream.Current()
+
 			acc.AddChunk(chunk)
 
 			if tc, ok := acc.JustFinishedToolCall(); ok {
-				s.logger.Debug("tool call", "tool call", tc)
+				s.logger.Debug("Tool call completed", "tool_call_id", tc.ID, "tool_name", tc.Name, "arguments", tc.Arguments)
 				toolCh <- openai.ChatCompletionMessageToolCall{
 					ID:   tc.ID,
 					Type: "function",
@@ -64,7 +74,7 @@ func (s *Service) CompletionsStream(
 			}
 
 			if _, ok := acc.JustFinishedContent(); ok {
-				s.logger.Debug("finished content")
+				s.logger.Debug("Content finished")
 				contentCh <- StreamDelta{
 					ContentDelta: "",
 					IsCompleted:  true,
@@ -81,6 +91,7 @@ func (s *Service) CompletionsStream(
 
 			select {
 			case <-ctx.Done():
+				s.logger.Error("Context canceled during streaming", "error", ctx.Err())
 				errCh <- ctx.Err()
 				return
 			default:
