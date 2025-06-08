@@ -17,24 +17,26 @@ type Participant struct {
 
 // Thread represents a discussion thread
 type Thread struct {
-	ID          int       `json:"id"`
-	Title       string    `json:"title"`
-	Content     string    `json:"content"`
-	CreatorID   int       `json:"creatorId"`
-	CreatorName string    `json:"creatorName"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID            int       `json:"id"`
+	Title         string    `json:"title"`
+	Content       string    `json:"content"`
+	CreatorID     int       `json:"creatorId"`
+	CreatorName   string    `json:"creatorName"`
+	DedupThreadID string    `json:"dedupThreadId"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // Reply represents a reply to a thread
 type Reply struct {
-	ID              int       `json:"id"`
-	ThreadID        int       `json:"threadId"`
-	ParticipantID   int       `json:"participantId"`
-	ParticipantName string    `json:"participantName"`
-	Content         string    `json:"content"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ID                      int       `json:"id"`
+	ThreadID                int       `json:"threadId"`
+	ParticipantID           int       `json:"participantId"`
+	ParticipantDisplayName  string    `json:"participantDisplayName"`
+	Content                 string    `json:"content"`
+	DedupReplyID           string    `json:"dedupReplyId"`
+	CreatedAt              time.Time `json:"createdAt"`
+	UpdatedAt              time.Time `json:"updatedAt"`
 }
 
 // Request types
@@ -53,8 +55,9 @@ type UpdateParticipantRequest struct {
 
 // CreateThreadRequest for creating a new thread
 type CreateThreadRequest struct {
-	Title   string `json:"title"`
-	Content string `json:"content,omitempty"`
+	Title         string `json:"title"`
+	Content       string `json:"content,omitempty"`
+	DedupThreadID string `json:"dedupThreadId"`
 }
 
 // UpdateThreadRequest for updating a thread
@@ -68,6 +71,7 @@ type CreateReplyRequest struct {
 	ThreadID      int    `json:"threadId"`
 	ParticipantID int    `json:"participantId"`
 	Content       string `json:"content"`
+	DedupReplyID  string `json:"dedupReplyId"`
 }
 
 // UpdateReplyRequest for updating a reply
@@ -114,6 +118,25 @@ type HealthResponse struct {
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`
+}
+
+// ParticipantAuthResponse for OAuth authentication
+type ParticipantAuthResponse struct {
+	ID          int    `json:"id"`
+	Email       string `json:"email"`
+	DisplayName string `json:"displayName"`
+	Message     string `json:"message"`
+}
+
+// ParticipantResponse for participant operations
+type ParticipantResponse struct {
+	ID               int       `json:"id"`
+	Name             string    `json:"name"`
+	Email            string    `json:"email"`
+	DisplayName      string    `json:"display_name"`
+	CollisionCounter int       `json:"collision_counter"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
 }
 
 // Query parameters for pagination and filtering

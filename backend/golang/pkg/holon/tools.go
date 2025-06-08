@@ -138,33 +138,32 @@ func NewSendToHolonTool(service *Service) *SendToHolonTool {
 }
 
 func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error) {
-	previewID, ok := inputs["id"].(string)
-	if !ok || previewID == "" {
+	// Extract inputs
+	id, ok := inputs["id"].(string)
+	if !ok || id == "" {
 		return &agenttypes.StructuredToolResult{
 			ToolName:   "send_to_holon",
 			ToolParams: inputs,
-			ToolError:  "id parameter is required and must be a non-empty string from a previous preview_thread call",
-		}, fmt.Errorf("id parameter is required")
+			ToolError:  "id is required and must be a string",
+		}, nil
 	}
 
-	// Validate that this is a preview ID (should start with "preview-")
-	if !strings.HasPrefix(previewID, "preview-") {
-		return &agenttypes.StructuredToolResult{
-			ToolName:   "send_to_holon",
-			ToolParams: inputs,
-			ToolError:  "id must be a valid preview ID from a previous preview_thread call",
-		}, fmt.Errorf("invalid preview ID")
-	}
-
-	// Extract thread parameters
 	title, ok := inputs["title"].(string)
 	if !ok || title == "" {
-		title = "Untitled Thread"
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "send_to_holon",
+			ToolParams: inputs,
+			ToolError:  "title is required and must be a string",
+		}, nil
 	}
 
 	content, ok := inputs["content"].(string)
 	if !ok || content == "" {
-		content = "No content provided"
+		return &agenttypes.StructuredToolResult{
+			ToolName:   "send_to_holon",
+			ToolParams: inputs,
+			ToolError:  "content is required and must be a string",
+		}, nil
 	}
 
 	authorIdentity, ok := inputs["author_identity"].(string)
@@ -172,69 +171,49 @@ func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (a
 		return &agenttypes.StructuredToolResult{
 			ToolName:   "send_to_holon",
 			ToolParams: inputs,
-			ToolError:  "author_identity parameter is required and must be a non-empty string",
-		}, fmt.Errorf("author_identity parameter is required")
+			ToolError:  "author_identity is required and must be a string",
+		}, nil
 	}
 
-	// Extract imageURLs array
-	var imageURLs []string
-	if urls, ok := inputs["image_urls"].([]interface{}); ok {
-		for _, url := range urls {
-			if urlStr, ok := url.(string); ok {
-				imageURLs = append(imageURLs, urlStr)
-			}
-		}
-	}
-	if imageURLs == nil {
-		imageURLs = []string{}
-	}
+	// Create thread using the holon service
+	imageURLs := []string{}
+	actions := []string{}
+	var expiresAt *string = nil
 
-	// Extract actions array
-	var actions []string
-	if actionsInput, ok := inputs["actions"].([]interface{}); ok {
-		for _, action := range actionsInput {
-			if actionStr, ok := action.(string); ok {
-				actions = append(actions, actionStr)
-			}
-		}
-	}
-	if actions == nil {
-		actions = []string{"Like", "Reply"}
-	}
-
-	publishedThread, err := t.Service.SendToHolon(ctx, previewID, title, content, authorIdentity, imageURLs, actions)
+	thread, err := t.Service.repo.CreateThread(
+		ctx,
+		id,
+		title,
+		content,
+		authorIdentity,
+		imageURLs,
+		actions,
+		expiresAt,
+		"pending", // Mark as pending so it gets pushed to HolonZero API
+	)
 	if err != nil {
 		return &agenttypes.StructuredToolResult{
 			ToolName:   "send_to_holon",
 			ToolParams: inputs,
-			ToolError:  fmt.Sprintf("Failed to publish thread: %v", err),
-		}, err
+			ToolError:  fmt.Sprintf("failed to create thread: %v", err),
+		}, nil
 	}
 
-	// Create structured JSON for the content field
-	structuredData := map[string]any{
-		"id":        publishedThread.ID,
-		"title":     publishedThread.Title,
-		"content":   publishedThread.Content,
-		"createdAt": publishedThread.CreatedAt,
-		"views":     int(publishedThread.Views),
-	}
-
-	structuredJSON, err := json.Marshal(structuredData)
-	if err != nil {
-		return &agenttypes.StructuredToolResult{
-			ToolName:   "send_to_holon",
-			ToolParams: inputs,
-			ToolError:  fmt.Sprintf("Failed to marshal structured data: %v", err),
-		}, fmt.Errorf("failed to marshal structured data: %v", err)
+	// Prepare result with proper field names matching swagger
+	result := map[string]interface{}{
+		"id":            thread.ID,
+		"title":         thread.Title,
+		"content":       thread.Content,
+		"creatorId":     authorIdentity,
+		"createdAt":     thread.CreatedAt, // Already a string in RFC3339 format
+		"dedupThreadId": id, // Use the provided ID as dedup ID
+		"actions":       actions,
 	}
 
 	return &agenttypes.StructuredToolResult{
 		ToolName:   "send_to_holon",
 		ToolParams: inputs,
-		Output: map[string]any{
-			"content": string(structuredJSON),
-		},
+		Output:     result,
 	}, nil
 }
 

@@ -56,8 +56,14 @@ type ManagerConfig struct {
 
 // DefaultManagerConfig returns a sensible default configuration
 func DefaultManagerConfig() ManagerConfig {
+	// Use the getEnvOrDefault function from fetcher.go
+	holonAPIURL := "http://localhost:8080"
+	if value := os.Getenv("HOLON_API_URL"); value != "" {
+		holonAPIURL = value
+	}
+
 	return ManagerConfig{
-		HolonAPIURL:   getEnvOrDefault("HOLON_API_URL", "http://localhost:8080"),
+		HolonAPIURL:   holonAPIURL,
 		FetchInterval: 5 * time.Minute,
 		BatchSize:     50,
 		MaxRetries:    3,
@@ -71,7 +77,7 @@ func DefaultManagerConfig() ManagerConfig {
 func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temporalClient client.Client, worker worker.Worker) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	service := NewService(store)
+	service := NewServiceWithLogger(store, logger)
 
 	var fetcherService *FetcherService
 	if config.HolonAPIURL != "" {
@@ -339,16 +345,6 @@ type ScheduleStatus struct {
 	LastRun []client.ScheduleActionResult `json:"last_run,omitempty"`
 	NextRun []time.Time                   `json:"next_run,omitempty"`
 }
-
-// Helper utility functions
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-// Example usage functions
 
 // StartHolonServices demonstrates how to integrate the holon services into your main application
 func StartHolonServices(store *db.Store) (*Manager, error) {
