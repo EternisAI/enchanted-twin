@@ -6,8 +6,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/uuid"
 	clog "github.com/charmbracelet/log"
+	"github.com/google/uuid"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -18,10 +18,10 @@ type Service struct {
 	store  *db.Store
 	repo   *Repository
 	logger *clog.Logger
-	
+
 	// Configuration
 	holonAPIURL string
-	
+
 	// Remote authentication info
 	participantID   *int
 	displayName     *string
@@ -48,14 +48,14 @@ func NewServiceWithConfig(store *db.Store, logger *clog.Logger, holonAPIURL stri
 			holonAPIURL = "http://localhost:8080"
 		}
 	}
-	
+
 	service := &Service{
 		store:       store,
 		repo:        NewRepository(store.DB()),
 		logger:      logger,
 		holonAPIURL: holonAPIURL,
 	}
-	
+
 	// Attempt remote authentication during initialization if Google OAuth token is available
 	ctx := context.Background()
 	if err := service.performRemoteAuth(ctx); err != nil {
@@ -64,7 +64,7 @@ func NewServiceWithConfig(store *db.Store, logger *clog.Logger, holonAPIURL stri
 		}
 		// Don't fail service creation if remote auth fails
 	}
-	
+
 	return service
 }
 
@@ -74,28 +74,28 @@ func (s *Service) performRemoteAuth(ctx context.Context) error {
 	if s.isAuthenticated {
 		return nil
 	}
-	
+
 	// Use configured API URL
 	apiURL := s.holonAPIURL
-	
+
 	// Attempt to authenticate with HolonZero API
 	authResp, err := AuthenticateWithHolonZero(ctx, apiURL, s.store, s.logger)
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with holon network: %w", err)
 	}
-	
+
 	// Store authentication info
 	s.participantID = &authResp.ID
 	s.displayName = &authResp.DisplayName
 	s.isAuthenticated = true
-	
+
 	if s.logger != nil {
-		s.logger.Info("Successfully authenticated with holon network", 
-			"participantID", authResp.ID, 
+		s.logger.Info("Successfully authenticated with holon network",
+			"participantID", authResp.ID,
 			"displayName", authResp.DisplayName,
 			"email", authResp.Email)
 	}
-	
+
 	return nil
 }
 

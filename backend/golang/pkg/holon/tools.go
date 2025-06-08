@@ -206,7 +206,7 @@ func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (a
 		"content":       thread.Content,
 		"creatorId":     authorIdentity,
 		"createdAt":     thread.CreatedAt, // Already a string in RFC3339 format
-		"dedupThreadId": id, // Use the provided ID as dedup ID
+		"dedupThreadId": id,               // Use the provided ID as dedup ID
 		"actions":       actions,
 	}
 

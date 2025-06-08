@@ -29,11 +29,11 @@ type Thread struct {
 
 // Reply represents a reply to a thread
 type Reply struct {
-	ID                      int       `json:"id"`
-	ThreadID                int       `json:"threadId"`
-	ParticipantID           int       `json:"participantId"`
-	ParticipantDisplayName  string    `json:"participantDisplayName"`
-	Content                 string    `json:"content"`
+	ID                     int       `json:"id"`
+	ThreadID               int       `json:"threadId"`
+	ParticipantID          int       `json:"participantId"`
+	ParticipantDisplayName string    `json:"participantDisplayName"`
+	Content                string    `json:"content"`
 	DedupReplyID           string    `json:"dedupReplyId"`
 	CreatedAt              time.Time `json:"createdAt"`
 	UpdatedAt              time.Time `json:"updatedAt"`
@@ -101,11 +101,11 @@ type PaginatedRepliesResponse struct {
 
 // SyncMetadataResponse for sync optimization
 type SyncMetadataResponse struct {
-	ServerTime        time.Time `json:"serverTime"`
-	TotalThreads      int       `json:"totalThreads"`
-	TotalReplies      int       `json:"totalReplies"`
-	LastThreadUpdate  time.Time `json:"lastThreadUpdate"`
-	LastReplyUpdate   time.Time `json:"lastReplyUpdate"`
+	ServerTime       time.Time `json:"serverTime"`
+	TotalThreads     int       `json:"totalThreads"`
+	TotalReplies     int       `json:"totalReplies"`
+	LastThreadUpdate time.Time `json:"lastThreadUpdate"`
+	LastReplyUpdate  time.Time `json:"lastReplyUpdate"`
 }
 
 // HealthResponse for health check

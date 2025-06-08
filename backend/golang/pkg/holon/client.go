@@ -92,7 +92,7 @@ func (c *APIClient) doRequest(ctx context.Context, method, path string, body int
 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
-	
+
 	// Add Bearer token if available
 	if c.authToken != "" {
 		req.Header.Set("Authorization", "Bearer "+c.authToken)

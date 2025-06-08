@@ -15,8 +15,6 @@ import (
 // HolonZeroClient defines the interface for interacting with the HolonZero API
 type HolonZeroClient interface {
 	GetHealth(ctx context.Context) (*HealthResponse, error)
-	ListParticipants(ctx context.Context) ([]Participant, error)
-	ListThreads(ctx context.Context, query *ThreadsQuery) ([]Thread, error)
 	ListThreadsPaginated(ctx context.Context, query *ThreadsQuery) (*PaginatedThreadsResponse, error)
 	GetThreadRepliesPaginated(ctx context.Context, threadID int, query *RepliesQuery) (*PaginatedRepliesResponse, error)
 	GetSyncMetadata(ctx context.Context) (*SyncMetadataResponse, error)
@@ -25,13 +23,13 @@ type HolonZeroClient interface {
 
 // FetcherService handles syncing data from HolonZero API to local database
 type FetcherService struct {
-	client         HolonZeroClient
-	repository     *Repository
-	config         FetcherConfig
-	logger         *clog.Logger
-	stopChan       chan struct{}
-	running        bool
-	
+	client     HolonZeroClient
+	repository *Repository
+	config     FetcherConfig
+	logger     *clog.Logger
+	stopChan   chan struct{}
+	running    bool
+
 	// Authentication info for deduplication
 	participantID   *int
 	isAuthenticated bool
@@ -61,11 +59,28 @@ func DefaultFetcherConfig() FetcherConfig {
 
 // NewFetcherService creates a new HolonZero API fetcher service
 func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logger) *FetcherService {
-	client := NewAPIClient(
+	ctx := context.Background()
+
+	// Create authenticated API client with OAuth token
+	client, err := NewAuthenticatedAPIClient(
+		ctx,
 		config.APIBaseURL,
+		store,
+		logger,
 		WithTimeout(30*time.Second),
-		WithLogger(logger),
 	)
+
+	if err != nil {
+		if logger != nil {
+			logger.Error("Failed to create authenticated API client", "error", err)
+		}
+		// Fall back to basic client for health checks and read operations
+		client = NewAPIClient(
+			config.APIBaseURL,
+			WithTimeout(30*time.Second),
+			WithLogger(logger),
+		)
+	}
 
 	fetcher := &FetcherService{
 		client:     client,
@@ -75,16 +90,15 @@ func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logge
 		stopChan:   make(chan struct{}),
 		running:    false,
 	}
-	
+
 	// Attempt to authenticate and get participant ID for deduplication
-	ctx := context.Background()
 	if err := fetcher.authenticateForDeduplication(ctx, store); err != nil {
 		if logger != nil {
 			logger.Debug("Failed to authenticate for deduplication during initialization", "error", err)
 		}
 		// Don't fail service creation if authentication fails
 	}
-	
+
 	return fetcher
 }
 
@@ -171,11 +185,6 @@ func (f *FetcherService) syncData(ctx context.Context) error {
 		return fmt.Errorf("API health check failed: %w", err)
 	}
 
-	// Sync participants first
-	if err := f.syncParticipants(ctx); err != nil {
-		return fmt.Errorf("failed to sync participants: %w", err)
-	}
-
 	// Sync threads
 	if err := f.syncThreads(ctx); err != nil {
 		return fmt.Errorf("failed to sync threads: %w", err)
@@ -205,33 +214,6 @@ func (f *FetcherService) checkAPIHealth(ctx context.Context) error {
 	return nil
 }
 
-// syncParticipants fetches and stores participants
-func (f *FetcherService) syncParticipants(ctx context.Context) error {
-	participants, err := f.client.ListParticipants(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch participants: %w", err)
-	}
-
-	f.logDebug(fmt.Sprintf("Fetched %d participants from API", len(participants)))
-
-	for _, participant := range participants {
-		// Create or update author in the database
-		alias := participant.DisplayName
-		if alias == "" {
-			alias = participant.Name
-		}
-
-		_, err := f.repository.CreateOrUpdateAuthor(ctx, strconv.Itoa(participant.ID), alias)
-		if err != nil {
-			f.logError(fmt.Sprintf("Failed to create/update participant %d", participant.ID), err)
-			continue
-		}
-	}
-
-	f.logDebug(fmt.Sprintf("Successfully synced %d participants", len(participants)))
-	return nil
-}
-
 // syncThreads fetches and stores threads
 func (f *FetcherService) syncThreads(ctx context.Context) error {
 	_, err := f.SyncThreads(ctx)
@@ -247,7 +229,7 @@ func (f *FetcherService) SyncThreads(ctx context.Context) ([]Thread, error) {
 func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bool) ([]Thread, error) {
 	var metadata *SyncMetadataResponse
 	var err error
-	
+
 	// Get sync metadata to check for updates (only if requested)
 	if useMetadata {
 		metadata, err = f.client.GetSyncMetadata(ctx)
@@ -292,16 +274,28 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 	// Filter and store threads in database
 	skippedCount := 0
 	storedCount := 0
-	
+
 	for _, thread := range allThreads {
 		// Skip threads that were originally created by this instance to avoid duplicates
 		if f.shouldSkipThread(thread) {
 			skippedCount++
 			continue
 		}
-		
-		threadID := fmt.Sprintf("holon-%d", thread.ID)
+
+		// Create or update author from thread creator info
 		authorIdentity := strconv.Itoa(thread.CreatorID)
+		authorAlias := thread.CreatorName
+		if authorAlias == "" {
+			authorAlias = fmt.Sprintf("User %d", thread.CreatorID)
+		}
+
+		_, err := f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
+		if err != nil {
+			f.logError(fmt.Sprintf("Failed to create/update author %s", authorIdentity), err)
+			// Continue even if author creation fails
+		}
+
+		threadID := fmt.Sprintf("holon-%d", thread.ID)
 
 		// Convert time format
 		var expiresAt *string = nil
@@ -311,7 +305,7 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 		imageURLs := []string{} // HolonZero doesn't have image URLs in current schema
 		actions := []string{}   // HolonZero doesn't have actions in current schema
 
-		_, err := f.repository.CreateThread(
+		_, err = f.repository.CreateThread(
 			ctx,
 			threadID,
 			thread.Title,
@@ -329,7 +323,7 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 			}
 			continue
 		}
-		
+
 		storedCount++
 	}
 
@@ -339,15 +333,33 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 
 // syncReplies fetches and stores replies for all threads
 func (f *FetcherService) syncReplies(ctx context.Context) error {
-	// First, get all threads to fetch replies for
-	threads, err := f.client.ListThreads(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to fetch threads for reply sync: %w", err)
+	// First, get all threads using paginated endpoint to fetch replies for
+	var allThreads []Thread
+	page := 1
+	pageSize := f.config.BatchSize
+
+	for {
+		query := &ThreadsQuery{
+			Page:  page,
+			Limit: pageSize,
+		}
+
+		threadsResp, err := f.client.ListThreadsPaginated(ctx, query)
+		if err != nil {
+			return fmt.Errorf("failed to fetch threads for reply sync: %w", err)
+		}
+
+		allThreads = append(allThreads, threadsResp.Threads...)
+
+		if !threadsResp.HasMore || len(threadsResp.Threads) == 0 {
+			break
+		}
+		page++
 	}
 
 	totalReplies := 0
 
-	for _, thread := range threads {
+	for _, thread := range allThreads {
 		// Fetch replies for this thread with pagination
 		var allReplies []Reply
 		page := 1
@@ -372,14 +384,26 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 
 		// Store replies in database
 		for _, reply := range allReplies {
-			threadID := fmt.Sprintf("holon-%d", reply.ThreadID)
+			// Create or update author from reply participant info
 			authorIdentity := strconv.Itoa(reply.ParticipantID)
+			authorAlias := reply.ParticipantDisplayName
+			if authorAlias == "" {
+				authorAlias = fmt.Sprintf("User %d", reply.ParticipantID)
+			}
+
+			_, err := f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
+			if err != nil {
+				f.logError(fmt.Sprintf("Failed to create/update author %s", authorIdentity), err)
+				// Continue even if author creation fails
+			}
+
+			threadID := fmt.Sprintf("holon-%d", reply.ThreadID)
 			messageID := fmt.Sprintf("holon-reply-%d", reply.ID)
 
 			actions := []string{} // HolonZero doesn't have actions in current schema
 			isDelivered := true   // Assume fetched replies are delivered
 
-			_, err := f.repository.CreateThreadMessage(
+			_, err = f.repository.CreateThreadMessage(
 				ctx,
 				messageID,
 				threadID,
@@ -523,17 +547,17 @@ func (f *FetcherService) authenticateForDeduplication(ctx context.Context, store
 	if err != nil {
 		return fmt.Errorf("failed to authenticate with holon network: %w", err)
 	}
-	
+
 	// Store authentication info for deduplication
 	f.participantID = &authResp.ID
 	f.isAuthenticated = true
-	
+
 	if f.logger != nil {
-		f.logger.Debug("Authenticated for deduplication", 
-			"participantID", authResp.ID, 
+		f.logger.Debug("Authenticated for deduplication",
+			"participantID", authResp.ID,
 			"displayName", authResp.DisplayName)
 	}
-	
+
 	return nil
 }
 
@@ -543,57 +567,48 @@ func (f *FetcherService) shouldSkipThread(thread Thread) bool {
 	if !f.isAuthenticated || f.participantID == nil {
 		return false
 	}
-	
+
 	// Skip if this thread was created by us and has a dedup ID
 	// (indicating it was originally created by this instance)
 	if thread.CreatorID == *f.participantID && thread.DedupThreadID != "" {
-		f.logDebug(fmt.Sprintf("Skipping thread %d (dedup ID: %s) - originally created by this instance", 
+		f.logDebug(fmt.Sprintf("Skipping thread %d (dedup ID: %s) - originally created by this instance",
 			thread.ID, thread.DedupThreadID))
 		return true
 	}
-	
+
 	return false
-}
-
-// SyncParticipants fetches and syncs participants for direct activity usage
-func (f *FetcherService) SyncParticipants(ctx context.Context) ([]Participant, error) {
-	participants, err := f.client.ListParticipants(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch participants: %w", err)
-	}
-
-	f.logDebug(fmt.Sprintf("Fetched %d participants from API", len(participants)))
-
-	for _, participant := range participants {
-		// Create or update author in the database
-		alias := participant.DisplayName
-		if alias == "" {
-			alias = participant.Name
-		}
-
-		_, err := f.repository.CreateOrUpdateAuthor(ctx, strconv.Itoa(participant.ID), alias)
-		if err != nil {
-			f.logError(fmt.Sprintf("Failed to create/update participant %d", participant.ID), err)
-			continue
-		}
-	}
-
-	f.logDebug(fmt.Sprintf("Successfully synced %d participants", len(participants)))
-	return participants, nil
 }
 
 // SyncReplies fetches and syncs replies for direct activity usage
 func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
-	// First, get all threads to fetch replies for
-	threads, err := f.client.ListThreads(ctx, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch threads for reply sync: %w", err)
+	// First, get all threads using paginated endpoint to fetch replies for
+	var allThreads []Thread
+	page := 1
+	pageSize := f.config.BatchSize
+
+	for {
+		query := &ThreadsQuery{
+			Page:  page,
+			Limit: pageSize,
+		}
+
+		threadsResp, err := f.client.ListThreadsPaginated(ctx, query)
+		if err != nil {
+			return nil, fmt.Errorf("failed to fetch threads for reply sync: %w", err)
+		}
+
+		allThreads = append(allThreads, threadsResp.Threads...)
+
+		if !threadsResp.HasMore || len(threadsResp.Threads) == 0 {
+			break
+		}
+		page++
 	}
 
 	var allReplies []Reply
 	totalReplies := 0
 
-	for _, thread := range threads {
+	for _, thread := range allThreads {
 		// Fetch replies for this thread with pagination
 		var threadReplies []Reply
 		page := 1
@@ -619,14 +634,26 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 
 		// Store replies in database
 		for _, reply := range threadReplies {
-			threadID := fmt.Sprintf("holon-%d", reply.ThreadID)
+			// Create or update author from reply participant info
 			authorIdentity := strconv.Itoa(reply.ParticipantID)
+			authorAlias := reply.ParticipantDisplayName
+			if authorAlias == "" {
+				authorAlias = fmt.Sprintf("User %d", reply.ParticipantID)
+			}
+
+			_, err := f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
+			if err != nil {
+				f.logError(fmt.Sprintf("Failed to create/update author %s", authorIdentity), err)
+				// Continue even if author creation fails
+			}
+
+			threadID := fmt.Sprintf("holon-%d", reply.ThreadID)
 			messageID := fmt.Sprintf("holon-reply-%d", reply.ID)
 
 			actions := []string{} // HolonZero doesn't have actions in current schema
 			isDelivered := true   // Assume fetched replies are delivered
 
-			_, err := f.repository.CreateThreadMessage(
+			_, err = f.repository.CreateThreadMessage(
 				ctx,
 				messageID,
 				threadID,

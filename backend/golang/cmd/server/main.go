@@ -646,11 +646,11 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 
 	// Create holon sync schedule
 	err = helpers.CreateScheduleIfNotExists(
-		logger, 
-		temporalClient, 
-		"holon-sync-schedule", 
-		5*time.Minute, 
-		holon.HolonSyncWorkflow, 
+		logger,
+		temporalClient,
+		"holon-sync-schedule",
+		5*time.Minute,
+		holon.HolonSyncWorkflow,
 		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
 	)
 	if err != nil {
