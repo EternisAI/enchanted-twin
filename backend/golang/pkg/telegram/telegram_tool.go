@@ -13,7 +13,6 @@ import (
 	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
-	configtable "github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
 )
 
 type TelegramSendMessageTool struct {
@@ -23,7 +22,7 @@ type TelegramSendMessageTool struct {
 	ChatServerUrl string
 }
 
-func NewTelegramSendMessageTool(logger *log.Logger, token string, store *configtable.Queries, chatServerUrl string) (*TelegramSendMessageTool, error) {
+func NewTelegramSendMessageTool(logger *log.Logger, token string, store *config.Queries, chatServerUrl string) (*TelegramSendMessageTool, error) {
 	if token == "" {
 		logger.Error("TELEGRAM_TOKEN environment variable not set")
 		return nil, fmt.Errorf("TELEGRAM_TOKEN environment variable not set")
@@ -103,7 +102,7 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 		ToolName:   "telegram",
 		ToolParams: input,
 		Output: map[string]any{
-			"content": fmt.Sprintf("Message sent successfully to chat %s", chatUUID),
+			"content": fmt.Sprintf("Message sent successfully to chat %s", chatUUID.String),
 		},
 	}, nil
 }
@@ -159,7 +158,7 @@ func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (
 		}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
 
-	telegramEnabled, err := GetTelegramEnabled(ctx, configtable.New(t.Store.DB().DB))
+	telegramEnabled, err := GetTelegramEnabled(ctx, config.New(t.Store.DB().DB))
 
 	if err != nil || telegramEnabled != "true" {
 		chatURL := GetChatURL(TelegramBotName, chatUUID)

@@ -10,8 +10,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/log"
-	"go.uber.org/zap"
-
 	_ "github.com/lib/pq"
 	"github.com/pressly/goose/v3"
 )
@@ -19,20 +17,20 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
-// Migration represents a database migration
+// Migration represents a database migration.
 type Migration struct {
 	Version int
 	Name    string
 	SQL     string
 }
 
-// Migrator handles database migrations
+// Migrator handles database migrations.
 type Migrator struct {
 	db     *sql.DB
 	logger *log.Logger
 }
 
-// NewMigrator creates a new migrator instance
+// NewMigrator creates a new migrator instance.
 func NewMigrator(db *sql.DB, logger *log.Logger) *Migrator {
 	return &Migrator{
 		db:     db,
@@ -40,7 +38,7 @@ func NewMigrator(db *sql.DB, logger *log.Logger) *Migrator {
 	}
 }
 
-// RunMigrations runs all pending migrations
+// RunMigrations runs all pending migrations.
 func (m *Migrator) RunMigrations() error {
 	m.logger.Info("Running database migrations...")
 
@@ -74,7 +72,7 @@ func (m *Migrator) RunMigrations() error {
 	return nil
 }
 
-// RunMigrations runs all pending migrations automatically
+// RunMigrations runs all pending migrations automatically.
 func RunMigrations(db *sql.DB) error {
 	goose.SetBaseFS(embedMigrations)
 
@@ -85,7 +83,7 @@ func RunMigrations(db *sql.DB) error {
 	return goose.Up(db, "migrations")
 }
 
-// GetMigrationStatus returns the current migration status
+// GetMigrationStatus returns the current migration status.
 func GetMigrationStatus(db *sql.DB) error {
 	goose.SetBaseFS(embedMigrations)
 
@@ -96,7 +94,7 @@ func GetMigrationStatus(db *sql.DB) error {
 	return goose.Status(db, "migrations")
 }
 
-// Rollback rolls back the last migration
+// Rollback rolls back the last migration.
 func Rollback(db *sql.DB) error {
 	goose.SetBaseFS(embedMigrations)
 
@@ -107,7 +105,7 @@ func Rollback(db *sql.DB) error {
 	return goose.Down(db, "migrations")
 }
 
-// GetVersion returns the current migration version
+// GetVersion returns the current migration version.
 func GetVersion(db *sql.DB) (int64, error) {
 	goose.SetBaseFS(embedMigrations)
 
@@ -118,7 +116,7 @@ func GetVersion(db *sql.DB) (int64, error) {
 	return goose.GetDBVersion(db)
 }
 
-// createMigrationsTable creates the migrations table if it doesn't exist
+// createMigrationsTable creates the migrations table if it doesn't exist.
 func (m *Migrator) createMigrationsTable() error {
 	_, err := m.db.Exec(`
 		CREATE TABLE IF NOT EXISTS migrations (
@@ -131,7 +129,7 @@ func (m *Migrator) createMigrationsTable() error {
 	return err
 }
 
-// loadMigrations loads migration files from the embedded filesystem
+// loadMigrations loads migration files from the embedded filesystem.
 func (m *Migrator) loadMigrations() ([]Migration, error) {
 	files, err := embedMigrations.ReadDir("migrations")
 	if err != nil {
@@ -166,7 +164,7 @@ func (m *Migrator) loadMigrations() ([]Migration, error) {
 	return migrations, nil
 }
 
-// parseMigrationFileName parses the migration file name and extracts the version and name
+// parseMigrationFileName parses the migration file name and extracts the version and name.
 func parseMigrationFileName(fileName string) (version int, name string, err error) {
 	parts := strings.SplitN(fileName, "_", 2)
 	if len(parts) != 2 {
@@ -184,16 +182,16 @@ func parseMigrationFileName(fileName string) (version int, name string, err erro
 	return version, name, nil
 }
 
-// getCurrentVersion retrieves the current migration version from the database
+// getCurrentVersion retrieves the current migration version from the database.
 func (m *Migrator) getCurrentVersion() (int, error) {
 	var version int
 	err := m.db.QueryRow("SELECT COALESCE(MAX(version), 0) FROM migrations").Scan(&version)
 	return version, err
 }
 
-// runMigration executes a single migration
+// runMigration executes a single migration.
 func (m *Migrator) runMigration(migration Migration) error {
-	m.logger.Info("Applying migration", zap.Int("version", migration.Version), zap.String("name", migration.Name))
+	m.logger.Info("Applying migration", "version", migration.Version, "name", migration.Name)
 
 	_, err := m.db.Exec(migration.SQL)
 	if err != nil {
@@ -205,6 +203,6 @@ func (m *Migrator) runMigration(migration Migration) error {
 		return fmt.Errorf("failed to record migration in the database: %w", err)
 	}
 
-	m.logger.Info("Migration applied successfully", zap.Int("version", migration.Version), zap.String("name", migration.Name))
+	m.logger.Info("Migration applied successfully", "version", migration.Version, "name", migration.Name)
 	return nil
 }
