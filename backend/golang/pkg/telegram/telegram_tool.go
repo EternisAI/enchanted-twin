@@ -12,16 +12,18 @@ import (
 
 	agenttypes "github.com/EternisAI/enchanted-twin/pkg/agent/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
+	configtable "github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
 )
 
 type TelegramSendMessageTool struct {
 	Logger        *log.Logger
 	Token         string
-	Store         *db.Store
+	Store         *config.Queries
 	ChatServerUrl string
 }
 
-func NewTelegramSendMessageTool(logger *log.Logger, token string, store *db.Store, chatServerUrl string) (*TelegramSendMessageTool, error) {
+func NewTelegramSendMessageTool(logger *log.Logger, token string, store *configtable.Queries, chatServerUrl string) (*TelegramSendMessageTool, error) {
 	if token == "" {
 		logger.Error("TELEGRAM_TOKEN environment variable not set")
 		return nil, fmt.Errorf("TELEGRAM_TOKEN environment variable not set")
@@ -56,8 +58,8 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 		}, fmt.Errorf("message parameter is required and must be a string")
 	}
 
-	chatUUID, err := t.Store.GetValue(ctx, TelegramChatUUIDKey)
-	if err != nil || chatUUID == "" {
+	chatUUID, err := t.Store.GetConfigValue(ctx, TelegramChatUUIDKey)
+	if err != nil || !chatUUID.Valid || chatUUID.String == "" {
 		t.Logger.Error("error getting chat UUID", "error", err)
 		return &agenttypes.StructuredToolResult{
 			ToolName:   "telegram",
@@ -66,10 +68,9 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 		}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
 
-	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
-
-	if err != nil || telegramEnabled != "true" {
-		chatURL := GetChatURL(TelegramBotName, chatUUID)
+	telegramEnabled, err := t.Store.GetConfigValue(ctx, TelegramEnabled)
+	if err != nil || !telegramEnabled.Valid || telegramEnabled.String != "true" {
+		chatURL := GetChatURL(TelegramBotName, chatUUID.String)
 		qr, err := generateQRCodePNGDataURL(chatURL)
 		if err != nil {
 			t.Logger.Error("failed to generate QR code,", "error", err)
@@ -88,7 +89,7 @@ func (t *TelegramSendMessageTool) Execute(ctx context.Context, input map[string]
 		}, nil
 	}
 
-	_, err = PostMessage(ctx, chatUUID, message, t.ChatServerUrl)
+	_, err = PostMessage(ctx, chatUUID.String, message, t.ChatServerUrl)
 	if err != nil {
 		t.Logger.Error("failed to send message", "error", err)
 		return &agenttypes.StructuredToolResult{
@@ -158,7 +159,7 @@ func (t *TelegramSetupTool) Execute(ctx context.Context, input map[string]any) (
 		}, fmt.Errorf("error getting chat UUID: %w", err)
 	}
 
-	telegramEnabled, err := GetTelegramEnabled(ctx, t.Store)
+	telegramEnabled, err := GetTelegramEnabled(ctx, configtable.New(t.Store.DB().DB))
 
 	if err != nil || telegramEnabled != "true" {
 		chatURL := GetChatURL(TelegramBotName, chatUUID)

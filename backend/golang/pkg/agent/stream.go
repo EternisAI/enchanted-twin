@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/openai/openai-go"
+	"github.com/pkg/errors"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/tools"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
@@ -51,12 +52,15 @@ func (a *Agent) ExecuteStream(
 			return nil, fmt.Errorf("tool %q not found", tc.Function.Name)
 		}
 		var args map[string]any
-		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return nil, err
+		if tc.Function.Arguments != "" {
+			if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+				a.logger.Error("failed to unmarshal tool arguments", "error", err, "arguments", tc.Function.Arguments)
+				return nil, errors.Wrap(err, "failed to unmarshal tool arguments")
+			}
 		}
 		toolResult, err := tool.Execute(ctx, args)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to execute tool")
 		}
 
 		a.logger.Debug("Post tool callback", "result", toolResult)
@@ -99,7 +103,7 @@ func (a *Agent) ExecuteStream(
 				}
 
 			case tc, ok := <-stream.ToolCalls:
-				a.logger.Debug("stream tool call", "tool_call", tc)
+				a.logger.Debug("stream tool call", "tool_call", tc.RawJSON())
 				if ok {
 					res, err := runTool(tc)
 					if err != nil {

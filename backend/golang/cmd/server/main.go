@@ -173,6 +173,12 @@ func main() {
 		}
 	}()
 
+	dbsqlc, err := db.New(store.DB().DB, logger)
+	if err != nil {
+		logger.Error("Error creating database", "error", err)
+		panic(errors.Wrap(err, "Error creating database"))
+	}
+
 	// Initialize the AI service singleton
 	aiCompletionsService := ai.NewOpenAIService(logger, envs.CompletionsAPIKey, envs.CompletionsAPIURL)
 	aiEmbeddingsService := ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
@@ -395,7 +401,7 @@ func main() {
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
 	go telegram.SubscribePoller(telegramService, logger)
-	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, store, envs)
+	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
