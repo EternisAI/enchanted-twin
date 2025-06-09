@@ -16,129 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// validateAndTruncateDocument validates document size and truncates if necessary.
-func validateAndTruncateDocument(doc memory.Document) memory.Document {
-	content := doc.Content()
-
-	if len(content) <= MaxProcessableContentChars {
-		return doc
-	}
-
-	truncatedContent := content[:MaxProcessableContentChars]
-
-	switch d := doc.(type) {
-	case *memory.TextDocument:
-		newDoc := *d
-		newDoc.FieldContent = truncatedContent
-		return &newDoc
-	case *memory.ConversationDocument:
-		// ConversationDocuments are handled by the chunking logic in PrepareDocuments.
-		// This function should not truncate them.
-		return d
-	default:
-		return doc
-	}
-}
-
-// PrepareDocuments converts raw documents into prepared documents with extracted metadata.
-func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, error) {
-	prepared := make([]PreparedDocument, 0, len(docs))
-	errors := make([]error, 0)
-
-	for _, doc := range docs {
-		// Handle conversation document chunking separately
-		if conv, ok := doc.(*memory.ConversationDocument); ok {
-			chunks := chunkConversationDocument(conv)
-			for _, chunk := range chunks {
-				p, err := prepareDocument(chunk, currentTime)
-				if err != nil {
-					errors = append(errors, fmt.Errorf("failed to prepare conversation chunk: %w", err))
-					continue
-				}
-				prepared = append(prepared, p)
-			}
-		} else {
-			// Process other document types as before
-			p, err := prepareDocument(doc, currentTime)
-			if err != nil {
-				errors = append(errors, fmt.Errorf("failed to prepare document: %w", err))
-				continue
-			}
-			prepared = append(prepared, p)
-		}
-	}
-
-	if len(errors) > 0 {
-		return nil, aggregateErrors(errors)
-	}
-
-	return prepared, nil
-}
-
-// chunkConversationDocument splits a ConversationDocument into smaller chunks based on MaxProcessableContentChars.
-func chunkConversationDocument(conv *memory.ConversationDocument) []memory.Document {
-	// If the entire conversation is already smaller than the max chunk size, don't chunk it.
-	if len(conv.Content()) < MaxProcessableContentChars {
-		return []memory.Document{conv}
-	}
-
-	var chunks []memory.Document
-	var currentChunkMessages []memory.ConversationMessage
-	currentCharCount := 0
-
-	for _, msg := range conv.Conversation {
-		msgContent := fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content)
-		msgLen := len(msgContent)
-
-		// Handle oversized individual messages
-		if msgLen > MaxProcessableContentChars {
-			// If there are messages in the current chunk, finalize it first
-			if len(currentChunkMessages) > 0 {
-				chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
-				chunks = append(chunks, chunk)
-				currentChunkMessages = nil
-				currentCharCount = 0
-			}
-
-			// Split the oversized message into multiple chunks
-			splitMessages := splitOversizedMessage(msg)
-			for _, splitMsg := range splitMessages {
-				// Each split message should fit in its own chunk
-				// (splitOversizedMessage ensures this)
-				chunk := createConversationChunk(conv, []memory.ConversationMessage{splitMsg}, len(chunks)+1)
-				chunks = append(chunks, chunk)
-			}
-			continue
-		}
-
-		// If adding this message exceeds the chunk size, finalize the current chunk
-		if currentCharCount+msgLen > MaxProcessableContentChars && len(currentChunkMessages) > 0 {
-			chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
-			chunks = append(chunks, chunk)
-
-			// Start a new chunk
-			currentChunkMessages = nil
-			currentCharCount = 0
-		}
-
-		currentChunkMessages = append(currentChunkMessages, msg)
-		currentCharCount += msgLen
-	}
-
-	// Add the last remaining chunk
-	if len(currentChunkMessages) > 0 {
-		chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
-		chunks = append(chunks, chunk)
-	}
-
-	// This case should ideally not be hit if the initial check is there, but as a safeguard:
-	if len(chunks) == 0 {
-		return []memory.Document{conv}
-	}
-
-	return chunks
-}
-
 // splitOversizedMessage splits a single message that exceeds MaxProcessableContentChars
 // into multiple smaller messages while preserving speaker and timestamp information.
 func splitOversizedMessage(msg memory.ConversationMessage) []memory.ConversationMessage {
@@ -275,39 +152,6 @@ func createConversationChunk(original *memory.ConversationDocument, messages []m
 		FieldTags:     original.Tags(),
 		FieldMetadata: metadata,
 	}
-}
-
-func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocument, error) {
-	validatedDoc := validateAndTruncateDocument(doc)
-
-	prepared := PreparedDocument{
-		Original:   validatedDoc,
-		Timestamp:  currentTime,
-		DateString: getCurrentDateForPrompt(),
-	}
-
-	switch d := validatedDoc.(type) {
-	case *memory.ConversationDocument:
-		prepared.Type = DocumentTypeConversation
-		// Use the User field as the speaker ID for conversation documents
-		if d.User != "" {
-			prepared.SpeakerID = d.User
-		}
-	case *memory.TextDocument:
-		prepared.Type = DocumentTypeText
-		// Text documents are document-level (no speaker)
-		// In the current implementation, speakerID is hardcoded as "user" but
-		// for the new pipeline we'll treat it as document-level
-	default:
-		return PreparedDocument{}, fmt.Errorf("unknown document type: %T", validatedDoc)
-	}
-
-	// Override timestamp if document provides one
-	if ts := validatedDoc.Timestamp(); ts != nil && !ts.IsZero() {
-		prepared.Timestamp = *ts
-	}
-
-	return prepared, nil
 }
 
 // DistributeWork splits documents evenly among workers.
@@ -813,4 +657,125 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// PrepareDocuments is THE function that does all document processing before memory storage.
+// It handles chunking, truncation, and metadata preparation in one clean orchestrated flow.
+func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, error) {
+	var prepared []PreparedDocument
+	var errors []error
+
+	for _, doc := range docs {
+		switch d := doc.(type) {
+		case *memory.ConversationDocument:
+			// Chunk conversations if needed, then prepare each chunk
+			chunks := chunkConversationIfNeeded(d)
+			for _, chunk := range chunks {
+				prep := addDocumentMetadata(chunk, DocumentTypeConversation, currentTime)
+				prepared = append(prepared, prep)
+			}
+
+		case *memory.TextDocument:
+			// Truncate text docs if needed, then prepare
+			truncated := truncateTextIfNeeded(d)
+			prep := addDocumentMetadata(truncated, DocumentTypeText, currentTime)
+			prepared = append(prepared, prep)
+
+		default:
+			errors = append(errors, fmt.Errorf("unknown document type: %T", doc))
+		}
+	}
+
+	if len(errors) > 0 {
+		return nil, aggregateErrors(errors)
+	}
+
+	return prepared, nil
+}
+
+// chunkConversationIfNeeded chunks conversations that exceed size limits. Pure function.
+func chunkConversationIfNeeded(conv *memory.ConversationDocument) []memory.Document {
+	if len(conv.Content()) < MaxProcessableContentChars {
+		return []memory.Document{conv}
+	}
+
+	var chunks []memory.Document
+	var currentChunkMessages []memory.ConversationMessage
+	currentCharCount := 0
+
+	for _, msg := range conv.Conversation {
+		msgContent := fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content)
+		msgLen := len(msgContent)
+
+		// Handle oversized individual messages
+		if msgLen > MaxProcessableContentChars {
+			// Finalize current chunk if it exists
+			if len(currentChunkMessages) > 0 {
+				chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
+				chunks = append(chunks, chunk)
+				currentChunkMessages = nil
+				currentCharCount = 0
+			}
+
+			// Split the oversized message
+			splitMessages := splitOversizedMessage(msg)
+			for _, splitMsg := range splitMessages {
+				chunk := createConversationChunk(conv, []memory.ConversationMessage{splitMsg}, len(chunks)+1)
+				chunks = append(chunks, chunk)
+			}
+			continue
+		}
+
+		// Start new chunk if adding this message would exceed limit
+		if currentCharCount+msgLen > MaxProcessableContentChars && len(currentChunkMessages) > 0 {
+			chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
+			chunks = append(chunks, chunk)
+			currentChunkMessages = nil
+			currentCharCount = 0
+		}
+
+		currentChunkMessages = append(currentChunkMessages, msg)
+		currentCharCount += msgLen
+	}
+
+	// Add final chunk
+	if len(currentChunkMessages) > 0 {
+		chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
+		chunks = append(chunks, chunk)
+	}
+
+	return chunks
+}
+
+// truncateTextIfNeeded truncates text documents that exceed size limits. Pure function.
+func truncateTextIfNeeded(doc *memory.TextDocument) memory.Document {
+	if len(doc.Content()) <= MaxProcessableContentChars {
+		return doc
+	}
+
+	newDoc := *doc
+	newDoc.FieldContent = doc.Content()[:MaxProcessableContentChars]
+	return &newDoc
+}
+
+// addDocumentMetadata adds all the metadata, timestamps, and speaker info. Pure function.
+func addDocumentMetadata(doc memory.Document, docType DocumentType, currentTime time.Time) PreparedDocument {
+	prep := PreparedDocument{
+		Original:   doc,
+		Type:       docType,
+		Timestamp:  currentTime,
+		DateString: getCurrentDateForPrompt(),
+	}
+
+	// Set speaker ID for conversations
+	if conv, ok := doc.(*memory.ConversationDocument); ok && conv.User != "" {
+		prep.SpeakerID = conv.User
+	}
+
+	// Override timestamp if document provides one
+	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
+		prep.Timestamp = *ts
+	}
+
+	return prep
 }

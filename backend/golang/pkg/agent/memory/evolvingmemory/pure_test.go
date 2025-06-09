@@ -185,13 +185,13 @@ func TestDocumentSizeValidation(t *testing.T) {
 			shouldTruncate: false,
 		},
 		{
-			name: "large document exceeding limits",
+			name: "large_document_exceeding_limits",
 			doc: &memory.TextDocument{
 				FieldID:      "large-doc",
-				FieldContent: strings.Repeat("This is a long document. ", 1000), // ~25,000 characters
+				FieldContent: strings.Repeat("x", MaxProcessableContentChars+25000), // Exceed limit by 25k
 				FieldSource:  "test",
 			},
-			expectedLength: 20000,
+			expectedLength: MaxProcessableContentChars, // Should be truncated to limit
 			shouldTruncate: true,
 		},
 		{
@@ -272,8 +272,11 @@ func TestDocumentSizeValidation(t *testing.T) {
 				return // Skip the rest of the test logic for this conversation document
 			}
 
-			// Original logic for non-conversation documents
-			validatedDoc := validateAndTruncateDocument(tt.doc)
+			// Test the clean function for text documents
+			prepared, err := PrepareDocuments([]memory.Document{tt.doc}, now)
+			require.NoError(t, err)
+			require.Len(t, prepared, 1)
+			validatedDoc := prepared[0].Original
 
 			// Check that content length is as expected
 			actualLength := len(validatedDoc.Content())
@@ -307,11 +310,11 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 
 	// Create a long conversation document that should be chunked
 	longConversation := make([]memory.ConversationMessage, 0)
-	// Create a conversation > 20000 chars to force chunking
-	for i := 0; i < 10; i++ {
+	// Create a conversation > 50000 chars to force chunking (new limit)
+	for i := 0; i < 25; i++ { // Increased from 10 to 25 messages
 		longConversation = append(longConversation, memory.ConversationMessage{
 			Speaker: "alice",
-			Content: strings.Repeat("This is a long test message to ensure chunking. ", 50), // Approx 2500 chars
+			Content: strings.Repeat("This is a long test message to ensure chunking happens with the new 50k limit. ", 50), // Approx 4000 chars per message
 			Time:    now.Add(time.Duration(i) * time.Second),
 		})
 	}
@@ -323,9 +326,16 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 		FieldTags:    []string{"project-x"},
 	}
 
+	// Debug: Check content length
+	contentLength := len(convDoc.Content())
+	t.Logf("Conversation content length: %d (MaxProcessableContentChars: %d)", contentLength, MaxProcessableContentChars)
+	t.Logf("Should be chunked: %t", contentLength >= MaxProcessableContentChars)
+
 	// Prepare documents
 	prepared, errors := PrepareDocuments([]memory.Document{convDoc}, now)
 	require.Empty(t, errors)
+
+	t.Logf("Number of prepared documents: %d", len(prepared))
 
 	// We expect multiple chunks because the total size exceeds ConversationChunkMaxChars
 	assert.True(t, len(prepared) > 1, "Expected document to be split into multiple chunks, but got %d", len(prepared))
@@ -381,7 +391,10 @@ func TestPrepareDocuments_OversizedMessageHandling(t *testing.T) {
 	now := time.Now()
 
 	// Create a single message that exceeds MaxProcessableContentChars
-	oversizedContent := strings.Repeat("This is a very long message that will exceed the maximum character limit. ", 300) // ~22,500 chars
+	// Calculate how many repetitions we need to exceed the limit
+	sampleText := "This is a very long message that will exceed the maximum character limit. "
+	repetitionsNeeded := (MaxProcessableContentChars / len(sampleText)) + 100 // Add extra to ensure we exceed
+	oversizedContent := strings.Repeat(sampleText, repetitionsNeeded)
 
 	convDoc := &memory.ConversationDocument{
 		FieldID: "conv-oversized-msg",
@@ -468,8 +481,8 @@ func TestSplitOversizedMessage(t *testing.T) {
 		},
 		{
 			name:              "very long message split into parts",
-			messageContent:    strings.Repeat("This is a long sentence that will be repeated many times. ", 400), // ~23,200 chars
-			expectedParts:     2,                                                                                 // Should be split into at least 2 parts
+			messageContent:    strings.Repeat("This is a long sentence that will be repeated many times. ", (MaxProcessableContentChars/60)+100), // Exceed limit
+			expectedParts:     2,                                                                                                                 // Should be split into at least 2 parts
 			expectPartMarkers: true,
 		},
 		{
@@ -573,8 +586,8 @@ func TestOversizedMessageEdgeCases(t *testing.T) {
 	})
 
 	t.Run("message with very long speaker name", func(t *testing.T) {
-		longSpeaker := strings.Repeat("verylongspeakername", 100) // Very long speaker name
-		content := strings.Repeat("content ", 5000)               // Large content
+		longSpeaker := strings.Repeat("verylongspeakername", 100)           // Very long speaker name
+		content := strings.Repeat("content ", MaxProcessableContentChars/8) // Large content that will exceed limit
 
 		msg := memory.ConversationMessage{
 			Speaker: longSpeaker,
