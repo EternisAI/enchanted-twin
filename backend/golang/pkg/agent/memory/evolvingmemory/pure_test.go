@@ -188,11 +188,11 @@ func TestDocumentSizeValidation(t *testing.T) {
 			name: "large_document_exceeding_limits",
 			doc: &memory.TextDocument{
 				FieldID:      "large-doc",
-				FieldContent: strings.Repeat("x", MaxProcessableContentChars+25000), // Exceed limit by 25k
+				FieldContent: strings.Repeat("x", memory.MaxProcessableContentChars+25000), // Exceed limit by 25k
 				FieldSource:  "test",
 			},
-			expectedLength: MaxProcessableContentChars, // Should be truncated to limit
-			shouldTruncate: true,
+			expectedLength: memory.MaxProcessableContentChars + 25000, // Should be chunked, not truncated
+			shouldTruncate: false,                                     // Now chunking instead of truncating
 		},
 		{
 			name: "conversation document exceeding limits",
@@ -246,7 +246,7 @@ func TestDocumentSizeValidation(t *testing.T) {
 				require.NoError(t, err)
 
 				// It should be chunked if it's large enough
-				if len(convDoc.Content()) > MaxProcessableContentChars {
+				if len(convDoc.Content()) > memory.MaxProcessableContentChars {
 					assert.True(t, len(prepared) > 1, "Expected large conversation to be chunked into multiple documents")
 
 					// A large conversation should be chunked, not truncated.
@@ -275,32 +275,40 @@ func TestDocumentSizeValidation(t *testing.T) {
 			// Test the clean function for text documents
 			prepared, err := PrepareDocuments([]memory.Document{tt.doc}, now)
 			require.NoError(t, err)
-			require.Len(t, prepared, 1)
-			validatedDoc := prepared[0].Original
 
-			// Check that content length is as expected
-			actualLength := len(validatedDoc.Content())
-			assert.Equal(t, tt.expectedLength, actualLength,
-				"Content length should be %d, got %d", tt.expectedLength, actualLength)
+			if len(tt.doc.Content()) > memory.MaxProcessableContentChars {
+				// Large text documents should now be chunked
+				assert.True(t, len(prepared) > 1, "Expected large text document to be chunked into multiple documents")
 
-			// Check if document was truncated or not
-			if tt.shouldTruncate {
-				// For truncated documents, verify content is actually truncated
-				originalLength := len(tt.doc.Content())
-				assert.Greater(t, originalLength, actualLength,
-					"Original content (%d chars) should be longer than truncated content (%d chars)",
-					originalLength, actualLength)
+				// Verify total content is preserved across chunks
+				var combinedContent strings.Builder
+				for _, p := range prepared {
+					combinedContent.WriteString(p.Original.Content())
+				}
+				assert.Equal(t, tt.expectedLength, combinedContent.Len(),
+					"Combined content length should be %d, got %d", tt.expectedLength, combinedContent.Len())
+
+				// Each chunk should be a text document
+				for _, p := range prepared {
+					_, isTextChunk := p.Original.(*memory.TextDocument)
+					assert.True(t, isTextChunk, "Chunk of a text document should be a TextDocument")
+				}
 			} else {
-				// For non-truncated documents, verify we have the same instance
+				// Small documents should not be chunked
+				require.Len(t, prepared, 1)
+				validatedDoc := prepared[0].Original
+				actualLength := len(validatedDoc.Content())
+				assert.Equal(t, tt.expectedLength, actualLength,
+					"Content length should be %d, got %d", tt.expectedLength, actualLength)
 				assert.Equal(t, tt.doc.Content(), validatedDoc.Content(),
-					"Non-truncated content should be the same")
-			}
+					"Small document content should be the same")
 
-			// Verify other properties are preserved
-			assert.Equal(t, tt.doc.ID(), validatedDoc.ID())
-			assert.Equal(t, tt.doc.Tags(), validatedDoc.Tags())
-			assert.Equal(t, tt.doc.Metadata(), validatedDoc.Metadata())
-			assert.Equal(t, tt.doc.Source(), validatedDoc.Source())
+				// Verify other properties are preserved for small documents
+				assert.Equal(t, tt.doc.ID(), validatedDoc.ID())
+				assert.Equal(t, tt.doc.Tags(), validatedDoc.Tags())
+				assert.Equal(t, tt.doc.Metadata(), validatedDoc.Metadata())
+				assert.Equal(t, tt.doc.Source(), validatedDoc.Source())
+			}
 		})
 	}
 }
@@ -328,8 +336,8 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 
 	// Debug: Check content length
 	contentLength := len(convDoc.Content())
-	t.Logf("Conversation content length: %d (MaxProcessableContentChars: %d)", contentLength, MaxProcessableContentChars)
-	t.Logf("Should be chunked: %t", contentLength >= MaxProcessableContentChars)
+	t.Logf("Conversation content length: %d (MaxProcessableContentChars: %d)", contentLength, memory.MaxProcessableContentChars)
+	t.Logf("Should be chunked: %t", contentLength >= memory.MaxProcessableContentChars)
 
 	// Prepare documents
 	prepared, errors := PrepareDocuments([]memory.Document{convDoc}, now)
@@ -393,7 +401,7 @@ func TestPrepareDocuments_OversizedMessageHandling(t *testing.T) {
 	// Create a single message that exceeds MaxProcessableContentChars
 	// Calculate how many repetitions we need to exceed the limit
 	sampleText := "This is a very long message that will exceed the maximum character limit. "
-	repetitionsNeeded := (MaxProcessableContentChars / len(sampleText)) + 100 // Add extra to ensure we exceed
+	repetitionsNeeded := (memory.MaxProcessableContentChars / len(sampleText)) + 100 // Add extra to ensure we exceed
 	oversizedContent := strings.Repeat(sampleText, repetitionsNeeded)
 
 	convDoc := &memory.ConversationDocument{
@@ -453,7 +461,7 @@ func TestPrepareDocuments_OversizedMessageHandling(t *testing.T) {
 		chunk, ok := p.Original.(*memory.ConversationDocument)
 		require.True(t, ok, "Expected chunk to be a ConversationDocument")
 		chunkContent := chunk.Content()
-		assert.LessOrEqual(t, len(chunkContent), MaxProcessableContentChars,
+		assert.LessOrEqual(t, len(chunkContent), memory.MaxProcessableContentChars,
 			"Chunk %d should not exceed MaxProcessableContentChars. Length: %d", i, len(chunkContent))
 
 		// Each chunk should be a valid ConversationDocument
@@ -481,14 +489,14 @@ func TestSplitOversizedMessage(t *testing.T) {
 		},
 		{
 			name:              "very long message split into parts",
-			messageContent:    strings.Repeat("This is a long sentence that will be repeated many times. ", (MaxProcessableContentChars/60)+100), // Exceed limit
-			expectedParts:     2,                                                                                                                 // Should be split into at least 2 parts
+			messageContent:    strings.Repeat("This is a long sentence that will be repeated many times. ", (memory.MaxProcessableContentChars/60)+100), // Exceed limit
+			expectedParts:     2,                                                                                                                        // Should be split into at least 2 parts
 			expectPartMarkers: true,
 		},
 		{
 			name:              "extremely long message",
-			messageContent:    strings.Repeat("X", MaxProcessableContentChars*3), // 3x the limit
-			expectedParts:     3,                                                 // Should be split into at least 3 parts
+			messageContent:    strings.Repeat("X", memory.MaxProcessableContentChars*3), // 3x the limit
+			expectedParts:     3,                                                        // Should be split into at least 3 parts
 			expectPartMarkers: true,
 		},
 	}
@@ -501,14 +509,15 @@ func TestSplitOversizedMessage(t *testing.T) {
 				Time:    now,
 			}
 
-			splitMessages := splitOversizedMessage(msg)
+			convDoc := &memory.ConversationDocument{}
+			splitMessages := convDoc.SplitOversizedMessage(msg)
 			assert.GreaterOrEqual(t, len(splitMessages), tt.expectedParts,
 				"Should split into at least %d parts", tt.expectedParts)
 
 			// Verify each split message respects size limits
 			for i, splitMsg := range splitMessages {
 				msgContent := fmt.Sprintf("%s: %s\n", splitMsg.Speaker, splitMsg.Content)
-				assert.LessOrEqual(t, len(msgContent), MaxProcessableContentChars,
+				assert.LessOrEqual(t, len(msgContent), memory.MaxProcessableContentChars,
 					"Split message %d should not exceed MaxProcessableContentChars", i)
 
 				// Verify speaker and timestamp preservation
@@ -560,7 +569,7 @@ func TestOversizedMessageEdgeCases(t *testing.T) {
 	t.Run("message exactly at limit", func(t *testing.T) {
 		// Create a message that's exactly at the limit (accounting for speaker prefix and newline)
 		speakerPrefix := "user: "
-		exactContent := strings.Repeat("x", MaxProcessableContentChars-len(speakerPrefix)-1)
+		exactContent := strings.Repeat("x", memory.MaxProcessableContentChars-len(speakerPrefix)-1)
 
 		msg := memory.ConversationMessage{
 			Speaker: "user",
@@ -568,7 +577,8 @@ func TestOversizedMessageEdgeCases(t *testing.T) {
 			Time:    now,
 		}
 
-		splitMessages := splitOversizedMessage(msg)
+		convDoc := &memory.ConversationDocument{}
+		splitMessages := convDoc.SplitOversizedMessage(msg)
 		assert.Len(t, splitMessages, 1, "Message exactly at limit should not be split")
 		assert.Equal(t, exactContent, splitMessages[0].Content)
 	})
@@ -580,14 +590,15 @@ func TestOversizedMessageEdgeCases(t *testing.T) {
 			Time:    now,
 		}
 
-		splitMessages := splitOversizedMessage(msg)
+		convDoc := &memory.ConversationDocument{}
+		splitMessages := convDoc.SplitOversizedMessage(msg)
 		assert.Len(t, splitMessages, 1, "Empty message should result in single message")
 		assert.Equal(t, "", splitMessages[0].Content)
 	})
 
 	t.Run("message with very long speaker name", func(t *testing.T) {
-		longSpeaker := strings.Repeat("verylongspeakername", 100)           // Very long speaker name
-		content := strings.Repeat("content ", MaxProcessableContentChars/8) // Large content that will exceed limit
+		longSpeaker := strings.Repeat("verylongspeakername", 100)                  // Very long speaker name
+		content := strings.Repeat("content ", memory.MaxProcessableContentChars/8) // Large content that will exceed limit
 
 		msg := memory.ConversationMessage{
 			Speaker: longSpeaker,
@@ -595,12 +606,13 @@ func TestOversizedMessageEdgeCases(t *testing.T) {
 			Time:    now,
 		}
 
-		splitMessages := splitOversizedMessage(msg)
+		convDoc := &memory.ConversationDocument{}
+		splitMessages := convDoc.SplitOversizedMessage(msg)
 
 		// Should handle gracefully even with long speaker names
 		for i, splitMsg := range splitMessages {
 			msgContent := fmt.Sprintf("%s: %s\n", splitMsg.Speaker, splitMsg.Content)
-			assert.LessOrEqual(t, len(msgContent), MaxProcessableContentChars+100, // Small tolerance for edge cases
+			assert.LessOrEqual(t, len(msgContent), memory.MaxProcessableContentChars+100, // Small tolerance for edge cases
 				"Split message %d should roughly respect size limits even with long speaker name", i)
 			assert.Equal(t, longSpeaker, splitMsg.Speaker, "Speaker name should be preserved")
 		}

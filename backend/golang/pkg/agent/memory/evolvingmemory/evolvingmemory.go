@@ -28,13 +28,6 @@ const (
 	ExtractFactsToolName = "EXTRACT_FACTS"
 )
 
-const (
-	// Qwen-2.5-70b has 128k token context window
-	// Our Target slice is 0.1 × 128 K tokens ≈ 12.8 K tokens.
-	// Multiply by the conservative 4-char factor ≈ 50 K characters.
-	MaxProcessableContentChars = 50000
-)
-
 // Document types.
 type DocumentType string
 
