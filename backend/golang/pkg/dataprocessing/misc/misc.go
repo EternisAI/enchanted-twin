@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/log"
 	"github.com/ledongthuc/pdf"
 	"github.com/openai/openai-go"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
-	"github.com/charmbracelet/log"
 )
 
 const (

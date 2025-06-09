@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/charmbracelet/log"
 )
 
 func TestToDocuments(t *testing.T) {

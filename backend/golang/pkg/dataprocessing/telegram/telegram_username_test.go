@@ -6,8 +6,9 @@ import (
 	"os"
 	"testing"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestUsernameExtraction(t *testing.T) {
