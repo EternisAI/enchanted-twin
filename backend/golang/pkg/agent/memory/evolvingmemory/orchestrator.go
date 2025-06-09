@@ -130,16 +130,14 @@ func (o *memoryOrchestrator) extractFactsWorker(
 			continue
 		}
 
-		for _, factContent := range facts {
-			if factContent == "" {
+		for _, fact := range facts {
+			if fact.Content == "" {
 				continue
 			}
 
-			fact := ExtractedFact{
-				Content:   factContent,
-				SpeakerID: doc.SpeakerID,
-				Source:    doc,
-			}
+			// Populate the missing fields in ExtractedFact
+			fact.SpeakerID = doc.SpeakerID
+			fact.Source = doc
 
 			select {
 			case out <- fact:

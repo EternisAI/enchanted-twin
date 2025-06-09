@@ -4,6 +4,7 @@ import { Edit3, Check, X } from 'lucide-react'
 import { Thread } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { cn } from '@renderer/lib/utils'
+import { useChatActions } from '@renderer/contexts/ChatContext'
 
 export default function HolonThreadPreview({
   thread
@@ -15,7 +16,7 @@ export default function HolonThreadPreview({
   const [editedTitle, setEditedTitle] = useState(thread.title)
   const [editedContent, setEditedContent] = useState(thread.content)
 
-  const actions = thread.actions || ['Send to Holon', 'Nevermind']
+  const { sendMessage } = useChatActions()
 
   const handleSaveTitle = () => {
     // TODO: Add mutation to save title
@@ -159,16 +160,15 @@ export default function HolonThreadPreview({
 
         <div className=" w-xl bg-transparent backdrop-blur-xs border-t border-white/20 py-1">
           <div className="flex items-center gap-4 w-full">
-            {actions.map((action, index) => (
-              <Button
-                key={index}
-                variant={index === 0 ? 'default' : 'outline'}
-                size="sm"
-                //   onClick={() => handleActionClick(action)}
-              >
-                {action}
-              </Button>
-            ))}
+            <Button
+              variant="default"
+              size="sm"
+              onClick={() => {
+                sendMessage('Send to Holon', false, false)
+              }}
+            >
+              Send To Holon
+            </Button>
           </div>
         </div>
       </div>

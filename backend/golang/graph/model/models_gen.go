@@ -39,11 +39,12 @@ type Author struct {
 }
 
 type Chat struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	Messages  []*Message `json:"messages"`
-	CreatedAt string     `json:"createdAt"`
-	Voice     bool       `json:"voice"`
+	ID            string       `json:"id"`
+	Name          string       `json:"name"`
+	Messages      []*Message   `json:"messages"`
+	CreatedAt     string       `json:"createdAt"`
+	Category      ChatCategory `json:"category"`
+	HolonThreadID *string      `json:"holonThreadId,omitempty"`
 }
 
 type ChatSuggestionsCategory struct {
@@ -227,6 +228,63 @@ type WhatsAppSyncStatus struct {
 	IsCompleted   bool    `json:"isCompleted"`
 	Error         *string `json:"error,omitempty"`
 	StatusMessage *string `json:"statusMessage,omitempty"`
+}
+
+type ChatCategory string
+
+const (
+	ChatCategoryText  ChatCategory = "TEXT"
+	ChatCategoryVoice ChatCategory = "VOICE"
+	ChatCategoryHolon ChatCategory = "HOLON"
+)
+
+var AllChatCategory = []ChatCategory{
+	ChatCategoryText,
+	ChatCategoryVoice,
+	ChatCategoryHolon,
+}
+
+func (e ChatCategory) IsValid() bool {
+	switch e {
+	case ChatCategoryText, ChatCategoryVoice, ChatCategoryHolon:
+		return true
+	}
+	return false
+}
+
+func (e ChatCategory) String() string {
+	return string(e)
+}
+
+func (e *ChatCategory) UnmarshalGQL(v any) error {
+	str, ok := v.(string)
+	if !ok {
+		return fmt.Errorf("enums must be strings")
+	}
+
+	*e = ChatCategory(str)
+	if !e.IsValid() {
+		return fmt.Errorf("%s is not a valid ChatCategory", str)
+	}
+	return nil
+}
+
+func (e ChatCategory) MarshalGQL(w io.Writer) {
+	fmt.Fprint(w, strconv.Quote(e.String()))
+}
+
+func (e *ChatCategory) UnmarshalJSON(b []byte) error {
+	s, err := strconv.Unquote(string(b))
+	if err != nil {
+		return err
+	}
+	return e.UnmarshalGQL(s)
+}
+
+func (e ChatCategory) MarshalJSON() ([]byte, error) {
+	var buf bytes.Buffer
+	e.MarshalGQL(&buf)
+	return buf.Bytes(), nil
 }
 
 type IndexingState string

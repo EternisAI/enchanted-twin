@@ -15,7 +15,7 @@ import (
 // This interface contains no orchestration concerns (channels, workers, progress reporting).
 type MemoryEngine interface {
 	// Core business operations
-	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error)
+	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error)
 	ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error)
 	ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error)
 
@@ -28,6 +28,8 @@ type MemoryEngine interface {
 
 	// Storage operations
 	StoreBatch(ctx context.Context, objects []*models.Object) error
+
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 }
 
 // memoryEngine implements MemoryEngine with pure business logic.
@@ -56,8 +58,17 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 	}, nil
 }
 
+// convertEmbedding converts a slice of float64 to float32 for vector operations.
+func convertEmbedding(embedding []float64) []float32 {
+	result := make([]float32, len(embedding))
+	for i, v := range embedding {
+		result[i] = float32(v)
+	}
+	return result
+}
+
 // ExtractFacts extracts facts from a document using pure business logic.
-func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]string, error) {
+func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
 	return ExtractFactsFromDocument(ctx, doc, e.completionsService)
 }
 
@@ -114,7 +125,7 @@ func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, 
 			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
 		}
 
-		if err := e.UpdateMemory(ctx, decision.TargetID, fact.Content, toFloat32(embedding)); err != nil {
+		if err := e.UpdateMemory(ctx, decision.TargetID, fact.Content, convertEmbedding(embedding)); err != nil {
 			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("update failed: %w", err)}, nil
 		}
 
@@ -194,12 +205,50 @@ func (e *memoryEngine) DeleteMemory(ctx context.Context, memoryID string) error 
 	return e.storage.Delete(ctx, memoryID)
 }
 
-// CreateMemoryObject creates a memory object for storage.
+// CreateMemoryObject creates a memory object for storage with separate document storage.
 func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
-	return CreateMemoryObjectWithEmbedding(ctx, fact, decision, e.embeddingsService)
+	documentID, err := e.storage.StoreDocument(
+		ctx,
+		fact.Source.Original.Content(),
+		string(fact.Source.Type),
+		fact.Source.Original.ID(),
+		fact.Source.Original.Metadata(),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("storing document: %w", err)
+	}
+
+	obj := CreateMemoryObjectWithDocumentReferences(fact, decision, []string{documentID})
+
+	embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, openAIEmbedModel)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding: %w", err)
+	}
+
+	obj.Vector = convertEmbedding(embedding)
+	return obj, nil
 }
 
 // StoreBatch stores a batch of objects.
 func (e *memoryEngine) StoreBatch(ctx context.Context, objects []*models.Object) error {
 	return e.storage.StoreBatch(ctx, objects)
+}
+
+// GetDocumentReferences retrieves all document references for a memory.
+func (e *memoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+	storageRefs, err := e.storage.GetDocumentReferences(ctx, memoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	refs := make([]*DocumentReference, len(storageRefs))
+	for i, storageRef := range storageRefs {
+		refs[i] = &DocumentReference{
+			ID:      storageRef.ID,
+			Content: storageRef.Content,
+			Type:    storageRef.Type,
+		}
+	}
+
+	return refs, nil
 }

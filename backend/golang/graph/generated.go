@@ -81,11 +81,12 @@ type ComplexityRoot struct {
 	}
 
 	Chat struct {
-		CreatedAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Messages  func(childComplexity int) int
-		Name      func(childComplexity int) int
-		Voice     func(childComplexity int) int
+		Category      func(childComplexity int) int
+		CreatedAt     func(childComplexity int) int
+		HolonThreadID func(childComplexity int) int
+		ID            func(childComplexity int) int
+		Messages      func(childComplexity int) int
+		Name          func(childComplexity int) int
 	}
 
 	ChatSuggestionsCategory struct {
@@ -162,7 +163,7 @@ type ComplexityRoot struct {
 		AddDataSource             func(childComplexity int, name string, path string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
-		CreateChat                func(childComplexity int, name string, voice bool) int
+		CreateChat                func(childComplexity int, name string, category model.ChatCategory, holonThreadID *string) int
 		DeleteAgentTask           func(childComplexity int, id string) int
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
@@ -302,7 +303,7 @@ type MutationResolver interface {
 	CompleteOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
 	RefreshExpiredOAuthTokens(ctx context.Context) ([]*model.OAuthStatus, error)
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
-	CreateChat(ctx context.Context, name string, voice bool) (*model.Chat, error)
+	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
@@ -507,12 +508,26 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Author.Identity(childComplexity), true
 
+	case "Chat.category":
+		if e.complexity.Chat.Category == nil {
+			break
+		}
+
+		return e.complexity.Chat.Category(childComplexity), true
+
 	case "Chat.createdAt":
 		if e.complexity.Chat.CreatedAt == nil {
 			break
 		}
 
 		return e.complexity.Chat.CreatedAt(childComplexity), true
+
+	case "Chat.holonThreadId":
+		if e.complexity.Chat.HolonThreadID == nil {
+			break
+		}
+
+		return e.complexity.Chat.HolonThreadID(childComplexity), true
 
 	case "Chat.id":
 		if e.complexity.Chat.ID == nil {
@@ -534,13 +549,6 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Chat.Name(childComplexity), true
-
-	case "Chat.voice":
-		if e.complexity.Chat.Voice == nil {
-			break
-		}
-
-		return e.complexity.Chat.Voice(childComplexity), true
 
 	case "ChatSuggestionsCategory.category":
 		if e.complexity.ChatSuggestionsCategory.Category == nil {
@@ -915,7 +923,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string), args["voice"].(bool)), true
+		return e.complexity.Mutation.CreateChat(childComplexity, args["name"].(string), args["category"].(model.ChatCategory), args["holonThreadId"].(*string)), true
 
 	case "Mutation.deleteAgentTask":
 		if e.complexity.Mutation.DeleteAgentTask == nil {
@@ -1899,11 +1907,16 @@ func (ec *executionContext) field_Mutation_createChat_args(ctx context.Context, 
 		return nil, err
 	}
 	args["name"] = arg0
-	arg1, err := ec.field_Mutation_createChat_argsVoice(ctx, rawArgs)
+	arg1, err := ec.field_Mutation_createChat_argsCategory(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["voice"] = arg1
+	args["category"] = arg1
+	arg2, err := ec.field_Mutation_createChat_argsHolonThreadID(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["holonThreadId"] = arg2
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_createChat_argsName(
@@ -1919,16 +1932,29 @@ func (ec *executionContext) field_Mutation_createChat_argsName(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_createChat_argsVoice(
+func (ec *executionContext) field_Mutation_createChat_argsCategory(
 	ctx context.Context,
 	rawArgs map[string]any,
-) (bool, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("voice"))
-	if tmp, ok := rawArgs["voice"]; ok {
-		return ec.unmarshalNBoolean2bool(ctx, tmp)
+) (model.ChatCategory, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("category"))
+	if tmp, ok := rawArgs["category"]; ok {
+		return ec.unmarshalNChatCategory2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatCategory(ctx, tmp)
 	}
 
-	var zeroVal bool
+	var zeroVal model.ChatCategory
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_createChat_argsHolonThreadID(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (*string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("holonThreadId"))
+	if tmp, ok := rawArgs["holonThreadId"]; ok {
+		return ec.unmarshalOString2ᚖstring(ctx, tmp)
+	}
+
+	var zeroVal *string
 	return zeroVal, nil
 }
 
@@ -3764,8 +3790,8 @@ func (ec *executionContext) fieldContext_Chat_createdAt(_ context.Context, field
 	return fc, nil
 }
 
-func (ec *executionContext) _Chat_voice(ctx context.Context, field graphql.CollectedField, obj *model.Chat) (ret graphql.Marshaler) {
-	fc, err := ec.fieldContext_Chat_voice(ctx, field)
+func (ec *executionContext) _Chat_category(ctx context.Context, field graphql.CollectedField, obj *model.Chat) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Chat_category(ctx, field)
 	if err != nil {
 		return graphql.Null
 	}
@@ -3778,7 +3804,7 @@ func (ec *executionContext) _Chat_voice(ctx context.Context, field graphql.Colle
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Voice, nil
+		return obj.Category, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -3790,19 +3816,60 @@ func (ec *executionContext) _Chat_voice(ctx context.Context, field graphql.Colle
 		}
 		return graphql.Null
 	}
-	res := resTmp.(bool)
+	res := resTmp.(model.ChatCategory)
 	fc.Result = res
-	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+	return ec.marshalNChatCategory2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatCategory(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) fieldContext_Chat_voice(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+func (ec *executionContext) fieldContext_Chat_category(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Chat",
 		Field:      field,
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type Boolean does not have child fields")
+			return nil, errors.New("field of type ChatCategory does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Chat_holonThreadId(ctx context.Context, field graphql.CollectedField, obj *model.Chat) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Chat_holonThreadId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.HolonThreadID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*string)
+	fc.Result = res
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Chat_holonThreadId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Chat",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -6053,7 +6120,7 @@ func (ec *executionContext) _Mutation_createChat(ctx context.Context, field grap
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string), fc.Args["voice"].(bool))
+		return ec.resolvers.Mutation().CreateChat(rctx, fc.Args["name"].(string), fc.Args["category"].(model.ChatCategory), fc.Args["holonThreadId"].(*string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -6086,8 +6153,10 @@ func (ec *executionContext) fieldContext_Mutation_createChat(ctx context.Context
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
-			case "voice":
-				return ec.fieldContext_Chat_voice(ctx, field)
+			case "category":
+				return ec.fieldContext_Chat_category(ctx, field)
+			case "holonThreadId":
+				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -6224,8 +6293,10 @@ func (ec *executionContext) fieldContext_Mutation_deleteChat(ctx context.Context
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
-			case "voice":
-				return ec.fieldContext_Chat_voice(ctx, field)
+			case "category":
+				return ec.fieldContext_Chat_category(ctx, field)
+			case "holonThreadId":
+				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -7236,8 +7307,10 @@ func (ec *executionContext) fieldContext_Query_getChats(ctx context.Context, fie
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
-			case "voice":
-				return ec.fieldContext_Chat_voice(ctx, field)
+			case "category":
+				return ec.fieldContext_Chat_category(ctx, field)
+			case "holonThreadId":
+				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -7303,8 +7376,10 @@ func (ec *executionContext) fieldContext_Query_getChat(ctx context.Context, fiel
 				return ec.fieldContext_Chat_messages(ctx, field)
 			case "createdAt":
 				return ec.fieldContext_Chat_createdAt(ctx, field)
-			case "voice":
-				return ec.fieldContext_Chat_voice(ctx, field)
+			case "category":
+				return ec.fieldContext_Chat_category(ctx, field)
+			case "holonThreadId":
+				return ec.fieldContext_Chat_holonThreadId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Chat", field.Name)
 		},
@@ -12990,11 +13065,13 @@ func (ec *executionContext) _Chat(ctx context.Context, sel ast.SelectionSet, obj
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
-		case "voice":
-			out.Values[i] = ec._Chat_voice(ctx, field, obj)
+		case "category":
+			out.Values[i] = ec._Chat_category(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				atomic.AddUint32(&out.Invalids, 1)
 			}
+		case "holonThreadId":
+			out.Values[i] = ec._Chat_holonThreadId(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -15236,6 +15313,16 @@ func (ec *executionContext) marshalNChat2ᚖgithubᚗcomᚋEternisAIᚋenchanted
 		return graphql.Null
 	}
 	return ec._Chat(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalNChatCategory2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatCategory(ctx context.Context, v any) (model.ChatCategory, error) {
+	var res model.ChatCategory
+	err := res.UnmarshalGQL(v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalNChatCategory2githubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatCategory(ctx context.Context, sel ast.SelectionSet, v model.ChatCategory) graphql.Marshaler {
+	return v
 }
 
 func (ec *executionContext) marshalNChatSuggestionsCategory2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐChatSuggestionsCategoryᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.ChatSuggestionsCategory) graphql.Marshaler {

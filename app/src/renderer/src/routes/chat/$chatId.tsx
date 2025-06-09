@@ -1,5 +1,6 @@
 // routes/chat/$chatId.tsx
 import ChatView from '@renderer/components/chat/ChatView'
+import { ChatProvider } from '@renderer/contexts/ChatContext'
 import { client } from '@renderer/graphql/lib'
 import { createFileRoute } from '@tanstack/react-router'
 import { GetChatDocument } from '@renderer/graphql/generated/graphql'
@@ -72,12 +73,9 @@ function ChatRouteComponent() {
       <div className="flex-1 overflow-hidden w-full">
         <div className="flex flex-col items-center h-full w-full">
           <div className="w-full mx-auto h-full">
-            <ChatView
-              key={data.id}
-              chat={data}
-              initialMessage={initialMessage}
-              threadId={threadId}
-            />
+            <ChatProvider chat={data} initialMessage={initialMessage}>
+              <ChatView key={data.id} chat={data} />
+            </ChatProvider>
           </div>
         </div>
       </div>

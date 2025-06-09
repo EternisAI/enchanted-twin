@@ -66,12 +66,16 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query threads: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
 
 	var threads []*model.Thread
 	for rows.Next() {
-		var dbThread dbThread
-		var author dbAuthor
+		var thread dbThread
+		var threadAuthor dbAuthor
 
 		err := rows.Scan(
 			&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
@@ -82,12 +86,12 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 			return nil, fmt.Errorf("failed to scan thread row: %w", err)
 		}
 
-		thread, err := r.dbThreadToModel(ctx, &dbThread, &author)
+		threadModel, err := r.dbThreadToModel(ctx, &thread, &threadAuthor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert thread to model: %w", err)
 		}
 
-		threads = append(threads, thread)
+		threads = append(threads, threadModel)
 	}
 
 	if err = rows.Err(); err != nil {
@@ -107,8 +111,8 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 		WHERE t.id = ?
 	`
 
-	var dbThread dbThread
-	var author dbAuthor
+	var thread dbThread
+	var threadAuthor dbAuthor
 
 	err := r.db.QueryRowContext(ctx, query, threadID).Scan(
 		&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
@@ -122,12 +126,12 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 		return nil, fmt.Errorf("failed to get thread: %w", err)
 	}
 
-	thread, err := r.dbThreadToModel(ctx, &dbThread, &author)
+	threadModel, err := r.dbThreadToModel(ctx, &thread, &threadAuthor)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert thread to model: %w", err)
 	}
 
-	return thread, nil
+	return threadModel, nil
 }
 
 func (r *Repository) CreateThread(ctx context.Context, id, title, content string, authorIdentity string, imageURLs []string, actions []string, expiresAt *string, state string) (*model.Thread, error) {
@@ -194,23 +198,28 @@ func (r *Repository) GetThreadMessages(ctx context.Context, threadID string) ([]
 	if err != nil {
 		return nil, fmt.Errorf("failed to query thread messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			// Ignore error on close during defer
+			_ = cerr
+		}
+	}()
 
 	var messages []*model.ThreadMessage
 	for rows.Next() {
 		var dbMessage dbThreadMessage
-		var author dbAuthor
+		var messageAuthor dbAuthor
 
 		err := rows.Scan(
 			&dbMessage.ID, &dbMessage.ThreadID, &dbMessage.AuthorIdentity, &dbMessage.Content,
 			&dbMessage.CreatedAt, &dbMessage.IsDelivered, &dbMessage.Actions,
-			&author.Identity, &author.Alias,
+			&messageAuthor.Identity, &messageAuthor.Alias,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan thread message row: %w", err)
 		}
 
-		message, err := r.dbThreadMessageToModel(&dbMessage, &author)
+		message, err := r.dbThreadMessageToModel(&dbMessage, &messageAuthor)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert thread message to model: %w", err)
 		}
@@ -331,17 +340,17 @@ func (r *Repository) CreateOrUpdateAuthor(ctx context.Context, identity, alias s
 	}
 
 	// Return the created/updated author
-	var dbAuthor dbAuthor
+	var authorRecord dbAuthor
 	err = r.db.QueryRowContext(ctx, "SELECT identity, alias FROM authors WHERE identity = ?", identity).Scan(
-		&dbAuthor.Identity, &dbAuthor.Alias,
+		&authorRecord.Identity, &authorRecord.Alias,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get created/updated author: %w", err)
 	}
 
 	return &model.Author{
-		Identity: dbAuthor.Identity,
-		Alias:    dbAuthor.Alias,
+		Identity: authorRecord.Identity,
+		Alias:    authorRecord.Alias,
 	}, nil
 }
 
@@ -392,6 +401,7 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 		fmt.Printf("DEBUG: Rows affected by INSERT: %d\n", rowsAffected)
 	}
 
+<<<<<<< HEAD
 	return nil
 }
 
@@ -462,6 +472,8 @@ func (r *Repository) UpdateThreadState(ctx context.Context, threadID, state stri
 	if err != nil {
 		return fmt.Errorf("failed to update thread state: %w", err)
 	}
+=======
+>>>>>>> feature/holon
 	return nil
 }
 

@@ -19,7 +19,10 @@ lint:
 	golangci-lint run --fix
 
 test:
-	go test ./...
+	go test -short ./...
+
+test-integration:
+	go test -v ./pkg/dataprocessing/integration/... -timeout=15m
 
 gqlgen:
 	go run github.com/99designs/gqlgen generate
@@ -30,6 +33,3 @@ run-telegram-chat:
 deadcode:
 	@echo "=== Checking for transitively dead functions ==="
 	@go run golang.org/x/tools/cmd/deadcode@latest ./...
-
-test-memory:
-	go run cmd/memory-test/main.go

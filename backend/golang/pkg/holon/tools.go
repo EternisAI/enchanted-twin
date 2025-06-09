@@ -379,30 +379,3 @@ func (t *AddMessageToThreadTool) Definition() openai.ChatCompletionToolParam {
 		},
 	}
 }
-
-func generateSuggestedTags(content string) []string {
-	tags := []string{"discussion"}
-
-	if len(content) > 200 {
-		tags = append(tags, "long-form")
-	}
-
-	// Simple keyword detection
-	contentLower := strings.ToLower(content)
-	keywords := map[string]string{
-		"ai":            "artificial-intelligence",
-		"blockchain":    "blockchain",
-		"research":      "research",
-		"collaboration": "collaboration",
-		"question":      "question",
-		"idea":          "idea",
-	}
-
-	for keyword, tag := range keywords {
-		if strings.Contains(contentLower, keyword) {
-			tags = append(tags, tag)
-		}
-	}
-
-	return tags
-}
