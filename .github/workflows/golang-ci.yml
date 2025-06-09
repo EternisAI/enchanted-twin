@@ -11,12 +11,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  changes:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend/golang
-
+    outputs:
+      backend: ${{ steps.changes.outputs.backend }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,18 +28,23 @@ jobs:
             backend:
               - 'backend/golang/**'
 
-      - name: Skip – no backend changes
-        if: steps.changes.outputs.backend != 'true'
-        run: echo "✅ No backend changes – skipping Go CI."
+  lint-build-test:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    defaults:
+      run:
+        working-directory: backend/golang
+
+    steps:
+      - uses: actions/checkout@v4
 
       - uses: actions/setup-go@v5
-        if: steps.changes.outputs.backend == 'true'
         with:
           go-version-file: backend/golang/go.mod
           cache-dependency-path: backend/golang/go.sum
 
       - name: Lint only the diff
-        if: steps.changes.outputs.backend == 'true'
         uses: golangci/golangci-lint-action@v7
         with:
           version: v2.1
@@ -49,17 +52,29 @@ jobs:
           args: --timeout=10m --new-from-rev=origin/${{ github.event.pull_request.base.ref }}
 
       - name: Build
-        if: steps.changes.outputs.backend == 'true'
         run: make build
 
       - name: Test
-        if: steps.changes.outputs.backend == 'true'
         run: make test
 
+  dead-code-check:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    defaults:
+      run:
+        working-directory: backend/golang
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/golang/go.mod
+          cache-dependency-path: backend/golang/go.sum
+
       - name: Check for dead code
-        if: steps.changes.outputs.backend == 'true'
         run: |
-          # Run deadcode and capture only stdout (actual results), not stderr (download messages)
           deadcode_output=$(go run golang.org/x/tools/cmd/deadcode@latest ./... 2>/dev/null || true)
           if [ -n "$deadcode_output" ]; then
             echo "❌ Dead code found! Please remove the following:"
@@ -69,12 +84,27 @@ jobs:
             echo "✅ No dead code found"
           fi
 
+  integration-tests:
+    runs-on: ubuntu-latest
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    defaults:
+      run:
+        working-directory: backend/golang
+    env:
+      COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
+      EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
+      TELEGRAM_CHAT_SERVER: ${{ secrets.TELEGRAM_CHAT_SERVER }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/golang/go.mod
+          cache-dependency-path: backend/golang/go.sum
+
       - name: Run integration tests
-        if: steps.changes.outputs.backend == 'true'
-        env:
-          COMPLETIONS_API_KEY: ${{ secrets.COMPLETIONS_API_KEY }}
-          EMBEDDINGS_API_KEY: ${{ secrets.EMBEDDINGS_API_KEY }}
-          TELEGRAM_CHAT_SERVER: ${{ secrets.TELEGRAM_CHAT_SERVER }}
         run: |
           # Create output directory if it doesn't exist
           mkdir -p ./output

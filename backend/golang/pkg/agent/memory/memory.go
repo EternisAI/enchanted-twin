@@ -125,7 +125,6 @@ func (cd *ConversationDocument) Metadata() map[string]string {
 			metadata[k] = v
 		}
 	}
-	metadata["source"] = cd.FieldSource
 	metadata["user"] = cd.User
 	// Add people to metadata if needed, for now, it's directly accessible
 	// metadata["people"] = strings.Join(cd.People, ", ")
@@ -186,8 +185,7 @@ type MemoryFact struct {
 }
 
 type QueryResult struct {
-	Facts     []MemoryFact   `json:"facts"`
-	Documents []TextDocument `json:"documents,omitempty"` // For backward compatibility
+	Facts []MemoryFact `json:"facts"`
 }
 
 type ProgressUpdate struct {

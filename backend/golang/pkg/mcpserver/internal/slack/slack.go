@@ -68,6 +68,15 @@ func (c *SlackClient) CallTool(
 	var content []*mcp_golang.Content
 
 	switch name {
+	case LIST_DIRECT_MESSAGE_CONVERSATIONS_TOOL_NAME:
+		var argumentsTyped ListDirectMessageConversationsArguments
+		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {
+			return nil, err
+		}
+		content, err = processListDirectMessageConversations(ctx, oauthTokens.AccessToken, argumentsTyped)
+		if err != nil {
+			return nil, err
+		}
 	case LIST_CHANNELS_TOOL_NAME:
 		var argumentsTyped ListChannelsArguments
 		if err := json.Unmarshal(bytes, &argumentsTyped); err != nil {

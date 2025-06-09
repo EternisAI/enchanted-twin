@@ -48,8 +48,8 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		if err != nil {
 			return "", err
 		}
-		for _, doc := range docs.Documents {
-			memoryDocuments = append(memoryDocuments, doc.Content())
+		for _, fact := range docs.Facts {
+			memoryDocuments = append(memoryDocuments, fact.Content)
 		}
 	}
 
