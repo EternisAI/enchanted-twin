@@ -36,8 +36,11 @@ type XProcessor struct {
 	logger *log.Logger
 }
 
-func NewXProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &XProcessor{store: store, logger: logger}
+func NewXProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &XProcessor{store: store, logger: logger}, nil
 }
 
 func (s *XProcessor) Name() string {

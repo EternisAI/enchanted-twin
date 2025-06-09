@@ -35,8 +35,11 @@ type SlackProcessor struct {
 	logger *log.Logger
 }
 
-func NewSlackProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &SlackProcessor{store: store}
+func NewSlackProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &SlackProcessor{store: store, logger: logger}, nil
 }
 
 func (s *SlackProcessor) Name() string {
