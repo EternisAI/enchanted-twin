@@ -66,8 +66,11 @@ type ChatGPTProcessor struct {
 	logger *log.Logger
 }
 
-func NewChatGPTProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &ChatGPTProcessor{store: store, logger: logger}
+func NewChatGPTProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &ChatGPTProcessor{store: store, logger: logger}, nil
 }
 
 func (s *ChatGPTProcessor) Name() string {

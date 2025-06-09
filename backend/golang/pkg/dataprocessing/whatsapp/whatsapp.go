@@ -21,8 +21,11 @@ type WhatsappProcessor struct {
 	logger *log.Logger
 }
 
-func NewWhatsappProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &WhatsappProcessor{store: store, logger: logger}
+func NewWhatsappProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &WhatsappProcessor{store: store, logger: logger}, nil
 }
 
 func (s *WhatsappProcessor) Name() string {

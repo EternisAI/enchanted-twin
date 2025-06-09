@@ -39,8 +39,11 @@ type GmailProcessor struct {
 	logger *log.Logger
 }
 
-func NewGmailProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &GmailProcessor{store: store, logger: logger}
+func NewGmailProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &GmailProcessor{store: store, logger: logger}, nil
 }
 
 func (g *GmailProcessor) Name() string { return "gmail" }

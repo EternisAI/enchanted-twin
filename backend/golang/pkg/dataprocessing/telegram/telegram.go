@@ -75,8 +75,11 @@ type TelegramProcessor struct {
 	logger *log.Logger
 }
 
-func NewTelegramProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &TelegramProcessor{store: store, logger: logger}
+func NewTelegramProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &TelegramProcessor{store: store, logger: logger}, nil
 }
 
 func (s *TelegramProcessor) Name() string {
