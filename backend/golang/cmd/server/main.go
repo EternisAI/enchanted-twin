@@ -398,7 +398,7 @@ func main() {
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
 	go telegram.SubscribePoller(telegramService, logger)
-	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, store, envs)
+	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
