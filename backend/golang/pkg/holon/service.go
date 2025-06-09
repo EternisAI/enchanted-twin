@@ -85,24 +85,3 @@ func (s *Service) AddMessageToThread(ctx context.Context, threadID, message, aut
 
 	return s.CreateThreadMessage(ctx, threadID, authorIdentity, message, actions, &isDelivered)
 }
-
-func extractTitleFromContent(content string) string {
-	if len(content) == 0 {
-		return "Untitled Thread"
-	}
-
-	for i, char := range content {
-		if char == '\n' {
-			if i > 0 {
-				return content[:i]
-			}
-			break
-		}
-	}
-
-	if len(content) > 50 {
-		return content[:47] + "..."
-	}
-
-	return content
-}
