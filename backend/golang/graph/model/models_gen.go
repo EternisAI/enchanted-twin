@@ -159,16 +159,17 @@ type Subscription struct {
 }
 
 type Thread struct {
-	ID        string           `json:"id"`
-	Title     string           `json:"title"`
-	Content   string           `json:"content"`
-	ImageURLs []string         `json:"imageURLs"`
-	Author    *Author          `json:"author"`
-	CreatedAt string           `json:"createdAt"`
-	ExpiresAt *string          `json:"expiresAt,omitempty"`
-	Messages  []*ThreadMessage `json:"messages"`
-	Actions   []string         `json:"actions,omitempty"`
-	Views     int32            `json:"views"`
+	ID             string           `json:"id"`
+	Title          string           `json:"title"`
+	Content        string           `json:"content"`
+	ImageURLs      []string         `json:"imageURLs"`
+	Author         *Author          `json:"author"`
+	CreatedAt      string           `json:"createdAt"`
+	ExpiresAt      *string          `json:"expiresAt,omitempty"`
+	Messages       []*ThreadMessage `json:"messages"`
+	Actions        []string         `json:"actions,omitempty"`
+	Views          int32            `json:"views"`
+	RemoteThreadID *int32           `json:"remoteThreadId,omitempty"`
 }
 
 type ThreadMessage struct {
@@ -178,6 +179,7 @@ type ThreadMessage struct {
 	CreatedAt   string   `json:"createdAt"`
 	IsDelivered *bool    `json:"isDelivered,omitempty"`
 	Actions     []string `json:"actions,omitempty"`
+	State       string   `json:"state"`
 }
 
 type Tool struct {

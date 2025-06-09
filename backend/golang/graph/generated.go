@@ -228,16 +228,17 @@ type ComplexityRoot struct {
 	}
 
 	Thread struct {
-		Actions   func(childComplexity int) int
-		Author    func(childComplexity int) int
-		Content   func(childComplexity int) int
-		CreatedAt func(childComplexity int) int
-		ExpiresAt func(childComplexity int) int
-		ID        func(childComplexity int) int
-		ImageURLs func(childComplexity int) int
-		Messages  func(childComplexity int) int
-		Title     func(childComplexity int) int
-		Views     func(childComplexity int) int
+		Actions        func(childComplexity int) int
+		Author         func(childComplexity int) int
+		Content        func(childComplexity int) int
+		CreatedAt      func(childComplexity int) int
+		ExpiresAt      func(childComplexity int) int
+		ID             func(childComplexity int) int
+		ImageURLs      func(childComplexity int) int
+		Messages       func(childComplexity int) int
+		RemoteThreadID func(childComplexity int) int
+		Title          func(childComplexity int) int
+		Views          func(childComplexity int) int
 	}
 
 	ThreadMessage struct {
@@ -247,6 +248,7 @@ type ComplexityRoot struct {
 		CreatedAt   func(childComplexity int) int
 		ID          func(childComplexity int) int
 		IsDelivered func(childComplexity int) int
+		State       func(childComplexity int) int
 	}
 
 	Tool struct {
@@ -1403,6 +1405,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 
 		return e.complexity.Thread.Messages(childComplexity), true
 
+	case "Thread.remoteThreadId":
+		if e.complexity.Thread.RemoteThreadID == nil {
+			break
+		}
+
+		return e.complexity.Thread.RemoteThreadID(childComplexity), true
+
 	case "Thread.title":
 		if e.complexity.Thread.Title == nil {
 			break
@@ -1458,6 +1467,13 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.ThreadMessage.IsDelivered(childComplexity), true
+
+	case "ThreadMessage.state":
+		if e.complexity.ThreadMessage.State == nil {
+			break
+		}
+
+		return e.complexity.ThreadMessage.State(childComplexity), true
 
 	case "Tool.description":
 		if e.complexity.Tool.Description == nil {
@@ -8022,6 +8038,8 @@ func (ec *executionContext) fieldContext_Query_getThreads(ctx context.Context, f
 				return ec.fieldContext_Thread_actions(ctx, field)
 			case "views":
 				return ec.fieldContext_Thread_views(ctx, field)
+			case "remoteThreadId":
+				return ec.fieldContext_Thread_remoteThreadId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Thread", field.Name)
 		},
@@ -8096,6 +8114,8 @@ func (ec *executionContext) fieldContext_Query_getThread(ctx context.Context, fi
 				return ec.fieldContext_Thread_actions(ctx, field)
 			case "views":
 				return ec.fieldContext_Thread_views(ctx, field)
+			case "remoteThreadId":
+				return ec.fieldContext_Thread_remoteThreadId(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type Thread", field.Name)
 		},
@@ -9323,6 +9343,8 @@ func (ec *executionContext) fieldContext_Thread_messages(_ context.Context, fiel
 				return ec.fieldContext_ThreadMessage_isDelivered(ctx, field)
 			case "actions":
 				return ec.fieldContext_ThreadMessage_actions(ctx, field)
+			case "state":
+				return ec.fieldContext_ThreadMessage_state(ctx, field)
 			}
 			return nil, fmt.Errorf("no field named %q was found under type ThreadMessage", field.Name)
 		},
@@ -9403,6 +9425,47 @@ func (ec *executionContext) _Thread_views(ctx context.Context, field graphql.Col
 }
 
 func (ec *executionContext) fieldContext_Thread_views(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Thread",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Int does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Thread_remoteThreadId(ctx context.Context, field graphql.CollectedField, obj *model.Thread) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Thread_remoteThreadId(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.RemoteThreadID, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(*int32)
+	fc.Result = res
+	return ec.marshalOInt2ᚖint32(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Thread_remoteThreadId(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "Thread",
 		Field:      field,
@@ -9667,6 +9730,50 @@ func (ec *executionContext) _ThreadMessage_actions(ctx context.Context, field gr
 }
 
 func (ec *executionContext) fieldContext_ThreadMessage_actions(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ThreadMessage",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ThreadMessage_state(ctx context.Context, field graphql.CollectedField, obj *model.ThreadMessage) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ThreadMessage_state(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.State, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ThreadMessage_state(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ThreadMessage",
 		Field:      field,
@@ -14354,6 +14461,8 @@ func (ec *executionContext) _Thread(ctx context.Context, sel ast.SelectionSet, o
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
+		case "remoteThreadId":
+			out.Values[i] = ec._Thread_remoteThreadId(ctx, field, obj)
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -14412,6 +14521,11 @@ func (ec *executionContext) _ThreadMessage(ctx context.Context, sel ast.Selectio
 			out.Values[i] = ec._ThreadMessage_isDelivered(ctx, field, obj)
 		case "actions":
 			out.Values[i] = ec._ThreadMessage_actions(ctx, field, obj)
+		case "state":
+			out.Values[i] = ec._ThreadMessage_state(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
 		}
@@ -16458,6 +16572,24 @@ func (ec *executionContext) marshalOIndexingStatus2ᚖgithubᚗcomᚋEternisAI�
 		return graphql.Null
 	}
 	return ec._IndexingStatus(ctx, sel, v)
+}
+
+func (ec *executionContext) unmarshalOInt2ᚖint32(ctx context.Context, v any) (*int32, error) {
+	if v == nil {
+		return nil, nil
+	}
+	res, err := graphql.UnmarshalInt32(v)
+	return &res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) marshalOInt2ᚖint32(ctx context.Context, sel ast.SelectionSet, v *int32) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	_ = sel
+	_ = ctx
+	res := graphql.MarshalInt32(*v)
+	return res
 }
 
 func (ec *executionContext) marshalOKeyValue2ᚕᚖgithubᚗcomᚋEternisAIᚋenchantedᚑtwinᚋgraphᚋmodelᚐKeyValueᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.KeyValue) graphql.Marshaler {

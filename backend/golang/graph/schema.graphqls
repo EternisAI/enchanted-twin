@@ -308,6 +308,7 @@ type ThreadMessage {
   createdAt: DateTime!
   isDelivered: Boolean
   actions: [String!]
+  state: String!
 }
 
 type Thread {
@@ -321,4 +322,5 @@ type Thread {
   messages: [ThreadMessage!]!
   actions: [String!]
   views: Int!
+  remoteThreadId: Int
 }
