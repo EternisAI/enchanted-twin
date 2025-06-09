@@ -78,9 +78,9 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 		var threadAuthor dbAuthor
 
 		err := rows.Scan(
-			&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
-			&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
-			&dbThread.Views, &dbThread.State, &author.Identity, &author.Alias,
+			&thread.ID, &thread.Title, &thread.Content, &thread.AuthorIdentity,
+			&thread.CreatedAt, &thread.ExpiresAt, &thread.ImageURLs, &thread.Actions,
+			&thread.Views, &thread.State, &threadAuthor.Identity, &threadAuthor.Alias,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan thread row: %w", err)
@@ -115,9 +115,9 @@ func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thr
 	var threadAuthor dbAuthor
 
 	err := r.db.QueryRowContext(ctx, query, threadID).Scan(
-		&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
-		&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
-		&dbThread.Views, &dbThread.State, &author.Identity, &author.Alias,
+		&thread.ID, &thread.Title, &thread.Content, &thread.AuthorIdentity,
+		&thread.CreatedAt, &thread.ExpiresAt, &thread.ImageURLs, &thread.Actions,
+		&thread.Views, &thread.State, &threadAuthor.Identity, &threadAuthor.Alias,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -401,7 +401,6 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 		fmt.Printf("DEBUG: Rows affected by INSERT: %d\n", rowsAffected)
 	}
 
-<<<<<<< HEAD
 	return nil
 }
 
@@ -472,8 +471,6 @@ func (r *Repository) UpdateThreadState(ctx context.Context, threadID, state stri
 	if err != nil {
 		return fmt.Errorf("failed to update thread state: %w", err)
 	}
-=======
->>>>>>> feature/holon
 	return nil
 }
 
