@@ -621,11 +621,6 @@ func (f *FetcherService) PushPendingThreads(ctx context.Context) error {
 
 // PushPendingReplies pushes all pending thread messages (replies) to the HolonZero API and updates their state
 func (f *FetcherService) PushPendingReplies(ctx context.Context) error {
-	if !f.isAuthenticated || f.participantID == nil {
-		f.logDebug("Not authenticated, skipping push pending replies")
-		return nil
-	}
-
 	// Create data fetcher to get pending replies with thread ID info
 	dataFetcher := NewDataFetcher(f.repository)
 	pendingReplies, err := dataFetcher.GetPendingReplies(ctx)
@@ -639,6 +634,21 @@ func (f *FetcherService) PushPendingReplies(ctx context.Context) error {
 	}
 
 	f.logDebug(fmt.Sprintf("Found %d pending replies to push", len(pendingReplies)))
+
+	// Get participant ID if we don't have it yet
+	participantID := f.participantID
+	if participantID == nil {
+		// Try to authenticate to get participant ID
+		if err := f.authenticateForDeduplication(ctx, nil); err != nil {
+			f.logError("Failed to authenticate for reply pushing", err)
+			return fmt.Errorf("authentication required for pushing replies: %w", err)
+		}
+		participantID = f.participantID
+	}
+
+	if participantID == nil {
+		return fmt.Errorf("participant ID required for pushing replies but not available")
+	}
 
 	for _, reply := range pendingReplies {
 		// Find the corresponding thread to get the remote thread ID
@@ -664,7 +674,7 @@ func (f *FetcherService) PushPendingReplies(ctx context.Context) error {
 		// Create the reply request
 		createReq := CreateReplyRequest{
 			ThreadID:      int(remoteThreadID),
-			ParticipantID: *f.participantID,
+			ParticipantID: *participantID,
 			Content:       reply.Content,
 			DedupReplyID:  reply.ID, // Use local ID as dedup ID
 		}
