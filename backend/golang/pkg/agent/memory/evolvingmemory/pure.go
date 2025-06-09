@@ -37,19 +37,9 @@ func validateAndTruncateDocument(doc memory.Document) memory.Document {
 		newDoc.FieldContent = truncatedContent
 		return &newDoc
 	case *memory.ConversationDocument:
-
-		metadata := d.Metadata()
-		if metadata == nil {
-			metadata = make(map[string]string)
-		}
-		return &memory.TextDocument{
-			FieldID:        d.FieldID,
-			FieldContent:   truncatedContent,
-			FieldTimestamp: d.Timestamp(),
-			FieldSource:    d.FieldSource,
-			FieldTags:      d.FieldTags,
-			FieldMetadata:  metadata,
-		}
+		// ConversationDocuments are handled by the chunking logic in PrepareDocuments.
+		// This function should not truncate them.
+		return d
 	default:
 		return doc
 	}
@@ -61,12 +51,26 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 	errors := make([]error, 0)
 
 	for _, doc := range docs {
-		p, err := prepareDocument(doc, currentTime)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to prepare document: %w", err))
-			continue
+		// Handle conversation document chunking separately
+		if conv, ok := doc.(*memory.ConversationDocument); ok {
+			chunks := chunkConversationDocument(conv)
+			for _, chunk := range chunks {
+				p, err := prepareDocument(chunk, currentTime)
+				if err != nil {
+					errors = append(errors, fmt.Errorf("failed to prepare conversation chunk: %w", err))
+					continue
+				}
+				prepared = append(prepared, p)
+			}
+		} else {
+			// Process other document types as before
+			p, err := prepareDocument(doc, currentTime)
+			if err != nil {
+				errors = append(errors, fmt.Errorf("failed to prepare document: %w", err))
+				continue
+			}
+			prepared = append(prepared, p)
 		}
-		prepared = append(prepared, p)
 	}
 
 	if len(errors) > 0 {
@@ -74,6 +78,71 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 	}
 
 	return prepared, nil
+}
+
+// chunkConversationDocument splits a ConversationDocument into smaller chunks based on ConversationChunkMaxChars.
+func chunkConversationDocument(conv *memory.ConversationDocument) []memory.Document {
+	// If the entire conversation is already smaller than the max chunk size, don't chunk it.
+	if len(conv.Content()) < ConversationChunkMaxChars {
+		return []memory.Document{conv}
+	}
+
+	var chunks []memory.Document
+	var currentChunkMessages []memory.ConversationMessage
+	currentCharCount := 0
+
+	for _, msg := range conv.Conversation {
+		msgContent := fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content)
+		msgLen := len(msgContent)
+
+		// If adding this message exceeds the chunk size, finalize the current chunk
+		if currentCharCount+msgLen > ConversationChunkMaxChars && len(currentChunkMessages) > 0 {
+			chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
+			chunks = append(chunks, chunk)
+
+			// Start a new chunk
+			currentChunkMessages = nil
+			currentCharCount = 0
+		}
+
+		currentChunkMessages = append(currentChunkMessages, msg)
+		currentCharCount += msgLen
+	}
+
+	// Add the last remaining chunk
+	if len(currentChunkMessages) > 0 {
+		chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
+		chunks = append(chunks, chunk)
+	}
+
+	// This case should ideally not be hit if the initial check is there, but as a safeguard:
+	if len(chunks) == 0 {
+		return []memory.Document{conv}
+	}
+
+	return chunks
+}
+
+// createConversationChunk creates a new ConversationDocument chunk.
+func createConversationChunk(original *memory.ConversationDocument, messages []memory.ConversationMessage, chunkNum int) *memory.ConversationDocument {
+	newID := fmt.Sprintf("%s-chunk-%d", original.ID(), chunkNum)
+	metadata := make(map[string]string)
+	// Copy original metadata to the new chunk
+	for k, v := range original.Metadata() {
+		metadata[k] = v
+	}
+	metadata["chunk_number"] = fmt.Sprintf("%d", chunkNum)
+	metadata["original_document_id"] = original.ID()
+
+	return &memory.ConversationDocument{
+		FieldID:       newID,
+		FieldSource:   original.Source(),
+		People:        original.People,
+		User:          original.User,
+		Conversation:  messages,
+		FieldTags:     original.Tags(),
+		FieldMetadata: metadata,
+	}
 }
 
 func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocument, error) {
