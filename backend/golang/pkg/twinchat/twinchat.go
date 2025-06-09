@@ -22,6 +22,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/prompts"
 	"github.com/EternisAI/enchanted-twin/pkg/twinchat/repository"
 )
@@ -29,7 +30,7 @@ import (
 type Storage interface {
 	GetChat(ctx context.Context, id string) (model.Chat, error)
 	GetChats(ctx context.Context) ([]*model.Chat, error)
-	CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error)
+	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error)
 	DeleteChat(ctx context.Context, chatID string) error
 	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
 	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
@@ -45,6 +46,7 @@ type Service struct {
 	reasoningModel   string
 	toolRegistry     *tools.ToolMapRegistry
 	userStorage      *db.Store
+	identityService  *identity.IdentityService
 }
 
 func NewService(
@@ -57,6 +59,7 @@ func NewService(
 	userStorage *db.Store,
 	completionsModel string,
 	reasoningModel string,
+	identityService *identity.IdentityService,
 ) *Service {
 	return &Service{
 		logger:           logger,
@@ -68,6 +71,7 @@ func NewService(
 		reasoningModel:   reasoningModel,
 		toolRegistry:     registry,
 		userStorage:      userStorage,
+		identityService:  identityService,
 	}
 }
 
@@ -102,7 +106,7 @@ func (s *Service) Execute(
 	return &response, nil
 }
 
-func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool) (string, error) {
+func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice bool, userMemoryProfile string) (string, error) {
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	if err != nil {
 		return "", err
@@ -119,13 +123,21 @@ func (s *Service) buildSystemPrompt(ctx context.Context, chatID string, isVoice 
 		}
 	}
 
+	chat, err := s.storage.GetChat(ctx, chatID)
+	if err != nil {
+		return "", err
+	}
+	holonThreadId := chat.HolonThreadID
+
 	systemPrompt, err := prompts.BuildTwinChatSystemPrompt(prompts.TwinChatSystemPrompt{
-		UserName:      userProfile.Name,
-		Bio:           userProfile.Bio,
-		EmailAccounts: emailAccounts,
-		ChatID:        &chatID,
-		CurrentTime:   time.Now().Format(time.RFC3339),
-		IsVoice:       isVoice,
+		UserName:          userProfile.Name,
+		Bio:               userProfile.Bio,
+		EmailAccounts:     emailAccounts,
+		ChatID:            &chatID,
+		CurrentTime:       time.Now().Format(time.RFC3339),
+		IsVoice:           isVoice,
+		UserMemoryProfile: userMemoryProfile,
+		HolonThreadID:     holonThreadId,
 	})
 	if err != nil {
 		return "", err
@@ -144,7 +156,12 @@ func (s *Service) SendMessage(
 
 	messages := make([]*model.Message, 0)
 	if chatID == "" {
-		chat, err := s.storage.CreateChat(ctx, "New chat", isVoice)
+		// Determine category based on isVoice parameter
+		category := model.ChatCategoryText
+		if isVoice {
+			category = model.ChatCategoryVoice
+		}
+		chat, err := s.storage.CreateChat(ctx, "New chat", category, nil)
 		if err != nil {
 			return nil, err
 		}
@@ -158,7 +175,12 @@ func (s *Service) SendMessage(
 		messages = messages_
 	}
 
-	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice)
+	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
 	if err != nil {
 		return nil, err
 	}
@@ -448,8 +470,8 @@ func (s *Service) GetChat(ctx context.Context, chatID string) (model.Chat, error
 	return s.storage.GetChat(ctx, chatID)
 }
 
-func (s *Service) CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error) {
-	return s.storage.CreateChat(ctx, name, voice)
+func (s *Service) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error) {
+	return s.storage.CreateChat(ctx, name, category, holonThreadID)
 }
 
 func (s *Service) GetMessagesByChatId(
@@ -614,7 +636,7 @@ func (s *Service) SendAssistantMessage(
 	now := time.Now()
 
 	if chatID == "" {
-		chat, err := s.storage.CreateChat(ctx, "New chat", false)
+		chat, err := s.storage.CreateChat(ctx, "New chat", model.ChatCategoryText, nil)
 		if err != nil {
 			return nil, err
 		}

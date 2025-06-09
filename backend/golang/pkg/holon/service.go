@@ -126,7 +126,9 @@ func (s *Service) GetThread(ctx context.Context, threadID string) (*model.Thread
 		return nil, err
 	}
 
-	s.repo.IncrementThreadViews(ctx, threadID)
+	if err := s.repo.IncrementThreadViews(ctx, threadID); err != nil {
+		fmt.Println("failed to increment thread views", err)
+	}
 
 	return thread, nil
 }

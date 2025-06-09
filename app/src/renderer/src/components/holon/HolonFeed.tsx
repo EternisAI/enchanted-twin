@@ -5,7 +5,11 @@ import { useNavigate, useRouter } from '@tanstack/react-router'
 
 import { Button } from '../ui/button'
 import HolonFeedThread from './HolonFeedThread'
-import { CreateChatDocument, GetThreadsDocument } from '@renderer/graphql/generated/graphql'
+import {
+  ChatCategory,
+  CreateChatDocument,
+  GetThreadsDocument
+} from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 
 export default function HolonFeed() {
@@ -39,7 +43,7 @@ export default function HolonFeed() {
   const handleCreateChat = async () => {
     try {
       const { data: createData } = await createChat({
-        variables: { name: 'holon-new-feed', voice: false }
+        variables: { name: 'holon-new-feed', category: ChatCategory.Text }
       })
       const newChatId = createData?.createChat?.id
 

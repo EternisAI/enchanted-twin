@@ -1,11 +1,10 @@
-// import { useQuery } from '@apollo/client'
-// import { GetThreadDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { formatDistanceToNow } from 'date-fns'
 import { Eye, Maximize2 } from 'lucide-react'
 import { useNavigate, useRouter } from '@tanstack/react-router'
 import { motion } from 'framer-motion'
 import {
+  ChatCategory,
   CreateChatDocument,
   SendMessageDocument,
   Thread
@@ -32,7 +31,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
 
       try {
         const { data: createData } = await createChat({
-          variables: { name: chatId, voice: false }
+          variables: { name: chatId, category: ChatCategory.Holon, holonThreadId: thread.id }
         })
         const newChatId = createData?.createChat?.id
 
@@ -65,7 +64,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
   )
 
   const handleBack = () => {
-    navigate({ to: '/holon' })
+    router.history.back()
   }
 
   const handleActionClick = (action: string) => {

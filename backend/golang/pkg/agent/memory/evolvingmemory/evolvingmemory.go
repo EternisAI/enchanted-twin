@@ -3,6 +3,7 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -19,8 +20,12 @@ const (
 	timestampProperty = "timestamp"
 	tagsProperty      = "tags"
 	metadataProperty  = "metadataJson"
-	openAIEmbedModel  = "text-embedding-3-small"
-	openAIChatModel   = "gpt-4o-mini"
+	// New properties for document references.
+	sourceDocumentIDProperty      = "sourceDocumentId"
+	sourceDocumentContentProperty = "sourceDocumentContent"
+	sourceDocumentTypeProperty    = "sourceDocumentType"
+	openAIEmbedModel              = "text-embedding-3-small"
+	openAIChatModel               = "gpt-4o-mini"
 
 	AddMemoryToolName    = "ADD"
 	UpdateMemoryToolName = "UPDATE"
@@ -67,9 +72,70 @@ type PreparedDocument struct {
 	DateString string // Pre-formatted
 }
 
+// Structured fact types for the new extraction system.
+type StructuredFact struct {
+	Category        string  `json:"category"`
+	Subject         string  `json:"subject"`
+	Attribute       string  `json:"attribute"`
+	Value           string  `json:"value"`
+	TemporalContext *string `json:"temporal_context,omitempty"`
+	Sensitivity     string  `json:"sensitivity"`
+	Importance      int     `json:"importance"`
+}
+
+// GenerateContent creates a searchable content string from structured fact data.
+func (sf *StructuredFact) GenerateContent() string {
+	var contentParts []string
+
+	// Add subject if it's not user (to avoid redundancy)
+	if sf.Subject != "" && sf.Subject != "user" {
+		contentParts = append(contentParts, sf.Subject)
+	}
+
+	// Add the main value
+	contentParts = append(contentParts, sf.Value)
+
+	// Add attribute for context if available
+	if sf.Attribute != "" {
+		contentParts = append(contentParts, "("+sf.Attribute+")")
+	}
+
+	// Add category label for searchability
+	if sf.Category != "" {
+		contentParts = append(contentParts, "("+sf.Category+")")
+	}
+
+	// Add temporal context if available
+	if sf.TemporalContext != nil && *sf.TemporalContext != "" {
+		contentParts = append(contentParts, "("+*sf.TemporalContext+")")
+	}
+
+	// Join parts and prefix with "User:" if appropriate
+	content := strings.Join(contentParts, " ")
+	if sf.Subject == "user" || strings.Contains(strings.ToLower(sf.Value), "user") {
+		content = "User: " + content
+	}
+
+	return content
+}
+
+type ExtractStructuredFactsToolArguments struct {
+	Facts []StructuredFact `json:"facts"`
+}
+
 // Processing pipeline types.
 type ExtractedFact struct {
-	Content   string
+	// Structured fact fields (primary data)
+	Category        string  `json:"category"`
+	Subject         string  `json:"subject"`
+	Attribute       string  `json:"attribute"`
+	Value           string  `json:"value"`
+	TemporalContext *string `json:"temporal_context,omitempty"`
+	Sensitivity     string  `json:"sensitivity"`
+	Importance      int     `json:"importance"`
+
+	// Legacy fields
+	Content   string // Derived from structured fields for backward compatibility
 	SpeakerID string
 	Source    PreparedDocument
 }
@@ -148,8 +214,11 @@ type NoneToolArguments struct {
 	Reason string `json:"reason"`
 }
 
-type ExtractFactsToolArguments struct {
-	Facts []string `json:"facts"`
+// DocumentReference holds reference to the original document that generated a memory fact.
+type DocumentReference struct {
+	ID      string `json:"id"`
+	Content string `json:"content"`
+	Type    string `json:"type"`
 }
 
 // MemoryStorage is the main interface for hot-swappable storage implementations.
@@ -157,6 +226,9 @@ type ExtractFactsToolArguments struct {
 type MemoryStorage interface {
 	memory.Storage // Inherit the base storage interface
 	StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error)
+
+	// Document reference operations - now supports multiple references per memory
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -172,6 +244,7 @@ type StorageImpl struct {
 	logger       *log.Logger
 	orchestrator MemoryOrchestrator
 	storage      storage.Interface
+	engine       MemoryEngine // Add engine reference for GetDocumentReference
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -205,6 +278,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 		logger:       deps.Logger,
 		orchestrator: orchestrator,
 		storage:      deps.Storage,
+		engine:       engine,
 	}, nil
 }
 
@@ -283,11 +357,11 @@ func (s *StorageImpl) StoreV2(ctx context.Context, documents []memory.Document, 
 }
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
-func (s *StorageImpl) Query(ctx context.Context, queryText string) (memory.QueryResult, error) {
-	return s.storage.Query(ctx, queryText)
+func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	return s.storage.Query(ctx, queryText, filter)
 }
 
-// QueryWithDistance implements the memory.Storage interface by delegating to the storage interface.
-func (s *StorageImpl) QueryWithDistance(ctx context.Context, queryText string, metadataFilters ...map[string]string) (memory.QueryWithDistanceResult, error) {
-	return s.storage.QueryWithDistance(ctx, queryText, metadataFilters...)
+// GetDocumentReferences retrieves all document references for a memory.
+func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+	return s.engine.GetDocumentReferences(ctx, memoryID)
 }
