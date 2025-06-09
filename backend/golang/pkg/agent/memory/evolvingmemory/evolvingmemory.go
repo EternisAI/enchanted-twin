@@ -29,10 +29,10 @@ const (
 )
 
 const (
-	// MaxProcessableContentChars is the unified maximum number of characters for any single
-	// piece of content (e.g., a text document or a conversation chunk) before it's
-	// either truncated (for text) or split (for conversations).
-	MaxProcessableContentChars = 20000
+	// Qwen-2.5-70b has 128k token context window
+	// Our Target slice is 0.1 × 128 K tokens ≈ 12.8 K tokens.
+	// Multiply by the conservative 4-char factor ≈ 50 K characters.
+	MaxProcessableContentChars = 50000
 )
 
 // Document types.
