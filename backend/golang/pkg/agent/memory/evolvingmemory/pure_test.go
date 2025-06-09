@@ -246,7 +246,7 @@ func TestDocumentSizeValidation(t *testing.T) {
 				require.NoError(t, err)
 
 				// It should be chunked if it's large enough
-				if len(convDoc.Content()) > ConversationChunkMaxChars {
+				if len(convDoc.Content()) > MaxProcessableContentChars {
 					assert.True(t, len(prepared) > 1, "Expected large conversation to be chunked into multiple documents")
 
 					// A large conversation should be chunked, not truncated.
