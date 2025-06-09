@@ -333,7 +333,7 @@ func (w *DataProcessingWorkflows) ProcessDataActivity(
 		input.DataSourceName,
 		input.DataSourceID,
 	)
-	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
 	success, err := dataprocessingService.ProcessSource(
 		ctx,
 		input.DataSourceName,
@@ -464,6 +464,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 		w.OpenAIService,
 		w.Config.CompletionsModel,
 		w.Store,
+		w.Logger,
 	)
 
 	documents, err := dataprocessingService.ToDocuments(ctx, input.DataSourceName, records)

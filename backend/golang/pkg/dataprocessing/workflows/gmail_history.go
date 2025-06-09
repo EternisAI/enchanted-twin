@@ -11,6 +11,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/workflow"
 
+	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
@@ -243,8 +244,8 @@ func (w *DataProcessingWorkflows) GmailHistoryIndexActivity(
 	ctx context.Context,
 	input GmailHistoryIndexActivityInput,
 ) (GmailHistoryIndexActivityResponse, error) {
-	gmailProcessor := gmail.NewGmailProcessor(w.Store)
-	documents, err := gmailProcessor.ToDocuments(ctx, input.Records)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
+	documents, err := dataprocessingService.ToDocuments(ctx, "gmail", input.Records)
 	if err != nil {
 		return GmailHistoryIndexActivityResponse{}, err
 	}
