@@ -73,10 +73,10 @@ func TestToDocuments(t *testing.T) {
 
 	var conversationDoc, contactDoc memory.Document
 	for _, doc := range docs {
-		tags := doc.Tags()
-		if len(tags) >= 3 && tags[2] == "chat" {
+		docType := doc.Metadata()["type"]
+		if docType == "conversation" {
 			conversationDoc = doc
-		} else if len(tags) >= 3 && tags[2] == "contact" {
+		} else if docType == "contact" {
 			contactDoc = doc
 		}
 	}
@@ -84,12 +84,12 @@ func TestToDocuments(t *testing.T) {
 	expectedTimestamp, _ := time.Parse(time.RFC3339, "2022-12-25T04:38:18Z")
 	assert.NotNil(t, conversationDoc, "Expected conversation document")
 	assert.Contains(t, conversationDoc.Content(), "I want to believe", "Conversation should contain the message")
-	assert.Equal(t, []string{"social", "telegram", "chat"}, conversationDoc.Tags())
+	assert.Equal(t, []string{"social", "chat"}, conversationDoc.Tags())
 
 	assert.NotNil(t, contactDoc, "Expected contact document")
 	assert.Equal(t, "John Doe", contactDoc.Content())
 	assert.Equal(t, &expectedTimestamp, contactDoc.Timestamp())
-	assert.Equal(t, []string{"social", "telegram", "contact"}, contactDoc.Tags())
+	assert.Equal(t, []string{"social", "contact"}, contactDoc.Tags())
 	assert.Equal(t, map[string]string{
 		"type":        "contact",
 		"firstName":   "John",
