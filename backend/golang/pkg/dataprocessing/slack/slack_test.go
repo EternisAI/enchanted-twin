@@ -52,7 +52,7 @@ func TestToDocuments(t *testing.T) {
 	expectedTimestamp1, _ := time.Parse(time.RFC3339, "2022-12-25T04:38:18Z")
 	assert.Equal(t, "From john_doe in channel general: Hello world", docs[0].Content())
 	assert.Equal(t, &expectedTimestamp1, docs[0].Timestamp())
-	assert.Equal(t, []string{"social", "slack", "chat"}, docs[0].Tags())
+	assert.Equal(t, []string{"social", "chat"}, docs[0].Tags())
 	assert.Equal(t, map[string]string{
 		"type":           "message",
 		"channelName":    "general",
@@ -62,7 +62,7 @@ func TestToDocuments(t *testing.T) {
 	expectedTimestamp2, _ := time.Parse(time.RFC3339, "2022-12-25T04:39:18Z")
 	assert.Equal(t, "From jane_doe in channel general: How are you?", docs[1].Content())
 	assert.Equal(t, &expectedTimestamp2, docs[1].Timestamp())
-	assert.Equal(t, []string{"social", "slack", "chat"}, docs[1].Tags())
+	assert.Equal(t, []string{"social", "chat"}, docs[1].Tags())
 	assert.Equal(t, map[string]string{
 		"type":           "message",
 		"channelName":    "general",
