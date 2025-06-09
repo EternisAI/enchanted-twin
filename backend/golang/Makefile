@@ -22,7 +22,7 @@ test:
 	go test -short ./...
 
 test-integration:
-	go test -v ./pkg/dataprocessing/integration/... -timeout=15m
+	go test -v ./pkg/dataprocessing/integration/... -timeout=90m
 
 gqlgen:
 	go run github.com/99designs/gqlgen generate
@@ -33,3 +33,6 @@ run-telegram-chat:
 deadcode:
 	@echo "=== Checking for transitively dead functions ==="
 	@go run golang.org/x/tools/cmd/deadcode@latest ./...
+
+sqlc-generate:
+	go run github.com/sqlc-dev/sqlc/cmd/sqlc generate

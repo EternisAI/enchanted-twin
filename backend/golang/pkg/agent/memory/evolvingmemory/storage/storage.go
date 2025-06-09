@@ -45,7 +45,6 @@ const (
 	documentOriginalIDProperty  = "originalId"
 	documentMetadataProperty    = "metadata"
 	documentCreatedAtProperty   = "createdAt"
-	openAIEmbedModel            = "text-embedding-3-small"
 )
 
 // DocumentReference holds the original document information.
@@ -73,7 +72,7 @@ type Interface interface {
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
-	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
+	Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 
 	// Document reference operations - now supports multiple references
@@ -176,10 +175,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 			}
 		}
 	}
-	// Merge direct fields into metadata (they take precedence)
-	if source != "" {
-		metadata["source"] = source
-	}
 	if speakerID != "" {
 		metadata["speakerID"] = speakerID
 	}
@@ -211,8 +206,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 
 	// Extract and store source as direct field
 	if source := doc.Source(); source != "" {
-		properties[sourceProperty] = source
-	} else if source, exists := doc.Metadata()["source"]; exists {
 		properties[sourceProperty] = source
 	}
 
@@ -575,11 +568,11 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 }
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	// Step 1: Generate query vector
-	queryVector, err := s.generateQueryVector(ctx, queryText)
+	queryVector, err := s.generateQueryVector(ctx, queryText, embeddingsModel)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("generating query vector: %w", err)
 	}
@@ -595,8 +588,8 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 }
 
 // generateQueryVector converts query text to embedding vector.
-func (s *WeaviateStorage) generateQueryVector(ctx context.Context, queryText string) ([]float32, error) {
-	vector, err := s.embeddingsService.Embedding(ctx, queryText, openAIEmbedModel)
+func (s *WeaviateStorage) generateQueryVector(ctx context.Context, queryText, embeddingsModel string) ([]float32, error) {
+	vector, err := s.embeddingsService.Embedding(ctx, queryText, embeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create embedding: %w", err)
 	}
@@ -837,51 +830,51 @@ func (s *WeaviateStorage) executeAndProcessQuery(ctx context.Context, queryBuild
 		return memory.QueryResult{}, fmt.Errorf("GraphQL errors: %s", strings.Join(errorMsgs, "; "))
 	}
 
-	// Parse and transform results
-	documents, err := s.parseQueryResponse(resp)
+	// Parse and transform results to MemoryFacts
+	facts, err := s.parseQueryResponseToFacts(resp)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("parsing query response: %w", err)
 	}
 
-	s.logger.Info("Query completed successfully", "results_count", len(documents))
-	return memory.QueryResult{Facts: []memory.MemoryFact{}, Documents: documents}, nil
+	s.logger.Info("Query completed successfully", "results_count", len(facts))
+	return memory.QueryResult{Facts: facts}, nil
 }
 
-// parseQueryResponse transforms GraphQL response to memory.TextDocument objects.
-func (s *WeaviateStorage) parseQueryResponse(resp *models.GraphQLResponse) ([]memory.TextDocument, error) {
+// parseQueryResponseToFacts transforms GraphQL response to MemoryFacts.
+func (s *WeaviateStorage) parseQueryResponseToFacts(resp *models.GraphQLResponse) ([]memory.MemoryFact, error) {
 	// Extract data from response
 	data, ok := resp.Data["Get"].(map[string]interface{})
 	if !ok {
 		s.logger.Warn("No 'Get' field in GraphQL response or not a map.")
-		return []memory.TextDocument{}, nil
+		return []memory.MemoryFact{}, nil
 	}
 
 	classData, ok := data[ClassName].([]interface{})
 	if !ok {
 		s.logger.Warn("No class data in GraphQL response or not a slice.", "class_name", ClassName)
-		return []memory.TextDocument{}, nil
+		return []memory.MemoryFact{}, nil
 	}
 
 	s.logger.Info("Retrieved documents from Weaviate (pre-filtering)", "count", len(classData))
 
-	var documents []memory.TextDocument
+	var facts []memory.MemoryFact
 	for _, item := range classData {
-		doc, err := s.parseDocumentItem(item)
+		fact, err := s.parseMemoryItem(item)
 		if err != nil {
-			s.logger.Warn("Failed to parse document item", "error", err)
+			s.logger.Warn("Failed to parse memory item", "error", err)
 			continue
 		}
-		documents = append(documents, doc)
+		facts = append(facts, fact)
 	}
 
-	return documents, nil
+	return facts, nil
 }
 
-// parseDocumentItem converts a single GraphQL item to memory.TextDocument.
-func (s *WeaviateStorage) parseDocumentItem(item interface{}) (memory.TextDocument, error) {
+// parseMemoryItem converts a single GraphQL item to MemoryFact.
+func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, error) {
 	obj, ok := item.(map[string]interface{})
 	if !ok {
-		return memory.TextDocument{}, fmt.Errorf("item is not a map")
+		return memory.MemoryFact{}, fmt.Errorf("item is not a map")
 	}
 
 	// Extract basic fields
@@ -891,10 +884,10 @@ func (s *WeaviateStorage) parseDocumentItem(item interface{}) (memory.TextDocume
 	speakerID, _ := obj[speakerProperty].(string)
 
 	// Parse timestamp
-	var parsedTimestamp *time.Time
+	var timestamp time.Time
 	if tsStr, ok := obj[timestampProperty].(string); ok {
 		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
-			parsedTimestamp = &t
+			timestamp = t
 		} else {
 			s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", err)
 		}
@@ -912,31 +905,50 @@ func (s *WeaviateStorage) parseDocumentItem(item interface{}) (memory.TextDocume
 		}
 	}
 
-	// Merge direct fields into metadata (they take precedence)
-	if source != "" {
-		metaMap["source"] = source
+	// Extract structured fact fields and add to metadata
+	if factCategory, ok := obj[factCategoryProperty].(string); ok && factCategory != "" {
+		metaMap["factCategory"] = factCategory
 	}
-	if speakerID != "" {
-		metaMap["speakerID"] = speakerID
+	if factSubject, ok := obj[factSubjectProperty].(string); ok && factSubject != "" {
+		metaMap["factSubject"] = factSubject
+	}
+	if factAttribute, ok := obj[factAttributeProperty].(string); ok && factAttribute != "" {
+		metaMap["factAttribute"] = factAttribute
+	}
+	if factValue, ok := obj[factValueProperty].(string); ok && factValue != "" {
+		metaMap["factValue"] = factValue
+	}
+	if factTemporalContext, ok := obj[factTemporalContextProperty].(string); ok && factTemporalContext != "" {
+		metaMap["factTemporalContext"] = factTemporalContext
+	}
+	if factSensitivity, ok := obj[factSensitivityProperty].(string); ok && factSensitivity != "" {
+		metaMap["factSensitivity"] = factSensitivity
+	}
+	if factImportance, ok := obj[factImportanceProperty].(float64); ok {
+		metaMap["factImportance"] = fmt.Sprintf("%d", int(factImportance))
 	}
 
-	// Extract tags
-	var tags []string
+	// Add tags to metadata as JSON array
 	if tagsInterface, ok := obj[tagsProperty].([]interface{}); ok {
+		var tags []string
 		for _, tagItem := range tagsInterface {
 			if tagStr, ok := tagItem.(string); ok {
 				tags = append(tags, tagStr)
 			}
 		}
+		if len(tags) > 0 {
+			tagsJSON, _ := json.Marshal(tags)
+			metaMap["tags"] = string(tagsJSON)
+		}
 	}
 
-	return memory.TextDocument{
-		FieldID:        id,
-		FieldContent:   content,
-		FieldTimestamp: parsedTimestamp,
-		FieldMetadata:  metaMap,
-		FieldSource:    source,
-		FieldTags:      tags,
+	return memory.MemoryFact{
+		ID:        id,
+		Speaker:   speakerID,
+		Content:   content,
+		Timestamp: timestamp,
+		Source:    source,
+		Metadata:  metaMap,
 	}, nil
 }
 

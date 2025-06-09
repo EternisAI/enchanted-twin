@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { useQuery, useMutation } from '@apollo/client'
 import {
   GetMcpServersDocument,
@@ -15,15 +15,18 @@ import MCPServerItem from '../oauth/MCPServerItem'
 import { router } from '../../main'
 import { OnboardingVoiceAnimation } from './voice/Animations'
 import { useTheme } from '@renderer/lib/theme'
+import { useSettingsStore } from '@renderer/lib/stores/settings'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
+  const { setActiveTab } = useSettingsStore()
 
   const {
     data: mcpData,
     loading: mcpLoading,
+    error: mcpError,
     refetch: refetchMcpServers
   } = useQuery(GetMcpServersDocument, {
     fetchPolicy: 'network-only'
@@ -39,6 +42,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
   const {
     data: whitelistData,
     loading: whitelistLoading,
+    error: whitelistError,
     refetch: refetchWhitelist
   } = useQuery(GetWhitelistStatusDocument, {
     fetchPolicy: 'network-only',
@@ -58,9 +62,25 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     }
   })
 
-  console.log('whitelistData', whitelistData, hasGoogleConnected)
+  console.log('whitelistData', whitelistData, whitelistError)
 
-  const isWhitelisted = whitelistData?.whitelistStatus
+  const errorFetching = useMemo(() => {
+    return whitelistError || mcpError
+  }, [whitelistError, mcpError])
+
+  useEffect(() => {
+    const handleError = async () => {
+      if (errorFetching) {
+        console.error('Whitelist query failed:', errorFetching?.message)
+        setActiveTab('advanced')
+        await new Promise((resolve) => setTimeout(resolve, 3000))
+        router.navigate({ to: '/settings' })
+      }
+    }
+    handleError()
+  }, [errorFetching, setActiveTab])
+
+  const isWhitelisted = whitelistData?.whitelistStatus || whitelistError
 
   const handleInviteCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,7 +102,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     router.navigate({ to: '/onboarding' })
   }
 
-  if (isActivated || isWhitelisted) {
+  if (isActivated || isWhitelisted || errorFetching) {
     return <>{children}</>
   }
 
@@ -197,7 +217,10 @@ function InvitationWrapper({
 
       {showAnimation && (
         <div className="absolute top-[-20px] left-0">
-          <OnboardingVoiceAnimation layerCount={9} />
+          <OnboardingVoiceAnimation
+            layerCount={9}
+            getFreqData={() => new Uint8Array(256).fill(13)}
+          />
         </div>
       )}
 

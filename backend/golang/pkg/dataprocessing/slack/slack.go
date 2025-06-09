@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
+
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
@@ -29,10 +31,11 @@ type SlackMessage struct {
 }
 
 type SlackProcessor struct {
-	store *db.Store
+	store  *db.Store
+	logger *log.Logger
 }
 
-func NewSlackProcessor(store *db.Store) processor.Processor {
+func NewSlackProcessor(store *db.Store, logger *log.Logger) processor.Processor {
 	return &SlackProcessor{store: store}
 }
 
@@ -63,7 +66,7 @@ func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]ty
 	for _, message := range messages {
 		timestamp, err := parseTimestamp(message.Timestamp)
 		if err != nil {
-			// fmt.Printf("Warning: Failed to parse message timestamp in file %s: %v\n", filePath, err)
+			s.logger.Warn("Failed to parse message timestamp in file", "filePath", filePath, "error", err)
 			continue
 		}
 
@@ -106,7 +109,7 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string)
 
 		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
-			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
+			s.logger.Warn("Failed to process file", "path", path, "error", err)
 			return nil
 		}
 
@@ -148,7 +151,7 @@ func (s *SlackProcessor) ToDocuments(ctx context.Context, records []types.Record
 			FieldSource:    "slack",
 			FieldContent:   message,
 			FieldTimestamp: &record.Timestamp,
-			FieldTags:      []string{"social", "slack", "chat"},
+			FieldTags:      []string{"social", "chat"},
 			FieldMetadata: map[string]string{
 				"type":           "message",
 				"channelName":    channelName,
