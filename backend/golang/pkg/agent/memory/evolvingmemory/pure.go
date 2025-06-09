@@ -16,20 +16,15 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-const (
-	// Maximum allowed document size in characters.
-	maxDocumentSizeChars = 20000
-)
-
 // validateAndTruncateDocument validates document size and truncates if necessary.
 func validateAndTruncateDocument(doc memory.Document) memory.Document {
 	content := doc.Content()
 
-	if len(content) <= maxDocumentSizeChars {
+	if len(content) <= MaxProcessableContentChars {
 		return doc
 	}
 
-	truncatedContent := content[:maxDocumentSizeChars]
+	truncatedContent := content[:MaxProcessableContentChars]
 
 	switch d := doc.(type) {
 	case *memory.TextDocument:
@@ -80,10 +75,10 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 	return prepared, nil
 }
 
-// chunkConversationDocument splits a ConversationDocument into smaller chunks based on ConversationChunkMaxChars.
+// chunkConversationDocument splits a ConversationDocument into smaller chunks based on MaxProcessableContentChars.
 func chunkConversationDocument(conv *memory.ConversationDocument) []memory.Document {
 	// If the entire conversation is already smaller than the max chunk size, don't chunk it.
-	if len(conv.Content()) < ConversationChunkMaxChars {
+	if len(conv.Content()) < MaxProcessableContentChars {
 		return []memory.Document{conv}
 	}
 
@@ -96,7 +91,7 @@ func chunkConversationDocument(conv *memory.ConversationDocument) []memory.Docum
 		msgLen := len(msgContent)
 
 		// If adding this message exceeds the chunk size, finalize the current chunk
-		if currentCharCount+msgLen > ConversationChunkMaxChars && len(currentChunkMessages) > 0 {
+		if currentCharCount+msgLen > MaxProcessableContentChars && len(currentChunkMessages) > 0 {
 			chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
 			chunks = append(chunks, chunk)
 

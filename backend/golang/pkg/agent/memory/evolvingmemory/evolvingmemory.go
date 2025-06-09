@@ -29,11 +29,10 @@ const (
 )
 
 const (
-	// ContextWindowSize represents the assumed character count of the context window for chunking.
-	ContextWindowSize = 200000
-	// ConversationChunkMaxChars is the maximum number of characters for a conversation chunk.
-	// It's 10% of the context window.
-	ConversationChunkMaxChars = ContextWindowSize / 10
+	// MaxProcessableContentChars is the unified maximum number of characters for any single
+	// piece of content (e.g., a text document or a conversation chunk) before it's
+	// either truncated (for text) or split (for conversations).
+	MaxProcessableContentChars = 20000
 )
 
 // Document types.
