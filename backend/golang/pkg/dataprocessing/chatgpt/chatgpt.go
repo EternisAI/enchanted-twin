@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/charmbracelet/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
@@ -61,11 +62,12 @@ type ConversationMessage struct {
 	Text string
 }
 type ChatGPTProcessor struct {
-	store *db.Store
+	store  *db.Store
+	logger *log.Logger
 }
 
-func NewChatGPTProcessor(store *db.Store) processor.Processor {
-	return &ChatGPTProcessor{store: store}
+func NewChatGPTProcessor(store *db.Store, logger *log.Logger) processor.Processor {
+	return &ChatGPTProcessor{store: store, logger: logger}
 }
 
 func (s *ChatGPTProcessor) Name() string {
@@ -96,7 +98,7 @@ func (s *ChatGPTProcessor) ProcessFile(ctx context.Context, filePath string) ([]
 
 		timestamp, err := parseTimestamp(strconv.FormatFloat(conversation.CreateTime, 'f', -1, 64))
 		if err != nil {
-			log.Printf("Warning: Failed to parse timestamp for conversation %d (create_time: %f): %v", i, conversation.CreateTime, err)
+			s.logger.Warn("Failed to parse timestamp for conversation", "index", i, "create_time", conversation.CreateTime, "error", err)
 			continue
 		}
 
@@ -183,7 +185,7 @@ func (s *ChatGPTProcessor) ProcessDirectory(ctx context.Context, inputPath strin
 
 		fileRecords, err := s.ProcessFile(ctx, path)
 		if err != nil {
-			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
+			s.logger.Warn("Failed to process file", "path", path, "error", err)
 			return nil
 		}
 
@@ -243,12 +245,12 @@ func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Reco
 					if msgMap, ok := msgInterface.(map[string]interface{}); ok {
 						role, ok := msgMap["Role"].(string)
 						if !ok {
-							log.Printf("Warning: Role is not a string for message: %v", msgMap)
+							s.logger.Warn("Role is not a string for message", "message", msgMap)
 							continue
 						}
 						text, ok := msgMap["Text"].(string)
 						if !ok {
-							log.Printf("Warning: Text is not a string for message: %v", msgMap)
+							s.logger.Warn("Text is not a string for message", "message", msgMap)
 							continue
 						}
 						if role != "" && text != "" {
