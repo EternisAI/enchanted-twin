@@ -187,6 +187,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
             onStop={() => {}}
             isWaitingTwinResponse={false}
             isReasonSelected={false}
+            placeholder="Send to Holon Thread"
           />
         </div>
       </div>
