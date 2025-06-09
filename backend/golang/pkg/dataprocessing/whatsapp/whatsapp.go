@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -17,25 +17,26 @@ import (
 )
 
 type WhatsappProcessor struct {
-	store *db.Store
+	store  *db.Store
+	logger *log.Logger
 }
 
-func NewWhatsappProcessor(store *db.Store) processor.Processor {
-	return &WhatsappProcessor{store: store}
+func NewWhatsappProcessor(store *db.Store, logger *log.Logger) processor.Processor {
+	return &WhatsappProcessor{store: store, logger: logger}
 }
 
 func (s *WhatsappProcessor) Name() string {
 	return "whatsapp"
 }
 
-func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
+func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Printf("Error closing database: %v", err)
+			s.logger.Warn("Error closing database", "error", err)
 		}
 	}()
 
@@ -64,7 +65,7 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			log.Printf("Error closing rows: %v", err)
+			s.logger.Warn("Error closing rows", "error", err)
 		}
 	}()
 
@@ -91,7 +92,7 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 
 		err := rows.Scan(valuePtrs...)
 		if err != nil {
-			log.Printf("Scan error: %v (row %d, expected %d columns)", err, rowCount, count)
+			s.logger.Warn("Scan error", "error", err, "row", rowCount, "expected", count)
 			return nil, fmt.Errorf("scan failed: %v", err)
 		}
 		rowCount++
@@ -148,7 +149,7 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 
 		for field := range importantFields {
 			if !foundFields[field] {
-				fmt.Printf("Warning: Important field %s not found in query results\n", field)
+				s.logger.Warn("Important field not found in query results", "field", field)
 			}
 		}
 
@@ -181,7 +182,7 @@ func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([
 		return nil, fmt.Errorf("store is nil")
 	}
 
-	return ReadWhatsAppDB(ctx, filePath)
+	return s.ReadWhatsAppDB(ctx, filePath)
 }
 
 func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
@@ -189,38 +190,122 @@ func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 }
 
 func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	// TODO:  build ConversationDocument instead of TextDocument
-	documents := make([]memory.TextDocument, 0, len(records))
+	if len(records) == 0 {
+		return []memory.Document{}, nil
+	}
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
+
+	conversationMap := make(map[string]*memory.ConversationDocument)
+
 	for _, record := range records {
 		content, ok := record.Data["text"].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to convert text field to string")
+		if !ok || strings.TrimSpace(content) == "" {
+			continue
 		}
 
-		fromName, ok := record.Data["fromname"].(string)
+		chatSessionInterface, ok := record.Data["chatsession"]
 		if !ok {
-			return nil, fmt.Errorf("failed to convert fromname field to string")
+			continue
 		}
 
-		toName, ok := record.Data["toname"].(string)
-		if !ok {
-			return nil, fmt.Errorf("failed to convert toname field to string")
+		var chatSession string
+		switch v := chatSessionInterface.(type) {
+		case int:
+			chatSession = fmt.Sprintf("%d", v)
+		case int64:
+			chatSession = fmt.Sprintf("%d", v)
+		case float64:
+			chatSession = fmt.Sprintf("%.0f", v)
+		case string:
+			chatSession = v
+		default:
+			continue
 		}
 
-		documents = append(documents, memory.TextDocument{
-			FieldSource:    "whatsapp",
-			FieldContent:   content,
-			FieldTimestamp: &record.Timestamp,
-			FieldTags:      []string{"whatsapp"},
-			FieldMetadata: map[string]string{
-				"from": fromName,
-				"to":   toName,
-			},
+		isFromMe, ok := record.Data["isfromme"]
+		if !ok {
+			continue
+		}
+
+		var fromMe bool
+		switch v := isFromMe.(type) {
+		case int:
+			fromMe = v == 1
+		case int64:
+			fromMe = v == 1
+		case float64:
+			fromMe = v == 1
+		case bool:
+			fromMe = v
+		default:
+			continue
+		}
+
+		var speaker string
+		var participants []string
+
+		if fromMe {
+			speaker = "me"
+			toName, _ := record.Data["toname"].(string)
+			if strings.TrimSpace(toName) != "" {
+				participants = []string{"me", toName}
+			} else {
+				participants = []string{"me"}
+			}
+		} else {
+			fromName, _ := record.Data["fromname"].(string)
+			if strings.TrimSpace(fromName) != "" {
+				speaker = fromName
+				participants = []string{"me", fromName}
+			} else {
+				speaker = "unknown"
+				participants = []string{"me", "unknown"}
+			}
+		}
+
+		conversation, exists := conversationMap[chatSession]
+		if !exists {
+			conversationMap[chatSession] = &memory.ConversationDocument{
+				FieldID:      fmt.Sprintf("whatsapp-chat-%s", chatSession),
+				FieldSource:  "whatsapp",
+				FieldTags:    []string{"conversation", "chat"},
+				People:       participants,
+				User:         "me",
+				Conversation: []memory.ConversationMessage{},
+				FieldMetadata: map[string]string{
+					"type":         "conversation",
+					"chat_session": chatSession,
+				},
+			}
+			conversation = conversationMap[chatSession]
+		}
+
+		conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
+			Speaker: speaker,
+			Content: content,
+			Time:    record.Timestamp,
 		})
+
+		peopleMap := make(map[string]bool)
+		for _, person := range conversation.People {
+			peopleMap[person] = true
+		}
+		for _, participant := range participants {
+			if !peopleMap[participant] {
+				conversation.People = append(conversation.People, participant)
+				peopleMap[participant] = true
+			}
+		}
 	}
-	var documents_ []memory.Document
-	for _, document := range documents {
-		documents_ = append(documents_, &document)
+
+	var conversationDocuments []memory.ConversationDocument
+	for _, conversation := range conversationMap {
+		if len(conversation.Conversation) > 0 {
+			conversationDocuments = append(conversationDocuments, *conversation)
+		}
 	}
-	return documents_, nil
+
+	return memory.ConversationDocumentsToDocuments(conversationDocuments), nil
 }

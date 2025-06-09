@@ -4,6 +4,7 @@ package telegram
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,12 +14,14 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/nats-io/nats.go"
 	"github.com/openai/openai-go"
@@ -29,6 +32,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	configtable "github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
 )
 
 const (
@@ -287,7 +291,7 @@ func (s *TelegramService) GetChatIDFromChatUUID(
 	chatUUID string,
 ) (int, error) {
 	chatIDStr, err := s.Store.GetValue(ctx, fmt.Sprintf("telegram_chat_id_%s", chatUUID))
-	if err != nil {
+	if err != nil || chatIDStr == "" {
 		return 0, err
 	}
 	chatID, err := strconv.Atoi(chatIDStr)
@@ -801,10 +805,14 @@ func (s *TelegramService) Subscribe(ctx context.Context, chatUUID string) error 
 
 					s.LastMessages = append(s.LastMessages, *newMessage)
 
-					telegramEnabled, _ := GetTelegramEnabled(ctx, s.Store)
+					telegramEnabled, _ := GetTelegramEnabled(ctx, configtable.New(s.Store.DB().DB))
 
 					if telegramEnabled != "true" {
-						err := s.Store.SetValue(ctx, TelegramEnabled, fmt.Sprintf("%t", true))
+						configQueries := configtable.New(s.Store.DB().DB)
+						err := configQueries.SetConfigValue(ctx, configtable.SetConfigValueParams{
+							Key:   TelegramEnabled,
+							Value: sql.NullString{String: "true", Valid: true},
+						})
 						if err != nil {
 							s.Logger.Error("Error setting telegram enabled", "error", err)
 						}
@@ -947,15 +955,39 @@ func PostMessage(
 	return gqlResponse, nil
 }
 
-func GetTelegramEnabled(ctx context.Context, store *db.Store) (string, error) {
-	telegramEnabled, err := store.GetValue(ctx, TelegramEnabled)
-	if err != nil {
+func GetTelegramEnabled(ctx context.Context, store *configtable.Queries) (string, error) {
+	telegramEnabled, err := store.GetConfigValue(ctx, TelegramEnabled)
+	if err != nil || !telegramEnabled.Valid || telegramEnabled.String != "true" {
 		return "", fmt.Errorf("error getting telegram enabled: %w", err)
 	}
-	return telegramEnabled, nil
+	return telegramEnabled.String, nil
 }
 
-func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *TelegramService, logger *log.Logger, toolRegistry *tools.ToolMapRegistry, store *db.Store, envs *config.Config) {
+func MonitorAndRegisterTelegramTool(ctx context.Context, telegramService *TelegramService, logger *log.Logger, toolRegistry *tools.ToolMapRegistry, store *configtable.Queries, envs *config.Config) {
+	keys, err := store.GetAllConfigKeys(context.Background())
+	if err != nil {
+		logger.Error("Error getting all config keys", "error", err)
+		return
+	}
+
+	if !slices.Contains(keys, "telegram_chat_id") {
+		err = store.SetConfigValue(context.Background(), configtable.SetConfigValueParams{
+			Key: "telegram_chat_id",
+		})
+		if err != nil {
+			logger.Error("Error setting telegram chat id", "error", err)
+			return
+		}
+		err = store.SetConfigValue(context.Background(), configtable.SetConfigValueParams{
+			Key:   TelegramChatUUIDKey,
+			Value: sql.NullString{String: uuid.New().String(), Valid: true},
+		})
+		if err != nil {
+			logger.Error("Error setting telegram chat uuid", "error", err)
+			return
+		}
+	}
+
 	for {
 		telegramEnabled, errTelegramEnabled := GetTelegramEnabled(context.Background(), store)
 		_, exists := toolRegistry.Get("telegram_send_message")

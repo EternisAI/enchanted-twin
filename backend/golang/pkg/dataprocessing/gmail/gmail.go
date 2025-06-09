@@ -35,16 +35,15 @@ import (
 )
 
 type GmailProcessor struct {
-	store *db.Store
+	store  *db.Store
+	logger *log.Logger
 }
 
-func NewGmailProcessor(store *db.Store) processor.Processor {
-	return &GmailProcessor{store: store}
+func NewGmailProcessor(store *db.Store, logger *log.Logger) processor.Processor {
+	return &GmailProcessor{store: store, logger: logger}
 }
 
 func (g *GmailProcessor) Name() string { return "gmail" }
-
-/* ────────────────────────────────────────────  MBOX helpers  ─────────────────────────────────────────── */
 
 func countEmails(path string) (int, error) {
 	f, err := os.Open(path)
@@ -89,13 +88,13 @@ const processTimeout = time.Second
 func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.Record, error) {
 	userEmail, err := DetectUserEmailFromMbox(path)
 	if err != nil {
-		fmt.Printf("Warning: Could not detect user email: %v\n", err)
+		g.logger.Warn("Could not detect user email", "error", err)
 		userEmail = ""
 	} else {
-		fmt.Printf("Detected user email: %s\n", userEmail)
+		g.logger.Info("Detected user email", "userEmail", userEmail)
 
 		if err := g.extractAndStoreUserEmail(ctx, userEmail); err != nil {
-			fmt.Printf("Warning: Failed to store user email in database: %v\n", err)
+			g.logger.Warn("Failed to store user email in database", "error", err)
 		}
 	}
 
@@ -106,7 +105,7 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.
 	if total == 0 {
 		return nil, fmt.Errorf("no emails in %s", path)
 	}
-	fmt.Printf("Found %d emails, processing with %d workers …\n", total, runtime.NumCPU())
+	g.logger.Info("Found emails", "total", total, "workers", runtime.NumCPU())
 
 	jobs := make(chan job, runtime.NumCPU())
 	results := make(chan result, total)
@@ -114,14 +113,12 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.
 	var wg sync.WaitGroup
 	var seen, fails atomic.Int64
 
-	// failed-email sink
 	failPath := "output/failed_emails.mbox"
 	failF, _ := os.Create(failPath)
 	if failF != nil {
 		defer failF.Close() //nolint:errcheck
 	}
 
-	// workers
 	for w := 0; w < cap(jobs); w++ {
 		wg.Add(1)
 		go func() {
@@ -234,12 +231,10 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.
 		}
 	}
 	if fc := fails.Load(); fc > 0 {
-		fmt.Printf("%d messages failed (see %s)\n", fc, failPath)
+		g.logger.Warn("Messages failed", "count", fc, "path", failPath)
 	}
 	return out, nil
 }
-
-/* ────────────────────────────────────────────  single-email helper  ─────────────────────────────────── */
 
 func (g *GmailProcessor) processEmail(raw, userEmail string) (types.Record, error) {
 	msg, err := mail.ReadMessage(strings.NewReader(raw))
@@ -606,7 +601,7 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 			FieldSource:    "gmail",
 			FieldContent:   get("content"),
 			FieldTimestamp: &r.Timestamp,
-			FieldTags:      []string{"google", "email"},
+			FieldTags:      []string{"email"},
 			FieldMetadata: map[string]string{
 				"from":    get("from"),
 				"to":      get("to"),
@@ -690,10 +685,10 @@ func (g *GmailProcessor) extractAndStoreUserEmail(ctx context.Context, userEmail
 		Username: userEmail,
 	}
 
-	fmt.Printf("Saving email to database: %v\n", sourceUsername)
+	g.logger.Info("Saving email to database", "sourceUsername", sourceUsername)
 
 	if err := g.store.SetSourceUsername(ctx, sourceUsername); err != nil {
-		fmt.Printf("Warning: Failed to save email to database: %v\n", err)
+		g.logger.Warn("Failed to save email to database", "error", err)
 		return err
 	}
 

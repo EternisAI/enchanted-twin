@@ -48,11 +48,11 @@ func (t *ThreadPreviewTool) Execute(ctx context.Context, inputs map[string]any) 
 	} else {
 		// TODO: Use LLM to generate content from context
 		// For now, use context as content
-		content = "Generated content based on: " + context
+		content = context
 	}
 
 	previewID := "preview-" + time.Now().Format("20060102150405")
-	title := extractTitleFromContent(content)
+	title := content
 
 	var imageURLs []string
 	if urls, ok := inputs["image_urls"].([]interface{}); ok {

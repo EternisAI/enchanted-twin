@@ -158,7 +158,7 @@ export default function HolonThreadPreview({
           </div>
         )}
 
-        <div className=" w-xl bg-transparent backdrop-blur-xs border-t border-white/20 py-1">
+        <div className="w-xl bg-transparent backdrop-blur-xs  pt-2">
           <div className="flex items-center gap-4 w-full">
             <Button
               variant="default"
