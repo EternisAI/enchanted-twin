@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +71,8 @@ func TestSimpleConversationProcessing(t *testing.T) {
 	err = os.WriteFile(tempFilePath, []byte(sampleJSON), 0o644)
 	require.NoError(t, err)
 
-	dataSource := NewChatGPTProcessor(nil)
+	logger := log.New(os.Stdout)
+	dataSource := NewChatGPTProcessor(nil, logger)
 
 	ctx := context.Background()
 	records, err := dataSource.ProcessFile(ctx, tempFilePath)
@@ -129,7 +131,8 @@ func TestConversationToDocuments(t *testing.T) {
 		},
 	}
 
-	chatgptProcessor := NewChatGPTProcessor(nil)
+	logger := log.New(os.Stdout)
+	chatgptProcessor := NewChatGPTProcessor(nil, logger)
 	documents, err := chatgptProcessor.ToDocuments(context.Background(), records)
 	require.NoError(t, err)
 	require.Len(t, documents, 1)
@@ -255,7 +258,8 @@ func TestJSONLRoundTrip(t *testing.T) {
 	assert.Equal(t, "I don't have access to real-time weather data, but I can help you find weather information.", secondMsg["Text"])
 
 	// Test conversion to Document format
-	chatgptProcessor := NewChatGPTProcessor(nil)
+	logger := log.New(os.Stdout)
+	chatgptProcessor := NewChatGPTProcessor(nil, logger)
 	docs, err := chatgptProcessor.ToDocuments(context.Background(), readRecords)
 	require.NoError(t, err, "Error converting records to documents")
 	require.Len(t, docs, 1, "Expected 1 document after conversion")
