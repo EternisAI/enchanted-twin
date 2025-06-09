@@ -421,11 +421,19 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 		}
 
 		// Store replies in database
+		skippedRepliesForThread := 0
 		storedRepliesForThread := 0
 		for _, reply := range allReplies {
+			// Skip replies that were originally created by this instance to avoid duplicates
+			if f.shouldSkipReply(reply) {
+				skippedRepliesForThread++
+				continue
+			}
+
 			// Validate reply data before processing
 			if reply.ParticipantID <= 0 {
 				f.logError(fmt.Sprintf("Invalid ParticipantID %d for reply %d, skipping", reply.ParticipantID, reply.ID), nil)
+				skippedRepliesForThread++
 				continue
 			}
 
@@ -554,7 +562,7 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 
 		totalReplies += len(allReplies)
 		if len(allReplies) > 0 {
-			f.logDebug(fmt.Sprintf("Synced %d replies for thread %d (stored %d new)", len(allReplies), thread.ID, storedRepliesForThread))
+			f.logDebug(fmt.Sprintf("Synced %d replies for thread %d (stored %d new, skipped %d duplicates)", len(allReplies), thread.ID, storedRepliesForThread, skippedRepliesForThread))
 		}
 	}
 
@@ -837,6 +845,35 @@ func (f *FetcherService) shouldSkipThread(thread Thread) bool {
 	return false
 }
 
+// shouldSkipReply determines if a reply should be skipped during sync to avoid duplicates
+func (f *FetcherService) shouldSkipReply(reply Reply) bool {
+	// If we're not authenticated, we can't perform deduplication
+	if !f.isAuthenticated || f.participantID == nil {
+		return false
+	}
+
+	// Only skip if this reply was created by us AND we already have it in our database
+	// AND the dedup ID matches an existing local reply
+	if reply.ParticipantID == *f.participantID && reply.DedupReplyID != "" {
+		// Check if we already have a reply with this exact dedup ID in our local database
+		ctx := context.Background()
+		existingReply, err := f.repository.GetThreadMessage(ctx, reply.DedupReplyID)
+		if err == nil && existingReply != nil {
+			f.logDebug(fmt.Sprintf("Skipping reply %d (dedup ID: %s) - already exists in local database",
+				reply.ID, reply.DedupReplyID))
+			return true
+		}
+
+		// If we get an error checking for the reply, log it but don't skip
+		// This ensures we don't miss replies due to temporary database issues
+		if err != nil {
+			f.logDebug(fmt.Sprintf("Could not check if reply %s exists locally: %v, syncing anyway", reply.DedupReplyID, err))
+		}
+	}
+
+	return false
+}
+
 // SyncReplies fetches and syncs replies for direct activity usage
 func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 	// First, get all threads using paginated endpoint to fetch replies for
@@ -891,11 +928,19 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 		}
 
 		// Store replies in database
+		skippedRepliesForThread := 0
 		storedRepliesForThread := 0
 		for _, reply := range threadReplies {
+			// Skip replies that were originally created by this instance to avoid duplicates
+			if f.shouldSkipReply(reply) {
+				skippedRepliesForThread++
+				continue
+			}
+
 			// Validate reply data before processing
 			if reply.ParticipantID <= 0 {
 				f.logError(fmt.Sprintf("Invalid ParticipantID %d for reply %d, skipping", reply.ParticipantID, reply.ID), nil)
+				skippedRepliesForThread++
 				continue
 			}
 
@@ -1024,7 +1069,7 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 
 		totalReplies += len(allReplies)
 		if len(allReplies) > 0 {
-			f.logDebug(fmt.Sprintf("Synced %d replies for thread %d (stored %d new)", len(allReplies), thread.ID, storedRepliesForThread))
+			f.logDebug(fmt.Sprintf("Synced %d replies for thread %d (stored %d new, skipped %d duplicates)", len(allReplies), thread.ID, storedRepliesForThread, skippedRepliesForThread))
 		}
 	}
 

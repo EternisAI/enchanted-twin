@@ -77,21 +77,3 @@ func AuthenticateWithHolonZero(ctx context.Context, baseURL string, store *db.St
 
 	return authResp, nil
 }
-
-// RefreshTokenAndCreateClient attempts to refresh the Google OAuth token and create an authenticated client
-func RefreshTokenAndCreateClient(ctx context.Context, baseURL string, store *db.Store, logger *clog.Logger, options ...ClientOption) (*APIClient, error) {
-	// First try to create client with existing token
-	client, err := NewAuthenticatedAPIClient(ctx, baseURL, store, logger, options...)
-	if err == nil {
-		return client, nil
-	}
-
-	if logger != nil {
-		logger.Debug("Failed to create authenticated client with existing token, attempting refresh", "error", err)
-	}
-
-	// Import auth package to refresh tokens
-	// Note: This creates a circular dependency, so we'll handle this differently
-	// For now, return error and let the caller handle token refresh
-	return nil, fmt.Errorf("authentication failed and token refresh not implemented in this context: %w", err)
-}
