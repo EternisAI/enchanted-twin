@@ -563,7 +563,12 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	var conversationMessages []memory.ConversationMessage
 	var people []string
 	peopleMap := make(map[string]bool)
-	primaryUser := "primaryUser"
+
+	userProfile, err := s.userStorage.GetUserProfile(ctx)
+	primaryUser := ""
+	if err == nil && userProfile.Name != nil {
+		primaryUser = *userProfile.Name
+	}
 
 	for _, message := range messagesWindow {
 		if message.Role.String() == "system" {
