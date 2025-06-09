@@ -156,7 +156,7 @@ func teardownSharedInfrastructure() {
 func clearWeaviateData(t *testing.T) {
 	t.Helper()
 
-	for _, className := range []string{"TextDocument", "SourceDocument"} {
+	for _, className := range []string{"MemoryFact", "SourceDocument"} {
 		result, err := sharedWeaviateClient.Data().ObjectsGetter().
 			WithClassName(className).
 			WithLimit(1000).

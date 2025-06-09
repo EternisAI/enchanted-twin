@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	ClassName         = "TextDocument"
+	ClassName         = "MemoryFact"
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
 	tagsProperty      = "tags"

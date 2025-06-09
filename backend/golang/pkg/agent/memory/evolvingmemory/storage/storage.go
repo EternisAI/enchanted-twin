@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	ClassName         = "TextDocument"
+	ClassName         = "MemoryFact"
 	DocumentClassName = "SourceDocument" // New separate class for documents
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
