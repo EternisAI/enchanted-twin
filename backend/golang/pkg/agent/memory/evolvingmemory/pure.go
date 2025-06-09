@@ -90,6 +90,27 @@ func chunkConversationDocument(conv *memory.ConversationDocument) []memory.Docum
 		msgContent := fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content)
 		msgLen := len(msgContent)
 
+		// Handle oversized individual messages
+		if msgLen > MaxProcessableContentChars {
+			// If there are messages in the current chunk, finalize it first
+			if len(currentChunkMessages) > 0 {
+				chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
+				chunks = append(chunks, chunk)
+				currentChunkMessages = nil
+				currentCharCount = 0
+			}
+
+			// Split the oversized message into multiple chunks
+			splitMessages := splitOversizedMessage(msg)
+			for _, splitMsg := range splitMessages {
+				// Each split message should fit in its own chunk
+				// (splitOversizedMessage ensures this)
+				chunk := createConversationChunk(conv, []memory.ConversationMessage{splitMsg}, len(chunks)+1)
+				chunks = append(chunks, chunk)
+			}
+			continue
+		}
+
 		// If adding this message exceeds the chunk size, finalize the current chunk
 		if currentCharCount+msgLen > MaxProcessableContentChars && len(currentChunkMessages) > 0 {
 			chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
@@ -116,6 +137,122 @@ func chunkConversationDocument(conv *memory.ConversationDocument) []memory.Docum
 	}
 
 	return chunks
+}
+
+// splitOversizedMessage splits a single message that exceeds MaxProcessableContentChars
+// into multiple smaller messages while preserving speaker and timestamp information.
+func splitOversizedMessage(msg memory.ConversationMessage) []memory.ConversationMessage {
+	speakerPrefix := fmt.Sprintf("%s: ", msg.Speaker)
+	speakerPrefixLen := len(speakerPrefix)
+
+	// Account for speaker prefix and newline in the content limit
+	maxContentPerChunk := MaxProcessableContentChars - speakerPrefixLen - 1 // -1 for newline
+
+	// Ensure we have at least some space for content
+	if maxContentPerChunk < 100 {
+		maxContentPerChunk = 100 // Minimum reasonable content size
+	}
+
+	content := msg.Content
+
+	// Handle empty content
+	if content == "" {
+		return []memory.ConversationMessage{msg}
+	}
+
+	var splitMessages []memory.ConversationMessage
+	partNumber := 1
+
+	for len(content) > 0 {
+		var chunkContent string
+
+		if len(content) <= maxContentPerChunk {
+			// Last chunk - take remaining content
+			chunkContent = content
+			content = ""
+		} else {
+			// Reserve space for potential markers
+			continuationMarker := " [continued...]"
+			partMarkerSpace := 20 // Space for "[Part X] " prefix
+			availableSpace := maxContentPerChunk - len(continuationMarker) - partMarkerSpace
+
+			// Ensure we have reasonable space
+			if availableSpace < 50 {
+				availableSpace = maxContentPerChunk - 10 // Minimal approach
+			}
+
+			// Find a good break point (prefer word boundaries)
+			breakPoint := availableSpace
+			if breakPoint > len(content) {
+				breakPoint = len(content)
+			}
+
+			// Look backwards for a word boundary (space, newline, punctuation)
+			for i := breakPoint - 1; i > availableSpace/2 && i < len(content); i-- {
+				char := content[i]
+				if char == ' ' || char == '\n' || char == '.' || char == '!' || char == '?' || char == ',' || char == ';' {
+					breakPoint = i + 1 // Include the punctuation/space
+					break
+				}
+			}
+
+			chunkContent = content[:breakPoint]
+			content = content[breakPoint:]
+
+			// Add continuation indicator if this isn't the last part
+			if len(content) > 0 {
+				chunkContent += continuationMarker
+			}
+		}
+
+		// Add part number for multi-part messages only if we have multiple parts
+		willHaveMultipleParts := len(content) > 0 || partNumber > 1
+		if willHaveMultipleParts {
+			partPrefix := fmt.Sprintf("[Part %d] ", partNumber)
+
+			// Ensure the total doesn't exceed limits
+			totalLength := len(partPrefix) + len(chunkContent)
+			if totalLength > maxContentPerChunk {
+				// Trim content to fit with the part prefix
+				trimAmount := totalLength - maxContentPerChunk
+				if trimAmount < len(chunkContent) {
+					chunkContent = chunkContent[:len(chunkContent)-trimAmount]
+					// Remove partial words at the end
+					lastSpace := strings.LastIndex(chunkContent, " ")
+					if lastSpace > len(chunkContent)/2 {
+						chunkContent = chunkContent[:lastSpace]
+					}
+				}
+			}
+
+			chunkContent = partPrefix + chunkContent
+		}
+
+		// Create a new message for this chunk
+		splitMsg := memory.ConversationMessage{
+			Speaker: msg.Speaker,
+			Content: chunkContent,
+			Time:    msg.Time,
+		}
+
+		splitMessages = append(splitMessages, splitMsg)
+		partNumber++
+
+		// Safety check to prevent infinite loops
+		if partNumber > 100 {
+			break
+		}
+	}
+
+	// If we only ended up with one message and it's not oversized, return original
+	if len(splitMessages) == 1 {
+		finalMsg := fmt.Sprintf("%s: %s\n", splitMessages[0].Speaker, splitMessages[0].Content)
+		if len(finalMsg) <= MaxProcessableContentChars {
+			return []memory.ConversationMessage{msg} // Return original without markers
+		}
+	}
+
+	return splitMessages
 }
 
 // createConversationChunk creates a new ConversationDocument chunk.
