@@ -561,14 +561,15 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	messagesWindow := helpers.SafeLastN(messages, slidingWindow)
 
 	var conversationMessages []memory.ConversationMessage
-	var people []string
-	peopleMap := make(map[string]bool)
+	var people [2]string
+	people[0] = "assistant"
 
 	userProfile, err := s.userStorage.GetUserProfile(ctx)
 	primaryUser := ""
 	if err == nil && userProfile.Name != nil {
 		primaryUser = *userProfile.Name
 	}
+	people[1] = primaryUser
 
 	for _, message := range messagesWindow {
 		if message.Role.String() == "system" {
@@ -580,11 +581,6 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 			speaker = primaryUser
 		} else {
 			speaker = "assistant"
-		}
-
-		if !peopleMap[speaker] {
-			people = append(people, speaker)
-			peopleMap[speaker] = true
 		}
 
 		createdAt, err := time.Parse(time.RFC3339, message.CreatedAt)
@@ -609,7 +605,7 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	doc := memory.ConversationDocument{
 		FieldID:      uuid.New().String(),
 		FieldSource:  "chat",
-		People:       people,
+		People:       people[:],
 		User:         primaryUser,
 		Conversation: conversationMessages,
 		FieldMetadata: map[string]string{
