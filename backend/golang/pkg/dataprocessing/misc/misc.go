@@ -17,6 +17,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
 )
 
 const (
@@ -28,14 +29,16 @@ type TextDocumentProcessor struct {
 	chunkSize        int
 	completionsModel string
 	store            *db.Store
+	logger           *log.Logger
 }
 
-func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store) processor.Processor {
+func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) processor.Processor {
 	return &TextDocumentProcessor{
 		openAiService:    openAiService,
 		chunkSize:        DefaultChunkSize,
 		completionsModel: completionsModel,
 		store:            store,
+		logger:           logger,
 	}
 }
 
@@ -202,7 +205,7 @@ func (s *TextDocumentProcessor) ExtractTextFromPDF(filePath string) (string, err
 	}
 	defer func() {
 		if err := f.Close(); err != nil {
-			fmt.Printf("failed to close PDF file %s: %v\n", filePath, err)
+			s.logger.Warn("failed to close PDF file", "filePath", filePath, "error", err)
 		}
 	}()
 
@@ -269,7 +272,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			fmt.Printf("failed to close file %s: %v\n", filePath, err)
+			s.logger.Warn("failed to close file", "filePath", filePath, "error", err)
 		}
 	}()
 
@@ -321,7 +324,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 				return nil, fmt.Errorf("error analyzing file %s: %w", filePath, err)
 			}
 
-			fmt.Printf("File %s: isHumanReadable: %t\n", fileName, isHumanReadable)
+			s.logger.Info("File", "fileName", fileName, "isHumanReadable", isHumanReadable)
 
 			if !isHumanReadable {
 				return nil, fmt.Errorf("file %s does not contain human-readable content", filePath)
@@ -329,7 +332,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 		}
 	}
 
-	fmt.Printf("Processing file %s: content length=%d, preview=%s\n", fileName, len(textContent), textContent[:min(200, len(textContent))])
+	s.logger.Info("Processing file", "fileName", fileName, "contentLength", len(textContent), "preview", textContent[:min(200, len(textContent))])
 
 	if len(textContent) == 0 {
 		emptyRecord := types.Record{
@@ -353,7 +356,7 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 
 	tags, err := s.ExtractContentTags(context.Background(), textContent)
 	if err != nil {
-		fmt.Printf("Warning: Failed to extract tags for %s: %v\n", filePath, err)
+		s.logger.Warn("Failed to extract tags", "filePath", filePath, "error", err)
 		tags = []string{}
 	}
 
@@ -384,10 +387,10 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 		}
 		records = append(records, record)
 
-		fmt.Printf("Created record for %s chunk %d: content_length=%d\n", fileName, i/s.chunkSize, len(chunk))
+		s.logger.Info("Created record", "fileName", fileName, "chunk", i/s.chunkSize, "contentLength", len(chunk))
 	}
 
-	fmt.Printf("File %s processed into %d records\n", fileName, len(records))
+	s.logger.Info("File processed into records", "fileName", fileName, "records", len(records))
 	return records, nil
 }
 
@@ -412,7 +415,7 @@ func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath 
 
 		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
-			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
+			s.logger.Warn("Failed to process file", "path", path, "error", err)
 			return nil
 		}
 
@@ -427,10 +430,10 @@ func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath 
 }
 
 func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	fmt.Printf("Converting %d records to documents\n", len(records))
+	s.logger.Info("Converting records to documents", "records", len(records))
 
 	documents := make([]memory.TextDocument, 0, len(records))
-	for i, record := range records {
+	for _, record := range records {
 		metadata := map[string]string{}
 
 		content := ""
@@ -461,8 +464,7 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 			FieldTags:      tags,
 		}
 
-		fmt.Printf("Document %d: ID=%s, Source=%s, Content_length=%d, Preview=%s\n",
-			i, doc.ID(), doc.Source(), len(doc.Content()), doc.Content()[:min(100, len(doc.Content()))])
+		s.logger.Info("Document", "id", doc.ID(), "source", doc.Source(), "contentLength", len(doc.Content()), "preview", doc.Content()[:min(100, len(doc.Content()))])
 
 		documents = append(documents, doc)
 	}
@@ -472,7 +474,7 @@ func (s *TextDocumentProcessor) ToDocuments(ctx context.Context, records []types
 		documents_ = append(documents_, &document)
 	}
 
-	fmt.Printf("Converted %d records to %d documents\n", len(records), len(documents_))
+	s.logger.Info("Converted records to documents", "records", len(records), "documents", len(documents_))
 	return documents_, nil
 }
 

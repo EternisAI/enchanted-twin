@@ -7,10 +7,10 @@ import (
 	"testing"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
 )
 
 func TestUsernameExtraction(t *testing.T) {
-	// Create test data
 	testData := `{
   "personal_information": {
     "user_id": 1601587058,
@@ -74,7 +74,6 @@ func TestUsernameExtraction(t *testing.T) {
   }
 }`
 
-	// Create temporary file
 	tmpFile, err := os.CreateTemp("", "telegram_test_*.json")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -86,7 +85,6 @@ func TestUsernameExtraction(t *testing.T) {
 	}
 	tmpFile.Close() //nolint:errcheck
 
-	// Create temporary database
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
@@ -101,19 +99,17 @@ func TestUsernameExtraction(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	// Test username extraction
-	source := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	source := NewTelegramProcessor(store, logger)
 	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
 	}
 
-	// Verify records were created
 	if len(records) != 3 {
 		t.Errorf("Expected 3 records, got %d", len(records))
 	}
 
-	// Verify username was extracted and stored
 	sourceUsername, err := store.GetSourceUsername(ctx, "telegram")
 	if err != nil {
 		t.Fatalf("Failed to get source username: %v", err)
@@ -214,7 +210,8 @@ func TestUsernameExtractionFallback(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	source := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	source := NewTelegramProcessor(store, logger)
 	_, err = source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
@@ -270,7 +267,6 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	}
 	tmpFile.Close() //nolint:errcheck
 
-	// Create database
 	dbFile, err := os.CreateTemp("", "example_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
@@ -285,8 +281,8 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	// Process with username extraction
-	source := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	source := NewTelegramProcessor(store, logger)
 	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
@@ -294,7 +290,6 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 
 	t.Logf("Processed %d records", len(records))
 
-	// Retrieve extracted username
 	sourceUsername, err := store.GetSourceUsername(ctx, "telegram")
 	if err != nil {
 		t.Fatalf("Failed to get source username: %v", err)
@@ -312,7 +307,6 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 		t.Log("No username found in export")
 	}
 
-	// Show all stored usernames
 	allUsernames, err := store.GetAllSourceUsernames(ctx)
 	if err != nil {
 		t.Fatalf("Failed to get all usernames: %v", err)

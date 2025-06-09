@@ -13,6 +13,8 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+
+	"github.com/charmbracelet/log"
 )
 
 type Contact struct {
@@ -69,11 +71,12 @@ type TelegramData struct {
 }
 
 type TelegramProcessor struct {
-	store *db.Store
+	store  *db.Store
+	logger *log.Logger
 }
 
-func NewTelegramProcessor(store *db.Store) processor.Processor {
-	return &TelegramProcessor{store: store}
+func NewTelegramProcessor(store *db.Store, logger *log.Logger) processor.Processor {
+	return &TelegramProcessor{store: store, logger: logger}
 }
 
 func (s *TelegramProcessor) Name() string {
@@ -114,7 +117,7 @@ func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData Te
 		}
 
 		if err := s.store.SetSourceUsername(ctx, sourceUsername); err != nil {
-			fmt.Printf("Warning: Failed to save username to database: %v\n", err)
+			s.logger.Warn("Failed to save username to database", "error", err)
 
 			return "", err
 		}
@@ -199,7 +202,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 	for _, contact := range telegramData.Contacts.List {
 		timestamp, err := parseTimestamp(contact.Date, contact.DateUnixtime)
 		if err != nil {
-			fmt.Printf("Warning: Failed to parse contact timestamp: %v\n", err)
+			s.logger.Warn("Failed to parse contact timestamp", "error", err)
 			continue
 		}
 
@@ -223,7 +226,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		for _, message := range chat.Messages {
 			timestamp, err := parseTimestamp(message.Date, message.DateUnixtime)
 			if err != nil {
-				fmt.Printf("Warning: Failed to parse message timestamp: %v\n", err)
+				s.logger.Warn("Failed to parse message timestamp", "error", err)
 				continue
 			}
 

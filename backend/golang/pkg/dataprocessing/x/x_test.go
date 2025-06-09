@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/charmbracelet/log"
 )
 
 func TestToDocuments(t *testing.T) {
@@ -40,7 +41,8 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
-	source := NewXProcessor(nil)
+	logger := log.New(os.Stdout)
+	source := NewXProcessor(nil, logger)
 	documents, err := source.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)

@@ -217,7 +217,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
 
 	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
 

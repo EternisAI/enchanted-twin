@@ -13,6 +13,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
 )
 
 func TestToDocuments(t *testing.T) {
@@ -61,7 +62,8 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
 
-	telegramProcessor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	telegramProcessor := NewTelegramProcessor(store, logger)
 	docs, err := telegramProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
@@ -160,7 +162,8 @@ func TestProcessDirectoryInput(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	processor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	processor := NewTelegramProcessor(store, logger)
 	records, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
@@ -247,7 +250,8 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	processor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	processor := NewTelegramProcessor(store, logger)
 	records, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
@@ -296,7 +300,8 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	processor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	processor := NewTelegramProcessor(store, logger)
 	records, err := processor.ProcessFile(ctx, tempDir)
 
 	if err == nil {

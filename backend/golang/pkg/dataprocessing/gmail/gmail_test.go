@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/charmbracelet/log"
 )
 
 func TestGmailProcessor(t *testing.T) {
@@ -366,26 +367,22 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	// Create Gmail processor
-	processor := NewGmailProcessor(nil)
+	logger := log.New(os.Stdout)
+	processor := NewGmailProcessor(nil, logger)
 
-	// Test processor name
 	if processor.Name() != "gmail" {
 		t.Errorf("Expected processor name to be 'gmail', got %s", processor.Name())
 	}
 
-	// Process the test file
 	records, err := processor.ProcessFile(context.Background(), tmpFile)
 	if err != nil {
 		t.Fatalf("Failed to process file: %v", err)
 	}
 
-	// Verify we got one record
 	assert.Equal(t, 1, len(records), "Expected 1 record")
 
 	record := records[0]
 
-	// Test record fields
 	expectedTime, _ := time.Parse(time.RFC1123Z, "Mon, 07 Apr 2025 14:31:02 +0000")
 	tests := []struct {
 		name     string
@@ -410,11 +407,10 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 		})
 	}
 
-	// Check that content is not empty and correctly cleaned
 	content_data, ok := record.Data["content"].(string)
 	assert.True(t, ok, "Content should be a string")
 	assert.NotEmpty(t, content_data, "Content should not be empty after cleaning")
-	// Add more specific checks:
+
 	assert.Contains(t, content_data, "D.Touch", "Cleaned content should contain part of the main body")
 	assert.NotContains(t, content_data, "https://", "Cleaned content should not contain https links")
 	assert.NotContains(t, content_data, "http://", "Cleaned content should not contain http links") // Also check http
@@ -441,7 +437,8 @@ func TestToDocuments(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
-	gmailProcessor := NewGmailProcessor(nil)
+	logger := log.New(os.Stdout)
+	gmailProcessor := NewGmailProcessor(nil, logger)
 	documents, err := gmailProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
@@ -576,7 +573,8 @@ Content-Type: text/plain; charset=UTF-8
 
 I want to give out my MacBook Air 2023 for free it's in health and good condition along side a charger so it's perfect , I want to give it because I just got a new one so I want to give it out to anyone interested in it you can text me on 310-421-4920`
 
-	processor, ok := NewGmailProcessor(nil).(*GmailProcessor)
+	logger := log.New(os.Stdout)
+	processor, ok := NewGmailProcessor(nil, logger).(*GmailProcessor)
 	if !ok {
 		t.Fatalf("Failed to cast processor to *GmailProcessor")
 	}

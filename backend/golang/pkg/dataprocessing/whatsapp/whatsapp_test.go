@@ -2,6 +2,7 @@ package whatsapp
 
 import (
 	"context"
+	"os"
 	"testing"
 	"time"
 
@@ -10,10 +11,11 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/charmbracelet/log"
 )
 
 func TestToDocuments(t *testing.T) {
-	processor := NewWhatsappProcessor(nil)
+	processor := NewWhatsappProcessor(nil, nil)
 
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
@@ -162,7 +164,7 @@ func TestToDocuments(t *testing.T) {
 }
 
 func TestToDocumentsEdgeCases(t *testing.T) {
-	processor := NewWhatsappProcessor(nil)
+	processor := NewWhatsappProcessor(nil, nil)
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
 	t.Run("EmptyTextMessages", func(t *testing.T) {
@@ -324,7 +326,8 @@ func TestToDocumentsEdgeCases(t *testing.T) {
 }
 
 func TestToDocumentsParticipantDetection(t *testing.T) {
-	processor := NewWhatsappProcessor(nil)
+	logger := log.New(os.Stdout)
+	processor := NewWhatsappProcessor(nil, logger)
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
 	records := []types.Record{

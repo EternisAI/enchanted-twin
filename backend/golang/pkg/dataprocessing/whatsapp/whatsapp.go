@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -14,28 +13,30 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
 )
 
 type WhatsappProcessor struct {
-	store *db.Store
+	store  *db.Store
+	logger *log.Logger
 }
 
-func NewWhatsappProcessor(store *db.Store) processor.Processor {
-	return &WhatsappProcessor{store: store}
+func NewWhatsappProcessor(store *db.Store, logger *log.Logger) processor.Processor {
+	return &WhatsappProcessor{store: store, logger: logger}
 }
 
 func (s *WhatsappProcessor) Name() string {
 	return "whatsapp"
 }
 
-func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
+func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			log.Printf("Error closing database: %v", err)
+			s.logger.Warn("Error closing database", "error", err)
 		}
 	}()
 
@@ -64,7 +65,7 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 	}
 	defer func() {
 		if err := rows.Close(); err != nil {
-			log.Printf("Error closing rows: %v", err)
+			s.logger.Warn("Error closing rows", "error", err)
 		}
 	}()
 
@@ -91,7 +92,7 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 
 		err := rows.Scan(valuePtrs...)
 		if err != nil {
-			log.Printf("Scan error: %v (row %d, expected %d columns)", err, rowCount, count)
+			s.logger.Warn("Scan error", "error", err, "row", rowCount, "expected", count)
 			return nil, fmt.Errorf("scan failed: %v", err)
 		}
 		rowCount++
@@ -148,7 +149,7 @@ func ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) 
 
 		for field := range importantFields {
 			if !foundFields[field] {
-				fmt.Printf("Warning: Important field %s not found in query results\n", field)
+				s.logger.Warn("Important field not found in query results", "field", field)
 			}
 		}
 
@@ -181,7 +182,7 @@ func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([
 		return nil, fmt.Errorf("store is nil")
 	}
 
-	return ReadWhatsAppDB(ctx, filePath)
+	return s.ReadWhatsAppDB(ctx, filePath)
 }
 
 func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {

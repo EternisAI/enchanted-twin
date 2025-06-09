@@ -16,6 +16,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/charmbracelet/log"
 )
 
 type UserProfile struct {
@@ -29,10 +30,11 @@ type SlackMessage struct {
 }
 
 type SlackProcessor struct {
-	store *db.Store
+	store  *db.Store
+	logger *log.Logger
 }
 
-func NewSlackProcessor(store *db.Store) processor.Processor {
+func NewSlackProcessor(store *db.Store, logger *log.Logger) processor.Processor {
 	return &SlackProcessor{store: store}
 }
 
@@ -63,7 +65,7 @@ func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]ty
 	for _, message := range messages {
 		timestamp, err := parseTimestamp(message.Timestamp)
 		if err != nil {
-			// fmt.Printf("Warning: Failed to parse message timestamp in file %s: %v\n", filePath, err)
+			s.logger.Warn("Failed to parse message timestamp in file", "filePath", filePath, "error", err)
 			continue
 		}
 
@@ -106,7 +108,7 @@ func (s *SlackProcessor) ProcessDirectory(ctx context.Context, inputPath string)
 
 		records, err := s.ProcessFile(ctx, path)
 		if err != nil {
-			fmt.Printf("Warning: Failed to process file %s: %v\n", path, err)
+			s.logger.Warn("Failed to process file", "path", path, "error", err)
 			return nil
 		}
 
