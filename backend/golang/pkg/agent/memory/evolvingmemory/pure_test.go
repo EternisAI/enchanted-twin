@@ -259,7 +259,6 @@ func TestDocumentSizeValidation(t *testing.T) {
 					// Trim the final newline
 					fullCombinedContent := strings.TrimSpace(combinedContent.String())
 					assert.Equal(t, convDoc.Content(), fullCombinedContent, "Combined content of chunks should match original")
-
 				} else {
 					assert.Len(t, prepared, 1, "Expected short conversation not to be chunked")
 					assert.Equal(t, convDoc.Content(), prepared[0].Original.Content())
