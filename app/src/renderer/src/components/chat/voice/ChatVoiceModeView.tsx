@@ -13,6 +13,9 @@ import { extractReasoningAndReply, getToolUrl } from '../config'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 import { Tooltip } from '@renderer/components/ui/tooltip'
 import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
+import { Button } from '@renderer/components/ui/button'
+import { Mic, Mic2, MicOff, X } from 'lucide-react'
+import { cn } from '@renderer/lib/utils'
 
 interface VoiceModeChatViewProps {
   chat: Chat
@@ -38,12 +41,6 @@ export default function VoiceModeChatView({
 
   const triggeredRef = useRef(false)
 
-  // const lastAssistantMessage = useMemo(() => {
-  //   if (!chat || messages.length === 0) return null
-  //   const lastAssistantMessage = messages.filter((m) => m.role === Role.Assistant).pop()
-  //   return lastAssistantMessage || null
-  // }, [chat, messages])
-
   const lastUserMessage = useMemo(() => {
     if (!chat || messages.length === 0) return null
     const lastUserMessage = messages.filter((m) => m.role === Role.User).pop()
@@ -64,7 +61,6 @@ export default function VoiceModeChatView({
     return () => stop()
   }, [stop])
 
-  /* when audio actually starts, drop loading state */
   useEffect(() => {
     if (isSpeaking && triggeredRef.current) {
       triggeredRef.current = false
@@ -108,17 +104,63 @@ export default function VoiceModeChatView({
               Error: {error}
             </div>
           )}
-          <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} />
-          <MessageInput
+          {/* <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} /> */}
+          <VoiceModeInput isMuted={false} isAgentSpeaking={isSpeaking} onStop={toggleVoiceMode} />
+          {/* <MessageInput
             isWaitingTwinResponse={isLoading || isSpeaking}
             onSend={onSendMessage}
             onStop={stop}
             isReasonSelected={false}
             voiceMode
-          />
+          /> */}
         </div>
       </div>
     </div>
+  )
+}
+
+function VoiceModeInput({
+  isMuted,
+  isAgentSpeaking,
+  onStop
+}: {
+  isMuted: boolean
+  isAgentSpeaking: boolean
+  onStop: () => void
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      className="flex gap-2 justify-center pb-4"
+    >
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            // onClick={onClick}
+            className={cn(
+              '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-gray-100 dark:!bg-gray-800 hover:!bg-gray-200 dark:!hover:!bg-gray-700'
+            )}
+            variant="outline"
+          >
+            {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent className="px-3 py-1 bg-gray-100 rounded-lg">
+          {isMuted ? 'Unmute' : 'Mute'}
+        </TooltipContent>
+      </Tooltip>
+      <Button
+        onClick={onStop}
+        className={cn(
+          '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-gray-100 dark:!bg-gray-800 hover:!bg-red-200 dark:!hover:!bg-red-700 hover:!text-red-500 dark:!hover:!text-red-400'
+        )}
+        variant="outline"
+      >
+        <X className="w-4 h-4" />
+      </Button>
+    </motion.div>
   )
 }
 
@@ -146,7 +188,7 @@ export function VoiceModeSwitch({
               disabled={!voiceMode && !isVoiceReady}
             />
             <label className="text-sm" htmlFor="voiceMode">
-              Voice Output
+              Voice Mode
             </label>
           </div>
         </TooltipTrigger>
