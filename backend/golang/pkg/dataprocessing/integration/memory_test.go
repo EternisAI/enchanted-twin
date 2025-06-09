@@ -515,136 +515,136 @@ func TestMemoryIntegration(t *testing.T) {
 		env.logger.Info("Documents stored successfully")
 	})
 
-	// t.Run("BasicQuerying", func(t *testing.T) {
-	// 	if len(env.documents) == 0 {
-	// 		env.loadDocuments(t, env.config.Source, env.config.InputPath)
-	// 		env.storeDocuments(t)
-	// 	}
+	t.Run("BasicQuerying", func(t *testing.T) {
+		if len(env.documents) == 0 {
+			env.loadDocuments(t, env.config.Source, env.config.InputPath)
+			env.storeDocuments(t)
+		}
 
-	// 	limit := 100
-	// 	filter := memory.Filter{
-	// 		Source: &env.config.Source,
-	// 		Limit:  &limit,
-	// 	}
+		limit := 100
+		filter := memory.Filter{
+			Source: &env.config.Source,
+			Limit:  &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
-	// 	require.NoError(t, err)
-	// 	assert.NotEmpty(t, result.Facts, "should find memories with basic query")
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Facts, "should find memories with basic query")
 
-	// 	for _, fact := range result.Facts {
-	// 		env.logger.Info("Basic fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-	// 	}
-	// })
+		for _, fact := range result.Facts {
+			env.logger.Info("Basic fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+		}
+	})
 
-	// t.Run("Query chatgpt", func(t *testing.T) {
-	// 	source := "chatgpt"
-	// 	inputPath := "testdata/chatgpt.zip"
+	t.Run("Query chatgpt", func(t *testing.T) {
+		source := "chatgpt"
+		inputPath := "testdata/chatgpt.zip"
 
-	// 	env.loadDocuments(t, source, inputPath)
-	// 	env.storeDocuments(t)
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
 
-	// 	limit := 100
-	// 	filter := memory.Filter{
-	// 		Source: &source,
-	// 		Limit:  &limit,
-	// 	}
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-	// 	require.NoError(t, err)
-	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-	// 	for _, fact := range result.Facts {
-	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-	// 	}
-	// })
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+		}
+	})
 
-	// t.Run("Query gmail", func(t *testing.T) {
-	// 	source := "gmail"
-	// 	inputPath := "testdata/google_export_sample.zip"
+	t.Run("Query gmail", func(t *testing.T) {
+		source := "gmail"
+		inputPath := "testdata/google_export_sample.zip"
 
-	// 	env.loadDocuments(t, source, inputPath)
-	// 	env.storeDocuments(t)
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
 
-	// 	limit := 100
-	// 	filter := memory.Filter{
-	// 		Source: &source,
-	// 		Limit:  &limit,
-	// 	}
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-	// 	require.NoError(t, err)
-	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-	// 	for _, fact := range result.Facts {
-	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-	// 	}
-	// })
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+		}
+	})
 
-	// t.Run("Query telegram", func(t *testing.T) {
-	// 	source := "telegram"
-	// 	inputPath := "testdata/telegram_export_sample.json"
+	t.Run("Query telegram", func(t *testing.T) {
+		source := "telegram"
+		inputPath := "testdata/telegram_export_sample.json"
 
-	// 	env.loadDocuments(t, source, inputPath)
-	// 	env.storeDocuments(t)
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
 
-	// 	limit := 100
-	// 	filter := memory.Filter{
-	// 		Source: &source,
-	// 		Limit:  &limit,
-	// 	}
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-	// 	require.NoError(t, err)
-	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-	// 	for _, fact := range result.Facts {
-	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-	// 	}
-	// })
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+		}
+	})
 
-	// t.Run("Query X", func(t *testing.T) {
-	// 	source := "x"
-	// 	inputPath := "testdata/x_export_sample.zip"
+	t.Run("Query X", func(t *testing.T) {
+		source := "x"
+		inputPath := "testdata/x_export_sample.zip"
 
-	// 	env.loadDocuments(t, source, inputPath)
-	// 	env.storeDocuments(t)
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
 
-	// 	limit := 100
-	// 	filter := memory.Filter{
-	// 		Source: &source,
-	// 		Limit:  &limit,
-	// 	}
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-	// 	require.NoError(t, err)
-	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-	// 	for _, fact := range result.Facts {
-	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-	// 	}
-	// })
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+		}
+	})
 
-	// t.Run("Query slack", func(t *testing.T) {
-	// 	source := "slack"
-	// 	inputPath := "testdata/slack_export_sample.zip"
+	t.Run("Query slack", func(t *testing.T) {
+		source := "slack"
+		inputPath := "testdata/slack_export_sample.zip"
 
-	// 	env.loadDocuments(t, source, inputPath)
-	// 	env.storeDocuments(t)
+		env.loadDocuments(t, source, inputPath)
+		env.storeDocuments(t)
 
-	// 	limit := 100
-	// 	filter := memory.Filter{
-	// 		Source: &source,
-	// 		Limit:  &limit,
-	// 	}
+		limit := 100
+		filter := memory.Filter{
+			Source: &source,
+			Limit:  &limit,
+		}
 
-	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-	// 	require.NoError(t, err)
-	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-	// 	for _, fact := range result.Facts {
-	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-	// 	}
-	// })
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+		}
+	})
 
 	t.Run("Query whatsapp", func(t *testing.T) {
 		source := "whatsapp"
