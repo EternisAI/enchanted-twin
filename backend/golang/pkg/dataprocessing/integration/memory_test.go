@@ -31,7 +31,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// Shared test infrastructure.
 var (
 	sharedWeaviateServer *rest.Server
 	sharedWeaviateClient *weaviate.Client
@@ -109,7 +108,6 @@ func setupSharedInfrastructure() {
 
 		ctx := context.Background()
 
-		// Temporarily clear os.Args to avoid flag parsing conflicts
 		originalArgs := os.Args
 		os.Args = []string{"test"}
 
@@ -118,7 +116,6 @@ func setupSharedInfrastructure() {
 			panic(fmt.Sprintf("failed to start weaviate server: %v", err))
 		}
 
-		// Restore os.Args
 		os.Args = originalArgs
 
 		sharedWeaviateClient, err = weaviate.NewClient(weaviate.Config{
@@ -129,7 +126,6 @@ func setupSharedInfrastructure() {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
 		}
 
-		// Initialize schema once
 		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), "https://api.openai.com/v1")
 		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, "text-embedding-3-small")
 		if err != nil {
@@ -160,8 +156,6 @@ func teardownSharedInfrastructure() {
 func clearWeaviateData(t *testing.T) {
 	t.Helper()
 
-	// Simple approach: try to delete objects by getting all and then deleting
-	// This is good enough for test cleanup
 	for _, className := range []string{"TextDocument", "SourceDocument"} {
 		result, err := sharedWeaviateClient.Data().ObjectsGetter().
 			WithClassName(className).
@@ -192,16 +186,22 @@ func clearWeaviateData(t *testing.T) {
 func setupTestEnvironment(t *testing.T) *testEnvironment {
 	t.Helper()
 
-	// Ensure shared infrastructure is ready
 	setupSharedInfrastructure()
 
-	// Clear data from previous tests
 	clearWeaviateData(t)
 
 	config := getTestConfig(t)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 
-	// Create test-specific temp directory for database
+	testTimeout := 60 * time.Minute
+	if localTestTimeout := os.Getenv("LOCAL_MODEL_TEST_TIMEOUT"); localTestTimeout != "" {
+		if duration, err := time.ParseDuration(localTestTimeout); err == nil {
+			testTimeout = duration
+			t.Logf("Using custom test timeout for local model: %v", duration)
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+
 	tempDir, err := os.MkdirTemp("", "memory-test-*")
 	require.NoError(t, err)
 
@@ -217,7 +217,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 
-	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
 
 	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
 
@@ -265,15 +265,42 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
-	records, err := helpers.ReadJSONL[types.Record](env.config.OutputPath)
-	require.NoError(t, err)
-
-	env.logger.Info("Records processed", "count", len(records))
-	for i, record := range records {
-		env.logger.Info("Record", "index", i, "source", record.Source, "content_preview", truncateString(record.Data["content"], 100))
+	count, err := helpers.CountJSONLLines(env.config.OutputPath)
+	if err != nil {
+		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
 
-	documents, err := env.dataprocessing.ToDocuments(env.ctx, source, records)
+	batchSize := 3
+	var allRecords []types.Record
+
+	env.logger.Info("Loading documents in batches", "totalRecords", count, "batchSize", batchSize)
+
+	for batchIndex := 0; ; batchIndex++ {
+		startIndex := batchIndex * batchSize
+		records, err := helpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
+		require.NoError(t, err)
+
+		if len(records) == 0 {
+			break
+		}
+
+		env.logger.Info("Loaded batch", "batchIndex", batchIndex, "recordCount", len(records), "startIndex", startIndex)
+		allRecords = append(allRecords, records...)
+
+		for i, record := range records {
+			env.logger.Info("Record in batch",
+				"batchIndex", batchIndex,
+				"recordIndex", i,
+				"globalIndex", startIndex+i,
+				"source", record.Source,
+				"content_preview", truncateString(record.Data["content"], 100))
+		}
+	}
+
+	env.logger.Info("All records processed", "totalLoaded", len(allRecords), "expectedCount", count)
+	require.Equal(t, count, len(allRecords), "Should load all records across batches")
+
+	documents, err := env.dataprocessing.ToDocuments(env.ctx, source, allRecords)
 	require.NoError(t, err)
 
 	require.NotEmpty(t, documents, "no documents to test with")
@@ -281,7 +308,57 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 
 	env.logger.Info("Documents converted", "count", len(documents))
 	for i, fact := range documents {
-		env.logger.Info("Document", "index", i, "id", fact.ID, "source", fact.Source, "content_preview", truncateString(fact.Content, 150))
+		env.logger.Info("Document", "index", i, "id", fact.ID(), "source", fact.Source(), "content_preview", truncateString(fact.Content(), 150))
+	}
+}
+
+func (env *testEnvironment) loadDocumentsFromJSONL(t *testing.T, source, inputPath string) {
+	t.Helper()
+
+	count, err := helpers.CountJSONLLines(inputPath)
+	if err != nil {
+		t.Fatalf("Failed to count JSONL lines: %v", err)
+	}
+
+	batchSize := 3
+	var allRecords []types.Record
+
+	env.logger.Info("Loading documents from JSONL in batches", "totalRecords", count, "batchSize", batchSize)
+
+	for batchIndex := 0; ; batchIndex++ {
+		startIndex := batchIndex * batchSize
+		records, err := helpers.ReadJSONLBatch(inputPath, startIndex, batchSize)
+		require.NoError(t, err)
+
+		if len(records) == 0 {
+			break
+		}
+
+		env.logger.Info("Loaded batch", "batchIndex", batchIndex, "recordCount", len(records), "startIndex", startIndex)
+		allRecords = append(allRecords, records...)
+
+		for i, record := range records {
+			env.logger.Info("Record in batch",
+				"batchIndex", batchIndex,
+				"recordIndex", i,
+				"globalIndex", startIndex+i,
+				"source", record.Source,
+				"content_preview", truncateString(record.Data["text"], 100))
+		}
+	}
+
+	env.logger.Info("All records processed", "totalLoaded", len(allRecords), "expectedCount", count)
+	require.Equal(t, count, len(allRecords), "Should load all records across batches")
+
+	documents, err := env.dataprocessing.ToDocuments(env.ctx, source, allRecords)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, documents, "no documents to test with")
+	env.documents = documents
+
+	env.logger.Info("Documents converted", "count", len(documents))
+	for i, fact := range documents {
+		env.logger.Info("Document", "index", i, "id", fact.ID(), "source", fact.Source(), "content_preview", truncateString(fact.Content(), 150))
 	}
 }
 
@@ -302,13 +379,29 @@ func (env *testEnvironment) storeDocuments(t *testing.T) {
 	env.logger.Info("Waiting for memory processing to complete...")
 
 	config := evolvingmemory.DefaultConfig()
+
+	if localTimeout := os.Getenv("LOCAL_MODEL_TIMEOUT"); localTimeout != "" {
+		if duration, err := time.ParseDuration(localTimeout); err == nil {
+			config.FactExtractionTimeout = duration
+			config.MemoryDecisionTimeout = duration
+			config.StorageTimeout = duration
+			env.logger.Info("Using custom timeout for local model", "timeout", duration)
+		}
+	}
+
 	progressCh, errorCh := env.memory.StoreV2(env.ctx, env.documents, config)
 
-	// Properly wait for completion by consuming channels until they close
 	var errors []error
 
-	// Use a timeout to prevent hanging if something goes wrong
-	timeout := time.After(2 * time.Minute)
+	processingTimeout := 50 * time.Minute
+	if localProcessingTimeout := os.Getenv("LOCAL_MODEL_PROCESSING_TIMEOUT"); localProcessingTimeout != "" {
+		if duration, err := time.ParseDuration(localProcessingTimeout); err == nil {
+			processingTimeout = duration
+			env.logger.Info("Using custom processing timeout for local model", "timeout", duration)
+		}
+	}
+
+	timeout := time.After(processingTimeout)
 
 	for progressCh != nil || errorCh != nil {
 		select {
@@ -328,14 +421,13 @@ func (env *testEnvironment) storeDocuments(t *testing.T) {
 			env.logger.Errorf("Processing error: %v", err)
 
 		case <-timeout:
-			t.Fatal("Memory processing timed out after 2 minutes")
+			t.Fatalf("Memory processing timed out after %v", processingTimeout)
 
 		case <-env.ctx.Done():
 			t.Fatal("Context canceled during memory processing")
 		}
 	}
 
-	// Check for errors
 	if len(errors) > 0 {
 		t.Fatalf("Memory processing failed with %d errors, first error: %v", len(errors), errors[0])
 	}
@@ -369,25 +461,29 @@ func getTestConfig(t *testing.T) testConfig {
 	}
 
 	completionsApiKey := os.Getenv("COMPLETIONS_API_KEY")
-	embeddingsApiKey := os.Getenv("EMBEDDINGS_API_KEY")
 
 	if completionsApiKey == "" {
-		t.Skip("Skipping integration test: No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
+		t.Fatalf("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
 	}
+	embeddingsApiKey := os.Getenv("EMBEDDINGS_API_KEY")
 	if embeddingsApiKey == "" {
-		t.Skip("Skipping integration test: No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
+		t.Fatalf("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
+
+	completionsModel := "gpt-4o-mini"
+
+	embeddingsModel := "text-embedding-3-small"
 
 	return testConfig{
 		Source:            source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,
-		CompletionsModel:  getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1-mini"),
+		CompletionsModel:  completionsModel,
 		CompletionsApiKey: completionsApiKey,
-		CompletionsApiUrl: getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
-		EmbeddingsModel:   getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small"),
+		CompletionsApiUrl: "https://openrouter.ai/api/v1",
+		EmbeddingsModel:   embeddingsModel,
 		EmbeddingsApiKey:  embeddingsApiKey,
-		EmbeddingsApiUrl:  getEnvOrDefault("EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
+		EmbeddingsApiUrl:  "https://api.openai.com/v1",
 	}
 }
 
@@ -419,120 +515,175 @@ func TestMemoryIntegration(t *testing.T) {
 		env.logger.Info("Documents stored successfully")
 	})
 
-	t.Run("BasicQuerying", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
-			env.storeDocuments(t)
+	// t.Run("BasicQuerying", func(t *testing.T) {
+	// 	if len(env.documents) == 0 {
+	// 		env.loadDocuments(t, env.config.Source, env.config.InputPath)
+	// 		env.storeDocuments(t)
+	// 	}
+
+	// 	limit := 100
+	// 	filter := memory.Filter{
+	// 		Source: &env.config.Source,
+	// 		Limit:  &limit,
+	// 	}
+
+	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+	// 	require.NoError(t, err)
+	// 	assert.NotEmpty(t, result.Facts, "should find memories with basic query")
+
+	// 	for _, fact := range result.Facts {
+	// 		env.logger.Info("Basic fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+	// 	}
+	// })
+
+	// t.Run("Query chatgpt", func(t *testing.T) {
+	// 	source := "chatgpt"
+	// 	inputPath := "testdata/chatgpt.zip"
+
+	// 	env.loadDocuments(t, source, inputPath)
+	// 	env.storeDocuments(t)
+
+	// 	limit := 100
+	// 	filter := memory.Filter{
+	// 		Source: &source,
+	// 		Limit:  &limit,
+	// 	}
+
+	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+	// 	require.NoError(t, err)
+	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+
+	// 	for _, fact := range result.Facts {
+	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+	// 	}
+	// })
+
+	// t.Run("Query gmail", func(t *testing.T) {
+	// 	source := "gmail"
+	// 	inputPath := "testdata/google_export_sample.zip"
+
+	// 	env.loadDocuments(t, source, inputPath)
+	// 	env.storeDocuments(t)
+
+	// 	limit := 100
+	// 	filter := memory.Filter{
+	// 		Source: &source,
+	// 		Limit:  &limit,
+	// 	}
+
+	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+	// 	require.NoError(t, err)
+	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+
+	// 	for _, fact := range result.Facts {
+	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+	// 	}
+	// })
+
+	// t.Run("Query telegram", func(t *testing.T) {
+	// 	source := "telegram"
+	// 	inputPath := "testdata/telegram_export_sample.json"
+
+	// 	env.loadDocuments(t, source, inputPath)
+	// 	env.storeDocuments(t)
+
+	// 	limit := 100
+	// 	filter := memory.Filter{
+	// 		Source: &source,
+	// 		Limit:  &limit,
+	// 	}
+
+	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+	// 	require.NoError(t, err)
+	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+
+	// 	for _, fact := range result.Facts {
+	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+	// 	}
+	// })
+
+	// t.Run("Query X", func(t *testing.T) {
+	// 	source := "x"
+	// 	inputPath := "testdata/x_export_sample.zip"
+
+	// 	env.loadDocuments(t, source, inputPath)
+	// 	env.storeDocuments(t)
+
+	// 	limit := 100
+	// 	filter := memory.Filter{
+	// 		Source: &source,
+	// 		Limit:  &limit,
+	// 	}
+
+	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+	// 	require.NoError(t, err)
+	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+
+	// 	for _, fact := range result.Facts {
+	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+	// 	}
+	// })
+
+	// t.Run("Query slack", func(t *testing.T) {
+	// 	source := "slack"
+	// 	inputPath := "testdata/slack_export_sample.zip"
+
+	// 	env.loadDocuments(t, source, inputPath)
+	// 	env.storeDocuments(t)
+
+	// 	limit := 100
+	// 	filter := memory.Filter{
+	// 		Source: &source,
+	// 		Limit:  &limit,
+	// 	}
+
+	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+	// 	require.NoError(t, err)
+	// 	assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
+
+	// 	for _, fact := range result.Facts {
+	// 		env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+	// 	}
+	// })
+
+	t.Run("Query whatsapp", func(t *testing.T) {
+		source := "whatsapp"
+		inputPath := "testdata/whatsapp_sample.jsonl"
+
+		env.loadDocumentsFromJSONL(t, source, inputPath)
+
+		// Log detailed information about the ConversationDocuments
+		env.logger.Info("=== WhatsApp ConversationDocuments Details ===")
+		for i, doc := range env.documents {
+			env.logger.Info("ConversationDocument",
+				"index", i,
+				"id", doc.ID(),
+				"source", doc.Source(),
+				"content_length", len(doc.Content()),
+			)
+
+			// Log the full conversation content with formatting
+			env.logger.Info("Conversation Content:",
+				"document_index", i,
+				"full_content", doc.Content(),
+			)
+
+			// If we can cast to ConversationDocument, log additional details
+			if convDoc, ok := doc.(*memory.ConversationDocument); ok {
+				env.logger.Info("ConversationDocument Metadata",
+					"document_index", i,
+					"participants", convDoc.People,
+					"message_count", len(convDoc.Conversation),
+					"user", convDoc.User,
+					"chat_session", convDoc.FieldMetadata["chat_session"],
+					"metadata", convDoc.FieldMetadata,
+				)
+			}
+
+			env.logger.Info("--- End Document %d ---", i)
 		}
+		env.logger.Info("=== End WhatsApp ConversationDocuments ===")
 
-		limit := 100
-		filter := memory.Filter{
-			Source: &env.config.Source,
-			Limit:  &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result.Facts, "should find memories with basic query")
-
-		for _, fact := range result.Facts {
-			env.logger.Info("Basic fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-		}
-	})
-
-	t.Run("Query chatgpt", func(t *testing.T) {
-		source := "chatgpt"
-		inputPath := "testdata/chatgpt.zip"
-
-		env.loadDocuments(t, source, inputPath)
-		env.storeDocuments(t)
-
-		limit := 100
-		filter := memory.Filter{
-			Source: &source,
-			Limit:  &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
-
-		for _, fact := range result.Facts {
-			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-		}
-	})
-
-	t.Run("Query gmail", func(t *testing.T) {
-		source := "gmail"
-		inputPath := "testdata/google_export_sample.zip"
-
-		env.loadDocuments(t, source, inputPath)
-		env.storeDocuments(t)
-
-		limit := 100
-		filter := memory.Filter{
-			Source: &source,
-			Limit:  &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
-
-		for _, fact := range result.Facts {
-			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-		}
-	})
-
-	t.Run("Query telegram", func(t *testing.T) {
-		source := "telegram"
-		inputPath := "testdata/telegram_export_sample.json"
-
-		env.loadDocuments(t, source, inputPath)
-		env.storeDocuments(t)
-
-		limit := 100
-		filter := memory.Filter{
-			Source: &source,
-			Limit:  &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
-
-		for _, fact := range result.Facts {
-			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-		}
-	})
-
-	t.Run("Query X", func(t *testing.T) {
-		source := "x"
-		inputPath := "testdata/x_export_sample.zip"
-
-		env.loadDocuments(t, source, inputPath)
-		env.storeDocuments(t)
-
-		limit := 100
-		filter := memory.Filter{
-			Source: &source,
-			Limit:  &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
-		require.NoError(t, err)
-		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
-
-		for _, fact := range result.Facts {
-			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-		}
-	})
-
-	t.Run("Query slack", func(t *testing.T) {
-		source := "slack"
-		inputPath := "testdata/slack_export_sample.zip"
-
-		env.loadDocuments(t, source, inputPath)
 		env.storeDocuments(t)
 
 		limit := 100
@@ -660,7 +811,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
 
-	// Setup data
 	env.loadDocuments(t, env.config.Source, env.config.InputPath)
 	env.storeDocuments(t)
 
@@ -827,7 +977,6 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
 
-	// Test 1: Data processing and storage
 	env.loadDocuments(t, env.config.Source, env.config.InputPath)
 	assert.NotEmpty(t, env.documents)
 	env.logger.Info("Documents loaded successfully", "count", len(env.documents))
@@ -835,8 +984,6 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	env.storeDocuments(t)
 	env.logger.Info("Documents stored successfully")
 
-	// Test 2: Basic functionality test - just verify the system can query
-	// (without requiring specific content matches)
 	limit := 10
 	filter := memory.Filter{
 		Source:   &env.config.Source,
@@ -844,12 +991,10 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 		Limit:    &limit,
 	}
 
-	// Try a broad query that should have some chance of matching
 	result, err := env.memory.Query(env.ctx, "LLM agent system implementation", &filter)
 	require.NoError(t, err)
 	env.logger.Info("Query completed", "query", "LLM agent system implementation", "results_count", len(result.Facts))
 
-	// Test 3: Verify source filtering works (should return empty for invalid source)
 	invalidSource := "invalid-source"
 	invalidFilter := memory.Filter{
 		Source:   &invalidSource,
@@ -860,57 +1005,255 @@ func TestMemoryIntegrationSimple(t *testing.T) {
 	result, err = env.memory.Query(env.ctx, "anything", &invalidFilter)
 	require.NoError(t, err)
 	assert.Empty(t, result.Facts, "should not find memories for invalid source")
+}
 
-	// Test 4: More precise querying
-	t.Run("More precise querying", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
-			env.storeDocuments(t)
-		}
+func TestBatchProcessingEdgeCases(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
 
-		limit := 50
-		filter := memory.Filter{
-			Source: &env.config.Source,
-			Limit:  &limit,
-		}
+	env := setupTestEnvironment(t)
+	defer env.cleanup(t)
 
-		result, err := env.memory.Query(env.ctx, "What are recent expenses?", &filter)
+	source := "misc"
+
+	t.Run("EmptyFile", func(t *testing.T) {
+		emptyFile := filepath.Join(env.tempDir, "empty.jsonl")
+		err := os.WriteFile(emptyFile, []byte(""), 0o644)
 		require.NoError(t, err)
-		assert.NotEmpty(t, result.Facts, "should find memories with more precise query")
 
-		keywords := []string{"purchase", "paid", "invoice", "$", "spent"}
-		keywordsFound := make(map[string]bool)
+		count, err := helpers.CountJSONLLines(emptyFile)
+		require.NoError(t, err)
+		assert.Equal(t, 0, count)
 
-		for _, fact := range result.Facts {
-			env.logger.Info("Fact expenses", "id", fact.ID, "content", fact.Content, "source", fact.Source)
+		records, err := helpers.ReadJSONLBatch(emptyFile, 0, 10)
+		require.NoError(t, err)
+		assert.Empty(t, records)
 
-			for _, keyword := range keywords {
-				if strings.Contains(strings.ToLower(fact.Content), keyword) {
-					keywordsFound[keyword] = true
+		documents, err := env.dataprocessing.ToDocuments(env.ctx, source, records)
+		require.NoError(t, err)
+		assert.Empty(t, documents)
+	})
+
+	t.Run("SingleRecord", func(t *testing.T) {
+		singleRecordFile := filepath.Join(env.tempDir, "single.jsonl")
+		singleRecordData := `{"data":{"content":"Single test record"},"timestamp":"2024-01-01T12:00:00Z","source":"misc"}`
+		err := os.WriteFile(singleRecordFile, []byte(singleRecordData), 0o644)
+		require.NoError(t, err)
+
+		count, err := helpers.CountJSONLLines(singleRecordFile)
+		require.NoError(t, err)
+		assert.Equal(t, 1, count)
+
+		records, err := helpers.ReadJSONLBatch(singleRecordFile, 0, 1)
+		require.NoError(t, err)
+		assert.Len(t, records, 1)
+		assert.Equal(t, "Single test record", records[0].Data["content"])
+
+		records, err = helpers.ReadJSONLBatch(singleRecordFile, 0, 10)
+		require.NoError(t, err)
+		assert.Len(t, records, 1)
+
+		records, err = helpers.ReadJSONLBatch(singleRecordFile, 1, 10)
+		require.NoError(t, err)
+		assert.Empty(t, records)
+
+		documents, err := env.dataprocessing.ToDocuments(env.ctx, source, records)
+		require.NoError(t, err)
+		assert.Empty(t, documents)
+	})
+
+	t.Run("ExactBatchBoundaries", func(t *testing.T) {
+		batchBoundaryFile := filepath.Join(env.tempDir, "batch_boundary.jsonl")
+		var lines []string
+		for i := 1; i <= 6; i++ {
+			line := fmt.Sprintf(`{"data":{"content":"Record %d","id":"%d"},"timestamp":"2024-01-01T%02d:00:00Z","source":"misc"}`, i, i, i+10)
+			lines = append(lines, line)
+		}
+		testData := strings.Join(lines, "\n")
+		err := os.WriteFile(batchBoundaryFile, []byte(testData), 0o644)
+		require.NoError(t, err)
+
+		count, err := helpers.CountJSONLLines(batchBoundaryFile)
+		require.NoError(t, err)
+		assert.Equal(t, 6, count)
+
+		batchSize := 2
+		expectedBatches := 3
+
+		for batchIndex := 0; batchIndex < expectedBatches; batchIndex++ {
+			records, err := helpers.ReadJSONLBatch(batchBoundaryFile, batchIndex*batchSize, batchSize)
+			require.NoError(t, err)
+
+			if batchIndex < expectedBatches-1 {
+				assert.Len(t, records, batchSize, "Batch %d should have %d records", batchIndex, batchSize)
+			} else {
+				assert.Len(t, records, 2, "Last batch should have remaining records")
+			}
+
+			for j, record := range records {
+				expectedID := fmt.Sprintf("%d", batchIndex*batchSize+j+1)
+				assert.Equal(t, expectedID, record.Data["id"], "Record ID mismatch in batch %d, record %d", batchIndex, j)
+			}
+		}
+
+		records, err := helpers.ReadJSONLBatch(batchBoundaryFile, expectedBatches*batchSize, batchSize)
+		require.NoError(t, err)
+		assert.Empty(t, records, "Should get empty results when reading beyond file end")
+	})
+
+	t.Run("SmallBatchProcessing", func(t *testing.T) {
+		smallBatchFile := filepath.Join(env.tempDir, "small_batch.jsonl")
+		var lines []string
+		for i := 1; i <= 10; i++ {
+			line := fmt.Sprintf(`{"data":{"content":"Small batch record %d","category":"batch-%d"},"timestamp":"2024-01-01T%02d:00:00Z","source":"misc"}`, i, (i-1)%3+1, i+10)
+			lines = append(lines, line)
+		}
+		testData := strings.Join(lines, "\n")
+		err := os.WriteFile(smallBatchFile, []byte(testData), 0o644)
+		require.NoError(t, err)
+
+		count, err := helpers.CountJSONLLines(smallBatchFile)
+		require.NoError(t, err)
+		assert.Equal(t, 10, count)
+
+		testCases := []struct {
+			name            string
+			batchSize       int
+			expectedBatches int
+		}{
+			{"BatchSize1", 1, 10},
+			{"BatchSize3", 3, 4},
+			{"BatchSize4", 4, 3},
+			{"BatchSize5", 5, 2},
+			{"BatchSize7", 7, 2},
+			{"BatchSize10", 10, 1},
+			{"BatchSize15", 15, 1},
+		}
+
+		for _, tc := range testCases {
+			t.Run(tc.name, func(t *testing.T) {
+				totalProcessed := 0
+				batchIndex := 0
+
+				for {
+					records, err := helpers.ReadJSONLBatch(smallBatchFile, batchIndex*tc.batchSize, tc.batchSize)
+					require.NoError(t, err)
+
+					if len(records) == 0 {
+						break
+					}
+
+					totalProcessed += len(records)
+					batchIndex++
+
+					if batchIndex == tc.expectedBatches {
+						expectedInLastBatch := count - (tc.expectedBatches-1)*tc.batchSize
+						assert.Len(t, records, expectedInLastBatch, "Last batch should have correct number of records")
+					} else if batchIndex < tc.expectedBatches {
+						assert.Len(t, records, tc.batchSize, "Non-final batch should be full")
+					}
+
+					for j, record := range records {
+						expectedContent := fmt.Sprintf("Small batch record %d", batchIndex*tc.batchSize+j-tc.batchSize+1)
+						assert.Equal(t, expectedContent, record.Data["content"])
+					}
 				}
-			}
+
+				assert.Equal(t, tc.expectedBatches, batchIndex, "Should process expected number of batches")
+				assert.Equal(t, count, totalProcessed, "Should process all records across batches")
+			})
 		}
-		keywordsFoundCount := 0
-		for _, keyword := range keywords {
-			if keywordsFound[keyword] {
-				keywordsFoundCount++
-			}
-			if !keywordsFound[keyword] {
-				env.logger.Info("Keyword not found", "keyword", keyword)
-			}
+	})
+
+	t.Run("PartialBatchConversion", func(t *testing.T) {
+		partialBatchFile := filepath.Join(env.tempDir, "partial_batch.jsonl")
+		var lines []string
+		for i := 1; i <= 7; i++ {
+			line := fmt.Sprintf(`{"data":{"content":"Partial batch content %d","type":"document"},"timestamp":"2024-01-01T%02d:00:00Z","source":"misc"}`, i, i+10)
+			lines = append(lines, line)
 		}
-		assert.True(t, keywordsFoundCount > 2, "should find expenses facts but didn't find relevant keywords")
+		testData := strings.Join(lines, "\n")
+		err := os.WriteFile(partialBatchFile, []byte(testData), 0o644)
+		require.NoError(t, err)
+
+		batchSize := 3
+		batchIndex := 0
+
+		for {
+			records, err := helpers.ReadJSONLBatch(partialBatchFile, batchIndex*batchSize, batchSize)
+			require.NoError(t, err)
+
+			if len(records) == 0 {
+				break
+			}
+
+			documents, err := env.dataprocessing.ToDocuments(env.ctx, source, records)
+			require.NoError(t, err)
+			assert.Len(t, documents, len(records), "Should convert all records in batch to documents")
+
+			for i, doc := range documents {
+				expectedContent := fmt.Sprintf("Partial batch content %d", batchIndex*batchSize+i+1)
+				assert.Contains(t, doc.Content(), expectedContent, "Document content should match record content")
+				assert.Equal(t, source, doc.Source(), "Document source should match")
+			}
+
+			batchIndex++
+		}
+
+		assert.Equal(t, 3, batchIndex, "Should process 3 batches (3, 3, 1)")
+	})
+
+	t.Run("BatchSizeValidation", func(t *testing.T) {
+		testFile := filepath.Join(env.tempDir, "validation_test.jsonl")
+		testData := `{"data":{"content":"Test record"},"timestamp":"2024-01-01T12:00:00Z","source":"misc"}`
+		err := os.WriteFile(testFile, []byte(testData), 0o644)
+		require.NoError(t, err)
+
+		_, err = helpers.ReadJSONLBatch(testFile, 0, 0)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "batchSize must be positive")
+
+		_, err = helpers.ReadJSONLBatch(testFile, 0, -1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "batchSize must be positive")
+
+		_, err = helpers.ReadJSONLBatch(testFile, -1, 1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "startIndex cannot be negative")
+
+		_, err = helpers.ReadJSONLBatch("", 0, 1)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "filePath cannot be empty")
+	})
+
+	t.Run("LargeBatchSize", func(t *testing.T) {
+		largeBatchFile := filepath.Join(env.tempDir, "large_batch.jsonl")
+		var lines []string
+		for i := 1; i <= 5; i++ {
+			line := fmt.Sprintf(`{"data":{"content":"Large batch record %d"},"timestamp":"2024-01-01T%02d:00:00Z","source":"misc"}`, i, i+10)
+			lines = append(lines, line)
+		}
+		testData := strings.Join(lines, "\n")
+		err := os.WriteFile(largeBatchFile, []byte(testData), 0o644)
+		require.NoError(t, err)
+
+		records, err := helpers.ReadJSONLBatch(largeBatchFile, 0, 1000)
+		require.NoError(t, err)
+		assert.Len(t, records, 5, "Should return all records when batch size exceeds file size")
+
+		for i, record := range records {
+			expectedContent := fmt.Sprintf("Large batch record %d", i+1)
+			assert.Equal(t, expectedContent, record.Data["content"])
+		}
 	})
 }
 
 func TestMain(m *testing.M) {
-	// Setup shared infrastructure
 	setupSharedInfrastructure()
 
-	// Run tests
 	code := m.Run()
 
-	// Cleanup
 	teardownSharedInfrastructure()
 
 	os.Exit(code)

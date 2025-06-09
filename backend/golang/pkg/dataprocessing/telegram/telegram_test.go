@@ -8,16 +8,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestToDocuments(t *testing.T) {
-	// Create a temporary test file
 	tempFile, err := os.CreateTemp("", "test-telegram-*.jsonl")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
@@ -29,7 +28,6 @@ func TestToDocuments(t *testing.T) {
 		}
 	}()
 
-	// Write test data to the file
 	testData := `{"data":{"chatId":1601587058,"chatType":"saved_messages","forwardedFrom":"Eternal22","from":"Eternal22","messageId":59318,"messageType":"message","myMessage":false,"savedFrom":"Mahamat New","text":"I want to believe","to":"xxx","type":"message"},"timestamp":"2022-12-25T04:38:18Z","source":"telegram"}
 {"data":{"type":"contact","firstName":"John","lastName":"Doe","phoneNumber":"+1234567890"},"timestamp":"2022-12-25T04:38:18Z","source":"telegram"}`
 
@@ -41,7 +39,6 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to close temp file: %v", err)
 	}
 
-	// Create temporary database
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
@@ -56,22 +53,24 @@ func TestToDocuments(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	// Test the function
-	records, err := helpers.ReadJSONL[types.Record](tempFile.Name())
+	count, err := helpers.CountJSONLLines(tempFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to count JSONL lines: %v", err)
+	}
+	records, err := helpers.ReadJSONLBatch(tempFile.Name(), 0, count)
 	if err != nil {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
 
-	telegramProcessor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	telegramProcessor := NewTelegramProcessor(store, logger)
 	docs, err := telegramProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("ToDocuments failed: %v", err)
 	}
 
-	// Verify results
 	assert.Equal(t, 2, len(docs), "Expected 2 documents")
 
-	// The documents could be in any order, so let's find them by type
 	var conversationDoc, contactDoc memory.Document
 	for _, doc := range docs {
 		tags := doc.Tags()
@@ -82,13 +81,11 @@ func TestToDocuments(t *testing.T) {
 		}
 	}
 
-	// Check message conversation document
 	expectedTimestamp, _ := time.Parse(time.RFC3339, "2022-12-25T04:38:18Z")
 	assert.NotNil(t, conversationDoc, "Expected conversation document")
 	assert.Contains(t, conversationDoc.Content(), "I want to believe", "Conversation should contain the message")
 	assert.Equal(t, []string{"social", "telegram", "chat"}, conversationDoc.Tags())
 
-	// Check contact document
 	assert.NotNil(t, contactDoc, "Expected contact document")
 	assert.Equal(t, "John Doe", contactDoc.Content())
 	assert.Equal(t, &expectedTimestamp, contactDoc.Timestamp())
@@ -102,7 +99,6 @@ func TestToDocuments(t *testing.T) {
 }
 
 func TestProcessDirectoryInput(t *testing.T) {
-	// Create test data
 	testData := `{
   "personal_information": {
     "user_id": 1601587058,
@@ -141,20 +137,17 @@ func TestProcessDirectoryInput(t *testing.T) {
   }
 }`
 
-	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "telegram_test_dir_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
 	defer os.RemoveAll(tempDir) //nolint:errcheck
 
-	// Create result.json in the directory
 	resultJsonPath := fmt.Sprintf("%s/result.json", tempDir)
 	if err := os.WriteFile(resultJsonPath, []byte(testData), 0o644); err != nil {
 		t.Fatalf("Failed to write result.json: %v", err)
 	}
 
-	// Create temporary database
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
@@ -169,19 +162,17 @@ func TestProcessDirectoryInput(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	// Test processing directory (should find result.json)
-	processor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	processor := NewTelegramProcessor(store, logger)
 	records, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
 
-	// Verify records were created
 	if len(records) != 1 {
 		t.Errorf("Expected 1 record, got %d", len(records))
 	}
 
-	// Verify the message record
 	if len(records) > 0 {
 		record := records[0]
 		if record.Data["type"] != "message" {
@@ -196,7 +187,6 @@ func TestProcessDirectoryInput(t *testing.T) {
 }
 
 func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
-	// Create test data
 	testData := `{
   "personal_information": {
     "user_id": 1601587058,
@@ -235,20 +225,17 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
   }
 }`
 
-	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "telegram_test_custom_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
 	defer os.RemoveAll(tempDir) //nolint:errcheck
 
-	// Create telegram_export.json (non-standard name) in the directory
 	customJsonPath := fmt.Sprintf("%s/telegram_export.json", tempDir)
 	if err := os.WriteFile(customJsonPath, []byte(testData), 0o644); err != nil {
 		t.Fatalf("Failed to write telegram_export.json: %v", err)
 	}
 
-	// Create temporary database
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
@@ -263,19 +250,17 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	// Test processing directory (should find telegram_export.json)
-	processor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	processor := NewTelegramProcessor(store, logger)
 	records, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
 
-	// Verify records were created
 	if len(records) != 1 {
 		t.Errorf("Expected 1 record, got %d", len(records))
 	}
 
-	// Verify the message record
 	if len(records) > 0 {
 		record := records[0]
 		if record.Data["type"] != "message" {
@@ -290,20 +275,17 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 }
 
 func TestProcessDirectoryNoJsonFiles(t *testing.T) {
-	// Create temporary directory with no JSON files
 	tempDir, err := os.MkdirTemp("", "telegram_test_empty_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
 	defer os.RemoveAll(tempDir) //nolint:errcheck
 
-	// Create a non-JSON file
 	txtFilePath := fmt.Sprintf("%s/readme.txt", tempDir)
 	if err := os.WriteFile(txtFilePath, []byte("This is not a JSON file"), 0o644); err != nil {
 		t.Fatalf("Failed to write text file: %v", err)
 	}
 
-	// Create temporary database
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
@@ -318,11 +300,10 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	}
 	defer store.Close() //nolint:errcheck
 
-	// Test processing directory with no JSON files (should return error)
-	processor := NewTelegramProcessor(store)
+	logger := log.New(os.Stdout)
+	processor := NewTelegramProcessor(store, logger)
 	records, err := processor.ProcessFile(ctx, tempDir)
 
-	// Verify error is returned
 	if err == nil {
 		t.Errorf("Expected error when no JSON files found, but got none")
 	}
@@ -331,7 +312,6 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 		t.Errorf("Expected nil records when error occurs, got %v", records)
 	}
 
-	// Verify error message
 	expectedError := "no JSON files found in directory"
 	if !strings.Contains(err.Error(), expectedError) {
 		t.Errorf("Expected error containing '%s', got '%v'", expectedError, err)

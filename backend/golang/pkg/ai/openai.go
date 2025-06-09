@@ -3,6 +3,8 @@ package ai
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
@@ -21,7 +23,25 @@ type Service struct {
 }
 
 func NewOpenAIService(logger *log.Logger, apiKey string, baseUrl string) *Service {
-	client := openai.NewClient(option.WithAPIKey(apiKey), option.WithBaseURL(baseUrl))
+	httpTimeout := 20 * time.Minute
+
+	httpClient := &http.Client{
+		Timeout: httpTimeout,
+	}
+
+	client := openai.NewClient(
+		option.WithAPIKey(apiKey),
+		option.WithBaseURL(baseUrl),
+		option.WithHTTPClient(httpClient),
+	)
+	return &Service{
+		client: &client,
+		logger: logger,
+	}
+}
+
+func NewOpenAIServiceProxy(logger *log.Logger, proxyUrl string, getToken func() string, baseUrl string) *Service {
+	client := openai.NewClient(option.WithAPIKey(getToken()), option.WithBaseURL(proxyUrl), option.WithHeader("X-BASE-URL", baseUrl))
 	return &Service{
 		client: &client,
 		logger: logger,
