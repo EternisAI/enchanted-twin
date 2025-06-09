@@ -50,8 +50,10 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, fmt.Errorf("failed to enable foreign key constraints: %w", err)
 	}
 
-	// Schema creation is now handled by the migration system
-	// Only database connection setup is done here
+	// Run migrations to ensure all tables exist
+	if err := RunMigrations(db.DB); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
+	}
 
 	store := &Store{db: db}
 
