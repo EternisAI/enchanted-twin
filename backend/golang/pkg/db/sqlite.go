@@ -246,6 +246,15 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		return nil, err
 	}
 
+	// Add state column to thread_messages table if it doesn't exist
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE thread_messages ADD COLUMN state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'broadcasted', 'received', 'hidden', 'visible'));
+	`)
+	if err != nil && err.Error() != "duplicate column name: state" {
+		// Ignore error if column already exists
+		return nil, err
+	}
+
 	// Add category column to chats table if it doesn't exist (two-step migration for existing data)
 	_, err = db.ExecContext(ctx, `
 		ALTER TABLE chats ADD COLUMN category TEXT DEFAULT 'TEXT';
@@ -277,6 +286,23 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 	`)
 	if err != nil && err.Error() != "duplicate column name: holon_thread_id" {
 		// Ignore error if column already exists
+		return nil, err
+	}
+
+	// Add remote_thread_id column to threads table if it doesn't exist
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE threads ADD COLUMN remote_thread_id INTEGER;
+	`)
+	if err != nil && err.Error() != "duplicate column name: remote_thread_id" {
+		// Ignore error if column already exists
+		return nil, err
+	}
+
+	// Create index on remote_thread_id for faster lookups
+	_, err = db.ExecContext(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_threads_remote_id ON threads(remote_thread_id);
+	`)
+	if err != nil {
 		return nil, err
 	}
 
