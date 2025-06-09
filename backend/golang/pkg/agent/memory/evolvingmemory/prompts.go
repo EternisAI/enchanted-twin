@@ -12,7 +12,7 @@ func getCurrentDateForPrompt() string {
 const (
 	// FactExtractionPrompt is the system prompt handed to the LLM.
 	FactExtractionPrompt = `
-You are a fact extractor. Return **only valid JSON**. No commentary.
+You are a fact extractor. Use the EXTRACT_FACTS tool to extract atomic, actionable facts.
 
 Extract atomic, actionable facts that:
 - Are concrete and specific (even if one-time occurrences)
@@ -21,6 +21,8 @@ Extract atomic, actionable facts that:
 - Have confidence score of 7+ (on 1-10 scale)
 
 Focus on quality over quantity. Extract only facts with clear value.
+
+IMPORTANT: You must use the EXTRACT_FACTS tool to return your extracted facts. Do not return JSON in your response content.
 
 ## Extraction categories
 
@@ -33,9 +35,6 @@ Personal facts about the user
 - Challenges and pain points
 - Routines and habits
 - Skills and expertise
-- Their relationship with others
-- Information about others in their life
-
 
 Relationship mapping
 
@@ -44,15 +43,13 @@ Relationship mapping
 - Shared activities and contexts
 - Communication patterns with different people
 
-
 Temporal patterns
 
-- Daily/weekly routines
+- Daily / weekly routines
 - Seasonal patterns
 - Life phases and transitions
 - Project timelines
 - Recurring events
-
 
 Emotional and cognitive patterns
 
@@ -62,7 +59,6 @@ Emotional and cognitive patterns
 - Learning preferences
 - Communication style variations by context
 
-
 Context and environment
 
 - Work environment and culture
@@ -70,38 +66,30 @@ Context and environment
 - Geographic preferences
 - Digital tool usage patterns
 
-## Output schema
-
-<json>
-{
-  "facts": [
-    {
-      "category": "string (see category table)",
-      "subject": "user|entity_name",
-      "attribute": "specific_property_string",
-      "value": "descriptive phrase with context (aim for 8-30 words)",
-      "temporal_context": "YYYY-MM-DD or relative time (optional)",
-      "sensitivity": "high|medium|low - holistic life assessment",
-      "importance": 1|2|3  // 1=low, 2=medium, 3=high life significance
-    }
-  ]
-}
-</json>
+## Tool usage
+Use the EXTRACT_FACTS tool to extract facts with the following structure:
+- **category**: One of the categories from the table below
+- **subject**: Usually "user" or specific entity name  
+- **attribute**: Specific property being described
+- **value**: Descriptive phrase with context (8-30 words)
+- **temporal_context**: Date/time reference (optional)
+- **sensitivity**: high/medium/low based on life impact
+- **importance**: 1-3 scale of life significance
 
 ## Categories
 
-| Category | Description | Example attributes |
-|----------|-------------|-------------------|
-| profile_stable | Core identity | name, age, occupation, location |
-| preference | Likes/dislikes | food, tools, communication_style |
-| goal_plan | Targets with timelines | career_goal, fitness_target |
-| routine | Recurring activities | exercise_time, work_schedule |
-| skill | Abilities and expertise | programming_language, tool_proficiency |
-| relationship | People attributes | role, meeting_frequency, last_contact |
-| health | Physical/mental state | fitness_metric, medical_condition |
-| context_env | Environment | work_culture, neighborhood |
-| affective_marker | Emotional patterns | stress_trigger, joy_source |
-| event | Time-bound occurrences | travel, meetings, appointments |
+| Category         | Description             | Example attributes                     |
+|------------------|-------------------------|----------------------------------------|
+| profile_stable   | Core identity           | name, age, occupation, location        |
+| preference       | Likes / dislikes        | food, tools, communication_style       |
+| goal_plan        | Targets with timelines  | career_goal, fitness_target            |
+| routine          | Recurring activities    | exercise_time, work_schedule           |
+| skill            | Abilities and expertise | programming_language, tool_proficiency |
+| relationship     | People attributes       | role, meeting_frequency, last_contact  |
+| health           | Physical / mental state | fitness_metric, medical_condition      |
+| context_env      | Environment             | work_culture, neighborhood             |
+| affective_marker | Emotional patterns      | stress_trigger, joy_source             |
+| event            | Time-bound occurrences  | travel, meetings, appointments         |
 
 ## Extraction rules
 
@@ -109,228 +97,95 @@ Context and environment
 2. **No speculation**: Skip "seems stressed" → require "I'm stressed"
 3. **Source conflicts**: Use most recent explicit self-statement
 4. **Relationships**: Emit separate atomic facts for each attribute (role, meeting_frequency, last_contact)
-5. **Confidence threshold**: Only extract facts with confidence 5+ (on 1-10 scale) - filter but don't include in output
+5. **Confidence threshold**: Only extract facts with confidence 7+ (on 1-10 scale) – filter but don't include in output
 6. **Sensitivity assessment**: Consider impact across all life domains (personal, professional, social, health, financial)
-7. **Importance scoring**: 
-   - 1 = Minor detail worth noting
-   - 2 = Meaningful information affecting decisions/relationships
+7. **Importance scoring**:  
+   - 1 = Minor detail worth noting  
+   - 2 = Meaningful information affecting decisions / relationships  
    - 3 = Major life factor with significant ongoing impact
 8. **Time format**: Use 24-hour format (06:00, 14:30)
+9. **Skip mundane things**: Facts must be worth remembering over time
 
 ## What to ALWAYS extract (importance 3):
-- **Life milestones**: Moving, job changes, relationship status changes, major purchases
-- **Health developments**: Diagnoses, significant fitness achievements, medical procedures
-- **Major goals/commitments**: Training for events, education plans, career targets
-- **Family changes**: New family members, deaths, major family events
-- **Financial milestones**: Home purchases, debt payoff, major investments
+- Life milestones: moving, job changes, relationship status changes, major purchases
+- Health developments: diagnoses, significant fitness achievements, medical procedures
+- Major goals / commitments: training for events, education plans, career targets
+- Family changes: new family members, deaths, major family events
+- Financial milestones: home purchases, debt payoff, major investments
 
 ## Granularity guide
 
-❌ **Too coarse**: "User is ambitious"  
-✅ **Just right**: "Targets promotion to Senior Engineer by Q3 2025"  
-❌ **Too fine**: "Ate sandwich at 12:47"
+❌ Too coarse: "User is ambitious"  
+✅ Just right: "Targets promotion to Senior Engineer by Q3 2025"  
+❌ Too fine: "Ate sandwich at 12:47"
 
 ## Examples
 
 ### Multiple facts from one input
-**Input**: "Just switched my running to mornings - 6am works way better than evenings for me now. I'm training for the May marathon."
-<json>
-{
-  "facts": [
-    {
-      "category": "routine",
-      "subject": "user",
-      "attribute": "exercise_time",
-      "value": "switched to 6am morning runs, finds them better than evening runs",
-      "sensitivity": "low",
-      "importance": 2
-    },
-    {
-      "category": "goal_plan",
-      "subject": "user",
-      "attribute": "athletic_goal",
-      "value": "training for a marathon scheduled in May 2025",
-      "temporal_context": "2025-05",
-      "sensitivity": "low",
-      "importance": 3
-    }
-  ]
-}
-</json>
+Input: "Just switched my running to mornings – 6 am works way better than evenings for me now. I'm training for the May marathon."
+
+Use EXTRACT_FACTS tool to extract:
+- routine/exercise_time: "switched to 6 am morning runs, finds them better than evening runs" (importance: 2)
+- goal_plan/athletic_goal: "training for a marathon scheduled in May 2025" (importance: 3)
 
 ### Relationship with multiple attributes
-**Input**: "Meeting with Sarah from product again tomorrow. She's basically my main collaborator these days - we sync every Tuesday."
-<json>
-{
-  "facts": [
-    {
-      "category": "relationship",
-      "subject": "Sarah",
-      "attribute": "role",
-      "value": "product team member who is user's main collaborator",
-      "sensitivity": "low",
-      "importance": 2
-    },
-    {
-      "category": "relationship",
-      "subject": "Sarah",
-      "attribute": "meeting_frequency",
-      "value": "syncs with user every Tuesday for regular collaboration",
-      "sensitivity": "low",
-      "importance": 2
-    }
-  ]
-}
-</json>
+Input: "Meeting with Sarah from product again tomorrow. She's basically my main collaborator these days – we sync every Tuesday."
+
+Use EXTRACT_FACTS tool to extract:
+- relationship/role: "product team member who is user's main collaborator" (importance: 2)
+- relationship/meeting_frequency: "syncs with user every Tuesday for regular collaboration" (importance: 2)
 
 ### Health fact (moderate sensitivity)
-**Input**: "Crushed my 10k run today in 48 minutes! My VO2 max is up to 52 according to my watch"
-<json>
-{
-  "facts": [
-    {
-      "category": "health",
-      "subject": "user",
-      "attribute": "10k_time",
-      "value": "completed 10k run in 48 minutes showing strong fitness level",
-      "temporal_context": "today",
-      "sensitivity": "medium",
-      "importance": 2
-    },
-    {
-      "category": "health",
-      "subject": "user",
-      "attribute": "vo2_max",
-      "value": "VO2 max measured at 52 by fitness watch indicating good cardiovascular fitness",
-      "sensitivity": "medium",
-      "importance": 2
-    }
-  ]
-}
-</json>
+Input: "Crushed my 10 k run today in 48 minutes! My VO2 max is up to 52 according to my watch"
+
+Use EXTRACT_FACTS tool to extract:
+- health/10k_time: "completed 10 k run in 48 minutes showing strong fitness level" (importance: 2, sensitivity: medium)
+- health/vo2_max: "VO2 max measured at 52 by fitness watch indicating good cardiovascular fitness" (importance: 2, sensitivity: medium)
 
 ### Affective marker with high sensitivity
-**Input**: "Presentations always trigger my anxiety - happened again before the board meeting"
-<json>
-{
-  "facts": [{
-    "category": "affective_marker",
-    "subject": "user",
-    "attribute": "stress_trigger",
-    "value": "experiences anxiety triggered by presentations, confirmed at recent board meeting",
-    "sensitivity": "high",
-    "importance": 3
-  }]
-}
-</json>
+Input: "Presentations always trigger my anxiety – happened again before the board meeting"
+
+Use EXTRACT_FACTS tool to extract:
+- affective_marker/stress_trigger: "experiences anxiety triggered by presentations, confirmed at recent board meeting" (importance: 3, sensitivity: high)
 
 ### Negative example (no extraction)
-**Input**: "I guess I'm sort of a night owl these days, or maybe not, hard to say"
-<json>
-{
-  "facts": []
-}
-</json>
-Reason: Ambiguous, unstable claim (confidence below 7)
+Input: "I guess I'm sort of a night owl these days, or maybe not, hard to say"
+
+Use EXTRACT_FACTS tool with empty facts array - reason: Ambiguous, unstable claim (confidence below 7)
 
 ### Life milestone example (MUST extract)
-**Input**: "Finally signed the lease! Moving to Brooklyn next month"
-<json>
-{
-  "facts": [{
-    "category": "event",
-    "subject": "user",
-    "attribute": "relocation",
-    "value": "moving to Brooklyn with lease signed",
-    "temporal_context": "next month",
-    "sensitivity": "medium",
-    "importance": 3
-  }]
-}
-</json>
+Input: "Finally signed the lease! Moving to Brooklyn next month"
+
+Use EXTRACT_FACTS tool to extract:
+- event/relocation: "moving to Brooklyn with lease signed" (importance: 3, temporal_context: "next month")
 
 ### Job change example (MUST extract)
-**Input**: "Got the offer! Starting as Senior Engineer at TechCorp in January"
-<json>
-{
-  "facts": [{
-    "category": "event",
-    "subject": "user",
-    "attribute": "job_change",
-    "value": "accepted Senior Engineer position at TechCorp starting January",
-    "temporal_context": "January",
-    "sensitivity": "medium", 
-    "importance": 3
-  }]
-}
-</json>
+Input: "Got the offer! Starting as Senior Engineer at TechCorp in January"
+
+Use EXTRACT_FACTS tool to extract:
+- event/job_change: "accepted Senior Engineer position at TechCorp starting January" (importance: 3, temporal_context: "January")
 
 ### Health milestone example (MUST extract)
-**Input**: "Doctor confirmed I'm fully recovered from the surgery - cleared for all activities"
-<json>
-{
-  "facts": [{
-    "category": "health",
-    "subject": "user", 
-    "attribute": "recovery_status",
-    "value": "fully recovered from surgery with doctor clearance for all activities",
-    "sensitivity": "high",
-    "importance": 3
-  }]
-}
-</json>
+Input: "Doctor confirmed I'm fully recovered from the surgery – cleared for all activities"
+
+Use EXTRACT_FACTS tool to extract:
+- health/recovery_status: "fully recovered from surgery with doctor clearance for all activities" (importance: 3, sensitivity: high)
 
 ### Major purchase example (MUST extract)
-**Input**: "Just bought my first house! Closing was yesterday, keys in hand"
-<json>
-{
-  "facts": [{
-    "category": "event",
-    "subject": "user",
-    "attribute": "home_purchase", 
-    "value": "purchased first house with closing completed",
-    "temporal_context": "yesterday",
-    "sensitivity": "medium",
-    "importance": 3
-  }]
-}
-</json>
+Input: "Just bought my first house! Closing was yesterday, keys in hand"
+
+Use EXTRACT_FACTS tool to extract:
+- event/home_purchase: "purchased first house with closing completed" (importance: 3, temporal_context: "yesterday")
 
 ### Mundane examples (DO NOT extract)
-**Input**: "Grabbed lunch at that new sandwich place downtown"
-<json>
-{
-  "facts": []
-}
-</json>
-Reason: One-off dining experience without lasting significance
+Input: "Grabbed lunch at that new sandwich place downtown"
+Use EXTRACT_FACTS tool with empty facts array - reason: One-off dining experience without lasting significance
 
-**Input**: "Feeling pretty tired today, long week"
-<json>
-{
-  "facts": []
-}
-</json>
-Reason: Temporary state, not a lasting pattern or significant development
+Input: "Feeling pretty tired today, long week"
+Use EXTRACT_FACTS tool with empty facts array - reason: Temporary state, not a lasting pattern or significant development
 
-**Input**: "Thinking I might want to learn Spanish someday"
-<json>
-{
-  "facts": []
-}
-</json>
-Reason: Vague consideration without commitment or concrete plans
-
-## Chunk metadata (DO NOT OUTPUT)
-
-The following is provided for context only—never include in JSON output:
-<json>
-{
-  "chunk_id": "conv_12345_chunk_3",
-  "previous_facts_hash": "a7b9c2...",
-  "timestamp": "2024-03-15T10:30:00Z"
-}
-</json>
+Input: "Thinking I might want to learn Spanish someday"
+Use EXTRACT_FACTS tool with empty facts array - reason: Vague consideration without commitment or concrete plans
 
 ## Do NOT extract
 - Speculation or interpretation
