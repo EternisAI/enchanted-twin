@@ -11,7 +11,6 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
 	dataprocessing "github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 )
 
@@ -127,7 +126,8 @@ func (w *DataProcessingWorkflows) GmailFetchActivity(
 		return GmailFetchActivityResponse{}, fmt.Errorf("no OAuth tokens found for Google")
 	}
 
-	records, err := dataprocessing.Sync(ctx, "gmail", tokens.AccessToken, w.Store)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
+	records, err := dataprocessingService.Sync(ctx, "gmail", tokens.AccessToken)
 	if err != nil {
 		return GmailFetchActivityResponse{}, err
 	}
@@ -144,8 +144,8 @@ func (w *DataProcessingWorkflows) GmailIndexActivity(
 	ctx context.Context,
 	input GmailIndexActivityInput,
 ) (GmailIndexActivityResponse, error) {
-	gmailProcessor := gmail.NewGmailProcessor(w.Store)
-	documents, err := gmailProcessor.ToDocuments(ctx, input.Records)
+	dataprocessingService := dataprocessing.NewDataProcessingService(w.OpenAIService, w.Config.CompletionsModel, w.Store, w.Logger)
+	documents, err := dataprocessingService.ToDocuments(ctx, "gmail", input.Records)
 	if err != nil {
 		return GmailIndexActivityResponse{}, err
 	}

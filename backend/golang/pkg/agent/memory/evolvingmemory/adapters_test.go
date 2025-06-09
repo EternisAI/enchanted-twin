@@ -56,9 +56,8 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 
 	// Create mock storage instead of using real Weaviate client
 	mockStorage := &MockStorage{}
-	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("*memory.Filter")).Return(memory.QueryResult{
-		Facts:     []memory.MemoryFact{},
-		Documents: []memory.TextDocument{},
+	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.Anything, mock.AnythingOfType("string")).Return(memory.QueryResult{
+		Facts: []memory.MemoryFact{},
 	}, nil)
 	mockStorage.On("EnsureSchemaExists", mock.Anything).Return(nil)
 	mockStorage.On("StoreBatch", mock.Anything, mock.Anything).Return(nil)
@@ -70,6 +69,8 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 		Storage:            mockStorage,
 		CompletionsService: completionsService,
 		EmbeddingsService:  embeddingsService,
+		CompletionsModel:   "gpt-4.1-mini",
+		EmbeddingsModel:    "text-embedding-3-small",
 	})
 	require.NoError(t, err)
 
@@ -175,6 +176,8 @@ func TestStorageImplCreation(t *testing.T) {
 		Storage:            mockStorage,
 		CompletionsService: completionsService,
 		EmbeddingsService:  embeddingsService,
+		CompletionsModel:   "gpt-4.1-mini",
+		EmbeddingsModel:    "text-embedding-3-small",
 	})
 	require.NoError(t, err)
 
@@ -212,6 +215,8 @@ func TestDependencyValidation(t *testing.T) {
 			Storage:            nil, // nil storage
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "storage interface cannot be nil")
@@ -223,6 +228,8 @@ func TestDependencyValidation(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "logger cannot be nil")
@@ -234,6 +241,8 @@ func TestDependencyValidation(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: nil, // nil completions service
 			EmbeddingsService:  embeddingsService,
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "completions service cannot be nil")
@@ -245,6 +254,8 @@ func TestDependencyValidation(t *testing.T) {
 			Storage:            mockStorage,
 			CompletionsService: completionsService,
 			EmbeddingsService:  nil, // nil embeddings service
+			CompletionsModel:   "gpt-4.1-mini",
+			EmbeddingsModel:    "text-embedding-3-small",
 		})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "embeddings service cannot be nil")

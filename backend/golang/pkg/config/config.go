@@ -20,13 +20,13 @@ type Config struct {
 	EmbeddingsModel    string
 	DBPath             string
 	AppDataPath        string
-	OllamaBaseURL      string
 	TelegramToken      string
 	TelegramChatServer string
 	ContainerRuntime   string
 	WeaviatePort       string
 	EnchantedMcpURL    string
 	InviteServerURL    string
+	ProxyTeeURL        string
 }
 
 func getEnv(key, defaultValue string, printEnv bool) string {
@@ -63,13 +63,13 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
 		DBPath:             getEnv("DB_PATH", "./store.db", printEnv),
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
-		OllamaBaseURL:      getEnv("OLLAMA_BASE_URL", "", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
 		ContainerRuntime:   getEnv("CONTAINER_RUNTIME", "podman", printEnv),
 		WeaviatePort:       getEnv("WEAVIATE_PORT", "51414", printEnv),
 		EnchantedMcpURL:    getEnv("ENCHANTED_MCP_URL", "", printEnv),
 		InviteServerURL:    getEnv("INVITE_SERVER_URL", "", printEnv),
+		ProxyTeeURL:        getEnv("PROXY_TEE_URL", "", printEnv),
 	}
 	return conf, nil
 }
