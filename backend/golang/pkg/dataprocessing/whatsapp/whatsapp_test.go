@@ -124,7 +124,7 @@ func TestToDocuments(t *testing.T) {
 	require.NotNil(t, chat32, "Chat session 32 should exist")
 	assert.Equal(t, "whatsapp-chat-32", chat32.ID())
 	assert.Equal(t, "whatsapp", chat32.Source())
-	assert.Equal(t, []string{"whatsapp", "conversation", "chat"}, chat32.Tags())
+	assert.Equal(t, []string{"conversation", "chat"}, chat32.Tags())
 	assert.Equal(t, "me", chat32.User)
 	assert.Len(t, chat32.Conversation, 2, "Chat 32 should have 2 messages")
 

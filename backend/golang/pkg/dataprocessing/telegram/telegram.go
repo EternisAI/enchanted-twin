@@ -361,7 +361,7 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				conversationMap[chatId] = &memory.ConversationDocument{
 					FieldID:      chatId,
 					FieldSource:  "telegram",
-					FieldTags:    []string{"social", "telegram", "chat"},
+					FieldTags:    []string{"social", "chat"},
 					People:       []string{from, to},
 					User:         extractedUser,
 					Conversation: []memory.ConversationMessage{},
@@ -408,7 +408,7 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				FieldSource:    "telegram",
 				FieldContent:   firstName + " " + lastName,
 				FieldTimestamp: &record.Timestamp,
-				FieldTags:      []string{"social", "telegram", "contact"},
+				FieldTags:      []string{"social", "contact"},
 				FieldMetadata: map[string]string{
 					"type":        "contact",
 					"firstName":   firstName,

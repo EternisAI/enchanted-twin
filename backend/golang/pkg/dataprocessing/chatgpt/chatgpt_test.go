@@ -140,7 +140,6 @@ func TestConversationToDocuments(t *testing.T) {
 	doc := documents[0]
 
 	assert.Contains(t, doc.Tags(), "chat")
-	assert.Contains(t, doc.Tags(), "chatgpt")
 	assert.Contains(t, doc.Tags(), "conversation")
 	assert.Equal(t, "conversation", doc.Metadata()["type"])
 	assert.Equal(t, "Test Conversation", doc.Metadata()["title"])
@@ -266,7 +265,6 @@ func TestJSONLRoundTrip(t *testing.T) {
 
 	convertedDoc := docs[0]
 	assert.Contains(t, convertedDoc.Tags(), "chat")
-	assert.Contains(t, convertedDoc.Tags(), "chatgpt")
 	assert.Contains(t, convertedDoc.Tags(), "conversation")
 	assert.Equal(t, "conversation", convertedDoc.Metadata()["type"])
 	assert.Equal(t, "Weather Conversation", convertedDoc.Metadata()["title"])

@@ -175,10 +175,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 			}
 		}
 	}
-	// Merge direct fields into metadata (they take precedence)
-	if source != "" {
-		metadata["source"] = source
-	}
 	if speakerID != "" {
 		metadata["speakerID"] = speakerID
 	}
@@ -210,8 +206,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 
 	// Extract and store source as direct field
 	if source := doc.Source(); source != "" {
-		properties[sourceProperty] = source
-	} else if source, exists := doc.Metadata()["source"]; exists {
 		properties[sourceProperty] = source
 	}
 
@@ -945,11 +939,6 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 			tagsJSON, _ := json.Marshal(tags)
 			metaMap["tags"] = string(tagsJSON)
 		}
-	}
-
-	// Merge direct fields into metadata (they take precedence)
-	if source != "" {
-		metaMap["source"] = source
 	}
 
 	return memory.MemoryFact{

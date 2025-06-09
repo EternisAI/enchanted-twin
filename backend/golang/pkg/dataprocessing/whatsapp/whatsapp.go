@@ -270,7 +270,7 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			conversationMap[chatSession] = &memory.ConversationDocument{
 				FieldID:      fmt.Sprintf("whatsapp-chat-%s", chatSession),
 				FieldSource:  "whatsapp",
-				FieldTags:    []string{"whatsapp", "conversation", "chat"},
+				FieldTags:    []string{"conversation", "chat"},
 				People:       participants,
 				User:         "me",
 				Conversation: []memory.ConversationMessage{},
