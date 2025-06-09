@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/log"
+	"github.com/stretchr/testify/require"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -101,7 +102,8 @@ func TestUsernameExtraction(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger)
+	require.NoError(t, err)
 	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
@@ -212,7 +214,8 @@ func TestUsernameExtractionFallback(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger)
+	require.NoError(t, err)
 	_, err = source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
@@ -283,7 +286,8 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger)
+	require.NoError(t, err)
 	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)

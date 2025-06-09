@@ -135,7 +135,7 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.
 					err error
 				})
 				go func(raw string) {
-					rec, e := g.processEmail(raw, userEmail)
+					rec, e := ProcessEmail(raw, userEmail)
 					done <- struct {
 						r   types.Record
 						err error
@@ -173,7 +173,7 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.
 	go func() {
 		f, err := os.Open(path)
 		if err != nil {
-			log.Errorf("open %s: %v", path, err)
+			g.logger.Error("open %s: %v", path, err)
 			close(jobs)
 			return
 		}
@@ -193,7 +193,7 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.
 				break
 			}
 			if err != nil {
-				log.Errorf("read: %v", err)
+				g.logger.Error("read: %v", err)
 				break
 			}
 			if strings.HasPrefix(line, "From ") {
@@ -239,7 +239,7 @@ func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]types.
 	return out, nil
 }
 
-func (g *GmailProcessor) processEmail(raw, userEmail string) (types.Record, error) {
+func ProcessEmail(raw, userEmail string) (types.Record, error) {
 	msg, err := mail.ReadMessage(strings.NewReader(raw))
 	if err != nil {
 		return types.Record{}, err
@@ -275,14 +275,12 @@ func (g *GmailProcessor) processEmail(raw, userEmail string) (types.Record, erro
 		"delivered_to": h.Get("Delivered-To"),
 	}
 
-	// Add user-specific metadata if user email is known
 	if userEmail != "" {
 		data["user_email"] = userEmail
 		data["user_role"] = userRole
 		data["is_user_email"] = isUserEmail
 	}
 
-	// Add extracted email addresses for easier filtering
 	if fromAddr != "" {
 		data["from_address"] = fromAddr
 	}
@@ -354,7 +352,7 @@ func (g *GmailProcessor) processEmail(raw, userEmail string) (types.Record, erro
 	return types.Record{
 		Data:      data,
 		Timestamp: date,
-		Source:    g.Name(),
+		Source:    "gmail",
 	}, nil
 }
 
@@ -394,7 +392,7 @@ func (g *GmailProcessor) Sync(ctx context.Context, token string) ([]types.Record
 	for _, m := range list.Messages {
 		rec, err := FetchMessage(ctx, c, token, m.ID)
 		if err != nil {
-			log.Errorf("message %s: %v", m.ID, err)
+			g.logger.Error("message %s: %v", m.ID, err)
 			continue
 		}
 		out = append(out, rec)

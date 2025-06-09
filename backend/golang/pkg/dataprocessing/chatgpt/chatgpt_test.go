@@ -72,7 +72,8 @@ func TestSimpleConversationProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	logger := log.New(os.Stdout)
-	dataSource := NewChatGPTProcessor(nil, logger)
+	dataSource, err := NewChatGPTProcessor(nil, logger)
+	require.NoError(t, err)
 
 	ctx := context.Background()
 	records, err := dataSource.ProcessFile(ctx, tempFilePath)
@@ -132,7 +133,8 @@ func TestConversationToDocuments(t *testing.T) {
 	}
 
 	logger := log.New(os.Stdout)
-	chatgptProcessor := NewChatGPTProcessor(nil, logger)
+	chatgptProcessor, err := NewChatGPTProcessor(nil, logger)
+	require.NoError(t, err)
 	documents, err := chatgptProcessor.ToDocuments(context.Background(), records)
 	require.NoError(t, err)
 	require.Len(t, documents, 1)
@@ -259,7 +261,8 @@ func TestJSONLRoundTrip(t *testing.T) {
 
 	// Test conversion to Document format
 	logger := log.New(os.Stdout)
-	chatgptProcessor := NewChatGPTProcessor(nil, logger)
+	chatgptProcessor, err := NewChatGPTProcessor(nil, logger)
+	require.NoError(t, err)
 	docs, err := chatgptProcessor.ToDocuments(context.Background(), readRecords)
 	require.NoError(t, err, "Error converting records to documents")
 	require.Len(t, docs, 1, "Expected 1 document after conversion")
