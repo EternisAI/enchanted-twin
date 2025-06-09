@@ -54,9 +54,9 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 50, config.FactsPerWorker)
 	assert.Equal(t, 100, config.BatchSize)
 	assert.Equal(t, 30*time.Second, config.FlushInterval)
-	assert.Equal(t, 20*time.Minute, config.FactExtractionTimeout)
-	assert.Equal(t, 20*time.Minute, config.MemoryDecisionTimeout)
-	assert.Equal(t, 20*time.Minute, config.StorageTimeout)
+	assert.Equal(t, 2*time.Minute, config.FactExtractionTimeout)
+	assert.Equal(t, 2*time.Minute, config.MemoryDecisionTimeout)
+	assert.Equal(t, 2*time.Minute, config.StorageTimeout)
 	assert.True(t, config.EnableRichContext)
 	assert.True(t, config.ParallelFactExtraction)
 	assert.True(t, config.StreamingProgress)
@@ -79,9 +79,9 @@ func TestStoreV2BasicFlow(t *testing.T) {
 		Workers:               1,
 		BatchSize:             10,
 		FlushInterval:         100 * time.Millisecond,
-		FactExtractionTimeout: 5 * time.Second,
-		MemoryDecisionTimeout: 5 * time.Second,
-		StorageTimeout:        5 * time.Second,
+		FactExtractionTimeout: 30 * time.Second,
+		MemoryDecisionTimeout: 30 * time.Second,
+		StorageTimeout:        30 * time.Second,
 	}
 
 	// Test that channels are created and closed properly

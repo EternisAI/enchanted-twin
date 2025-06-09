@@ -15,7 +15,8 @@ import (
 )
 
 func TestToDocuments(t *testing.T) {
-	processor, err := NewWhatsappProcessor(nil, nil)
+	logger := log.New(os.Stdout)
+	processor, err := NewWhatsappProcessor(nil, logger)
 	require.NoError(t, err)
 
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
@@ -165,7 +166,8 @@ func TestToDocuments(t *testing.T) {
 }
 
 func TestToDocumentsEdgeCases(t *testing.T) {
-	processor, err := NewWhatsappProcessor(nil, nil)
+	logger := log.New(os.Stdout)
+	processor, err := NewWhatsappProcessor(nil, logger)
 	require.NoError(t, err)
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
