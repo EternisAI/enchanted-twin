@@ -399,7 +399,7 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 			People:       people,
 			User:         "me",
 			Conversation: conversationMessages,
-			FieldTags:    []string{"whatsapp", "conversation", "chat"},
+			FieldTags:    []string{"conversation", "chat"},
 			FieldMetadata: map[string]string{
 				"chat_id": chatID,
 				"type":    "conversation",
@@ -450,7 +450,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						FieldSource:    "whatsapp",
 						FieldContent:   fmt.Sprintf("WhatsApp Contact name: %s. Contact ID: %s.", *pushname.Pushname, *pushname.ID),
 						FieldTimestamp: &timestamp,
-						FieldTags:      []string{"whatsapp", "contact"},
+						FieldTags:      []string{"contact"},
 						FieldMetadata: map[string]string{
 							"contact_id": *pushname.ID,
 							"name":       *pushname.Pushname,
