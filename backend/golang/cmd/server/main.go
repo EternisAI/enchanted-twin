@@ -403,7 +403,6 @@ func main() {
 		panic(errors.Wrap(err, "Error creating database"))
 	}
 
-
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 

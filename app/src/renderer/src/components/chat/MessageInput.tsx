@@ -13,6 +13,7 @@ type MessageInputProps = {
   isReasonSelected: boolean
   onReasonToggle?: (reasoningSelected: boolean) => void
   voiceMode?: boolean
+  placeholder?: string
 }
 
 export default function MessageInput({
@@ -21,7 +22,8 @@ export default function MessageInput({
   onStop,
   isReasonSelected,
   onReasonToggle,
-  voiceMode = false
+  voiceMode = false,
+  placeholder = 'What are you thinking?'
 }: MessageInputProps) {
   const [text, setText] = useState('')
 
@@ -83,7 +85,7 @@ export default function MessageInput({
           onKeyDown={handleKeyDown}
           rows={1}
           autoFocus
-          placeholder="What are you thinking?"
+          placeholder={placeholder}
           className="flex-1 text-base placeholder:text-muted-foreground resize-none bg-transparent text-foreground outline-none overflow-y-auto max-h-[12rem]"
         />
         <div className="flex justify-end items-center gap-3">
