@@ -324,8 +324,11 @@ func (cd *ConversationDocument) createConversationChunk(messages []ConversationM
 	for k, v := range cd.Metadata() {
 		metadata[k] = v
 	}
-	metadata["chunk_number"] = fmt.Sprintf("%d", chunkNum)
-	metadata["original_document_id"] = cd.ID()
+
+	// Use namespaced keys to avoid collisions with existing metadata
+	metadata["_enchanted_chunk_number"] = fmt.Sprintf("%d", chunkNum)
+	metadata["_enchanted_original_document_id"] = cd.ID()
+	metadata["_enchanted_chunk_type"] = "conversation"
 
 	return &ConversationDocument{
 		FieldID:       newID,
@@ -567,8 +570,11 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 	for k, v := range td.Metadata() {
 		metadata[k] = v
 	}
-	metadata["chunk_number"] = fmt.Sprintf("%d", chunkNum)
-	metadata["original_document_id"] = td.ID()
+
+	// Use namespaced keys to avoid collisions with existing metadata
+	metadata["_enchanted_chunk_number"] = fmt.Sprintf("%d", chunkNum)
+	metadata["_enchanted_original_document_id"] = td.ID()
+	metadata["_enchanted_chunk_type"] = "text"
 
 	return &TextDocument{
 		FieldID:        newID,
