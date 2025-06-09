@@ -15,7 +15,8 @@ import (
 )
 
 func TestToDocuments(t *testing.T) {
-	processor := NewWhatsappProcessor(nil, nil)
+	processor, err := NewWhatsappProcessor(nil, nil)
+	require.NoError(t, err)
 
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
@@ -164,7 +165,8 @@ func TestToDocuments(t *testing.T) {
 }
 
 func TestToDocumentsEdgeCases(t *testing.T) {
-	processor := NewWhatsappProcessor(nil, nil)
+	processor, err := NewWhatsappProcessor(nil, nil)
+	require.NoError(t, err)
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
 	t.Run("EmptyTextMessages", func(t *testing.T) {
@@ -327,7 +329,8 @@ func TestToDocumentsEdgeCases(t *testing.T) {
 
 func TestToDocumentsParticipantDetection(t *testing.T) {
 	logger := log.New(os.Stdout)
-	processor := NewWhatsappProcessor(nil, logger)
+	processor, err := NewWhatsappProcessor(nil, logger)
+	require.NoError(t, err)
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
 	records := []types.Record{
