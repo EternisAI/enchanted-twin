@@ -246,7 +246,7 @@ func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([
 	for _, record := range records {
 		content := ""
 		metadata := map[string]string{}
-		tags := []string{"social", "x"}
+		tags := []string{"social"}
 
 		getString := func(key string) string {
 			if val, ok := record.Data[key]; ok {

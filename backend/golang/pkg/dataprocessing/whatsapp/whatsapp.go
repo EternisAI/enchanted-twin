@@ -211,7 +211,7 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			FieldSource:    "whatsapp",
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,
-			FieldTags:      []string{"whatsapp"},
+			FieldTags:      []string{},
 			FieldMetadata: map[string]string{
 				"from": fromName,
 				"to":   toName,
