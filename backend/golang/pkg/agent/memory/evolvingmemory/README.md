@@ -259,7 +259,7 @@ The evolving memory system includes a sophisticated document storage architectur
 - **Multiple document references per memory** - Each memory fact can reference multiple source documents
 - **Separate document table** - Documents stored in dedicated `SourceDocument` table with deduplication
 - **Content deduplication** - Documents with identical content stored only once using SHA256 hashing
-- **Document size validation** - Documents exceeding 20,000 characters are automatically truncated to prevent processing issues
+- **Intelligent chunking for large content** - Documents and conversations exceeding 20,000 characters are intelligently split into smaller chunks that preserve structure and meaning, with special handling for oversized individual messages
 - **Backward compatibility** - Existing memories continue working seamlessly
 
 ### Storage Architecture
