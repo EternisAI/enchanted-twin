@@ -6,13 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 )
 
 func TestToDocuments(t *testing.T) {
-	slack := NewSlackProcessor(nil)
+	logger := log.New(os.Stdout)
+	slack := NewSlackProcessor(nil, logger)
 	tempFile, err := os.CreateTemp("", "test-slack-*.jsonl")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
