@@ -74,9 +74,10 @@ func TestToDocuments(t *testing.T) {
 	var conversationDoc, contactDoc memory.Document
 	for _, doc := range docs {
 		docType := doc.Metadata()["type"]
-		if docType == "conversation" {
+		switch docType {
+		case "conversation":
 			conversationDoc = doc
-		} else if docType == "contact" {
+		case "contact":
 			contactDoc = doc
 		}
 	}
