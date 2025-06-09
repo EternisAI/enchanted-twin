@@ -12,6 +12,7 @@ import {
 import { useMutation } from '@apollo/client'
 import { useCallback } from 'react'
 import { client } from '@renderer/graphql/lib'
+import MessageInput from '../chat/MessageInput'
 
 interface HolonThreadDetailProps {
   thread: Thread
@@ -27,7 +28,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
   const handleCreateChat = useCallback(
     async (action: string) => {
       const chatId = `holon-${thread.id}`
-      const text = `Send to holon thread id ${thread.id} the following message: ${action}`
+      const text = `Send a message to this holon thread: ${action}`
 
       try {
         const { data: createData } = await createChat({
@@ -67,10 +68,6 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
     router.history.back()
   }
 
-  const handleActionClick = (action: string) => {
-    handleCreateChat(action)
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -78,14 +75,16 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
       transition={{ duration: 0.5 }}
       className="flex w-full h-full items-center overflow-y-auto flex flex-col gap-3 relative mb-18"
     >
-      <div className="w-xl flex flex-col bg-gray-100 rounded-lg p-2">
+      <div className="w-xl flex flex-col bg-gray-100 dark:bg-gray-900 rounded-lg p-2">
         {/*  */}
-        <div className="flex flex-col gap-6 bg-white rounded-lg p-3">
+        <div className="flex flex-col gap-6 bg-white dark:bg-gray-800 rounded-lg p-3">
           {/* header  */}
-          <div className="flex items-center justify-between border-b border-border pb-3">
+          <div className="flex items-center justify-between border-b border-border dark:border-gray-700 pb-3">
             <div className="flex flex-col ">
-              <h2 className="text-lg font-semibold text-foreground">{thread.title}</h2>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <h2 className="text-lg font-semibold text-foreground dark:text-white">
+                {thread.title}
+              </h2>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground dark:text-gray-400">
                 <span className="font-medium">{thread.author.alias || thread.author.identity}</span>
                 <span>•</span>
                 <span>{formatDistanceToNow(new Date(thread.createdAt), { addSuffix: true })}</span>
@@ -120,21 +119,21 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
             </div>
           )}
 
-          <p className="text-foreground whitespace-pre-wrap leading-relaxed text-base">
+          <p className="text-foreground dark:text-gray-200 whitespace-pre-wrap leading-relaxed text-base">
             {thread.content}
           </p>
         </div>
       </div>
 
       <div className="flex flex-col gap-3 w-xl">
-        <div className="px-2 flex w-full gap-6 text-sm text-muted-foreground">
+        <div className="px-2 flex w-full gap-6 text-sm text-muted-foreground dark:text-gray-400">
           <div className="flex items-center gap-2">
             <Eye className="w-4 h-4" />
             <span>Read by {thread.views}</span>
           </div>
           <div>{thread.messages.length} messages</div>
           {thread.expiresAt && (
-            <div className="text-orange-500">
+            <div className="text-orange-500 dark:text-orange-400">
               Expires {formatDistanceToNow(new Date(thread.expiresAt), { addSuffix: true })}
             </div>
           )}
@@ -145,29 +144,31 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
             {thread.messages.map((message) => (
               <div
                 key={message.id}
-                className="flex flex-col gap-1 border border-border rounded-lg py-3 px-4 bg-card hover:bg-accent/10 transition-colors"
+                className="flex flex-col gap-1 border border-border dark:border-gray-700 rounded-lg py-3 px-4 bg-card dark:bg-gray-800 hover:bg-accent/10 dark:hover:bg-gray-700/50 transition-colors"
               >
-                <div className="flex items-center gap-2 text-primary">
+                <div className="flex items-center gap-2 text-primary dark:text-blue-400">
                   <span className="font-semibold">
                     {message.author.alias || message.author.identity}
                   </span>
-                  <span className="text-muted-foreground text-sm">•</span>
-                  <span className="text-muted-foreground text-sm">
+                  <span className="text-muted-foreground dark:text-gray-500 text-sm">•</span>
+                  <span className="text-muted-foreground dark:text-gray-500 text-sm">
                     {formatDistanceToNow(new Date(message.createdAt), {
                       addSuffix: true
                     })}
                   </span>
                 </div>
-                <p className="text-sm text-foreground leading-relaxed">{message.content}</p>
+                <p className="text-sm text-foreground dark:text-gray-200 leading-relaxed">
+                  {message.content}
+                </p>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div className="sticky w-xl bottom-0 left-0 right-0 bg-transparent backdrop-blur-xs border-t border-white/20 p-4">
+      <div className="sticky w-xl bottom-0 left-0 right-0 bg-transparent backdrop-blur-xs border-t border-white/20 dark:border-gray-700/50 p-4">
         <div className="flex justify-center items-center gap-4 w-full">
-          {thread.actions?.map((action, index) => (
+          {/* {thread.actions?.map((action, index) => (
             <Button
               key={index}
               variant={index === 0 ? 'default' : 'outline'}
@@ -177,7 +178,16 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
             >
               {action}
             </Button>
-          ))}
+          ))} */}
+          <MessageInput
+            onSend={(text) => {
+              handleCreateChat(text)
+            }}
+            voiceMode={false}
+            onStop={() => {}}
+            isWaitingTwinResponse={false}
+            isReasonSelected={false}
+          />
         </div>
       </div>
     </motion.div>

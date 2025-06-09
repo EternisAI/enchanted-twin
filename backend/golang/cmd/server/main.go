@@ -397,6 +397,13 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
+	dbsqlc, err := db.New(store.DB().DB, logger)
+	if err != nil {
+		logger.Error("Error creating database", "error", err)
+		panic(errors.Wrap(err, "Error creating database"))
+	}
+
+
 	go telegram.SubscribePoller(telegramService, logger)
 	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
