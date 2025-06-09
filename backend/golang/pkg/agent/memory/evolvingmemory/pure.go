@@ -16,144 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// splitOversizedMessage splits a single message that exceeds MaxProcessableContentChars
-// into multiple smaller messages while preserving speaker and timestamp information.
-func splitOversizedMessage(msg memory.ConversationMessage) []memory.ConversationMessage {
-	speakerPrefix := fmt.Sprintf("%s: ", msg.Speaker)
-	speakerPrefixLen := len(speakerPrefix)
-
-	// Account for speaker prefix and newline in the content limit
-	maxContentPerChunk := MaxProcessableContentChars - speakerPrefixLen - 1 // -1 for newline
-
-	// Ensure we have at least some space for content
-	if maxContentPerChunk < 100 {
-		maxContentPerChunk = 100 // Minimum reasonable content size
-	}
-
-	content := msg.Content
-
-	// Handle empty content
-	if content == "" {
-		return []memory.ConversationMessage{msg}
-	}
-
-	var splitMessages []memory.ConversationMessage
-	partNumber := 1
-
-	for len(content) > 0 {
-		var chunkContent string
-
-		if len(content) <= maxContentPerChunk {
-			// Last chunk - take remaining content
-			chunkContent = content
-			content = ""
-		} else {
-			// Reserve space for potential markers
-			continuationMarker := " [continued...]"
-			partMarkerSpace := 20 // Space for "[Part X] " prefix
-			availableSpace := maxContentPerChunk - len(continuationMarker) - partMarkerSpace
-
-			// Ensure we have reasonable space
-			if availableSpace < 50 {
-				availableSpace = maxContentPerChunk - 10 // Minimal approach
-			}
-
-			// Find a good break point (prefer word boundaries)
-			breakPoint := availableSpace
-			if breakPoint > len(content) {
-				breakPoint = len(content)
-			}
-
-			// Look backwards for a word boundary (space, newline, punctuation)
-			for i := breakPoint - 1; i > availableSpace/2 && i < len(content); i-- {
-				char := content[i]
-				if char == ' ' || char == '\n' || char == '.' || char == '!' || char == '?' || char == ',' || char == ';' {
-					breakPoint = i + 1 // Include the punctuation/space
-					break
-				}
-			}
-
-			chunkContent = content[:breakPoint]
-			content = content[breakPoint:]
-
-			// Add continuation indicator if this isn't the last part
-			if len(content) > 0 {
-				chunkContent += continuationMarker
-			}
-		}
-
-		// Add part number for multi-part messages only if we have multiple parts
-		willHaveMultipleParts := len(content) > 0 || partNumber > 1
-		if willHaveMultipleParts {
-			partPrefix := fmt.Sprintf("[Part %d] ", partNumber)
-
-			// Ensure the total doesn't exceed limits
-			totalLength := len(partPrefix) + len(chunkContent)
-			if totalLength > maxContentPerChunk {
-				// Trim content to fit with the part prefix
-				trimAmount := totalLength - maxContentPerChunk
-				if trimAmount < len(chunkContent) {
-					chunkContent = chunkContent[:len(chunkContent)-trimAmount]
-					// Remove partial words at the end
-					lastSpace := strings.LastIndex(chunkContent, " ")
-					if lastSpace > len(chunkContent)/2 {
-						chunkContent = chunkContent[:lastSpace]
-					}
-				}
-			}
-
-			chunkContent = partPrefix + chunkContent
-		}
-
-		// Create a new message for this chunk
-		splitMsg := memory.ConversationMessage{
-			Speaker: msg.Speaker,
-			Content: chunkContent,
-			Time:    msg.Time,
-		}
-
-		splitMessages = append(splitMessages, splitMsg)
-		partNumber++
-
-		// Safety check to prevent infinite loops
-		if partNumber > 100 {
-			break
-		}
-	}
-
-	// If we only ended up with one message and it's not oversized, return original
-	if len(splitMessages) == 1 {
-		finalMsg := fmt.Sprintf("%s: %s\n", splitMessages[0].Speaker, splitMessages[0].Content)
-		if len(finalMsg) <= MaxProcessableContentChars {
-			return []memory.ConversationMessage{msg} // Return original without markers
-		}
-	}
-
-	return splitMessages
-}
-
-// createConversationChunk creates a new ConversationDocument chunk.
-func createConversationChunk(original *memory.ConversationDocument, messages []memory.ConversationMessage, chunkNum int) *memory.ConversationDocument {
-	newID := fmt.Sprintf("%s-chunk-%d", original.ID(), chunkNum)
-	metadata := make(map[string]string)
-	// Copy original metadata to the new chunk
-	for k, v := range original.Metadata() {
-		metadata[k] = v
-	}
-	metadata["chunk_number"] = fmt.Sprintf("%d", chunkNum)
-	metadata["original_document_id"] = original.ID()
-
-	return &memory.ConversationDocument{
-		FieldID:       newID,
-		FieldSource:   original.Source(),
-		People:        original.People,
-		User:          original.User,
-		Conversation:  messages,
-		FieldTags:     original.Tags(),
-		FieldMetadata: metadata,
-	}
-}
-
 // DistributeWork splits documents evenly among workers.
 func DistributeWork(docs []PreparedDocument, workers int) [][]PreparedDocument {
 	if workers <= 0 {
@@ -666,23 +528,23 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 	var errors []error
 
 	for _, doc := range docs {
-		switch d := doc.(type) {
-		case *memory.ConversationDocument:
-			// Chunk conversations if needed, then prepare each chunk
-			chunks := chunkConversationIfNeeded(d)
-			for _, chunk := range chunks {
-				prep := addDocumentMetadata(chunk, DocumentTypeConversation, currentTime)
-				prepared = append(prepared, prep)
+		// Use the new polymorphic Chunk() method - much cleaner!
+		chunks := doc.Chunk()
+
+		for _, chunk := range chunks {
+			var docType DocumentType
+			switch chunk.(type) {
+			case *memory.ConversationDocument:
+				docType = DocumentTypeConversation
+			case *memory.TextDocument:
+				docType = DocumentTypeText
+			default:
+				errors = append(errors, fmt.Errorf("unknown document type: %T", chunk))
+				continue
 			}
 
-		case *memory.TextDocument:
-			// Truncate text docs if needed, then prepare
-			truncated := truncateTextIfNeeded(d)
-			prep := addDocumentMetadata(truncated, DocumentTypeText, currentTime)
+			prep := addDocumentMetadata(chunk, docType, currentTime)
 			prepared = append(prepared, prep)
-
-		default:
-			errors = append(errors, fmt.Errorf("unknown document type: %T", doc))
 		}
 	}
 
@@ -691,71 +553,6 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 	}
 
 	return prepared, nil
-}
-
-// chunkConversationIfNeeded chunks conversations that exceed size limits. Pure function.
-func chunkConversationIfNeeded(conv *memory.ConversationDocument) []memory.Document {
-	if len(conv.Content()) < MaxProcessableContentChars {
-		return []memory.Document{conv}
-	}
-
-	var chunks []memory.Document
-	var currentChunkMessages []memory.ConversationMessage
-	currentCharCount := 0
-
-	for _, msg := range conv.Conversation {
-		msgContent := fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content)
-		msgLen := len(msgContent)
-
-		// Handle oversized individual messages
-		if msgLen > MaxProcessableContentChars {
-			// Finalize current chunk if it exists
-			if len(currentChunkMessages) > 0 {
-				chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
-				chunks = append(chunks, chunk)
-				currentChunkMessages = nil
-				currentCharCount = 0
-			}
-
-			// Split the oversized message
-			splitMessages := splitOversizedMessage(msg)
-			for _, splitMsg := range splitMessages {
-				chunk := createConversationChunk(conv, []memory.ConversationMessage{splitMsg}, len(chunks)+1)
-				chunks = append(chunks, chunk)
-			}
-			continue
-		}
-
-		// Start new chunk if adding this message would exceed limit
-		if currentCharCount+msgLen > MaxProcessableContentChars && len(currentChunkMessages) > 0 {
-			chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
-			chunks = append(chunks, chunk)
-			currentChunkMessages = nil
-			currentCharCount = 0
-		}
-
-		currentChunkMessages = append(currentChunkMessages, msg)
-		currentCharCount += msgLen
-	}
-
-	// Add final chunk
-	if len(currentChunkMessages) > 0 {
-		chunk := createConversationChunk(conv, currentChunkMessages, len(chunks)+1)
-		chunks = append(chunks, chunk)
-	}
-
-	return chunks
-}
-
-// truncateTextIfNeeded truncates text documents that exceed size limits. Pure function.
-func truncateTextIfNeeded(doc *memory.TextDocument) memory.Document {
-	if len(doc.Content()) <= MaxProcessableContentChars {
-		return doc
-	}
-
-	newDoc := *doc
-	newDoc.FieldContent = doc.Content()[:MaxProcessableContentChars]
-	return &newDoc
 }
 
 // addDocumentMetadata adds all the metadata, timestamps, and speaker info. Pure function.
