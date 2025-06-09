@@ -42,82 +42,6 @@ func NewHolonSyncActivities(logger *clog.Logger, manager *Manager) *HolonSyncAct
 func (a *HolonSyncActivities) RegisterWorkflowsAndActivities(worker worker.Worker) {
 	worker.RegisterWorkflow(HolonSyncWorkflow)
 	worker.RegisterActivity(a.SyncHolonDataActivity)
-	worker.RegisterActivity(a.SyncThreads)
-	worker.RegisterActivity(a.SyncReplies)
-	worker.RegisterActivity(a.PushPendingThreads)
-	worker.RegisterActivity(a.PushPendingContent)
-}
-
-// SyncThreads is an activity that syncs threads from the holon API
-func (a *HolonSyncActivities) SyncThreads(ctx context.Context) error {
-	a.logger.Debug("Starting holon threads sync activity")
-
-	if a.manager.fetcherService == nil {
-		return fmt.Errorf("fetcher service is not available")
-	}
-
-	_, err := a.manager.fetcherService.SyncThreads(ctx)
-	if err != nil {
-		a.logger.Error("Failed to sync threads", "error", err)
-		return err
-	}
-
-	a.logger.Debug("Holon threads sync completed successfully")
-	return nil
-}
-
-// SyncReplies is an activity that syncs replies from the holon API
-func (a *HolonSyncActivities) SyncReplies(ctx context.Context) error {
-	a.logger.Debug("Starting holon replies sync activity")
-
-	if a.manager.fetcherService == nil {
-		return fmt.Errorf("fetcher service is not available")
-	}
-
-	_, err := a.manager.fetcherService.SyncReplies(ctx)
-	if err != nil {
-		a.logger.Error("Failed to sync replies", "error", err)
-		return err
-	}
-
-	a.logger.Debug("Holon replies sync completed successfully")
-	return nil
-}
-
-// PushPendingThreads is an activity that pushes pending threads to the holon API
-func (a *HolonSyncActivities) PushPendingThreads(ctx context.Context) error {
-	a.logger.Debug("Starting push pending threads activity")
-
-	if a.manager.fetcherService == nil {
-		return fmt.Errorf("fetcher service is not available")
-	}
-
-	err := a.manager.fetcherService.PushPendingThreads(ctx)
-	if err != nil {
-		a.logger.Error("Failed to push pending threads", "error", err)
-		return err
-	}
-
-	a.logger.Debug("Push pending threads completed successfully")
-	return nil
-}
-
-// PushPendingContent is an activity that pushes all pending content (threads and replies) to the holon API
-func (a *HolonSyncActivities) PushPendingContent(ctx context.Context) error {
-	a.logger.Debug("Starting holon pending content push activity")
-
-	if a.manager.fetcherService == nil {
-		return fmt.Errorf("fetcher service is not available")
-	}
-
-	err := a.manager.fetcherService.PushPendingContent(ctx)
-	if err != nil {
-		a.logger.Error("Failed to push pending content", "error", err)
-		return err
-	}
-
-	a.logger.Debug("Holon pending content push completed successfully")
-	return nil
 }
 
 // SyncHolonDataActivity performs the complete holon data synchronization workflow
@@ -131,7 +55,7 @@ func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input H
 
 	// Step 1: Push any pending local content to HolonZero API (outbound sync)
 	a.logger.Info("Pushing pending content to HolonZero API")
-	if err := a.PushPendingContent(ctx); err != nil {
+	if err := a.pushPendingContent(ctx); err != nil {
 		result.Success = false
 		result.Error = fmt.Sprintf("failed to push pending content: %v", err)
 		a.logger.Error("Failed to push pending content", "error", err)
@@ -168,4 +92,12 @@ func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input H
 		"replies_synced", len(replies))
 
 	return result, nil
+}
+
+// pushPendingContent is a helper method to push pending content to HolonZero API
+func (a *HolonSyncActivities) pushPendingContent(ctx context.Context) error {
+	if a.manager.fetcherService == nil {
+		return fmt.Errorf("fetcher service is not available")
+	}
+	return a.manager.fetcherService.PushPendingContent(ctx)
 }

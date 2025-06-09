@@ -30,12 +30,7 @@ type Manager struct {
 	wg              sync.WaitGroup
 	logger          *clog.Logger
 	temporalClient  client.Client
-	worker          worker.Worker
 	scheduleEnabled bool
-
-	// Temporal integration fields
-	temporalWorker     worker.Worker
-	syncScheduleHandle client.ScheduleHandle
 }
 
 // ManagerConfig holds configuration for the holon manager
@@ -101,14 +96,12 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 		cancel:          cancel,
 		logger:          logger,
 		temporalClient:  temporalClient,
-		worker:          worker,
 		scheduleEnabled: temporalClient != nil,
 	}
 
-	// Create sync activities (but don't register them here - they're registered in the worker bootstrap)
+	// Create sync activities if Temporal is enabled
 	if manager.scheduleEnabled {
 		manager.syncActivities = NewHolonSyncActivities(logger, manager)
-		// Note: RegisterWorkflowsAndActivities is called in bootstrapTemporalWorker to avoid duplicate registration
 	}
 
 	return manager
@@ -168,10 +161,14 @@ func (m *Manager) setupTemporalSchedule() error {
 	)
 }
 
-// TriggerSyncWorkflow manually triggers a holon sync workflow
-func (m *Manager) TriggerSyncWorkflow(forceSync bool) error {
+// TriggerSync manually triggers a holon sync workflow (replaces both TriggerSyncWorkflow and TriggerSync)
+func (m *Manager) TriggerSync(forceSync bool) error {
 	if !m.scheduleEnabled || m.temporalClient == nil {
-		return fmt.Errorf("temporal schedule is not enabled")
+		// Fall back to direct fetcher service if no Temporal
+		if m.fetcherService == nil {
+			return fmt.Errorf("neither temporal nor fetcher service is available")
+		}
+		return m.fetcherService.ForceSync(context.Background())
 	}
 
 	ctx := context.Background()
@@ -366,47 +363,6 @@ func StartHolonServices(store *db.Store) (*Manager, error) {
 	return manager, nil
 }
 
-// Example of how to use the holon manager in your main.go
-func ExampleIntegration() {
-	// This would typically be in your main.go file
-
-	// Initialize database (assuming you have this set up)
-	// store := db.NewStore("path/to/database.db")
-	// defer store.Close()
-
-	// Create a logger
-	logger := clog.NewWithOptions(os.Stdout, clog.Options{
-		Level:           clog.InfoLevel,
-		ReportTimestamp: true,
-	})
-
-	// Start holon services
-	// manager, err := StartHolonServices(store)
-	// if err != nil {
-	//     logger.Fatal("Failed to start holon services", "error", err)
-	// }
-	// defer manager.Stop()
-
-	// Example: Force a sync
-	// if err := manager.ForceFetch(); err != nil {
-	//     logger.Info("Force fetch failed", "error", err)
-	// } else {
-	//     logger.Info("Manual sync completed successfully")
-	// }
-
-	// Example: Get status
-	// if status, err := manager.GetFetcherStatus(); err == nil {
-	//     logger.Info("Fetcher status",
-	//         "running", status.Running,
-	//         "nextSync", time.Until(status.NextSync))
-	// }
-
-	// Your application continues running...
-	// The fetcher will automatically sync data every 5 minutes
-
-	logger.Info("Example integration - see function comments for actual usage")
-}
-
 // HTTPHandlers provides HTTP endpoints for managing the holon fetcher
 type HTTPHandlers struct {
 	manager *Manager
@@ -439,7 +395,7 @@ func (h *HTTPHandlers) GetStatus() (interface{}, error) {
 
 // TriggerSync forces an immediate synchronization
 func (h *HTTPHandlers) TriggerSync() error {
-	return h.manager.ForceFetch()
+	return h.manager.TriggerSync(true)
 }
 
 // Configuration returns the current fetcher configuration
@@ -448,7 +404,7 @@ func (h *HTTPHandlers) GetConfiguration() map[string]interface{} {
 
 	return map[string]interface{}{
 		"holon_api_url":   config.HolonAPIURL,
-		"fetcher_enabled": true, // Always enabled by default now
+		"fetcher_enabled": true,
 		"fetch_interval":  config.FetchInterval.String(),
 		"batch_size":      config.BatchSize,
 		"max_retries":     config.MaxRetries,
@@ -468,125 +424,4 @@ func (m *Manager) GetFetcherStatus() (*SyncStatus, error) {
 		return nil, fmt.Errorf("fetcher service is not initialized")
 	}
 	return m.fetcherService.GetSyncStatus(context.Background())
-}
-
-// ForceFetch triggers an immediate sync using the fetcher service
-func (m *Manager) ForceFetch() error {
-	if m.fetcherService == nil {
-		return fmt.Errorf("fetcher service is not initialized")
-	}
-	return m.fetcherService.ForceSync(context.Background())
-}
-
-// StartTemporalWorker initializes and starts the Temporal worker for Holon activities
-func (m *Manager) StartTemporalWorker(ctx context.Context, temporalClient client.Client, taskQueue string) error {
-	if temporalClient == nil {
-		return fmt.Errorf("temporal client cannot be nil")
-	}
-
-	m.logger.Debug("Starting temporal worker for holon activities", "taskQueue", taskQueue)
-
-	// Create activities handler
-	activities := NewHolonSyncActivities(m.logger, m)
-
-	// Create worker options
-	workerOptions := worker.Options{
-		MaxConcurrentActivityExecutionSize:     5,
-		MaxConcurrentWorkflowTaskExecutionSize: 2,
-	}
-
-	// Create and start worker
-	temporalWorker := worker.New(temporalClient, taskQueue, workerOptions)
-	activities.RegisterWorkflowsAndActivities(temporalWorker)
-
-	// Start worker in a goroutine
-	if err := temporalWorker.Start(); err != nil {
-		return fmt.Errorf("failed to start temporal worker: %w", err)
-	}
-
-	m.logger.Debug("Temporal worker started successfully")
-
-	// Store worker reference for shutdown
-	m.temporalWorker = temporalWorker
-	return nil
-}
-
-// StartScheduledSync schedules periodic syncs using Temporal
-func (m *Manager) StartScheduledSync(ctx context.Context, temporalClient client.Client, interval time.Duration) error {
-	if temporalClient == nil {
-		return fmt.Errorf("temporal client cannot be nil")
-	}
-
-	if interval < 1*time.Minute {
-		return fmt.Errorf("sync interval must be at least 1 minute")
-	}
-
-	m.logger.Debug("Setting up scheduled holon sync", "interval", interval)
-
-	// Use the helper function to create the schedule
-	scheduleID := "holon-sync-schedule"
-
-	err := helpers.CreateScheduleIfNotExists(
-		m.logger,
-		temporalClient,
-		scheduleID,
-		interval,
-		HolonSyncWorkflow,
-		[]any{HolonSyncWorkflowInput{ForceSync: false}},
-	)
-
-	if err != nil {
-		return fmt.Errorf("failed to create holon sync schedule: %w", err)
-	}
-
-	m.logger.Debug("Holon sync schedule created successfully", "scheduleID", scheduleID)
-
-	return nil
-}
-
-// TriggerSync triggers a manual sync using Temporal
-func (m *Manager) TriggerSync(ctx context.Context, temporalClient client.Client) error {
-	if temporalClient == nil {
-		return fmt.Errorf("temporal client cannot be nil")
-	}
-
-	m.logger.Debug("Triggering manual holon sync")
-
-	// Start the workflow
-	workflowOptions := client.StartWorkflowOptions{
-		ID:        fmt.Sprintf("holon-sync-manual-%d", time.Now().Unix()),
-		TaskQueue: "default",
-	}
-
-	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, workflowOptions,
-		HolonSyncWorkflow, HolonSyncWorkflowInput{ForceSync: true})
-
-	if err != nil {
-		return fmt.Errorf("failed to start manual sync workflow: %w", err)
-	}
-
-	m.logger.Debug("Manual sync workflow started", "workflowID", workflowRun.GetID())
-	return nil
-}
-
-// StopTemporalWorker stops the Temporal worker if it's running
-func (m *Manager) StopTemporalWorker(ctx context.Context) {
-	if m.temporalWorker != nil {
-		m.logger.Debug("Stopping temporal worker")
-		m.temporalWorker.Stop()
-		m.temporalWorker = nil
-	}
-}
-
-// CancelScheduledSync cancels the scheduled sync if it exists
-func (m *Manager) CancelScheduledSync(ctx context.Context) error {
-	if m.syncScheduleHandle != nil {
-		m.logger.Debug("Canceling scheduled sync")
-		err := m.syncScheduleHandle.Delete(ctx)
-		if err != nil {
-			return fmt.Errorf("failed to cancel scheduled sync: %w", err)
-		}
-		m.syncScheduleHandle = nil
-	}
-	return nil
 }
