@@ -355,19 +355,19 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 	assert.Equal(t, DocumentTypeConversation, prepared[0].Type)
 	assert.Equal(t, "conv-long-chunk-1", firstChunk.ID())
 	assert.Equal(t, []string{"project-x"}, firstChunk.Tags())
-	assert.Contains(t, firstChunk.Metadata(), "chunk_number")
-	assert.Contains(t, firstChunk.Metadata(), "original_document_id")
-	assert.Equal(t, "1", firstChunk.Metadata()["chunk_number"])
-	assert.Equal(t, "conv-long", firstChunk.Metadata()["original_document_id"])
+	assert.Contains(t, firstChunk.Metadata(), "_enchanted_chunk_number")
+	assert.Contains(t, firstChunk.Metadata(), "_enchanted_original_document_id")
+	assert.Equal(t, "1", firstChunk.Metadata()["_enchanted_chunk_number"])
+	assert.Equal(t, "conv-long", firstChunk.Metadata()["_enchanted_original_document_id"])
 	assert.NotEmpty(t, firstChunk.Conversation)
 
 	// Check the last chunk
 	lastChunk, ok := prepared[len(prepared)-1].Original.(*memory.ConversationDocument)
 	require.True(t, ok)
 	assert.Equal(t, "alice", prepared[len(prepared)-1].SpeakerID)
-	assert.Contains(t, lastChunk.Metadata(), "chunk_number")
+	assert.Contains(t, lastChunk.Metadata(), "_enchanted_chunk_number")
 	expectedChunkNum := fmt.Sprintf("%d", len(prepared))
-	assert.Equal(t, expectedChunkNum, lastChunk.Metadata()["chunk_number"])
+	assert.Equal(t, expectedChunkNum, lastChunk.Metadata()["_enchanted_chunk_number"])
 }
 
 func TestPrepareDocuments_NoChunking(t *testing.T) {
@@ -392,7 +392,7 @@ func TestPrepareDocuments_NoChunking(t *testing.T) {
 
 	// ID should be the original ID since it's not a chunk
 	assert.Equal(t, "conv-short", singleDoc.ID())
-	assert.NotContains(t, singleDoc.Metadata(), "chunk_number", "Short conversation should not have chunk metadata")
+	assert.NotContains(t, singleDoc.Metadata(), "_enchanted_chunk_number", "Short conversation should not have chunk metadata")
 }
 
 func TestPrepareDocuments_OversizedMessageHandling(t *testing.T) {
@@ -466,9 +466,9 @@ func TestPrepareDocuments_OversizedMessageHandling(t *testing.T) {
 
 		// Each chunk should be a valid ConversationDocument
 		assert.Equal(t, DocumentTypeConversation, p.Type)
-		assert.Contains(t, chunk.Metadata(), "chunk_number")
-		assert.Contains(t, chunk.Metadata(), "original_document_id")
-		assert.Equal(t, "conv-oversized-msg", chunk.Metadata()["original_document_id"])
+		assert.Contains(t, chunk.Metadata(), "_enchanted_chunk_number")
+		assert.Contains(t, chunk.Metadata(), "_enchanted_original_document_id")
+		assert.Equal(t, "conv-oversized-msg", chunk.Metadata()["_enchanted_original_document_id"])
 	}
 }
 
