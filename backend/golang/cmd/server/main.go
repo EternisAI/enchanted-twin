@@ -359,13 +359,12 @@ func main() {
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
 	}
 
-	identitySvc := identity.NewIdentityService(temporalClient)
-	personality, err := identitySvc.GetPersonality(context.Background())
+	userProfile, err := identitySvc.GetUserProfile(context.Background())
 	if err != nil {
-		logger.Error("Failed to get personality", "error", err)
-		panic(errors.Wrap(err, "Failed to get personality"))
+		logger.Error("Failed to get user profile", "error", err)
+		panic(errors.Wrap(err, "Failed to get user profile"))
 	}
-	logger.Info("Personality", "personality", personality)
+	logger.Info("User profile", "profile", userProfile)
 
 	// Create holon service with configuration
 	holonConfig := holon.DefaultManagerConfig()

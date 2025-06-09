@@ -200,7 +200,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
 	// Prepare metadata JSON (for backward compatibility)
 	metadataJSON, err := json.Marshal(doc.Metadata())
-	if err != nil {
+		if err != nil {
 		return fmt.Errorf("marshaling metadata: %w", err)
 	}
 
@@ -340,13 +340,12 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				}
 			}
 
-			// Define core legacy properties that MUST exist
+			// Define core legacy properties that MUST exist (these should never be missing)
 			coreProps := map[string]string{
-				contentProperty:            "text",
-				timestampProperty:          "date",
-				metadataProperty:           "text",
-				tagsProperty:               "text[]",
-				documentReferencesProperty: "text[]",
+				contentProperty:   "text",
+				timestampProperty: "date",
+				metadataProperty:  "text",
+				tagsProperty:      "text[]",
 			}
 
 			// Check core properties exist with correct types
@@ -359,7 +358,9 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 			}
 
 			// Check if new structured fact fields exist, if not we need to add them
+			// This includes documentReferences which was added recently
 			newFields := []string{
+				documentReferencesProperty, // Recently added property that needs to be migrated
 				sourceProperty, speakerProperty,
 				factCategoryProperty, factSubjectProperty, factAttributeProperty,
 				factValueProperty, factTemporalContextProperty, factSensitivityProperty,
@@ -1290,7 +1291,14 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 	}
 
 	// Define all required structured fact properties
+	indexFilterable := true
 	requiredProps := map[string]*models.Property{
+		documentReferencesProperty: {
+			Name:            documentReferencesProperty,
+			DataType:        []string{"text[]"},
+			Description:     "Array of document IDs that generated this memory",
+			IndexFilterable: &indexFilterable,
+		},
 		sourceProperty: {
 			Name:        sourceProperty,
 			DataType:    []string{"text"},

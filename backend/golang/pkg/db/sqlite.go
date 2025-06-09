@@ -66,7 +66,6 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 			created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 		);
 		CREATE INDEX IF NOT EXISTS idx_chats_id ON chats(id);
-		CREATE INDEX IF NOT EXISTS idx_chats_category ON chats(category);
 
 		CREATE TABLE IF NOT EXISTS messages (
 			id TEXT PRIMARY KEY,
@@ -243,6 +242,40 @@ func NewStore(ctx context.Context, dbPath string) (*Store, error) {
 		ALTER TABLE threads ADD COLUMN state TEXT NOT NULL DEFAULT 'pending' CHECK (state IN ('pending', 'broadcasted', 'received', 'hidden', 'visible'));
 	`)
 	if err != nil && err.Error() != "duplicate column name: state" {
+		// Ignore error if column already exists
+		return nil, err
+	}
+
+	// Add category column to chats table if it doesn't exist (two-step migration for existing data)
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE chats ADD COLUMN category TEXT DEFAULT 'TEXT';
+	`)
+	if err != nil && err.Error() != "duplicate column name: category" {
+		// Ignore error if column already exists
+		return nil, err
+	}
+
+	// Update any NULL category values to 'TEXT' and ensure the column is properly constrained
+	_, err = db.ExecContext(ctx, `
+		UPDATE chats SET category = 'TEXT' WHERE category IS NULL;
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	// Now create the index on the category column after ensuring it exists
+	_, err = db.ExecContext(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_chats_category ON chats(category);
+	`)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add holon_thread_id column to chats table if it doesn't exist
+	_, err = db.ExecContext(ctx, `
+		ALTER TABLE chats ADD COLUMN holon_thread_id TEXT;
+	`)
+	if err != nil && err.Error() != "duplicate column name: holon_thread_id" {
 		// Ignore error if column already exists
 		return nil, err
 	}
