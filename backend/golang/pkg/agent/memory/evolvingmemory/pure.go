@@ -16,99 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-const (
-	// Maximum allowed document size in characters.
-	maxDocumentSizeChars = 20000
-)
-
-// validateAndTruncateDocument validates document size and truncates if necessary.
-func validateAndTruncateDocument(doc memory.Document) memory.Document {
-	content := doc.Content()
-
-	if len(content) <= maxDocumentSizeChars {
-		return doc
-	}
-
-	truncatedContent := content[:maxDocumentSizeChars]
-
-	switch d := doc.(type) {
-	case *memory.TextDocument:
-		newDoc := *d
-		newDoc.FieldContent = truncatedContent
-		return &newDoc
-	case *memory.ConversationDocument:
-
-		metadata := d.Metadata()
-		if metadata == nil {
-			metadata = make(map[string]string)
-		}
-		return &memory.TextDocument{
-			FieldID:        d.FieldID,
-			FieldContent:   truncatedContent,
-			FieldTimestamp: d.Timestamp(),
-			FieldSource:    d.FieldSource,
-			FieldTags:      d.FieldTags,
-			FieldMetadata:  metadata,
-		}
-	default:
-		return doc
-	}
-}
-
-// PrepareDocuments converts raw documents into prepared documents with extracted metadata.
-func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, error) {
-	prepared := make([]PreparedDocument, 0, len(docs))
-	errors := make([]error, 0)
-
-	for _, doc := range docs {
-		p, err := prepareDocument(doc, currentTime)
-		if err != nil {
-			errors = append(errors, fmt.Errorf("failed to prepare document: %w", err))
-			continue
-		}
-		prepared = append(prepared, p)
-	}
-
-	if len(errors) > 0 {
-		return nil, aggregateErrors(errors)
-	}
-
-	return prepared, nil
-}
-
-func prepareDocument(doc memory.Document, currentTime time.Time) (PreparedDocument, error) {
-	validatedDoc := validateAndTruncateDocument(doc)
-
-	prepared := PreparedDocument{
-		Original:   validatedDoc,
-		Timestamp:  currentTime,
-		DateString: getCurrentDateForPrompt(),
-	}
-
-	switch d := validatedDoc.(type) {
-	case *memory.ConversationDocument:
-		prepared.Type = DocumentTypeConversation
-		// Use the User field as the speaker ID for conversation documents
-		if d.User != "" {
-			prepared.SpeakerID = d.User
-		}
-	case *memory.TextDocument:
-		prepared.Type = DocumentTypeText
-		// Text documents are document-level (no speaker)
-		// In the current implementation, speakerID is hardcoded as "user" but
-		// for the new pipeline we'll treat it as document-level
-	default:
-		return PreparedDocument{}, fmt.Errorf("unknown document type: %T", validatedDoc)
-	}
-
-	// Override timestamp if document provides one
-	if ts := validatedDoc.Timestamp(); ts != nil && !ts.IsZero() {
-		prepared.Timestamp = *ts
-	}
-
-	return prepared, nil
-}
-
 // DistributeWork splits documents evenly among workers.
 func DistributeWork(docs []PreparedDocument, workers int) [][]PreparedDocument {
 	if workers <= 0 {
@@ -612,4 +519,60 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// PrepareDocuments is THE function that does all document processing before memory storage.
+// It handles chunking, truncation, and metadata preparation in one clean orchestrated flow.
+func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, error) {
+	var prepared []PreparedDocument
+	var errors []error
+
+	for _, doc := range docs {
+		// Use the new polymorphic Chunk() method - much cleaner!
+		chunks := doc.Chunk()
+
+		for _, chunk := range chunks {
+			var docType DocumentType
+			switch chunk.(type) {
+			case *memory.ConversationDocument:
+				docType = DocumentTypeConversation
+			case *memory.TextDocument:
+				docType = DocumentTypeText
+			default:
+				errors = append(errors, fmt.Errorf("unknown document type: %T", chunk))
+				continue
+			}
+
+			prep := addDocumentMetadata(chunk, docType, currentTime)
+			prepared = append(prepared, prep)
+		}
+	}
+
+	if len(errors) > 0 {
+		return nil, aggregateErrors(errors)
+	}
+
+	return prepared, nil
+}
+
+// addDocumentMetadata adds all the metadata, timestamps, and speaker info. Pure function.
+func addDocumentMetadata(doc memory.Document, docType DocumentType, currentTime time.Time) PreparedDocument {
+	prep := PreparedDocument{
+		Original:   doc,
+		Type:       docType,
+		Timestamp:  currentTime,
+		DateString: getCurrentDateForPrompt(),
+	}
+
+	// Set speaker ID for conversations
+	if conv, ok := doc.(*memory.ConversationDocument); ok && conv.User != "" {
+		prep.SpeakerID = conv.User
+	}
+
+	// Override timestamp if document provides one
+	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
+		prep.Timestamp = *ts
+	}
+
+	return prep
 }
