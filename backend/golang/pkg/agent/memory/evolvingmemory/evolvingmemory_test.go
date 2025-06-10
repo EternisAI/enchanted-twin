@@ -560,7 +560,6 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 				{
 					ID:        "test-123",
 					Content:   "alice likes pizza",
-					Speaker:   "alice",
 					Source:    "conversations",
 					Timestamp: time.Now(),
 					Metadata: map[string]string{
@@ -628,7 +627,6 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		assert.Len(t, result.Facts, 1)
 		assert.Equal(t, "test-123", result.Facts[0].ID)
 		assert.Equal(t, "conversations", result.Facts[0].Source)
-		assert.Equal(t, "alice", result.Facts[0].Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -716,7 +714,6 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 				{
 					ID:        "test-doc-1",
 					Content:   "Work meeting notes about important project",
-					Speaker:   "alice",
 					Source:    "conversations",
 					Timestamp: time.Now(),
 					Metadata: map[string]string{
@@ -997,7 +994,6 @@ func TestQueryResultStructure(t *testing.T) {
 					Content:   "alice likes coffee",
 					Timestamp: now,
 					Source:    "conversations",
-					Speaker:   "alice",
 					Metadata: map[string]string{
 						"source":  "conversations",
 						"channel": "general",
@@ -1008,7 +1004,6 @@ func TestQueryResultStructure(t *testing.T) {
 					Content:   "bob prefers tea",
 					Timestamp: now,
 					Source:    "conversations",
-					Speaker:   "bob",
 					Metadata: map[string]string{
 						"source":  "conversations",
 						"channel": "general",
@@ -1077,14 +1072,12 @@ func TestQueryResultStructure(t *testing.T) {
 		assert.Equal(t, "doc-1", fact1.ID)
 		assert.Equal(t, "alice likes coffee", fact1.Content)
 		assert.Equal(t, "conversations", fact1.Source)
-		assert.Equal(t, "alice", fact1.Speaker)
 
 		// Verify second fact
 		fact2 := result.Facts[1]
 		assert.Equal(t, "doc-2", fact2.ID)
 		assert.Equal(t, "bob prefers tea", fact2.Content)
 		assert.Equal(t, "conversations", fact2.Source)
-		assert.Equal(t, "bob", fact2.Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -1570,7 +1563,6 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 					ID:        "complex-doc-1",
 					Content:   "Q1 work project with alice",
 					Source:    "conversations",
-					Speaker:   "alice",
 					Timestamp: time.Now(),
 					Metadata: map[string]string{
 						"source": "conversations",
@@ -1639,7 +1631,6 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 		assert.Contains(t, fact.Metadata["tags"], "work")
 		assert.Contains(t, fact.Metadata["tags"], "Q1")
 		assert.Equal(t, "conversations", fact.Source)
-		assert.Equal(t, "alice", fact.Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})

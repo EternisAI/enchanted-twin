@@ -74,7 +74,6 @@ func TestCheckForSimilarFriendMessages(t *testing.T) {
 					ID:      "test-id",
 					Source:  "friend",
 					Content: "How are you feeling today?",
-					Speaker: "friend",
 					Metadata: map[string]string{
 						"type":          "friend",
 						"activity_type": "question",

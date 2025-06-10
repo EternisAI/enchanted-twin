@@ -676,7 +676,7 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 		s.logger.Debug("Added source filter", "source", *filter.Source)
 	}
 
-	// Subject filter - now filters by factSubject instead of speakerID
+	// Subject filter - now filters by factSubject
 	if filter.Subject != nil {
 		subjectFilter := filters.Where().
 			WithPath([]string{factSubjectProperty}).
@@ -930,7 +930,6 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 
 	return memory.MemoryFact{
 		ID:        id,
-		Speaker:   "",
 		Content:   content,
 		Timestamp: timestamp,
 		Source:    source,
