@@ -681,12 +681,16 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 
 	// Subject filter - now filters by factSubject
 	if filter.Subject != nil {
+		// Use Like operator with wildcards for fuzzy matching
+		// This allows matching "Ornella" when searching for "ornella" or vice versa
+		// Also matches partial strings like "Ornella Smith" when searching for "Ornella"
+		subjectPattern := fmt.Sprintf("*%s*", *filter.Subject)
 		subjectFilter := filters.Where().
 			WithPath([]string{factSubjectProperty}).
-			WithOperator(filters.Equal).
-			WithValueText(*filter.Subject)
+			WithOperator(filters.Like).
+			WithValueText(subjectPattern)
 		whereFilters = append(whereFilters, subjectFilter)
-		s.logger.Debug("Added subject filter", "subject", *filter.Subject)
+		s.logger.Debug("Added fuzzy subject filter", "subject", *filter.Subject, "pattern", subjectPattern)
 	}
 
 	// Tags filter (reuse existing buildTagsFilter method)
@@ -899,6 +903,7 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 	content, _ := obj[contentProperty].(string)
 	metadataJSON, _ := obj[metadataProperty].(string)
 	source, _ := obj[sourceProperty].(string)
+	subject, _ := obj[factSubjectProperty].(string)
 
 	// Parse timestamp
 	var timestamp time.Time
@@ -922,12 +927,9 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		}
 	}
 
-	// Extract structured fact fields and add to metadata
+	// Extract structured fact fields and add to metadata (except factSubject which is now top-level)
 	if factCategory, ok := obj[factCategoryProperty].(string); ok && factCategory != "" {
 		metaMap["factCategory"] = factCategory
-	}
-	if factSubject, ok := obj[factSubjectProperty].(string); ok && factSubject != "" {
-		metaMap["factSubject"] = factSubject
 	}
 	if factAttribute, ok := obj[factAttributeProperty].(string); ok && factAttribute != "" {
 		metaMap["factAttribute"] = factAttribute
@@ -962,6 +964,7 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 	return memory.MemoryFact{
 		ID:        id,
 		Content:   content,
+		Subject:   subject,
 		Timestamp: timestamp,
 		Source:    source,
 		Metadata:  metaMap,

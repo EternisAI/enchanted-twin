@@ -130,37 +130,37 @@ func TestDocumentSizeValidation(t *testing.T) {
 				Conversation: []memory.ConversationMessage{
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is a long message. ", 200), // ~5,800 chars
+						Content: strings.Repeat("x", memory.MaxProcessableContentChars/5), // Each message ~1/5 of limit
 						Time:    now,
 					},
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is another long message. ", 200),
+						Content: strings.Repeat("y", memory.MaxProcessableContentChars/5),
 						Time:    now,
 					},
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is a third long message. ", 200),
+						Content: strings.Repeat("z", memory.MaxProcessableContentChars/5),
 						Time:    now,
 					},
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is a fourth long message. ", 200),
+						Content: strings.Repeat("w", memory.MaxProcessableContentChars/5),
 						Time:    now,
 					},
 				},
 			},
-			expectedLength: 20000, // This is not used for conversations anymore
-			shouldTruncate: true,  // This signals it should be chunked
+			expectedLength: 16000, // 4 messages * 4000 chars each
+			shouldTruncate: false, // Should NOT chunk with current sizes
 		},
 		{
 			name: "document at exact limit",
 			doc: &memory.TextDocument{
 				FieldID:      "exact-limit-doc",
-				FieldContent: strings.Repeat("x", 20000), // Exactly 20,000 characters
+				FieldContent: strings.Repeat("x", memory.MaxProcessableContentChars), // Exactly at the limit
 				FieldSource:  "test",
 			},
-			expectedLength: 20000,
+			expectedLength: memory.MaxProcessableContentChars,
 			shouldTruncate: false,
 		},
 	}
@@ -245,11 +245,13 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 
 	// Create a long conversation document that should be chunked
 	longConversation := make([]memory.ConversationMessage, 0)
-	// Create a conversation > 50000 chars to force chunking (new limit)
-	for i := 0; i < 25; i++ { // Increased from 10 to 25 messages
+	// Create messages that will exceed MaxProcessableContentChars when combined
+	messageCount := 10
+	messageSize := (memory.MaxProcessableContentChars / messageCount) * 2 // Each message is 2x the equal share, ensuring we exceed the limit
+	for i := 0; i < messageCount; i++ {
 		longConversation = append(longConversation, memory.ConversationMessage{
 			Speaker: "alice",
-			Content: strings.Repeat("This is a long test message to ensure chunking happens with the new 50k limit. ", 50), // Approx 4000 chars per message
+			Content: strings.Repeat("x", messageSize),
 			Time:    now.Add(time.Duration(i) * time.Second),
 		})
 	}
