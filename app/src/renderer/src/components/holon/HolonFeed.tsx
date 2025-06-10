@@ -1,7 +1,8 @@
-import { PlusCircle } from 'lucide-react'
+import { PlusCircle, Loader2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import { useMutation, useQuery } from '@apollo/client'
 import { useNavigate, useRouter } from '@tanstack/react-router'
+import { useState } from 'react'
 
 import { Button } from '../ui/button'
 import HolonFeedThread from './HolonFeedThread'
@@ -12,10 +13,20 @@ import {
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
 
+const THREADS_PER_PAGE = 10
+
 export default function HolonFeed() {
-  const { data, loading, error } = useQuery(GetThreadsDocument, {
-    variables: { network: null },
-    fetchPolicy: 'network-only'
+  const [fetchingMore, setFetchingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+
+  const { data, loading, error, fetchMore } = useQuery(GetThreadsDocument, {
+    variables: {
+      network: null,
+      first: THREADS_PER_PAGE,
+      offset: 0
+    },
+    fetchPolicy: 'network-only',
+    pollInterval: 20000
   })
 
   const router = useRouter()
@@ -62,6 +73,40 @@ export default function HolonFeed() {
     }
   }
 
+  const handleFetchMore = async () => {
+    if (fetchingMore) return
+
+    setFetchingMore(true)
+
+    try {
+      await fetchMore({
+        variables: {
+          network: null,
+          first: THREADS_PER_PAGE,
+          offset: threads.length
+        },
+        updateQuery: (prev, { fetchMoreResult }) => {
+          if (!fetchMoreResult) return prev
+
+          const newThreads = fetchMoreResult.getThreads || []
+
+          if (newThreads.length < THREADS_PER_PAGE) {
+            setHasMore(false)
+          }
+
+          return {
+            ...prev,
+            getThreads: [...(prev.getThreads || []), ...newThreads]
+          }
+        }
+      })
+    } catch (error) {
+      console.error('Failed to fetch more threads:', error)
+    } finally {
+      setFetchingMore(false)
+    }
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -86,11 +131,20 @@ export default function HolonFeed() {
             threads.map((thread) => <HolonFeedThread key={thread.id} thread={thread} />)
           )}
 
-          {threads.length > 3 && (
+          {threads.length >= THREADS_PER_PAGE && hasMore && (
             <div className="flex justify-center py-6">
-              <Button variant="default" size="sm">
-                <PlusCircle className="w-4 h-4" />
-                Fetch More
+              <Button variant="default" size="sm" onClick={handleFetchMore} disabled={fetchingMore}>
+                {fetchingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading More...
+                  </>
+                ) : (
+                  <>
+                    <PlusCircle className="w-4 h-4 mr-2" />
+                    Fetch More
+                  </>
+                )}
               </Button>
             </div>
           )}

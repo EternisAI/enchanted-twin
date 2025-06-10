@@ -168,7 +168,7 @@ func (r *Repository) CreateThread(ctx context.Context, id, title, content string
 	// Use provided createdAt timestamp
 	timestamp := createdAt
 	if timestamp == "" {
-		timestamp = time.Now().Format(time.RFC3339)
+		timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	_, err = tx.ExecContext(ctx, `
@@ -276,7 +276,7 @@ func (r *Repository) CreateThreadMessageWithState(ctx context.Context, id, threa
 	// Use provided createdAt timestamp
 	timestamp := createdAt
 	if timestamp == "" {
-		timestamp = time.Now().Format(time.RFC3339)
+		timestamp = time.Now().UTC().Format(time.RFC3339)
 	}
 
 	delivered := false
