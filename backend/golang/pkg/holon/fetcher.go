@@ -304,20 +304,14 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 		}
 
 		// Create or update author from thread creator info
-		authorIdentity := strconv.Itoa(thread.CreatorID)
-		authorAlias := thread.CreatorName
-		if authorAlias == "" {
-			authorAlias = fmt.Sprintf("User %d", thread.CreatorID)
-		}
-
-		// Validate that authorIdentity is not empty
-		if authorIdentity == "" || authorIdentity == "0" {
-			f.logError(fmt.Sprintf("Empty or invalid authorIdentity for thread %d (CreatorID: %d), skipping", thread.ID, thread.CreatorID), nil)
+		authorIdentity, authorAlias, err := f.resolveAuthorIdentity(ctx, thread.CreatorID, thread.CreatorName)
+		if err != nil {
+			f.logError(fmt.Sprintf("Failed to resolve author identity for thread %d", thread.ID), err)
 			skippedCount++
 			continue
 		}
 
-		_, err := f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
+		_, err = f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
 		if err != nil {
 			f.logError(fmt.Sprintf("Failed to create/update author %s", authorIdentity), err)
 			// Continue even if author creation fails
@@ -443,19 +437,13 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 			}
 
 			// Create or update author from reply participant info
-			authorIdentity := strconv.Itoa(reply.ParticipantID)
-			authorAlias := reply.ParticipantDisplayName
-			if authorAlias == "" {
-				authorAlias = fmt.Sprintf("User %d", reply.ParticipantID)
-			}
-
-			// Validate that authorIdentity is not empty
-			if authorIdentity == "" || authorIdentity == "0" {
-				f.logError(fmt.Sprintf("Empty or invalid authorIdentity for reply %d (ParticipantID: %d), skipping", reply.ID, reply.ParticipantID), nil)
+			authorIdentity, authorAlias, err := f.resolveAuthorIdentity(ctx, reply.ParticipantID, reply.ParticipantDisplayName)
+			if err != nil {
+				f.logError(fmt.Sprintf("Failed to resolve author identity for reply %d", reply.ID), err)
 				continue
 			}
 
-			_, err := f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
+			_, err = f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
 			if err != nil {
 				f.logError(fmt.Sprintf("Failed to create/update author %s", authorIdentity), err)
 				// Continue even if author creation fails
@@ -484,47 +472,42 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 					}
 
 					if parentThread != nil {
-						// Validate and create author for the thread creator
-						threadAuthorIdentity := strconv.Itoa(parentThread.CreatorID)
-						threadAuthorAlias := parentThread.CreatorName
-						if threadAuthorAlias == "" {
-							threadAuthorAlias = fmt.Sprintf("User %d", parentThread.CreatorID)
+						// Resolve author identity for the thread creator using the same logic
+						threadAuthorIdentity, threadAuthorAlias, err := f.resolveAuthorIdentity(ctx, parentThread.CreatorID, parentThread.CreatorName)
+						if err != nil {
+							f.logError(fmt.Sprintf("Failed to resolve thread author identity for thread %d", parentThread.ID), err)
+							continue
 						}
 
-						if threadAuthorIdentity != "" && threadAuthorIdentity != "0" && parentThread.CreatorID > 0 {
-							_, err := f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
-							if err != nil {
-								f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
-							} else {
-								// Create the missing thread
-								_, err = f.repository.CreateThread(
-									ctx,
-									threadID,
-									parentThread.Title,
-									parentThread.Content,
-									threadAuthorIdentity,
-									[]string{}, // imageURLs
-									[]string{}, // actions
-									nil,        // expiresAt
-									"received",
-									parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
-								)
-								if err != nil {
-									f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
-									continue // Skip this reply if we can't create the thread
-								}
-
-								// Set the remote thread ID
-								err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
-								if err != nil {
-									f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
-								}
-
-								f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
-							}
+						_, err = f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
+						if err != nil {
+							f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
 						} else {
-							f.logError(fmt.Sprintf("Invalid thread creator data for thread %d, skipping reply %d", parentThread.ID, reply.ID), nil)
-							continue
+							// Create the missing thread
+							_, err = f.repository.CreateThread(
+								ctx,
+								threadID,
+								parentThread.Title,
+								parentThread.Content,
+								threadAuthorIdentity,
+								[]string{}, // imageURLs
+								[]string{}, // actions
+								nil,        // expiresAt
+								"received",
+								parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
+							)
+							if err != nil {
+								f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
+								continue // Skip this reply if we can't create the thread
+							}
+
+							// Set the remote thread ID
+							err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
+							if err != nil {
+								f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
+							}
+
+							f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
 						}
 					} else {
 						f.logError(fmt.Sprintf("Could not find thread info for thread ID %d, skipping reply %d", reply.ThreadID, reply.ID), nil)
@@ -960,19 +943,13 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 			}
 
 			// Create or update author from reply participant info
-			authorIdentity := strconv.Itoa(reply.ParticipantID)
-			authorAlias := reply.ParticipantDisplayName
-			if authorAlias == "" {
-				authorAlias = fmt.Sprintf("User %d", reply.ParticipantID)
-			}
-
-			// Validate that authorIdentity is not empty
-			if authorIdentity == "" || authorIdentity == "0" {
-				f.logError(fmt.Sprintf("Empty or invalid authorIdentity for reply %d (ParticipantID: %d), skipping", reply.ID, reply.ParticipantID), nil)
+			authorIdentity, authorAlias, err := f.resolveAuthorIdentity(ctx, reply.ParticipantID, reply.ParticipantDisplayName)
+			if err != nil {
+				f.logError(fmt.Sprintf("Failed to resolve author identity for reply %d", reply.ID), err)
 				continue
 			}
 
-			_, err := f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
+			_, err = f.repository.CreateOrUpdateAuthor(ctx, authorIdentity, authorAlias)
 			if err != nil {
 				f.logError(fmt.Sprintf("Failed to create/update author %s", authorIdentity), err)
 				// Continue even if author creation fails
@@ -1001,47 +978,42 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 					}
 
 					if parentThread != nil {
-						// Validate and create author for the thread creator
-						threadAuthorIdentity := strconv.Itoa(parentThread.CreatorID)
-						threadAuthorAlias := parentThread.CreatorName
-						if threadAuthorAlias == "" {
-							threadAuthorAlias = fmt.Sprintf("User %d", parentThread.CreatorID)
+						// Resolve author identity for the thread creator using the same logic
+						threadAuthorIdentity, threadAuthorAlias, err := f.resolveAuthorIdentity(ctx, parentThread.CreatorID, parentThread.CreatorName)
+						if err != nil {
+							f.logError(fmt.Sprintf("Failed to resolve thread author identity for thread %d", parentThread.ID), err)
+							continue
 						}
 
-						if threadAuthorIdentity != "" && threadAuthorIdentity != "0" && parentThread.CreatorID > 0 {
-							_, err := f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
-							if err != nil {
-								f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
-							} else {
-								// Create the missing thread
-								_, err = f.repository.CreateThread(
-									ctx,
-									threadID,
-									parentThread.Title,
-									parentThread.Content,
-									threadAuthorIdentity,
-									[]string{}, // imageURLs
-									[]string{}, // actions
-									nil,        // expiresAt
-									"received",
-									parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
-								)
-								if err != nil {
-									f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
-									continue // Skip this reply if we can't create the thread
-								}
-
-								// Set the remote thread ID
-								err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
-								if err != nil {
-									f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
-								}
-
-								f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
-							}
+						_, err = f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
+						if err != nil {
+							f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
 						} else {
-							f.logError(fmt.Sprintf("Invalid thread creator data for thread %d, skipping reply %d", parentThread.ID, reply.ID), nil)
-							continue
+							// Create the missing thread
+							_, err = f.repository.CreateThread(
+								ctx,
+								threadID,
+								parentThread.Title,
+								parentThread.Content,
+								threadAuthorIdentity,
+								[]string{}, // imageURLs
+								[]string{}, // actions
+								nil,        // expiresAt
+								"received",
+								parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
+							)
+							if err != nil {
+								f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
+								continue // Skip this reply if we can't create the thread
+							}
+
+							// Set the remote thread ID
+							err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
+							if err != nil {
+								f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
+							}
+
+							f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
 						}
 					} else {
 						f.logError(fmt.Sprintf("Could not find thread info for thread ID %d, skipping reply %d", reply.ThreadID, reply.ID), nil)
@@ -1102,6 +1074,55 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 	return allReplies, nil
 }
 
+// getEnvOrDefault returns the environment variable value or a default value
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
+// getLocalUserIdentity gets the local user identity from the user profile
+func (f *FetcherService) getLocalUserIdentity(ctx context.Context) (string, error) {
+	// For now, we'll use a constant identity that represents the local user
+	// In the future, this could be retrieved from user profile or config
+	return "local-user", nil
+}
+
+// resolveAuthorIdentity determines the correct author identity to use
+// If the remote creator/participant is our own participant ID, use local user identity
+// Otherwise, use the remote participant ID
+func (f *FetcherService) resolveAuthorIdentity(ctx context.Context, remoteParticipantID int, remoteDisplayName string) (string, string, error) {
+	// Check if this is our own content
+	if f.isAuthenticated && f.participantID != nil && remoteParticipantID == *f.participantID {
+		// This is our own content, use local user identity
+		localIdentity, err := f.getLocalUserIdentity(ctx)
+		if err != nil {
+			return "", "", fmt.Errorf("failed to get local user identity: %w", err)
+		}
+
+		// Use the remote display name to update our local profile alias
+		alias := remoteDisplayName
+		if alias == "" {
+			alias = "Me" // Default alias for local user
+		}
+
+		f.logDebug(fmt.Sprintf("Mapping remote participant %d to local user %s with alias %s",
+			remoteParticipantID, localIdentity, alias))
+
+		return localIdentity, alias, nil
+	}
+
+	// This is someone else's content, use remote participant ID
+	authorIdentity := strconv.Itoa(remoteParticipantID)
+	authorAlias := remoteDisplayName
+	if authorAlias == "" {
+		authorAlias = fmt.Sprintf("User %d", remoteParticipantID)
+	}
+
+	return authorIdentity, authorAlias, nil
+}
+
 // logDebug logs a debug message if logging is enabled
 func (f *FetcherService) logDebug(msg string) {
 	if f.config.EnableLogging && f.logger != nil {
@@ -1114,12 +1135,4 @@ func (f *FetcherService) logError(msg string, err error) {
 	if f.config.EnableLogging && f.logger != nil {
 		f.logger.Error(msg, "error", err)
 	}
-}
-
-// getEnvOrDefault returns the environment variable value or a default value
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

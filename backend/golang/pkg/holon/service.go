@@ -157,7 +157,10 @@ func (s *Service) JoinHolonNetwork(ctx context.Context, userID string, networkNa
 func (s *Service) SendToHolon(ctx context.Context, threadPreviewID, title, content, authorIdentity string, imageURLs []string, actions []string) (*model.Thread, error) {
 	threadID := "published-" + threadPreviewID
 
-	publishedThread, err := s.repo.CreateThread(ctx, threadID, title, content, authorIdentity, imageURLs, actions, nil, "pending", "")
+	// Use standardized local user identity for locally created threads
+	localAuthorIdentity := s.resolveLocalAuthorIdentity(authorIdentity)
+
+	publishedThread, err := s.repo.CreateThread(ctx, threadID, title, content, localAuthorIdentity, imageURLs, actions, nil, "pending", "")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create thread: %w", err)
 	}
@@ -168,14 +171,20 @@ func (s *Service) SendToHolon(ctx context.Context, threadPreviewID, title, conte
 func (s *Service) CreateThreadMessage(ctx context.Context, threadID, authorIdentity, content string, actions []string, isDelivered *bool) (*model.ThreadMessage, error) {
 	messageID := uuid.New().String()
 
-	return s.repo.CreateThreadMessage(ctx, messageID, threadID, authorIdentity, content, actions, isDelivered)
+	// Use standardized local user identity for locally created messages
+	localAuthorIdentity := s.resolveLocalAuthorIdentity(authorIdentity)
+
+	return s.repo.CreateThreadMessage(ctx, messageID, threadID, localAuthorIdentity, content, actions, isDelivered)
 }
 
 func (s *Service) AddMessageToThread(ctx context.Context, threadID, message, authorIdentity string, imageURLs []string) (*model.ThreadMessage, error) {
 	actions := []string{}
 	isDelivered := false
 
-	return s.CreateThreadMessage(ctx, threadID, authorIdentity, message, actions, &isDelivered)
+	// Use standardized local user identity for locally created messages
+	localAuthorIdentity := s.resolveLocalAuthorIdentity(authorIdentity)
+
+	return s.CreateThreadMessage(ctx, threadID, localAuthorIdentity, message, actions, &isDelivered)
 }
 
 func (s *Service) GetTotalHolonCount() (int, error) {
@@ -216,4 +225,18 @@ func extractTitleFromContent(content string) string {
 	}
 
 	return content
+}
+
+// getLocalUserIdentity returns the standardized local user identity
+func (s *Service) getLocalUserIdentity() string {
+	// Use the same identity as the fetcher service for consistency
+	return "local-user"
+}
+
+// resolveLocalAuthorIdentity ensures we use consistent local user identity
+// This should be used for all locally created content
+func (s *Service) resolveLocalAuthorIdentity(providedIdentity string) string {
+	// For local content creation, always use the standardized local user identity
+	// regardless of what was provided (e.g., email, username, etc.)
+	return s.getLocalUserIdentity()
 }
