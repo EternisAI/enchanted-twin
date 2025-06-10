@@ -511,28 +511,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 		assert.Equal(t, "coffee_preference", *filter.FactAttribute)
 	})
 
-	t.Run("fact value partial matching", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactValue: stringPtr("coffee"),
-		}
-		// Should result in LIKE *coffee* query
-		assert.Equal(t, "coffee", *filter.FactValue)
-	})
-
-	t.Run("fact temporal context filtering", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactTemporalContext: stringPtr("2024-01-15"),
-		}
-		assert.Equal(t, "2024-01-15", *filter.FactTemporalContext)
-	})
-
-	t.Run("fact sensitivity filtering", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactSensitivity: stringPtr("high"),
-		}
-		assert.Equal(t, "high", *filter.FactSensitivity)
-	})
-
 	t.Run("fact importance exact filtering", func(t *testing.T) {
 		filter := &memory.Filter{
 			FactImportance: intPtr(3),
@@ -554,18 +532,16 @@ func TestStructuredFactFiltering(t *testing.T) {
 
 	t.Run("combined structured fact filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory:    stringPtr("health"),
-			Subject:         stringPtr("user"),
-			FactAttribute:   stringPtr("health_metric"),
-			FactSensitivity: stringPtr("high"),
-			FactImportance:  intPtr(3),
-			Source:          stringPtr("conversations"),
+			FactCategory:   stringPtr("health"),
+			Subject:        stringPtr("user"),
+			FactAttribute:  stringPtr("health_metric"),
+			FactImportance: intPtr(3),
+			Source:         stringPtr("conversations"),
 		}
 		// Test all fields are set correctly
 		assert.Equal(t, "health", *filter.FactCategory)
 		assert.Equal(t, "user", *filter.Subject)
 		assert.Equal(t, "health_metric", *filter.FactAttribute)
-		assert.Equal(t, "high", *filter.FactSensitivity)
 		assert.Equal(t, 3, *filter.FactImportance)
 		assert.Equal(t, "conversations", *filter.Source)
 	})
@@ -575,21 +551,15 @@ func TestStructuredFactFiltering(t *testing.T) {
 func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 	t.Run("empty string structured fact fields", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory:        stringPtr(""),
-			Subject:             stringPtr(""),
-			FactAttribute:       stringPtr(""),
-			FactValue:           stringPtr(""),
-			FactTemporalContext: stringPtr(""),
-			FactSensitivity:     stringPtr(""),
+			FactCategory:  stringPtr(""),
+			Subject:       stringPtr(""),
+			FactAttribute: stringPtr(""),
 		}
 
 		// Empty strings should be handled appropriately
 		assert.Equal(t, "", *filter.FactCategory)
 		assert.Equal(t, "", *filter.Subject)
 		assert.Equal(t, "", *filter.FactAttribute)
-		assert.Equal(t, "", *filter.FactValue)
-		assert.Equal(t, "", *filter.FactTemporalContext)
-		assert.Equal(t, "", *filter.FactSensitivity)
 	})
 
 	t.Run("negative importance values", func(t *testing.T) {
@@ -641,9 +611,6 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 		assert.Nil(t, filter.FactCategory)
 		assert.Nil(t, filter.Subject)
 		assert.Nil(t, filter.FactAttribute)
-		assert.Nil(t, filter.FactValue)
-		assert.Nil(t, filter.FactTemporalContext)
-		assert.Nil(t, filter.FactSensitivity)
 		assert.Nil(t, filter.FactImportance)
 		assert.Nil(t, filter.FactImportanceMin)
 		assert.Nil(t, filter.FactImportanceMax)
@@ -652,85 +619,41 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 
 // TestStructuredFactFilteringCombinations tests realistic filtering scenarios.
 func TestStructuredFactFilteringCombinations(t *testing.T) {
-	t.Run("privacy-aware filtering", func(t *testing.T) {
+	t.Run("user preferences with importance", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactSensitivity: stringPtr("low"),   // Only public information
-			Subject:         stringPtr("alice"), // About alice
-		}
-
-		assert.Equal(t, "low", *filter.FactSensitivity)
-		assert.Equal(t, "alice", *filter.Subject)
-	})
-
-	t.Run("critical health facts", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactCategory:   stringPtr("health"),
-			FactImportance: intPtr(3), // Critical priority
+			FactCategory:   stringPtr("preference"),
+			FactImportance: intPtr(2),
 			Subject:        stringPtr("user"),
 		}
 
-		assert.Equal(t, "health", *filter.FactCategory)
-		assert.Equal(t, 3, *filter.FactImportance)
+		assert.Equal(t, "preference", *filter.FactCategory)
+		assert.Equal(t, 2, *filter.FactImportance)
 		assert.Equal(t, "user", *filter.Subject)
 	})
 
-	t.Run("preferences from conversations", func(t *testing.T) {
+	t.Run("important work facts from recent conversations", func(t *testing.T) {
+		now := time.Now()
+		sevenDaysAgo := now.AddDate(0, 0, -7)
 		filter := &memory.Filter{
-			FactCategory: stringPtr("preference"),
-			Subject:      stringPtr("user"),
-			Source:       stringPtr("conversations"),
-			Limit:        intPtr(10),
+			FactCategory:      stringPtr("work"),
+			Subject:           stringPtr("user"),
+			Source:            stringPtr("conversations"),
+			FactImportanceMin: intPtr(2),
+			TimestampAfter:    &sevenDaysAgo,
+			Limit:             intPtr(50),
 		}
 
-		assert.Equal(t, "preference", *filter.FactCategory)
+		// Test all fields are set correctly
+		assert.Equal(t, "work", *filter.FactCategory)
 		assert.Equal(t, "user", *filter.Subject)
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, 10, *filter.Limit)
-	})
-
-	t.Run("important facts with date range", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactImportanceMin:   intPtr(2), // Medium to high priority
-			FactImportanceMax:   intPtr(3),
-			FactTemporalContext: stringPtr("2024-01"),
-		}
-
 		assert.Equal(t, 2, *filter.FactImportanceMin)
-		assert.Equal(t, 3, *filter.FactImportanceMax)
-		assert.Equal(t, "2024-01", *filter.FactTemporalContext)
-	})
-
-	t.Run("complex search with all structured fields", func(t *testing.T) {
-		filter := &memory.Filter{
-			// Traditional fields
-			Source:   stringPtr("chatgpt"),
-			Subject:  stringPtr("assistant"),
-			Distance: 0.8,
-			Limit:    intPtr(5),
-			// Structured fact fields
-			FactCategory:        stringPtr("goal_plan"),
-			FactAttribute:       stringPtr("career_goal"),
-			FactValue:           stringPtr("software engineer"),
-			FactTemporalContext: stringPtr("Q1 2024"),
-			FactSensitivity:     stringPtr("medium"),
-			FactImportance:      intPtr(2),
-		}
-
-		// Verify all fields
-		assert.Equal(t, "chatgpt", *filter.Source)
-		assert.Equal(t, "assistant", *filter.Subject)
-		assert.Equal(t, float32(0.8), filter.Distance)
-		assert.Equal(t, 5, *filter.Limit)
-		assert.Equal(t, "goal_plan", *filter.FactCategory)
-		assert.Equal(t, "career_goal", *filter.FactAttribute)
-		assert.Equal(t, "software engineer", *filter.FactValue)
-		assert.Equal(t, "Q1 2024", *filter.FactTemporalContext)
-		assert.Equal(t, "medium", *filter.FactSensitivity)
-		assert.Equal(t, 2, *filter.FactImportance)
+		assert.Equal(t, sevenDaysAgo, *filter.TimestampAfter)
+		assert.Equal(t, 50, *filter.Limit)
 	})
 }
 
-// TestStructuredFactFilteringBackwardCompatibility ensures existing code still works.
+// TestStructuredFactFilteringBackwardCompatibility tests backward compatibility.
 func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
 	t.Run("legacy filter without structured facts", func(t *testing.T) {
 		filter := &memory.Filter{
@@ -749,32 +672,18 @@ func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
 		// All new fields should be nil
 		assert.Nil(t, filter.FactCategory)
 		assert.Nil(t, filter.FactAttribute)
-		assert.Nil(t, filter.FactValue)
-		assert.Nil(t, filter.FactTemporalContext)
-		assert.Nil(t, filter.FactSensitivity)
 		assert.Nil(t, filter.FactImportance)
 		assert.Nil(t, filter.FactImportanceMin)
 		assert.Nil(t, filter.FactImportanceMax)
 	})
 
-	t.Run("mixed legacy and structured filtering", func(t *testing.T) {
-		filter := &memory.Filter{
-			// Legacy fields
-			Source:   stringPtr("conversations"),
-			Distance: 0.8,
-			// New structured fields
-			FactCategory:   stringPtr("preference"),
-			FactImportance: intPtr(3),
+	t.Run("exact vs partial matching strategy", func(t *testing.T) {
+		exactFilter := &memory.Filter{
+			FactCategory: stringPtr("health"), // Exact match
 		}
 
-		// Both legacy and new fields should coexist
-		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, float32(0.8), filter.Distance)
-		assert.Equal(t, "preference", *filter.FactCategory)
-		assert.Equal(t, 3, *filter.FactImportance)
-
-		// Unset fields should be nil
-		assert.Nil(t, filter.Subject)
+		// Exact matching for categories (fast indexed lookup)
+		assert.Equal(t, "health", *exactFilter.FactCategory)
 	})
 }
 
@@ -805,13 +714,8 @@ func TestStructuredFactFilteringPerformance(t *testing.T) {
 		exactFilter := &memory.Filter{
 			FactCategory: stringPtr("health"), // Exact match
 		}
-		partialFilter := &memory.Filter{
-			FactValue: stringPtr("coffee"), // Partial match with LIKE
-		}
 
 		// Exact matching for categories (fast indexed lookup)
 		assert.Equal(t, "health", *exactFilter.FactCategory)
-		// Partial matching for values (flexible search)
-		assert.Equal(t, "coffee", *partialFilter.FactValue)
 	})
 }
