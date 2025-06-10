@@ -15,13 +15,11 @@ import MCPServerItem from '../oauth/MCPServerItem'
 import { router } from '../../main'
 import { OnboardingVoiceAnimation } from './voice/Animations'
 import { useTheme } from '@renderer/lib/theme'
-import { useSettingsStore } from '@renderer/lib/stores/settings'
 
 export default function InvitationGate({ children }: { children: React.ReactNode }) {
   const [inviteCode, setInviteCode] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isActivated, setIsActivated] = useState(false)
-  const { setActiveTab } = useSettingsStore()
 
   const {
     data: mcpData,
@@ -72,13 +70,12 @@ export default function InvitationGate({ children }: { children: React.ReactNode
     const handleError = async () => {
       if (errorFetching) {
         console.error('Whitelist query failed:', errorFetching?.message)
-        setActiveTab('advanced')
         await new Promise((resolve) => setTimeout(resolve, 3000))
-        router.navigate({ to: '/settings' })
+        router.navigate({ to: '/settings/advanced' })
       }
     }
     handleError()
-  }, [errorFetching, setActiveTab])
+  }, [errorFetching])
 
   const isWhitelisted = whitelistData?.whitelistStatus || whitelistError
 
@@ -166,7 +163,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
           />
           <Button
             type="submit"
-            className="w-fit px-8 bg-white text-black"
+            className="w-fit px-8 bg-white text-black hover:bg-white/60"
             disabled={isSubmitting || !inviteCode.trim()}
           >
             {isSubmitting ? (

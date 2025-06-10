@@ -60,7 +60,6 @@ type Config struct {
 type PreparedDocument struct {
 	Original   memory.Document
 	Type       DocumentType
-	SpeakerID  string
 	Timestamp  time.Time
 	DateString string // Pre-formatted
 }
@@ -92,9 +91,8 @@ type ExtractedFact struct {
 	Importance      int     `json:"importance"`
 
 	// Legacy fields
-	Content   string // Derived from structured fields for backward compatibility
-	SpeakerID string
-	Source    PreparedDocument
+	Content string // Derived from structured fields for backward compatibility
+	Source  PreparedDocument
 }
 
 // Memory actions.
@@ -144,16 +142,7 @@ type ExistingMemory struct {
 	Content   string
 	Timestamp time.Time
 	Score     float64
-	Metadata  map[string]string // Contains speakerID if present
-}
-
-// Validation rules.
-type ValidationRule struct {
-	CurrentSpeakerID string // Who's processing this fact
-	IsDocumentLevel  bool   // Is current context document-level?
-	TargetMemoryID   string // For UPDATE/DELETE
-	TargetSpeakerID  string // Speaker of target memory
-	Action           MemoryAction
+	Metadata  map[string]string
 }
 
 type UpdateToolArguments struct {
@@ -243,27 +232,9 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}, nil
 }
 
-// StoreConversations is an alias for Store to maintain backward compatibility.
-func (s *StorageImpl) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
-	var callback memory.ProgressCallback
-	if progressChan != nil {
-		callback = func(processed, total int) {
-			select {
-			case progressChan <- memory.ProgressUpdate{Processed: processed, Total: total}:
-			default:
-				s.logger.Warnf("Progress update dropped for StoreConversations: processed %d, total %d (channel busy or closed)", processed, total)
-			}
-		}
-	}
-
-	// Convert ConversationDocuments to unified Document interface
-	unifiedDocs := memory.ConversationDocumentsToDocuments(documents)
-	return s.Store(ctx, unifiedDocs, callback)
-}
-
 // Store implements the memory.Storage interface using the new StoreV2 pipeline.
 // This method provides backward compatibility while leveraging the new parallel processing architecture.
-func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
+func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
 	// Use default configuration
 	config := DefaultConfig()
 
@@ -286,8 +257,8 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, pr
 				continue
 			}
 			processed = progress.Processed
-			if progressCallback != nil {
-				progressCallback(processed, total)
+			if callback != nil {
+				callback(processed, total)
 			}
 
 		case err, ok := <-errorCh:
