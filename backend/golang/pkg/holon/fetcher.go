@@ -465,68 +465,78 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 			threadID := fmt.Sprintf("holon-%d", reply.ThreadID)
 
 			// Check if the thread exists locally before creating a reply
-			// If it doesn't exist, create it first to ensure foreign key consistency
-			existingThread, err := f.repository.GetThread(ctx, threadID)
+			// First check by remote_thread_id, then by local thread ID
+			existingThread, err := f.repository.GetThreadByRemoteID(ctx, int32(reply.ThreadID))
 			if err != nil || existingThread == nil {
-				f.logDebug(fmt.Sprintf("Thread %s doesn't exist locally, creating it for reply %d", threadID, reply.ID))
+				// If not found by remote ID, try by local thread ID
+				existingThread, err = f.repository.GetThread(ctx, threadID)
+				if err != nil || existingThread == nil {
+					f.logDebug(fmt.Sprintf("Thread %s doesn't exist locally, creating it for reply %d", threadID, reply.ID))
 
-				// Create the thread for this reply if it doesn't exist
-				// We need to find the thread info from our allThreads list
-				var parentThread *Thread
-				for _, t := range allThreads {
-					if t.ID == reply.ThreadID {
-						parentThread = &t
-						break
-					}
-				}
-
-				if parentThread != nil {
-					// Validate and create author for the thread creator
-					threadAuthorIdentity := strconv.Itoa(parentThread.CreatorID)
-					threadAuthorAlias := parentThread.CreatorName
-					if threadAuthorAlias == "" {
-						threadAuthorAlias = fmt.Sprintf("User %d", parentThread.CreatorID)
+					// Create the thread for this reply if it doesn't exist
+					// We need to find the thread info from our allThreads list
+					var parentThread *Thread
+					for _, t := range allThreads {
+						if t.ID == reply.ThreadID {
+							parentThread = &t
+							break
+						}
 					}
 
-					if threadAuthorIdentity != "" && threadAuthorIdentity != "0" && parentThread.CreatorID > 0 {
-						_, err := f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
-						if err != nil {
-							f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
+					if parentThread != nil {
+						// Validate and create author for the thread creator
+						threadAuthorIdentity := strconv.Itoa(parentThread.CreatorID)
+						threadAuthorAlias := parentThread.CreatorName
+						if threadAuthorAlias == "" {
+							threadAuthorAlias = fmt.Sprintf("User %d", parentThread.CreatorID)
+						}
+
+						if threadAuthorIdentity != "" && threadAuthorIdentity != "0" && parentThread.CreatorID > 0 {
+							_, err := f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
+							if err != nil {
+								f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
+							} else {
+								// Create the missing thread
+								_, err = f.repository.CreateThread(
+									ctx,
+									threadID,
+									parentThread.Title,
+									parentThread.Content,
+									threadAuthorIdentity,
+									[]string{}, // imageURLs
+									[]string{}, // actions
+									nil,        // expiresAt
+									"received",
+									parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
+								)
+								if err != nil {
+									f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
+									continue // Skip this reply if we can't create the thread
+								}
+
+								// Set the remote thread ID
+								err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
+								if err != nil {
+									f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
+								}
+
+								f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
+							}
 						} else {
-							// Create the missing thread
-							_, err = f.repository.CreateThread(
-								ctx,
-								threadID,
-								parentThread.Title,
-								parentThread.Content,
-								threadAuthorIdentity,
-								[]string{}, // imageURLs
-								[]string{}, // actions
-								nil,        // expiresAt
-								"received",
-								parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
-							)
-							if err != nil {
-								f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
-								continue // Skip this reply if we can't create the thread
-							}
-
-							// Set the remote thread ID
-							err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
-							if err != nil {
-								f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
-							}
-
-							f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
+							f.logError(fmt.Sprintf("Invalid thread creator data for thread %d, skipping reply %d", parentThread.ID, reply.ID), nil)
+							continue
 						}
 					} else {
-						f.logError(fmt.Sprintf("Invalid thread creator data for thread %d, skipping reply %d", parentThread.ID, reply.ID), nil)
+						f.logError(fmt.Sprintf("Could not find thread info for thread ID %d, skipping reply %d", reply.ThreadID, reply.ID), nil)
 						continue
 					}
 				} else {
-					f.logError(fmt.Sprintf("Could not find thread info for thread ID %d, skipping reply %d", reply.ThreadID, reply.ID), nil)
-					continue
+					// Found by local ID, use that thread ID
+					threadID = existingThread.ID
 				}
+			} else {
+				// Found by remote ID, use that thread ID
+				threadID = existingThread.ID
 			}
 
 			messageID := fmt.Sprintf("holon-reply-%d", reply.ID)
@@ -972,68 +982,78 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 			threadID := fmt.Sprintf("holon-%d", reply.ThreadID)
 
 			// Check if the thread exists locally before creating a reply
-			// If it doesn't exist, create it first to ensure foreign key consistency
-			existingThread, err := f.repository.GetThread(ctx, threadID)
+			// First check by remote_thread_id, then by local thread ID
+			existingThread, err := f.repository.GetThreadByRemoteID(ctx, int32(reply.ThreadID))
 			if err != nil || existingThread == nil {
-				f.logDebug(fmt.Sprintf("Thread %s doesn't exist locally, creating it for reply %d", threadID, reply.ID))
+				// If not found by remote ID, try by local thread ID
+				existingThread, err = f.repository.GetThread(ctx, threadID)
+				if err != nil || existingThread == nil {
+					f.logDebug(fmt.Sprintf("Thread %s doesn't exist locally, creating it for reply %d", threadID, reply.ID))
 
-				// Create the thread for this reply if it doesn't exist
-				// We need to find the thread info from our allThreads list
-				var parentThread *Thread
-				for _, t := range allThreads {
-					if t.ID == reply.ThreadID {
-						parentThread = &t
-						break
-					}
-				}
-
-				if parentThread != nil {
-					// Validate and create author for the thread creator
-					threadAuthorIdentity := strconv.Itoa(parentThread.CreatorID)
-					threadAuthorAlias := parentThread.CreatorName
-					if threadAuthorAlias == "" {
-						threadAuthorAlias = fmt.Sprintf("User %d", parentThread.CreatorID)
+					// Create the thread for this reply if it doesn't exist
+					// We need to find the thread info from our allThreads list
+					var parentThread *Thread
+					for _, t := range allThreads {
+						if t.ID == reply.ThreadID {
+							parentThread = &t
+							break
+						}
 					}
 
-					if threadAuthorIdentity != "" && threadAuthorIdentity != "0" && parentThread.CreatorID > 0 {
-						_, err := f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
-						if err != nil {
-							f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
+					if parentThread != nil {
+						// Validate and create author for the thread creator
+						threadAuthorIdentity := strconv.Itoa(parentThread.CreatorID)
+						threadAuthorAlias := parentThread.CreatorName
+						if threadAuthorAlias == "" {
+							threadAuthorAlias = fmt.Sprintf("User %d", parentThread.CreatorID)
+						}
+
+						if threadAuthorIdentity != "" && threadAuthorIdentity != "0" && parentThread.CreatorID > 0 {
+							_, err := f.repository.CreateOrUpdateAuthor(ctx, threadAuthorIdentity, threadAuthorAlias)
+							if err != nil {
+								f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
+							} else {
+								// Create the missing thread
+								_, err = f.repository.CreateThread(
+									ctx,
+									threadID,
+									parentThread.Title,
+									parentThread.Content,
+									threadAuthorIdentity,
+									[]string{}, // imageURLs
+									[]string{}, // actions
+									nil,        // expiresAt
+									"received",
+									parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
+								)
+								if err != nil {
+									f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
+									continue // Skip this reply if we can't create the thread
+								}
+
+								// Set the remote thread ID
+								err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
+								if err != nil {
+									f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
+								}
+
+								f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
+							}
 						} else {
-							// Create the missing thread
-							_, err = f.repository.CreateThread(
-								ctx,
-								threadID,
-								parentThread.Title,
-								parentThread.Content,
-								threadAuthorIdentity,
-								[]string{}, // imageURLs
-								[]string{}, // actions
-								nil,        // expiresAt
-								"received",
-								parentThread.CreatedAt.Format(time.RFC3339), // Use server timestamp
-							)
-							if err != nil {
-								f.logError(fmt.Sprintf("Failed to create missing thread %s for reply", threadID), err)
-								continue // Skip this reply if we can't create the thread
-							}
-
-							// Set the remote thread ID
-							err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(parentThread.ID))
-							if err != nil {
-								f.logError(fmt.Sprintf("Failed to update remote thread ID for created thread %s", threadID), err)
-							}
-
-							f.logDebug(fmt.Sprintf("Created missing thread %s for reply processing", threadID))
+							f.logError(fmt.Sprintf("Invalid thread creator data for thread %d, skipping reply %d", parentThread.ID, reply.ID), nil)
+							continue
 						}
 					} else {
-						f.logError(fmt.Sprintf("Invalid thread creator data for thread %d, skipping reply %d", parentThread.ID, reply.ID), nil)
+						f.logError(fmt.Sprintf("Could not find thread info for thread ID %d, skipping reply %d", reply.ThreadID, reply.ID), nil)
 						continue
 					}
 				} else {
-					f.logError(fmt.Sprintf("Could not find thread info for thread ID %d, skipping reply %d", reply.ThreadID, reply.ID), nil)
-					continue
+					// Found by local ID, use that thread ID
+					threadID = existingThread.ID
 				}
+			} else {
+				// Found by remote ID, use that thread ID
+				threadID = existingThread.ID
 			}
 
 			messageID := fmt.Sprintf("holon-reply-%d", reply.ID)
