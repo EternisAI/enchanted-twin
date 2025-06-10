@@ -10,6 +10,7 @@ import (
 	"github.com/openai/openai-go/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/types"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // MemorySearchTool implements a tool for searching agent memory.
@@ -53,7 +54,7 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 		}
 	}
 
-	// For now, search across all speakers
+	t.Logger.Info("Memory query", "query", query, "source", helpers.SafeDeref(sourcePtr), "subject", helpers.SafeDeref(subjectPtr))
 	result, err := t.Memory.Query(ctx, query, &Filter{Subject: subjectPtr, Source: sourcePtr})
 	if err != nil {
 		t.Logger.Error("Memory query failed", "error", err, "query", query)
@@ -82,8 +83,9 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 	resultText := ""
 	for i, fact := range result.Facts {
 		resultText += fmt.Sprintf(
-			"Memory %d: %s (Source: %s, Time: %s)\n",
+			"Memory %d: %s - %s (Source: %s, Time: %s)\n",
 			i+1,
+			fact.Subject,
 			fact.Content,
 			fact.Source,
 			fact.Timestamp.Format("2006-01-02 15:04:05"),
