@@ -47,6 +47,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 	"github.com/EternisAI/enchanted-twin/pkg/engagement"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/holon"
 	"github.com/EternisAI/enchanted-twin/pkg/identity"
 	"github.com/EternisAI/enchanted-twin/pkg/mcpserver"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
@@ -361,6 +362,49 @@ func main() {
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
 	}
 
+	userProfile, err := identitySvc.GetUserProfile(context.Background())
+	if err != nil {
+		logger.Error("Failed to get user profile", "error", err)
+		panic(errors.Wrap(err, "Failed to get user profile"))
+	}
+	logger.Info("User profile", "profile", userProfile)
+
+	// Create holon service with configuration
+	holonConfig := holon.DefaultManagerConfig()
+	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
+
+	// Initialize HolonZero API fetcher service with the main logger
+	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
+	if err := holonManager.Start(); err != nil {
+		logger.Error("Failed to start HolonZero fetcher service", "error", err)
+		// Don't panic - the service can run without the fetcher
+	} else {
+		logger.Info("HolonZero API fetcher service started successfully")
+		defer func() {
+			if err := holonManager.Stop(); err != nil {
+				logger.Error("Failed to stop holon manager", "error", err)
+			}
+		}()
+	}
+
+	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
+	if err := toolRegistry.Register(threadPreviewTool); err != nil {
+		logger.Error("Failed to register thread preview tool", "error", err)
+		// panic(errors.Wrap(err, "Failed to register thread preview tool"))
+	}
+
+	sendToHolonTool := holon.NewSendToHolonTool(holonService)
+	if err := toolRegistry.Register(sendToHolonTool); err != nil {
+		logger.Error("Failed to register send to holon tool", "error", err)
+		// panic(errors.Wrap(err, "Failed to register send to holon tool"))
+	}
+
+	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(holonService)
+	if err := toolRegistry.Register(sendMessageToHolonTool); err != nil {
+		logger.Error("Failed to register send message to holon tool", "error", err)
+		// panic(errors.Wrap(err, "Failed to register send message to holon tool"))
+	}
+
 	telegramServiceInput := telegram.TelegramServiceInput{
 		Logger:           logger,
 		Token:            envs.TelegramToken,
@@ -376,8 +420,14 @@ func main() {
 	}
 	telegramService := telegram.NewTelegramService(telegramServiceInput)
 
+	dbsqlc, err := db.New(store.DB().DB, logger)
+	if err != nil {
+		logger.Error("Error creating database", "error", err)
+		panic(errors.Wrap(err, "Error creating database"))
+	}
+
 	go telegram.SubscribePoller(telegramService, logger)
-	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, store, envs)
+	go telegram.MonitorAndRegisterTelegramTool(context.Background(), telegramService, logger, toolRegistry, dbsqlc.ConfigQueries, envs)
 
 	router := bootstrapGraphqlServer(graphqlServerInput{
 		logger:            logger,
@@ -389,6 +439,7 @@ func main() {
 		aiService:         aiCompletionsService,
 		mcpService:        mcpService,
 		telegramService:   telegramService,
+		holonService:      holonService,
 		whatsAppQRCode:    currentWhatsAppQRCode,
 		whatsAppConnected: whatsAppConnected,
 	})
@@ -492,6 +543,12 @@ func bootstrapTemporalWorker(
 		Store:           input.store,
 	})
 	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
+
+	// Register holon sync activities
+	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
+	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
+	holonSyncActivities.RegisterWorkflowsAndActivities(w)
+
 	err := w.Start()
 	if err != nil {
 		input.logger.Error("Error starting worker", "error", err)
@@ -512,6 +569,7 @@ type graphqlServerInput struct {
 	mcpService             mcpserver.MCPService
 	dataProcessingWorkflow *workflows.DataProcessingWorkflows
 	telegramService        *telegram.TelegramService
+	holonService           *holon.Service
 	whatsAppQRCode         *string
 	whatsAppConnected      bool
 }
@@ -535,6 +593,7 @@ func bootstrapGraphqlServer(input graphqlServerInput) *chi.Mux {
 		MCPService:             input.mcpService,
 		DataProcessingWorkflow: input.dataProcessingWorkflow,
 		TelegramService:        input.telegramService,
+		HolonService:           input.holonService,
 		WhatsAppQRCode:         input.whatsAppQRCode,
 		WhatsAppConnected:      input.whatsAppConnected,
 	}
@@ -597,5 +656,20 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 	if err != nil {
 		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}
+
+	// Create holon sync schedule with override flag to ensure it uses the updated 30-second interval
+	err = helpers.CreateOrUpdateSchedule(
+		logger,
+		temporalClient,
+		"holon-sync-schedule",
+		30*time.Second, // Use updated 30-second interval
+		holon.HolonSyncWorkflow,
+		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
+		true, // Override if different settings
+	)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create holon sync schedule")
+	}
+
 	return nil
 }

@@ -18,6 +18,12 @@ directive @goTag(
   value: String
 ) on INPUT_FIELD_DEFINITION | FIELD_DEFINITION
 
+enum ChatCategory {
+  TEXT
+  VOICE
+  HOLON
+}
+
 type UserProfile {
   name: String
   bio: String
@@ -48,7 +54,8 @@ type Chat {
   name: String!
   messages: [Message!]! @goField(forceResolver: true)
   createdAt: DateTime!
-  voice: Boolean!
+  category: ChatCategory!
+  holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
 }
 
 type Message {
@@ -101,6 +108,9 @@ type Query {
   getAgentTasks: [AgentTask!]!
   getSetupProgress: [SetupProgress!]!
   whitelistStatus: Boolean!
+  getHolons(userId: ID!): [String!]
+  getThreads(network: String, first: Int! = 10, offset: Int! = 0): [Thread!]!
+  getThread(network: String, id: ID!): Thread
 }
 
 type SetupProgress {
@@ -119,7 +129,11 @@ type Mutation {
   completeOAuthFlow(state: String!, authCode: String!): String!
   refreshExpiredOAuthTokens: [OAuthStatus!]!
   updateProfile(input: UpdateProfileInput!): Boolean!
-  createChat(name: String!, voice: Boolean! = False): Chat!
+  createChat(
+    name: String!
+    category: ChatCategory! = TEXT
+    holonThreadId: String
+  ): Chat!
   sendMessage(
     chatId: ID!
     text: String!
@@ -137,6 +151,7 @@ type Mutation {
   removeMCPServer(id: String!): Boolean!
   startWhatsAppConnection: Boolean!
   activate(inviteCode: String!): Boolean!
+  joinHolon(userId: String!, network: String): Boolean!
 }
 
 type Subscription {
@@ -279,4 +294,33 @@ type AgentTask {
   upcomingRuns: [DateTime!]!
   previousRuns: [DateTime!]!
   notify: Boolean!
+}
+
+type Author {
+  alias: String
+  identity: String!
+}
+
+type ThreadMessage {
+  id: ID!
+  author: Author!
+  content: String!
+  createdAt: DateTime!
+  isDelivered: Boolean
+  actions: [String!]
+  state: String!
+}
+
+type Thread {
+  id: ID!
+  title: String!
+  content: String!
+  imageURLs: [String!]!
+  author: Author!
+  createdAt: DateTime!
+  expiresAt: DateTime
+  messages: [ThreadMessage!]!
+  actions: [String!]
+  views: Int!
+  remoteThreadId: Int
 }

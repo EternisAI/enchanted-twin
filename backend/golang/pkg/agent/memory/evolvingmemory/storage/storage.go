@@ -324,13 +324,12 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				}
 			}
 
-			// Define core legacy properties that MUST exist
+			// Define core legacy properties that MUST exist (these should never be missing)
 			coreProps := map[string]string{
-				contentProperty:            "text",
-				timestampProperty:          "date",
-				metadataProperty:           "text",
-				tagsProperty:               "text[]",
-				documentReferencesProperty: "text[]",
+				contentProperty:   "text",
+				timestampProperty: "date",
+				metadataProperty:  "text",
+				tagsProperty:      "text[]",
 			}
 
 			// Check core properties exist with correct types
@@ -343,6 +342,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 			}
 
 			// Check if new structured fact fields exist, if not we need to add them
+			// This includes documentReferences which was added recently
 			newFields := []string{
 				sourceProperty,
 				factCategoryProperty, factSubjectProperty, factAttributeProperty,
@@ -1319,7 +1319,14 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 	}
 
 	// Define all required structured fact properties
+	indexFilterable := true
 	requiredProps := map[string]*models.Property{
+		documentReferencesProperty: {
+			Name:            documentReferencesProperty,
+			DataType:        []string{"text[]"},
+			Description:     "Array of document IDs that generated this memory",
+			IndexFilterable: &indexFilterable,
+		},
 		sourceProperty: {
 			Name:        sourceProperty,
 			DataType:    []string{"text"},
