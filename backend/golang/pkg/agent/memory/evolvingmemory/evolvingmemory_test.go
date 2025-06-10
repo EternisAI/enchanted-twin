@@ -549,10 +549,10 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		// Mock the Query method to verify filter is passed correctly
 		expectedFilter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
-			Distance:    0.7,
-			Limit:       intPtr(5),
+			Source:   stringPtr("conversations"),
+			Subject:  stringPtr("alice"),
+			Distance: 0.7,
+			Limit:    intPtr(5),
 		}
 
 		expectedResult := memory.QueryResult{
@@ -797,10 +797,10 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		// Filter with empty string values
 		filter := &memory.Filter{
-			Source:      stringPtr(""),
-			ContactName: stringPtr(""),
-			Distance:    0,
-			Limit:       intPtr(0),
+			Source:   stringPtr(""),
+			Subject:  stringPtr(""),
+			Distance: 0,
+			Limit:    intPtr(0),
 		}
 
 		expectedResult := memory.QueryResult{
@@ -868,10 +868,10 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		// Filter with extreme values
 		filter := &memory.Filter{
-			Source:      stringPtr("very-long-source-name-that-might-cause-issues"),
-			ContactName: stringPtr("user-with-very-long-name-123456789"),
-			Distance:    2.0,           // > 1.0
-			Limit:       intPtr(10000), // Very large limit
+			Source:   stringPtr("very-long-source-name-that-might-cause-issues"),
+			Subject:  stringPtr("user-with-very-long-name-123456789"),
+			Distance: 2.0,           // > 1.0
+			Limit:    intPtr(10000), // Very large limit
 		}
 
 		expectedResult := memory.QueryResult{
@@ -1095,14 +1095,14 @@ func TestFilterUsagePatterns(t *testing.T) {
 	t.Run("conversation filtering pattern", func(t *testing.T) {
 		// Pattern: Get recent conversations with a specific person
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
-			Distance:    0.8, // Semantic similarity threshold
-			Limit:       intPtr(10),
+			Source:   stringPtr("conversations"),
+			Subject:  stringPtr("alice"),
+			Distance: 0.8, // Semantic similarity threshold
+			Limit:    intPtr(10),
 		}
 
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 		assert.Equal(t, float32(0.8), filter.Distance)
 		assert.Equal(t, 10, *filter.Limit)
 	})
@@ -1116,7 +1116,7 @@ func TestFilterUsagePatterns(t *testing.T) {
 		}
 
 		assert.Equal(t, "email", *filter.Source)
-		assert.Nil(t, filter.ContactName) // No specific contact
+		assert.Nil(t, filter.Subject) // No specific contact
 		assert.Equal(t, float32(0.7), filter.Distance)
 		assert.Equal(t, 20, *filter.Limit)
 	})
@@ -1128,8 +1128,8 @@ func TestFilterUsagePatterns(t *testing.T) {
 			Limit:    intPtr(5),
 		}
 
-		assert.Nil(t, filter.Source)      // No source filter
-		assert.Nil(t, filter.ContactName) // No contact filter
+		assert.Nil(t, filter.Source)  // No source filter
+		assert.Nil(t, filter.Subject) // No contact filter
 		assert.Equal(t, float32(0.6), filter.Distance)
 		assert.Equal(t, 5, *filter.Limit)
 	})
@@ -1200,14 +1200,14 @@ func TestPerformanceImplications(t *testing.T) {
 		// - Combined with filters.And for multiple conditions
 
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
+			Source:  stringPtr("conversations"),
+			Subject: stringPtr("alice"),
 		}
 
 		// This should generate efficient queries like:
 		// WHERE (source = "conversations" AND speakerID = "alice")
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 	})
 
 	t.Run("memory usage patterns", func(t *testing.T) {
@@ -1545,8 +1545,8 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 
 		// Test complex filter with multiple components
 		complexFilter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
+			Source:  stringPtr("conversations"),
+			Subject: stringPtr("alice"),
 			Tags: &memory.TagsFilter{
 				Expression: &memory.BooleanExpression{
 					Operator: memory.OR,
