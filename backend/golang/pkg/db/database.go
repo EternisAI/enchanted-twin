@@ -48,8 +48,3 @@ func New(sqlDB *sql.DB, logger *log.Logger) (*DB, error) {
 		logger:        logger,
 	}, nil
 }
-
-// Health checks if the database connection is healthy.
-func (db *DB) Health() error {
-	return db.Ping()
-}
