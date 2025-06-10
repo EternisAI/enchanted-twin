@@ -191,7 +191,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	clearWeaviateData(t)
 
-	testTimeout := 60 * time.Minute
+	testTimeout := 30 * time.Minute
 	if localTestTimeout := os.Getenv("LOCAL_MODEL_TEST_TIMEOUT"); localTestTimeout != "" {
 		if duration, err := time.ParseDuration(localTestTimeout); err == nil {
 			testTimeout = duration
@@ -256,6 +256,7 @@ func (env *testEnvironment) cleanup(t *testing.T) {
 }
 
 func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string) {
+	env.logger.Info("Loading documents", "source", source, "inputPath", inputPath)
 	t.Helper()
 
 	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
@@ -510,10 +511,21 @@ func TestMemoryIntegration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
+	testStart := time.Now()
+	defer func() {
+		totalDuration := time.Since(testStart)
+		t.Logf("🕒 Total TestMemoryIntegration duration: %v", totalDuration)
+	}()
+
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
 
 	t.Run("DataProcessingAndStorage", func(t *testing.T) {
+		start := time.Now()
+		defer func() {
+			t.Logf("🕒 DataProcessingAndStorage duration: %v", time.Since(start))
+		}()
+
 		env.loadDocuments(t, env.config.Source, env.config.InputPath)
 		assert.NotEmpty(t, env.documents)
 		env.logger.Info("Documents loaded", "count", len(env.documents))
@@ -524,13 +536,6 @@ func TestMemoryIntegration(t *testing.T) {
 
 		env.storeDocuments(t)
 		env.logger.Info("Documents stored successfully")
-	})
-
-	t.Run("BasicQuerying", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
-			env.storeDocuments(t)
-		}
 
 		limit := 100
 		filter := memory.Filter{
@@ -548,6 +553,13 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Query chatgpt", func(t *testing.T) {
+		start := time.Now()
+		defer func() {
+			t.Logf("🕒 Query chatgpt duration: %v", time.Since(start))
+		}()
+
+		clearWeaviateData(t)
+
 		source := "chatgpt"
 		inputPath := "testdata/chatgpt.zip"
 
@@ -570,6 +582,8 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Query gmail", func(t *testing.T) {
+		clearWeaviateData(t)
+
 		source := "gmail"
 		inputPath := "testdata/google_export_sample.zip"
 
@@ -592,6 +606,8 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Query telegram", func(t *testing.T) {
+		clearWeaviateData(t)
+
 		source := "telegram"
 		inputPath := "testdata/telegram_export_sample.json"
 
@@ -614,6 +630,8 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Query X", func(t *testing.T) {
+		clearWeaviateData(t)
+
 		source := "x"
 		inputPath := "testdata/x_export_sample.zip"
 
@@ -636,6 +654,8 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Query slack", func(t *testing.T) {
+		clearWeaviateData(t)
+
 		source := "slack"
 		inputPath := "testdata/slack_export_sample.zip"
 
@@ -658,6 +678,8 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Query whatsapp", func(t *testing.T) {
+		clearWeaviateData(t)
+
 		source := "whatsapp"
 		inputPath := "testdata/whatsapp_sample.jsonl"
 
@@ -713,10 +735,9 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Important facts", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
-			env.storeDocuments(t)
-		}
+		clearWeaviateData(t)
+		env.loadDocuments(t, env.config.Source, env.config.InputPath)
+		env.storeDocuments(t)
 
 		limit := 100
 		filter := memory.Filter{
@@ -745,6 +766,7 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("DocumentReferences", func(t *testing.T) {
+		// Use existing data or load if needed
 		if len(env.documents) == 0 {
 			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
@@ -776,6 +798,7 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("SourceFiltering", func(t *testing.T) {
+		// Use existing data or load if needed
 		if len(env.documents) == 0 {
 			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
@@ -796,6 +819,7 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("DistanceFiltering", func(t *testing.T) {
+		// Use existing data or load if needed
 		if len(env.documents) == 0 {
 			env.loadDocuments(t, env.config.Source, env.config.InputPath)
 			env.storeDocuments(t)
@@ -979,44 +1003,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 
 func stringPtr(s string) *string { return &s }
 func intPtr(i int) *int          { return &i }
-
-func TestMemoryIntegrationSimple(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping integration test in short mode")
-	}
-
-	env := setupTestEnvironment(t)
-	defer env.cleanup(t)
-
-	env.loadDocuments(t, env.config.Source, env.config.InputPath)
-	assert.NotEmpty(t, env.documents)
-	env.logger.Info("Documents loaded successfully", "count", len(env.documents))
-
-	env.storeDocuments(t)
-	env.logger.Info("Documents stored successfully")
-
-	limit := 10
-	filter := memory.Filter{
-		Source:   &env.config.Source,
-		Distance: 0.9, // Very permissive distance
-		Limit:    &limit,
-	}
-
-	result, err := env.memory.Query(env.ctx, "LLM agent system implementation", &filter)
-	require.NoError(t, err)
-	env.logger.Info("Query completed", "query", "LLM agent system implementation", "results_count", len(result.Facts))
-
-	invalidSource := "invalid-source"
-	invalidFilter := memory.Filter{
-		Source:   &invalidSource,
-		Distance: 0.9,
-		Limit:    &limit,
-	}
-
-	result, err = env.memory.Query(env.ctx, "anything", &invalidFilter)
-	require.NoError(t, err)
-	assert.Empty(t, result.Facts, "should not find memories for invalid source")
-}
 
 func TestBatchProcessingEdgeCases(t *testing.T) {
 	if testing.Short() {
