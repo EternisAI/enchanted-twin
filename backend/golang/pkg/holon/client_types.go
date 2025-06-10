@@ -4,7 +4,7 @@ import "time"
 
 // Client types based on HolonZero API swagger specification
 
-// Participant represents a participant in the system
+// Participant represents a participant in the system.
 type Participant struct {
 	ID               int       `json:"id"`
 	Name             string    `json:"name"`
@@ -15,7 +15,7 @@ type Participant struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// Thread represents a discussion thread
+// Thread represents a discussion thread.
 type Thread struct {
 	ID            int       `json:"id"`
 	Title         string    `json:"title"`
@@ -27,7 +27,7 @@ type Thread struct {
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
-// Reply represents a reply to a thread
+// Reply represents a reply to a thread.
 type Reply struct {
 	ID                     int       `json:"id"`
 	ThreadID               int       `json:"threadId"`
@@ -41,32 +41,32 @@ type Reply struct {
 
 // Request types
 
-// CreateParticipantRequest for creating a new participant
+// CreateParticipantRequest for creating a new participant.
 type CreateParticipantRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
-// UpdateParticipantRequest for updating a participant
+// UpdateParticipantRequest for updating a participant.
 type UpdateParticipantRequest struct {
 	Name  string `json:"name"`
 	Email string `json:"email"`
 }
 
-// CreateThreadRequest for creating a new thread
+// CreateThreadRequest for creating a new thread.
 type CreateThreadRequest struct {
 	Title         string `json:"title"`
 	Content       string `json:"content,omitempty"`
 	DedupThreadID string `json:"dedupThreadId"`
 }
 
-// UpdateThreadRequest for updating a thread
+// UpdateThreadRequest for updating a thread.
 type UpdateThreadRequest struct {
 	Title   string `json:"title"`
 	Content string `json:"content,omitempty"`
 }
 
-// CreateReplyRequest for creating a new reply
+// CreateReplyRequest for creating a new reply.
 type CreateReplyRequest struct {
 	ThreadID      int    `json:"threadId"`
 	ParticipantID int    `json:"participantId"`
@@ -74,14 +74,14 @@ type CreateReplyRequest struct {
 	DedupReplyID  string `json:"dedupReplyId"`
 }
 
-// UpdateReplyRequest for updating a reply
+// UpdateReplyRequest for updating a reply.
 type UpdateReplyRequest struct {
 	Content string `json:"content"`
 }
 
 // Response types
 
-// PaginatedThreadsResponse for paginated thread listing
+// PaginatedThreadsResponse for paginated thread listing.
 type PaginatedThreadsResponse struct {
 	Threads    []Thread `json:"threads"`
 	Page       int      `json:"page"`
@@ -90,7 +90,7 @@ type PaginatedThreadsResponse struct {
 	HasMore    bool     `json:"hasMore"`
 }
 
-// PaginatedRepliesResponse for paginated reply listing
+// PaginatedRepliesResponse for paginated reply listing.
 type PaginatedRepliesResponse struct {
 	Replies    []Reply `json:"replies"`
 	Page       int     `json:"page"`
@@ -99,7 +99,7 @@ type PaginatedRepliesResponse struct {
 	HasMore    bool    `json:"hasMore"`
 }
 
-// SyncMetadataResponse for sync optimization
+// SyncMetadataResponse for sync optimization.
 type SyncMetadataResponse struct {
 	ServerTime       time.Time `json:"serverTime"`
 	TotalThreads     int       `json:"totalThreads"`
@@ -108,19 +108,19 @@ type SyncMetadataResponse struct {
 	LastReplyUpdate  time.Time `json:"lastReplyUpdate"`
 }
 
-// HealthResponse for health check
+// HealthResponse for health check.
 type HealthResponse struct {
 	Status   string `json:"status"`
 	Database string `json:"database,omitempty"`
 }
 
-// ErrorResponse represents API error responses
+// ErrorResponse represents API error responses.
 type ErrorResponse struct {
 	Error   string `json:"error"`
 	Message string `json:"message,omitempty"`
 }
 
-// ParticipantAuthResponse for OAuth authentication
+// ParticipantAuthResponse for OAuth authentication.
 type ParticipantAuthResponse struct {
 	ID          int    `json:"id"`
 	Email       string `json:"email"`
@@ -128,7 +128,7 @@ type ParticipantAuthResponse struct {
 	Message     string `json:"message"`
 }
 
-// ParticipantResponse for participant operations
+// ParticipantResponse for participant operations.
 type ParticipantResponse struct {
 	ID               int       `json:"id"`
 	Name             string    `json:"name"`
@@ -139,7 +139,7 @@ type ParticipantResponse struct {
 	UpdatedAt        time.Time `json:"updated_at"`
 }
 
-// Query parameters for pagination and filtering
+// Query parameters for pagination and filtering.
 type ThreadsQuery struct {
 	Page         int       `json:"page,omitempty"`
 	Limit        int       `json:"limit,omitempty"`

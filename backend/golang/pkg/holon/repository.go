@@ -422,7 +422,7 @@ func (r *Repository) AddUserToHolon(ctx context.Context, userID, networkIdentifi
 	return nil
 }
 
-// GetThreadCount returns the total number of threads in the repository
+// GetThreadCount returns the total number of threads in the repository.
 func (r *Repository) GetThreadCount(ctx context.Context) (int, error) {
 	var count int
 	err := r.db.QueryRowContext(ctx, `
@@ -434,7 +434,7 @@ func (r *Repository) GetThreadCount(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-// GetPendingThreads returns all threads with state 'pending'
+// GetPendingThreads returns all threads with state 'pending'.
 func (r *Repository) GetPendingThreads(ctx context.Context) ([]*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
@@ -481,7 +481,7 @@ func (r *Repository) GetPendingThreads(ctx context.Context) ([]*model.Thread, er
 	return threads, nil
 }
 
-// UpdateThreadState updates the state of a thread
+// UpdateThreadState updates the state of a thread.
 func (r *Repository) UpdateThreadState(ctx context.Context, threadID, state string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE threads SET state = ? WHERE id = ?
@@ -492,7 +492,7 @@ func (r *Repository) UpdateThreadState(ctx context.Context, threadID, state stri
 	return nil
 }
 
-// GetPendingThreadMessages returns all thread messages with state 'pending'
+// GetPendingThreadMessages returns all thread messages with state 'pending'.
 func (r *Repository) GetPendingThreadMessages(ctx context.Context) ([]*model.ThreadMessage, error) {
 	query := `
 		SELECT tm.id, tm.thread_id, tm.author_identity, tm.content, tm.created_at, 
@@ -539,7 +539,7 @@ func (r *Repository) GetPendingThreadMessages(ctx context.Context) ([]*model.Thr
 	return messages, nil
 }
 
-// UpdateThreadMessageState updates the state of a thread message
+// UpdateThreadMessageState updates the state of a thread message.
 func (r *Repository) UpdateThreadMessageState(ctx context.Context, messageID, state string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE thread_messages SET state = ? WHERE id = ?
@@ -550,7 +550,7 @@ func (r *Repository) UpdateThreadMessageState(ctx context.Context, messageID, st
 	return nil
 }
 
-// GetThreadMessagesByState returns all thread messages with a specific state
+// GetThreadMessagesByState returns all thread messages with a specific state.
 func (r *Repository) GetThreadMessagesByState(ctx context.Context, state string) ([]*model.ThreadMessage, error) {
 	query := `
 		SELECT tm.id, tm.thread_id, tm.author_identity, tm.content, tm.created_at, 
@@ -597,7 +597,7 @@ func (r *Repository) GetThreadMessagesByState(ctx context.Context, state string)
 	return messages, nil
 }
 
-// UpdateThreadRemoteID updates the remote_thread_id of a thread
+// UpdateThreadRemoteID updates the remote_thread_id of a thread.
 func (r *Repository) UpdateThreadRemoteID(ctx context.Context, threadID string, remoteThreadID int32) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE threads SET remote_thread_id = ? WHERE id = ?
@@ -608,7 +608,7 @@ func (r *Repository) UpdateThreadRemoteID(ctx context.Context, threadID string, 
 	return nil
 }
 
-// GetThreadByRemoteID returns a thread by its remote_thread_id
+// GetThreadByRemoteID returns a thread by its remote_thread_id.
 func (r *Repository) GetThreadByRemoteID(ctx context.Context, remoteThreadID int32) (*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
@@ -642,7 +642,7 @@ func (r *Repository) GetThreadByRemoteID(ctx context.Context, remoteThreadID int
 	return threadModel, nil
 }
 
-// GetThreadMessage returns a thread message by its ID
+// GetThreadMessage returns a thread message by its ID.
 func (r *Repository) GetThreadMessage(ctx context.Context, messageID string) (*model.ThreadMessage, error) {
 	query := `
 		SELECT tm.id, tm.thread_id, tm.author_identity, tm.content, tm.created_at, 

@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	clog "github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// HolonZeroClient defines the interface for interacting with the HolonZero API
+// HolonZeroClient defines the interface for interacting with the HolonZero API.
 type HolonZeroClient interface {
 	GetHealth(ctx context.Context) (*HealthResponse, error)
 	ListThreadsPaginated(ctx context.Context, query *ThreadsQuery) (*PaginatedThreadsResponse, error)
@@ -22,7 +23,7 @@ type HolonZeroClient interface {
 	CreateReply(ctx context.Context, req CreateReplyRequest) (*Reply, error)
 }
 
-// FetcherService handles syncing data from HolonZero API to local database
+// FetcherService handles syncing data from HolonZero API to local database.
 type FetcherService struct {
 	client     HolonZeroClient
 	repository *Repository
@@ -36,7 +37,7 @@ type FetcherService struct {
 	isAuthenticated bool
 }
 
-// FetcherConfig holds configuration for the fetcher service
+// FetcherConfig holds configuration for the fetcher service.
 type FetcherConfig struct {
 	APIBaseURL    string
 	FetchInterval time.Duration
@@ -46,7 +47,7 @@ type FetcherConfig struct {
 	EnableLogging bool
 }
 
-// DefaultFetcherConfig returns a sensible default configuration
+// DefaultFetcherConfig returns a sensible default configuration.
 func DefaultFetcherConfig() FetcherConfig {
 	return FetcherConfig{
 		APIBaseURL:    getEnvOrDefault("HOLON_API_URL", "http://localhost:8080"),
@@ -58,7 +59,7 @@ func DefaultFetcherConfig() FetcherConfig {
 	}
 }
 
-// NewFetcherService creates a new HolonZero API fetcher service
+// NewFetcherService creates a new HolonZero API fetcher service.
 func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logger) *FetcherService {
 	ctx := context.Background()
 
@@ -70,7 +71,6 @@ func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logge
 		logger,
 		WithTimeout(30*time.Second),
 	)
-
 	if err != nil {
 		if logger != nil {
 			logger.Error("Failed to create authenticated API client", "error", err)
@@ -103,7 +103,7 @@ func NewFetcherService(store *db.Store, config FetcherConfig, logger *clog.Logge
 	return fetcher
 }
 
-// Start begins the periodic fetching process
+// Start begins the periodic fetching process.
 func (f *FetcherService) Start(ctx context.Context) error {
 	if f.running {
 		return fmt.Errorf("fetcher service is already running")
@@ -124,7 +124,7 @@ func (f *FetcherService) Start(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
-			f.logDebug("Context cancelled, stopping fetcher service")
+			f.logDebug("Context canceled, stopping fetcher service")
 			f.running = false
 			return ctx.Err()
 		case <-f.stopChan:
@@ -139,7 +139,7 @@ func (f *FetcherService) Start(ctx context.Context) error {
 	}
 }
 
-// Stop gracefully stops the fetching process
+// Stop gracefully stops the fetching process.
 func (f *FetcherService) Stop() {
 	if f.running {
 		f.logDebug("Stopping HolonZero API fetcher service")
@@ -147,12 +147,12 @@ func (f *FetcherService) Stop() {
 	}
 }
 
-// IsRunning returns whether the fetcher service is currently running
+// IsRunning returns whether the fetcher service is currently running.
 func (f *FetcherService) IsRunning() bool {
 	return f.running
 }
 
-// performSync executes a complete sync operation with retry logic
+// performSync executes a complete sync operation with retry logic.
 func (f *FetcherService) performSync(ctx context.Context) error {
 	var lastErr error
 
@@ -177,7 +177,7 @@ func (f *FetcherService) performSync(ctx context.Context) error {
 	return fmt.Errorf("sync failed after %d attempts: %w", f.config.MaxRetries, lastErr)
 }
 
-// syncData performs the actual data synchronization
+// syncData performs the actual data synchronization.
 func (f *FetcherService) syncData(ctx context.Context) error {
 	f.logDebug("Starting data synchronization from HolonZero API")
 
@@ -200,7 +200,7 @@ func (f *FetcherService) syncData(ctx context.Context) error {
 	return nil
 }
 
-// checkAPIHealth verifies the API is accessible
+// checkAPIHealth verifies the API is accessible.
 func (f *FetcherService) checkAPIHealth(ctx context.Context) error {
 	health, err := f.client.GetHealth(ctx)
 	if err != nil {
@@ -215,18 +215,18 @@ func (f *FetcherService) checkAPIHealth(ctx context.Context) error {
 	return nil
 }
 
-// syncThreads fetches and stores threads
+// syncThreads fetches and stores threads.
 func (f *FetcherService) syncThreads(ctx context.Context) error {
 	_, err := f.SyncThreads(ctx)
 	return err
 }
 
-// SyncThreads fetches and syncs threads for direct activity usage
+// SyncThreads fetches and syncs threads for direct activity usage.
 func (f *FetcherService) SyncThreads(ctx context.Context) ([]Thread, error) {
 	return f.syncThreadsInternal(ctx, true)
 }
 
-// syncThreadsInternal handles the core thread syncing logic
+// syncThreadsInternal handles the core thread syncing logic.
 func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bool) ([]Thread, error) {
 	var metadata *SyncMetadataResponse
 	var err error
@@ -368,7 +368,7 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 	return allThreads, nil
 }
 
-// syncReplies fetches and stores replies for all threads
+// syncReplies fetches and stores replies for all threads.
 func (f *FetcherService) syncReplies(ctx context.Context) error {
 	// First, get all threads using paginated endpoint to fetch replies for
 	var allThreads []Thread
@@ -568,7 +568,7 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 	return nil
 }
 
-// PushPendingThreads pushes all pending threads to the HolonZero API and updates their state
+// PushPendingThreads pushes all pending threads to the HolonZero API and updates their state.
 func (f *FetcherService) PushPendingThreads(ctx context.Context) error {
 	f.logDebug("Starting to push pending threads to HolonZero API")
 
@@ -621,11 +621,11 @@ func (f *FetcherService) PushPendingThreads(ctx context.Context) error {
 			thread.ID, apiThread.ID))
 	}
 
-	f.logDebug(fmt.Sprintf("Completed pushing pending threads"))
+	f.logDebug("Completed pushing pending threads")
 	return nil
 }
 
-// PushPendingReplies pushes all pending thread messages (replies) to the HolonZero API and updates their state
+// PushPendingReplies pushes all pending thread messages (replies) to the HolonZero API and updates their state.
 func (f *FetcherService) PushPendingReplies(ctx context.Context) error {
 	// Create data fetcher to get pending replies with thread ID info
 	dataFetcher := NewDataFetcher(f.repository)
@@ -709,7 +709,7 @@ func (f *FetcherService) PushPendingReplies(ctx context.Context) error {
 	return nil
 }
 
-// PushPendingContent pushes both pending threads and replies to the HolonZero API
+// PushPendingContent pushes both pending threads and replies to the HolonZero API.
 func (f *FetcherService) PushPendingContent(ctx context.Context) error {
 	f.logDebug("Starting to push all pending content to HolonZero API")
 
@@ -729,7 +729,7 @@ func (f *FetcherService) PushPendingContent(ctx context.Context) error {
 	return nil
 }
 
-// SyncStatus represents the current status of the fetcher
+// SyncStatus represents the current status of the fetcher.
 type SyncStatus struct {
 	Running    bool       `json:"running"`
 	LastSync   *time.Time `json:"last_sync,omitempty"`
@@ -740,7 +740,7 @@ type SyncStatus struct {
 	TotalItems int        `json:"total_items"`
 }
 
-// GetSyncStatus returns the current status of the fetcher service
+// GetSyncStatus returns the current status of the fetcher service.
 func (f *FetcherService) GetSyncStatus(ctx context.Context) (*SyncStatus, error) {
 	// If the fetcher is not running, return basic status
 	if !f.running {
@@ -771,7 +771,7 @@ func (f *FetcherService) GetSyncStatus(ctx context.Context) (*SyncStatus, error)
 	}, nil
 }
 
-// ForceSync triggers an immediate synchronization
+// ForceSync triggers an immediate synchronization.
 func (f *FetcherService) ForceSync(ctx context.Context) error {
 	f.logDebug("Manual sync requested")
 
@@ -790,7 +790,7 @@ func (f *FetcherService) ForceSync(ctx context.Context) error {
 	return nil
 }
 
-// authenticateForDeduplication attempts to authenticate and store participant ID for deduplication
+// authenticateForDeduplication attempts to authenticate and store participant ID for deduplication.
 func (f *FetcherService) authenticateForDeduplication(ctx context.Context, store *db.Store) error {
 	// Attempt to authenticate with HolonZero API
 	authResp, err := AuthenticateWithHolonZero(ctx, f.config.APIBaseURL, store, f.logger)
@@ -811,7 +811,7 @@ func (f *FetcherService) authenticateForDeduplication(ctx context.Context, store
 	return nil
 }
 
-// shouldSkipThread determines if a thread should be skipped during sync to avoid duplicates
+// shouldSkipThread determines if a thread should be skipped during sync to avoid duplicates.
 func (f *FetcherService) shouldSkipThread(thread Thread) bool {
 	// If we're not authenticated, we can't perform deduplication
 	if !f.isAuthenticated || f.participantID == nil {
@@ -843,7 +843,7 @@ func (f *FetcherService) shouldSkipThread(thread Thread) bool {
 	return false
 }
 
-// shouldSkipReply determines if a reply should be skipped during sync to avoid duplicates
+// shouldSkipReply determines if a reply should be skipped during sync to avoid duplicates.
 func (f *FetcherService) shouldSkipReply(reply Reply) bool {
 	// If we're not authenticated, we can't perform deduplication
 	if !f.isAuthenticated || f.participantID == nil {
@@ -872,7 +872,7 @@ func (f *FetcherService) shouldSkipReply(reply Reply) bool {
 	return false
 }
 
-// SyncReplies fetches and syncs replies for direct activity usage
+// SyncReplies fetches and syncs replies for direct activity usage.
 func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 	// First, get all threads using paginated endpoint to fetch replies for
 	var allThreads []Thread
@@ -1074,7 +1074,7 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 	return allReplies, nil
 }
 
-// getEnvOrDefault returns the environment variable value or a default value
+// getEnvOrDefault returns the environment variable value or a default value.
 func getEnvOrDefault(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
@@ -1082,7 +1082,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getLocalUserIdentity gets the local user identity from the user profile
+// getLocalUserIdentity gets the local user identity from the user profile.
 func (f *FetcherService) getLocalUserIdentity(ctx context.Context) (string, error) {
 	// For now, we'll use a constant identity that represents the local user
 	// In the future, this could be retrieved from user profile or config
@@ -1091,7 +1091,7 @@ func (f *FetcherService) getLocalUserIdentity(ctx context.Context) (string, erro
 
 // resolveAuthorIdentity determines the correct author identity to use
 // If the remote creator/participant is our own participant ID, use local user identity
-// Otherwise, use the remote participant ID
+// Otherwise, use the remote participant ID.
 func (f *FetcherService) resolveAuthorIdentity(ctx context.Context, remoteParticipantID int, remoteDisplayName string) (string, string, error) {
 	// Check if this is our own content
 	if f.isAuthenticated && f.participantID != nil && remoteParticipantID == *f.participantID {
@@ -1123,14 +1123,14 @@ func (f *FetcherService) resolveAuthorIdentity(ctx context.Context, remotePartic
 	return authorIdentity, authorAlias, nil
 }
 
-// logDebug logs a debug message if logging is enabled
+// logDebug logs a debug message if logging is enabled.
 func (f *FetcherService) logDebug(msg string) {
 	if f.config.EnableLogging && f.logger != nil {
 		f.logger.Debug(msg)
 	}
 }
 
-// logError logs an error message if logging is enabled
+// logError logs an error message if logging is enabled.
 func (f *FetcherService) logError(msg string, err error) {
 	if f.config.EnableLogging && f.logger != nil {
 		f.logger.Error(msg, "error", err)

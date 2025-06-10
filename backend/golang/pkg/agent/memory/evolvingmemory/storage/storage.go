@@ -191,7 +191,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
 	// Prepare metadata JSON (for backward compatibility)
 	metadataJSON, err := json.Marshal(doc.Metadata())
-		if err != nil {
+	if err != nil {
 		return fmt.Errorf("marshaling metadata: %w", err)
 	}
 

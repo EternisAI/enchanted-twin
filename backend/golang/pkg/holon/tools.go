@@ -124,7 +124,6 @@ func (t *ThreadPreviewTool) Definition() openai.ChatCompletionToolParam {
 	}
 }
 
-
 type SendToHolonTool struct {
 	Service *Service
 }
@@ -134,7 +133,6 @@ func NewSendToHolonTool(service *Service) *SendToHolonTool {
 		Service: service,
 	}
 }
-
 
 func (t *SendToHolonTool) Definition() openai.ChatCompletionToolParam {
 	return openai.ChatCompletionToolParam{
@@ -177,7 +175,6 @@ func (t *SendToHolonTool) Definition() openai.ChatCompletionToolParam {
 		},
 	}
 }
-
 
 func (t *SendToHolonTool) Execute(ctx context.Context, inputs map[string]any) (agenttypes.ToolResult, error) {
 	previewID, ok := inputs["id"].(string)

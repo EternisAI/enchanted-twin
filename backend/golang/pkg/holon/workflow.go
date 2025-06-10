@@ -7,7 +7,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-// HolonSyncWorkflow orchestrates the periodic synchronization with HolonZero API
+// HolonSyncWorkflow orchestrates the periodic synchronization with HolonZero API.
 func HolonSyncWorkflow(
 	ctx workflow.Context,
 	input HolonSyncWorkflowInput,
