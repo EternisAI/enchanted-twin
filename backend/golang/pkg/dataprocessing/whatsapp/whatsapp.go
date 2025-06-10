@@ -38,7 +38,7 @@ func min(a, b int) int {
 	return b
 }
 
-// decodeJID attempts to decode a JID that might be base64 encoded or compressed
+// decodeJID attempts to decode a JID that might be base64 encoded or compressed.
 func decodeJID(jid string) string {
 	if jid == "" {
 		return ""
@@ -91,7 +91,7 @@ func decodeJID(jid string) string {
 	return jid
 }
 
-// isPrintableString checks if a string contains only printable characters
+// isPrintableString checks if a string contains only printable characters.
 func isPrintableString(s string) bool {
 	for _, r := range s {
 		if r < 32 || r > 126 {
@@ -103,7 +103,7 @@ func isPrintableString(s string) bool {
 
 // extractSenderFromJID extracts the sender name from a WhatsApp JID
 // For group messages, JID format is typically: phoneNumber@s.whatsapp.net
-// For messages within groups, it might be: groupJID/senderPhoneNumber@s.whatsapp.net
+// For messages within groups, it might be: groupJID/senderPhoneNumber@s.whatsapp.net.
 func extractSenderFromJID(jid string) string {
 	if jid == "" {
 		return ""
@@ -134,7 +134,7 @@ func extractSenderFromJID(jid string) string {
 	return jid
 }
 
-// loadContactNames loads a mapping of JIDs to contact names from the WhatsApp database
+// loadContactNames loads a mapping of JIDs to contact names from the WhatsApp database.
 func (s *WhatsappProcessor) loadContactNames(ctx context.Context, db *sql.DB) (map[string]string, error) {
 	contactMap := make(map[string]string)
 
@@ -189,7 +189,7 @@ func (s *WhatsappProcessor) loadContactNames(ctx context.Context, db *sql.DB) (m
 			}
 			count++
 		}
-		rows.Close()
+		_ = rows.Close()
 		s.logger.Debug("Loaded contacts from query", "queryName", q.name, "count", count)
 	}
 
@@ -234,7 +234,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 				availableColumns[colName] = true
 			}
 		}
-		rows.Close()
+		_ = rows.Close()
 	}
 
 	// Build query with proper JOIN to get group member information
@@ -861,7 +861,7 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 }
 
 // extractJIDFromBytes attempts to extract a JID from byte data
-// iOS WhatsApp stores JIDs as NSData BLOBs with specific encoding
+// iOS WhatsApp stores JIDs as NSData BLOBs with specific encoding.
 func extractJIDFromBytes(data []byte) string {
 	if len(data) == 0 {
 		return ""
