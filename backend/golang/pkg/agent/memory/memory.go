@@ -620,6 +620,7 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 type MemoryFact struct {
 	ID        string            `json:"id"`
 	Content   string            `json:"content"`
+	Subject   string            `json:"subject,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 	Source    string            `json:"source"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
