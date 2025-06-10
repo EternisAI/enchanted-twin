@@ -86,7 +86,7 @@ func newDeterministicAIService(logger *log.Logger, apiKey, baseURL string) *dete
 	}
 }
 
-func setupSharedInfrastructure() {
+func setupSharedInfrastructure(config testConfig) {
 	setupOnce.Do(func() {
 		var err error
 
@@ -126,8 +126,8 @@ func setupSharedInfrastructure() {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
 		}
 
-		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), "https://api.openai.com/v1")
-		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, "text-embedding-3-small")
+		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
+		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, config.EmbeddingsModel)
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}
@@ -186,11 +186,10 @@ func clearWeaviateData(t *testing.T) {
 func setupTestEnvironment(t *testing.T) *testEnvironment {
 	t.Helper()
 
-	setupSharedInfrastructure()
+	config := getTestConfig(t)
+	setupSharedInfrastructure(config)
 
 	clearWeaviateData(t)
-
-	config := getTestConfig(t)
 
 	testTimeout := 60 * time.Minute
 	if localTestTimeout := os.Getenv("LOCAL_MODEL_TEST_TIMEOUT"); localTestTimeout != "" {
@@ -210,9 +209,6 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 	require.NoError(t, err)
 
 	completionsModel := config.CompletionsModel
-	if completionsModel == "" {
-		completionsModel = "gpt-4o-mini"
-	}
 
 	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
 	aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
@@ -461,7 +457,6 @@ func getTestConfig(t *testing.T) testConfig {
 	}
 
 	completionsApiKey := os.Getenv("COMPLETIONS_API_KEY")
-
 	if completionsApiKey == "" {
 		t.Fatalf("No completions API key found (set COMPLETIONS_API_KEY or TEST_COMPLETIONS_API_KEY)")
 	}
@@ -470,9 +465,25 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Fatalf("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
-	completionsModel := "gpt-4o-mini"
+	completionsModel := os.Getenv("COMPLETIONS_MODEL")
+	if completionsModel == "" {
+		completionsModel = "gpt-4o-mini"
+	}
 
-	embeddingsModel := "text-embedding-3-small"
+	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+	if embeddingsModel == "" {
+		embeddingsModel = "text-embedding-3-small"
+	}
+
+	completionsApiUrl := os.Getenv("COMPLETIONS_API_URL")
+	if completionsApiUrl == "" {
+		completionsApiUrl = "https://openrouter.ai/api/v1"
+	}
+
+	embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
+	if embeddingsApiUrl == "" {
+		embeddingsApiUrl = "https://api.openai.com/v1"
+	}
 
 	return testConfig{
 		Source:            source,
@@ -480,10 +491,10 @@ func getTestConfig(t *testing.T) testConfig {
 		OutputPath:        outputPath,
 		CompletionsModel:  completionsModel,
 		CompletionsApiKey: completionsApiKey,
-		CompletionsApiUrl: "https://openrouter.ai/api/v1",
+		CompletionsApiUrl: completionsApiUrl,
 		EmbeddingsModel:   embeddingsModel,
 		EmbeddingsApiKey:  embeddingsApiKey,
-		EmbeddingsApiUrl:  "https://api.openai.com/v1",
+		EmbeddingsApiUrl:  embeddingsApiUrl,
 	}
 }
 
@@ -1250,8 +1261,6 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	setupSharedInfrastructure()
-
 	code := m.Run()
 
 	teardownSharedInfrastructure()
