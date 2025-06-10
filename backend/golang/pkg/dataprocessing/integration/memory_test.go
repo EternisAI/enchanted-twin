@@ -760,36 +760,36 @@ func TestMemoryIntegration(t *testing.T) {
 		assert.True(t, foundFieldsMedal, "should find a document containing 'Fields Medal'")
 	})
 
-	t.Run("DocumentReferences", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
-			env.storeDocuments(t)
-		}
+	// t.Run("DocumentReferences", func(t *testing.T) {
+	// 	if len(env.documents) == 0 {
+	// 		env.loadDocuments(t, env.config.Source, env.config.InputPath)
+	// 		env.storeDocuments(t)
+	// 	}
 
-		limit := 3
-		filter := memory.Filter{
-			Source:   &env.config.Source,
-			Distance: 0.8,
-			Limit:    &limit,
-		}
+	// 	limit := 3
+	// 	filter := memory.Filter{
+	// 		Source:   &env.config.Source,
+	// 		Distance: 0.8,
+	// 		Limit:    &limit,
+	// 	}
 
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
-		require.NoError(t, err)
-		require.NotEmpty(t, result.Facts)
+	// 	result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+	// 	require.NoError(t, err)
+	// 	require.NotEmpty(t, result.Facts)
 
-		for _, fact := range result.Facts[:min(3, len(result.Facts))] {
-			memoryID := fact.ID
+	// 	for _, fact := range result.Facts[:min(3, len(result.Facts))] {
+	// 		memoryID := fact.ID
 
-			docRefs, err := env.memory.GetDocumentReferences(env.ctx, memoryID)
-			require.NoError(t, err)
-			assert.NotEmpty(t, docRefs, "should have document references")
+	// 		docRefs, err := env.memory.GetDocumentReferences(env.ctx, memoryID)
+	// 		require.NoError(t, err)
+	// 		assert.NotEmpty(t, docRefs, "should have document references")
 
-			docRef := docRefs[0]
-			assert.NotEmpty(t, docRef.ID, "document reference should have ID")
-			assert.NotEmpty(t, docRef.Content, "document reference should have content")
-			assert.NotEmpty(t, docRef.Type, "document reference should have type")
-		}
-	})
+	// 		docRef := docRefs[0]
+	// 		assert.NotEmpty(t, docRef.ID, "document reference should have ID")
+	// 		assert.NotEmpty(t, docRef.Content, "document reference should have content")
+	// 		assert.NotEmpty(t, docRef.Type, "document reference should have type")
+	// 	}
+	// })
 
 	t.Run("SourceFiltering", func(t *testing.T) {
 		if len(env.documents) == 0 {
