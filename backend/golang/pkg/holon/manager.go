@@ -151,13 +151,14 @@ func (m *Manager) setupTemporalSchedule() error {
 		return fmt.Errorf("temporal client is not available")
 	}
 
-	return helpers.CreateScheduleIfNotExists(
+	return helpers.CreateOrUpdateSchedule(
 		m.logger,
 		m.temporalClient,
 		m.config.ScheduleID,
 		m.config.FetchInterval,
 		HolonSyncWorkflow,
 		[]any{HolonSyncWorkflowInput{ForceSync: false}},
+		true, // Override if different settings
 	)
 }
 
@@ -246,6 +247,35 @@ func (m *Manager) UpdateSyncInterval(interval time.Duration) error {
 			}, nil
 		},
 	})
+}
+
+// RecreateHolonSyncSchedule deletes and recreates the holon sync schedule with updated settings
+func (m *Manager) RecreateHolonSyncSchedule() error {
+	if !m.scheduleEnabled || m.temporalClient == nil {
+		return fmt.Errorf("temporal schedule is not enabled")
+	}
+
+	ctx := context.Background()
+	scheduleHandle := m.temporalClient.ScheduleClient().GetHandle(ctx, m.config.ScheduleID)
+
+	// Check if schedule exists
+	_, err := scheduleHandle.Describe(ctx)
+	if err == nil {
+		// Schedule exists, delete it first
+		m.logger.Debug("Deleting existing holon sync schedule", "scheduleID", m.config.ScheduleID)
+		err = scheduleHandle.Delete(ctx)
+		if err != nil {
+			return fmt.Errorf("failed to delete existing schedule: %w", err)
+		}
+		m.logger.Debug("Existing schedule deleted successfully")
+	}
+
+	// Create new schedule with updated settings
+	m.logger.Debug("Creating new holon sync schedule with updated settings",
+		"scheduleID", m.config.ScheduleID,
+		"interval", m.config.FetchInterval)
+
+	return m.setupTemporalSchedule()
 }
 
 // GetSyncStatus returns the current sync status and statistics
