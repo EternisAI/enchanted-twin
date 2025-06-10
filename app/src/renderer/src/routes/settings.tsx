@@ -1,10 +1,11 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { createFileRoute, Outlet, Navigate } from '@tanstack/react-router'
 import { Button } from '@renderer/components/ui/button'
 import { ArrowLeft } from 'lucide-react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-react'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
+import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsLayout
@@ -54,8 +55,7 @@ function SettingsLayout() {
 
   // Default to appearance tab if on base settings route
   if (location.pathname === '/settings') {
-    window.location.href = '#/settings/appearance'
-    return null
+    return <Navigate to={DEFAULT_SETTINGS_ROUTE} />
   }
 
   return (

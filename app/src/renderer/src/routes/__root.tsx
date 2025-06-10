@@ -20,6 +20,7 @@ import {
   TooltipTrigger
 } from '@renderer/components/ui/tooltip'
 import { useSidebarStore } from '@renderer/lib/stores/sidebar'
+import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
 
 function RootComponent() {
   const omnibar = useOmnibarStore()
@@ -37,7 +38,7 @@ function RootComponent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
-        navigate({ to: '/settings/appearance' })
+        navigate({ to: DEFAULT_SETTINGS_ROUTE })
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
@@ -55,7 +56,7 @@ function RootComponent() {
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    window.api.onOpenSettings(() => navigate({ to: '/settings/appearance' }))
+    window.api.onOpenSettings(() => navigate({ to: DEFAULT_SETTINGS_ROUTE }))
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }

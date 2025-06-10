@@ -286,7 +286,6 @@ export function DataSourcesPanel({
 }: Omit<DataSourcesPanelProps, 'indexingStatus'> & { onIndexingComplete?: () => void }) {
   const { data, refetch } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
-  console.log('indexingData', indexingData)
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null)
