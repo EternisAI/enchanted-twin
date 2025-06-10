@@ -166,7 +166,7 @@ export default function InvitationGate({ children }: { children: React.ReactNode
           />
           <Button
             type="submit"
-            className="w-fit px-8 bg-white text-black"
+            className="w-fit px-8 bg-white text-black hover:bg-white/60"
             disabled={isSubmitting || !inviteCode.trim()}
           >
             {isSubmitting ? (
