@@ -263,7 +263,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	}
 
 	log.Printf("Normalized JSON length: %d", len(content))
-	log.Printf("Normalized JSON preview: %s", content[:min(500, len(content))])
+	log.Printf("User prompt %s", content[:min(500, len(content))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
@@ -480,16 +480,17 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 
 // addDocumentMetadata adds all the metadata, timestamps, and speaker info. Pure function.
 func addDocumentMetadata(doc memory.Document, docType DocumentType, currentTime time.Time) PreparedDocument {
+	// Use document timestamp as primary source
+	timestamp := currentTime
+	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
+		timestamp = *ts
+	}
+
 	prep := PreparedDocument{
 		Original:   doc,
 		Type:       docType,
-		Timestamp:  currentTime,
+		Timestamp:  timestamp,
 		DateString: getCurrentDateForPrompt(),
-	}
-
-	// Override timestamp if document provides one
-	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
-		prep.Timestamp = *ts
 	}
 
 	return prep

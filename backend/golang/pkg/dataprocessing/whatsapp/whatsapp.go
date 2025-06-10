@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -36,6 +37,222 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// convertWhatsAppTimestamp tries multiple timestamp conversion strategies.
+func convertWhatsAppTimestamp(rawTimestamp interface{}) time.Time {
+	var timestampFloat float64
+
+	switch v := rawTimestamp.(type) {
+	case int64:
+		timestampFloat = float64(v)
+	case float64:
+		timestampFloat = v
+	case int:
+		timestampFloat = float64(v)
+	default:
+		return time.Time{} // Invalid type
+	}
+
+	// If the timestamp is 0 or negative, it's invalid
+	if timestampFloat <= 0 {
+		return time.Time{}
+	}
+
+	// More permissive date range - allow any reasonable date
+	minDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	maxDate := time.Now().Add(365 * 24 * time.Hour) // Allow up to 1 year in the future
+
+	// Strategy 1: Try Unix timestamp in seconds (most common)
+	if timestampFloat > 946684800 && timestampFloat < 4102444800 { // Between 2000 and 2100
+		unixResult := time.Unix(int64(timestampFloat), 0)
+		if unixResult.After(minDate) && unixResult.Before(maxDate) {
+			return unixResult
+		}
+	}
+
+	// Strategy 2: Try Unix timestamp in milliseconds
+	if timestampFloat > 946684800000 && timestampFloat < 4102444800000 { // Between 2000 and 2100 in milliseconds
+		unixMillisResult := time.Unix(int64(timestampFloat/1000), int64(timestampFloat)%1000*1000000)
+		if unixMillisResult.After(minDate) && unixMillisResult.Before(maxDate) {
+			return unixMillisResult
+		}
+	}
+
+	// Strategy 3: Try Core Data timestamp (seconds since 2001-01-01) - more permissive
+	if timestampFloat > 0 && timestampFloat < 3155760000 { // Up to year 2100
+		referenceDate := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+		coreDataResult := referenceDate.Add(time.Duration(timestampFloat) * time.Second)
+		if coreDataResult.After(minDate) && coreDataResult.Before(maxDate) {
+			return coreDataResult
+		}
+	}
+
+	// Strategy 4: Try Mac Cocoa timestamp - even more permissive
+	if timestampFloat > -978307200 && timestampFloat < 3155760000 { // Allow negative values for dates before 2001
+		cocoaResult := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(timestampFloat) * time.Second)
+		// Only check if it's not too far in the past or future
+		veryMinDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
+		if cocoaResult.After(veryMinDate) && cocoaResult.Before(maxDate) {
+			return cocoaResult
+		}
+	}
+
+	// Strategy 5: If all else fails, try to make something reasonable from the timestamp
+	// This is a last resort to avoid losing messages
+	if timestampFloat > 0 {
+		// Try different epoch interpretations
+		epochs := []time.Time{
+			time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC), // Mac/Core Data epoch
+			time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC), // Unix epoch
+			time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC), // Some systems use 1900
+		}
+
+		for _, epoch := range epochs {
+			result := epoch.Add(time.Duration(timestampFloat) * time.Second)
+			if result.After(minDate) && result.Before(maxDate) {
+				return result
+			}
+		}
+	}
+
+	// If we get here, log the problematic timestamp for debugging
+	// Note: We can't use logger here since this is a standalone function
+	// The calling code will log the failure
+
+	return time.Time{} // All strategies failed
+}
+
+// validateAndFixTimestamp validates and potentially corrects time.Time values from the database.
+func validateAndFixTimestamp(t time.Time) time.Time {
+	// If the timestamp is zero, return it as-is
+	if t.IsZero() {
+		return t
+	}
+
+	// Define reasonable date ranges for WhatsApp messages
+	minDate := time.Date(2009, 1, 1, 0, 0, 0, 0, time.UTC) // WhatsApp founded in 2009
+	maxDate := time.Now().Add(24 * time.Hour)              // Allow up to 1 day in the future
+
+	// If the timestamp is within reasonable range, use it as-is
+	if t.After(minDate) && t.Before(maxDate) {
+		return t
+	}
+
+	// If the timestamp is way too old (like 1993), it's likely a database artifact
+	// These seem to be Core Data timestamps that weren't converted properly
+	if t.Year() < 2000 {
+		// Try to interpret the timestamp as seconds since the Core Data epoch
+		// Core Data epoch is 2001-01-01 00:00:00 UTC
+		coreDataEpoch := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		// Calculate seconds since Unix epoch for the given timestamp
+		secondsSinceUnixEpoch := t.Unix()
+
+		// Try interpreting as seconds since Core Data epoch
+		correctedTime := coreDataEpoch.Add(time.Duration(secondsSinceUnixEpoch) * time.Second)
+		if correctedTime.After(minDate) && correctedTime.Before(maxDate) {
+			return correctedTime
+		}
+
+		// Try interpreting the timestamp components differently
+		// Sometimes the year/month/day are stored incorrectly but time components are valid
+		now := time.Now()
+
+		// Try using today's date with the time component
+		todayWithTime := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+		if todayWithTime.Before(maxDate) {
+			// Use a date from a few years ago to make it historical
+			historicalDate := todayWithTime.AddDate(-2, 0, 0)
+			return historicalDate
+		}
+	}
+
+	// If the timestamp is too far in the future, cap it to now
+	if t.After(maxDate) {
+		return time.Now()
+	}
+
+	// If all else fails, return zero time to trigger fallback logic
+	return time.Time{}
+}
+
+// isWhatsAppJID checks if a string looks like a WhatsApp JID.
+func isWhatsAppJID(text string) bool {
+	// Check for patterns like "16672940017@s.whatsapp.net" or just phone numbers followed by @
+	whatsappJIDPattern := regexp.MustCompile(`^\d{10,15}@s\.whatsapp\.net$`)
+	phoneAtPattern := regexp.MustCompile(`^\d{10,15}@`)
+
+	return whatsappJIDPattern.MatchString(text) || phoneAtPattern.MatchString(text)
+}
+
+// shouldFilterMessage determines if a message should be filtered out.
+func shouldFilterMessage(text, groupName string) bool {
+	text = strings.TrimSpace(text)
+
+	// Filter empty messages
+	if text == "" {
+		return true
+	}
+
+	// Filter WhatsApp JIDs
+	if isWhatsAppJID(text) {
+		return true
+	}
+
+	// Filter group names appearing as content
+	if groupName != "" && text == groupName {
+		return true
+	}
+
+	// Filter messages that are just phone numbers
+	phonePattern := regexp.MustCompile(`^\d{10,15}$`)
+	return phonePattern.MatchString(text)
+}
+
+// resolveTagsInMessage resolves @mentions in message content.
+func resolveTagsInMessage(content string, contactNames map[string]string, participantsMap map[string]bool) string {
+	// Pattern to match @mentions like @15083108164
+	mentionPattern := regexp.MustCompile(`@(\d{10,15})`)
+
+	return mentionPattern.ReplaceAllStringFunc(content, func(match string) string {
+		// Extract the phone number from the mention
+		phoneNumber := strings.TrimPrefix(match, "@")
+
+		// Try to resolve to contact name
+		if contactName, exists := contactNames[phoneNumber]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+			return "@" + contactName
+		}
+
+		// Try with full JID format
+		fullJID := phoneNumber + "@s.whatsapp.net"
+		if contactName, exists := contactNames[fullJID]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+			return "@" + contactName
+		}
+
+		// Try to find in participants map by checking if any participant contains this phone number
+		for participant := range participantsMap {
+			// Skip "me" and other non-phone participants
+			if participant == "me" || participant == "unknown" {
+				continue
+			}
+
+			// Check if participant name contains the phone number or vice versa
+			if strings.Contains(participant, phoneNumber) || strings.Contains(phoneNumber, participant) {
+				return "@" + participant
+			}
+		}
+
+		// Try reverse lookup - check if any contact name maps to this phone number
+		for jid, name := range contactNames {
+			if strings.Contains(jid, phoneNumber) && name != "" && !strings.Contains(name, "=") {
+				return "@" + name
+			}
+		}
+
+		// Return original if no resolution found
+		return match
+	})
 }
 
 // decodeJID attempts to decode a JID that might be base64 encoded or compressed.
@@ -331,19 +548,48 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 			switch col {
 			case "ZMESSAGEDATE", "ZSENTDATE":
 				if v, ok := val.(int64); ok {
-					t := time.Unix(v, 0)
+					t := convertWhatsAppTimestamp(v)
 					data[simplifiedKey] = t
 					if col == "ZMESSAGEDATE" {
 						timestamp = t
+						// Debug logging for timestamp conversion
+						if t.IsZero() {
+							s.logger.Warn("Failed to convert timestamp", "column", col, "rawValue", v, "type", "int64")
+						} else {
+							s.logger.Debug("Timestamp conversion success", "column", col, "rawValue", v, "convertedTime", t.Format(time.RFC3339))
+						}
 					}
 				} else if v, ok := val.(float64); ok {
-					t := time.Unix(int64(v), 0)
+					t := convertWhatsAppTimestamp(v)
 					data[simplifiedKey] = t
 					if col == "ZMESSAGEDATE" {
 						timestamp = t
+						// Debug logging for timestamp conversion
+						if t.IsZero() {
+							s.logger.Warn("Failed to convert timestamp", "column", col, "rawValue", v, "type", "float64")
+						} else {
+							s.logger.Debug("Timestamp conversion success", "column", col, "rawValue", v, "convertedTime", t.Format(time.RFC3339))
+						}
+					}
+				} else if v, ok := val.(time.Time); ok {
+					// Handle time.Time values directly from database
+					t := validateAndFixTimestamp(v)
+					data[simplifiedKey] = t
+					if col == "ZMESSAGEDATE" {
+						timestamp = t
+						// Debug logging for timestamp validation
+						if t.IsZero() {
+							s.logger.Warn("Invalid time.Time timestamp", "column", col, "rawValue", v.Format(time.RFC3339))
+						} else if !t.Equal(v) {
+							s.logger.Debug("Timestamp corrected", "column", col, "originalTime", v.Format(time.RFC3339), "correctedTime", t.Format(time.RFC3339))
+						} else {
+							s.logger.Debug("Timestamp validation success", "column", col, "time", t.Format(time.RFC3339))
+						}
 					}
 				} else {
 					data[simplifiedKey] = val
+					// Debug logging for unexpected timestamp types
+					s.logger.Warn("Unexpected timestamp type", "column", col, "type", fmt.Sprintf("%T", val), "value", val)
 				}
 			case "ZFROMJID", "ZTOJID", "ZCONTACTJID", "ZGROUPMEMBERJID", "ZPARTICIPANTJID", "GROUPMEMBERJID":
 				// Handle JID fields specially - they might be stored as BLOB or encoded
@@ -393,11 +639,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 			}
 		}
 
-		if timestamp.IsZero() {
-			timestamp = time.Now()
-		}
-
-		// Extract message details
+		// Extract message details first
 		text, _ := data["text"].(string)
 		if strings.TrimSpace(text) == "" {
 			continue
@@ -420,6 +662,33 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 			chatSession = v
 		default:
 			continue
+		}
+
+		// Now validate timestamp after we have text and chatSession
+		if timestamp.IsZero() {
+			// Instead of defaulting to current time, log the issue and try fallback
+			// or try to use ZSENTDATE as fallback
+			if sentDate, exists := data["sentdate"]; exists {
+				switch v := sentDate.(type) {
+				case time.Time:
+					if !v.IsZero() {
+						timestamp = v
+						s.logger.Debug("Using sentdate as fallback timestamp", "text", text[:min(50, len(text))])
+					}
+				}
+			}
+
+			// If still zero, use a reasonable fallback instead of skipping
+			if timestamp.IsZero() {
+				// Use a timestamp from a few years ago as fallback instead of current time
+				// This preserves the message but puts it in a reasonable historical timeframe
+				fallbackTime := time.Now().AddDate(-2, 0, 0) // 2 years ago
+				timestamp = fallbackTime
+				s.logger.Warn("Using fallback timestamp for message with invalid timestamp",
+					"text", text[:min(50, len(text))],
+					"chatSession", chatSession,
+					"fallbackTime", fallbackTime.Format(time.RFC3339))
+			}
 		}
 
 		isFromMeInterface, ok := data["isfromme"]
@@ -471,6 +740,12 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 		groupMemberJID = decodeJID(groupMemberJID)
 		participantJID = decodeJID(participantJID)
 
+		// Check if this message should be filtered out
+		if shouldFilterMessage(text, partnerName) {
+			s.logger.Debug("Filtering out message", "text", text, "groupName", partnerName)
+			continue
+		}
+
 		// For group messages, the actual sender might be in groupMemberJID
 		actualSenderJID := fromJID
 		isGroupChat := strings.Contains(contactJID, "@g.us") || strings.Contains(fromJID, "@g.us")
@@ -488,6 +763,15 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 		// Debug logging for problematic JIDs
 		if actualSenderJID != "" && (strings.Contains(actualSenderJID, "=") || len(actualSenderJID) < 10) && actualSenderJID != fromJID {
 			s.logger.Debug("Suspicious sender JID after decode", "senderJID", actualSenderJID, "pushName", pushName, "groupMemberName", groupMemberName, "isFromMe", isFromMe, "text", text[:min(50, len(text))])
+		}
+
+		// Resolve @mentions in the message text
+		if participantsMap[chatSession] != nil {
+			text = resolveTagsInMessage(text, contactNames, participantsMap[chatSession])
+		} else {
+			// Create a temporary participants map for tag resolution
+			tempParticipants := make(map[string]bool)
+			text = resolveTagsInMessage(text, contactNames, tempParticipants)
 		}
 
 		msg := Message{
@@ -603,8 +887,14 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 		}
 
 		// Build conversation messages array
-		conversationMessages := make([]map[string]interface{}, len(messages))
-		for i, msg := range messages {
+		conversationMessages := make([]map[string]interface{}, 0, len(messages))
+		for _, msg := range messages {
+			// Apply additional filtering at conversation level
+			if shouldFilterMessage(msg.Text, groupName) {
+				s.logger.Debug("Filtering message at conversation level", "text", msg.Text, "groupName", groupName)
+				continue
+			}
+
 			speaker := "unknown"
 			if msg.IsFromMe {
 				speaker = "me"
@@ -677,11 +967,14 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 				}
 			}
 
-			conversationMessages[i] = map[string]interface{}{
+			// Apply final tag resolution with current participants
+			finalContent := resolveTagsInMessage(msg.Text, contactNames, participantsMap[chatSession])
+
+			conversationMessages = append(conversationMessages, map[string]interface{}{
 				"speaker": speaker,
-				"content": msg.Text,
+				"content": finalContent,
 				"time":    msg.Timestamp,
-			}
+			})
 		}
 
 		// Get participants
@@ -851,12 +1144,9 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 
 	s.logger.Info("Converted to documents", "documents", len(conversationDocuments))
 	var documents []memory.Document
-	for _, conversation := range conversationDocuments {
-		if len(conversation.Conversation) > 0 {
-			documents = append(documents, &conversation)
-		}
+	for _, conversationDoc := range conversationDocuments {
+		documents = append(documents, &conversationDoc)
 	}
-
 	return documents, nil
 }
 
