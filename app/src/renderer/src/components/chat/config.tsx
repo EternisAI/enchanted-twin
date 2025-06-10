@@ -13,6 +13,7 @@ export type ToolName =
   | 'schedule_task'
   | 'preview_thread'
   | 'send_to_holon'
+  | 'add_message_to_thread'
 
 export const TOOL_CONFIG: Record<
   ToolName,
@@ -70,6 +71,10 @@ export const TOOL_CONFIG: Record<
     inProgress: 'Sending to Holon',
     completed: 'Holon Generated',
     component: HolonCreatedComponent
+  },
+  add_message_to_thread: {
+    inProgress: 'Adding message to thread',
+    completed: 'Message added to thread'
   }
 }
 

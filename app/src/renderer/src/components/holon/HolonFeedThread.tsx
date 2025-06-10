@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { formatDistanceToNow } from 'date-fns'
 import { Eye, Maximize2 } from 'lucide-react'
 import { useNavigate } from '@tanstack/react-router'
@@ -5,6 +6,8 @@ import { useNavigate } from '@tanstack/react-router'
 import { Thread } from '@renderer/graphql/generated/graphql'
 import { Button } from '../ui/button'
 import { cn } from '@renderer/lib/utils'
+
+const USER_ALIAS = ['primaryUser', 'local-user']
 
 export default function HolonFeedItem({
   thread,
@@ -20,6 +23,12 @@ export default function HolonFeedItem({
     navigate({ to: '/holon/$threadId', params: { threadId: thread.id } })
   }
 
+  const authorName = useMemo(() => {
+    const authorName = thread.author.alias || thread.author.identity
+    if (USER_ALIAS.includes(authorName)) return 'You'
+    return authorName
+  }, [thread.author])
+
   return (
     <div
       key={thread.id}
@@ -32,7 +41,7 @@ export default function HolonFeedItem({
         <div className="flex flex-col ">
           <h3 className="font-semibold text-foreground text-lg">{thread.title}</h3>
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="font-semibold">{thread.author.alias || thread.author.identity}</span>
+            <span className="font-semibold">{authorName}</span>
             <span>•</span>
             <span>{formatDistanceToNow(new Date(thread.createdAt), { addSuffix: true })}</span>
           </div>

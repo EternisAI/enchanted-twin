@@ -1,5 +1,10 @@
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
-import { Chat, DeleteChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
+import {
+  Chat,
+  ChatCategory,
+  DeleteChatDocument,
+  GetChatsDocument
+} from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
 import {
   AlertDialog,
@@ -312,12 +317,10 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         to="/chat/$chatId"
         params={{ chatId: chat.id }}
         search={(() => {
-          //@TODO: Remove this once backend has full tool support
-          const holonMatch = chat.name?.match(/^holon-(.+)$/)
-          return holonMatch ? { threadId: holonMatch[1] } : undefined
+          return chat.holonThreadId ? { threadId: chat.holonThreadId } : undefined
         })()}
         onClick={() => {
-          setVoiceMode(chat.voice)
+          setVoiceMode(chat.category === ChatCategory.Voice)
           window.api.analytics.capture('open_chat', {
             method: 'ui'
           })

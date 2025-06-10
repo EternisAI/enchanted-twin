@@ -140,7 +140,7 @@ export default function HolonThreadPreview({
               variant="default"
               size="sm"
               onClick={() => {
-                sendMessage('Send to Holon', false, false)
+                sendMessage('Good to go! Send to Holon Network', false, false)
               }}
             >
               Send To Holon
