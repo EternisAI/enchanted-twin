@@ -2,34 +2,35 @@ import { useSubscription } from '@apollo/client'
 import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from './ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
-import { useSettingsStore } from '@renderer/lib/stores/settings'
+import { useNavigate } from '@tanstack/react-router'
 
 export function GlobalIndexingStatus() {
   const { data: indexingData } = useSubscription(IndexingStatusDocument)
-  const { open, setActiveTab } = useSettingsStore()
+  const navigate = useNavigate()
 
   // Workflow states
   const isIndexing = indexingData?.indexingStatus?.status === IndexingState.IndexingData
   const isProcessing = indexingData?.indexingStatus?.status === IndexingState.ProcessingData
   const isNotStarted = indexingData?.indexingStatus?.status === IndexingState.NotStarted
-  const hasUnprocessedSources = indexingData?.indexingStatus?.dataSources?.some(
-    (source) => !source.isIndexed || source.hasError
-  )
+  const isDownloadingModel = indexingData?.indexingStatus?.status === IndexingState.DownloadingModel
+
+  // Check if there's any active indexing operation
+  const hasActiveOperation = isIndexing || isProcessing || isNotStarted || isDownloadingModel
 
   const handleClick = () => {
-    setActiveTab('import-data')
-    open()
+    navigate({ to: '/settings' })
   }
 
-  if (!isIndexing && !isProcessing && !isNotStarted && !hasUnprocessedSources) {
+  // Only show if there's an active indexing operation
+  if (!hasActiveOperation) {
     return null
   }
 
   const getStatusText = () => {
     if (isIndexing) return 'Indexing...'
     if (isProcessing) return 'Processing...'
+    if (isDownloadingModel) return 'Downloading model...'
     if (isNotStarted) return 'Starting...'
-    if (hasUnprocessedSources) return 'Pending sources'
     return ''
   }
 
