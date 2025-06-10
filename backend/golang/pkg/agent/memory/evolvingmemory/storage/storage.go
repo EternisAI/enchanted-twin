@@ -18,10 +18,11 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 const (
-	ClassName         = "TextDocument"
+	ClassName         = "MemoryFact"
 	DocumentClassName = "SourceDocument" // New separate class for documents
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
@@ -379,7 +380,6 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 	s.logger.Infof("Creating schema for class %s", ClassName)
 
-	indexFilterable := true
 	classObj := &models.Class{
 		Class:       ClassName,
 		Description: "A memory entry in the evolving memory system with structured facts",
@@ -390,9 +390,10 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Description: "The content of the memory (deprecated: now derived from structured fact)",
 			},
 			{
-				Name:        timestampProperty,
-				DataType:    []string{"date"},
-				Description: "When this memory was created or last updated",
+				Name:              timestampProperty,
+				DataType:          []string{"date"},
+				Description:       "When this memory was created or last updated",
+				IndexRangeFilters: helpers.Ptr(true),
 			},
 			{
 				Name:        metadataProperty,
@@ -400,41 +401,54 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Description: "JSON-encoded metadata for the memory (legacy)",
 			},
 			{
-				Name:        sourceProperty,
-				DataType:    []string{"text"},
-				Description: "Source of the memory document",
+				Name:            sourceProperty,
+				DataType:        []string{"text"},
+				Description:     "Source of the memory document",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
-				Name:        speakerProperty,
-				DataType:    []string{"text"},
-				Description: "Speaker/contact ID for the memory",
+				Name:            speakerProperty,
+				DataType:        []string{"text"},
+				Description:     "Speaker/contact ID for the memory",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
-				Name:        tagsProperty,
-				DataType:    []string{"text[]"},
-				Description: "Tags associated with the memory",
+				Name:            tagsProperty,
+				DataType:        []string{"text[]"},
+				Description:     "Tags associated with the memory",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
 				Name:            documentReferencesProperty,
 				DataType:        []string{"text[]"},
 				Description:     "Array of document IDs that generated this memory",
-				IndexFilterable: &indexFilterable,
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			// Structured fact properties
 			{
-				Name:        factCategoryProperty,
-				DataType:    []string{"text"},
-				Description: "Category of the structured fact (e.g., preference, health, etc.)",
+				Name:            factCategoryProperty,
+				DataType:        []string{"text"},
+				Description:     "Category of the structured fact (e.g., preference, health, etc.)",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
-				Name:        factSubjectProperty,
-				DataType:    []string{"text"},
-				Description: "Subject of the fact (typically 'user' or specific entity name)",
+				Name:            factSubjectProperty,
+				DataType:        []string{"text"},
+				Description:     "Subject of the fact (typically 'user' or specific entity name)",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
-				Name:        factAttributeProperty,
-				DataType:    []string{"text"},
-				Description: "Specific property or attribute being described",
+				Name:            factAttributeProperty,
+				DataType:        []string{"text"},
+				Description:     "Specific property or attribute being described",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
 				Name:        factValueProperty,
@@ -452,9 +466,10 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Description: "Sensitivity level of the fact (high, medium, low)",
 			},
 			{
-				Name:        factImportanceProperty,
-				DataType:    []string{"int"},
-				Description: "Importance score of the fact (1-3)",
+				Name:            factImportanceProperty,
+				DataType:        []string{"int"},
+				Description:     "Importance score of the fact (1-3)",
+				IndexFilterable: helpers.Ptr(true),
 			},
 		},
 		Vectorizer: "none",
