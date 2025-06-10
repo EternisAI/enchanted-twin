@@ -141,7 +141,7 @@ func (t *SendToHolonTool) Definition() openai.ChatCompletionToolParam {
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
 			Name:        "send_to_holon",
-			Description: param.NewOpt("Publish a previewed thread to a holon network. This will make the thread live and visible to other holon members. CRITICAL: Only call this tool when the user has explicitly confirmed they want to publish the preview. Look for confirmation phrases like 'yes', 'publish it', 'looks good', 'send it', 'go ahead', or similar. Do NOT call this tool unless the user has clearly indicated they approve of the preview."),
+			Description: param.NewOpt("Publish a previewed thread to a holon network. This will make the thread live and visible to other holon members. CRITICAL: Only call this tool when the user has explicitly confirmed they want to publish the preview. Look for confirmation phrases like 'yes', 'good to go', 'publish it', 'looks good', 'send it', 'go ahead', or similar. Do NOT call this tool unless the user has clearly indicated they approve of the preview. If preview tool is already called, do not call this tool again."),
 			Parameters: openai.FunctionParameters{
 				"type": "object",
 				"properties": map[string]any{
