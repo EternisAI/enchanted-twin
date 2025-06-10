@@ -181,7 +181,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				DataSourceName: dataSourceDB.Name,
 				ProcessedPath:  *dataSourceDB.ProcessedPath,
 				BatchIndex:     batchIndex,
-				BatchSize:      20,
+				BatchSize:      1,
 				TotalBatches:   getBatchesResponse.TotalBatches,
 			}
 
@@ -451,6 +451,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 	if err != nil {
 		return IndexBatchActivityResponse{}, err
 	}
+	w.Logger.Info("Read records", "records", len(records))
 
 	if len(records) == 0 {
 		return IndexBatchActivityResponse{

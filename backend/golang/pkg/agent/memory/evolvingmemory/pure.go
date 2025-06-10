@@ -249,69 +249,28 @@ func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Int
 	return memories, nil
 }
 
-// normalizeAndFormatConversation replaces primary user name with "primaryUser" and returns JSON.
-func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string, error) {
-	normalized := convDoc
-
-	// Replace primary user name in conversation messages
-	for i, msg := range normalized.Conversation {
-		if msg.Speaker == convDoc.User {
-			normalized.Conversation[i].Speaker = "primaryUser"
-		}
-	}
-
-	// Replace primary user name in people list
-	for i, person := range normalized.People {
-		if person == convDoc.User {
-			normalized.People[i] = "primaryUser"
-		}
-	}
-
-	// Update the user field
-	normalized.User = "primaryUser"
-
-	// Just JSON marshal the whole thing
-	jsonBytes, err := json.Marshal(normalized)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal conversation: %w", err)
-	}
-
-	return string(jsonBytes), nil
-}
-
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
 func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
 
-	// Normalize and format as JSON
-	conversationJSON, err := normalizeAndFormatConversation(convDoc)
-	if err != nil {
-		return nil, fmt.Errorf("conversation normalization error: %w", err)
-	}
+	content := convDoc.Content()
 
 	if len(convDoc.Conversation) == 0 {
 		log.Printf("Skipping empty conversation: ID=%s", convDoc.ID())
 		return []ExtractedFact{}, nil
 	}
 
-	for i, msg := range convDoc.Conversation {
-		if i >= 3 {
-			break
-		}
-		log.Printf("  Message %d: %s: %s", i+1, msg.Speaker, msg.Content)
-	}
-
-	log.Printf("Normalized JSON length: %d", len(conversationJSON))
-	log.Printf("Normalized JSON preview: %s", conversationJSON[:min(500, len(conversationJSON))])
+	log.Printf("Normalized JSON length: %d", len(content))
+	log.Printf("User prompt %s", content[:min(500, len(content))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
-		openai.UserMessage(conversationJSON),
+		openai.UserMessage(content),
 	}
 
-	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(conversationJSON))
+	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
@@ -521,16 +480,17 @@ func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]Prepared
 
 // addDocumentMetadata adds all the metadata, timestamps, and speaker info. Pure function.
 func addDocumentMetadata(doc memory.Document, docType DocumentType, currentTime time.Time) PreparedDocument {
+	// Use document timestamp as primary source
+	timestamp := currentTime
+	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
+		timestamp = *ts
+	}
+
 	prep := PreparedDocument{
 		Original:   doc,
 		Type:       docType,
-		Timestamp:  currentTime,
+		Timestamp:  timestamp,
 		DateString: getCurrentDateForPrompt(),
-	}
-
-	// Override timestamp if document provides one
-	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
-		prep.Timestamp = *ts
 	}
 
 	return prep
