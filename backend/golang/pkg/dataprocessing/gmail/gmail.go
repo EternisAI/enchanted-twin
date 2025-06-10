@@ -602,7 +602,7 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 			FieldSource:    "gmail",
 			FieldContent:   get("content"),
 			FieldTimestamp: &r.Timestamp,
-			FieldTags:      []string{"google", "email"},
+			FieldTags:      []string{"email"},
 			FieldMetadata: map[string]string{
 				"from":    get("from"),
 				"to":      get("to"),

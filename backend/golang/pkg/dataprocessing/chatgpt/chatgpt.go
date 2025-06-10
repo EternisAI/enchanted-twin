@@ -211,7 +211,7 @@ func (s *ChatGPTProcessor) Sync(ctx context.Context, accessToken string) ([]type
 }
 
 func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	conversationDocuments := make([]memory.ConversationDocument, 0, len(records))
+	var documents []memory.Document
 
 	for _, record := range records {
 		getString := func(key string) string {
@@ -226,10 +226,10 @@ func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Reco
 		title := getString("title")
 		id := getString("id")
 
-		conversation := memory.ConversationDocument{
+		conversation := &memory.ConversationDocument{
 			FieldID:     id,
 			FieldSource: "chatgpt",
-			FieldTags:   []string{"chat", "chatgpt", "conversation"},
+			FieldTags:   []string{"chat", "conversation"},
 			FieldMetadata: map[string]string{
 				"type":  "conversation",
 				"title": title,
@@ -276,11 +276,11 @@ func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Reco
 		}
 
 		if len(conversation.Conversation) > 0 {
-			conversationDocuments = append(conversationDocuments, conversation)
+			documents = append(documents, conversation)
 		}
 	}
 
-	return memory.ConversationDocumentsToDocuments(conversationDocuments), nil
+	return documents, nil
 }
 
 func parseTimestamp(ts string) (time.Time, error) {

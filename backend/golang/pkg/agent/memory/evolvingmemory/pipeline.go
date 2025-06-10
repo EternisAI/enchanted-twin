@@ -19,12 +19,3 @@ func DefaultConfig() Config {
 		StreamingProgress:      true,
 	}
 }
-
-func findMemoryByID(memories []ExistingMemory, id string) *ExistingMemory {
-	for i := range memories {
-		if memories[i].ID == id {
-			return &memories[i]
-		}
-	}
-	return nil
-}

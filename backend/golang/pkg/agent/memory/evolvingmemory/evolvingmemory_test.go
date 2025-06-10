@@ -49,14 +49,15 @@ func TestTextDocumentBasics(t *testing.T) {
 		FieldID:        "text-456",
 		FieldContent:   "The user's favorite color is blue.",
 		FieldTimestamp: &now,
-		FieldMetadata:  map[string]string{"source": "notes"},
+		FieldSource:    "notes",
+		FieldMetadata:  map[string]string{},
 	}
 
 	// Test Document interface methods
 	assert.Equal(t, "text-456", textDoc.ID())
 	assert.Equal(t, "The user's favorite color is blue.", textDoc.Content())
 	assert.Equal(t, &now, textDoc.Timestamp())
-	assert.Equal(t, "notes", textDoc.Metadata()["source"])
+	assert.Equal(t, "notes", textDoc.Source())
 }
 
 func TestValidationRules(t *testing.T) {
@@ -340,17 +341,19 @@ func TestDocumentDeduplicationEdgeCases(t *testing.T) {
 			FieldID:        "doc-meta-1",
 			FieldContent:   "Same content different metadata",
 			FieldTimestamp: &now,
-			FieldMetadata:  map[string]string{"source": "user"},
+			FieldSource:    "user",
+			FieldMetadata:  map[string]string{},
 		}
 		doc2 := &memory.TextDocument{
 			FieldID:        "doc-meta-2",
 			FieldContent:   "Same content different metadata",
 			FieldTimestamp: &now,
-			FieldMetadata:  map[string]string{"source": "system"},
+			FieldSource:    "system",
+			FieldMetadata:  map[string]string{},
 		}
 
 		assert.Equal(t, doc1.Content(), doc2.Content())
-		assert.NotEqual(t, doc1.Metadata()["source"], doc2.Metadata()["source"])
+		assert.NotEqual(t, doc1.Source(), doc2.Source())
 	})
 
 	t.Run("empty documents deduplication", func(t *testing.T) {
@@ -546,10 +549,10 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		// Mock the Query method to verify filter is passed correctly
 		expectedFilter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
-			Distance:    0.7,
-			Limit:       intPtr(5),
+			Source:   stringPtr("conversations"),
+			Subject:  stringPtr("alice"),
+			Distance: 0.7,
+			Limit:    intPtr(5),
 		}
 
 		expectedResult := memory.QueryResult{
@@ -557,7 +560,6 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 				{
 					ID:        "test-123",
 					Content:   "alice likes pizza",
-					Speaker:   "alice",
 					Source:    "conversations",
 					Timestamp: time.Now(),
 					Metadata: map[string]string{
@@ -625,7 +627,6 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 		assert.Len(t, result.Facts, 1)
 		assert.Equal(t, "test-123", result.Facts[0].ID)
 		assert.Equal(t, "conversations", result.Facts[0].Source)
-		assert.Equal(t, "alice", result.Facts[0].Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -713,7 +714,6 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 				{
 					ID:        "test-doc-1",
 					Content:   "Work meeting notes about important project",
-					Speaker:   "alice",
 					Source:    "conversations",
 					Timestamp: time.Now(),
 					Metadata: map[string]string{
@@ -794,10 +794,10 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		// Filter with empty string values
 		filter := &memory.Filter{
-			Source:      stringPtr(""),
-			ContactName: stringPtr(""),
-			Distance:    0,
-			Limit:       intPtr(0),
+			Source:   stringPtr(""),
+			Subject:  stringPtr(""),
+			Distance: 0,
+			Limit:    intPtr(0),
 		}
 
 		expectedResult := memory.QueryResult{
@@ -865,10 +865,10 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		// Filter with extreme values
 		filter := &memory.Filter{
-			Source:      stringPtr("very-long-source-name-that-might-cause-issues"),
-			ContactName: stringPtr("user-with-very-long-name-123456789"),
-			Distance:    2.0,           // > 1.0
-			Limit:       intPtr(10000), // Very large limit
+			Source:   stringPtr("very-long-source-name-that-might-cause-issues"),
+			Subject:  stringPtr("user-with-very-long-name-123456789"),
+			Distance: 2.0,           // > 1.0
+			Limit:    intPtr(10000), // Very large limit
 		}
 
 		expectedResult := memory.QueryResult{
@@ -957,20 +957,19 @@ func TestDirectFieldVsJSONMetadata(t *testing.T) {
 		assert.Contains(t, doc.Metadata(), "extra")
 	})
 
-	t.Run("JSON metadata fallback when direct fields empty", func(t *testing.T) {
+	t.Run("Direct field behavior when empty", func(t *testing.T) {
 		doc := memory.TextDocument{
 			FieldID:      "test-789",
 			FieldContent: "test content",
 			FieldSource:  "", // Empty direct field
 			FieldMetadata: map[string]string{
-				"source":    "json_source", // Should be used
 				"speakerID": "bob",
 			},
 		}
 
-		// Should fall back to metadata when direct field is empty
-		assert.Equal(t, "", doc.Source()) // Direct field is empty
-		assert.Equal(t, "json_source", doc.Metadata()["source"])
+		// Direct field is used regardless of metadata content
+		assert.Equal(t, "", doc.Source()) // Direct field is empty, so Source() returns empty
+
 		assert.Equal(t, "bob", doc.Metadata()["speakerID"])
 	})
 }
@@ -995,7 +994,6 @@ func TestQueryResultStructure(t *testing.T) {
 					Content:   "alice likes coffee",
 					Timestamp: now,
 					Source:    "conversations",
-					Speaker:   "alice",
 					Metadata: map[string]string{
 						"source":  "conversations",
 						"channel": "general",
@@ -1006,7 +1004,6 @@ func TestQueryResultStructure(t *testing.T) {
 					Content:   "bob prefers tea",
 					Timestamp: now,
 					Source:    "conversations",
-					Speaker:   "bob",
 					Metadata: map[string]string{
 						"source":  "conversations",
 						"channel": "general",
@@ -1075,14 +1072,12 @@ func TestQueryResultStructure(t *testing.T) {
 		assert.Equal(t, "doc-1", fact1.ID)
 		assert.Equal(t, "alice likes coffee", fact1.Content)
 		assert.Equal(t, "conversations", fact1.Source)
-		assert.Equal(t, "alice", fact1.Speaker)
 
 		// Verify second fact
 		fact2 := result.Facts[1]
 		assert.Equal(t, "doc-2", fact2.ID)
 		assert.Equal(t, "bob prefers tea", fact2.Content)
 		assert.Equal(t, "conversations", fact2.Source)
-		assert.Equal(t, "bob", fact2.Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})
@@ -1093,14 +1088,14 @@ func TestFilterUsagePatterns(t *testing.T) {
 	t.Run("conversation filtering pattern", func(t *testing.T) {
 		// Pattern: Get recent conversations with a specific person
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
-			Distance:    0.8, // Semantic similarity threshold
-			Limit:       intPtr(10),
+			Source:   stringPtr("conversations"),
+			Subject:  stringPtr("alice"),
+			Distance: 0.8, // Semantic similarity threshold
+			Limit:    intPtr(10),
 		}
 
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 		assert.Equal(t, float32(0.8), filter.Distance)
 		assert.Equal(t, 10, *filter.Limit)
 	})
@@ -1114,7 +1109,7 @@ func TestFilterUsagePatterns(t *testing.T) {
 		}
 
 		assert.Equal(t, "email", *filter.Source)
-		assert.Nil(t, filter.ContactName) // No specific contact
+		assert.Nil(t, filter.Subject) // No specific contact
 		assert.Equal(t, float32(0.7), filter.Distance)
 		assert.Equal(t, 20, *filter.Limit)
 	})
@@ -1126,8 +1121,8 @@ func TestFilterUsagePatterns(t *testing.T) {
 			Limit:    intPtr(5),
 		}
 
-		assert.Nil(t, filter.Source)      // No source filter
-		assert.Nil(t, filter.ContactName) // No contact filter
+		assert.Nil(t, filter.Source)  // No source filter
+		assert.Nil(t, filter.Subject) // No contact filter
 		assert.Equal(t, float32(0.6), filter.Distance)
 		assert.Equal(t, 5, *filter.Limit)
 	})
@@ -1162,7 +1157,6 @@ func TestSchemaEvolution(t *testing.T) {
 		}
 
 		// Simulate direct field values
-		directSource := "conversations"
 		directSpeakerID := "alice"
 
 		// Merge logic (direct fields take precedence)
@@ -1170,18 +1164,16 @@ func TestSchemaEvolution(t *testing.T) {
 		for k, v := range jsonMetadata {
 			finalMetadata[k] = v
 		}
-		if directSource != "" {
-			finalMetadata["source"] = directSource
-		}
+
 		if directSpeakerID != "" {
 			finalMetadata["speakerID"] = directSpeakerID
 		}
 
 		// Verify merging behavior
-		assert.Equal(t, "conversations", finalMetadata["source"]) // Overridden
-		assert.Equal(t, "alice", finalMetadata["speakerID"])      // Overridden
-		assert.Equal(t, "general", finalMetadata["channel"])      // Preserved
-		assert.Equal(t, "data", finalMetadata["extra"])           // Preserved
+
+		assert.Equal(t, "alice", finalMetadata["speakerID"]) // Overridden
+		assert.Equal(t, "general", finalMetadata["channel"]) // Preserved
+		assert.Equal(t, "data", finalMetadata["extra"])      // Preserved
 	})
 }
 
@@ -1201,14 +1193,14 @@ func TestPerformanceImplications(t *testing.T) {
 		// - Combined with filters.And for multiple conditions
 
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
+			Source:  stringPtr("conversations"),
+			Subject: stringPtr("alice"),
 		}
 
 		// This should generate efficient queries like:
 		// WHERE (source = "conversations" AND speakerID = "alice")
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 	})
 
 	t.Run("memory usage patterns", func(t *testing.T) {
@@ -1546,8 +1538,8 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 
 		// Test complex filter with multiple components
 		complexFilter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
+			Source:  stringPtr("conversations"),
+			Subject: stringPtr("alice"),
 			Tags: &memory.TagsFilter{
 				Expression: &memory.BooleanExpression{
 					Operator: memory.OR,
@@ -1571,7 +1563,6 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 					ID:        "complex-doc-1",
 					Content:   "Q1 work project with alice",
 					Source:    "conversations",
-					Speaker:   "alice",
 					Timestamp: time.Now(),
 					Metadata: map[string]string{
 						"source": "conversations",
@@ -1640,7 +1631,6 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 		assert.Contains(t, fact.Metadata["tags"], "work")
 		assert.Contains(t, fact.Metadata["tags"], "Q1")
 		assert.Equal(t, "conversations", fact.Source)
-		assert.Equal(t, "alice", fact.Speaker)
 
 		mockStorage.AssertExpectations(t)
 	})

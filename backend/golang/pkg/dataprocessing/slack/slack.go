@@ -154,7 +154,7 @@ func (s *SlackProcessor) ToDocuments(ctx context.Context, records []types.Record
 			FieldSource:    "slack",
 			FieldContent:   message,
 			FieldTimestamp: &record.Timestamp,
-			FieldTags:      []string{"social", "slack", "chat"},
+			FieldTags:      []string{"social", "chat"},
 			FieldMetadata: map[string]string{
 				"type":           "message",
 				"channelName":    channelName,

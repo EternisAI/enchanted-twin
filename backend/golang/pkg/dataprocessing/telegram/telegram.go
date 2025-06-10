@@ -364,7 +364,7 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				conversationMap[chatId] = &memory.ConversationDocument{
 					FieldID:      chatId,
 					FieldSource:  "telegram",
-					FieldTags:    []string{"social", "telegram", "chat"},
+					FieldTags:    []string{"social", "chat"},
 					People:       []string{from, to},
 					User:         extractedUser,
 					Conversation: []memory.ConversationMessage{},
@@ -411,7 +411,7 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				FieldSource:    "telegram",
 				FieldContent:   firstName + " " + lastName,
 				FieldTimestamp: &record.Timestamp,
-				FieldTags:      []string{"social", "telegram", "contact"},
+				FieldTags:      []string{"social", "contact"},
 				FieldMetadata: map[string]string{
 					"type":        "contact",
 					"firstName":   firstName,
@@ -422,14 +422,14 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 		}
 	}
 
-	var conversationDocuments []memory.ConversationDocument
+	var documents []memory.Document
 	for _, conversation := range conversationMap {
-		conversationDocuments = append(conversationDocuments, *conversation)
+		documents = append(documents, conversation)
 	}
 
-	var allDocuments []memory.Document
-	allDocuments = append(allDocuments, memory.ConversationDocumentsToDocuments(conversationDocuments)...)
-	allDocuments = append(allDocuments, memory.TextDocumentsToDocuments(textDocuments)...)
+	for _, textDoc := range textDocuments {
+		documents = append(documents, &textDoc)
+	}
 
-	return allDocuments, nil
+	return documents, nil
 }
