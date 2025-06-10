@@ -13,7 +13,7 @@ const (
 	// for any single piece of content before chunking. Based on Qwen-2.5-70b's
 	// 128k token context window, targeting ~0.4x window size with 4-char/token
 	// conservative ratio.
-	MaxProcessableContentChars = 50000
+	MaxProcessableContentChars = 30000
 
 	// Boolean operators for tag filtering.
 	AND = "AND"
@@ -97,11 +97,26 @@ func (cd *ConversationDocument) ID() string {
 func (cd *ConversationDocument) Content() string {
 	var content strings.Builder
 	content.Grow(len(cd.Conversation) * 50) // rough estimate
-	hasContent := false                     // Track if any substantive content is added
+
+	// Add metadata header
+	content.WriteString("People: ")
+	content.WriteString(strings.Join(cd.People, ", "))
+	content.WriteString("\nSource: ")
+	content.WriteString(cd.FieldSource)
+	content.WriteString("\nUser: ")
+	content.WriteString(cd.User)
+	content.WriteString("\nTags: ")
+	content.WriteString(strings.Join(cd.FieldTags, ", "))
+	content.WriteString("\nPrimary User: ")
+	content.WriteString(cd.User)
+	content.WriteString("\n\nConversation:\n")
+
+	// Add conversation messages
+	hasContent := false
 	for _, msg := range cd.Conversation {
 		trimmedMsgContent := strings.TrimSpace(msg.Content)
 		if trimmedMsgContent == "" {
-			continue // Skip messages with only whitespace content
+			continue
 		}
 		content.WriteString(msg.Speaker)
 		content.WriteString(": ")
@@ -109,10 +124,12 @@ func (cd *ConversationDocument) Content() string {
 		content.WriteString("\n")
 		hasContent = true
 	}
+
 	if !hasContent {
-		return "" // If no messages had real content, return empty string
+		return ""
 	}
-	return strings.TrimSpace(content.String()) // Final trim for the whole block
+
+	return strings.TrimSpace(content.String())
 }
 
 func (cd *ConversationDocument) Timestamp() *time.Time {
