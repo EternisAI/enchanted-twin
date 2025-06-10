@@ -937,12 +937,11 @@ if err != nil {
 
 1. **Fact extraction failing?** → Check logs in `orchestrator.extractFactsWorker()`
 2. **Memories not updating?** → Look at `orchestrator.processFactsWorker()` logs
-3. **Validation errors?** → See `ValidateMemoryOperation()` in `pure.go`
-4. **Storage failing?** → Check storage implementation logs
-5. **Document references empty?** → Verify `GetStoredDocument()` implementation returns content
-6. **Deduplication not working?** → Check SHA256 hashing in `StoreDocument()`
-7. **Structured facts missing?** → Check if `factCategory`, `factSubject` etc. fields are stored
-8. **Categories not recognized?** → Verify category enums in extraction prompts
+3. **Storage failing?** → Check storage implementation logs
+4. **Document references empty?** → Verify `GetStoredDocument()` implementation returns content
+5. **Deduplication not working?** → Check SHA256 hashing in `StoreDocument()`
+6. **Structured facts missing?** → Check if `factCategory`, `factSubject` etc. fields are stored
+7. **Categories not recognized?** → Verify category enums in extraction prompts
 
 ## Configuration
 
