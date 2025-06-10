@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/EternisAI/enchanted-twin/pkg/db"
 	clog "github.com/charmbracelet/log"
+
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// NewAuthenticatedAPIClient creates a new HolonZero API client with Google OAuth authentication
+// NewAuthenticatedAPIClient creates a new HolonZero API client with Google OAuth authentication.
 func NewAuthenticatedAPIClient(ctx context.Context, baseURL string, store *db.Store, logger *clog.Logger, options ...ClientOption) (*APIClient, error) {
 	// Get Google OAuth token from the database
 	token, err := getGoogleOAuthToken(ctx, store)
@@ -32,7 +33,7 @@ func NewAuthenticatedAPIClient(ctx context.Context, baseURL string, store *db.St
 	return NewAPIClient(baseURL, clientOptions...), nil
 }
 
-// getGoogleOAuthToken retrieves a valid Google OAuth access token from the database
+// getGoogleOAuthToken retrieves a valid Google OAuth access token from the database.
 func getGoogleOAuthToken(ctx context.Context, store *db.Store) (string, error) {
 	// Get Google OAuth tokens from the database
 	tokens, err := store.GetOAuthTokensArray(ctx, "google")
@@ -61,7 +62,7 @@ func getGoogleOAuthToken(ctx context.Context, store *db.Store) (string, error) {
 	return token.AccessToken, nil
 }
 
-// AuthenticateWithHolonZero authenticates with HolonZero API and returns participant info
+// AuthenticateWithHolonZero authenticates with HolonZero API and returns participant info.
 func AuthenticateWithHolonZero(ctx context.Context, baseURL string, store *db.Store, logger *clog.Logger) (*ParticipantAuthResponse, error) {
 	// Create authenticated client
 	client, err := NewAuthenticatedAPIClient(ctx, baseURL, store, logger)

@@ -9,12 +9,12 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-// HolonSyncWorkflowInput contains the input parameters for the holon sync workflow
+// HolonSyncWorkflowInput contains the input parameters for the holon sync workflow.
 type HolonSyncWorkflowInput struct {
 	ForceSync bool
 }
 
-// HolonSyncWorkflowOutput contains the output parameters for the holon sync workflow
+// HolonSyncWorkflowOutput contains the output parameters for the holon sync workflow.
 type HolonSyncWorkflowOutput struct {
 	Success          bool      `json:"success"`
 	ParticipantCount int       `json:"participant_count"`
@@ -24,13 +24,13 @@ type HolonSyncWorkflowOutput struct {
 	Error            string    `json:"error,omitempty"`
 }
 
-// HolonSyncActivities defines the activities for syncing holons
+// HolonSyncActivities defines the activities for syncing holons.
 type HolonSyncActivities struct {
 	logger  *clog.Logger
 	manager *Manager
 }
 
-// NewHolonSyncActivities creates a new instance of holon sync activities
+// NewHolonSyncActivities creates a new instance of holon sync activities.
 func NewHolonSyncActivities(logger *clog.Logger, manager *Manager) *HolonSyncActivities {
 	return &HolonSyncActivities{
 		logger:  logger,
@@ -38,13 +38,13 @@ func NewHolonSyncActivities(logger *clog.Logger, manager *Manager) *HolonSyncAct
 	}
 }
 
-// RegisterWorkflowsAndActivities registers the workflows and activities with the Temporal worker
+// RegisterWorkflowsAndActivities registers the workflows and activities with the Temporal worker.
 func (a *HolonSyncActivities) RegisterWorkflowsAndActivities(worker worker.Worker) {
 	worker.RegisterWorkflow(HolonSyncWorkflow)
 	worker.RegisterActivity(a.SyncHolonDataActivity)
 }
 
-// SyncHolonDataActivity performs the complete holon data synchronization workflow
+// SyncHolonDataActivity performs the complete holon data synchronization workflow.
 func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input HolonSyncWorkflowInput) (HolonSyncWorkflowOutput, error) {
 	result := HolonSyncWorkflowOutput{
 		Success:      true,
@@ -94,7 +94,7 @@ func (a *HolonSyncActivities) SyncHolonDataActivity(ctx context.Context, input H
 	return result, nil
 }
 
-// pushPendingContent is a helper method to push pending content to HolonZero API
+// pushPendingContent is a helper method to push pending content to HolonZero API.
 func (a *HolonSyncActivities) pushPendingContent(ctx context.Context) error {
 	if a.manager.fetcherService == nil {
 		return fmt.Errorf("fetcher service is not available")

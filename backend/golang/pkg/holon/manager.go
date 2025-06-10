@@ -18,7 +18,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
-// Manager coordinates the holon services including the API fetcher and Temporal integration
+// Manager coordinates the holon services including the API fetcher and Temporal integration.
 type Manager struct {
 	service         *Service
 	fetcherService  *FetcherService
@@ -33,7 +33,7 @@ type Manager struct {
 	scheduleEnabled bool
 }
 
-// ManagerConfig holds configuration for the holon manager
+// ManagerConfig holds configuration for the holon manager.
 type ManagerConfig struct {
 	// HolonZero API configuration
 	HolonAPIURL string
@@ -49,7 +49,7 @@ type ManagerConfig struct {
 	ScheduleID string
 }
 
-// DefaultManagerConfig returns a sensible default configuration
+// DefaultManagerConfig returns a sensible default configuration.
 func DefaultManagerConfig() ManagerConfig {
 	// Use the getEnvOrDefault function from fetcher.go
 	holonAPIURL := "http://localhost:8080"
@@ -68,7 +68,7 @@ func DefaultManagerConfig() ManagerConfig {
 	}
 }
 
-// NewManager creates a new holon manager with the given configuration
+// NewManager creates a new holon manager with the given configuration.
 func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temporalClient client.Client, worker worker.Worker) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -107,7 +107,7 @@ func NewManager(store *db.Store, config ManagerConfig, logger *clog.Logger, temp
 	return manager
 }
 
-// Start initializes and starts all holon services
+// Start initializes and starts all holon services.
 func (m *Manager) Start() error {
 	m.logger.Debug("Starting Holon Manager...")
 
@@ -145,7 +145,7 @@ func (m *Manager) Start() error {
 	return nil
 }
 
-// setupTemporalSchedule creates a Temporal schedule for holon sync
+// setupTemporalSchedule creates a Temporal schedule for holon sync.
 func (m *Manager) setupTemporalSchedule() error {
 	if m.temporalClient == nil {
 		return fmt.Errorf("temporal client is not available")
@@ -162,7 +162,7 @@ func (m *Manager) setupTemporalSchedule() error {
 	)
 }
 
-// TriggerSync manually triggers a holon sync workflow (replaces both TriggerSyncWorkflow and TriggerSync)
+// TriggerSync manually triggers a holon sync workflow (replaces both TriggerSyncWorkflow and TriggerSync).
 func (m *Manager) TriggerSync(forceSync bool) error {
 	if !m.scheduleEnabled || m.temporalClient == nil {
 		// Fall back to direct fetcher service if no Temporal
@@ -189,7 +189,7 @@ func (m *Manager) TriggerSync(forceSync bool) error {
 	return nil
 }
 
-// PauseSyncSchedule pauses the holon sync schedule if it exists
+// PauseSyncSchedule pauses the holon sync schedule if it exists.
 func (m *Manager) PauseSyncSchedule() error {
 	if m.temporalClient == nil || m.config.ScheduleID == "" {
 		return fmt.Errorf("temporal client or schedule ID not configured")
@@ -206,7 +206,7 @@ func (m *Manager) PauseSyncSchedule() error {
 	return nil
 }
 
-// ResumeSyncSchedule resumes the holon sync schedule if it exists
+// ResumeSyncSchedule resumes the holon sync schedule if it exists.
 func (m *Manager) ResumeSyncSchedule() error {
 	if m.temporalClient == nil || m.config.ScheduleID == "" {
 		return fmt.Errorf("temporal client or schedule ID not configured")
@@ -223,7 +223,7 @@ func (m *Manager) ResumeSyncSchedule() error {
 	return nil
 }
 
-// UpdateSyncInterval updates the sync schedule interval
+// UpdateSyncInterval updates the sync schedule interval.
 func (m *Manager) UpdateSyncInterval(interval time.Duration) error {
 	if !m.scheduleEnabled || m.temporalClient == nil {
 		return fmt.Errorf("temporal schedule is not enabled")
@@ -249,7 +249,7 @@ func (m *Manager) UpdateSyncInterval(interval time.Duration) error {
 	})
 }
 
-// RecreateHolonSyncSchedule deletes and recreates the holon sync schedule with updated settings
+// RecreateHolonSyncSchedule deletes and recreates the holon sync schedule with updated settings.
 func (m *Manager) RecreateHolonSyncSchedule() error {
 	if !m.scheduleEnabled || m.temporalClient == nil {
 		return fmt.Errorf("temporal schedule is not enabled")
@@ -278,7 +278,7 @@ func (m *Manager) RecreateHolonSyncSchedule() error {
 	return m.setupTemporalSchedule()
 }
 
-// GetSyncStatus returns the current sync status and statistics
+// GetSyncStatus returns the current sync status and statistics.
 func (m *Manager) GetSyncStatus() (*ManagerSyncStatus, error) {
 	// Get basic statistics
 	totalHolons, err := m.service.GetTotalHolonCount()
@@ -317,7 +317,7 @@ func (m *Manager) GetSyncStatus() (*ManagerSyncStatus, error) {
 	return status, nil
 }
 
-// Stop gracefully shuts down the holon manager
+// Stop gracefully shuts down the holon manager.
 func (m *Manager) Stop() error {
 	m.logger.Debug("Stopping Holon Manager...")
 
@@ -341,7 +341,7 @@ func (m *Manager) Stop() error {
 	return nil
 }
 
-// handleShutdown sets up graceful shutdown handling
+// handleShutdown sets up graceful shutdown handling.
 func (m *Manager) handleShutdown() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -351,12 +351,12 @@ func (m *Manager) handleShutdown() {
 		m.logger.Debug("Received shutdown signal", "signal", sig)
 		m.Stop()
 	case <-m.ctx.Done():
-		// Context was cancelled
+		// Context was canceled
 		return
 	}
 }
 
-// SyncStatus represents the current status of holon synchronization
+// SyncStatus represents the current status of holon synchronization.
 type ManagerSyncStatus struct {
 	TotalHolons     int             `json:"total_holons"`
 	LastSyncTime    *time.Time      `json:"last_sync_time"`
@@ -366,14 +366,14 @@ type ManagerSyncStatus struct {
 	ScheduleStatus  *ScheduleStatus `json:"schedule_status,omitempty"`
 }
 
-// ScheduleStatus represents the status of the Temporal schedule
+// ScheduleStatus represents the status of the Temporal schedule.
 type ScheduleStatus struct {
 	Paused  bool                          `json:"paused"`
 	LastRun []client.ScheduleActionResult `json:"last_run,omitempty"`
 	NextRun []time.Time                   `json:"next_run,omitempty"`
 }
 
-// StartHolonServices demonstrates how to integrate the holon services into your main application
+// StartHolonServices demonstrates how to integrate the holon services into your main application.
 func StartHolonServices(store *db.Store) (*Manager, error) {
 	// Load configuration from environment or use defaults
 	config := DefaultManagerConfig()
@@ -393,17 +393,17 @@ func StartHolonServices(store *db.Store) (*Manager, error) {
 	return manager, nil
 }
 
-// HTTPHandlers provides HTTP endpoints for managing the holon fetcher
+// HTTPHandlers provides HTTP endpoints for managing the holon fetcher.
 type HTTPHandlers struct {
 	manager *Manager
 }
 
-// NewHTTPHandlers creates HTTP handlers for holon management
+// NewHTTPHandlers creates HTTP handlers for holon management.
 func NewHTTPHandlers(manager *Manager) *HTTPHandlers {
 	return &HTTPHandlers{manager: manager}
 }
 
-// GetStatus returns the current fetcher status as JSON
+// GetStatus returns the current fetcher status as JSON.
 func (h *HTTPHandlers) GetStatus() (interface{}, error) {
 	if h.manager.fetcherService == nil {
 		return map[string]interface{}{
@@ -423,12 +423,12 @@ func (h *HTTPHandlers) GetStatus() (interface{}, error) {
 	}, nil
 }
 
-// TriggerSync forces an immediate synchronization
+// TriggerSync forces an immediate synchronization.
 func (h *HTTPHandlers) TriggerSync() error {
 	return h.manager.TriggerSync(true)
 }
 
-// Configuration returns the current fetcher configuration
+// Configuration returns the current fetcher configuration.
 func (h *HTTPHandlers) GetConfiguration() map[string]interface{} {
 	config := h.manager.config
 
@@ -443,12 +443,12 @@ func (h *HTTPHandlers) GetConfiguration() map[string]interface{} {
 	}
 }
 
-// GetFetcherService returns the fetcher service
+// GetFetcherService returns the fetcher service.
 func (m *Manager) GetFetcherService() *FetcherService {
 	return m.fetcherService
 }
 
-// GetFetcherStatus returns the status of the fetcher service
+// GetFetcherStatus returns the status of the fetcher service.
 func (m *Manager) GetFetcherStatus() (*SyncStatus, error) {
 	if m.fetcherService == nil {
 		return nil, fmt.Errorf("fetcher service is not initialized")

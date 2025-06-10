@@ -14,7 +14,7 @@ import (
 	clog "github.com/charmbracelet/log"
 )
 
-// APIClient represents the HolonZero API client
+// APIClient represents the HolonZero API client.
 type APIClient struct {
 	baseURL    string
 	httpClient *http.Client
@@ -22,7 +22,7 @@ type APIClient struct {
 	authToken  string
 }
 
-// NewAPIClient creates a new HolonZero API client
+// NewAPIClient creates a new HolonZero API client.
 func NewAPIClient(baseURL string, options ...ClientOption) *APIClient {
 	client := &APIClient{
 		baseURL: baseURL,
@@ -38,38 +38,38 @@ func NewAPIClient(baseURL string, options ...ClientOption) *APIClient {
 	return client
 }
 
-// ClientOption represents configuration options for the API client
+// ClientOption represents configuration options for the API client.
 type ClientOption func(*APIClient)
 
-// WithHTTPClient sets a custom HTTP client
+// WithHTTPClient sets a custom HTTP client.
 func WithHTTPClient(httpClient *http.Client) ClientOption {
 	return func(c *APIClient) {
 		c.httpClient = httpClient
 	}
 }
 
-// WithTimeout sets the request timeout
+// WithTimeout sets the request timeout.
 func WithTimeout(timeout time.Duration) ClientOption {
 	return func(c *APIClient) {
 		c.httpClient.Timeout = timeout
 	}
 }
 
-// WithLogger sets a logger for the API client
+// WithLogger sets a logger for the API client.
 func WithLogger(logger *clog.Logger) ClientOption {
 	return func(c *APIClient) {
 		c.logger = logger
 	}
 }
 
-// WithAuthToken sets the Bearer authentication token
+// WithAuthToken sets the Bearer authentication token.
 func WithAuthToken(token string) ClientOption {
 	return func(c *APIClient) {
 		c.authToken = token
 	}
 }
 
-// doRequest performs an HTTP request and handles common response processing
+// doRequest performs an HTTP request and handles common response processing.
 func (c *APIClient) doRequest(ctx context.Context, method, path string, body interface{}) (*http.Response, error) {
 	// Log the request path if logger is available
 	if c.logger != nil {
@@ -114,7 +114,7 @@ func (c *APIClient) doRequest(ctx context.Context, method, path string, body int
 	return resp, nil
 }
 
-// handleResponse processes HTTP response and unmarshals JSON
+// handleResponse processes HTTP response and unmarshals JSON.
 func (c *APIClient) handleResponse(resp *http.Response, result interface{}) error {
 	defer resp.Body.Close()
 
@@ -142,7 +142,7 @@ func (c *APIClient) handleResponse(resp *http.Response, result interface{}) erro
 
 // Health check endpoints
 
-// GetHealth checks the health status of the application
+// GetHealth checks the health status of the application.
 func (c *APIClient) GetHealth(ctx context.Context) (*HealthResponse, error) {
 	resp, err := c.doRequest(ctx, "GET", "/health", nil)
 	if err != nil {
@@ -157,7 +157,7 @@ func (c *APIClient) GetHealth(ctx context.Context) (*HealthResponse, error) {
 	return &result, nil
 }
 
-// GetStatus gets detailed status information
+// GetStatus gets detailed status information.
 func (c *APIClient) GetStatus(ctx context.Context) (map[string]interface{}, error) {
 	resp, err := c.doRequest(ctx, "GET", "/status", nil)
 	if err != nil {
@@ -174,7 +174,7 @@ func (c *APIClient) GetStatus(ctx context.Context) (map[string]interface{}, erro
 
 // Authentication endpoints
 
-// AuthenticateParticipant authenticates a participant using OAuth token
+// AuthenticateParticipant authenticates a participant using OAuth token.
 func (c *APIClient) AuthenticateParticipant(ctx context.Context) (*ParticipantAuthResponse, error) {
 	resp, err := c.doRequest(ctx, "POST", "/api/v1/auth/participant", nil)
 	if err != nil {
@@ -191,7 +191,7 @@ func (c *APIClient) AuthenticateParticipant(ctx context.Context) (*ParticipantAu
 
 // Participant endpoints
 
-// ListParticipants gets all participants
+// ListParticipants gets all participants.
 func (c *APIClient) ListParticipants(ctx context.Context) ([]Participant, error) {
 	resp, err := c.doRequest(ctx, "GET", "/api/v1/participants", nil)
 	if err != nil {
@@ -206,7 +206,7 @@ func (c *APIClient) ListParticipants(ctx context.Context) ([]Participant, error)
 	return result, nil
 }
 
-// GetParticipant gets a participant by ID
+// GetParticipant gets a participant by ID.
 func (c *APIClient) GetParticipant(ctx context.Context, id int) (*Participant, error) {
 	path := fmt.Sprintf("/api/v1/participants/%d", id)
 	resp, err := c.doRequest(ctx, "GET", path, nil)
@@ -222,7 +222,7 @@ func (c *APIClient) GetParticipant(ctx context.Context, id int) (*Participant, e
 	return &result, nil
 }
 
-// CreateParticipant creates a new participant
+// CreateParticipant creates a new participant.
 func (c *APIClient) CreateParticipant(ctx context.Context, req CreateParticipantRequest) (*Participant, error) {
 	resp, err := c.doRequest(ctx, "POST", "/api/v1/participants", req)
 	if err != nil {
@@ -237,7 +237,7 @@ func (c *APIClient) CreateParticipant(ctx context.Context, req CreateParticipant
 	return &result, nil
 }
 
-// UpdateParticipant updates a participant
+// UpdateParticipant updates a participant.
 func (c *APIClient) UpdateParticipant(ctx context.Context, id int, req UpdateParticipantRequest) (*Participant, error) {
 	path := fmt.Sprintf("/api/v1/participants/%d", id)
 	resp, err := c.doRequest(ctx, "PUT", path, req)
@@ -253,7 +253,7 @@ func (c *APIClient) UpdateParticipant(ctx context.Context, id int, req UpdatePar
 	return &result, nil
 }
 
-// DeleteParticipant deletes a participant
+// DeleteParticipant deletes a participant.
 func (c *APIClient) DeleteParticipant(ctx context.Context, id int) error {
 	path := fmt.Sprintf("/api/v1/participants/%d", id)
 	resp, err := c.doRequest(ctx, "DELETE", path, nil)
@@ -266,7 +266,7 @@ func (c *APIClient) DeleteParticipant(ctx context.Context, id int) error {
 
 // Thread endpoints
 
-// ListThreads gets all threads with optional query parameters
+// ListThreads gets all threads with optional query parameters.
 func (c *APIClient) ListThreads(ctx context.Context, query *ThreadsQuery) ([]Thread, error) {
 	path := "/api/v1/threads"
 	if query != nil {
@@ -298,7 +298,7 @@ func (c *APIClient) ListThreads(ctx context.Context, query *ThreadsQuery) ([]Thr
 	return result, nil
 }
 
-// ListThreadsPaginated gets paginated threads with filtering
+// ListThreadsPaginated gets paginated threads with filtering.
 func (c *APIClient) ListThreadsPaginated(ctx context.Context, query *ThreadsQuery) (*PaginatedThreadsResponse, error) {
 	path := "/api/v1/threads/paginated"
 	if query != nil {
@@ -330,7 +330,7 @@ func (c *APIClient) ListThreadsPaginated(ctx context.Context, query *ThreadsQuer
 	return &result, nil
 }
 
-// GetThread gets a thread by ID
+// GetThread gets a thread by ID.
 func (c *APIClient) GetThread(ctx context.Context, id int) (*Thread, error) {
 	path := fmt.Sprintf("/api/v1/threads/%d", id)
 	resp, err := c.doRequest(ctx, "GET", path, nil)
@@ -346,7 +346,7 @@ func (c *APIClient) GetThread(ctx context.Context, id int) (*Thread, error) {
 	return &result, nil
 }
 
-// CreateThread creates a new thread
+// CreateThread creates a new thread.
 func (c *APIClient) CreateThread(ctx context.Context, req CreateThreadRequest) (*Thread, error) {
 	resp, err := c.doRequest(ctx, "POST", "/api/v1/threads", req)
 	if err != nil {
@@ -361,7 +361,7 @@ func (c *APIClient) CreateThread(ctx context.Context, req CreateThreadRequest) (
 	return &result, nil
 }
 
-// UpdateThread updates a thread
+// UpdateThread updates a thread.
 func (c *APIClient) UpdateThread(ctx context.Context, id int, req UpdateThreadRequest) (*Thread, error) {
 	path := fmt.Sprintf("/api/v1/threads/%d", id)
 	resp, err := c.doRequest(ctx, "PUT", path, req)
@@ -377,7 +377,7 @@ func (c *APIClient) UpdateThread(ctx context.Context, id int, req UpdateThreadRe
 	return &result, nil
 }
 
-// DeleteThread deletes a thread
+// DeleteThread deletes a thread.
 func (c *APIClient) DeleteThread(ctx context.Context, id int) error {
 	path := fmt.Sprintf("/api/v1/threads/%d", id)
 	resp, err := c.doRequest(ctx, "DELETE", path, nil)
@@ -388,7 +388,7 @@ func (c *APIClient) DeleteThread(ctx context.Context, id int) error {
 	return c.handleResponse(resp, nil)
 }
 
-// GetThreadsByCreator gets all threads created by a specific participant
+// GetThreadsByCreator gets all threads created by a specific participant.
 func (c *APIClient) GetThreadsByCreator(ctx context.Context, participantID int) ([]Thread, error) {
 	path := fmt.Sprintf("/api/v1/participants/%d/threads", participantID)
 	resp, err := c.doRequest(ctx, "GET", path, nil)
@@ -404,7 +404,7 @@ func (c *APIClient) GetThreadsByCreator(ctx context.Context, participantID int) 
 	return result, nil
 }
 
-// GetSyncMetadata gets metadata for sync optimization
+// GetSyncMetadata gets metadata for sync optimization.
 func (c *APIClient) GetSyncMetadata(ctx context.Context) (*SyncMetadataResponse, error) {
 	resp, err := c.doRequest(ctx, "GET", "/api/v1/threads/sync-metadata", nil)
 	if err != nil {
@@ -421,7 +421,7 @@ func (c *APIClient) GetSyncMetadata(ctx context.Context) (*SyncMetadataResponse,
 
 // Reply endpoints
 
-// GetThreadReplies gets all replies for a specific thread
+// GetThreadReplies gets all replies for a specific thread.
 func (c *APIClient) GetThreadReplies(ctx context.Context, threadID int) ([]Reply, error) {
 	path := fmt.Sprintf("/api/v1/threads/%d/replies", threadID)
 	resp, err := c.doRequest(ctx, "GET", path, nil)
@@ -437,7 +437,7 @@ func (c *APIClient) GetThreadReplies(ctx context.Context, threadID int) ([]Reply
 	return result, nil
 }
 
-// GetThreadRepliesPaginated gets paginated replies for a specific thread
+// GetThreadRepliesPaginated gets paginated replies for a specific thread.
 func (c *APIClient) GetThreadRepliesPaginated(ctx context.Context, threadID int, query *RepliesQuery) (*PaginatedRepliesResponse, error) {
 	path := fmt.Sprintf("/api/v1/threads/%d/replies/paginated", threadID)
 	if query != nil {
@@ -466,7 +466,7 @@ func (c *APIClient) GetThreadRepliesPaginated(ctx context.Context, threadID int,
 	return &result, nil
 }
 
-// GetReply gets a reply by ID
+// GetReply gets a reply by ID.
 func (c *APIClient) GetReply(ctx context.Context, id int) (*Reply, error) {
 	path := fmt.Sprintf("/api/v1/replies/%d", id)
 	resp, err := c.doRequest(ctx, "GET", path, nil)
@@ -482,7 +482,7 @@ func (c *APIClient) GetReply(ctx context.Context, id int) (*Reply, error) {
 	return &result, nil
 }
 
-// CreateReply creates a new reply
+// CreateReply creates a new reply.
 func (c *APIClient) CreateReply(ctx context.Context, req CreateReplyRequest) (*Reply, error) {
 	resp, err := c.doRequest(ctx, "POST", "/api/v1/replies", req)
 	if err != nil {
@@ -497,7 +497,7 @@ func (c *APIClient) CreateReply(ctx context.Context, req CreateReplyRequest) (*R
 	return &result, nil
 }
 
-// UpdateReply updates a reply
+// UpdateReply updates a reply.
 func (c *APIClient) UpdateReply(ctx context.Context, id int, req UpdateReplyRequest) (*Reply, error) {
 	path := fmt.Sprintf("/api/v1/replies/%d", id)
 	resp, err := c.doRequest(ctx, "PUT", path, req)
@@ -513,7 +513,7 @@ func (c *APIClient) UpdateReply(ctx context.Context, id int, req UpdateReplyRequ
 	return &result, nil
 }
 
-// DeleteReply deletes a reply
+// DeleteReply deletes a reply.
 func (c *APIClient) DeleteReply(ctx context.Context, id int) error {
 	path := fmt.Sprintf("/api/v1/replies/%d", id)
 	resp, err := c.doRequest(ctx, "DELETE", path, nil)
@@ -524,7 +524,7 @@ func (c *APIClient) DeleteReply(ctx context.Context, id int) error {
 	return c.handleResponse(resp, nil)
 }
 
-// GetRepliesByParticipant gets all replies created by a specific participant
+// GetRepliesByParticipant gets all replies created by a specific participant.
 func (c *APIClient) GetRepliesByParticipant(ctx context.Context, participantID int) ([]Reply, error) {
 	path := fmt.Sprintf("/api/v1/participants/%d/replies", participantID)
 	resp, err := c.doRequest(ctx, "GET", path, nil)

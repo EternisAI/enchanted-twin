@@ -13,7 +13,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// Service provides higher-level operations over the holon data store
+// Service provides higher-level operations over the holon data store.
 type Service struct {
 	store  *db.Store
 	repo   *Repository
@@ -28,17 +28,17 @@ type Service struct {
 	isAuthenticated bool
 }
 
-// NewService creates a new holon service
+// NewService creates a new holon service.
 func NewService(store *db.Store) *Service {
 	return NewServiceWithLogger(store, nil)
 }
 
-// NewServiceWithLogger creates a new holon service with a logger
+// NewServiceWithLogger creates a new holon service with a logger.
 func NewServiceWithLogger(store *db.Store, logger *clog.Logger) *Service {
 	return NewServiceWithConfig(store, logger, "")
 }
 
-// NewServiceWithConfig creates a new holon service with logger and API URL
+// NewServiceWithConfig creates a new holon service with logger and API URL.
 func NewServiceWithConfig(store *db.Store, logger *clog.Logger, holonAPIURL string) *Service {
 	// Use default URL if not provided
 	if holonAPIURL == "" {
@@ -68,7 +68,7 @@ func NewServiceWithConfig(store *db.Store, logger *clog.Logger, holonAPIURL stri
 	return service
 }
 
-// performRemoteAuth attempts to authenticate with the holon network using Google OAuth token
+// performRemoteAuth attempts to authenticate with the holon network using Google OAuth token.
 func (s *Service) performRemoteAuth(ctx context.Context) error {
 	// Check if we already have authentication info
 	if s.isAuthenticated {
@@ -99,12 +99,12 @@ func (s *Service) performRemoteAuth(ctx context.Context) error {
 	return nil
 }
 
-// GetParticipantInfo returns the authenticated participant information
+// GetParticipantInfo returns the authenticated participant information.
 func (s *Service) GetParticipantInfo() (participantID *int, displayName *string, isAuthenticated bool) {
 	return s.participantID, s.displayName, s.isAuthenticated
 }
 
-// EnsureAuthenticated attempts to authenticate if not already done
+// EnsureAuthenticated attempts to authenticate if not already done.
 func (s *Service) EnsureAuthenticated(ctx context.Context) error {
 	if s.isAuthenticated {
 		return nil
@@ -227,14 +227,14 @@ func extractTitleFromContent(content string) string {
 	return content
 }
 
-// getLocalUserIdentity returns the standardized local user identity
+// getLocalUserIdentity returns the standardized local user identity.
 func (s *Service) getLocalUserIdentity() string {
 	// Use the same identity as the fetcher service for consistency
 	return "local-user"
 }
 
 // resolveLocalAuthorIdentity ensures we use consistent local user identity
-// This should be used for all locally created content
+// This should be used for all locally created content.
 func (s *Service) resolveLocalAuthorIdentity(providedIdentity string) string {
 	// For local content creation, always use the standardized local user identity
 	// regardless of what was provided (e.g., email, username, etc.)
