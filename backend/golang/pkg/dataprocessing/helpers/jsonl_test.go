@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -99,6 +100,60 @@ func TestReadJSONLBatch(t *testing.T) {
 		records, err := ReadJSONLBatch(tempFile, 2, 10)
 		require.NoError(t, err)
 		assert.Len(t, records, 2) // Only 2 records left from index 2
+	})
+
+	t.Run("Read batch with very large lines", func(t *testing.T) {
+		// Create a test file with very large lines
+		file, err := os.CreateTemp("", "test_large_batch_*.jsonl")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.Remove(file.Name())
+		}()
+
+		// Create test records with large data
+		baseTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		for i := 0; i < 3; i++ {
+			// Create a large conversation array
+			var messages []map[string]string
+			for j := 0; j < 500; j++ {
+				messages = append(messages, map[string]string{
+					"speaker": fmt.Sprintf("User%d", j%2),
+					"content": fmt.Sprintf("This is test message %d in conversation %d with additional text", j, i),
+					"time":    baseTime.Add(time.Duration(j) * time.Minute).Format(time.RFC3339),
+				})
+			}
+
+			record := types.Record{
+				Data: map[string]interface{}{
+					"id":           fmt.Sprintf("conversation-%d", i),
+					"source":       "test",
+					"conversation": messages,
+				},
+				Timestamp: baseTime.Add(time.Duration(i) * time.Hour),
+				Source:    "test",
+			}
+
+			// Marshal and write to file
+			jsonData, err := json.Marshal(record)
+			require.NoError(t, err)
+			_, err = file.WriteString(string(jsonData) + "\n")
+			require.NoError(t, err)
+		}
+		require.NoError(t, file.Close())
+
+		// Test reading all records
+		records, err := ReadJSONLBatch(file.Name(), 0, 3)
+		require.NoError(t, err)
+		assert.Len(t, records, 3)
+
+		// Verify the records were read correctly
+		for i, record := range records {
+			assert.Equal(t, fmt.Sprintf("conversation-%d", i), record.Data["id"])
+			conversations, ok := record.Data["conversation"].([]interface{})
+			assert.True(t, ok)
+			assert.Len(t, conversations, 500)
+		}
 	})
 }
 
@@ -288,6 +343,46 @@ func TestCountJSONLLines(t *testing.T) {
 		count, err := CountJSONLLines("non-existent.jsonl")
 		assert.Error(t, err)
 		assert.Equal(t, 0, count)
+	})
+
+	t.Run("Count lines with very large lines", func(t *testing.T) {
+		// Create a test file with very large lines (simulating WhatsApp conversations)
+		file, err := os.CreateTemp("", "test_large_lines_*.jsonl")
+		require.NoError(t, err)
+		defer func() {
+			_ = os.Remove(file.Name())
+		}()
+
+		// Create a large JSON object (> 64KB to exceed default buffer)
+		largeData := make(map[string]interface{})
+		largeData["id"] = "test-conversation"
+		largeData["source"] = "whatsapp"
+
+		// Create a large conversation array
+		var messages []map[string]string
+		for i := 0; i < 1000; i++ {
+			messages = append(messages, map[string]string{
+				"speaker": "User",
+				"content": fmt.Sprintf("This is a test message number %d with some additional text to make it longer", i),
+				"time":    time.Now().Format(time.RFC3339),
+			})
+		}
+		largeData["conversation"] = messages
+
+		// Write 3 large lines
+		for i := 0; i < 3; i++ {
+			jsonData, err := json.Marshal(largeData)
+			require.NoError(t, err)
+
+			_, err = file.WriteString(string(jsonData) + "\n")
+			require.NoError(t, err)
+		}
+		require.NoError(t, file.Close())
+
+		// Test counting lines
+		count, err := CountJSONLLines(file.Name())
+		require.NoError(t, err)
+		assert.Equal(t, 3, count, "Should count 3 large lines correctly")
 	})
 }
 
