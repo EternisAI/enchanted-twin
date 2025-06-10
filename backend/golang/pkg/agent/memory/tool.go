@@ -83,8 +83,9 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 	resultText := ""
 	for i, fact := range result.Facts {
 		resultText += fmt.Sprintf(
-			"Memory %d: %s (Source: %s, Time: %s)\n",
+			"Memory %d: %s - %s (Source: %s, Time: %s)\n",
 			i+1,
+			fact.Subject,
 			fact.Content,
 			fact.Source,
 			fact.Timestamp.Format("2006-01-02 15:04:05"),
