@@ -653,14 +653,15 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 		return errors.Wrap(err, "Failed to create identity personality workflow")
 	}
 
-	// Create holon sync schedule
-	err = helpers.CreateScheduleIfNotExists(
+	// Create holon sync schedule with override flag to ensure it uses the updated 30-second interval
+	err = helpers.CreateOrUpdateSchedule(
 		logger,
 		temporalClient,
 		"holon-sync-schedule",
-		5*time.Minute,
+		30*time.Second, // Use updated 30-second interval
 		holon.HolonSyncWorkflow,
 		[]any{holon.HolonSyncWorkflowInput{ForceSync: false}},
+		true, // Override if different settings
 	)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create holon sync schedule")
