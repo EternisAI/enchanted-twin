@@ -593,7 +593,7 @@ func TestMemoryIntegration(t *testing.T) {
 		if _, err := os.Stat(inputPath); os.IsNotExist(err) {
 			// Create testdata directory
 			testdataDir := filepath.Dir(inputPath)
-			if err := os.MkdirAll(testdataDir, 0755); err != nil {
+			if err := os.MkdirAll(testdataDir, 0o755); err != nil {
 				t.Fatalf("Failed to create testdata directory: %v", err)
 			}
 
@@ -604,7 +604,7 @@ func TestMemoryIntegration(t *testing.T) {
 			}
 
 			content := strings.Join(sampleData, "\n")
-			if err := os.WriteFile(inputPath, []byte(content), 0644); err != nil {
+			if err := os.WriteFile(inputPath, []byte(content), 0o644); err != nil {
 				t.Fatalf("Failed to create sample WhatsApp file: %v", err)
 			}
 			t.Logf("Created sample WhatsApp test file: %s", inputPath)
