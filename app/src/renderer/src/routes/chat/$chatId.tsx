@@ -1,18 +1,22 @@
 // routes/chat/$chatId.tsx
 import ChatView from '@renderer/components/chat/ChatView'
+import { ChatProvider } from '@renderer/contexts/ChatContext'
 import { client } from '@renderer/graphql/lib'
 import { createFileRoute } from '@tanstack/react-router'
 import { GetChatDocument } from '@renderer/graphql/generated/graphql'
 
 interface ChatSearchParams {
   initialMessage?: string
+  threadId?: string
+  action?: string
 }
 
 export const Route = createFileRoute('/chat/$chatId')({
   component: ChatRouteComponent,
   validateSearch: (search: Record<string, unknown>): ChatSearchParams => {
     return {
-      initialMessage: typeof search.initialMessage === 'string' ? search.initialMessage : undefined
+      initialMessage: typeof search.initialMessage === 'string' ? search.initialMessage : undefined,
+      threadId: typeof search.threadId === 'string' ? search.threadId : undefined // Temporary until backend has full tool
     }
   },
   loader: async ({ params }) => {
@@ -57,7 +61,9 @@ export const Route = createFileRoute('/chat/$chatId')({
 
 function ChatRouteComponent() {
   const { data, error } = Route.useLoaderData()
-  const { initialMessage } = Route.useSearch()
+  // @TODO: Remove threadId once backend has full tool support
+  const { initialMessage, threadId } = Route.useSearch()
+  console.log('threadId', threadId)
 
   if (!data) return <div className="p-4">Invalid chat ID.</div>
   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
@@ -67,7 +73,9 @@ function ChatRouteComponent() {
       <div className="flex-1 overflow-hidden w-full">
         <div className="flex flex-col items-center h-full w-full">
           <div className="w-full mx-auto h-full">
-            <ChatView key={data.id} chat={data} initialMessage={initialMessage} />
+            <ChatProvider chat={data} initialMessage={initialMessage}>
+              <ChatView key={data.id} chat={data} />
+            </ChatProvider>
           </div>
         </div>
       </div>

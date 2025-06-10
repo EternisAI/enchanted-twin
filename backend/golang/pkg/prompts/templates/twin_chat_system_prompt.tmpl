@@ -160,3 +160,7 @@ Current Chat ID: {{ .ChatID }}.
 Here are some details about the user that you can use to personalize your response:
  {{ .UserMemoryProfile }}.
 {{- end }}
+
+{{- if .HolonThreadID }}
+Current Holon Thread ID: {{ .HolonThreadID }}.
+{{- end }}
