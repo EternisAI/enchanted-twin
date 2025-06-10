@@ -4,6 +4,7 @@ import { ChevronRight, Send } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { useMutation, useQuery } from '@apollo/client'
 import {
+  ChatCategory,
   CreateChatDocument,
   GetChatsDocument,
   SendMessageDocument
@@ -82,7 +83,7 @@ export const Omnibar = () => {
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: query, voice: isVoiceMode }
+        variables: { name: query, category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text }
       })
       const newChatId = createData?.createChat?.id
 

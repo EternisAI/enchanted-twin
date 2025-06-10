@@ -1,5 +1,10 @@
 import { Link, useNavigate, useRouter, useRouterState } from '@tanstack/react-router'
-import { Chat, DeleteChatDocument, GetChatsDocument } from '@renderer/graphql/generated/graphql'
+import {
+  Chat,
+  ChatCategory,
+  DeleteChatDocument,
+  GetChatsDocument
+} from '@renderer/graphql/generated/graphql'
 import { cn } from '@renderer/lib/utils'
 import {
   AlertDialog,
@@ -20,7 +25,8 @@ import {
   SearchIcon,
   ChevronDown,
   ChevronUp,
-  CheckSquare
+  CheckSquare,
+  Globe
 } from 'lucide-react'
 import { useMutation } from '@apollo/client'
 import { client } from '@renderer/graphql/lib'
@@ -197,6 +203,17 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
           <span className="text-sm">Tasks</span>
         </Button>
 
+        {process.env.NODE_ENV === 'development' && (
+          <Button
+            variant="outline"
+            className="w-full justify-start px-2 text-foreground hover:bg-accent h-9 mb-1"
+            onClick={() => navigate({ to: '/holon' })}
+          >
+            <Globe className="w-4 h-4 mr-2 text-muted-foreground" />
+            <span className="text-sm">Holon Networks</span>
+          </Button>
+        )}
+
         <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent pt-2">
           <AnimatePresence initial={false} mode="popLayout">
             <motion.div className="flex flex-col gap-2">
@@ -300,13 +317,16 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         key={chat.id}
         disabled={isActive}
         to="/chat/$chatId"
+        params={{ chatId: chat.id }}
+        search={(() => {
+          return chat.holonThreadId ? { threadId: chat.holonThreadId } : undefined
+        })()}
         onClick={() => {
-          setVoiceMode(chat.voice)
+          setVoiceMode(chat.category === ChatCategory.Voice)
           window.api.analytics.capture('open_chat', {
             method: 'ui'
           })
         }}
-        params={{ chatId: chat.id }}
         className={cn('block px-2 py-1.5 flex-1 truncate', {
           'text-primary font-medium': isActive,
           'text-foreground': !isActive
