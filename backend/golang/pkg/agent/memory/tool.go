@@ -54,7 +54,6 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 		t.Logger.Info("Memory result sample",
 			"index", i+1,
 			"content", fact.Content,
-			"speaker", fact.Speaker,
 			"source", fact.Source,
 			"timestamp", fact.Timestamp.Format("2006-01-02 15:04:05"))
 	}

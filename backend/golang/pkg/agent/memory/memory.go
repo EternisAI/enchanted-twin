@@ -588,7 +588,6 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 // MemoryFact represents an extracted fact about a person.
 type MemoryFact struct {
 	ID        string            `json:"id"`
-	Speaker   string            `json:"speaker"`
 	Content   string            `json:"content"`
 	Timestamp time.Time         `json:"timestamp"`
 	Source    string            `json:"source"`
