@@ -625,17 +625,6 @@ func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
 	return docs
 }
 
-// ConversationDocumentsToDocuments converts a slice of ConversationDocument to a slice of Document.
-func ConversationDocumentsToDocuments(convDocs []ConversationDocument) []Document {
-	docs := make([]Document, len(convDocs))
-	for i := range convDocs {
-		// Create a new variable for the address operation to avoid capturing loop variable
-		doc := convDocs[i]
-		docs[i] = &doc
-	}
-	return docs
-}
-
 // IsEmpty returns true if the TagsFilter has no filtering criteria.
 func (tf *TagsFilter) IsEmpty() bool {
 	if tf == nil {
