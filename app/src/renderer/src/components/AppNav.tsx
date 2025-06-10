@@ -20,7 +20,7 @@ const LINKS = [
   },
   {
     label: 'Settings',
-    href: '/settings',
+    href: '/settings/appearance',
     icon: Settings
   },
   {

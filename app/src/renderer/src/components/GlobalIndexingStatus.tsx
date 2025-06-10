@@ -1,7 +1,6 @@
 import { useSubscription } from '@apollo/client'
 import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
 import { Button } from './ui/button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from './ui/tooltip'
 import { useNavigate } from '@tanstack/react-router'
 
 export function GlobalIndexingStatus() {
@@ -18,7 +17,7 @@ export function GlobalIndexingStatus() {
   const hasActiveOperation = isIndexing || isProcessing || isNotStarted || isDownloadingModel
 
   const handleClick = () => {
-    navigate({ to: '/settings' })
+    navigate({ to: '/settings/import-data' })
   }
 
   // Only show if there's an active indexing operation
@@ -54,32 +53,23 @@ export function GlobalIndexingStatus() {
   }
 
   return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="!bg-transparent h-8 px-3 text-xs font-medium backdrop-blur-md hover:bg-transparent transition-all duration-300"
-            onClick={handleClick}
-          >
-            <div className="flex items-center gap-2">
-              <span>{getStatusText()}</span>
-              <div className="w-16 bg-secondary rounded-full h-1">
-                <div
-                  className="bg-primary h-1 rounded-full transition-all duration-300"
-                  style={{
-                    width: `${getProgress()}%`
-                  }}
-                />
-              </div>
-            </div>
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>Click to view indexing details</p>
-        </TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
+    <Button
+      variant="ghost"
+      size="sm"
+      className="!bg-transparent h-8 px-3 text-xs font-medium backdrop-blur-md hover:bg-transparent transition-all duration-300"
+      onClick={handleClick}
+    >
+      <div className="flex items-center gap-2">
+        <span>{getStatusText()}</span>
+        <div className="w-16 bg-secondary rounded-full h-1">
+          <div
+            className="bg-primary h-1 rounded-full transition-all duration-300"
+            style={{
+              width: `${getProgress()}%`
+            }}
+          />
+        </div>
+      </div>
+    </Button>
   )
 }

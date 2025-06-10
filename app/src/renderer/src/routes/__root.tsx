@@ -37,10 +37,7 @@ function RootComponent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key === ',') {
         e.preventDefault()
-        navigate({ to: '/settings' })
-      }
-      if (e.key === 'Escape' && sidebarOpen && location.pathname !== '/settings') {
-        e.preventDefault()
+        navigate({ to: '/settings/appearance' })
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'n') {
         e.preventDefault()
@@ -51,20 +48,20 @@ function RootComponent() {
         e.key === 's' &&
         isCompleted &&
         !omnibar.isOpen &&
-        location.pathname !== '/settings'
+        !location.pathname.startsWith('/settings')
       ) {
         e.preventDefault()
         setSidebarOpen(!sidebarOpen)
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    window.api.onOpenSettings(() => navigate({ to: '/settings' }))
+    window.api.onOpenSettings(() => navigate({ to: '/settings/appearance' }))
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
     }
   }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname, setSidebarOpen])
 
-  if (location.pathname === '/settings') {
+  if (location.pathname.startsWith('/settings')) {
     return <Outlet />
   }
 
@@ -85,7 +82,7 @@ function RootComponent() {
 
           <div className="flex flex-1 overflow-hidden mt-0">
             <AnimatePresence>
-              {!sidebarOpen && isCompleted && location.pathname !== '/settings' && (
+              {!sidebarOpen && isCompleted && !location.pathname.startsWith('/settings') && (
                 <motion.div
                   className="absolute top-11 left-3 z-[60]"
                   initial={{ opacity: 0 }}
