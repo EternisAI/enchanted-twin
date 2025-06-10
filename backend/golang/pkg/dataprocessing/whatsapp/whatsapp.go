@@ -39,32 +39,7 @@ func min(a, b int) int {
 	return b
 }
 
-// convertCoreDataTimestamp converts Core Data timestamp to Unix timestamp
-// Core Data timestamps are seconds since 2001-01-01 00:00:00 UTC
-func convertCoreDataTimestamp(coreDataTimestamp float64) time.Time {
-	// Validate the timestamp - Core Data timestamps should be positive and reasonable
-	// Negative values or extremely large values are likely invalid
-	if coreDataTimestamp < 0 || coreDataTimestamp > 2147483647 { // Max int32 for reasonable future dates
-		return time.Time{} // Return zero time for invalid timestamps
-	}
-
-	// Core Data reference date: January 1, 2001, 00:00:00 UTC
-	referenceDate := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
-	result := referenceDate.Add(time.Duration(coreDataTimestamp) * time.Second)
-
-	// Additional validation - ensure the result is within a reasonable range
-	// WhatsApp was founded in 2009, so messages before 2009 are likely invalid
-	minDate := time.Date(2009, 1, 1, 0, 0, 0, 0, time.UTC)
-	maxDate := time.Now().Add(24 * time.Hour) // Allow up to 1 day in the future
-
-	if result.Before(minDate) || result.After(maxDate) {
-		return time.Time{} // Return zero time for unreasonable dates
-	}
-
-	return result
-}
-
-// convertWhatsAppTimestamp tries multiple timestamp conversion strategies
+// convertWhatsAppTimestamp tries multiple timestamp conversion strategies.
 func convertWhatsAppTimestamp(rawTimestamp interface{}) time.Time {
 	var timestampFloat float64
 
@@ -148,7 +123,7 @@ func convertWhatsAppTimestamp(rawTimestamp interface{}) time.Time {
 	return time.Time{} // All strategies failed
 }
 
-// validateAndFixTimestamp validates and potentially corrects time.Time values from the database
+// validateAndFixTimestamp validates and potentially corrects time.Time values from the database.
 func validateAndFixTimestamp(t time.Time) time.Time {
 	// If the timestamp is zero, return it as-is
 	if t.IsZero() {
@@ -202,7 +177,7 @@ func validateAndFixTimestamp(t time.Time) time.Time {
 	return time.Time{}
 }
 
-// isWhatsAppJID checks if a string looks like a WhatsApp JID
+// isWhatsAppJID checks if a string looks like a WhatsApp JID.
 func isWhatsAppJID(text string) bool {
 	// Check for patterns like "16672940017@s.whatsapp.net" or just phone numbers followed by @
 	whatsappJIDPattern := regexp.MustCompile(`^\d{10,15}@s\.whatsapp\.net$`)
@@ -211,7 +186,7 @@ func isWhatsAppJID(text string) bool {
 	return whatsappJIDPattern.MatchString(text) || phoneAtPattern.MatchString(text)
 }
 
-// shouldFilterMessage determines if a message should be filtered out
+// shouldFilterMessage determines if a message should be filtered out.
 func shouldFilterMessage(text, groupName string) bool {
 	text = strings.TrimSpace(text)
 
@@ -232,14 +207,10 @@ func shouldFilterMessage(text, groupName string) bool {
 
 	// Filter messages that are just phone numbers
 	phonePattern := regexp.MustCompile(`^\d{10,15}$`)
-	if phonePattern.MatchString(text) {
-		return true
-	}
-
-	return false
+	return phonePattern.MatchString(text)
 }
 
-// resolveTagsInMessage resolves @mentions in message content
+// resolveTagsInMessage resolves @mentions in message content.
 func resolveTagsInMessage(content string, contactNames map[string]string, participantsMap map[string]bool) string {
 	// Pattern to match @mentions like @15083108164
 	mentionPattern := regexp.MustCompile(`@(\d{10,15})`)
@@ -284,7 +255,7 @@ func resolveTagsInMessage(content string, contactNames map[string]string, partic
 	})
 }
 
-// decodeJID attempts to decode a JID that might be base64 encoded or compressed
+// decodeJID attempts to decode a JID that might be base64 encoded or compressed.
 func decodeJID(jid string) string {
 	if jid == "" {
 		return ""
@@ -337,7 +308,7 @@ func decodeJID(jid string) string {
 	return jid
 }
 
-// isPrintableString checks if a string contains only printable characters
+// isPrintableString checks if a string contains only printable characters.
 func isPrintableString(s string) bool {
 	for _, r := range s {
 		if r < 32 || r > 126 {
@@ -349,7 +320,7 @@ func isPrintableString(s string) bool {
 
 // extractSenderFromJID extracts the sender name from a WhatsApp JID
 // For group messages, JID format is typically: phoneNumber@s.whatsapp.net
-// For messages within groups, it might be: groupJID/senderPhoneNumber@s.whatsapp.net
+// For messages within groups, it might be: groupJID/senderPhoneNumber@s.whatsapp.net.
 func extractSenderFromJID(jid string) string {
 	if jid == "" {
 		return ""
@@ -380,7 +351,7 @@ func extractSenderFromJID(jid string) string {
 	return jid
 }
 
-// loadContactNames loads a mapping of JIDs to contact names from the WhatsApp database
+// loadContactNames loads a mapping of JIDs to contact names from the WhatsApp database.
 func (s *WhatsappProcessor) loadContactNames(ctx context.Context, db *sql.DB) (map[string]string, error) {
 	contactMap := make(map[string]string)
 
@@ -435,7 +406,7 @@ func (s *WhatsappProcessor) loadContactNames(ctx context.Context, db *sql.DB) (m
 			}
 			count++
 		}
-		rows.Close()
+		_ = rows.Close()
 		s.logger.Debug("Loaded contacts from query", "queryName", q.name, "count", count)
 	}
 
@@ -480,7 +451,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 				availableColumns[colName] = true
 			}
 		}
-		rows.Close()
+		_ = rows.Close()
 	}
 
 	// Build query with proper JOIN to get group member information
@@ -1180,7 +1151,7 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 }
 
 // extractJIDFromBytes attempts to extract a JID from byte data
-// iOS WhatsApp stores JIDs as NSData BLOBs with specific encoding
+// iOS WhatsApp stores JIDs as NSData BLOBs with specific encoding.
 func extractJIDFromBytes(data []byte) string {
 	if len(data) == 0 {
 		return ""
