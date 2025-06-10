@@ -606,14 +606,13 @@ type QueryResult struct {
 }
 
 type ProgressUpdate struct {
-	Processed int `json:"processed"`
-	Total     int `json:"total"`
+	Processed int    `json:"processed"`
+	Total     int    `json:"total"`
+	Stage     string `json:"stage,omitempty"` // "extracting", "storing", etc.
 }
 
-type ProgressCallback func(processed, total int)
-
 type Storage interface {
-	Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
+	Store(ctx context.Context, documents []Document) (<-chan ProgressUpdate, <-chan error)
 	Query(ctx context.Context, query string, filter *Filter) (QueryResult, error)
 }
 

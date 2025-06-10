@@ -174,8 +174,23 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		storageImplTyped, ok := storageImpl.(*StorageImpl)
 		require.True(t, ok, "Failed to type assert to StorageImpl")
 
-		err = storageImplTyped.Store(context.Background(), []memory.Document{}, nil)
-		assert.NoError(t, err)
+		progressCh, errorCh := storageImplTyped.Store(context.Background(), []memory.Document{})
+
+		// Drain channels
+		go func() {
+			for range progressCh {
+				// Empty documents shouldn't produce progress
+			}
+		}()
+
+		var firstErr error
+		for err := range errorCh {
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+
+		assert.NoError(t, firstErr)
 	})
 
 	// Test with progress callback - simplified version
@@ -239,11 +254,29 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		storageImplTyped, ok := storageImpl.(*StorageImpl)
 		require.True(t, ok, "Failed to type assert to StorageImpl")
 
-		err = storageImplTyped.Store(context.Background(), []memory.Document{}, callback)
-		assert.NoError(t, err)
+		progressCh, errorCh := storageImplTyped.Store(context.Background(), []memory.Document{})
 
-		// For empty documents, callback might not be called, which is fine
-		t.Logf("Progress callback called %d times", progressCalls)
+		// Simulate the callback behavior with channels
+		go func() {
+			for progress := range progressCh {
+				progressCalls++
+				if callback != nil {
+					callback(progress.Processed, progress.Total)
+				}
+			}
+		}()
+
+		var firstErr error
+		for err := range errorCh {
+			if firstErr == nil {
+				firstErr = err
+			}
+		}
+
+		assert.NoError(t, firstErr)
+
+		// For empty documents, progress might not be reported, which is fine
+		t.Logf("Progress updates received %d times", progressCalls)
 	})
 
 	// Test context cancellation
@@ -311,9 +344,26 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 			},
 		}
 
-		err = storageImplTyped.Store(ctx, docs, nil)
-		assert.Error(t, err)
-		assert.Equal(t, context.Canceled, err)
+		progressCh, errorCh := storageImplTyped.Store(ctx, docs)
+
+		// With canceled context, we expect an error
+		// Drain progress channel
+		go func() {
+			for range progressCh {
+				// Shouldn't receive any progress with canceled context
+			}
+		}()
+
+		// Collect error
+		var receivedErr error
+		for err := range errorCh {
+			if receivedErr == nil {
+				receivedErr = err
+			}
+		}
+
+		assert.Error(t, receivedErr)
+		assert.Equal(t, context.Canceled, receivedErr)
 	})
 }
 

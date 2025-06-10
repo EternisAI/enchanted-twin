@@ -472,18 +472,31 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 		return IndexBatchActivityResponse{}, err
 	}
 
-	progressCallback := func(processed, total int) {
-		w.Logger.Info("Batch progress",
-			"dataSource", input.DataSourceName,
-			"batch", input.BatchIndex+1,
-			"totalBatches", input.TotalBatches,
-			"processed", processed,
-			"total", total)
+	progressCh, errorCh := w.Memory.Store(ctx, documents)
+
+	// Handle progress in background
+	go func() {
+		for progress := range progressCh {
+			w.Logger.Info("Batch progress",
+				"dataSource", input.DataSourceName,
+				"batch", input.BatchIndex+1,
+				"totalBatches", input.TotalBatches,
+				"processed", progress.Processed,
+				"total", progress.Total,
+				"stage", progress.Stage)
+		}
+	}()
+
+	// Collect first error
+	var firstErr error
+	for err := range errorCh {
+		if firstErr == nil {
+			firstErr = err
+		}
 	}
 
-	err = w.Memory.Store(ctx, documents, progressCallback)
-	if err != nil {
-		return IndexBatchActivityResponse{}, err
+	if firstErr != nil {
+		return IndexBatchActivityResponse{}, firstErr
 	}
 
 	return IndexBatchActivityResponse{

@@ -626,7 +626,24 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 
 	s.logger.Info("Indexing conversation", "chat_id", chatID, "messages_count", len(conversationMessages))
 
-	return s.memoryService.Store(ctx, []memory.Document{&doc}, nil)
+	progressCh, errorCh := s.memoryService.Store(ctx, []memory.Document{&doc})
+
+	// Drain progress channel (we don't need progress for this use case)
+	go func() {
+		for range progressCh {
+			// Ignore progress
+		}
+	}()
+
+	// Collect first error if any
+	var firstErr error
+	for err := range errorCh {
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	return firstErr
 }
 
 func (s *Service) SendAssistantMessage(

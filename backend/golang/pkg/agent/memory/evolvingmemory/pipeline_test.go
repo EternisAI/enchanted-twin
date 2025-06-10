@@ -62,7 +62,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.True(t, config.StreamingProgress)
 }
 
-func TestStoreV2BasicFlow(t *testing.T) {
+func TestStoreBasicFlow(t *testing.T) {
 	ctx := context.Background()
 	storage, err := createMockStorage(log.Default())
 	require.NoError(t, err)
@@ -75,23 +75,14 @@ func TestStoreV2BasicFlow(t *testing.T) {
 		},
 	}
 
-	config := Config{
-		Workers:               1,
-		BatchSize:             10,
-		FlushInterval:         100 * time.Millisecond,
-		FactExtractionTimeout: 5 * time.Second,
-		MemoryDecisionTimeout: 5 * time.Second,
-		StorageTimeout:        5 * time.Second,
-	}
-
 	// Test that channels are created and closed properly
-	progressCh, errorCh := storage.StoreV2(ctx, docs, config)
+	progressCh, errorCh := storage.Store(ctx, docs)
 
 	require.NotNil(t, progressCh)
 	require.NotNil(t, errorCh)
 
 	// Consume channels until they close
-	var progressUpdates []Progress
+	var progressUpdates []memory.ProgressUpdate
 	var errors []error
 
 	for progressCh != nil || errorCh != nil {
@@ -123,13 +114,11 @@ func TestStoreV2BasicFlow(t *testing.T) {
 	assert.True(t, true, "Pipeline completed successfully - channels closed")
 }
 
-func TestStoreV2EmptyDocuments(t *testing.T) {
+func TestStoreEmptyDocuments(t *testing.T) {
 	ctx := context.Background()
 	storage, _ := createMockStorage(log.Default())
 
-	config := DefaultConfig()
-
-	progressCh, errorCh := storage.StoreV2(ctx, []memory.Document{}, config)
+	progressCh, errorCh := storage.Store(ctx, []memory.Document{})
 
 	// Should get one progress update indicating completion
 	select {
@@ -167,9 +156,6 @@ func TestPipelineIntegration_BasicFlow(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	config := DefaultConfig()
-	config.Workers = 2
-	config.BatchSize = 2
 
 	// Create test documents
 	docs := []memory.Document{
@@ -195,10 +181,10 @@ func TestPipelineIntegration_BasicFlow(t *testing.T) {
 		},
 	}
 
-	progressCh, errorCh := storage.StoreV2(ctx, docs, config)
+	progressCh, errorCh := storage.Store(ctx, docs)
 
 	// Collect results
-	var progressUpdates []Progress
+	var progressUpdates []memory.ProgressUpdate
 	var errors []error
 
 	done := make(chan bool)

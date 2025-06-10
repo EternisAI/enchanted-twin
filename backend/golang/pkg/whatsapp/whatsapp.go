@@ -492,23 +492,40 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 
 				logger.Info("Storing WhatsApp contacts through evolvingmemory fact extraction", "count", len(contactDocuments))
-				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), func(processed, total int) {
-					logger.Info("WhatsApp contacts storage progress", "processed", processed, "total", total)
+				progressCh, errorCh := memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments))
 
-					UpdateSyncStatus(SyncStatus{
-						IsCompleted:    false,
-						IsSyncing:      true,
-						ProcessedItems: processedItems,
-						TotalItems:     totalItems,
-						StatusMessage:  fmt.Sprintf("Storing WhatsApp contacts in memory (%d/%d)...", processed, total),
-					})
-					err = PublishSyncStatus(nc, logger)
-					if err != nil {
-						logger.Error("Error publishing sync status", "error", err)
+				// Handle progress updates
+				go func() {
+					for progress := range progressCh {
+						logger.Info("WhatsApp contacts storage progress",
+							"processed", progress.Processed,
+							"total", progress.Total,
+							"stage", progress.Stage)
+
+						UpdateSyncStatus(SyncStatus{
+							IsCompleted:    false,
+							IsSyncing:      true,
+							ProcessedItems: processedItems,
+							TotalItems:     totalItems,
+							StatusMessage: fmt.Sprintf("Storing WhatsApp contacts in memory (%d/%d) - %s...",
+								progress.Processed, progress.Total, progress.Stage),
+						})
+						if err := PublishSyncStatus(nc, logger); err != nil {
+							logger.Error("Error publishing sync status", "error", err)
+						}
 					}
-				})
-				if err != nil {
-					logger.Error("Error storing WhatsApp contacts", "error", err)
+				}()
+
+				// Collect errors
+				var firstErr error
+				for err := range errorCh {
+					if firstErr == nil {
+						firstErr = err
+					}
+				}
+
+				if firstErr != nil {
+					logger.Error("Error storing WhatsApp contacts", "error", firstErr)
 				} else {
 					logger.Info("WhatsApp contacts stored successfully through evolvingmemory", "count", len(contactDocuments))
 
@@ -596,24 +613,41 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					}
 				}
 
-				err = memoryStorage.Store(ctx, documents, func(processed, total int) {
-					logger.Info("WhatsApp conversations storage progress", "processed", processed, "total", total)
+				progressCh, errorCh := memoryStorage.Store(ctx, documents)
 
-					// Update status during conversation storage
-					UpdateSyncStatus(SyncStatus{
-						IsCompleted:    false,
-						IsSyncing:      true,
-						ProcessedItems: processedItems,
-						TotalItems:     totalItems,
-						StatusMessage:  fmt.Sprintf("Storing WhatsApp conversations in memory (%d/%d)...", processed, total),
-					})
-					err = PublishSyncStatus(nc, logger)
-					if err != nil {
-						logger.Error("Error publishing sync status", "error", err)
+				// Handle progress updates
+				go func() {
+					for progress := range progressCh {
+						logger.Info("WhatsApp conversations storage progress",
+							"processed", progress.Processed,
+							"total", progress.Total,
+							"stage", progress.Stage)
+
+						// Update status during conversation storage
+						UpdateSyncStatus(SyncStatus{
+							IsCompleted:    false,
+							IsSyncing:      true,
+							ProcessedItems: processedItems,
+							TotalItems:     totalItems,
+							StatusMessage: fmt.Sprintf("Storing WhatsApp conversations in memory (%d/%d) - %s...",
+								progress.Processed, progress.Total, progress.Stage),
+						})
+						if err := PublishSyncStatus(nc, logger); err != nil {
+							logger.Error("Error publishing sync status", "error", err)
+						}
 					}
-				})
-				if err != nil {
-					logger.Error("Error storing WhatsApp conversation documents", "error", err)
+				}()
+
+				// Collect errors
+				var firstErr error
+				for err := range errorCh {
+					if firstErr == nil {
+						firstErr = err
+					}
+				}
+
+				if firstErr != nil {
+					logger.Error("Error storing WhatsApp conversation documents", "error", firstErr)
 				} else {
 					logger.Info("WhatsApp conversation documents storage completed successfully through evolvingmemory", "count", len(documents))
 

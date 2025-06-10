@@ -388,18 +388,10 @@ func (env *testEnvironment) storeDocuments(t *testing.T) {
 
 	env.logger.Info("Waiting for memory processing to complete...")
 
-	config := evolvingmemory.DefaultConfig()
+	// Note: Store no longer takes a config parameter
+	// The evolvingmemory package uses DefaultConfig internally
 
-	if localTimeout := os.Getenv("LOCAL_MODEL_TIMEOUT"); localTimeout != "" {
-		if duration, err := time.ParseDuration(localTimeout); err == nil {
-			config.FactExtractionTimeout = duration
-			config.MemoryDecisionTimeout = duration
-			config.StorageTimeout = duration
-			env.logger.Info("Using custom timeout for local model", "timeout", duration)
-		}
-	}
-
-	progressCh, errorCh := env.memory.StoreV2(env.ctx, env.documents, config)
+	progressCh, errorCh := env.memory.Store(env.ctx, env.documents)
 
 	var errors []error
 

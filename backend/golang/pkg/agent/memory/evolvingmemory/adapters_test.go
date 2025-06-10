@@ -87,10 +87,9 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 
 		// Convert to unified document interface
 		docs := []memory.Document{convDoc}
-		config := DefaultConfig()
 
-		// Test StoreV2 functionality
-		progressCh, errorCh := storageImpl.StoreV2(context.Background(), docs, config)
+		// Test Store functionality
+		progressCh, errorCh := storageImpl.Store(context.Background(), docs)
 
 		// Process channels (this will likely fail with mock storage, but tests the interface)
 		select {
@@ -117,9 +116,25 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 		docs := []memory.Document{textDoc}
 
 		// Test Store functionality (this will likely fail with mock storage, but tests the interface)
-		err := storageImpl.Store(context.Background(), docs, nil)
+		progressCh, errorCh := storageImpl.Store(context.Background(), docs)
+
+		// Drain channels
+		go func() {
+			for range progressCh {
+				// Progress updates
+			}
+		}()
+
+		// Check for errors
+		var storeErr error
+		for err := range errorCh {
+			if storeErr == nil {
+				storeErr = err
+			}
+		}
+
 		// We expect this to fail with mock storage, but the interface should work
-		t.Logf("Store returned (expected error with mock): %v", err)
+		t.Logf("Store returned (expected error with mock): %v", storeErr)
 	})
 
 	t.Run("Query_Functionality", func(t *testing.T) {
