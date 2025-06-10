@@ -11,33 +11,24 @@ export default function HolonThreadPreview({
 }: {
   thread: Pick<Thread, 'id' | 'title' | 'content' | 'imageURLs' | 'actions'>
 }) {
-  const [isEditingTitle, setIsEditingTitle] = useState(false)
-  const [isEditingContent, setIsEditingContent] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
   const [editedTitle, setEditedTitle] = useState(thread.title)
   const [editedContent, setEditedContent] = useState(thread.content)
 
   const { sendMessage } = useChatActions()
 
-  const handleSaveTitle = () => {
-    // TODO: Add mutation to save title
+  const handleSave = () => {
     console.log('Saving title:', editedTitle)
-    setIsEditingTitle(false)
-  }
-
-  const handleCancelTitle = () => {
-    setEditedTitle(thread.title)
-    setIsEditingTitle(false)
-  }
-
-  const handleSaveContent = () => {
-    // TODO: Add mutation to save content
     console.log('Saving content:', editedContent)
-    setIsEditingContent(false)
+    setIsEditing(false)
+    const messageContent = `Please update the holon thread with the following title: ${editedTitle} and content: ${editedContent}`
+    sendMessage(messageContent, false, false)
   }
 
-  const handleCancelContent = () => {
+  const handleCancel = () => {
+    setEditedTitle(thread.title)
     setEditedContent(thread.content)
-    setIsEditingContent(false)
+    setIsEditing(false)
   }
 
   return (
@@ -49,7 +40,7 @@ export default function HolonThreadPreview({
     >
       <div className="w-full flex items-start justify-between border-b border-border pb-3">
         <div className="flex flex-col flex-1">
-          {isEditingTitle ? (
+          {isEditing ? (
             <div className="flex items-center gap-2">
               <input
                 type="text"
@@ -58,16 +49,10 @@ export default function HolonThreadPreview({
                 className="text-lg font-semibold text-foreground bg-transparent border-b border-primary focus:outline-none flex-1"
                 autoFocus
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSaveTitle()
-                  if (e.key === 'Escape') handleCancelTitle()
+                  if (e.key === 'Enter') handleSave()
+                  if (e.key === 'Escape') handleCancel()
                 }}
               />
-              <Button variant="ghost" size="sm" onClick={handleSaveTitle}>
-                <Check className="w-4 h-4" />
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleCancelTitle}>
-                <X className="w-4 h-4" />
-              </Button>
             </div>
           ) : (
             <div className="flex items-center gap-2 group">
@@ -76,7 +61,7 @@ export default function HolonThreadPreview({
                 variant="ghost"
                 size="sm"
                 className="transition-opacity"
-                onClick={() => setIsEditingTitle(true)}
+                onClick={() => setIsEditing(true)}
               >
                 <Edit3 className="w-4 h-4" />
               </Button>
@@ -122,23 +107,22 @@ export default function HolonThreadPreview({
           </div>
         )}
 
-        {isEditingContent ? (
+        {isEditing ? (
           <div className="flex flex-col gap-2">
             <textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
               className="text-foreground bg-transparent border border-primary rounded-lg p-3 focus:outline-none resize-none min-h-[120px]"
-              autoFocus
               onKeyDown={(e) => {
-                if (e.key === 'Escape') handleCancelContent()
+                if (e.key === 'Escape') handleCancel()
               }}
             />
             <div className="flex items-center gap-2">
-              <Button variant="default" size="sm" onClick={handleSaveContent}>
+              <Button variant="default" size="sm" onClick={handleSave}>
                 <Check className="w-4 h-4 mr-1" />
                 Save
               </Button>
-              <Button variant="outline" size="sm" onClick={handleCancelContent}>
+              <Button variant="outline" size="sm" onClick={handleCancel}>
                 <X className="w-4 h-4 mr-1" />
                 Cancel
               </Button>
@@ -147,14 +131,6 @@ export default function HolonThreadPreview({
         ) : (
           <div className="group relative">
             <p className="text-foreground whitespace-pre-wrap">{editedContent}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="absolute bottom-[-1] right-0 transition-opacity"
-              onClick={() => setIsEditingContent(true)}
-            >
-              <Edit3 className="w-4 h-4" />
-            </Button>
           </div>
         )}
 
