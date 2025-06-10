@@ -414,7 +414,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 		convs[chatSession] = append(convs[chatSession], msg)
 
 		if participants[chatSession] == nil {
-			participants[chatSession] = map[string]bool{"me": true}
+			participants[chatSession] = map[string]bool{"primaryUser": true}
 		}
 		if partnerName != "" && partnerName != "IAA=" {
 			participants[chatSession][partnerName] = true
@@ -454,7 +454,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 
 		msgArr := make([]map[string]interface{}, len(msgs))
 		for i, m := range msgs {
-			speaker := "me"
+			speaker := "primaryUser"
 			if !m.IsFromMe {
 				// For group chats, we need to get the actual sender from the group member data
 				// The FromJID will be the group JID, not the individual sender
@@ -479,7 +479,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 					}
 
 					// If no contact name found, use the phone number from member JID
-					if speaker == "me" {
+					if speaker == "primaryUser" {
 						phone := extractSenderFromJID(memberJID)
 						if phone != "" && len(phone) >= 10 && len(phone) <= 20 {
 							allDigits := true
@@ -497,14 +497,14 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 				}
 
 				// Priority 2: Group member name from the join (only if it looks valid)
-				if speaker == "me" && m.GroupMemberName != "" && m.GroupMemberName != "IAA=" &&
+				if speaker == "primaryUser" && m.GroupMemberName != "" && m.GroupMemberName != "IAA=" &&
 					!strings.HasPrefix(m.GroupMemberName, "IAA") && !strings.Contains(m.GroupMemberName, "=") &&
 					len(m.GroupMemberName) > 2 {
 					speaker = m.GroupMemberName
 				}
 
 				// Priority 3: For non-group messages, try the FromJID
-				if speaker == "me" && !strings.Contains(m.FromJID, "@g.us") {
+				if speaker == "primaryUser" && !strings.Contains(m.FromJID, "@g.us") {
 					lookupKeys := []string{
 						m.FromJID,
 						extractSenderFromJID(m.FromJID),
@@ -523,17 +523,17 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 				}
 
 				// Priority 4: Push name
-				if speaker == "me" && m.PushName != "" && m.PushName != "IAA=" && !strings.HasPrefix(m.PushName, "IAA") {
+				if speaker == "primaryUser" && m.PushName != "" && m.PushName != "IAA=" && !strings.HasPrefix(m.PushName, "IAA") {
 					speaker = m.PushName
 				}
 
 				// Priority 5: Partner name (for individual chats)
-				if speaker == "me" && m.PartnerName != "" && m.PartnerName != "IAA=" && !strings.HasPrefix(m.PartnerName, "IAA") && !strings.Contains(m.FromJID, "@g.us") {
+				if speaker == "primaryUser" && m.PartnerName != "" && m.PartnerName != "IAA=" && !strings.HasPrefix(m.PartnerName, "IAA") && !strings.Contains(m.FromJID, "@g.us") {
 					speaker = m.PartnerName
 				}
 
 				// Priority 6: Use phone number from FromJID (for individual chats)
-				if speaker == "me" && !strings.Contains(m.FromJID, "@g.us") {
+				if speaker == "primaryUser" && !strings.Contains(m.FromJID, "@g.us") {
 					phone := extractSenderFromJID(m.FromJID)
 					if phone != "" && len(phone) >= 10 && len(phone) <= 20 {
 						allDigits := true
@@ -550,7 +550,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 				}
 
 				// Last resort: Use "Unknown" only if we really can't find anything
-				if speaker == "me" {
+				if speaker == "primaryUser" {
 					speaker = "Unknown"
 				}
 			}
@@ -564,7 +564,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 
 		// Add speakers from messages to participants
 		for _, msg := range msgArr {
-			if speaker, ok := msg["speaker"].(string); ok && speaker != "Unknown" && speaker != "me" && speaker != "" && speaker != "IAA=" {
+			if speaker, ok := msg["speaker"].(string); ok && speaker != "Unknown" && speaker != "primaryUser" && speaker != "" && speaker != "IAA=" {
 				participants[chatID][speaker] = true
 			}
 		}
@@ -610,7 +610,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 			"chat_session": chatID,
 			"conversation": msgArr,
 			"people":       parts,
-			"user":         "me",
+			"user":         "primaryUser",
 			"type":         "conversation",
 		}
 		if name, ok := groupNames[chatID]; ok {

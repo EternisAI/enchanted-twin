@@ -105,11 +105,7 @@ func (cd *ConversationDocument) Content() string {
 	// Process people list with replacements
 	people := make([]string, len(cd.People))
 	for i, person := range cd.People {
-		if person == "me" {
-			people[i] = "August"
-		} else {
-			people[i] = person
-		}
+		people[i] = person
 	}
 
 	// Process messages with replacements
@@ -120,13 +116,8 @@ func (cd *ConversationDocument) Content() string {
 			continue
 		}
 
-		speaker := msg.Speaker
-		if speaker == "me" {
-			speaker = "Augustinas"
-		}
-
 		messages = append(messages, map[string]string{
-			"user":    speaker,
+			"user":    msg.Speaker,
 			"time":    msg.Time.Format("2006-01-02 15:04:05"),
 			"content": trimmed,
 		})
