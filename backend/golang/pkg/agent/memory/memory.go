@@ -46,17 +46,21 @@ type Filter struct {
 	Distance float32     // Maximum semantic distance (0 = disabled)
 	Limit    *int        // Maximum number of results to return
 
-	// Structured fact filtering fields
-	FactCategory        *string // Filter by fact category (profile_stable, preference, goal_plan, etc.)
-	FactAttribute       *string // Filter by fact attribute (specific property being described)
-	FactValue           *string // Filter by fact value (partial match on descriptive content)
-	FactTemporalContext *string // Filter by temporal context (dates, time references)
-	FactSensitivity     *string // Filter by sensitivity level (high, medium, low)
-	FactImportance      *int    // Filter by importance score (1, 2, 3)
+	// Structured fact filtering fields - ONLY indexed fields
+	FactCategory   *string // Filter by fact category (profile_stable, preference, goal_plan, etc.)
+	FactAttribute  *string // Filter by fact attribute (specific property being described)
+	FactImportance *int    // Filter by importance score (1, 2, 3)
 
 	// Ranges for numeric/date fields
 	FactImportanceMin *int // Minimum importance score (inclusive)
 	FactImportanceMax *int // Maximum importance score (inclusive)
+
+	// Timestamp filtering
+	TimestampAfter  *time.Time // Filter for facts created after this time (inclusive)
+	TimestampBefore *time.Time // Filter for facts created before this time (inclusive)
+
+	// Document references filtering
+	DocumentReferences []string // Filter by document reference IDs
 }
 
 // Document interface that both TextDocument and ConversationDocument implement.

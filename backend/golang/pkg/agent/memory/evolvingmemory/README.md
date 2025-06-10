@@ -527,12 +527,6 @@ filter := &memory.Filter{
 }
 result, err := storage.Query(ctx, "life events", filter)
 
-// Filter by sensitivity - only public information
-filter := &memory.Filter{
-    FactSensitivity: stringPtr("low"),
-}
-result, err := storage.Query(ctx, "general interests", filter)
-
 // High importance facts only (importance >= 2)
 filter := &memory.Filter{
     FactImportanceMin: intPtr(2),
@@ -541,7 +535,7 @@ result, err := storage.Query(ctx, "significant memories", filter)
 
 // Filter by subject - facts about Alice
 filter := &memory.Filter{
-    FactSubject: stringPtr("alice"),
+    Subject: stringPtr("alice"),
 }
 result, err := storage.Query(ctx, "alice information", filter)
 
@@ -550,6 +544,20 @@ filter := &memory.Filter{
     FactAttribute: stringPtr("health_metric"),
 }
 result, err := storage.Query(ctx, "health data", filter)
+
+// Filter by timestamp range - facts from last 30 days
+now := time.Now()
+thirtyDaysAgo := now.AddDate(0, 0, -30)
+filter := &memory.Filter{
+    TimestampAfter: &thirtyDaysAgo,
+}
+result, err := storage.Query(ctx, "recent activities", filter)
+
+// Filter by document references - facts from specific documents
+filter := &memory.Filter{
+    DocumentReferences: []string{"doc-id-1", "doc-id-2"},
+}
+result, err := storage.Query(ctx, "facts from specific documents", filter)
 ```
 
 #### Advanced Combined Filtering
@@ -557,41 +565,29 @@ result, err := storage.Query(ctx, "health data", filter)
 ```go
 // Preferences from conversations with high importance
 filter := &memory.Filter{
-    Source:         stringPtr("conversations"),
     FactCategory:   stringPtr("preference"),
     FactImportance: intPtr(3),
-    Limit:          intPtr(10),
+    Source:         stringPtr("conversations"),
 }
 result, err := storage.Query(ctx, "important preferences", filter)
 
-// Alice's work-related facts with medium/high sensitivity
+// Recent health facts (last 7 days) with medium-high importance
+now := time.Now()
+sevenDaysAgo := now.AddDate(0, 0, -7)
 filter := &memory.Filter{
-    FactSubject:     stringPtr("alice"),
-    FactCategory:    stringPtr("context_env"),
-    FactSensitivity: stringPtr("medium"),
-    Source:          stringPtr("conversations"),
-    Distance:        0.8,
-}
-result, err := storage.Query(ctx, "alice work environment", filter)
-
-// Health facts from last month with high importance
-filter := &memory.Filter{
-    FactCategory:        stringPtr("health"),
-    FactTemporalContext: stringPtr("2025-01"),
-    FactImportanceMin:   intPtr(2),
-    Limit:               intPtr(20),
+    FactCategory:      stringPtr("health"),
+    FactImportanceMin: intPtr(2),
+    TimestampAfter:    &sevenDaysAgo,
 }
 result, err := storage.Query(ctx, "recent health updates", filter)
 
-// Skills and goals with any importance level
+// Facts about specific person from multiple documents
 filter := &memory.Filter{
-    FactCategory:      stringPtr("skill"),
-    FactImportanceMin: intPtr(1),
-    FactImportanceMax: intPtr(3),
-    Subject:           stringPtr("user"),
-    Distance:          0.7,
+    Subject:            stringPtr("bob"),
+    DocumentReferences: []string{"conv-123", "conv-456"},
+    FactCategory:       stringPtr("preference"),
 }
-result, err := storage.Query(ctx, "user skills", filter)
+result, err := storage.Query(ctx, "bob's preferences from conversations", filter)
 ```
 
 #### Privacy & GDPR Compliant Filtering
