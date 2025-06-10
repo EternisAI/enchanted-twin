@@ -104,7 +104,7 @@ func (cd *ConversationDocument) ID() string {
 func (cd *ConversationDocument) Content() string {
 	messages := make([]map[string]string, 0, len(cd.Conversation))
 	for _, msg := range cd.Conversation {
-		trimmed := strings.TrimSpace(strings.Replace(msg.Content, "@15083108164", "@Bala", -1))
+		trimmed := strings.TrimSpace(msg.Content)
 		if trimmed == "" {
 			continue
 		}

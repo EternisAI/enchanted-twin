@@ -19,117 +19,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
-// -----------------------------------------------------------------------------
-// globals / helpers
-// -----------------------------------------------------------------------------
-
-var mentionRegex = regexp.MustCompile(`@(\+?\d{5,})`)
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
-// decodeJID attempts to decode a JID that might be base64 encoded or compressed.
-func decodeJID(jid string) string {
-	if jid == "" {
-		return ""
-	}
-
-	// If it already looks like a valid JID, return it
-	if strings.Contains(jid, "@") && (strings.Contains(jid, "s.whatsapp.net") || strings.Contains(jid, "g.us")) {
-		return jid
-	}
-
-	// Try to decode base64 encoded JIDs
-	if strings.Contains(jid, "=") || !strings.Contains(jid, "@") {
-		try := []func(string) ([]byte, error){
-			base64.StdEncoding.DecodeString,
-			base64.URLEncoding.DecodeString,
-			base64.RawStdEncoding.DecodeString,
-			base64.RawURLEncoding.DecodeString,
-		}
-
-		for _, fn := range try {
-			if decoded, err := fn(jid); err == nil && len(decoded) > 0 {
-				// Try to extract JID from decoded bytes
-				decodedJID := extractJIDFromBytes(decoded)
-				if decodedJID != "" && decodedJID != jid {
-					return decodedJID
-				}
-			}
-		}
-	}
-
-	return jid
-}
-
-// isPrintableString checks if a string contains only printable characters.
-func isPrintableString(s string) bool {
-	for _, r := range s {
-		if r < 32 || r > 126 {
-			return false
-		}
-	}
-	return true
-}
-
-// extractSenderFromJID extracts the sender phone/username from a JID.
-func extractSenderFromJID(jid string) string {
-	if jid == "" {
-		return ""
-	}
-	jid = strings.TrimSpace(jid)
-
-	// Remove resource part if present (e.g., "user@domain/resource" -> "user@domain")
-	if idx := strings.LastIndex(jid, "/"); idx > 0 {
-		jid = jid[:idx]
-	}
-
-	// Extract the username/phone part before @
-	if idx := strings.Index(jid, "@"); idx > 0 {
-		phone := jid[:idx]
-		// Clean up the phone number
-		phone = strings.TrimPrefix(phone, "+")
-		if len(phone) >= 10 && len(phone) <= 20 && !strings.Contains(phone, "=") {
-			// Check if it's all digits
-			allDigits := true
-			for _, c := range phone {
-				if c < '0' || c > '9' {
-					allDigits = false
-					break
-				}
-			}
-			if allDigits {
-				return phone
-			}
-		}
-	}
-
-	// If no @ found but looks like a phone number
-	jid = strings.TrimPrefix(jid, "+")
-	if len(jid) >= 10 && len(jid) <= 20 && !strings.Contains(jid, "=") {
-		allDigits := true
-		for _, c := range jid {
-			if c < '0' || c > '9' {
-				allDigits = false
-				break
-			}
-		}
-		if allDigits {
-			return jid
-		}
-	}
-
-	return ""
-}
-
-// -----------------------------------------------------------------------------
-// processor
-// -----------------------------------------------------------------------------
-
 type WhatsappProcessor struct {
 	store  *db.Store
 	logger *log.Logger
@@ -139,115 +28,505 @@ func NewWhatsappProcessor(store *db.Store, logger *log.Logger) processor.Process
 	return &WhatsappProcessor{store: store, logger: logger}
 }
 
-func (s *WhatsappProcessor) Name() string { return "whatsapp" }
+func (s *WhatsappProcessor) Name() string {
+	return "whatsapp"
+}
 
-// -----------------------------------------------------------------------------
-// contacts
-// -----------------------------------------------------------------------------
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
 
+// convertCoreDataTimestamp converts Core Data timestamp to Unix timestamp
+// Core Data timestamps are seconds since 2001-01-01 00:00:00 UTC
+func convertCoreDataTimestamp(coreDataTimestamp float64) time.Time {
+	// Validate the timestamp - Core Data timestamps should be positive and reasonable
+	// Negative values or extremely large values are likely invalid
+	if coreDataTimestamp < 0 || coreDataTimestamp > 2147483647 { // Max int32 for reasonable future dates
+		return time.Time{} // Return zero time for invalid timestamps
+	}
+
+	// Core Data reference date: January 1, 2001, 00:00:00 UTC
+	referenceDate := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+	result := referenceDate.Add(time.Duration(coreDataTimestamp) * time.Second)
+
+	// Additional validation - ensure the result is within a reasonable range
+	// WhatsApp was founded in 2009, so messages before 2009 are likely invalid
+	minDate := time.Date(2009, 1, 1, 0, 0, 0, 0, time.UTC)
+	maxDate := time.Now().Add(24 * time.Hour) // Allow up to 1 day in the future
+
+	if result.Before(minDate) || result.After(maxDate) {
+		return time.Time{} // Return zero time for unreasonable dates
+	}
+
+	return result
+}
+
+// convertWhatsAppTimestamp tries multiple timestamp conversion strategies
+func convertWhatsAppTimestamp(rawTimestamp interface{}) time.Time {
+	var timestampFloat float64
+
+	switch v := rawTimestamp.(type) {
+	case int64:
+		timestampFloat = float64(v)
+	case float64:
+		timestampFloat = v
+	case int:
+		timestampFloat = float64(v)
+	default:
+		return time.Time{} // Invalid type
+	}
+
+	// If the timestamp is 0 or negative, it's invalid
+	if timestampFloat <= 0 {
+		return time.Time{}
+	}
+
+	// More permissive date range - allow any reasonable date
+	minDate := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
+	maxDate := time.Now().Add(365 * 24 * time.Hour) // Allow up to 1 year in the future
+
+	// Strategy 1: Try Unix timestamp in seconds (most common)
+	if timestampFloat > 946684800 && timestampFloat < 4102444800 { // Between 2000 and 2100
+		unixResult := time.Unix(int64(timestampFloat), 0)
+		if unixResult.After(minDate) && unixResult.Before(maxDate) {
+			return unixResult
+		}
+	}
+
+	// Strategy 2: Try Unix timestamp in milliseconds
+	if timestampFloat > 946684800000 && timestampFloat < 4102444800000 { // Between 2000 and 2100 in milliseconds
+		unixMillisResult := time.Unix(int64(timestampFloat/1000), int64(timestampFloat)%1000*1000000)
+		if unixMillisResult.After(minDate) && unixMillisResult.Before(maxDate) {
+			return unixMillisResult
+		}
+	}
+
+	// Strategy 3: Try Core Data timestamp (seconds since 2001-01-01) - more permissive
+	if timestampFloat > 0 && timestampFloat < 3155760000 { // Up to year 2100
+		referenceDate := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+		coreDataResult := referenceDate.Add(time.Duration(timestampFloat) * time.Second)
+		if coreDataResult.After(minDate) && coreDataResult.Before(maxDate) {
+			return coreDataResult
+		}
+	}
+
+	// Strategy 4: Try Mac Cocoa timestamp - even more permissive
+	if timestampFloat > -978307200 && timestampFloat < 3155760000 { // Allow negative values for dates before 2001
+		cocoaResult := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC).Add(time.Duration(timestampFloat) * time.Second)
+		// Only check if it's not too far in the past or future
+		veryMinDate := time.Date(1990, 1, 1, 0, 0, 0, 0, time.UTC)
+		if cocoaResult.After(veryMinDate) && cocoaResult.Before(maxDate) {
+			return cocoaResult
+		}
+	}
+
+	// Strategy 5: If all else fails, try to make something reasonable from the timestamp
+	// This is a last resort to avoid losing messages
+	if timestampFloat > 0 {
+		// Try different epoch interpretations
+		epochs := []time.Time{
+			time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC), // Mac/Core Data epoch
+			time.Date(1970, 1, 1, 0, 0, 0, 0, time.UTC), // Unix epoch
+			time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC), // Some systems use 1900
+		}
+
+		for _, epoch := range epochs {
+			result := epoch.Add(time.Duration(timestampFloat) * time.Second)
+			if result.After(minDate) && result.Before(maxDate) {
+				return result
+			}
+		}
+	}
+
+	// If we get here, log the problematic timestamp for debugging
+	// Note: We can't use logger here since this is a standalone function
+	// The calling code will log the failure
+
+	return time.Time{} // All strategies failed
+}
+
+// validateAndFixTimestamp validates and potentially corrects time.Time values from the database
+func validateAndFixTimestamp(t time.Time) time.Time {
+	// If the timestamp is zero, return it as-is
+	if t.IsZero() {
+		return t
+	}
+
+	// Define reasonable date ranges for WhatsApp messages
+	minDate := time.Date(2009, 1, 1, 0, 0, 0, 0, time.UTC) // WhatsApp founded in 2009
+	maxDate := time.Now().Add(24 * time.Hour)              // Allow up to 1 day in the future
+
+	// If the timestamp is within reasonable range, use it as-is
+	if t.After(minDate) && t.Before(maxDate) {
+		return t
+	}
+
+	// If the timestamp is way too old (like 1993), it's likely a database artifact
+	// These seem to be Core Data timestamps that weren't converted properly
+	if t.Year() < 2000 {
+		// Try to interpret the timestamp as seconds since the Core Data epoch
+		// Core Data epoch is 2001-01-01 00:00:00 UTC
+		coreDataEpoch := time.Date(2001, 1, 1, 0, 0, 0, 0, time.UTC)
+
+		// Calculate seconds since Unix epoch for the given timestamp
+		secondsSinceUnixEpoch := t.Unix()
+
+		// Try interpreting as seconds since Core Data epoch
+		correctedTime := coreDataEpoch.Add(time.Duration(secondsSinceUnixEpoch) * time.Second)
+		if correctedTime.After(minDate) && correctedTime.Before(maxDate) {
+			return correctedTime
+		}
+
+		// Try interpreting the timestamp components differently
+		// Sometimes the year/month/day are stored incorrectly but time components are valid
+		now := time.Now()
+
+		// Try using today's date with the time component
+		todayWithTime := time.Date(now.Year(), now.Month(), now.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
+		if todayWithTime.Before(maxDate) {
+			// Use a date from a few years ago to make it historical
+			historicalDate := todayWithTime.AddDate(-2, 0, 0)
+			return historicalDate
+		}
+	}
+
+	// If the timestamp is too far in the future, cap it to now
+	if t.After(maxDate) {
+		return time.Now()
+	}
+
+	// If all else fails, return zero time to trigger fallback logic
+	return time.Time{}
+}
+
+// isWhatsAppJID checks if a string looks like a WhatsApp JID
+func isWhatsAppJID(text string) bool {
+	// Check for patterns like "16672940017@s.whatsapp.net" or just phone numbers followed by @
+	whatsappJIDPattern := regexp.MustCompile(`^\d{10,15}@s\.whatsapp\.net$`)
+	phoneAtPattern := regexp.MustCompile(`^\d{10,15}@`)
+
+	return whatsappJIDPattern.MatchString(text) || phoneAtPattern.MatchString(text)
+}
+
+// shouldFilterMessage determines if a message should be filtered out
+func shouldFilterMessage(text, groupName string) bool {
+	text = strings.TrimSpace(text)
+
+	// Filter empty messages
+	if text == "" {
+		return true
+	}
+
+	// Filter WhatsApp JIDs
+	if isWhatsAppJID(text) {
+		return true
+	}
+
+	// Filter group names appearing as content
+	if groupName != "" && text == groupName {
+		return true
+	}
+
+	// Filter messages that are just phone numbers
+	phonePattern := regexp.MustCompile(`^\d{10,15}$`)
+	if phonePattern.MatchString(text) {
+		return true
+	}
+
+	return false
+}
+
+// resolveTagsInMessage resolves @mentions in message content
+func resolveTagsInMessage(content string, contactNames map[string]string, participantsMap map[string]bool) string {
+	// Pattern to match @mentions like @15083108164
+	mentionPattern := regexp.MustCompile(`@(\d{10,15})`)
+
+	return mentionPattern.ReplaceAllStringFunc(content, func(match string) string {
+		// Extract the phone number from the mention
+		phoneNumber := strings.TrimPrefix(match, "@")
+
+		// Try to resolve to contact name
+		if contactName, exists := contactNames[phoneNumber]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+			return "@" + contactName
+		}
+
+		// Try with full JID format
+		fullJID := phoneNumber + "@s.whatsapp.net"
+		if contactName, exists := contactNames[fullJID]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+			return "@" + contactName
+		}
+
+		// Try to find in participants map by checking if any participant contains this phone number
+		for participant := range participantsMap {
+			// Skip "me" and other non-phone participants
+			if participant == "me" || participant == "unknown" {
+				continue
+			}
+
+			// Check if participant name contains the phone number or vice versa
+			if strings.Contains(participant, phoneNumber) || strings.Contains(phoneNumber, participant) {
+				return "@" + participant
+			}
+		}
+
+		// Try reverse lookup - check if any contact name maps to this phone number
+		for jid, name := range contactNames {
+			if strings.Contains(jid, phoneNumber) && name != "" && !strings.Contains(name, "=") {
+				return "@" + name
+			}
+		}
+
+		// Return original if no resolution found
+		return match
+	})
+}
+
+// decodeJID attempts to decode a JID that might be base64 encoded or compressed
+func decodeJID(jid string) string {
+	if jid == "" {
+		return ""
+	}
+
+	// If it looks like base64 (contains = or has suspicious length)
+	if strings.Contains(jid, "=") || (len(jid) < 10 && len(jid) > 0) {
+		// Special case for very short base64 strings like "IAA="
+		if len(jid) <= 4 && strings.HasSuffix(jid, "=") {
+			// This is likely corrupted data, return empty
+			return ""
+		}
+
+		// Try base64 decoding
+		decoded, err := base64.StdEncoding.DecodeString(jid)
+		if err == nil && len(decoded) > 0 {
+			// Check if decoded value looks like a valid JID
+			decodedStr := string(decoded)
+			// Filter out non-printable characters
+			if isPrintableString(decodedStr) && (strings.Contains(decodedStr, "@") || (len(decodedStr) >= 10 && len(decodedStr) <= 50)) {
+				return decodedStr
+			}
+		}
+
+		// Try URL-safe base64 decoding
+		decoded, err = base64.URLEncoding.DecodeString(jid)
+		if err == nil && len(decoded) > 0 {
+			decodedStr := string(decoded)
+			if isPrintableString(decodedStr) && (strings.Contains(decodedStr, "@") || (len(decodedStr) >= 10 && len(decodedStr) <= 50)) {
+				return decodedStr
+			}
+		}
+
+		// Try raw base64 decoding (no padding)
+		decoded, err = base64.RawStdEncoding.DecodeString(jid)
+		if err == nil && len(decoded) > 0 {
+			decodedStr := string(decoded)
+			if isPrintableString(decodedStr) && (strings.Contains(decodedStr, "@") || (len(decodedStr) >= 10 && len(decodedStr) <= 50)) {
+				return decodedStr
+			}
+		}
+
+		// If it's a short base64-like string that couldn't be decoded properly, return empty
+		if len(jid) < 10 {
+			return ""
+		}
+	}
+
+	// Return original if not encoded or decoding failed
+	return jid
+}
+
+// isPrintableString checks if a string contains only printable characters
+func isPrintableString(s string) bool {
+	for _, r := range s {
+		if r < 32 || r > 126 {
+			return false
+		}
+	}
+	return true
+}
+
+// extractSenderFromJID extracts the sender name from a WhatsApp JID
+// For group messages, JID format is typically: phoneNumber@s.whatsapp.net
+// For messages within groups, it might be: groupJID/senderPhoneNumber@s.whatsapp.net
+func extractSenderFromJID(jid string) string {
+	if jid == "" {
+		return ""
+	}
+
+	// Clean up the JID - remove any whitespace
+	jid = strings.TrimSpace(jid)
+
+	// Handle group message format (groupJID/senderJID)
+	if idx := strings.LastIndex(jid, "/"); idx > 0 {
+		jid = jid[idx+1:]
+	}
+
+	// Extract phone number or username before @ symbol
+	if idx := strings.Index(jid, "@"); idx > 0 {
+		phoneNumber := jid[:idx]
+		// Validate that we got a reasonable phone number
+		if len(phoneNumber) >= 5 && !strings.Contains(phoneNumber, "=") {
+			return phoneNumber
+		}
+	}
+
+	// If the JID doesn't look valid, return empty string
+	if strings.Contains(jid, "=") || len(jid) < 5 {
+		return ""
+	}
+
+	return jid
+}
+
+// loadContactNames loads a mapping of JIDs to contact names from the WhatsApp database
 func (s *WhatsappProcessor) loadContactNames(ctx context.Context, db *sql.DB) (map[string]string, error) {
 	contactMap := make(map[string]string)
 
+	// Try multiple queries to find contact information
 	queries := []struct {
 		name  string
 		query string
 	}{
-		{"ZWAPROFILEPUSHNAME", `SELECT ZJID, ZPUSHNAME FROM ZWAPROFILEPUSHNAME
-			WHERE ZJID IS NOT NULL AND ZPUSHNAME IS NOT NULL AND ZPUSHNAME!='' AND ZPUSHNAME!='IAA='`},
-		{"ZWAGROUPMEMBER", `SELECT DISTINCT ZMEMBERJID, ZCONTACTNAME FROM ZWAGROUPMEMBER
-			WHERE ZMEMBERJID IS NOT NULL AND ZCONTACTNAME IS NOT NULL AND ZCONTACTNAME!='' AND ZCONTACTNAME!='IAA='`},
+		{
+			name:  "ZWAPROFILEPUSHNAME",
+			query: `SELECT ZJID, ZPUSHNAME FROM ZWAPROFILEPUSHNAME WHERE ZJID IS NOT NULL AND ZPUSHNAME IS NOT NULL AND ZPUSHNAME != '' AND ZPUSHNAME != 'IAA='`,
+		},
+		{
+			name:  "ZWACONTACT",
+			query: `SELECT ZJID, ZFULLNAME FROM ZWACONTACT WHERE ZJID IS NOT NULL AND ZFULLNAME IS NOT NULL AND ZFULLNAME != '' AND ZFULLNAME != 'IAA='`,
+		},
+		{
+			name:  "ZWAGROUPMEMBER",
+			query: `SELECT DISTINCT ZMEMBERJID, ZCONTACTNAME FROM ZWAGROUPMEMBER WHERE ZMEMBERJID IS NOT NULL AND ZCONTACTNAME IS NOT NULL AND ZCONTACTNAME != '' AND ZCONTACTNAME != 'IAA='`,
+		},
 	}
 
 	for _, q := range queries {
 		rows, err := db.QueryContext(ctx, q.query)
 		if err != nil {
-			s.logger.Debug("query failed", "query", q.name, "err", err)
+			s.logger.Debug("Query failed", "queryName", q.name, "error", err)
 			continue
 		}
+
+		count := 0
 		for rows.Next() {
 			var jid, name string
 			if err := rows.Scan(&jid, &name); err != nil {
 				continue
 			}
+
+			// Skip empty or invalid names
 			name = strings.TrimSpace(name)
-			if name == "" || name == "IAA=" || strings.Contains(name, "=") || len(name) < 2 {
+			if name == "" || name == "IAA=" {
 				continue
 			}
 
-			// Don't override good data with bad data
-			if existing, ok := contactMap[jid]; ok && existing != "" && !strings.Contains(existing, "=") && len(existing) >= 2 {
-				continue
-			}
-
+			// Store the mapping
 			contactMap[jid] = name
 
-			// Also map the phone number without domain
-			if phone := extractSenderFromJID(jid); phone != "" {
-				// Only add if we don't already have a better name
-				if existing, ok := contactMap[phone]; !ok || existing == "" || strings.Contains(existing, "=") || len(existing) < 2 {
-					contactMap[phone] = name
-				}
-				if existing, ok := contactMap["+"+phone]; !ok || existing == "" || strings.Contains(existing, "=") || len(existing) < 2 {
-					contactMap["+"+phone] = name
-				}
-				if existing, ok := contactMap[phone+"@s.whatsapp.net"]; !ok || existing == "" || strings.Contains(existing, "=") || len(existing) < 2 {
-					contactMap[phone+"@s.whatsapp.net"] = name
+			// Also store by phone number only
+			if phoneNumber := extractSenderFromJID(jid); phoneNumber != "" && phoneNumber != jid {
+				// Only override if we don't have a name yet or if this is a better name
+				if existingName, exists := contactMap[phoneNumber]; !exists || existingName == phoneNumber {
+					contactMap[phoneNumber] = name
 				}
 			}
+			count++
 		}
-		_ = rows.Close()
+		rows.Close()
+		s.logger.Debug("Loaded contacts from query", "queryName", q.name, "count", count)
 	}
-	s.logger.Info("loaded contacts", "count", len(contactMap))
+
+	s.logger.Info("Loaded contact names", "totalCount", len(contactMap))
 	return contactMap, nil
 }
 
-// -----------------------------------------------------------------------------
-// db reader
-// -----------------------------------------------------------------------------
-
 func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) ([]types.Record, error) {
-	sqliteDB, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
-		return nil, fmt.Errorf("open db: %w", err)
+		return nil, fmt.Errorf("failed to open database: %v", err)
 	}
-	defer sqliteDB.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			s.logger.Warn("Error closing database", "error", err)
+		}
+	}()
 
 	if err := ctx.Err(); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("context canceled before query: %w", err)
 	}
 
-	contactNames, err := s.loadContactNames(ctx, sqliteDB)
+	// First, load contact names mapping
+	contactNames, err := s.loadContactNames(ctx, db)
 	if err != nil {
-		s.logger.Warn("load contacts", "err", err)
-		contactNames = map[string]string{}
+		s.logger.Warn("Failed to load contact names", "error", err)
+		// Continue without contact names
+		contactNames = make(map[string]string)
 	}
 
+	// First, check which columns exist in the database
+	availableColumns := make(map[string]bool)
+	columnQuery := `SELECT name FROM pragma_table_info('ZWAMESSAGE') WHERE name IN (
+		'ZPARTICIPANTJID', 'ZSTANZAID', 'ZPUSHNAME', 'ZGROUPMEMBER'
+	)`
+
+	rows, err := db.QueryContext(ctx, columnQuery)
+	if err == nil {
+		for rows.Next() {
+			var colName string
+			if err := rows.Scan(&colName); err == nil {
+				availableColumns[colName] = true
+			}
+		}
+		rows.Close()
+	}
+
+	// Build query with proper JOIN to get group member information
 	query := `SELECT 
 		m.Z_PK, m.ZISFROMME, m.ZCHATSESSION, m.ZMESSAGEINFO, m.ZMESSAGEDATE, m.ZSENTDATE,
 		m.ZFROMJID, m.ZTEXT, m.ZTOJID, m.ZPUSHNAME, m.ZGROUPMEMBER,
 		s.ZPARTNERNAME, s.ZCONTACTJID,
-		CASE WHEN m.ZGROUPMEMBER IS NOT NULL THEN gm.ZMEMBERJID END AS GROUPMEMBERJID,
-		CASE WHEN m.ZGROUPMEMBER IS NOT NULL THEN gm.ZCONTACTNAME END AS GROUPMEMBERNAME
-	FROM ZWAMESSAGE m
-	LEFT JOIN ZWACHATSESSION s ON m.ZCHATSESSION = s.Z_PK
-	LEFT JOIN ZWAGROUPMEMBER gm ON m.ZGROUPMEMBER = gm.Z_PK
-	WHERE m.ZTEXT IS NOT NULL
-	ORDER BY m.ZCHATSESSION, m.ZMESSAGEDATE`
+		CASE 
+			WHEN m.ZGROUPMEMBER IS NOT NULL THEN gm.ZMEMBERJID
+			ELSE NULL
+		END AS GROUPMEMBERJID,
+		CASE 
+			WHEN m.ZGROUPMEMBER IS NOT NULL THEN gm.ZCONTACTNAME
+			ELSE NULL
+		END AS GROUPMEMBERNAME
+		FROM ZWAMESSAGE m
+		LEFT JOIN ZWACHATSESSION s ON m.ZCHATSESSION = s.Z_PK
+		LEFT JOIN ZWAGROUPMEMBER gm ON m.ZGROUPMEMBER = gm.Z_PK
+		WHERE m.ZTEXT IS NOT NULL
+		ORDER BY m.ZCHATSESSION, m.ZMESSAGEDATE`
 
-	rows, err := sqliteDB.QueryContext(ctx, query)
+	s.logger.Debug("Using query with group member join")
+
+	rows, err = db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("query: %w", err)
+		return nil, fmt.Errorf("query failed: %v", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			s.logger.Warn("Error closing rows", "error", err)
+		}
+	}()
 
-	cols, _ := rows.Columns()
-	colCnt := len(cols)
-	vals := make([]interface{}, colCnt)
-	ptrs := make([]interface{}, colCnt)
-	for i := range vals {
-		ptrs[i] = &vals[i]
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get column names: %v", err)
 	}
 
+	count := len(columns)
+	values := make([]interface{}, count)
+	valuePtrs := make([]interface{}, count)
+	for i := range values {
+		valuePtrs[i] = &values[i]
+	}
+
+	// Group messages by conversation
 	type Message struct {
 		Text            string
 		IsFromMe        bool
@@ -256,560 +535,703 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 		Timestamp       time.Time
 		PartnerName     string
 		ContactJID      string
-		PushName        string
+		PushName        string // WhatsApp profile name
+		GroupMember     string // Group member reference
+		GroupMemberJID  string // Actual sender JID in group messages
+		ParticipantJID  string // Alternative field for sender JID
+		StanzaID        string // Message ID
 		GroupMemberName string
-		GroupMemberJID  string
 	}
 
-	convs := map[string][]Message{}
-	participants := map[string]map[string]bool{}
-	groupNames := map[string]string{}
+	conversationMap := make(map[string][]Message)
+	participantsMap := make(map[string]map[string]bool)
+	groupNamesMap := make(map[string]string) // Track group names separately
 
-	rowIdx := 0
+	rowCount := 0
 	for rows.Next() {
-		if rowIdx%500 == 0 && ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-		rowIdx++
-		if err := rows.Scan(ptrs...); err != nil {
-			return nil, fmt.Errorf("scan: %w", err)
+		if rowCount%100 == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, fmt.Errorf("context canceled during row processing: %w", err)
+			}
 		}
 
-		data := map[string]interface{}{}
-		var msgDate, sentDate time.Time
+		err := rows.Scan(valuePtrs...)
+		if err != nil {
+			s.logger.Warn("Scan error", "error", err, "row", rowCount, "expected", count)
+			return nil, fmt.Errorf("scan failed: %v", err)
+		}
+		rowCount++
 
-		for i, c := range cols {
-			key := strings.ToLower(strings.TrimPrefix(c, "Z"))
-			switch c {
+		data := make(map[string]interface{})
+		var timestamp time.Time
+
+		for i, col := range columns {
+			val := values[i]
+
+			simplifiedKey := col
+			if len(col) > 1 && col[0] == 'Z' {
+				simplifiedKey = col[1:]
+			}
+			simplifiedKey = strings.ToLower(simplifiedKey)
+
+			switch col {
 			case "ZMESSAGEDATE", "ZSENTDATE":
-				// WhatsApp on iOS uses Apple's Core Data timestamps (seconds since 2001-01-01)
-				// Unix epoch is 1970-01-01, so we need to add the offset: 978307200 seconds
-				const appleEpochOffset = 978307200
-				switch v := vals[i].(type) {
-				case int64:
-					t := time.Unix(v+appleEpochOffset, 0)
-					data[key] = t
-					if c == "ZMESSAGEDATE" {
-						msgDate = t
-					} else {
-						sentDate = t
+				if v, ok := val.(int64); ok {
+					t := convertWhatsAppTimestamp(v)
+					data[simplifiedKey] = t
+					if col == "ZMESSAGEDATE" {
+						timestamp = t
+						// Debug logging for timestamp conversion
+						if t.IsZero() {
+							s.logger.Warn("Failed to convert timestamp", "column", col, "rawValue", v, "type", "int64")
+						} else {
+							s.logger.Debug("Timestamp conversion success", "column", col, "rawValue", v, "convertedTime", t.Format(time.RFC3339))
+						}
 					}
-				case float64:
-					t := time.Unix(int64(v)+appleEpochOffset, 0)
-					data[key] = t
-					if c == "ZMESSAGEDATE" {
-						msgDate = t
-					} else {
-						sentDate = t
+				} else if v, ok := val.(float64); ok {
+					t := convertWhatsAppTimestamp(v)
+					data[simplifiedKey] = t
+					if col == "ZMESSAGEDATE" {
+						timestamp = t
+						// Debug logging for timestamp conversion
+						if t.IsZero() {
+							s.logger.Warn("Failed to convert timestamp", "column", col, "rawValue", v, "type", "float64")
+						} else {
+							s.logger.Debug("Timestamp conversion success", "column", col, "rawValue", v, "convertedTime", t.Format(time.RFC3339))
+						}
 					}
+				} else if v, ok := val.(time.Time); ok {
+					// Handle time.Time values directly from database
+					t := validateAndFixTimestamp(v)
+					data[simplifiedKey] = t
+					if col == "ZMESSAGEDATE" {
+						timestamp = t
+						// Debug logging for timestamp validation
+						if t.IsZero() {
+							s.logger.Warn("Invalid time.Time timestamp", "column", col, "rawValue", v.Format(time.RFC3339))
+						} else if !t.Equal(v) {
+							s.logger.Debug("Timestamp corrected", "column", col, "originalTime", v.Format(time.RFC3339), "correctedTime", t.Format(time.RFC3339))
+						} else {
+							s.logger.Debug("Timestamp validation success", "column", col, "time", t.Format(time.RFC3339))
+						}
+					}
+				} else {
+					data[simplifiedKey] = val
+					// Debug logging for unexpected timestamp types
+					s.logger.Warn("Unexpected timestamp type", "column", col, "type", fmt.Sprintf("%T", val), "value", val)
 				}
-			case "ZFROMJID", "ZTOJID", "ZCONTACTJID", "GROUPMEMBERJID":
-				switch v := vals[i].(type) {
+			case "ZFROMJID", "ZTOJID", "ZCONTACTJID", "ZGROUPMEMBERJID", "ZPARTICIPANTJID", "GROUPMEMBERJID":
+				// Handle JID fields specially - they might be stored as BLOB or encoded
+				switch v := val.(type) {
 				case string:
-					data[key] = decodeJID(v)
+					data[simplifiedKey] = v
 				case []byte:
-					data[key] = extractJIDFromBytes(v)
+					// iOS WhatsApp might store JIDs as NSData BLOBs
+					// Try to extract readable content
+					jidStr := extractJIDFromBytes(v)
+					data[simplifiedKey] = jidStr
+				case nil:
+					data[simplifiedKey] = ""
+				default:
+					// Log unexpected type and convert to string
+					s.logger.Debug("Unexpected JID type", "column", col, "type", fmt.Sprintf("%T", val), "value", fmt.Sprintf("%v", val))
+					data[simplifiedKey] = fmt.Sprintf("%v", val)
+				}
+			case "ZPUSHNAME", "ZPARTNERNAME", "GROUPMEMBERNAME":
+				// Handle name fields that might contain "IAA=" default value
+				switch v := val.(type) {
+				case string:
+					if v == "IAA=" || v == "" {
+						data[simplifiedKey] = ""
+					} else {
+						data[simplifiedKey] = v
+					}
+				case []byte:
+					str := string(v)
+					if str == "IAA=" || str == "" {
+						data[simplifiedKey] = ""
+					} else {
+						data[simplifiedKey] = str
+					}
+				case nil:
+					data[simplifiedKey] = ""
+				default:
+					strVal := fmt.Sprintf("%v", val)
+					if strVal == "IAA=" {
+						data[simplifiedKey] = ""
+					} else {
+						data[simplifiedKey] = strVal
+					}
 				}
 			default:
-				data[key] = vals[i]
+				data[simplifiedKey] = val
 			}
 		}
 
-		// Only skip messages that are clearly system messages or media without text
-		if info, ok := data["messageinfo"]; ok {
-			switch v := info.(type) {
-			case int64:
-				// Only skip specific system message types, not all non-zero values
-				if v == 1 || v == 2 || v == 3 || v == 4 || v == 5 {
-					continue
-				}
-			case int:
-				// Only skip specific system message types, not all non-zero values
-				if v == 1 || v == 2 || v == 3 || v == 4 || v == 5 {
-					continue
-				}
-			}
-		}
-
+		// Extract message details first
 		text, _ := data["text"].(string)
-		text = strings.TrimSpace(text)
-		if text == "" {
+		if strings.TrimSpace(text) == "" {
 			continue
 		}
 
-		// resolve mentions like @1234567890
-		text = mentionRegex.ReplaceAllStringFunc(text, func(tag string) string {
-			phone := strings.TrimPrefix(tag, "@")
-			if name, ok := contactNames[phone]; ok && name != "" {
-				return "@" + name
-			}
-			if name, ok := contactNames[decodeJID(phone+"@s.whatsapp.net")]; ok && name != "" {
-				return "@" + name
-			}
-			return tag
-		})
+		chatSessionInterface, ok := data["chatsession"]
+		if !ok {
+			continue
+		}
 
-		chatSession := fmt.Sprintf("%v", data["chatsession"])
-		isFromMe := false
-		switch v := data["isfromme"].(type) {
+		var chatSession string
+		switch v := chatSessionInterface.(type) {
+		case int:
+			chatSession = fmt.Sprintf("%d", v)
+		case int64:
+			chatSession = fmt.Sprintf("%d", v)
+		case float64:
+			chatSession = fmt.Sprintf("%.0f", v)
+		case string:
+			chatSession = v
+		default:
+			continue
+		}
+
+		// Now validate timestamp after we have text and chatSession
+		if timestamp.IsZero() {
+			// Instead of defaulting to current time, log the issue and try fallback
+			// or try to use ZSENTDATE as fallback
+			if sentDate, exists := data["sentdate"]; exists {
+				switch v := sentDate.(type) {
+				case time.Time:
+					if !v.IsZero() {
+						timestamp = v
+						s.logger.Debug("Using sentdate as fallback timestamp", "text", text[:min(50, len(text))])
+					}
+				}
+			}
+
+			// If still zero, use a reasonable fallback instead of skipping
+			if timestamp.IsZero() {
+				// Use a timestamp from a few years ago as fallback instead of current time
+				// This preserves the message but puts it in a reasonable historical timeframe
+				fallbackTime := time.Now().AddDate(-2, 0, 0) // 2 years ago
+				timestamp = fallbackTime
+				s.logger.Warn("Using fallback timestamp for message with invalid timestamp",
+					"text", text[:min(50, len(text))],
+					"chatSession", chatSession,
+					"fallbackTime", fallbackTime.Format(time.RFC3339))
+			}
+		}
+
+		isFromMeInterface, ok := data["isfromme"]
+		if !ok {
+			continue
+		}
+
+		var isFromMe bool
+		switch v := isFromMeInterface.(type) {
+		case int:
+			isFromMe = v == 1
 		case int64:
 			isFromMe = v == 1
-		case int:
+		case float64:
 			isFromMe = v == 1
 		case bool:
 			isFromMe = v
+		default:
+			continue
 		}
 
-		// Extract JIDs more carefully
-		fromJID := ""
-		if jid := data["fromjid"]; jid != nil {
-			fromJID = fmt.Sprintf("%v", jid)
-			if decoded := decodeJID(fromJID); decoded != "" && decoded != fromJID {
-				fromJID = decoded
-			}
-		}
-
-		toJID := ""
-		if jid := data["tojid"]; jid != nil {
-			toJID = fmt.Sprintf("%v", jid)
-			if decoded := decodeJID(toJID); decoded != "" && decoded != toJID {
-				toJID = decoded
-			}
-		}
-
-		contactJID := ""
-		if jid := data["contactjid"]; jid != nil {
-			contactJID = fmt.Sprintf("%v", jid)
-			if decoded := decodeJID(contactJID); decoded != "" && decoded != contactJID {
-				contactJID = decoded
-			}
-		}
-
-		pushName, _ := data["pushname"].(string)
+		fromJID, _ := data["fromjid"].(string)
+		toJID, _ := data["tojid"].(string)
 		partnerName, _ := data["partnername"].(string)
-		groupMemberName, _ := data["groupmembername"].(string)
-		groupMemberJID, _ := data["groupmemberjid"].(string)
+		contactJID, _ := data["contactjid"].(string)
 
-		timestamp := sentDate
-		if timestamp.IsZero() {
-			timestamp = msgDate
+		// These fields might not exist depending on the database schema
+		pushName, _ := data["pushname"].(string)
+		groupMember, _ := data["groupmember"].(string)
+		groupMemberJID, _ := data["groupmemberjid"].(string)
+		participantJID, _ := data["participantjid"].(string)
+		groupMemberName, _ := data["groupmembername"].(string)
+
+		// Filter out "IAA=" which is a default/null value in WhatsApp
+		if partnerName == "IAA=" {
+			partnerName = ""
 		}
-		if timestamp.IsZero() {
-			timestamp = time.Now()
+		if pushName == "IAA=" {
+			pushName = ""
+		}
+		if groupMemberName == "IAA=" {
+			groupMemberName = ""
+		}
+
+		// Decode JIDs if they're encoded
+		fromJID = decodeJID(fromJID)
+		toJID = decodeJID(toJID)
+		contactJID = decodeJID(contactJID)
+		groupMemberJID = decodeJID(groupMemberJID)
+		participantJID = decodeJID(participantJID)
+
+		// Check if this message should be filtered out
+		if shouldFilterMessage(text, partnerName) {
+			s.logger.Debug("Filtering out message", "text", text, "groupName", partnerName)
+			continue
+		}
+
+		// For group messages, the actual sender might be in groupMemberJID
+		actualSenderJID := fromJID
+		isGroupChat := strings.Contains(contactJID, "@g.us") || strings.Contains(fromJID, "@g.us")
+
+		if isGroupChat && !isFromMe {
+			if groupMemberJID != "" && !strings.Contains(groupMemberJID, "@g.us") {
+				actualSenderJID = groupMemberJID
+				s.logger.Debug("Using groupMemberJID as sender", "groupMemberJID", groupMemberJID, "groupMemberName", groupMemberName, "fromJID", fromJID)
+			} else if participantJID != "" && !strings.Contains(participantJID, "@g.us") {
+				actualSenderJID = participantJID
+				s.logger.Debug("Using participantJID as sender", "participantJID", participantJID, "fromJID", fromJID)
+			}
+		}
+
+		// Debug logging for problematic JIDs
+		if actualSenderJID != "" && (strings.Contains(actualSenderJID, "=") || len(actualSenderJID) < 10) && actualSenderJID != fromJID {
+			s.logger.Debug("Suspicious sender JID after decode", "senderJID", actualSenderJID, "pushName", pushName, "groupMemberName", groupMemberName, "isFromMe", isFromMe, "text", text[:min(50, len(text))])
+		}
+
+		// Resolve @mentions in the message text
+		if participantsMap[chatSession] != nil {
+			text = resolveTagsInMessage(text, contactNames, participantsMap[chatSession])
+		} else {
+			// Create a temporary participants map for tag resolution
+			tempParticipants := make(map[string]bool)
+			text = resolveTagsInMessage(text, contactNames, tempParticipants)
 		}
 
 		msg := Message{
 			Text:            text,
 			IsFromMe:        isFromMe,
-			FromJID:         fromJID,
+			FromJID:         actualSenderJID, // Use the actual sender JID
 			ToJID:           toJID,
 			Timestamp:       timestamp,
+			PartnerName:     partnerName,
 			ContactJID:      contactJID,
 			PushName:        pushName,
-			PartnerName:     partnerName,
-			GroupMemberName: groupMemberName,
+			GroupMember:     groupMember,
 			GroupMemberJID:  groupMemberJID,
+			ParticipantJID:  participantJID,
+			GroupMemberName: groupMemberName,
+			StanzaID:        "", // Will be set below
 		}
 
-		convs[chatSession] = append(convs[chatSession], msg)
-
-		if participants[chatSession] == nil {
-			participants[chatSession] = map[string]bool{"primaryUser": true}
-		}
-		if partnerName != "" && partnerName != "IAA=" {
-			participants[chatSession][partnerName] = true
-		}
-		if pushName != "" && pushName != "IAA=" {
-			participants[chatSession][pushName] = true
+		// Set StanzaID if available
+		if stanzaID, ok := data["stanzaid"].(string); ok {
+			msg.StanzaID = stanzaID
 		}
 
-		// Identify group chats
-		if strings.Contains(contactJID, "@g.us") {
-			if partnerName != "" && partnerName != "IAA=" {
-				groupNames[chatSession] = partnerName
-			} else if pushName != "" && pushName != "IAA=" {
-				groupNames[chatSession] = pushName
+		conversationMap[chatSession] = append(conversationMap[chatSession], msg)
+
+		// Track participants
+		if participantsMap[chatSession] == nil {
+			participantsMap[chatSession] = make(map[string]bool)
+		}
+		participantsMap[chatSession]["me"] = true
+
+		// Check if this is a group chat (group JIDs typically contain @g.us)
+		if isGroupChat {
+			// Store group name
+			if partnerName != "" {
+				groupNamesMap[chatSession] = partnerName
 			}
-		} else if strings.Contains(toJID, "@g.us") || strings.Contains(fromJID, "@g.us") {
-			// Sometimes group info is in from/to JID
-			groupNames[chatSession] = "Group Chat " + chatSession
+
+			// Extract individual sender from JID for group messages
+			if !isFromMe && actualSenderJID != "" && !strings.Contains(actualSenderJID, "@g.us") {
+				// For group messages, prioritize the group member name from JOIN
+				if groupMemberName != "" && groupMemberName != "null" && !strings.Contains(groupMemberName, "=") {
+					participantsMap[chatSession][groupMemberName] = true
+					s.logger.Debug("Added participant from groupMemberName", "name", groupMemberName, "jid", actualSenderJID)
+				} else {
+					// Extract sender from JID
+					s.logger.Debug("Processing group participant", "senderJID", actualSenderJID, "pushName", pushName, "text", text[:min(50, len(text))])
+					senderPhone := extractSenderFromJID(actualSenderJID)
+					if senderPhone != "" {
+						// Try to resolve to contact name
+						if contactName, exists := contactNames[senderPhone]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+							participantsMap[chatSession][contactName] = true
+							s.logger.Debug("Resolved participant from phone", "phone", senderPhone, "name", contactName)
+						} else if contactName, exists := contactNames[actualSenderJID]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+							participantsMap[chatSession][contactName] = true
+							s.logger.Debug("Resolved participant from full JID", "jid", actualSenderJID, "name", contactName)
+						} else if pushName != "" && pushName != "null" && !strings.Contains(pushName, "=") && len(pushName) > 4 {
+							// Use pushName if it's valid
+							participantsMap[chatSession][pushName] = true
+							s.logger.Debug("Using pushName as participant", "pushName", pushName)
+						} else if senderPhone != "" {
+							// Fallback to phone number if no contact name found
+							participantsMap[chatSession][senderPhone] = true
+							s.logger.Debug("Using phone as participant", "phone", senderPhone)
+						}
+					} else if pushName != "" && pushName != "null" && !strings.Contains(pushName, "=") && len(pushName) > 4 {
+						// If JID extraction failed but we have a valid pushName
+						participantsMap[chatSession][pushName] = true
+						s.logger.Debug("Using pushName as participant (no JID)", "pushName", pushName)
+					}
+				}
+			}
+		} else {
+			// For individual chats, use partner name
+			if partnerName != "" {
+				participantsMap[chatSession][partnerName] = true
+			} else if contactJID != "" {
+				// Try to resolve contact name from JID if partner name is empty
+				contactPhone := extractSenderFromJID(contactJID)
+				if contactName, exists := contactNames[contactPhone]; exists && contactName != "" {
+					participantsMap[chatSession][contactName] = true
+				} else if contactName, exists := contactNames[contactJID]; exists && contactName != "" {
+					participantsMap[chatSession][contactName] = true
+				} else if contactPhone != "" {
+					participantsMap[chatSession][contactPhone] = true
+				}
+			}
 		}
 	}
 
-	if err := rows.Err(); err != nil {
-		return nil, err
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error during iteration: %v", err)
 	}
 
-	// -------------------------------------------------------------------------
-	// build records
-	// -------------------------------------------------------------------------
-
+	// Convert conversation map to records
 	var records []types.Record
-	for chatID, msgs := range convs {
-		if len(msgs) == 0 {
+	for chatSession, messages := range conversationMap {
+		if len(messages) == 0 {
 			continue
 		}
 
-		sort.Slice(msgs, func(i, j int) bool { return msgs[i].Timestamp.Before(msgs[j].Timestamp) })
+		// Sort messages by timestamp
+		sort.Slice(messages, func(i, j int) bool {
+			return messages[i].Timestamp.Before(messages[j].Timestamp)
+		})
 
-		msgArr := make([]map[string]interface{}, len(msgs))
-		for i, m := range msgs {
-			speaker := "primaryUser"
-			if !m.IsFromMe {
-				// For group chats, we need to get the actual sender from the group member data
-				// The FromJID will be the group JID, not the individual sender
-
-				// Priority 1: If we have group member JID, look up the contact first (most reliable)
-				if m.GroupMemberJID != "" {
-					memberJID := m.GroupMemberJID
-					lookupKeys := []string{
-						memberJID,
-						extractSenderFromJID(memberJID),
-						"+" + extractSenderFromJID(memberJID),
-						extractSenderFromJID(memberJID) + "@s.whatsapp.net",
-					}
-
-					for _, key := range lookupKeys {
-						if key != "" && key != "+" {
-							if name, ok := contactNames[key]; ok && name != "" && name != "IAA=" && !strings.HasPrefix(name, "IAA") {
-								speaker = name
-								break
-							}
-						}
-					}
-
-					// If no contact name found, use the phone number from member JID
-					if speaker == "primaryUser" {
-						phone := extractSenderFromJID(memberJID)
-						if phone != "" && len(phone) >= 10 && len(phone) <= 20 {
-							allDigits := true
-							for _, c := range phone {
-								if c < '0' || c > '9' {
-									allDigits = false
-									break
-								}
-							}
-							if allDigits {
-								speaker = "+" + phone
-							}
-						}
-					}
-				}
-
-				// Priority 2: Group member name from the join (only if it looks valid)
-				if speaker == "primaryUser" && m.GroupMemberName != "" && m.GroupMemberName != "IAA=" &&
-					!strings.HasPrefix(m.GroupMemberName, "IAA") && !strings.Contains(m.GroupMemberName, "=") &&
-					len(m.GroupMemberName) > 2 {
-					speaker = m.GroupMemberName
-				}
-
-				// Priority 3: For non-group messages, try the FromJID
-				if speaker == "primaryUser" && !strings.Contains(m.FromJID, "@g.us") {
-					lookupKeys := []string{
-						m.FromJID,
-						extractSenderFromJID(m.FromJID),
-						"+" + extractSenderFromJID(m.FromJID),
-						extractSenderFromJID(m.FromJID) + "@s.whatsapp.net",
-					}
-
-					for _, key := range lookupKeys {
-						if key != "" && key != "+" {
-							if name, ok := contactNames[key]; ok && name != "" && name != "IAA=" && !strings.HasPrefix(name, "IAA") {
-								speaker = name
-								break
-							}
-						}
-					}
-				}
-
-				// Priority 4: Push name
-				if speaker == "primaryUser" && m.PushName != "" && m.PushName != "IAA=" && !strings.HasPrefix(m.PushName, "IAA") {
-					speaker = m.PushName
-				}
-
-				// Priority 5: Partner name (for individual chats)
-				if speaker == "primaryUser" && m.PartnerName != "" && m.PartnerName != "IAA=" && !strings.HasPrefix(m.PartnerName, "IAA") && !strings.Contains(m.FromJID, "@g.us") {
-					speaker = m.PartnerName
-				}
-
-				// Priority 6: Use phone number from FromJID (for individual chats)
-				if speaker == "primaryUser" && !strings.Contains(m.FromJID, "@g.us") {
-					phone := extractSenderFromJID(m.FromJID)
-					if phone != "" && len(phone) >= 10 && len(phone) <= 20 {
-						allDigits := true
-						for _, c := range phone {
-							if c < '0' || c > '9' {
-								allDigits = false
-								break
-							}
-						}
-						if allDigits {
-							speaker = "+" + phone
-						}
-					}
-				}
-
-				// Last resort: Use "Unknown" only if we really can't find anything
-				if speaker == "primaryUser" {
-					speaker = "Unknown"
-				}
-			}
-
-			msgArr[i] = map[string]interface{}{
-				"speaker": speaker,
-				"content": m.Text,
-				"time":    m.Timestamp,
-			}
+		// Check if this is a group chat
+		isGroupChat := false
+		groupName := ""
+		if gName, exists := groupNamesMap[chatSession]; exists {
+			isGroupChat = true
+			groupName = gName
 		}
 
-		// Add speakers from messages to participants
-		for _, msg := range msgArr {
-			if speaker, ok := msg["speaker"].(string); ok && speaker != "Unknown" && speaker != "primaryUser" && speaker != "" && speaker != "IAA=" {
-				participants[chatID][speaker] = true
-			}
-		}
-
-		// Filter and create participants list
-		parts := make([]string, 0, len(participants[chatID]))
-		dedupMap := make(map[string]string) // normalized -> display name
-
-		for p := range participants[chatID] {
-			if p == "" || p == "Unknown" || strings.HasPrefix(p, "IAA") || strings.Contains(p, "=") {
+		// Build conversation messages array
+		conversationMessages := make([]map[string]interface{}, 0, len(messages))
+		for _, msg := range messages {
+			// Apply additional filtering at conversation level
+			if shouldFilterMessage(msg.Text, groupName) {
+				s.logger.Debug("Filtering message at conversation level", "text", msg.Text, "groupName", groupName)
 				continue
 			}
 
-			// Normalize phone numbers for deduplication
-			normalized := p
-			if phone := extractSenderFromJID(p); phone != "" {
-				normalized = phone
+			speaker := "unknown"
+			if msg.IsFromMe {
+				speaker = "me"
+			} else if isGroupChat && msg.FromJID != "" {
+				// For group messages, prioritize group member name from the JOIN
+				if msg.GroupMemberName != "" && msg.GroupMemberName != "null" && !strings.Contains(msg.GroupMemberName, "=") {
+					speaker = msg.GroupMemberName
+					s.logger.Debug("Using GroupMemberName as speaker", "name", msg.GroupMemberName, "jid", msg.FromJID)
+				} else {
+					// Try to extract sender from JID
+					s.logger.Debug("Processing group message", "fromJID", msg.FromJID, "pushName", msg.PushName, "text", msg.Text[:min(50, len(msg.Text))])
+					senderPhone := extractSenderFromJID(msg.FromJID)
+					if senderPhone != "" {
+						// Try to resolve to contact name
+						if contactName, exists := contactNames[senderPhone]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+							speaker = contactName
+							s.logger.Debug("Resolved speaker from phone", "phone", senderPhone, "name", contactName)
+						} else if contactName, exists := contactNames[msg.FromJID]; exists && contactName != "" && !strings.Contains(contactName, "=") {
+							speaker = contactName
+							s.logger.Debug("Resolved speaker from full JID", "jid", msg.FromJID, "name", contactName)
+						} else {
+							// Fallback to phone number if no contact name found
+							speaker = senderPhone
+							s.logger.Debug("Using phone as speaker", "phone", senderPhone)
+						}
+					} else {
+						// If JID extraction failed, log and try other approaches
+						s.logger.Debug("Failed to extract sender from JID", "fromJID", msg.FromJID, "pushName", msg.PushName, "text", msg.Text[:min(50, len(msg.Text))])
+
+						// Try PushName first for group messages
+						if msg.PushName != "" && msg.PushName != "null" && !strings.Contains(msg.PushName, "=") && len(msg.PushName) > 4 {
+							speaker = msg.PushName
+							s.logger.Debug("Using PushName as speaker", "pushName", msg.PushName)
+						} else if contactName, exists := contactNames[msg.FromJID]; exists && contactName != "" {
+							speaker = contactName
+						} else if msg.PartnerName != "" {
+							speaker = msg.PartnerName
+						}
+					}
+				}
+			} else if isGroupChat && msg.PushName != "" && msg.PushName != "null" && !strings.Contains(msg.PushName, "=") && len(msg.PushName) > 4 {
+				// For group messages without FromJID but with PushName
+				speaker = msg.PushName
+				s.logger.Debug("Using PushName for group message without JID", "pushName", msg.PushName)
+			} else if msg.PartnerName != "" {
+				// For individual chats, use partner name
+				speaker = msg.PartnerName
+			} else if msg.ContactJID != "" {
+				// Fallback: try to resolve from contact JID
+				contactPhone := extractSenderFromJID(msg.ContactJID)
+				if contactPhone != "" {
+					if contactName, exists := contactNames[contactPhone]; exists && contactName != "" {
+						speaker = contactName
+					} else if contactName, exists := contactNames[msg.ContactJID]; exists && contactName != "" {
+						speaker = contactName
+					} else {
+						speaker = contactPhone
+					}
+				}
 			}
 
-			// Keep the better formatted version
-			if existing, ok := dedupMap[normalized]; ok {
-				// Prefer names over phone numbers
-				if !strings.HasPrefix(existing, "+") && strings.HasPrefix(p, "+") {
-					continue
-				}
-				// Prefer formatted phone numbers with +
-				if strings.HasPrefix(existing, "+") && !strings.HasPrefix(p, "+") {
-					dedupMap[normalized] = existing
-					continue
+			// Final validation - if speaker still looks corrupted, use "unknown"
+			if strings.Contains(speaker, "=") || (speaker != "me" && speaker != "unknown" && len(speaker) < 3) {
+				s.logger.Debug("Corrupted speaker name detected", "speaker", speaker, "fromJID", msg.FromJID, "pushName", msg.PushName)
+				// Try one more time with pushName if it's valid
+				if msg.PushName != "" && msg.PushName != "null" && !strings.Contains(msg.PushName, "=") && len(msg.PushName) > 4 {
+					speaker = msg.PushName
+				} else {
+					speaker = "unknown"
 				}
 			}
-			dedupMap[normalized] = p
+
+			// Apply final tag resolution with current participants
+			finalContent := resolveTagsInMessage(msg.Text, contactNames, participantsMap[chatSession])
+
+			conversationMessages = append(conversationMessages, map[string]interface{}{
+				"speaker": speaker,
+				"content": finalContent,
+				"time":    msg.Timestamp,
+			})
 		}
 
-		// Convert deduplicated map to list
-		for _, displayName := range dedupMap {
-			parts = append(parts, displayName)
+		// Get participants
+		participants := make([]string, 0, len(participantsMap[chatSession]))
+		for participant := range participantsMap[chatSession] {
+			participants = append(participants, participant)
 		}
 
-		recData := map[string]interface{}{
-			"id":           fmt.Sprintf("whatsapp-chat-%s", chatID),
+		// Use the timestamp of the first message as the conversation timestamp
+		conversationTimestamp := messages[0].Timestamp
+
+		recordData := map[string]interface{}{
+			"id":           fmt.Sprintf("whatsapp-chat-%s", chatSession),
 			"source":       "whatsapp",
-			"chat_session": chatID,
-			"conversation": msgArr,
-			"people":       parts,
-			"user":         "primaryUser",
+			"chat_session": chatSession,
+			"conversation": conversationMessages,
+			"people":       participants,
+			"user":         "me",
 			"type":         "conversation",
 		}
-		if name, ok := groupNames[chatID]; ok {
-			recData["group_name"] = name
-			recData["is_group_chat"] = true
+
+		// Add group metadata if this is a group chat
+		if isGroupChat && groupName != "" {
+			recordData["group_name"] = groupName
+			recordData["is_group_chat"] = true
 		}
 
-		records = append(records, types.Record{
-			Data:      recData,
-			Timestamp: msgs[0].Timestamp,
+		record := types.Record{
+			Data:      recordData,
+			Timestamp: conversationTimestamp,
 			Source:    "whatsapp",
-		})
+		}
+
+		records = append(records, record)
 	}
+
 	return records, nil
 }
 
-// -----------------------------------------------------------------------------
-// file / directory handlers
-// -----------------------------------------------------------------------------
-
-func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, _ string) ([]types.Record, error) {
+func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath string) ([]types.Record, error) {
 	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
 func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
+	// Store is not required for reading WhatsApp database files
+	// ReadWhatsAppDB only uses the logger for warnings
 	return s.ReadWhatsAppDB(ctx, filePath)
 }
 
-func (s *WhatsappProcessor) Sync(context.Context, string) ([]types.Record, bool, error) {
+func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {
 	return nil, false, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
-// -----------------------------------------------------------------------------
-// to documents
-// -----------------------------------------------------------------------------
-
 func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	if ctx == nil {
-		return nil, fmt.Errorf("context cannot be nil")
-	}
 	if len(records) == 0 {
 		return []memory.Document{}, nil
 	}
+	if ctx == nil {
+		return nil, fmt.Errorf("context cannot be nil")
+	}
 
-	var docs []memory.Document
-	for _, r := range records {
-		id, _ := r.Data["id"].(string)
-		chatSession, _ := r.Data["chat_session"].(string)
-		user, _ := r.Data["user"].(string)
+	var conversationDocuments []memory.ConversationDocument
 
+	for _, record := range records { // Each record now represents a full conversation
+		// s.logger.Info("Processing record", "record", fmt.Sprintf("%+v", record))
+
+		id, _ := record.Data["id"].(string)
+		chatSession, _ := record.Data["chat_session"].(string)
+		user, _ := record.Data["user"].(string)
+
+		// Handle people field which might be []interface{} or []string
 		var people []string
-		switch p := r.Data["people"].(type) {
+		switch p := record.Data["people"].(type) {
 		case []string:
 			people = p
 		case []interface{}:
-			for _, v := range p {
-				if s, ok := v.(string); ok {
-					people = append(people, s)
+			for _, person := range p {
+				if str, ok := person.(string); ok {
+					people = append(people, str)
 				}
 			}
 		}
 
-		var convRaw []interface{}
-		switch c := r.Data["conversation"].(type) {
-		case []interface{}:
-			convRaw = c
+		// Handle conversation field
+		var conversationInterface []interface{}
+		switch c := record.Data["conversation"].(type) {
 		case []map[string]interface{}:
-			for _, m := range c {
-				convRaw = append(convRaw, m)
+			// Convert to []interface{}
+			conversationInterface = make([]interface{}, len(c))
+			for i, msg := range c {
+				conversationInterface[i] = msg
 			}
+		case []interface{}:
+			conversationInterface = c
 		}
 
-		var convMsgs []memory.ConversationMessage
-		for _, m := range convRaw {
-			if mm, ok := m.(map[string]interface{}); ok {
-				speaker, _ := mm["speaker"].(string)
-				content, _ := mm["content"].(string)
-				var msgTime time.Time
-				switch t := mm["time"].(type) {
-				case time.Time:
-					msgTime = t
-				case string:
-					if parsed, err := time.Parse(time.RFC3339, t); err == nil {
-						msgTime = parsed
-					}
-				}
-				if speaker != "" && content != "" {
-					convMsgs = append(convMsgs, memory.ConversationMessage{
-						Speaker: speaker,
-						Content: content,
-						Time:    msgTime,
-					})
-				}
-			}
-		}
-
-		if len(convMsgs) == 0 {
+		if id == "" || len(conversationInterface) == 0 {
+			s.logger.Debug("Skipping record", "id", id, "conversation_length", len(conversationInterface))
 			continue
 		}
 
-		meta := map[string]string{
-			"chat_session": chatSession,
-			"type":         "conversation",
-		}
-		if g, ok := r.Data["group_name"].(string); ok && g != "" {
-			meta["group_name"] = g
-		}
-		if ig, ok := r.Data["is_group_chat"].(bool); ok && ig {
-			meta["is_group_chat"] = "true"
+		// Convert conversation messages
+		var conversationMessages []memory.ConversationMessage
+		for _, msgInterface := range conversationInterface {
+			msg, ok := msgInterface.(map[string]interface{})
+			if !ok {
+				s.logger.Debug("Skipping non-map message", "type", fmt.Sprintf("%T", msgInterface))
+				continue
+			}
+
+			speaker, _ := msg["speaker"].(string)
+			content, _ := msg["content"].(string)
+
+			var timestamp time.Time
+			switch t := msg["time"].(type) {
+			case time.Time:
+				timestamp = t
+			case string:
+				parsedTime, err := time.Parse(time.RFC3339, t)
+				if err == nil {
+					timestamp = parsedTime
+				} else {
+					s.logger.Debug("Failed to parse time", "time", t, "error", err)
+				}
+			}
+
+			if speaker != "" && content != "" {
+				conversationMessages = append(conversationMessages, memory.ConversationMessage{
+					Speaker: speaker,
+					Content: content,
+					Time:    timestamp,
+				})
+			}
 		}
 
-		docs = append(docs, &memory.ConversationDocument{
+		if len(conversationMessages) == 0 {
+			s.logger.Debug("No valid messages in conversation", "id", id)
+			continue
+		}
+
+		// Build metadata
+		metadata := map[string]string{
+			"type":         "conversation",
+			"chat_session": chatSession,
+		}
+
+		// Add group metadata if present
+		if groupName, ok := record.Data["group_name"].(string); ok && groupName != "" {
+			metadata["group_name"] = groupName
+		}
+		if isGroup, ok := record.Data["is_group_chat"].(bool); ok && isGroup {
+			metadata["is_group_chat"] = "true"
+		}
+
+		conversationDoc := memory.ConversationDocument{
 			FieldID:       id,
 			FieldSource:   "whatsapp",
 			FieldTags:     []string{"conversation", "chat"},
 			People:        people,
 			User:          user,
-			Conversation:  convMsgs,
-			FieldMetadata: meta,
-		})
+			Conversation:  conversationMessages,
+			FieldMetadata: metadata,
+		}
+
+		conversationDocuments = append(conversationDocuments, conversationDoc)
 	}
-	s.logger.Info("converted documents", "count", len(docs))
-	return docs, nil
+
+	s.logger.Info("Converted to documents", "documents", len(conversationDocuments))
+	var documents []memory.Document
+	for _, conversationDoc := range conversationDocuments {
+		documents = append(documents, &conversationDoc)
+	}
+	return documents, nil
 }
 
-// -----------------------------------------------------------------------------
-// byte helpers
-// -----------------------------------------------------------------------------
-
-func extractJIDFromBytes(b []byte) string {
-	if len(b) == 0 {
+// extractJIDFromBytes attempts to extract a JID from byte data
+// iOS WhatsApp stores JIDs as NSData BLOBs with specific encoding
+func extractJIDFromBytes(data []byte) string {
+	if len(data) == 0 {
 		return ""
 	}
 
-	// First, try to interpret as a simple string
-	str := string(b)
-	if isPrintableString(str) && strings.Contains(str, "@") {
-		// Clean up any null bytes
-		if idx := strings.Index(str, "\x00"); idx > 0 {
-			str = str[:idx]
-		}
+	// Try direct string conversion first
+	str := string(data)
+	if strings.Contains(str, "@") && !strings.Contains(str, "\x00") {
 		return str
 	}
 
-	// Look for WhatsApp JID patterns
-	for i := 0; i < len(b); i++ {
-		// Look for phone number patterns
-		if (b[i] >= '0' && b[i] <= '9') || b[i] == '+' {
-			start := i
-			// Scan for phone number
-			for i < len(b) && ((b[i] >= '0' && b[i] <= '9') || b[i] == '+' || b[i] == '-') {
-				i++
-			}
-
-			// Check if we have a valid phone number length
-			if i-start >= 10 && i-start <= 20 {
-				phone := string(b[start:i])
-
-				// Check if followed by @ (indicating JID)
-				if i < len(b) && b[i] == '@' {
-					jidStart := start
-					// Continue reading the domain part
-					for i < len(b) && b[i] != 0 && b[i] >= 32 && b[i] <= 126 {
-						i++
-					}
-					jid := string(b[jidStart:i])
-					if strings.Contains(jid, "@s.whatsapp.net") || strings.Contains(jid, "@g.us") {
-						return jid
-					}
-				}
-				// Return just the phone number if it looks valid
-				return phone + "@s.whatsapp.net"
-			}
-		}
-
-		// Look for @ symbol that might indicate a JID
-		if b[i] == '@' && i > 0 {
-			// Scan backwards to find the start
-			start := i - 1
-			for start > 0 && b[start] >= 32 && b[start] <= 126 && b[start] != 0 {
-				start--
-			}
-			if b[start] < 32 || b[start] > 126 {
-				start++
-			}
-
-			// Scan forwards to find the end
-			end := i
-			for end < len(b) && b[end] >= 32 && b[end] <= 126 && b[end] != 0 {
-				end++
-			}
-
-			candidate := string(b[start:end])
+	// iOS NSData might have a header, try skipping common prefixes
+	// NSData format often has length prefixes or type markers
+	for i := 0; i < len(data) && i < 16; i++ {
+		if i+10 < len(data) {
+			candidate := string(data[i:])
+			// Look for @s.whatsapp.net or @g.us patterns
 			if strings.Contains(candidate, "@s.whatsapp.net") || strings.Contains(candidate, "@g.us") {
+				// Extract until null byte or end
+				endIdx := strings.Index(candidate, "\x00")
+				if endIdx > 0 {
+					return candidate[:endIdx]
+				}
 				return candidate
 			}
 		}
 	}
 
-	// If we can't extract a valid JID, return empty string instead of base64
-	return ""
+	// Try to find phone number pattern (10+ digits)
+	for i := 0; i < len(data); i++ {
+		if data[i] >= '0' && data[i] <= '9' {
+			// Found a digit, extract the number
+			start := i
+			for i < len(data) && ((data[i] >= '0' && data[i] <= '9') || data[i] == '+' || data[i] == '-') {
+				i++
+			}
+			if i-start >= 10 {
+				phoneNumber := string(data[start:i])
+				// Check if followed by @
+				if i < len(data) && data[i] == '@' {
+					// Extract the full JID
+					for i < len(data) && data[i] != 0 && data[i] > 32 && data[i] < 127 {
+						i++
+					}
+					return string(data[start:i])
+				}
+				return phoneNumber
+			}
+		}
+	}
+
+	// Last resort: return as base64 to decode later
+	return base64.StdEncoding.EncodeToString(data)
 }
