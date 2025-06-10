@@ -180,7 +180,7 @@ func main() {
 
 	chatStorage := chatrepository.NewRepository(logger, store.DB())
 
-	weaviatePath := filepath.Join(envs.AppDataPath, "weaviate")
+	weaviatePath := filepath.Join(envs.AppDataPath, "db", "weaviate")
 	logger.Info("Starting Weaviate bootstrap process", "path", weaviatePath, "port", envs.WeaviatePort)
 	weaviateBootstrapStart := time.Now()
 
