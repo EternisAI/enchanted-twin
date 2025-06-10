@@ -9,6 +9,11 @@ run:
 build:
 	go build -o bin/enchanted-twin cmd/server/main.go
 
+restart-schema:
+	@echo "Removing Weaviate data directory to restart with fresh schema..."
+	rm -rf ./output/weaviate
+	@echo "Weaviate schema will be recreated on next server startup."
+
 release:
 	GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
 	GOOS=darwin GOARCH=arm64 go build -o bin/enchanted-twin-darwin-arm64 cmd/server/main.go

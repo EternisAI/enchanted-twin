@@ -300,12 +300,12 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 		}
 	}
 
-	var conversationDocuments []memory.ConversationDocument
+	var documents []memory.Document
 	for _, conversation := range conversationMap {
 		if len(conversation.Conversation) > 0 {
-			conversationDocuments = append(conversationDocuments, *conversation)
+			documents = append(documents, conversation)
 		}
 	}
 
-	return memory.ConversationDocumentsToDocuments(conversationDocuments), nil
+	return documents, nil
 }

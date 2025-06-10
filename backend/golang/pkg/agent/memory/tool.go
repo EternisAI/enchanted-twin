@@ -35,10 +35,26 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 		return nil, errors.New("query must be a string")
 	}
 
-	t.Logger.Info("=== MEMORY TOOL QUERY START ===", "query", query)
+	var sourcePtr *string
+	sourceVal, exists := input["source"]
+	if exists {
+		source, ok := sourceVal.(string)
+		if ok {
+			sourcePtr = &source
+		}
+	}
+
+	var subjectPtr *string
+	subjectVal, exists := input["subject"]
+	if exists {
+		subject, ok := subjectVal.(string)
+		if ok {
+			subjectPtr = &subject
+		}
+	}
 
 	// For now, search across all speakers
-	result, err := t.Memory.Query(ctx, query, nil)
+	result, err := t.Memory.Query(ctx, query, &Filter{Subject: subjectPtr, Source: sourcePtr})
 	if err != nil {
 		t.Logger.Error("Memory query failed", "error", err, "query", query)
 		return nil, err
@@ -47,19 +63,6 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 	t.Logger.Info("Memory query completed",
 		"query", query,
 		"facts_found", len(result.Facts))
-
-	// Log first few results for debugging
-	for i, fact := range result.Facts {
-		if i >= 3 { // Only log first 3 to avoid spam
-			break
-		}
-		t.Logger.Info("Memory result sample",
-			"index", i+1,
-			"content", fact.Content,
-			"speaker", fact.Speaker,
-			"source", fact.Source,
-			"timestamp", fact.Timestamp.Format("2006-01-02 15:04:05"))
-	}
 
 	if len(result.Facts) == 0 {
 		t.Logger.Warn("No facts found for query - this suggests a semantic search issue", "query", query)
@@ -78,17 +81,12 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 
 	resultText := ""
 	for i, fact := range result.Facts {
-		timeStr := "N/A"
-		if !fact.Timestamp.IsZero() {
-			timeStr = fact.Timestamp.Format("2006-01-02 15:04:05")
-		}
 		resultText += fmt.Sprintf(
-			"Memory %d: %s (Speaker: %s, Source: %s, Time: %s)\n",
+			"Memory %d: %s (Source: %s, Time: %s)\n",
 			i+1,
 			fact.Content,
-			fact.Speaker,
 			fact.Source,
-			timeStr,
+			fact.Timestamp.Format("2006-01-02 15:04:05"),
 		)
 	}
 
@@ -118,7 +116,17 @@ func (t *MemorySearchTool) Definition() openai.ChatCompletionToolParam {
 				"type": "object",
 				"properties": map[string]any{
 					"query": map[string]string{
-						"type": "string",
+						"type":        "string",
+						"description": "The query to search for in the memory",
+					},
+					"source": map[string]any{
+						"type":        "string",
+						"enum":        []string{"chat", "telegram", "whatsapp", "gmail", "x"},
+						"description": "The source to search for in the memory",
+					},
+					"subject": map[string]string{
+						"type":        "string",
+						"description": "The subject to search for in the memory",
 					},
 				},
 				"required": []string{"query"},
