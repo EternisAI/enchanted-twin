@@ -3,7 +3,6 @@ package holon
 import (
 	"context"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -45,18 +44,6 @@ type FetcherConfig struct {
 	MaxRetries    int
 	RetryDelay    time.Duration
 	EnableLogging bool
-}
-
-// DefaultFetcherConfig returns a sensible default configuration.
-func DefaultFetcherConfig() FetcherConfig {
-	return FetcherConfig{
-		APIBaseURL:    getEnvOrDefault("HOLON_API_URL", "http://localhost:8080"),
-		FetchInterval: 30 * time.Second,
-		BatchSize:     50,
-		MaxRetries:    3,
-		RetryDelay:    30 * time.Second,
-		EnableLogging: true,
-	}
 }
 
 // NewFetcherService creates a new HolonZero API fetcher service.
@@ -1072,14 +1059,6 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 
 	f.logDebug(fmt.Sprintf("Successfully synced %d total replies", totalReplies))
 	return allReplies, nil
-}
-
-// getEnvOrDefault returns the environment variable value or a default value.
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }
 
 // getLocalUserIdentity gets the local user identity from the user profile.
