@@ -383,6 +383,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Name:              timestampProperty,
 				DataType:          []string{"date"},
 				Description:       "When this memory was created or last updated",
+				IndexFilterable:   helpers.Ptr(true),
 				IndexRangeFilters: helpers.Ptr(true),
 			},
 			{
@@ -433,20 +434,22 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				IndexFilterable: helpers.Ptr(true),
 				IndexSearchable: helpers.Ptr(true),
 			},
+			// NON-INDEXED FIELDS: These fields are stored for display/context but not indexed for performance.
+			// They contain rich descriptive text that would be expensive to index and filter.
 			{
 				Name:        factValueProperty,
 				DataType:    []string{"text"},
-				Description: "Descriptive phrase with context for the fact",
+				Description: "Descriptive phrase with context for the fact (stored but not filterable)",
 			},
 			{
 				Name:        factTemporalContextProperty,
 				DataType:    []string{"text"},
-				Description: "Temporal context for the fact (optional)",
+				Description: "Temporal context for the fact - freeform text (stored but not filterable)",
 			},
 			{
 				Name:        factSensitivityProperty,
 				DataType:    []string{"text"},
-				Description: "Sensitivity level of the fact (high, medium, low)",
+				Description: "Sensitivity level of the fact (stored but not filterable)",
 			},
 			{
 				Name:            factImportanceProperty,
@@ -700,6 +703,14 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 
 	// Timestamp range filtering
 	var timestampFilters []*filters.WhereBuilder
+	if filter.TimestampAfter != nil && filter.TimestampBefore != nil {
+		// Validate that after < before
+		if filter.TimestampAfter.After(*filter.TimestampBefore) {
+			return nil, fmt.Errorf("TimestampAfter (%v) must be before TimestampBefore (%v)",
+				filter.TimestampAfter.Format(time.RFC3339),
+				filter.TimestampBefore.Format(time.RFC3339))
+		}
+	}
 	if filter.TimestampAfter != nil {
 		afterFilter := filters.Where().
 			WithPath([]string{timestampProperty}).
@@ -729,6 +740,15 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 
 	// Document references filter
 	if len(filter.DocumentReferences) > 0 {
+		// Validate no empty strings in the array
+		for _, ref := range filter.DocumentReferences {
+			if ref == "" {
+				return nil, fmt.Errorf("document references cannot contain empty strings")
+			}
+		}
+		// Using ContainsAny because we want memories that reference ANY of the provided documents.
+		// This is more useful than ContainsAll which would only return memories that reference ALL documents.
+		// Example: Find memories from conversation-123 OR conversation-456, not memories that reference both.
 		docRefsFilter := filters.Where().
 			WithPath([]string{documentReferencesProperty}).
 			WithOperator(filters.ContainsAny).
@@ -1323,17 +1343,17 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 		factValueProperty: {
 			Name:        factValueProperty,
 			DataType:    []string{"text"},
-			Description: "Descriptive phrase with context for the fact",
+			Description: "Descriptive phrase with context for the fact (stored but not filterable)",
 		},
 		factTemporalContextProperty: {
 			Name:        factTemporalContextProperty,
 			DataType:    []string{"text"},
-			Description: "Temporal context for the fact (optional)",
+			Description: "Temporal context for the fact - freeform text (stored but not filterable)",
 		},
 		factSensitivityProperty: {
 			Name:        factSensitivityProperty,
 			DataType:    []string{"text"},
-			Description: "Sensitivity level of the fact (high, medium, low)",
+			Description: "Sensitivity level of the fact (stored but not filterable)",
 		},
 		factImportanceProperty: {
 			Name:        factImportanceProperty,

@@ -39,6 +39,9 @@ type TagsFilter struct {
 }
 
 // Filter provides structured filtering options for memory queries.
+// DESIGN NOTE: Only indexed fields are included in this struct for optimal query performance.
+// Some fields (factValue, factTemporalContext, factSensitivity) exist in the schema for
+// storage and display purposes but are not indexed/filterable due to their rich text nature.
 type Filter struct {
 	Source   *string     // Filter by document source
 	Subject  *string     // Filter by fact subject (user, entity names) - renamed from ContactName
