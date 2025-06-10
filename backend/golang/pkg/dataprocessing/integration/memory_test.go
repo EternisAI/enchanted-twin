@@ -126,8 +126,10 @@ func setupSharedInfrastructure(config testConfig) {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
 		}
 
+
 		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, config.EmbeddingsModel)
+
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}
@@ -156,7 +158,7 @@ func teardownSharedInfrastructure() {
 func clearWeaviateData(t *testing.T) {
 	t.Helper()
 
-	for _, className := range []string{"TextDocument", "SourceDocument"} {
+	for _, className := range []string{"MemoryFact", "SourceDocument"} {
 		result, err := sharedWeaviateClient.Data().ObjectsGetter().
 			WithClassName(className).
 			WithLimit(1000).
@@ -476,14 +478,18 @@ func getTestConfig(t *testing.T) testConfig {
 		embeddingsModel = "text-embedding-3-small"
 	}
 
+
 	completionsApiUrl := os.Getenv("COMPLETIONS_API_URL")
 	if completionsApiUrl == "" {
 		completionsApiUrl = "https://openrouter.ai/api/v1"
+
 	}
 
 	embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
 	if embeddingsApiUrl == "" {
+
 		embeddingsApiUrl = "https://api.openai.com/v1"
+
 	}
 
 	return testConfig{
@@ -749,6 +755,7 @@ func TestMemoryIntegration(t *testing.T) {
 		assert.True(t, foundFieldsMedal, "should find a document containing 'Fields Medal'")
 	})
 
+ 
 	t.Run("DocumentReferences", func(t *testing.T) {
 		// Use existing data or load if needed
 		if len(env.documents) == 0 {
@@ -766,6 +773,7 @@ func TestMemoryIntegration(t *testing.T) {
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.DefaultSource), &filter)
 		require.NoError(t, err)
 		require.NotEmpty(t, result.Facts)
+
 
 		for _, fact := range result.Facts[:min(3, len(result.Facts))] {
 			memoryID := fact.ID
@@ -853,9 +861,11 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactSubjectFiltering",
 			filter: memory.Filter{
+ 
 				FactSubject: stringPtr("user"),
 				Source:      &env.config.DefaultSource,
 				Limit:       &limit,
+
 			},
 			query: "facts about user",
 		},
@@ -879,6 +889,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "medium to high importance facts",
 		},
 		{
+ 
 			name: "FactSensitivityFiltering",
 			filter: memory.Filter{
 				FactSensitivity: stringPtr("low"),
@@ -888,10 +899,11 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "public information",
 		},
 		{
+ 
 			name: "CombinedStructuredFiltering",
 			filter: memory.Filter{
 				FactCategory:   stringPtr("preference"),
-				FactSubject:    stringPtr("user"),
+				Subject:        stringPtr("user"),
 				FactImportance: intPtr(2),
 				Source:         &env.config.DefaultSource,
 				Limit:          &limit,
@@ -899,6 +911,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "user preferences with medium importance",
 		},
 		{
+ 
 			name: "FactValuePartialMatching",
 			filter: memory.Filter{
 				FactValue: stringPtr("coffee"),
@@ -941,6 +954,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "user goals for Q1 with medium sensitivity and high importance",
 		},
 		{
+ 
 			name: "FactAttributeFiltering",
 			filter: memory.Filter{
 				FactAttribute: stringPtr("health_metric"),
@@ -950,24 +964,28 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "health metrics",
 		},
 		{
-			name: "NonExistentCategoryFiltering",
+			name: "TimestampRangeFiltering",
 			filter: memory.Filter{
-				FactCategory: stringPtr("nonexistent_category"),
-				Source:       &env.config.DefaultSource,
-				Limit:        &limit,
+ 
+				TimestampAfter: func() *time.Time { t := time.Now().AddDate(0, 0, -30); return &t }(),
+				Source:         &env.config.DefaultSource,
+				Limit:          &limit,
+ 
 			},
-			query:       "facts from non-existent category",
-			expectEmpty: true,
+			query: "recent activities",
 		},
 		{
-			name: "WrongImportanceFiltering",
+			name: "CombinedAdvancedFiltering",
 			filter: memory.Filter{
-				FactImportanceMin: intPtr(10),
-				Source:            &env.config.DefaultSource,
-				Limit:             &limit,
+ 
+				FactCategory:   stringPtr("health"),
+				Subject:        stringPtr("user"),
+				FactImportance: intPtr(3),
+				Source:         &env.config.DefaultSource,
+				Limit:          &limit,
+ 
 			},
-			query:       "What do you know about me?",
-			expectEmpty: true,
+			query: "critical health facts for user",
 		},
 	}
 

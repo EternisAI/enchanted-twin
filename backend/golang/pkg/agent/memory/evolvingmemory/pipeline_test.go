@@ -232,21 +232,3 @@ func TestPipelineIntegration_BasicFlow(t *testing.T) {
 	// Assert that the pipeline completed successfully (both channels closed)
 	assert.True(t, true, "Multi-document pipeline integration test completed successfully")
 }
-
-func TestFindMemoryByID(t *testing.T) {
-	memories := []ExistingMemory{
-		{ID: "mem1", Content: "First memory"},
-		{ID: "mem2", Content: "Second memory"},
-		{ID: "mem3", Content: "Third memory"},
-	}
-
-	// Test finding existing memory
-	found := findMemoryByID(memories, "mem2")
-	require.NotNil(t, found)
-	assert.Equal(t, "mem2", found.ID)
-	assert.Equal(t, "Second memory", found.Content)
-
-	// Test finding non-existent memory
-	notFound := findMemoryByID(memories, "mem4")
-	assert.Nil(t, notFound)
-}

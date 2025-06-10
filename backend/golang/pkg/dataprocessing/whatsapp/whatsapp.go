@@ -273,7 +273,7 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			conversationMap[chatSession] = &memory.ConversationDocument{
 				FieldID:      fmt.Sprintf("whatsapp-chat-%s", chatSession),
 				FieldSource:  "whatsapp",
-				FieldTags:    []string{"whatsapp", "conversation", "chat"},
+				FieldTags:    []string{"conversation", "chat"},
 				People:       participants,
 				User:         "me",
 				Conversation: []memory.ConversationMessage{},
@@ -303,12 +303,12 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 		}
 	}
 
-	var conversationDocuments []memory.ConversationDocument
+	var documents []memory.Document
 	for _, conversation := range conversationMap {
 		if len(conversation.Conversation) > 0 {
-			conversationDocuments = append(conversationDocuments, *conversation)
+			documents = append(documents, conversation)
 		}
 	}
 
-	return memory.ConversationDocumentsToDocuments(conversationDocuments), nil
+	return documents, nil
 }

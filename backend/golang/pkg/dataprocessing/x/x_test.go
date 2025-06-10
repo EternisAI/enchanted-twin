@@ -56,7 +56,6 @@ func TestToDocuments(t *testing.T) {
 	assert.Equal(t, "Hello\nican't login in discord\nloading indefinitely\nworks on phone though\nregion: Mexico\nthanks", documents[0].Content())
 	assert.Equal(t, &expectedTimestamp1, documents[0].Timestamp())
 	assert.Contains(t, documents[0].Tags(), "social")
-	assert.Contains(t, documents[0].Tags(), "x")
 	assert.Contains(t, documents[0].Tags(), "direct_message")
 
 	metadata := documents[0].Metadata()
@@ -66,7 +65,6 @@ func TestToDocuments(t *testing.T) {
 	assert.Equal(t, "@ChopJurassic @ReallyAmerican1 yes you do", documents[1].Content())
 	assert.Equal(t, &expectedTimestamp3, documents[1].Timestamp())
 	assert.Contains(t, documents[1].Tags(), "social")
-	assert.Contains(t, documents[1].Tags(), "x")
 	assert.Contains(t, documents[1].Tags(), "tweet")
 	assert.Equal(t, map[string]string{
 		"type":          "tweet",
@@ -79,7 +77,6 @@ func TestToDocuments(t *testing.T) {
 	assert.Equal(t, "A verified internet scales humanity", documents[2].Content())
 	assert.Equal(t, &expectedTimestamp2, documents[2].Timestamp())
 	assert.Contains(t, documents[2].Tags(), "social")
-	assert.Contains(t, documents[2].Tags(), "x")
 	assert.Contains(t, documents[2].Tags(), "like")
 	assert.Equal(t, map[string]string{
 		"type": "like",
