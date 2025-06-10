@@ -249,36 +249,6 @@ func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Int
 	return memories, nil
 }
 
-// normalizeAndFormatConversation replaces primary user name with "primaryUser" and returns JSON.
-func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string, error) {
-	normalized := convDoc
-
-	// Replace primary user name in conversation messages
-	for i, msg := range normalized.Conversation {
-		if msg.Speaker == convDoc.User {
-			normalized.Conversation[i].Speaker = "primaryUser"
-		}
-	}
-
-	// Replace primary user name in people list
-	for i, person := range normalized.People {
-		if person == convDoc.User {
-			normalized.People[i] = "primaryUser"
-		}
-	}
-
-	// Update the user field
-	normalized.User = "primaryUser"
-
-	// Just JSON marshal the whole thing
-	jsonBytes, err := json.Marshal(normalized)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal conversation: %w", err)
-	}
-
-	return string(jsonBytes), nil
-}
-
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
 func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
