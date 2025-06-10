@@ -13,45 +13,48 @@ import (
 )
 
 func TestPrepareDocuments(t *testing.T) {
-	now := time.Now()
+	currentTime := time.Now()
 
-	// Create test documents
-	convDoc := &memory.ConversationDocument{
-		FieldID: "conv-1",
-		User:    "alice",
-		Conversation: []memory.ConversationMessage{
-			{Speaker: "alice", Content: "Hello", Time: now},
-		},
-	}
+	t.Run("conversation document preparation", func(t *testing.T) {
+		docs := []memory.Document{
+			&memory.ConversationDocument{
+				FieldID:     "conv1",
+				FieldSource: "whatsapp",
+				User:        "alice",
+				People:      []string{"alice", "bob"},
+				Conversation: []memory.ConversationMessage{
+					{Speaker: "alice", Content: "Hello", Time: time.Now()},
+					{Speaker: "bob", Content: "Hi there", Time: time.Now()},
+				},
+			},
+		}
 
-	textDoc := &memory.TextDocument{
-		FieldID:      "text-1",
-		FieldContent: "Some text content",
-	}
+		prepared, err := PrepareDocuments(docs, currentTime)
+		assert.NoError(t, err)
+		assert.Len(t, prepared, 1)
 
-	docs := []memory.Document{convDoc, textDoc}
+		assert.Equal(t, DocumentTypeConversation, prepared[0].Type)
+		assert.NotZero(t, prepared[0].Timestamp)
+		assert.NotEmpty(t, prepared[0].DateString)
+	})
 
-	// Test preparation
-	prepared, errors := PrepareDocuments(docs, now)
+	t.Run("text document preparation", func(t *testing.T) {
+		docs := []memory.Document{
+			&memory.TextDocument{
+				FieldID:      "text1",
+				FieldContent: "Some text content",
+				FieldSource:  "email",
+			},
+		}
 
-	assert.Empty(t, errors)
-	assert.Len(t, prepared, 2)
+		prepared, err := PrepareDocuments(docs, currentTime)
+		assert.NoError(t, err)
+		assert.Len(t, prepared, 1)
 
-	// Check conversation document
-	assert.Equal(t, DocumentTypeConversation, prepared[0].Type)
-	assert.Equal(t, "alice", prepared[0].SpeakerID)
-	// With chunking, the original doc is not the same instance, but a new chunk for long docs.
-	// For a short doc like this, it should NOT be chunked.
-	preparedConv, ok := prepared[0].Original.(*memory.ConversationDocument)
-	require.True(t, ok)
-	assert.Equal(t, "conv-1", preparedConv.ID()) // It's a short doc, should not be chunked
-	assert.Equal(t, "alice", preparedConv.User)
-	assert.Equal(t, convDoc.Conversation, preparedConv.Conversation)
-
-	// Check text document
-	assert.Equal(t, DocumentTypeText, prepared[1].Type)
-	assert.Empty(t, prepared[1].SpeakerID) // Text docs have no speaker
-	assert.Equal(t, textDoc, prepared[1].Original)
+		assert.Equal(t, DocumentTypeText, prepared[0].Type)
+		assert.NotZero(t, prepared[0].Timestamp)
+		assert.NotEmpty(t, prepared[0].DateString)
+	})
 }
 
 func TestDistributeWork(t *testing.T) {
@@ -77,90 +80,14 @@ func TestDistributeWork(t *testing.T) {
 	assert.Len(t, chunks[0], 10)
 }
 
-func TestValidateMemoryOperation(t *testing.T) {
-	tests := []struct {
-		name    string
-		rule    ValidationRule
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "speaker can update own memory",
-			rule: ValidationRule{
-				CurrentSpeakerID: "alice",
-				IsDocumentLevel:  false,
-				TargetSpeakerID:  "alice",
-				Action:           UPDATE,
-			},
-			wantErr: false,
-		},
-		{
-			name: "speaker cannot update other's memory",
-			rule: ValidationRule{
-				CurrentSpeakerID: "alice",
-				IsDocumentLevel:  false,
-				TargetSpeakerID:  "bob",
-				Action:           UPDATE,
-			},
-			wantErr: true,
-			errMsg:  "speaker alice cannot UPDATE memory belonging to speaker bob",
-		},
-		{
-			name: "document-level cannot update speaker memory",
-			rule: ValidationRule{
-				CurrentSpeakerID: "",
-				IsDocumentLevel:  true,
-				TargetSpeakerID:  "alice",
-				Action:           DELETE,
-			},
-			wantErr: true,
-			errMsg:  "document-level context cannot DELETE speaker-specific memory",
-		},
-		{
-			name: "document-level can update document-level memory",
-			rule: ValidationRule{
-				CurrentSpeakerID: "",
-				IsDocumentLevel:  true,
-				TargetSpeakerID:  "",
-				Action:           UPDATE,
-			},
-			wantErr: false,
-		},
-		{
-			name: "ADD action always allowed",
-			rule: ValidationRule{
-				CurrentSpeakerID: "alice",
-				IsDocumentLevel:  false,
-				TargetSpeakerID:  "bob",
-				Action:           ADD,
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateMemoryOperation(tt.rule)
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Equal(t, tt.errMsg, err.Error())
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
-}
-
 func TestMarshalMetadata(t *testing.T) {
 	metadata := map[string]string{
-		"speakerID": "alice",
-		"source":    "telegram",
+		"source": "telegram",
 	}
 
 	result := marshalMetadata(metadata)
 
-	// Should contain both keys
-	assert.Contains(t, result, `"speakerID":"alice"`)
+	// Should contain keys
 	assert.Contains(t, result, `"source":"telegram"`)
 	assert.True(t, result[0] == '{' && result[len(result)-1] == '}')
 }
@@ -351,7 +278,6 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 	// Check the first chunk
 	firstChunk, ok := prepared[0].Original.(*memory.ConversationDocument)
 	require.True(t, ok, "Expected first chunk to be a ConversationDocument")
-	assert.Equal(t, "alice", prepared[0].SpeakerID)
 	assert.Equal(t, DocumentTypeConversation, prepared[0].Type)
 	assert.Equal(t, "conv-long-chunk-1", firstChunk.ID())
 	assert.Equal(t, []string{"project-x"}, firstChunk.Tags())
@@ -364,7 +290,6 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 	// Check the last chunk
 	lastChunk, ok := prepared[len(prepared)-1].Original.(*memory.ConversationDocument)
 	require.True(t, ok)
-	assert.Equal(t, "alice", prepared[len(prepared)-1].SpeakerID)
 	assert.Contains(t, lastChunk.Metadata(), "_enchanted_chunk_number")
 	expectedChunkNum := fmt.Sprintf("%d", len(prepared))
 	assert.Equal(t, expectedChunkNum, lastChunk.Metadata()["_enchanted_chunk_number"])

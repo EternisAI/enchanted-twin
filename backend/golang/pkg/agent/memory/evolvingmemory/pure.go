@@ -31,37 +31,11 @@ func DistributeWork(docs []PreparedDocument, workers int) [][]PreparedDocument {
 	return chunks
 }
 
-// ValidateMemoryOperation ensures speaker context rules are followed.
-func ValidateMemoryOperation(rule ValidationRule) error {
-	switch rule.Action {
-	case UPDATE, DELETE:
-		// Document-level context cannot modify speaker-specific memories
-		if rule.IsDocumentLevel && rule.TargetSpeakerID != "" {
-			return fmt.Errorf("document-level context cannot %s speaker-specific memory", rule.Action)
-		}
-
-		// Speaker-specific context can only modify their own memories
-		if !rule.IsDocumentLevel && rule.TargetSpeakerID != rule.CurrentSpeakerID {
-			return fmt.Errorf("speaker %s cannot %s memory belonging to speaker %s",
-				rule.CurrentSpeakerID, rule.Action, rule.TargetSpeakerID)
-		}
-	}
-	return nil
-}
-
 // CreateMemoryObject builds the Weaviate object for ADD operations.
 func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Object {
 	metadata := make(map[string]string)
 
-	for k, v := range fact.Source.Original.Metadata() {
-		metadata[k] = v
-	}
-
-	if fact.SpeakerID != "" {
-		metadata["speakerID"] = fact.SpeakerID
-	}
-
-	// Add document reference metadata for backward compatibility
+	// Only keep document references for tracking lineage
 	metadata["sourceDocumentId"] = fact.Source.Original.ID()
 	metadata["sourceDocumentType"] = string(fact.Source.Type)
 
@@ -71,7 +45,7 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	// Prepare properties with new direct fields
 	properties := map[string]interface{}{
 		"content":            fact.Content,
-		"metadataJson":       marshalMetadata(metadata), // Keep for backward compatibility
+		"metadataJson":       marshalMetadata(metadata), // Minimal metadata now
 		"timestamp":          fact.Source.Timestamp.Format(time.RFC3339),
 		"tags":               tags,
 		"documentReferences": []string{},
@@ -92,11 +66,6 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	// Extract and store source as direct field
 	if source := fact.Source.Original.Source(); source != "" {
 		properties["source"] = source
-	}
-
-	// Extract and store speakerID as direct field
-	if fact.SpeakerID != "" {
-		properties["speakerID"] = fact.SpeakerID
 	}
 
 	return &models.Object{
@@ -166,7 +135,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 		}
 
 		// Extract for the document-level context (no specific speaker)
-		return extractFactsFromConversation(ctx, *convDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService, completionsModel)
+		return extractFactsFromConversation(ctx, *convDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel)
 
 	case DocumentTypeText:
 		textDoc, ok := doc.Original.(*memory.TextDocument)
@@ -174,7 +143,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 			return nil, fmt.Errorf("expected TextDocument but got %T", doc.Original)
 		}
 
-		return extractFactsFromTextDocument(ctx, *textDoc, doc.SpeakerID, currentSystemDate, docEventDateStr, completionsService, completionsModel)
+		return extractFactsFromTextDocument(ctx, *textDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel)
 
 	default:
 		return nil, fmt.Errorf("unsupported document type: %s", doc.Type)
@@ -260,7 +229,7 @@ func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (Memo
 
 // SearchSimilarMemories performs semantic search for similar memories.
 // This is pure business logic extracted from the adapter.
-func SearchSimilarMemories(ctx context.Context, fact string, speakerID string, storage storage.Interface, embeddingsModel string) ([]ExistingMemory, error) {
+func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Interface, embeddingsModel string) ([]ExistingMemory, error) {
 	result, err := storage.Query(ctx, fact, nil, embeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
@@ -311,7 +280,7 @@ func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -347,7 +316,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		log.Printf("LLM completion FAILED for conversation %s: %v", convDoc.ID(), err)
-		return nil, fmt.Errorf("LLM completion error for speaker %s, conversation %s: %w", speakerID, convDoc.ID(), err)
+		return nil, fmt.Errorf("LLM completion error for conversation %s: %w", convDoc.ID(), err)
 	}
 
 	log.Printf("LLM Response for conversation %s:", convDoc.ID())
@@ -414,7 +383,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -443,7 +412,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
 		log.Printf("LLM completion FAILED for document %s: %v", textDoc.ID(), err)
-		return nil, fmt.Errorf("LLM completion error for speaker %s, document %s: %w", speakerID, textDoc.ID(), err)
+		return nil, fmt.Errorf("LLM completion error for document %s: %w", textDoc.ID(), err)
 	}
 
 	log.Printf("LLM Response for document %s:", textDoc.ID())
@@ -557,11 +526,6 @@ func addDocumentMetadata(doc memory.Document, docType DocumentType, currentTime 
 		Type:       docType,
 		Timestamp:  currentTime,
 		DateString: getCurrentDateForPrompt(),
-	}
-
-	// Set speaker ID for conversations
-	if conv, ok := doc.(*memory.ConversationDocument); ok && conv.User != "" {
-		prep.SpeakerID = conv.User
 	}
 
 	// Override timestamp if document provides one

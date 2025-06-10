@@ -40,15 +40,14 @@ type TagsFilter struct {
 
 // Filter provides structured filtering options for memory queries.
 type Filter struct {
-	Source      *string     // Filter by document source
-	ContactName *string     // Filter by contact/speaker name
-	Tags        *TagsFilter // Filter by tags with boolean logic support
-	Distance    float32     // Maximum semantic distance (0 = disabled)
-	Limit       *int        // Maximum number of results to return
+	Source   *string     // Filter by document source
+	Subject  *string     // Filter by fact subject (user, entity names) - renamed from ContactName
+	Tags     *TagsFilter // Filter by tags with boolean logic support
+	Distance float32     // Maximum semantic distance (0 = disabled)
+	Limit    *int        // Maximum number of results to return
 
 	// Structured fact filtering fields
 	FactCategory        *string // Filter by fact category (profile_stable, preference, goal_plan, etc.)
-	FactSubject         *string // Filter by fact subject (user, entity names)
 	FactAttribute       *string // Filter by fact attribute (specific property being described)
 	FactValue           *string // Filter by fact value (partial match on descriptive content)
 	FactTemporalContext *string // Filter by temporal context (dates, time references)
@@ -589,7 +588,6 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 // MemoryFact represents an extracted fact about a person.
 type MemoryFact struct {
 	ID        string            `json:"id"`
-	Speaker   string            `json:"speaker"`
 	Content   string            `json:"content"`
 	Timestamp time.Time         `json:"timestamp"`
 	Source    string            `json:"source"`
