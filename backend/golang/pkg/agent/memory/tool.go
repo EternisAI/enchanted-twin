@@ -35,8 +35,6 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 		return nil, errors.New("query must be a string")
 	}
 
-	t.Logger.Info("=== MEMORY TOOL QUERY START ===", "query", query)
-
 	// For now, search across all speakers
 	result, err := t.Memory.Query(ctx, query, nil)
 	if err != nil {
@@ -78,17 +76,12 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 
 	resultText := ""
 	for i, fact := range result.Facts {
-		timeStr := "N/A"
-		if !fact.Timestamp.IsZero() {
-			timeStr = fact.Timestamp.Format("2006-01-02 15:04:05")
-		}
 		resultText += fmt.Sprintf(
-			"Memory %d: %s (Speaker: %s, Source: %s, Time: %s)\n",
+			"Memory %d: %s (Source: %s, Time: %s)\n",
 			i+1,
 			fact.Content,
-			fact.Speaker,
 			fact.Source,
-			timeStr,
+			fact.Timestamp.Format("2006-01-02 15:04:05"),
 		)
 	}
 
