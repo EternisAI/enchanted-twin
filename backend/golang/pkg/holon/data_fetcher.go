@@ -49,7 +49,9 @@ func (f *DataFetcher) GetPendingReplies(ctx context.Context) ([]*ThreadReply, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pending thread messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var replies []*ThreadReply
 	for rows.Next() {

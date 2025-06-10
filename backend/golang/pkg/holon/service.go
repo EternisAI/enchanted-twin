@@ -26,6 +26,8 @@ type Service struct {
 	participantID   *int
 	displayName     *string
 	isAuthenticated bool
+
+	fetcherService *FetcherService
 }
 
 // NewService creates a new holon service.
@@ -206,25 +208,11 @@ func (s *Service) GetLastSyncTime() (*time.Time, error) {
 	return nil, nil
 }
 
-func extractTitleFromContent(content string) string {
-	if len(content) == 0 {
-		return "Untitled Thread"
+func (s *Service) GetFetcherStatus() (*SyncStatus, error) {
+	if s.fetcherService == nil {
+		return nil, fmt.Errorf("fetcher service is not initialized")
 	}
-
-	for i, char := range content {
-		if char == '\n' {
-			if i > 0 {
-				return content[:i]
-			}
-			break
-		}
-	}
-
-	if len(content) > 50 {
-		return content[:47] + "..."
-	}
-
-	return content
+	return s.fetcherService.GetSyncStatus(context.Background())
 }
 
 // getLocalUserIdentity returns the standardized local user identity.

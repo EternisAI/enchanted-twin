@@ -52,11 +52,11 @@ func getGoogleOAuthToken(ctx context.Context, store *db.Store) (string, error) {
 	token := tokens[0]
 
 	if token.AccessToken == "" {
-		return "", fmt.Errorf("Google OAuth token is empty")
+		return "", fmt.Errorf("google OAuth token is empty")
 	}
 
 	if token.Error {
-		return "", fmt.Errorf("Google OAuth token has error status - please re-authenticate")
+		return "", fmt.Errorf("google OAuth token has error status - please re-authenticate")
 	}
 
 	return token.AccessToken, nil

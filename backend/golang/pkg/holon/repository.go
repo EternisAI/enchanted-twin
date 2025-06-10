@@ -450,23 +450,25 @@ func (r *Repository) GetPendingThreads(ctx context.Context) ([]*model.Thread, er
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pending threads: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var threads []*model.Thread
 	for rows.Next() {
-		var dbThread dbThread
+		var dbThreadRecord dbThread
 		var author dbAuthor
 
 		err := rows.Scan(
-			&dbThread.ID, &dbThread.Title, &dbThread.Content, &dbThread.AuthorIdentity,
-			&dbThread.CreatedAt, &dbThread.ExpiresAt, &dbThread.ImageURLs, &dbThread.Actions,
-			&dbThread.Views, &dbThread.State, &dbThread.RemoteThreadID, &author.Identity, &author.Alias,
+			&dbThreadRecord.ID, &dbThreadRecord.Title, &dbThreadRecord.Content, &dbThreadRecord.AuthorIdentity,
+			&dbThreadRecord.CreatedAt, &dbThreadRecord.ExpiresAt, &dbThreadRecord.ImageURLs, &dbThreadRecord.Actions,
+			&dbThreadRecord.Views, &dbThreadRecord.State, &dbThreadRecord.RemoteThreadID, &author.Identity, &author.Alias,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan pending thread row: %w", err)
 		}
 
-		thread, err := r.dbThreadToModel(ctx, &dbThread, &author)
+		thread, err := r.dbThreadToModel(ctx, &dbThreadRecord, &author)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert pending thread to model: %w", err)
 		}
@@ -508,7 +510,9 @@ func (r *Repository) GetPendingThreadMessages(ctx context.Context) ([]*model.Thr
 	if err != nil {
 		return nil, fmt.Errorf("failed to query pending thread messages: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var messages []*model.ThreadMessage
 	for rows.Next() {
@@ -566,7 +570,9 @@ func (r *Repository) GetThreadMessagesByState(ctx context.Context, state string)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query thread messages by state: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		_ = rows.Close()
+	}()
 
 	var messages []*model.ThreadMessage
 	for rows.Next() {
