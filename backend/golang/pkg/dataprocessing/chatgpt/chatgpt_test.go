@@ -145,7 +145,7 @@ func TestConversationToDocuments(t *testing.T) {
 	assert.Equal(t, "Test Conversation", doc.Metadata()["title"])
 	assert.Equal(t, "chatgpt", doc.Source())
 
-	expectedContent := "user: Hello, how are you?\nassistant: I am doing well, thank you! How can I help you today?\nuser: Can you tell me about Puerto Vallarta?\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico..."
+	expectedContent := "People: \nSource: chatgpt\nUser: \nTags: chat, conversation\nPrimary User: \n\nConversation:\nuser: Hello, how are you?\nassistant: I am doing well, thank you! How can I help you today?\nuser: Can you tell me about Puerto Vallarta?\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico..."
 	assert.Equal(t, expectedContent, doc.Content())
 }
 
