@@ -300,7 +300,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		openai.UserMessage(content),
 	}
 
-	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(conversationJSON))
+	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
