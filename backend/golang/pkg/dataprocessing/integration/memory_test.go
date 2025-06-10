@@ -126,8 +126,18 @@ func setupSharedInfrastructure() {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
 		}
 
-		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), "https://api.openai.com/v1")
-		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, "text-embedding-3-small")
+		embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
+		if embeddingsApiUrl == "" {
+			embeddingsApiUrl = "https://api.openai.com/v1" // fallback
+		}
+
+		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+		if embeddingsModel == "" {
+			embeddingsModel = "text-embedding-3-small" // fallback
+		}
+
+		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), embeddingsApiUrl)
+		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, embeddingsModel)
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}
@@ -470,9 +480,26 @@ func getTestConfig(t *testing.T) testConfig {
 		t.Fatalf("No embeddings API key found (set EMBEDDINGS_API_KEY or TEST_EMBEDDINGS_API_KEY)")
 	}
 
-	completionsModel := "gpt-4o-mini"
+	completionsModel := os.Getenv("COMPLETIONS_MODEL")
+	if completionsModel == "" {
+		completionsModel = "gpt-4o-mini"
+	}
 
-	embeddingsModel := "text-embedding-3-small"
+	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+	if embeddingsModel == "" {
+		embeddingsModel = "text-embedding-3-small"
+	}
+
+	// Read API URLs from environment variables
+	completionsApiUrl := os.Getenv("COMPLETIONS_API_URL")
+	if completionsApiUrl == "" {
+		completionsApiUrl = "https://openrouter.ai/api/v1" // fallback
+	}
+
+	embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
+	if embeddingsApiUrl == "" {
+		embeddingsApiUrl = "https://api.openai.com/v1" // fallback
+	}
 
 	return testConfig{
 		Source:            source,
@@ -480,10 +507,10 @@ func getTestConfig(t *testing.T) testConfig {
 		OutputPath:        outputPath,
 		CompletionsModel:  completionsModel,
 		CompletionsApiKey: completionsApiKey,
-		CompletionsApiUrl: "https://openrouter.ai/api/v1",
+		CompletionsApiUrl: completionsApiUrl,
 		EmbeddingsModel:   embeddingsModel,
 		EmbeddingsApiKey:  embeddingsApiKey,
-		EmbeddingsApiUrl:  "https://api.openai.com/v1",
+		EmbeddingsApiUrl:  embeddingsApiUrl,
 	}
 }
 
