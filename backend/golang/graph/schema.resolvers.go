@@ -89,6 +89,9 @@ func (r *mutationResolver) CompleteOAuthFlow(ctx context.Context, state string, 
 		}
 
 	case "google":
+		// Remote authentication is now handled automatically by the holon service
+		// when it's initialized, so we don't need to do it here anymore
+
 		_, err = r.MCPService.ConnectMCPServerIfNotExists(ctx, model.ConnectMCPServerInput{
 			Name:    model.MCPServerTypeGoogle.String(),
 			Command: "npx",
@@ -197,8 +200,8 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 }
 
 // CreateChat is the resolver for the createChat field.
-func (r *mutationResolver) CreateChat(ctx context.Context, name string, voice bool) (*model.Chat, error) {
-	chat, err := r.TwinChatService.CreateChat(ctx, name, voice)
+func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (*model.Chat, error) {
+	chat, err := r.TwinChatService.CreateChat(ctx, name, category, holonThreadID)
 	if err != nil {
 		return nil, err
 	}
@@ -383,6 +386,21 @@ func (r *mutationResolver) StartWhatsAppConnection(ctx context.Context) (bool, e
 // Activate is the resolver for the activate field.
 func (r *mutationResolver) Activate(ctx context.Context, inviteCode string) (bool, error) {
 	return auth.Activate(ctx, r.Logger, r.Store, inviteCode)
+}
+
+// JoinHolon is the resolver for the joinHolon field.
+func (r *mutationResolver) JoinHolon(ctx context.Context, userID string, network *string) (bool, error) {
+	networkName := "HolonNetwork"
+	if network != nil && *network != "" {
+		networkName = *network
+	}
+
+	err := r.HolonService.JoinHolonNetwork(ctx, userID, networkName)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 // Profile is the resolver for the profile field.
@@ -645,6 +663,21 @@ func (r *queryResolver) GetSetupProgress(ctx context.Context) ([]*model.SetupPro
 // WhitelistStatus is the resolver for the whitelistStatus field.
 func (r *queryResolver) WhitelistStatus(ctx context.Context) (bool, error) {
 	return auth.IsWhitelisted(ctx, r.Logger, r.Store)
+}
+
+// GetHolons is the resolver for the getHolons field.
+func (r *queryResolver) GetHolons(ctx context.Context, userID string) ([]string, error) {
+	return r.HolonService.GetHolons(ctx, userID)
+}
+
+// GetThreads is the resolver for the getThreads field.
+func (r *queryResolver) GetThreads(ctx context.Context, network *string, first int32, offset int32) ([]*model.Thread, error) {
+	return r.HolonService.GetThreads(ctx, first, offset)
+}
+
+// GetThread is the resolver for the getThread field.
+func (r *queryResolver) GetThread(ctx context.Context, network *string, id string) (*model.Thread, error) {
+	return r.HolonService.GetThread(ctx, id)
 }
 
 // MessageAdded is the resolver for the messageAdded field.

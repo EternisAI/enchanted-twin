@@ -19,7 +19,7 @@ import (
 
 type chatStore interface {
 	AddMessageToChat(ctx context.Context, msg repository.Message) (string, error)
-	CreateChat(ctx context.Context, name string, voice bool) (model.Chat, error)
+	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (model.Chat, error)
 }
 
 type sendToChat struct {
@@ -46,7 +46,7 @@ func (e *sendToChat) Execute(ctx context.Context, inputs map[string]any) (types.
 	}
 
 	if chatId == "" {
-		chat, err := e.chatStorage.CreateChat(ctx, "Network message", true)
+		chat, err := e.chatStorage.CreateChat(ctx, "Network message", model.ChatCategoryText, nil)
 		if err != nil {
 			return nil, err
 		}
