@@ -3,8 +3,6 @@ package holon
 import (
 	"context"
 	"fmt"
-
-	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
 // DataFetcher provides methods to fetch data for activities.
@@ -27,11 +25,6 @@ type ThreadReply struct {
 	AuthorIdentity string
 	CreatedAt      string
 	Actions        []string
-}
-
-// GetPendingThreads returns pending threads that need to be pushed to HolonZero.
-func (f *DataFetcher) GetPendingThreads(ctx context.Context) ([]*model.Thread, error) {
-	return f.holonRepo.GetPendingThreads(ctx)
 }
 
 // GetPendingReplies returns pending thread messages (replies) with thread ID information.

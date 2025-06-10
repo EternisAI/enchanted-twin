@@ -41,13 +41,6 @@ func NewAPIClient(baseURL string, options ...ClientOption) *APIClient {
 // ClientOption represents configuration options for the API client.
 type ClientOption func(*APIClient)
 
-// WithHTTPClient sets a custom HTTP client.
-func WithHTTPClient(httpClient *http.Client) ClientOption {
-	return func(c *APIClient) {
-		c.httpClient = httpClient
-	}
-}
-
 // WithTimeout sets the request timeout.
 func WithTimeout(timeout time.Duration) ClientOption {
 	return func(c *APIClient) {

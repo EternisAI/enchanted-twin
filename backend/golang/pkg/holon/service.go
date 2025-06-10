@@ -30,11 +30,6 @@ type Service struct {
 	fetcherService *FetcherService
 }
 
-// NewService creates a new holon service.
-func NewService(store *db.Store) *Service {
-	return NewServiceWithLogger(store, nil)
-}
-
 // NewServiceWithLogger creates a new holon service with a logger.
 func NewServiceWithLogger(store *db.Store, logger *clog.Logger) *Service {
 	return NewServiceWithConfig(store, logger, "")
