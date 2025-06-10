@@ -18,16 +18,16 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 const (
-	ClassName         = "TextDocument"
+	ClassName         = "MemoryFact"
 	DocumentClassName = "SourceDocument" // New separate class for documents
 	contentProperty   = "content"
 	timestampProperty = "timestamp"
 	metadataProperty  = "metadataJson"
 	sourceProperty    = "source"
-	speakerProperty   = "speakerID"
 	tagsProperty      = "tags"
 	// Updated properties for document references - now stores multiple reference IDs.
 	documentReferencesProperty = "documentReferences" // Array of document IDs
@@ -142,7 +142,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 
 	// Parse direct fields
 	source, _ := props[sourceProperty].(string)
-	speakerID, _ := props[speakerProperty].(string)
 
 	// Parse metadata
 	metadata := make(map[string]string)
@@ -175,9 +174,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 			}
 		}
 	}
-	if speakerID != "" {
-		metadata["speakerID"] = speakerID
-	}
 
 	doc := &memory.TextDocument{
 		FieldID:        string(obj.ID),
@@ -207,11 +203,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	// Extract and store source as direct field
 	if source := doc.Source(); source != "" {
 		properties[sourceProperty] = source
-	}
-
-	// Extract and store speakerID as direct field
-	if speakerID, exists := doc.Metadata()["speakerID"]; exists {
-		properties[speakerProperty] = speakerID
 	}
 
 	if doc.Timestamp() != nil {
@@ -353,8 +344,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 			// Check if new structured fact fields exist, if not we need to add them
 			// This includes documentReferences which was added recently
 			newFields := []string{
-				documentReferencesProperty, // Recently added property that needs to be migrated
-				sourceProperty, speakerProperty,
+				sourceProperty,
 				factCategoryProperty, factSubjectProperty, factAttributeProperty,
 				factValueProperty, factTemporalContextProperty, factSensitivityProperty,
 				factImportanceProperty,
@@ -380,7 +370,6 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 	s.logger.Infof("Creating schema for class %s", ClassName)
 
-	indexFilterable := true
 	classObj := &models.Class{
 		Class:       ClassName,
 		Description: "A memory entry in the evolving memory system with structured facts",
@@ -391,9 +380,11 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Description: "The content of the memory (deprecated: now derived from structured fact)",
 			},
 			{
-				Name:        timestampProperty,
-				DataType:    []string{"date"},
-				Description: "When this memory was created or last updated",
+				Name:              timestampProperty,
+				DataType:          []string{"date"},
+				Description:       "When this memory was created or last updated",
+				IndexFilterable:   helpers.Ptr(true),
+				IndexRangeFilters: helpers.Ptr(true),
 			},
 			{
 				Name:        metadataProperty,
@@ -401,61 +392,70 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Description: "JSON-encoded metadata for the memory (legacy)",
 			},
 			{
-				Name:        sourceProperty,
-				DataType:    []string{"text"},
-				Description: "Source of the memory document",
+				Name:            sourceProperty,
+				DataType:        []string{"text"},
+				Description:     "Source of the memory document",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
-				Name:        speakerProperty,
-				DataType:    []string{"text"},
-				Description: "Speaker/contact ID for the memory",
-			},
-			{
-				Name:        tagsProperty,
-				DataType:    []string{"text[]"},
-				Description: "Tags associated with the memory",
+				Name:            tagsProperty,
+				DataType:        []string{"text[]"},
+				Description:     "Tags associated with the memory",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
 				Name:            documentReferencesProperty,
 				DataType:        []string{"text[]"},
 				Description:     "Array of document IDs that generated this memory",
-				IndexFilterable: &indexFilterable,
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			// Structured fact properties
 			{
-				Name:        factCategoryProperty,
-				DataType:    []string{"text"},
-				Description: "Category of the structured fact (e.g., preference, health, etc.)",
+				Name:            factCategoryProperty,
+				DataType:        []string{"text"},
+				Description:     "Category of the structured fact (e.g., preference, health, etc.)",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
-				Name:        factSubjectProperty,
-				DataType:    []string{"text"},
-				Description: "Subject of the fact (typically 'user' or specific entity name)",
+				Name:            factSubjectProperty,
+				DataType:        []string{"text"},
+				Description:     "Subject of the fact (typically 'user' or specific entity name)",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
 			{
-				Name:        factAttributeProperty,
-				DataType:    []string{"text"},
-				Description: "Specific property or attribute being described",
+				Name:            factAttributeProperty,
+				DataType:        []string{"text"},
+				Description:     "Specific property or attribute being described",
+				IndexFilterable: helpers.Ptr(true),
+				IndexSearchable: helpers.Ptr(true),
 			},
+			// NON-INDEXED FIELDS: These fields are stored for display/context but not indexed for performance.
+			// They contain rich descriptive text that would be expensive to index and filter.
 			{
 				Name:        factValueProperty,
 				DataType:    []string{"text"},
-				Description: "Descriptive phrase with context for the fact",
+				Description: "Descriptive phrase with context for the fact (stored but not filterable)",
 			},
 			{
 				Name:        factTemporalContextProperty,
 				DataType:    []string{"text"},
-				Description: "Temporal context for the fact (optional)",
+				Description: "Temporal context for the fact - freeform text (stored but not filterable)",
 			},
 			{
 				Name:        factSensitivityProperty,
 				DataType:    []string{"text"},
-				Description: "Sensitivity level of the fact (high, medium, low)",
+				Description: "Sensitivity level of the fact (stored but not filterable)",
 			},
 			{
-				Name:        factImportanceProperty,
-				DataType:    []string{"int"},
-				Description: "Importance score of the fact (1-3)",
+				Name:            factImportanceProperty,
+				DataType:        []string{"int"},
+				Description:     "Importance score of the fact (1-3)",
+				IndexFilterable: helpers.Ptr(true),
 			},
 		},
 		Vectorizer: "none",
@@ -645,7 +645,6 @@ func (s *WeaviateStorage) buildQueryFields() []weaviateGraphql.Field {
 		{Name: timestampProperty},
 		{Name: metadataProperty},
 		{Name: sourceProperty},
-		{Name: speakerProperty},
 		{Name: tagsProperty},
 		{Name: documentReferencesProperty},
 		// Structured fact fields
@@ -680,14 +679,14 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 		s.logger.Debug("Added source filter", "source", *filter.Source)
 	}
 
-	// Contact filter
-	if filter.ContactName != nil {
-		contactFilter := filters.Where().
-			WithPath([]string{speakerProperty}).
+	// Subject filter - now filters by factSubject
+	if filter.Subject != nil {
+		subjectFilter := filters.Where().
+			WithPath([]string{factSubjectProperty}).
 			WithOperator(filters.Equal).
-			WithValueText(*filter.ContactName)
-		whereFilters = append(whereFilters, contactFilter)
-		s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
+			WithValueText(*filter.Subject)
+		whereFilters = append(whereFilters, subjectFilter)
+		s.logger.Debug("Added subject filter", "subject", *filter.Subject)
 	}
 
 	// Tags filter (reuse existing buildTagsFilter method)
@@ -702,7 +701,63 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 		}
 	}
 
-	// Structured fact filters
+	// Timestamp range filtering
+	var timestampFilters []*filters.WhereBuilder
+	if filter.TimestampAfter != nil && filter.TimestampBefore != nil {
+		// Validate that after < before
+		if filter.TimestampAfter.After(*filter.TimestampBefore) {
+			return nil, fmt.Errorf("TimestampAfter (%v) must be before TimestampBefore (%v)",
+				filter.TimestampAfter.Format(time.RFC3339),
+				filter.TimestampBefore.Format(time.RFC3339))
+		}
+	}
+	if filter.TimestampAfter != nil {
+		afterFilter := filters.Where().
+			WithPath([]string{timestampProperty}).
+			WithOperator(filters.GreaterThanEqual).
+			WithValueDate(*filter.TimestampAfter)
+		timestampFilters = append(timestampFilters, afterFilter)
+		s.logger.Debug("Added timestamp after filter", "after", filter.TimestampAfter.Format(time.RFC3339))
+	}
+	if filter.TimestampBefore != nil {
+		beforeFilter := filters.Where().
+			WithPath([]string{timestampProperty}).
+			WithOperator(filters.LessThanEqual).
+			WithValueDate(*filter.TimestampBefore)
+		timestampFilters = append(timestampFilters, beforeFilter)
+		s.logger.Debug("Added timestamp before filter", "before", filter.TimestampBefore.Format(time.RFC3339))
+	}
+	// Combine timestamp filters with AND if both exist
+	if len(timestampFilters) == 1 {
+		whereFilters = append(whereFilters, timestampFilters[0])
+	} else if len(timestampFilters) == 2 {
+		timestampRangeFilter := filters.Where().
+			WithOperator(filters.And).
+			WithOperands(timestampFilters)
+		whereFilters = append(whereFilters, timestampRangeFilter)
+		s.logger.Debug("Added timestamp range filter")
+	}
+
+	// Document references filter
+	if len(filter.DocumentReferences) > 0 {
+		// Validate no empty strings in the array
+		for _, ref := range filter.DocumentReferences {
+			if ref == "" {
+				return nil, fmt.Errorf("document references cannot contain empty strings")
+			}
+		}
+		// Using ContainsAny because we want memories that reference ANY of the provided documents.
+		// This is more useful than ContainsAll which would only return memories that reference ALL documents.
+		// Example: Find memories from conversation-123 OR conversation-456, not memories that reference both.
+		docRefsFilter := filters.Where().
+			WithPath([]string{documentReferencesProperty}).
+			WithOperator(filters.ContainsAny).
+			WithValueText(filter.DocumentReferences...)
+		whereFilters = append(whereFilters, docRefsFilter)
+		s.logger.Debug("Added document references filter", "references", filter.DocumentReferences)
+	}
+
+	// Structured fact filters - ONLY indexed fields
 	if filter.FactCategory != nil {
 		categoryFilter := filters.Where().
 			WithPath([]string{factCategoryProperty}).
@@ -712,15 +767,6 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 		s.logger.Debug("Added fact category filter", "category", *filter.FactCategory)
 	}
 
-	if filter.FactSubject != nil {
-		subjectFilter := filters.Where().
-			WithPath([]string{factSubjectProperty}).
-			WithOperator(filters.Equal).
-			WithValueText(*filter.FactSubject)
-		whereFilters = append(whereFilters, subjectFilter)
-		s.logger.Debug("Added fact subject filter", "subject", *filter.FactSubject)
-	}
-
 	if filter.FactAttribute != nil {
 		attributeFilter := filters.Where().
 			WithPath([]string{factAttributeProperty}).
@@ -728,34 +774,6 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 			WithValueText(*filter.FactAttribute)
 		whereFilters = append(whereFilters, attributeFilter)
 		s.logger.Debug("Added fact attribute filter", "attribute", *filter.FactAttribute)
-	}
-
-	if filter.FactValue != nil {
-		// Use Like operator for partial matching on fact values
-		valueFilter := filters.Where().
-			WithPath([]string{factValueProperty}).
-			WithOperator(filters.Like).
-			WithValueText("*" + *filter.FactValue + "*")
-		whereFilters = append(whereFilters, valueFilter)
-		s.logger.Debug("Added fact value filter", "value", *filter.FactValue)
-	}
-
-	if filter.FactTemporalContext != nil {
-		temporalFilter := filters.Where().
-			WithPath([]string{factTemporalContextProperty}).
-			WithOperator(filters.Equal).
-			WithValueText(*filter.FactTemporalContext)
-		whereFilters = append(whereFilters, temporalFilter)
-		s.logger.Debug("Added fact temporal context filter", "temporal_context", *filter.FactTemporalContext)
-	}
-
-	if filter.FactSensitivity != nil {
-		sensitivityFilter := filters.Where().
-			WithPath([]string{factSensitivityProperty}).
-			WithOperator(filters.Equal).
-			WithValueText(*filter.FactSensitivity)
-		whereFilters = append(whereFilters, sensitivityFilter)
-		s.logger.Debug("Added fact sensitivity filter", "sensitivity", *filter.FactSensitivity)
 	}
 
 	// Fact importance filtering (exact, min, max)
@@ -881,7 +899,6 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 	content, _ := obj[contentProperty].(string)
 	metadataJSON, _ := obj[metadataProperty].(string)
 	source, _ := obj[sourceProperty].(string)
-	speakerID, _ := obj[speakerProperty].(string)
 
 	// Parse timestamp
 	var timestamp time.Time
@@ -944,7 +961,6 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 
 	return memory.MemoryFact{
 		ID:        id,
-		Speaker:   speakerID,
 		Content:   content,
 		Timestamp: timestamp,
 		Source:    source,
@@ -1316,11 +1332,6 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 			DataType:    []string{"text"},
 			Description: "Source of the memory document",
 		},
-		speakerProperty: {
-			Name:        speakerProperty,
-			DataType:    []string{"text"},
-			Description: "Speaker/contact ID for the memory",
-		},
 		factCategoryProperty: {
 			Name:        factCategoryProperty,
 			DataType:    []string{"text"},
@@ -1339,17 +1350,17 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 		factValueProperty: {
 			Name:        factValueProperty,
 			DataType:    []string{"text"},
-			Description: "Descriptive phrase with context for the fact",
+			Description: "Descriptive phrase with context for the fact (stored but not filterable)",
 		},
 		factTemporalContextProperty: {
 			Name:        factTemporalContextProperty,
 			DataType:    []string{"text"},
-			Description: "Temporal context for the fact (optional)",
+			Description: "Temporal context for the fact - freeform text (stored but not filterable)",
 		},
 		factSensitivityProperty: {
 			Name:        factSensitivityProperty,
 			DataType:    []string{"text"},
-			Description: "Sensitivity level of the fact (high, medium, low)",
+			Description: "Sensitivity level of the fact (stored but not filterable)",
 		},
 		factImportanceProperty: {
 			Name:        factImportanceProperty,

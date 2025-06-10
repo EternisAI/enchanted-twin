@@ -626,7 +626,7 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 
 	s.logger.Info("Indexing conversation", "chat_id", chatID, "messages_count", len(conversationMessages))
 
-	return s.memoryService.Store(ctx, memory.ConversationDocumentsToDocuments([]memory.ConversationDocument{doc}), nil)
+	return s.memoryService.Store(ctx, []memory.Document{&doc}, nil)
 }
 
 func (s *Service) SendAssistantMessage(

@@ -41,20 +41,21 @@ func TestFilterStructure(t *testing.T) {
 	t.Run("empty filter", func(t *testing.T) {
 		filter := &memory.Filter{}
 		assert.Nil(t, filter.Source)
-		assert.Nil(t, filter.ContactName)
+		assert.Nil(t, filter.Subject)
+		assert.Nil(t, filter.Tags)
 		assert.Equal(t, float32(0), filter.Distance)
 		assert.Nil(t, filter.Limit)
 	})
 
 	t.Run("populated filter", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
-			Distance:    0.7,
-			Limit:       intPtr(5),
+			Source:   stringPtr("conversations"),
+			Subject:  stringPtr("alice"),
+			Distance: 0.7,
+			Limit:    intPtr(5),
 		}
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 		assert.Equal(t, float32(0.7), filter.Distance)
 		assert.Equal(t, 5, *filter.Limit)
 	})
@@ -74,30 +75,30 @@ func TestDirectFieldFiltering(t *testing.T) {
 		assert.Equal(t, "conversations", *filter.Source)
 	})
 
-	t.Run("contact name filtering", func(t *testing.T) {
+	t.Run("subject filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			ContactName: stringPtr("alice"),
+			Subject: stringPtr("alice"),
 		}
 
 		// Document expected behavior:
 		// - Should use filters.Equal on speakerProperty field
 		// - Should NOT use LIKE pattern matching on metadataJson
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 	})
 
 	t.Run("combined filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
-			Distance:    0.8,
-			Limit:       intPtr(10),
+			Source:   stringPtr("conversations"),
+			Subject:  stringPtr("alice"),
+			Distance: 0.8,
+			Limit:    intPtr(10),
 		}
 
 		// Document expected behavior:
 		// - Should use filters.And to combine multiple filters
 		// - Should use direct field queries for performance
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 		assert.Equal(t, float32(0.8), filter.Distance)
 		assert.Equal(t, 10, *filter.Limit)
 	})
@@ -107,38 +108,38 @@ func TestDirectFieldFiltering(t *testing.T) {
 func TestSchemaFields(t *testing.T) {
 	t.Run("hybrid metadata merging", func(t *testing.T) {
 		// Test data representing a document with both direct fields and JSON metadata
-		speakerID := "alice"
-		metadataJSON := `{"speakerID":"old_speaker","extra":"value"}`
+		subjectID := "alice"
+		metadataJSON := `{"subjectID":"old_subject","extra":"value"}`
 
 		// Parse metadata JSON
 		metadata := make(map[string]string)
 		err := json.Unmarshal([]byte(metadataJSON), &metadata)
 		require.NoError(t, err)
 
-		// Only add speakerID to metadata
-		if speakerID != "" {
-			metadata["speakerID"] = speakerID
+		// Only add subjectID to metadata
+		if subjectID != "" {
+			metadata["subjectID"] = subjectID
 		}
 
-		assert.Equal(t, "alice", metadata["speakerID"]) // Not "old_speaker"
+		assert.Equal(t, "alice", metadata["subjectID"]) // Not "old_subject"
 		assert.Equal(t, "value", metadata["extra"])     // Preserved from JSON
 	})
 
-	t.Run("speakerID from JSON when direct field empty", func(t *testing.T) {
-		speakerID := ""
-		metadataJSON := `{"speakerID":"json_speaker"}`
+	t.Run("subjectID from JSON when direct field empty", func(t *testing.T) {
+		subjectID := ""
+		metadataJSON := `{"subjectID":"json_subject"}`
 
 		metadata := make(map[string]string)
 		err := json.Unmarshal([]byte(metadataJSON), &metadata)
 		require.NoError(t, err)
 
 		// Only merge non-empty direct fields
-		if speakerID != "" {
-			metadata["speakerID"] = speakerID
+		if subjectID != "" {
+			metadata["subjectID"] = subjectID
 		}
 
 		// Should preserve JSON values when direct fields are empty
-		assert.Equal(t, "json_speaker", metadata["speakerID"])
+		assert.Equal(t, "json_subject", metadata["subjectID"])
 	})
 }
 
@@ -155,15 +156,15 @@ func TestBackwardCompatibility(t *testing.T) {
 
 	t.Run("zero value filter fields", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:      nil, // Should not add WHERE clause
-			ContactName: nil, // Should not add WHERE clause
-			Distance:    0,   // Should not add distance filter
-			Limit:       nil, // Should use default limit
+			Source:   nil, // Should not add WHERE clause
+			Subject:  nil, // Should not add WHERE clause
+			Distance: 0,   // Should not add distance filter
+			Limit:    nil, // Should use default limit
 		}
 
 		// All fields are nil/zero, should behave like no filter
 		assert.Nil(t, filter.Source)
-		assert.Nil(t, filter.ContactName)
+		assert.Nil(t, filter.Subject)
 		assert.Equal(t, float32(0), filter.Distance)
 		assert.Nil(t, filter.Limit)
 	})
@@ -173,13 +174,13 @@ func TestBackwardCompatibility(t *testing.T) {
 func TestFilterValidation(t *testing.T) {
 	t.Run("empty string values", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:      stringPtr(""),
-			ContactName: stringPtr(""),
+			Source:  stringPtr(""),
+			Subject: stringPtr(""),
 		}
 
 		// Empty strings should be handled appropriately
 		assert.Equal(t, "", *filter.Source)
-		assert.Equal(t, "", *filter.ContactName)
+		assert.Equal(t, "", *filter.Subject)
 	})
 
 	t.Run("negative limit", func(t *testing.T) {
@@ -220,7 +221,7 @@ func TestDocumentWithDirectFields(t *testing.T) {
 			FieldTimestamp: &now,
 			FieldSource:    "conversations", // Direct field
 			FieldMetadata: map[string]string{
-				"speakerID": "alice",
+				"subjectID": "alice",
 				"extra":     "metadata",
 			},
 		}
@@ -229,8 +230,8 @@ func TestDocumentWithDirectFields(t *testing.T) {
 		assert.Equal(t, "conversations", doc.Source())
 		assert.Equal(t, "conversations", doc.FieldSource)
 
-		// Metadata should contain speakerID but Source() should use direct field
-		assert.Equal(t, "alice", doc.Metadata()["speakerID"])
+		// Metadata should contain subjectID but Source() should use direct field
+		assert.Equal(t, "alice", doc.Metadata()["subjectID"])
 		assert.Equal(t, "metadata", doc.Metadata()["extra"])
 	})
 
@@ -262,7 +263,7 @@ func TestDocumentWithDirectFields(t *testing.T) {
 func TestQueryResultParsing(t *testing.T) {
 	t.Run("parse result with direct fields", func(t *testing.T) {
 		// Simulate a Weaviate result object
-		speakerID := "alice"
+		subjectID := "alice"
 		metadataJSON := `{"extra":"value","old_source":"ignore"}`
 
 		// Parse metadata
@@ -270,9 +271,9 @@ func TestQueryResultParsing(t *testing.T) {
 		err := json.Unmarshal([]byte(metadataJSON), &metaMap)
 		require.NoError(t, err)
 
-		// Only add speakerID to metadata, source stays as direct field
-		if speakerID != "" {
-			metaMap["speakerID"] = speakerID
+		// Only add subjectID to metadata, source stays as direct field
+		if subjectID != "" {
+			metaMap["subjectID"] = subjectID
 		}
 
 		doc := memory.TextDocument{
@@ -288,7 +289,7 @@ func TestQueryResultParsing(t *testing.T) {
 
 		// Verify field separation
 		assert.Equal(t, "conversations", doc.Source())        // From direct field
-		assert.Equal(t, "alice", doc.Metadata()["speakerID"]) // In metadata
+		assert.Equal(t, "alice", doc.Metadata()["subjectID"]) // In metadata
 		assert.Equal(t, "value", doc.Metadata()["extra"])     // From JSON
 	})
 }
@@ -318,16 +319,16 @@ func TestPerformanceBehavior(t *testing.T) {
 
 	t.Run("combined filter performance", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
+			Source:  stringPtr("conversations"),
+			Subject: stringPtr("alice"),
 		}
 
 		// Should generate:
-		// WHERE (source = "conversations" AND speakerID = "alice")
+		// WHERE (source = "conversations" AND subjectID = "alice")
 		// Using filters.And with multiple filters.Equal conditions
 
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 	})
 }
 
@@ -339,20 +340,19 @@ func TestMigrationScenarios(t *testing.T) {
 		// - timestamp (existing)
 		// - metadataJson (existing, for backward compatibility)
 		// - source (new direct field)
-		// - speakerID (new direct field)
+		// - subjectID (new direct field)
 		// - tags (existing)
 
-		expectedFields := []string{
+		expectedProperties := []string{
 			contentProperty,   // "content"
 			timestampProperty, // "timestamp"
 			metadataProperty,  // "metadataJson"
 			sourceProperty,    // "source"
-			speakerProperty,   // "speakerID"
 			tagsProperty,      // "tags"
 		}
 
 		// Document that all these fields should exist
-		for _, field := range expectedFields {
+		for _, field := range expectedProperties {
 			assert.NotEmpty(t, field)
 		}
 	})
@@ -365,13 +365,13 @@ func TestMigrationScenarios(t *testing.T) {
 		// 4. Work with new filtering when direct fields are populated
 
 		// Simulate old document (no direct fields)
-		metadataJSON := `{"speakerID":"alice"}`
+		metadataJSON := `{"subjectID":"alice"}`
 
 		metadata := make(map[string]string)
 		err := json.Unmarshal([]byte(metadataJSON), &metadata)
 		require.NoError(t, err)
 
-		assert.Equal(t, "alice", metadata["speakerID"])
+		assert.Equal(t, "alice", metadata["subjectID"])
 	})
 }
 
@@ -442,8 +442,8 @@ func TestTagsFilteringIntegration(t *testing.T) {
 	t.Run("schema alignment verification", func(t *testing.T) {
 		// This test verifies that our Filter.Tags field properly aligns with the Weaviate schema
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
+			Source:  stringPtr("conversations"),
+			Subject: stringPtr("alice"),
 			Tags: &memory.TagsFilter{
 				All: []string{"work", "urgent"},
 			},
@@ -453,7 +453,7 @@ func TestTagsFilteringIntegration(t *testing.T) {
 
 		// Verify all filter components are properly structured
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 		assert.NotNil(t, filter.Tags)
 		assert.Len(t, filter.Tags.All, 2)
 		assert.Contains(t, filter.Tags.All, "work")
@@ -492,15 +492,15 @@ func TestStructuredFactFiltering(t *testing.T) {
 			FactCategory: stringPtr("preference"),
 		}
 		assert.Equal(t, "preference", *filter.FactCategory)
-		assert.Nil(t, filter.FactSubject)
+		assert.Nil(t, filter.Subject)
 		assert.Nil(t, filter.FactAttribute)
 	})
 
 	t.Run("fact subject filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactSubject: stringPtr("alice"),
+			Subject: stringPtr("alice"),
 		}
-		assert.Equal(t, "alice", *filter.FactSubject)
+		assert.Equal(t, "alice", *filter.Subject)
 		assert.Nil(t, filter.FactCategory)
 	})
 
@@ -509,28 +509,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 			FactAttribute: stringPtr("coffee_preference"),
 		}
 		assert.Equal(t, "coffee_preference", *filter.FactAttribute)
-	})
-
-	t.Run("fact value partial matching", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactValue: stringPtr("coffee"),
-		}
-		// Should result in LIKE *coffee* query
-		assert.Equal(t, "coffee", *filter.FactValue)
-	})
-
-	t.Run("fact temporal context filtering", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactTemporalContext: stringPtr("2024-01-15"),
-		}
-		assert.Equal(t, "2024-01-15", *filter.FactTemporalContext)
-	})
-
-	t.Run("fact sensitivity filtering", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactSensitivity: stringPtr("high"),
-		}
-		assert.Equal(t, "high", *filter.FactSensitivity)
 	})
 
 	t.Run("fact importance exact filtering", func(t *testing.T) {
@@ -554,18 +532,16 @@ func TestStructuredFactFiltering(t *testing.T) {
 
 	t.Run("combined structured fact filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory:    stringPtr("health"),
-			FactSubject:     stringPtr("user"),
-			FactAttribute:   stringPtr("health_metric"),
-			FactSensitivity: stringPtr("high"),
-			FactImportance:  intPtr(3),
-			Source:          stringPtr("conversations"),
+			FactCategory:   stringPtr("health"),
+			Subject:        stringPtr("user"),
+			FactAttribute:  stringPtr("health_metric"),
+			FactImportance: intPtr(3),
+			Source:         stringPtr("conversations"),
 		}
 		// Test all fields are set correctly
 		assert.Equal(t, "health", *filter.FactCategory)
-		assert.Equal(t, "user", *filter.FactSubject)
+		assert.Equal(t, "user", *filter.Subject)
 		assert.Equal(t, "health_metric", *filter.FactAttribute)
-		assert.Equal(t, "high", *filter.FactSensitivity)
 		assert.Equal(t, 3, *filter.FactImportance)
 		assert.Equal(t, "conversations", *filter.Source)
 	})
@@ -575,21 +551,15 @@ func TestStructuredFactFiltering(t *testing.T) {
 func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 	t.Run("empty string structured fact fields", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory:        stringPtr(""),
-			FactSubject:         stringPtr(""),
-			FactAttribute:       stringPtr(""),
-			FactValue:           stringPtr(""),
-			FactTemporalContext: stringPtr(""),
-			FactSensitivity:     stringPtr(""),
+			FactCategory:  stringPtr(""),
+			Subject:       stringPtr(""),
+			FactAttribute: stringPtr(""),
 		}
 
 		// Empty strings should be handled appropriately
 		assert.Equal(t, "", *filter.FactCategory)
-		assert.Equal(t, "", *filter.FactSubject)
+		assert.Equal(t, "", *filter.Subject)
 		assert.Equal(t, "", *filter.FactAttribute)
-		assert.Equal(t, "", *filter.FactValue)
-		assert.Equal(t, "", *filter.FactTemporalContext)
-		assert.Equal(t, "", *filter.FactSensitivity)
 	})
 
 	t.Run("negative importance values", func(t *testing.T) {
@@ -639,11 +609,8 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 
 		// All structured fact fields should be nil
 		assert.Nil(t, filter.FactCategory)
-		assert.Nil(t, filter.FactSubject)
+		assert.Nil(t, filter.Subject)
 		assert.Nil(t, filter.FactAttribute)
-		assert.Nil(t, filter.FactValue)
-		assert.Nil(t, filter.FactTemporalContext)
-		assert.Nil(t, filter.FactSensitivity)
 		assert.Nil(t, filter.FactImportance)
 		assert.Nil(t, filter.FactImportanceMin)
 		assert.Nil(t, filter.FactImportanceMax)
@@ -652,133 +619,71 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 
 // TestStructuredFactFilteringCombinations tests realistic filtering scenarios.
 func TestStructuredFactFilteringCombinations(t *testing.T) {
-	t.Run("privacy-aware filtering", func(t *testing.T) {
+	t.Run("user preferences with importance", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactSensitivity: stringPtr("low"),   // Only public information
-			FactSubject:     stringPtr("alice"), // About alice
-		}
-
-		assert.Equal(t, "low", *filter.FactSensitivity)
-		assert.Equal(t, "alice", *filter.FactSubject)
-	})
-
-	t.Run("critical health facts", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactCategory:   stringPtr("health"),
-			FactImportance: intPtr(3), // Critical priority
-			FactSubject:    stringPtr("user"),
-		}
-
-		assert.Equal(t, "health", *filter.FactCategory)
-		assert.Equal(t, 3, *filter.FactImportance)
-		assert.Equal(t, "user", *filter.FactSubject)
-	})
-
-	t.Run("preferences from conversations", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactCategory: stringPtr("preference"),
-			FactSubject:  stringPtr("user"),
-			Source:       stringPtr("conversations"),
-			Limit:        intPtr(10),
+			FactCategory:   stringPtr("preference"),
+			FactImportance: intPtr(2),
+			Subject:        stringPtr("user"),
 		}
 
 		assert.Equal(t, "preference", *filter.FactCategory)
-		assert.Equal(t, "user", *filter.FactSubject)
-		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, 10, *filter.Limit)
-	})
-
-	t.Run("important facts with date range", func(t *testing.T) {
-		filter := &memory.Filter{
-			FactImportanceMin:   intPtr(2), // Medium to high priority
-			FactImportanceMax:   intPtr(3),
-			FactTemporalContext: stringPtr("2024-01"),
-		}
-
-		assert.Equal(t, 2, *filter.FactImportanceMin)
-		assert.Equal(t, 3, *filter.FactImportanceMax)
-		assert.Equal(t, "2024-01", *filter.FactTemporalContext)
-	})
-
-	t.Run("complex search with all structured fields", func(t *testing.T) {
-		filter := &memory.Filter{
-			// Traditional fields
-			Source:      stringPtr("chatgpt"),
-			ContactName: stringPtr("assistant"),
-			Distance:    0.8,
-			Limit:       intPtr(5),
-			// Structured fact fields
-			FactCategory:        stringPtr("goal_plan"),
-			FactSubject:         stringPtr("user"),
-			FactAttribute:       stringPtr("career_goal"),
-			FactValue:           stringPtr("software engineer"),
-			FactTemporalContext: stringPtr("Q1 2024"),
-			FactSensitivity:     stringPtr("medium"),
-			FactImportance:      intPtr(2),
-		}
-
-		// Verify all fields
-		assert.Equal(t, "chatgpt", *filter.Source)
-		assert.Equal(t, "assistant", *filter.ContactName)
-		assert.Equal(t, float32(0.8), filter.Distance)
-		assert.Equal(t, 5, *filter.Limit)
-		assert.Equal(t, "goal_plan", *filter.FactCategory)
-		assert.Equal(t, "user", *filter.FactSubject)
-		assert.Equal(t, "career_goal", *filter.FactAttribute)
-		assert.Equal(t, "software engineer", *filter.FactValue)
-		assert.Equal(t, "Q1 2024", *filter.FactTemporalContext)
-		assert.Equal(t, "medium", *filter.FactSensitivity)
 		assert.Equal(t, 2, *filter.FactImportance)
+		assert.Equal(t, "user", *filter.Subject)
+	})
+
+	t.Run("important work facts from recent conversations", func(t *testing.T) {
+		now := time.Now()
+		sevenDaysAgo := now.AddDate(0, 0, -7)
+		filter := &memory.Filter{
+			FactCategory:      stringPtr("work"),
+			Subject:           stringPtr("user"),
+			Source:            stringPtr("conversations"),
+			FactImportanceMin: intPtr(2),
+			TimestampAfter:    &sevenDaysAgo,
+			Limit:             intPtr(50),
+		}
+
+		// Test all fields are set correctly
+		assert.Equal(t, "work", *filter.FactCategory)
+		assert.Equal(t, "user", *filter.Subject)
+		assert.Equal(t, "conversations", *filter.Source)
+		assert.Equal(t, 2, *filter.FactImportanceMin)
+		assert.Equal(t, sevenDaysAgo, *filter.TimestampAfter)
+		assert.Equal(t, 50, *filter.Limit)
 	})
 }
 
-// TestStructuredFactFilteringBackwardCompatibility ensures existing code still works.
+// TestStructuredFactFilteringBackwardCompatibility tests backward compatibility.
 func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
 	t.Run("legacy filter without structured facts", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:      stringPtr("conversations"),
-			ContactName: stringPtr("alice"),
-			Distance:    0.7,
-			Limit:       intPtr(10),
+			Source:   stringPtr("conversations"),
+			Subject:  stringPtr("alice"),
+			Distance: 0.7,
+			Limit:    intPtr(10),
 		}
 
 		// Legacy fields should work unchanged
 		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, "alice", *filter.ContactName)
+		assert.Equal(t, "alice", *filter.Subject)
 		assert.Equal(t, float32(0.7), filter.Distance)
 		assert.Equal(t, 10, *filter.Limit)
 
 		// All new fields should be nil
 		assert.Nil(t, filter.FactCategory)
-		assert.Nil(t, filter.FactSubject)
 		assert.Nil(t, filter.FactAttribute)
-		assert.Nil(t, filter.FactValue)
-		assert.Nil(t, filter.FactTemporalContext)
-		assert.Nil(t, filter.FactSensitivity)
 		assert.Nil(t, filter.FactImportance)
 		assert.Nil(t, filter.FactImportanceMin)
 		assert.Nil(t, filter.FactImportanceMax)
 	})
 
-	t.Run("mixed legacy and structured filtering", func(t *testing.T) {
-		filter := &memory.Filter{
-			// Legacy fields
-			Source:   stringPtr("conversations"),
-			Distance: 0.8,
-			// New structured fields
-			FactCategory:   stringPtr("preference"),
-			FactImportance: intPtr(3),
+	t.Run("exact vs partial matching strategy", func(t *testing.T) {
+		exactFilter := &memory.Filter{
+			FactCategory: stringPtr("health"), // Exact match
 		}
 
-		// Both legacy and new fields should coexist
-		assert.Equal(t, "conversations", *filter.Source)
-		assert.Equal(t, float32(0.8), filter.Distance)
-		assert.Equal(t, "preference", *filter.FactCategory)
-		assert.Equal(t, 3, *filter.FactImportance)
-
-		// Unset fields should be nil
-		assert.Nil(t, filter.ContactName)
-		assert.Nil(t, filter.FactSubject)
+		// Exact matching for categories (fast indexed lookup)
+		assert.Equal(t, "health", *exactFilter.FactCategory)
 	})
 }
 
@@ -791,7 +696,7 @@ func TestStructuredFactFilteringPerformance(t *testing.T) {
 
 		// Single field should create single WHERE clause
 		assert.Equal(t, "preference", *filter.FactCategory)
-		assert.Nil(t, filter.FactSubject) // No additional filters
+		assert.Nil(t, filter.Subject) // No additional filters
 	})
 
 	t.Run("range filtering should use optimized operators", func(t *testing.T) {
@@ -809,13 +714,8 @@ func TestStructuredFactFilteringPerformance(t *testing.T) {
 		exactFilter := &memory.Filter{
 			FactCategory: stringPtr("health"), // Exact match
 		}
-		partialFilter := &memory.Filter{
-			FactValue: stringPtr("coffee"), // Partial match with LIKE
-		}
 
 		// Exact matching for categories (fast indexed lookup)
 		assert.Equal(t, "health", *exactFilter.FactCategory)
-		// Partial matching for values (flexible search)
-		assert.Equal(t, "coffee", *partialFilter.FactValue)
 	})
 }
