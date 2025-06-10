@@ -41,7 +41,7 @@ var (
 )
 
 type testConfig struct {
-	Source            string
+	DefaultSource     string
 	InputPath         string
 	OutputPath        string
 	CompletionsModel  string
@@ -487,7 +487,7 @@ func getTestConfig(t *testing.T) testConfig {
 	}
 
 	return testConfig{
-		Source:            source,
+		DefaultSource:     source,
 		InputPath:         inputPath,
 		OutputPath:        outputPath,
 		CompletionsModel:  completionsModel,
@@ -511,22 +511,11 @@ func TestMemoryIntegration(t *testing.T) {
 		t.Skip("Skipping integration test in short mode")
 	}
 
-	testStart := time.Now()
-	defer func() {
-		totalDuration := time.Since(testStart)
-		t.Logf("🕒 Total TestMemoryIntegration duration: %v", totalDuration)
-	}()
-
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
 
 	t.Run("DataProcessingAndStorage", func(t *testing.T) {
-		start := time.Now()
-		defer func() {
-			t.Logf("🕒 DataProcessingAndStorage duration: %v", time.Since(start))
-		}()
-
-		env.loadDocuments(t, env.config.Source, env.config.InputPath)
+		env.loadDocuments(t, env.config.DefaultSource, env.config.InputPath)
 		assert.NotEmpty(t, env.documents)
 		env.logger.Info("Documents loaded", "count", len(env.documents))
 		env.logger.Info("Documents", "documents", env.documents)
@@ -539,11 +528,11 @@ func TestMemoryIntegration(t *testing.T) {
 
 		limit := 100
 		filter := memory.Filter{
-			Source: &env.config.Source,
+			Source: &env.config.DefaultSource,
 			Limit:  &limit,
 		}
 
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.DefaultSource), &filter)
 		require.NoError(t, err)
 		assert.NotEmpty(t, result.Facts, "should find memories with basic query")
 
@@ -553,11 +542,6 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 
 	t.Run("Query chatgpt", func(t *testing.T) {
-		start := time.Now()
-		defer func() {
-			t.Logf("🕒 Query chatgpt duration: %v", time.Since(start))
-		}()
-
 		clearWeaviateData(t)
 
 		source := "chatgpt"
@@ -736,7 +720,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	t.Run("Important facts", func(t *testing.T) {
 		clearWeaviateData(t)
-		env.loadDocuments(t, env.config.Source, env.config.InputPath)
+		env.loadDocuments(t, env.config.DefaultSource, env.config.InputPath)
 		env.storeDocuments(t)
 
 		limit := 100
@@ -768,18 +752,18 @@ func TestMemoryIntegration(t *testing.T) {
 	t.Run("DocumentReferences", func(t *testing.T) {
 		// Use existing data or load if needed
 		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
+			env.loadDocuments(t, env.config.DefaultSource, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
 		limit := 3
 		filter := memory.Filter{
-			Source:   &env.config.Source,
+			Source:   &env.config.DefaultSource,
 			Distance: 0.8,
 			Limit:    &limit,
 		}
 
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.DefaultSource), &filter)
 		require.NoError(t, err)
 		require.NotEmpty(t, result.Facts)
 
@@ -800,7 +784,7 @@ func TestMemoryIntegration(t *testing.T) {
 	t.Run("SourceFiltering", func(t *testing.T) {
 		// Use existing data or load if needed
 		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
+			env.loadDocuments(t, env.config.DefaultSource, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
@@ -813,7 +797,7 @@ func TestMemoryIntegration(t *testing.T) {
 			Limit:    &limit,
 		}
 
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.Source), &filter)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.DefaultSource), &filter)
 		require.NoError(t, err)
 		assert.Empty(t, result.Facts, "should not find memories for invalid source")
 	})
@@ -821,13 +805,13 @@ func TestMemoryIntegration(t *testing.T) {
 	t.Run("DistanceFiltering", func(t *testing.T) {
 		// Use existing data or load if needed
 		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
+			env.loadDocuments(t, env.config.DefaultSource, env.config.InputPath)
 			env.storeDocuments(t)
 		}
 
 		limit := 100
 		filter := memory.Filter{
-			Source:   &env.config.Source,
+			Source:   &env.config.DefaultSource,
 			Distance: 0.001, // Very restrictive threshold
 			Limit:    &limit,
 		}
@@ -846,7 +830,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 	env := setupTestEnvironment(t)
 	defer env.cleanup(t)
 
-	env.loadDocuments(t, env.config.Source, env.config.InputPath)
+	env.loadDocuments(t, env.config.DefaultSource, env.config.InputPath)
 	env.storeDocuments(t)
 
 	limit := 100
@@ -861,7 +845,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "FactCategoryFiltering",
 			filter: memory.Filter{
 				FactCategory: stringPtr("preference"),
-				Source:       &env.config.Source,
+				Source:       &env.config.DefaultSource,
 				Limit:        &limit,
 			},
 			query: "user preferences",
@@ -870,7 +854,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "FactSubjectFiltering",
 			filter: memory.Filter{
 				FactSubject: stringPtr("user"),
-				Source:      &env.config.Source,
+				Source:      &env.config.DefaultSource,
 				Limit:       &limit,
 			},
 			query: "facts about user",
@@ -879,7 +863,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "FactImportanceFiltering",
 			filter: memory.Filter{
 				FactImportance: intPtr(3),
-				Source:         &env.config.Source,
+				Source:         &env.config.DefaultSource,
 				Limit:          &limit,
 			},
 			query: "important facts",
@@ -889,7 +873,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			filter: memory.Filter{
 				FactImportanceMin: intPtr(2),
 				FactImportanceMax: intPtr(3),
-				Source:            &env.config.Source,
+				Source:            &env.config.DefaultSource,
 				Limit:             &limit,
 			},
 			query: "medium to high importance facts",
@@ -898,7 +882,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "FactSensitivityFiltering",
 			filter: memory.Filter{
 				FactSensitivity: stringPtr("low"),
-				Source:          &env.config.Source,
+				Source:          &env.config.DefaultSource,
 				Limit:           &limit,
 			},
 			query: "public information",
@@ -909,7 +893,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 				FactCategory:   stringPtr("preference"),
 				FactSubject:    stringPtr("user"),
 				FactImportance: intPtr(2),
-				Source:         &env.config.Source,
+				Source:         &env.config.DefaultSource,
 				Limit:          &limit,
 			},
 			query: "user preferences with medium importance",
@@ -918,7 +902,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "FactValuePartialMatching",
 			filter: memory.Filter{
 				FactValue: stringPtr("coffee"),
-				Source:    &env.config.Source,
+				Source:    &env.config.DefaultSource,
 				Limit:     &limit,
 			},
 			query: "coffee related facts",
@@ -927,7 +911,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "FactTemporalContextFiltering",
 			filter: memory.Filter{
 				FactTemporalContext: stringPtr("2024"),
-				Source:              &env.config.Source,
+				Source:              &env.config.DefaultSource,
 				Limit:               &limit,
 			},
 			query: "facts from 2024",
@@ -935,7 +919,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "MixedLegacyAndStructuredFiltering",
 			filter: memory.Filter{
-				Source:         &env.config.Source,
+				Source:         &env.config.DefaultSource,
 				Distance:       0.8,
 				Limit:          &limit,
 				FactCategory:   stringPtr("preference"),
@@ -951,7 +935,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 				FactSensitivity:     stringPtr("medium"),
 				FactImportanceMin:   intPtr(2),
 				FactTemporalContext: stringPtr("Q1"),
-				Source:              &env.config.Source,
+				Source:              &env.config.DefaultSource,
 				Limit:               &limit,
 			},
 			query: "user goals for Q1 with medium sensitivity and high importance",
@@ -960,7 +944,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "FactAttributeFiltering",
 			filter: memory.Filter{
 				FactAttribute: stringPtr("health_metric"),
-				Source:        &env.config.Source,
+				Source:        &env.config.DefaultSource,
 				Limit:         &limit,
 			},
 			query: "health metrics",
@@ -969,7 +953,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "NonExistentCategoryFiltering",
 			filter: memory.Filter{
 				FactCategory: stringPtr("nonexistent_category"),
-				Source:       &env.config.Source,
+				Source:       &env.config.DefaultSource,
 				Limit:        &limit,
 			},
 			query:       "facts from non-existent category",
@@ -979,7 +963,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "WrongImportanceFiltering",
 			filter: memory.Filter{
 				FactImportanceMin: intPtr(10),
-				Source:            &env.config.Source,
+				Source:            &env.config.DefaultSource,
 				Limit:             &limit,
 			},
 			query:       "What do you know about me?",
