@@ -536,12 +536,12 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 			}
 
-			conversationDocuments := []memory.ConversationDocument{}
+			var documents []memory.Document
 
 			for _, conversation := range v.Data.Conversations {
 				conversationDoc := ProcessNewConversationMessage(conversation, logger)
 				if conversationDoc != nil {
-					conversationDocuments = append(conversationDocuments, *conversationDoc)
+					documents = append(documents, conversationDoc)
 				}
 
 				processedItems++
@@ -561,7 +561,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 			}
 
-			if len(conversationDocuments) > 0 {
+			if len(documents) > 0 {
 				// Update status to indicate we're storing conversations
 				UpdateSyncStatus(SyncStatus{
 					IsCompleted:    false,
@@ -575,27 +575,28 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 					logger.Error("Error publishing sync status", "error", err)
 				}
 
-				logger.Info("Storing WhatsApp conversations through evolvingmemory fact extraction", "count", len(conversationDocuments))
+				logger.Info("Storing WhatsApp conversations through evolvingmemory fact extraction", "count", len(documents))
 
 				// Log sample conversation content before storage
-				if len(conversationDocuments) > 0 {
-					sampleConv := conversationDocuments[0]
-					logger.Info("Sample conversation before storage",
-						"id", sampleConv.FieldID,
-						"source", sampleConv.FieldSource,
-						"user", sampleConv.User,
-						"people_count", len(sampleConv.People),
-						"messages_count", len(sampleConv.Conversation),
-						"content_preview", func() string {
-							content := sampleConv.Content()
-							if len(content) > 200 {
-								return content[:200] + "..."
-							}
-							return content
-						}())
+				if len(documents) > 0 {
+					if sampleConv, ok := documents[0].(*memory.ConversationDocument); ok {
+						logger.Info("Sample conversation before storage",
+							"id", sampleConv.FieldID,
+							"source", sampleConv.FieldSource,
+							"user", sampleConv.User,
+							"people_count", len(sampleConv.People),
+							"messages_count", len(sampleConv.Conversation),
+							"content_preview", func() string {
+								content := sampleConv.Content()
+								if len(content) > 200 {
+									return content[:200] + "..."
+								}
+								return content
+							}())
+					}
 				}
 
-				err = memoryStorage.Store(ctx, memory.ConversationDocumentsToDocuments(conversationDocuments), func(processed, total int) {
+				err = memoryStorage.Store(ctx, documents, func(processed, total int) {
 					logger.Info("WhatsApp conversations storage progress", "processed", processed, "total", total)
 
 					// Update status during conversation storage
@@ -614,7 +615,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				if err != nil {
 					logger.Error("Error storing WhatsApp conversation documents", "error", err)
 				} else {
-					logger.Info("WhatsApp conversation documents storage completed successfully through evolvingmemory", "count", len(conversationDocuments))
+					logger.Info("WhatsApp conversation documents storage completed successfully through evolvingmemory", "count", len(documents))
 
 					// Debug: Immediately try to query back the stored conversations
 					testFilter := &memory.Filter{

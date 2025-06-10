@@ -243,27 +243,9 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}, nil
 }
 
-// StoreConversations is an alias for Store to maintain backward compatibility.
-func (s *StorageImpl) StoreConversations(ctx context.Context, documents []memory.ConversationDocument, progressChan chan<- memory.ProgressUpdate) error {
-	var callback memory.ProgressCallback
-	if progressChan != nil {
-		callback = func(processed, total int) {
-			select {
-			case progressChan <- memory.ProgressUpdate{Processed: processed, Total: total}:
-			default:
-				s.logger.Warnf("Progress update dropped for StoreConversations: processed %d, total %d (channel busy or closed)", processed, total)
-			}
-		}
-	}
-
-	// Convert ConversationDocuments to unified Document interface
-	unifiedDocs := memory.ConversationDocumentsToDocuments(documents)
-	return s.Store(ctx, unifiedDocs, callback)
-}
-
 // Store implements the memory.Storage interface using the new StoreV2 pipeline.
 // This method provides backward compatibility while leveraging the new parallel processing architecture.
-func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
+func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
 	// Use default configuration
 	config := DefaultConfig()
 
@@ -286,8 +268,8 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, pr
 				continue
 			}
 			processed = progress.Processed
-			if progressCallback != nil {
-				progressCallback(processed, total)
+			if callback != nil {
+				callback(processed, total)
 			}
 
 		case err, ok := <-errorCh:
