@@ -28,7 +28,6 @@ const (
 	timestampProperty = "timestamp"
 	metadataProperty  = "metadataJson"
 	sourceProperty    = "source"
-	speakerProperty   = "speakerID"
 	tagsProperty      = "tags"
 	// Updated properties for document references - now stores multiple reference IDs.
 	documentReferencesProperty = "documentReferences" // Array of document IDs
@@ -143,7 +142,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 
 	// Parse direct fields
 	source, _ := props[sourceProperty].(string)
-	speakerID, _ := props[speakerProperty].(string)
 
 	// Parse metadata
 	metadata := make(map[string]string)
@@ -176,9 +174,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 			}
 		}
 	}
-	if speakerID != "" {
-		metadata["speakerID"] = speakerID
-	}
 
 	doc := &memory.TextDocument{
 		FieldID:        string(obj.ID),
@@ -208,11 +203,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	// Extract and store source as direct field
 	if source := doc.Source(); source != "" {
 		properties[sourceProperty] = source
-	}
-
-	// Extract and store speakerID as direct field
-	if speakerID, exists := doc.Metadata()["speakerID"]; exists {
-		properties[speakerProperty] = speakerID
 	}
 
 	if doc.Timestamp() != nil {
@@ -354,7 +344,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 			// Check if new structured fact fields exist, if not we need to add them
 			newFields := []string{
-				sourceProperty, speakerProperty,
+				sourceProperty,
 				factCategoryProperty, factSubjectProperty, factAttributeProperty,
 				factValueProperty, factTemporalContextProperty, factSensitivityProperty,
 				factImportanceProperty,
@@ -404,13 +394,6 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				Name:            sourceProperty,
 				DataType:        []string{"text"},
 				Description:     "Source of the memory document",
-				IndexFilterable: helpers.Ptr(true),
-				IndexSearchable: helpers.Ptr(true),
-			},
-			{
-				Name:            speakerProperty,
-				DataType:        []string{"text"},
-				Description:     "Speaker/contact ID for the memory",
 				IndexFilterable: helpers.Ptr(true),
 				IndexSearchable: helpers.Ptr(true),
 			},
@@ -659,7 +642,6 @@ func (s *WeaviateStorage) buildQueryFields() []weaviateGraphql.Field {
 		{Name: timestampProperty},
 		{Name: metadataProperty},
 		{Name: sourceProperty},
-		{Name: speakerProperty},
 		{Name: tagsProperty},
 		{Name: documentReferencesProperty},
 		// Structured fact fields
@@ -694,14 +676,14 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 		s.logger.Debug("Added source filter", "source", *filter.Source)
 	}
 
-	// Contact filter
-	if filter.ContactName != nil {
-		contactFilter := filters.Where().
-			WithPath([]string{speakerProperty}).
+	// Subject filter - now filters by factSubject
+	if filter.Subject != nil {
+		subjectFilter := filters.Where().
+			WithPath([]string{factSubjectProperty}).
 			WithOperator(filters.Equal).
-			WithValueText(*filter.ContactName)
-		whereFilters = append(whereFilters, contactFilter)
-		s.logger.Debug("Added contact name filter", "contactName", *filter.ContactName)
+			WithValueText(*filter.Subject)
+		whereFilters = append(whereFilters, subjectFilter)
+		s.logger.Debug("Added subject filter", "subject", *filter.Subject)
 	}
 
 	// Tags filter (reuse existing buildTagsFilter method)
@@ -724,15 +706,6 @@ func (s *WeaviateStorage) buildWhereFilters(filter *memory.Filter) (*filters.Whe
 			WithValueText(*filter.FactCategory)
 		whereFilters = append(whereFilters, categoryFilter)
 		s.logger.Debug("Added fact category filter", "category", *filter.FactCategory)
-	}
-
-	if filter.FactSubject != nil {
-		subjectFilter := filters.Where().
-			WithPath([]string{factSubjectProperty}).
-			WithOperator(filters.Equal).
-			WithValueText(*filter.FactSubject)
-		whereFilters = append(whereFilters, subjectFilter)
-		s.logger.Debug("Added fact subject filter", "subject", *filter.FactSubject)
 	}
 
 	if filter.FactAttribute != nil {
@@ -895,7 +868,6 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 	content, _ := obj[contentProperty].(string)
 	metadataJSON, _ := obj[metadataProperty].(string)
 	source, _ := obj[sourceProperty].(string)
-	speakerID, _ := obj[speakerProperty].(string)
 
 	// Parse timestamp
 	var timestamp time.Time
@@ -958,7 +930,6 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 
 	return memory.MemoryFact{
 		ID:        id,
-		Speaker:   speakerID,
 		Content:   content,
 		Timestamp: timestamp,
 		Source:    source,
@@ -1322,11 +1293,6 @@ func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
 			Name:        sourceProperty,
 			DataType:    []string{"text"},
 			Description: "Source of the memory document",
-		},
-		speakerProperty: {
-			Name:        speakerProperty,
-			DataType:    []string{"text"},
-			Description: "Speaker/contact ID for the memory",
 		},
 		factCategoryProperty: {
 			Name:        factCategoryProperty,

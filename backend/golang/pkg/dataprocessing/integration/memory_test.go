@@ -861,9 +861,9 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactSubjectFiltering",
 			filter: memory.Filter{
-				FactSubject: stringPtr("user"),
-				Source:      &env.config.Source,
-				Limit:       &limit,
+				Subject: stringPtr("user"),
+				Source:  &env.config.Source,
+				Limit:   &limit,
 			},
 			query: "facts about user",
 		},
@@ -899,7 +899,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "CombinedStructuredFiltering",
 			filter: memory.Filter{
 				FactCategory:   stringPtr("preference"),
-				FactSubject:    stringPtr("user"),
+				Subject:        stringPtr("user"),
 				FactImportance: intPtr(2),
 				Source:         &env.config.Source,
 				Limit:          &limit,
@@ -939,7 +939,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 			name: "ComplexRealisticFiltering",
 			filter: memory.Filter{
 				FactCategory:        stringPtr("goal_plan"),
-				FactSubject:         stringPtr("user"),
+				Subject:             stringPtr("user"),
 				FactSensitivity:     stringPtr("medium"),
 				FactImportanceMin:   intPtr(2),
 				FactTemporalContext: stringPtr("Q1"),

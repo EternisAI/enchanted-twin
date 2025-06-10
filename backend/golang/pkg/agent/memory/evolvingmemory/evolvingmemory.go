@@ -60,7 +60,6 @@ type Config struct {
 type PreparedDocument struct {
 	Original   memory.Document
 	Type       DocumentType
-	SpeakerID  string
 	Timestamp  time.Time
 	DateString string // Pre-formatted
 }
@@ -92,9 +91,8 @@ type ExtractedFact struct {
 	Importance      int     `json:"importance"`
 
 	// Legacy fields
-	Content   string // Derived from structured fields for backward compatibility
-	SpeakerID string
-	Source    PreparedDocument
+	Content string // Derived from structured fields for backward compatibility
+	Source  PreparedDocument
 }
 
 // Memory actions.
@@ -144,16 +142,7 @@ type ExistingMemory struct {
 	Content   string
 	Timestamp time.Time
 	Score     float64
-	Metadata  map[string]string // Contains speakerID if present
-}
-
-// Validation rules.
-type ValidationRule struct {
-	CurrentSpeakerID string // Who's processing this fact
-	IsDocumentLevel  bool   // Is current context document-level?
-	TargetMemoryID   string // For UPDATE/DELETE
-	TargetSpeakerID  string // Speaker of target memory
-	Action           MemoryAction
+	Metadata  map[string]string
 }
 
 type UpdateToolArguments struct {

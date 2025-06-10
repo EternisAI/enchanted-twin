@@ -136,7 +136,6 @@ func (o *memoryOrchestrator) extractFactsWorker(
 			}
 
 			// Populate the missing fields in ExtractedFact
-			fact.SpeakerID = doc.SpeakerID
 			fact.Source = doc
 
 			select {
