@@ -439,30 +439,38 @@ func GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentRef
 
 The memory system supports powerful filtering capabilities for precise memory retrieval with **hybrid schema approach** for optimal performance:
 
-### Filter Structure
+### Filter Structure 🔍
+
+The `memory.Filter` struct provides flexible query options:
 
 ```go
 type Filter struct {
+    // Basic filters
     Source      *string     // Filter by document source
-    Subject     *string     // Filter by fact subject (user, entity names)  
-    Tags        *TagsFilter // Complex boolean tag expressions
+    Subject     *string     // Filter by fact subject (maps to factSubject field)
+    Tags        *TagsFilter // Complex tag filtering with boolean logic
     Distance    float32     // Maximum semantic distance (0 = disabled)
-    Limit       *int        // Maximum number of results to return
+    Limit       *int        // Maximum number of results
     
-    // Structured fact filtering fields
-    FactCategory        *string   // Filter by fact category (profile_stable, preference, goal_plan, etc.)
-    FactSubject         *string   // Filter by fact subject (user, entity names)
-    FactAttribute       *string   // Filter by fact attribute (specific property being described)
-    FactValue           *string   // Filter by fact value (partial match on descriptive content)
-    FactTemporalContext *string   // Filter by temporal context (dates, time references)
-    FactSensitivity     *string   // Filter by sensitivity level (high, medium, low)
-    FactImportance      *int      // Filter by importance score (1, 2, 3)
+    // Structured fact filters (ONLY indexed fields for performance)
+    FactCategory        *string   // Filter by fact category
+    FactAttribute       *string   // Filter by fact attribute
+    FactImportance      *int      // Filter by exact importance score (1, 2, 3)
     
-    // Ranges for numeric/date fields
-    FactImportanceMin *int    // Minimum importance score (inclusive)
-    FactImportanceMax *int    // Maximum importance score (inclusive)
+    // Range filters
+    FactImportanceMin   *int      // Minimum importance (inclusive)
+    FactImportanceMax   *int      // Maximum importance (inclusive)
+    
+    // Timestamp filters
+    TimestampAfter      *time.Time // Facts created after this time
+    TimestampBefore     *time.Time // Facts created before this time
+    
+    // Document reference filters
+    DocumentReferences  []string   // Filter by source document IDs
 }
 ```
+
+**Note**: Fields like `factValue`, `factTemporalContext`, and `factSensitivity` are stored in the database for context and display but are NOT filterable. This is a performance optimization - these fields contain rich descriptive text that would be expensive to index.
 
 ### Schema Approach
 
@@ -527,12 +535,6 @@ filter := &memory.Filter{
 }
 result, err := storage.Query(ctx, "life events", filter)
 
-// Filter by sensitivity - only public information
-filter := &memory.Filter{
-    FactSensitivity: stringPtr("low"),
-}
-result, err := storage.Query(ctx, "general interests", filter)
-
 // High importance facts only (importance >= 2)
 filter := &memory.Filter{
     FactImportanceMin: intPtr(2),
@@ -541,7 +543,7 @@ result, err := storage.Query(ctx, "significant memories", filter)
 
 // Filter by subject - facts about Alice
 filter := &memory.Filter{
-    FactSubject: stringPtr("alice"),
+    Subject: stringPtr("alice"),
 }
 result, err := storage.Query(ctx, "alice information", filter)
 
@@ -550,6 +552,20 @@ filter := &memory.Filter{
     FactAttribute: stringPtr("health_metric"),
 }
 result, err := storage.Query(ctx, "health data", filter)
+
+// Filter by timestamp range - facts from last 30 days
+now := time.Now()
+thirtyDaysAgo := now.AddDate(0, 0, -30)
+filter := &memory.Filter{
+    TimestampAfter: &thirtyDaysAgo,
+}
+result, err := storage.Query(ctx, "recent activities", filter)
+
+// Filter by document references - facts from specific documents
+filter := &memory.Filter{
+    DocumentReferences: []string{"doc-id-1", "doc-id-2"},
+}
+result, err := storage.Query(ctx, "facts from specific documents", filter)
 ```
 
 #### Advanced Combined Filtering
@@ -557,61 +573,29 @@ result, err := storage.Query(ctx, "health data", filter)
 ```go
 // Preferences from conversations with high importance
 filter := &memory.Filter{
-    Source:         stringPtr("conversations"),
     FactCategory:   stringPtr("preference"),
     FactImportance: intPtr(3),
-    Limit:          intPtr(10),
+    Source:         stringPtr("conversations"),
 }
 result, err := storage.Query(ctx, "important preferences", filter)
 
-// Alice's work-related facts with medium/high sensitivity
+// Recent health facts (last 7 days) with medium-high importance
+now := time.Now()
+sevenDaysAgo := now.AddDate(0, 0, -7)
 filter := &memory.Filter{
-    FactSubject:     stringPtr("alice"),
-    FactCategory:    stringPtr("context_env"),
-    FactSensitivity: stringPtr("medium"),
-    Source:          stringPtr("conversations"),
-    Distance:        0.8,
-}
-result, err := storage.Query(ctx, "alice work environment", filter)
-
-// Health facts from last month with high importance
-filter := &memory.Filter{
-    FactCategory:        stringPtr("health"),
-    FactTemporalContext: stringPtr("2025-01"),
-    FactImportanceMin:   intPtr(2),
-    Limit:               intPtr(20),
+    FactCategory:      stringPtr("health"),
+    FactImportanceMin: intPtr(2),
+    TimestampAfter:    &sevenDaysAgo,
 }
 result, err := storage.Query(ctx, "recent health updates", filter)
 
-// Skills and goals with any importance level
+// Facts about specific person from multiple documents
 filter := &memory.Filter{
-    FactCategory:      stringPtr("skill"),
-    FactImportanceMin: intPtr(1),
-    FactImportanceMax: intPtr(3),
-    Subject:           stringPtr("user"),
-    Distance:          0.7,
+    Subject:            stringPtr("bob"),
+    DocumentReferences: []string{"conv-123", "conv-456"},
+    FactCategory:       stringPtr("preference"),
 }
-result, err := storage.Query(ctx, "user skills", filter)
-```
-
-#### Privacy & GDPR Compliant Filtering
-
-```go
-// Only low sensitivity facts for external APIs
-filter := &memory.Filter{
-    FactSensitivity: stringPtr("low"),
-    FactCategory:    stringPtr("preference"),
-    Limit:           intPtr(50),
-}
-result, err := storage.Query(ctx, "public preferences", filter)
-
-// High sensitivity facts (requires special permissions)
-filter := &memory.Filter{
-    FactSensitivity: stringPtr("high"),
-    FactImportance:  intPtr(3),
-    Subject:         stringPtr("user"),
-}
-result, err := storage.Query(ctx, "private critical information", filter)
+result, err := storage.Query(ctx, "bob's preferences from conversations", filter)
 ```
 
 #### Importance-Based Querying
@@ -643,7 +627,7 @@ result, err := storage.Query(ctx, "significant facts", filter)
 // All user preferences
 filter := &memory.Filter{
     FactCategory: stringPtr("preference"),
-    FactSubject:  stringPtr("user"),
+    Subject:      stringPtr("user"),
 }
 result, err := storage.Query(ctx, "user preferences", filter)
 
@@ -664,7 +648,7 @@ result, err := storage.Query(ctx, "important relationships", filter)
 // Health and wellness data
 filter := &memory.Filter{
     FactCategory:    stringPtr("health"),
-    FactSensitivity: stringPtr("high"),
+    FactImportance: intPtr(3),  // Critical health facts
 }
 result, err := storage.Query(ctx, "health information", filter)
 ```
@@ -941,12 +925,11 @@ if err != nil {
 
 1. **Fact extraction failing?** → Check logs in `orchestrator.extractFactsWorker()`
 2. **Memories not updating?** → Look at `orchestrator.processFactsWorker()` logs
-3. **Validation errors?** → See `ValidateMemoryOperation()` in `pure.go`
-4. **Storage failing?** → Check storage implementation logs
-5. **Document references empty?** → Verify `GetStoredDocument()` implementation returns content
-6. **Deduplication not working?** → Check SHA256 hashing in `StoreDocument()`
-7. **Structured facts missing?** → Check if `factCategory`, `factSubject` etc. fields are stored
-8. **Categories not recognized?** → Verify category enums in extraction prompts
+3. **Storage failing?** → Check storage implementation logs
+4. **Document references empty?** → Verify `GetStoredDocument()` implementation returns content
+5. **Deduplication not working?** → Check SHA256 hashing in `StoreDocument()`
+6. **Structured facts missing?** → Check if `factCategory`, `factSubject` etc. fields are stored
+7. **Categories not recognized?** → Verify category enums in extraction prompts
 
 ## Configuration
 

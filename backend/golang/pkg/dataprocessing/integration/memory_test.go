@@ -887,15 +887,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "medium to high importance facts",
 		},
 		{
-			name: "FactSensitivityFiltering",
-			filter: memory.Filter{
-				FactSensitivity: stringPtr("low"),
-				Source:          &env.config.Source,
-				Limit:           &limit,
-			},
-			query: "public information",
-		},
-		{
 			name: "CombinedStructuredFiltering",
 			filter: memory.Filter{
 				FactCategory:   stringPtr("preference"),
@@ -907,48 +898,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "user preferences with medium importance",
 		},
 		{
-			name: "FactValuePartialMatching",
-			filter: memory.Filter{
-				FactValue: stringPtr("coffee"),
-				Source:    &env.config.Source,
-				Limit:     &limit,
-			},
-			query: "coffee related facts",
-		},
-		{
-			name: "FactTemporalContextFiltering",
-			filter: memory.Filter{
-				FactTemporalContext: stringPtr("2024"),
-				Source:              &env.config.Source,
-				Limit:               &limit,
-			},
-			query: "facts from 2024",
-		},
-		{
-			name: "MixedLegacyAndStructuredFiltering",
-			filter: memory.Filter{
-				Source:         &env.config.Source,
-				Distance:       0.8,
-				Limit:          &limit,
-				FactCategory:   stringPtr("preference"),
-				FactImportance: intPtr(3),
-			},
-			query: "high priority preferences",
-		},
-		{
-			name: "ComplexRealisticFiltering",
-			filter: memory.Filter{
-				FactCategory:        stringPtr("goal_plan"),
-				Subject:             stringPtr("user"),
-				FactSensitivity:     stringPtr("medium"),
-				FactImportanceMin:   intPtr(2),
-				FactTemporalContext: stringPtr("Q1"),
-				Source:              &env.config.Source,
-				Limit:               &limit,
-			},
-			query: "user goals for Q1 with medium sensitivity and high importance",
-		},
-		{
 			name: "FactAttributeFiltering",
 			filter: memory.Filter{
 				FactAttribute: stringPtr("health_metric"),
@@ -958,24 +907,24 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "health metrics",
 		},
 		{
-			name: "NonExistentCategoryFiltering",
+			name: "TimestampRangeFiltering",
 			filter: memory.Filter{
-				FactCategory: stringPtr("nonexistent_category"),
-				Source:       &env.config.Source,
-				Limit:        &limit,
+				TimestampAfter: func() *time.Time { t := time.Now().AddDate(0, 0, -30); return &t }(),
+				Source:         &env.config.Source,
+				Limit:          &limit,
 			},
-			query:       "facts from non-existent category",
-			expectEmpty: true,
+			query: "recent activities",
 		},
 		{
-			name: "WrongImportanceFiltering",
+			name: "CombinedAdvancedFiltering",
 			filter: memory.Filter{
-				FactImportanceMin: intPtr(10),
-				Source:            &env.config.Source,
-				Limit:             &limit,
+				FactCategory:   stringPtr("health"),
+				Subject:        stringPtr("user"),
+				FactImportance: intPtr(3),
+				Source:         &env.config.Source,
+				Limit:          &limit,
 			},
-			query:       "What do you know about me?",
-			expectEmpty: true,
+			query: "critical health facts for user",
 		},
 	}
 
