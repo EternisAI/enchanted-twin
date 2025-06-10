@@ -130,7 +130,7 @@ func (cd *ConversationDocument) Content() string {
 	}{
 		People:      cd.People,
 		Source:      cd.FieldSource,
-		PrimaryUser: "Augustinas",
+		PrimaryUser: cd.User,
 		Tags:        cd.FieldTags,
 		Messages:    messages,
 	}
