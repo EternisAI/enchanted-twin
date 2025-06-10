@@ -1,3 +1,4 @@
+import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
 import { cn } from '@renderer/lib/utils'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Home, MessageCircle, Settings, Shield, ListTodo } from 'lucide-react'
@@ -20,7 +21,7 @@ const LINKS = [
   },
   {
     label: 'Settings',
-    href: '/settings',
+    href: DEFAULT_SETTINGS_ROUTE,
     icon: Settings
   },
   {
