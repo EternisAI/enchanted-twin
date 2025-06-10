@@ -6,6 +6,7 @@ import { Monitor, Database, Settings2, Plug, Shield, RefreshCcw } from 'lucide-r
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn } from '@renderer/lib/utils'
 import { DEFAULT_SETTINGS_ROUTE } from '@renderer/lib/constants/routes'
+import { ErrorBoundary } from '@renderer/components/ui/error-boundary'
 
 export const Route = createFileRoute('/settings')({
   component: SettingsLayout
@@ -94,7 +95,9 @@ function SettingsLayout() {
           </div>
           <div className="flex-1 relative w-full">
             <ScrollArea className="h-full">
-              <Outlet />
+              <ErrorBoundary>
+                <Outlet />
+              </ErrorBoundary>
             </ScrollArea>
           </div>
         </div>
