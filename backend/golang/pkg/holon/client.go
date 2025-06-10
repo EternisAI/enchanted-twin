@@ -116,7 +116,14 @@ func (c *APIClient) doRequest(ctx context.Context, method, path string, body int
 
 // handleResponse processes HTTP response and unmarshals JSON.
 func (c *APIClient) handleResponse(resp *http.Response, result interface{}) error {
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log error but don't fail the operation
+			if c.logger != nil {
+				c.logger.Debug("Failed to close response body", "error", err)
+			}
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {

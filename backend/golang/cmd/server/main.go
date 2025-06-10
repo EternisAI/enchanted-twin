@@ -380,7 +380,11 @@ func main() {
 		// Don't panic - the service can run without the fetcher
 	} else {
 		logger.Info("HolonZero API fetcher service started successfully")
-		defer holonManager.Stop()
+		defer func() {
+			if err := holonManager.Stop(); err != nil {
+				logger.Error("Failed to stop holon manager", "error", err)
+			}
+		}()
 	}
 
 	threadPreviewTool := holon.NewThreadPreviewTool(holonService)

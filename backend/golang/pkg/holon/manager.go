@@ -11,7 +11,6 @@ import (
 
 	clog "github.com/charmbracelet/log"
 	"go.temporal.io/sdk/client"
-	temporal "go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -198,7 +197,7 @@ func (m *Manager) PauseSyncSchedule() error {
 	m.logger.Debug("Pausing holon sync schedule", "scheduleID", m.config.ScheduleID)
 
 	handle := m.temporalClient.ScheduleClient().GetHandle(context.Background(), m.config.ScheduleID)
-	err := handle.Pause(context.Background(), temporal.SchedulePauseOptions{})
+	err := handle.Pause(context.Background(), client.SchedulePauseOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to pause schedule: %w", err)
 	}
@@ -215,7 +214,7 @@ func (m *Manager) ResumeSyncSchedule() error {
 	m.logger.Debug("Resuming holon sync schedule", "scheduleID", m.config.ScheduleID)
 
 	handle := m.temporalClient.ScheduleClient().GetHandle(context.Background(), m.config.ScheduleID)
-	err := handle.Unpause(context.Background(), temporal.ScheduleUnpauseOptions{})
+	err := handle.Unpause(context.Background(), client.ScheduleUnpauseOptions{})
 	if err != nil {
 		return fmt.Errorf("failed to resume schedule: %w", err)
 	}
@@ -349,7 +348,9 @@ func (m *Manager) handleShutdown() {
 	select {
 	case sig := <-sigChan:
 		m.logger.Debug("Received shutdown signal", "signal", sig)
-		m.Stop()
+		if err := m.Stop(); err != nil {
+			m.logger.Error("Failed to stop manager gracefully", "error", err)
+		}
 	case <-m.ctx.Done():
 		// Context was canceled
 		return
