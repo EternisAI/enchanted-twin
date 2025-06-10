@@ -243,7 +243,7 @@ for progressCh != nil || errorCh != nil {
 // Query with advanced filtering
 filter := &memory.Filter{
     Source:      stringPtr("conversations"),
-    ContactName: stringPtr("alice"),
+    Subject:     stringPtr("alice"),
     Distance:    0.7,  // Max semantic distance
     Limit:       intPtr(10),
 }
@@ -444,7 +444,7 @@ The memory system supports powerful filtering capabilities for precise memory re
 ```go
 type Filter struct {
     Source      *string     // Filter by document source
-    ContactName *string     // Filter by contact/speaker name  
+    Subject     *string     // Filter by fact subject (user, entity names)  
     Tags        *TagsFilter // Complex boolean tag expressions
     Distance    float32     // Maximum semantic distance (0 = disabled)
     Limit       *int        // Maximum number of results to return
@@ -498,9 +498,9 @@ filter := &memory.Filter{
 }
 result, err := storage.Query(ctx, "work meetings", filter)
 
-// Filter by contact
+// Filter by subject
 filter := &memory.Filter{
-    ContactName: stringPtr("alice"),
+    Subject: stringPtr("alice"),
 }
 result, err := storage.Query(ctx, "alice's preferences", filter)
 
@@ -588,7 +588,7 @@ filter := &memory.Filter{
     FactCategory:      stringPtr("skill"),
     FactImportanceMin: intPtr(1),
     FactImportanceMax: intPtr(3),
-    ContactName:       stringPtr("user"),
+    Subject:           stringPtr("user"),
     Distance:          0.7,
 }
 result, err := storage.Query(ctx, "user skills", filter)
@@ -609,7 +609,7 @@ result, err := storage.Query(ctx, "public preferences", filter)
 filter := &memory.Filter{
     FactSensitivity: stringPtr("high"),
     FactImportance:  intPtr(3),
-    ContactName:     stringPtr("user"),
+    Subject:         stringPtr("user"),
 }
 result, err := storage.Query(ctx, "private critical information", filter)
 ```
