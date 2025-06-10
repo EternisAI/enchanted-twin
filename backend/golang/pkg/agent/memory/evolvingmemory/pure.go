@@ -408,7 +408,7 @@ func normalizeAndFormatConversation(convDoc memory.ConversationDocument) (string
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
 func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
-		extractFactsTool_Qwen2_5,
+		extractFactsTool,
 	}
 
 	// Normalize and format as JSON
@@ -433,11 +433,11 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	log.Printf("Normalized JSON preview: %s", conversationJSON[:min(500, len(conversationJSON))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(FactExtractionPrompt_Qwen2_5),
+		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(conversationJSON),
 	}
 
-	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt_Qwen2_5), len(conversationJSON))
+	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(conversationJSON))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
@@ -513,7 +513,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 // extractFactsFromTextDocument extracts facts from text documents.
 func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, speakerID string, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
-		extractFactsTool_Qwen2_5,
+		extractFactsTool,
 	}
 
 	content := textDoc.Content()
@@ -531,11 +531,11 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 	log.Printf("Full Content: %s", content)
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
-		openai.SystemMessage(FactExtractionPrompt_Qwen2_5),
+		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
-	log.Printf("Sending to LLM - System prompt length: %d, User message length: %d", len(FactExtractionPrompt_Qwen2_5), len(content))
+	log.Printf("Sending to LLM - System prompt length: %d, User message length: %d", len(FactExtractionPrompt), len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
