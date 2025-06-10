@@ -140,13 +140,12 @@ func TestConversationToDocuments(t *testing.T) {
 	doc := documents[0]
 
 	assert.Contains(t, doc.Tags(), "chat")
-	assert.Contains(t, doc.Tags(), "chatgpt")
 	assert.Contains(t, doc.Tags(), "conversation")
 	assert.Equal(t, "conversation", doc.Metadata()["type"])
 	assert.Equal(t, "Test Conversation", doc.Metadata()["title"])
 	assert.Equal(t, "chatgpt", doc.Source())
 
-	expectedContent := "user: Hello, how are you?\nassistant: I am doing well, thank you! How can I help you today?\nuser: Can you tell me about Puerto Vallarta?\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico..."
+	expectedContent := "People: \nSource: chatgpt\nUser: \nTags: chat, conversation\nPrimary User: \n\nConversation:\nuser: Hello, how are you?\nassistant: I am doing well, thank you! How can I help you today?\nuser: Can you tell me about Puerto Vallarta?\nassistant: Puerto Vallarta is a beautiful coastal city in Mexico..."
 	assert.Equal(t, expectedContent, doc.Content())
 }
 
@@ -266,7 +265,6 @@ func TestJSONLRoundTrip(t *testing.T) {
 
 	convertedDoc := docs[0]
 	assert.Contains(t, convertedDoc.Tags(), "chat")
-	assert.Contains(t, convertedDoc.Tags(), "chatgpt")
 	assert.Contains(t, convertedDoc.Tags(), "conversation")
 	assert.Equal(t, "conversation", convertedDoc.Metadata()["type"])
 	assert.Equal(t, "Weather Conversation", convertedDoc.Metadata()["title"])
