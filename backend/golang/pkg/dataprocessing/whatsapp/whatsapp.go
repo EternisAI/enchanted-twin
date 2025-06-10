@@ -850,7 +850,14 @@ func (s *WhatsappProcessor) ToDocuments(ctx context.Context, records []types.Rec
 	}
 
 	s.logger.Info("Converted to documents", "documents", len(conversationDocuments))
-	return memory.ConversationDocumentsToDocuments(conversationDocuments), nil
+	var documents []memory.Document
+	for _, conversation := range conversationDocuments {
+		if len(conversation.Conversation) > 0 {
+			documents = append(documents, &conversation)
+		}
+	}
+
+	return documents, nil
 }
 
 // extractJIDFromBytes attempts to extract a JID from byte data

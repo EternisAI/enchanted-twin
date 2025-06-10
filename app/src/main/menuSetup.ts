@@ -1,22 +1,58 @@
-import { Menu } from 'electron'
+import { Menu, app } from 'electron'
 import { windowManager } from './windows'
 
 export function setupMenu() {
+  const isMac = process.platform === 'darwin'
+  
   const template: Electron.MenuItemConstructorOptions[] = [
+    // On macOS, create the Application menu
+    ...(isMac
+      ? [
+          {
+            label: app.getName(),
+            submenu: [
+              { role: 'about' as const },
+              { type: 'separator' as const },
+              {
+                label: 'Preferences...',
+                accelerator: 'Command+,',
+                click: () => {
+                  if (windowManager.mainWindow) {
+                    windowManager.mainWindow.webContents.send('open-settings')
+                  }
+                }
+              },
+              { type: 'separator' as const },
+              { role: 'services' as const },
+              { type: 'separator' as const },
+              { role: 'hide' as const },
+              { role: 'hideOthers' as const },
+              { role: 'unhide' as const },
+              { type: 'separator' as const },
+              { role: 'quit' as const }
+            ]
+          }
+        ]
+      : []),
     {
       label: 'File',
       submenu: [
-        {
-          label: 'Settings',
-          accelerator: process.platform === 'darwin' ? 'Command+,' : 'Ctrl+,',
-          click: () => {
-            if (windowManager.mainWindow) {
-              windowManager.mainWindow.webContents.send('open-settings')
-            }
-          }
-        },
-        { type: 'separator' },
-        { role: 'quit' }
+        // Only show Settings in File menu on non-macOS platforms
+        ...(!isMac
+          ? [
+              {
+                label: 'Settings',
+                accelerator: 'Ctrl+,',
+                click: () => {
+                  if (windowManager.mainWindow) {
+                    windowManager.mainWindow.webContents.send('open-settings')
+                  }
+                }
+              },
+              { type: 'separator' as const }
+            ]
+          : []),
+        { role: 'quit' as const }
       ]
     },
     {
@@ -49,7 +85,20 @@ export function setupMenu() {
     },
     {
       label: 'Window',
-      submenu: [{ role: 'minimize' }, { role: 'zoom' }, { type: 'separator' }, { role: 'front' }]
+      submenu: [
+        { role: 'minimize' }, 
+        { role: 'zoom' },
+        ...(isMac
+          ? [
+              { type: 'separator' as const },
+              { role: 'front' as const },
+              { type: 'separator' as const },
+              { role: 'window' as const }
+            ]
+          : [
+              { role: 'close' as const }
+            ])
+      ]
     }
   ]
 

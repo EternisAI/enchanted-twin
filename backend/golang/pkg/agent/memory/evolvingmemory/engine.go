@@ -20,7 +20,7 @@ type MemoryEngine interface {
 	ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error)
 
 	// Memory operations
-	SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error)
+	SearchSimilar(ctx context.Context, fact string) ([]ExistingMemory, error)
 	DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error)
 	UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error
 	DeleteMemory(ctx context.Context, memoryID string) error
@@ -85,7 +85,7 @@ func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) (
 // ProcessFact processes a single fact through the complete memory pipeline.
 func (e *memoryEngine) ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error) {
 	// Search for similar memories
-	similar, err := e.SearchSimilar(ctx, fact.Content, fact.SpeakerID)
+	similar, err := e.SearchSimilar(ctx, fact.Content)
 	if err != nil {
 		return FactResult{Fact: fact, Error: fmt.Errorf("search failed: %w", err)}, nil
 	}
@@ -102,31 +102,6 @@ func (e *memoryEngine) ProcessFact(ctx context.Context, fact ExtractedFact) (Fac
 
 // ExecuteDecision executes a memory decision (UPDATE, DELETE, ADD, NONE).
 func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error) {
-	// Validation for UPDATE/DELETE operations
-	if decision.Action == UPDATE || decision.Action == DELETE {
-		similar, err := e.SearchSimilar(ctx, fact.Content, fact.SpeakerID)
-		if err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("validation search failed: %w", err)}, nil
-		}
-
-		targetMemory := findMemoryByID(similar, decision.TargetID)
-		if targetMemory == nil {
-			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("target memory %s not found", decision.TargetID)}, nil
-		}
-
-		rule := ValidationRule{
-			CurrentSpeakerID: fact.SpeakerID,
-			IsDocumentLevel:  fact.SpeakerID == "",
-			TargetMemoryID:   decision.TargetID,
-			TargetSpeakerID:  targetMemory.Metadata["speakerID"],
-			Action:           decision.Action,
-		}
-
-		if err := ValidateMemoryOperation(rule); err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: err}, nil
-		}
-	}
-
 	// Execute based on action
 	switch decision.Action {
 	case UPDATE:
@@ -165,8 +140,8 @@ func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, 
 }
 
 // SearchSimilar searches for similar memories.
-func (e *memoryEngine) SearchSimilar(ctx context.Context, fact string, speakerID string) ([]ExistingMemory, error) {
-	return SearchSimilarMemories(ctx, fact, speakerID, e.storage, e.embeddingsModel)
+func (e *memoryEngine) SearchSimilar(ctx context.Context, fact string) ([]ExistingMemory, error) {
+	return SearchSimilarMemories(ctx, fact, e.storage, e.embeddingsModel)
 }
 
 // DecideAction decides what action to take with a fact given similar memories.
