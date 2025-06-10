@@ -106,10 +106,11 @@ func TestReadJSONLBatch(t *testing.T) {
 		// Create a test file with very large lines
 		file, err := os.CreateTemp("", "test_large_batch_*.jsonl")
 		require.NoError(t, err)
-		defer os.Remove(file.Name())
+		defer func() {
+			_ = os.Remove(file.Name())
+		}()
 
 		// Create test records with large data
-		var testRecords []types.Record
 		baseTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
 		for i := 0; i < 3; i++ {
@@ -132,7 +133,6 @@ func TestReadJSONLBatch(t *testing.T) {
 				Timestamp: baseTime.Add(time.Duration(i) * time.Hour),
 				Source:    "test",
 			}
-			testRecords = append(testRecords, record)
 
 			// Marshal and write to file
 			jsonData, err := json.Marshal(record)
@@ -349,7 +349,9 @@ func TestCountJSONLLines(t *testing.T) {
 		// Create a test file with very large lines (simulating WhatsApp conversations)
 		file, err := os.CreateTemp("", "test_large_lines_*.jsonl")
 		require.NoError(t, err)
-		defer os.Remove(file.Name())
+		defer func() {
+			_ = os.Remove(file.Name())
+		}()
 
 		// Create a large JSON object (> 64KB to exceed default buffer)
 		largeData := make(map[string]interface{})
