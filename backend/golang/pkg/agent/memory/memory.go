@@ -102,13 +102,6 @@ func (cd *ConversationDocument) ID() string {
 }
 
 func (cd *ConversationDocument) Content() string {
-	// Process people list with replacements
-	people := make([]string, len(cd.People))
-	for i, person := range cd.People {
-		people[i] = person
-	}
-
-	// Process messages with replacements
 	messages := make([]map[string]string, 0, len(cd.Conversation))
 	for _, msg := range cd.Conversation {
 		trimmed := strings.TrimSpace(strings.Replace(msg.Content, "@15083108164", "@Bala", -1))
@@ -135,7 +128,7 @@ func (cd *ConversationDocument) Content() string {
 		Tags        []string            `json:"tags"`
 		Messages    []map[string]string `json:"messages"`
 	}{
-		People:      people,
+		People:      cd.People,
 		Source:      cd.FieldSource,
 		PrimaryUser: "Augustinas",
 		Tags:        cd.FieldTags,
