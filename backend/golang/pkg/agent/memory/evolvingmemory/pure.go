@@ -316,6 +316,17 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		extractFactsTool,
 	}
 
+	if len(convDoc.Conversation) > 500 {
+		log.Printf("Conversation is too long, skipping fact extraction: ID=%s", convDoc.ID())
+	}
+	totalCharacters := 0
+	for _, msg := range convDoc.Conversation {
+		totalCharacters += len(msg.Content)
+	}
+	content := convDoc.Content()
+	log.Printf("Total characters in conversation: %d", totalCharacters)
+	log.Printf("Conversation content length: %d", len(content))
+
 	// Normalize and format as JSON
 	conversationJSON, err := normalizeAndFormatConversation(convDoc)
 	if err != nil {
@@ -327,19 +338,12 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		return []ExtractedFact{}, nil
 	}
 
-	for i, msg := range convDoc.Conversation {
-		if i >= 3 {
-			break
-		}
-		log.Printf("  Message %d: %s: %s", i+1, msg.Speaker, msg.Content)
-	}
-
 	log.Printf("Normalized JSON length: %d", len(conversationJSON))
 	log.Printf("Normalized JSON preview: %s", conversationJSON[:min(500, len(conversationJSON))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
-		openai.UserMessage(conversationJSON),
+		openai.UserMessage(convDoc.Content()),
 	}
 
 	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(conversationJSON))
