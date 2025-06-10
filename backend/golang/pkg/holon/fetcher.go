@@ -50,7 +50,7 @@ type FetcherConfig struct {
 func DefaultFetcherConfig() FetcherConfig {
 	return FetcherConfig{
 		APIBaseURL:    getEnvOrDefault("HOLON_API_URL", "http://localhost:8080"),
-		FetchInterval: 5 * time.Minute,
+		FetchInterval: 30 * time.Second,
 		BatchSize:     50,
 		MaxRetries:    3,
 		RetryDelay:    30 * time.Second,
@@ -358,6 +358,11 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 		// Set the remote thread ID after creating the thread
 		err = f.repository.UpdateThreadRemoteID(ctx, threadID, int32(thread.ID))
 		if err != nil {
+			// Check if this is a duplicate remote_thread_id error
+			if strings.Contains(err.Error(), "UNIQUE constraint failed") && strings.Contains(err.Error(), "idx_threads_remote_id_unique") {
+				f.logDebug(fmt.Sprintf("Thread with remote_thread_id %d already exists, skipping duplicate", thread.ID))
+				continue
+			}
 			f.logError(fmt.Sprintf("Failed to update remote thread ID for thread %s", threadID), err)
 			// Continue even if remote ID update fails
 		}
