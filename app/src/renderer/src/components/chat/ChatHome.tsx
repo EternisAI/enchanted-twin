@@ -8,7 +8,8 @@ import {
   GetProfileDocument,
   GetChatsDocument,
   CreateChatDocument,
-  SendMessageDocument
+  SendMessageDocument,
+  ChatCategory
 } from '@renderer/graphql/generated/graphql'
 import { toast } from 'sonner'
 import { client } from '@renderer/graphql/lib'
@@ -151,7 +152,7 @@ export function Home() {
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: query, voice: isVoiceMode }
+        variables: { name: query, category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text }
       })
       const newChatId = createData?.createChat?.id
 
@@ -222,7 +223,10 @@ export function Home() {
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
     try {
       const { data: createData } = await createChat({
-        variables: { name: suggestion.name, voice: isVoiceMode }
+        variables: {
+          name: suggestion.name,
+          category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
+        }
       })
       const newChatId = createData?.createChat?.id
 

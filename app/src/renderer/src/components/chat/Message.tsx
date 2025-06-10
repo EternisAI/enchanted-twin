@@ -1,8 +1,8 @@
-import { Message } from '@renderer/graphql/generated/graphql'
+import { Message, ToolCall as ToolCallType } from '@renderer/graphql/generated/graphql'
 import { motion } from 'framer-motion'
 import { cn } from '@renderer/lib/utils'
 import { CheckCircle, ChevronRight, Lightbulb, LoaderIcon, Volume2, VolumeOff } from 'lucide-react'
-import { extractReasoningAndReply, formatToolName } from './config'
+import { extractReasoningAndReply, getToolConfig } from './config'
 import { Badge } from '../ui/badge'
 import ImagePreview from './ImagePreview'
 import Markdown from './Markdown'
@@ -120,31 +120,9 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
         <div className="flex flex-row items-center  gap-4 justify-between w-full">
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap gap-4 items-center">
-              {message.toolCalls.map((toolCall) => {
-                const { toolNameInProgress, toolNameCompleted } = formatToolName(toolCall.name)
-
-                return (
-                  <div
-                    key={toolCall.id}
-                    className={cn(
-                      'flex items-center gap-2 pt-2',
-                      toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
-                    )}
-                  >
-                    {toolCall.isCompleted ? (
-                      <Badge className="text-green-600 border-green-500" variant="outline">
-                        <CheckCircle className="h-4 w-4" />
-                        <span>{toolNameCompleted}</span>
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="border-gray-300">
-                        <LoaderIcon className="h-4 w-4 animate-spin" />
-                        <span>{toolNameInProgress}...</span>
-                      </Badge>
-                    )}
-                  </div>
-                )
-              })}
+              {message.toolCalls.map((toolCall) => (
+                <ToolCall key={toolCall.id} toolCall={toolCall} />
+              ))}
             </div>
             <div className="text-xs text-left text-muted-foreground ">
               {new Date(message.createdAt).toLocaleTimeString()}
@@ -178,5 +156,38 @@ export function AssistantMessageBubble({ message }: { message: Message }) {
         </div>
       </div>
     </motion.div>
+  )
+}
+
+function ToolCall({ toolCall }: { toolCall: ToolCallType }) {
+  const {
+    toolNameInProgress,
+    toolNameCompleted,
+    customComponent: CustomComponent
+  } = getToolConfig(toolCall.name)
+
+  if (toolCall.isCompleted && CustomComponent) {
+    return <CustomComponent toolCall={toolCall} />
+  }
+
+  return (
+    <div
+      className={cn(
+        'flex items-center gap-2 pt-2',
+        toolCall.isCompleted ? 'text-green-600' : 'text-muted-foreground'
+      )}
+    >
+      {toolCall.isCompleted ? (
+        <Badge className="text-green-600 border-green-500" variant="outline">
+          <CheckCircle className="h-4 w-4" />
+          <span>{toolNameCompleted}</span>
+        </Badge>
+      ) : (
+        <Badge variant="outline" className="border-gray-300">
+          <LoaderIcon className="h-4 w-4 animate-spin" />
+          <span>{toolNameInProgress}...</span>
+        </Badge>
+      )}
+    </div>
   )
 }
