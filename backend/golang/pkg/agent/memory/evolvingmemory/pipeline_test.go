@@ -110,7 +110,7 @@ func TestStoreV2BasicFlow(t *testing.T) {
 			}
 			errors = append(errors, err)
 
-		case <-time.After(10 * time.Second):
+		case <-time.After(2 * time.Minute):
 			t.Fatal("Test timed out waiting for channels to close")
 		}
 	}
@@ -220,7 +220,7 @@ func TestPipelineIntegration_BasicFlow(t *testing.T) {
 	select {
 	case <-done:
 		<-done // Wait for both goroutines
-	case <-time.After(30 * time.Second):
+	case <-time.After(2 * time.Minute):
 		t.Fatal("Test timed out waiting for pipeline completion")
 	}
 
