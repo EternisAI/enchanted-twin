@@ -45,7 +45,7 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	// Prepare properties with new direct fields
 	properties := map[string]interface{}{
 		"content":            fact.Content,
-		"metadataJson":       marshalMetadata(metadata), // Minimal metadata now
+		"metadataJson":       marshalMetadata(metadata),
 		"timestamp":          fact.Source.Timestamp.Format(time.RFC3339),
 		"tags":               tags,
 		"documentReferences": []string{},
@@ -319,7 +319,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 			// TODO: reconsider `content` field
 			extractedFacts = append(extractedFacts, ExtractedFact{
-				Content:         structuredFact.Value,
+				Content:         fmt.Sprintf("%s - %s", structuredFact.Subject, structuredFact.Value), // Combined for embeddings
 				Category:        structuredFact.Category,
 				Subject:         structuredFact.Subject,
 				Attribute:       structuredFact.Attribute,
@@ -414,9 +414,9 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			log.Printf("      Importance: %d", structuredFact.Importance)
 			log.Printf("      Sensitivity: %s", structuredFact.Sensitivity)
 
-			// NOTE: reconsider `content` field
+			// TODO: reconsider `content` field
 			extractedFacts = append(extractedFacts, ExtractedFact{
-				Content:         structuredFact.Value,
+				Content:         fmt.Sprintf("%s - %s", structuredFact.Subject, structuredFact.Value), // Combined for embeddings
 				Category:        structuredFact.Category,
 				Subject:         structuredFact.Subject,
 				Attribute:       structuredFact.Attribute,

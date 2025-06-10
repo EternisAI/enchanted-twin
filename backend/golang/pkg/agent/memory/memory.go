@@ -14,7 +14,7 @@ const (
 	// for any single piece of content before chunking. Based on Qwen-2.5-70b's
 	// 128k token context window, targeting ~0.4x window size with 4-char/token
 	// conservative ratio.
-	MaxProcessableContentChars = 30000
+	MaxProcessableContentChars = 20000
 
 	// Boolean operators for tag filtering.
 	AND = "AND"
@@ -130,7 +130,7 @@ func (cd *ConversationDocument) Content() string {
 	}{
 		People:      cd.People,
 		Source:      cd.FieldSource,
-		PrimaryUser: "Augustinas",
+		PrimaryUser: cd.User,
 		Tags:        cd.FieldTags,
 		Messages:    messages,
 	}
@@ -620,6 +620,7 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 type MemoryFact struct {
 	ID        string            `json:"id"`
 	Content   string            `json:"content"`
+	Subject   string            `json:"subject,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 	Source    string            `json:"source"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
