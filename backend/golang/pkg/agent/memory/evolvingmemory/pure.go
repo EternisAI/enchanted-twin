@@ -263,7 +263,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	}
 
 	log.Printf("Normalized JSON length: %d", len(content))
-	log.Printf("Normalized JSON preview: %s", content[:min(500, len(content))])
+	log.Printf("User prompt %s", content[:min(500, len(content))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
