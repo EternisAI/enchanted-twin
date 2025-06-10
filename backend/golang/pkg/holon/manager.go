@@ -59,7 +59,7 @@ func DefaultManagerConfig() ManagerConfig {
 
 	return ManagerConfig{
 		HolonAPIURL:   holonAPIURL,
-		FetchInterval: 5 * time.Minute,
+		FetchInterval: 30 * time.Second,
 		BatchSize:     50,
 		MaxRetries:    3,
 		RetryDelay:    30 * time.Second,
