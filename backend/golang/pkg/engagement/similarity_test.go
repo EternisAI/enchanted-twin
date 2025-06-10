@@ -16,9 +16,35 @@ type MockMemoryService struct {
 	mock.Mock
 }
 
-func (m *MockMemoryService) Store(ctx context.Context, documents []memory.Document, progressCallback memory.ProgressCallback) error {
-	args := m.Called(ctx, documents, progressCallback)
-	return args.Error(0)
+func (m *MockMemoryService) Store(ctx context.Context, documents []memory.Document) (<-chan memory.ProgressUpdate, <-chan error) {
+	args := m.Called(ctx, documents)
+
+	// Create channels to return
+	progressCh := make(chan memory.ProgressUpdate)
+	errorCh := make(chan error)
+
+	// Get the error from mock args if any
+	err := args.Error(0)
+
+	// Simulate async behavior
+	go func() {
+		defer close(progressCh)
+		defer close(errorCh)
+
+		// Send a single progress update for testing
+		progressCh <- memory.ProgressUpdate{
+			Processed: 1,
+			Total:     1,
+			Stage:     "testing",
+		}
+
+		// Send error if mock returned one
+		if err != nil {
+			errorCh <- err
+		}
+	}()
+
+	return progressCh, errorCh
 }
 
 func (m *MockMemoryService) Query(ctx context.Context, query string, filter *memory.Filter) (memory.QueryResult, error) {
@@ -112,7 +138,7 @@ func TestStoreSentMessage(t *testing.T) {
 			len(doc.Tags()) == 2 &&
 			doc.Tags()[0] == "sent_message" &&
 			doc.Tags()[1] == activityType
-	}), mock.AnythingOfType("memory.ProgressCallback")).Return(nil)
+	})).Return(nil)
 
 	err := friendService.StoreSentMessage(ctx, testMessage, activityType)
 

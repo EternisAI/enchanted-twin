@@ -164,9 +164,25 @@ func (w *DataProcessingWorkflows) XIndexActivity(
 		return XIndexActivityResponse{}, err
 	}
 
-	err = w.Memory.Store(ctx, documents, nil)
-	if err != nil {
-		return XIndexActivityResponse{}, err
+	progressCh, errorCh := w.Memory.Store(ctx, documents)
+
+	// Drain progress channel
+	go func() {
+		for range progressCh {
+			// No progress tracking needed
+		}
+	}()
+
+	// Collect first error
+	var firstErr error
+	for err := range errorCh {
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+
+	if firstErr != nil {
+		return XIndexActivityResponse{}, firstErr
 	}
 
 	return XIndexActivityResponse{}, nil
