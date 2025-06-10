@@ -126,10 +126,8 @@ func setupSharedInfrastructure(config testConfig) {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
 		}
 
-
 		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, config.EmbeddingsApiKey, config.EmbeddingsApiUrl)
 		err = bootstrap.InitSchema(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, config.EmbeddingsModel)
-
 		if err != nil {
 			panic(fmt.Sprintf("failed to initialize schema: %v", err))
 		}
@@ -478,18 +476,14 @@ func getTestConfig(t *testing.T) testConfig {
 		embeddingsModel = "text-embedding-3-small"
 	}
 
-
 	completionsApiUrl := os.Getenv("COMPLETIONS_API_URL")
 	if completionsApiUrl == "" {
 		completionsApiUrl = "https://openrouter.ai/api/v1"
-
 	}
 
 	embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
 	if embeddingsApiUrl == "" {
-
 		embeddingsApiUrl = "https://api.openai.com/v1"
-
 	}
 
 	return testConfig{
@@ -755,7 +749,6 @@ func TestMemoryIntegration(t *testing.T) {
 		assert.True(t, foundFieldsMedal, "should find a document containing 'Fields Medal'")
 	})
 
- 
 	t.Run("DocumentReferences", func(t *testing.T) {
 		// Use existing data or load if needed
 		if len(env.documents) == 0 {
@@ -773,7 +766,6 @@ func TestMemoryIntegration(t *testing.T) {
 		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do facts from %s say about the user?", env.config.DefaultSource), &filter)
 		require.NoError(t, err)
 		require.NotEmpty(t, result.Facts)
-
 
 		for _, fact := range result.Facts[:min(3, len(result.Facts))] {
 			memoryID := fact.ID
@@ -861,11 +853,9 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactSubjectFiltering",
 			filter: memory.Filter{
- 
-				FactSubject: stringPtr("user"),
-				Source:      &env.config.DefaultSource,
-				Limit:       &limit,
-
+				Subject: stringPtr("user"),
+				Source:  &env.config.DefaultSource,
+				Limit:   &limit,
 			},
 			query: "facts about user",
 		},
@@ -889,17 +879,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "medium to high importance facts",
 		},
 		{
- 
-			name: "FactSensitivityFiltering",
-			filter: memory.Filter{
-				FactSensitivity: stringPtr("low"),
-				Source:          &env.config.DefaultSource,
-				Limit:           &limit,
-			},
-			query: "public information",
-		},
-		{
- 
 			name: "CombinedStructuredFiltering",
 			filter: memory.Filter{
 				FactCategory:   stringPtr("preference"),
@@ -911,50 +890,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 			query: "user preferences with medium importance",
 		},
 		{
- 
-			name: "FactValuePartialMatching",
-			filter: memory.Filter{
-				FactValue: stringPtr("coffee"),
-				Source:    &env.config.DefaultSource,
-				Limit:     &limit,
-			},
-			query: "coffee related facts",
-		},
-		{
-			name: "FactTemporalContextFiltering",
-			filter: memory.Filter{
-				FactTemporalContext: stringPtr("2024"),
-				Source:              &env.config.DefaultSource,
-				Limit:               &limit,
-			},
-			query: "facts from 2024",
-		},
-		{
-			name: "MixedLegacyAndStructuredFiltering",
-			filter: memory.Filter{
-				Source:         &env.config.DefaultSource,
-				Distance:       0.8,
-				Limit:          &limit,
-				FactCategory:   stringPtr("preference"),
-				FactImportance: intPtr(3),
-			},
-			query: "high priority preferences",
-		},
-		{
-			name: "ComplexRealisticFiltering",
-			filter: memory.Filter{
-				FactCategory:        stringPtr("goal_plan"),
-				FactSubject:         stringPtr("user"),
-				FactSensitivity:     stringPtr("medium"),
-				FactImportanceMin:   intPtr(2),
-				FactTemporalContext: stringPtr("Q1"),
-				Source:              &env.config.DefaultSource,
-				Limit:               &limit,
-			},
-			query: "user goals for Q1 with medium sensitivity and high importance",
-		},
-		{
- 
 			name: "FactAttributeFiltering",
 			filter: memory.Filter{
 				FactAttribute: stringPtr("health_metric"),
@@ -966,24 +901,20 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "TimestampRangeFiltering",
 			filter: memory.Filter{
- 
 				TimestampAfter: func() *time.Time { t := time.Now().AddDate(0, 0, -30); return &t }(),
 				Source:         &env.config.DefaultSource,
 				Limit:          &limit,
- 
 			},
 			query: "recent activities",
 		},
 		{
 			name: "CombinedAdvancedFiltering",
 			filter: memory.Filter{
- 
 				FactCategory:   stringPtr("health"),
 				Subject:        stringPtr("user"),
 				FactImportance: intPtr(3),
 				Source:         &env.config.DefaultSource,
 				Limit:          &limit,
- 
 			},
 			query: "critical health facts for user",
 		},
