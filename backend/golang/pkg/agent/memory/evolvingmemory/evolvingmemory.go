@@ -3,7 +3,6 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -75,42 +74,6 @@ type StructuredFact struct {
 	TemporalContext *string `json:"temporal_context,omitempty"`
 	Sensitivity     string  `json:"sensitivity"`
 	Importance      int     `json:"importance"`
-}
-
-// GenerateContent creates a searchable content string from structured fact data.
-func (sf *StructuredFact) GenerateContent() string {
-	var contentParts []string
-
-	// Add subject if it's not user (to avoid redundancy)
-	if sf.Subject != "" && sf.Subject != "user" {
-		contentParts = append(contentParts, sf.Subject)
-	}
-
-	// Add the main value
-	contentParts = append(contentParts, sf.Value)
-
-	// Add attribute for context if available
-	if sf.Attribute != "" {
-		contentParts = append(contentParts, "("+sf.Attribute+")")
-	}
-
-	// Add category label for searchability
-	if sf.Category != "" {
-		contentParts = append(contentParts, "("+sf.Category+")")
-	}
-
-	// Add temporal context if available
-	if sf.TemporalContext != nil && *sf.TemporalContext != "" {
-		contentParts = append(contentParts, "("+*sf.TemporalContext+")")
-	}
-
-	// Join parts and prefix with "User:" if appropriate
-	content := strings.Join(contentParts, " ")
-	if sf.Subject == "user" || strings.Contains(strings.ToLower(sf.Value), "user") {
-		content = "User: " + content
-	}
-
-	return content
 }
 
 type ExtractStructuredFactsToolArguments struct {

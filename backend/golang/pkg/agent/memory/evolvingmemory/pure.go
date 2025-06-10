@@ -389,11 +389,9 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			log.Printf("      Importance: %d", structuredFact.Importance)
 			log.Printf("      Sensitivity: %s", structuredFact.Sensitivity)
 
-			factString := structuredFact.GenerateContent()
-			log.Printf("      Generated Content: %s", factString)
-
+			// TODO: reconsider `content` field
 			extractedFacts = append(extractedFacts, ExtractedFact{
-				Content:         factString,
+				Content:         structuredFact.Value,
 				Category:        structuredFact.Category,
 				Subject:         structuredFact.Subject,
 				Attribute:       structuredFact.Attribute,
@@ -488,12 +486,9 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			log.Printf("      Importance: %d", structuredFact.Importance)
 			log.Printf("      Sensitivity: %s", structuredFact.Sensitivity)
 
-			// Use shared content generation method
-			factString := structuredFact.GenerateContent()
-			log.Printf("      Generated Content: %s", factString)
-
+			// NOTE: reconsider `content` field
 			extractedFacts = append(extractedFacts, ExtractedFact{
-				Content:         factString,
+				Content:         structuredFact.Value,
 				Category:        structuredFact.Category,
 				Subject:         structuredFact.Subject,
 				Attribute:       structuredFact.Attribute,
