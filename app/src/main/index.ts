@@ -15,7 +15,7 @@ import { setupMenu } from './menuSetup'
 import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
 import { cleanupGoServer, initializeGoServer } from './goServer'
-import { startKokoro, cleanupKokoro } from './kokoroManager'
+// import { startKokoro, cleanupKokoro } from './kokoroManager'
 import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
 
@@ -46,7 +46,7 @@ app.whenReady().then(async () => {
   setupAutoUpdater()
   setupMenu()
 
-  startKokoro(mainWindow)
+  // startKokoro(mainWindow)
   startLiveKitSetup(mainWindow)
   autoStartScreenpipeIfEnabled()
 
@@ -72,7 +72,7 @@ app.on('activate', function () {
 app.on('will-quit', async () => {
   cleanupGoServer()
   cleanupOAuthServer()
-  await cleanupKokoro()
+  // await cleanupKokoro()
   await cleanupLiveKitAgent()
   cleanupScreenpipe()
 })
