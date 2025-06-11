@@ -87,10 +87,10 @@ type ConversationMessage struct {
 // ConversationDocument represents a document containing structured conversation data.
 type ConversationDocument struct {
 	FieldID       string                `json:"id"`
-	FieldSource   string                `json:"source"`       // Merged from StructuredConversation
-	People        []string              `json:"people"`       // Merged from StructuredConversation
-	User          string                `json:"user"`         // Merged from StructuredConversation
-	Conversation  []ConversationMessage `json:"conversation"` // Merged from StructuredConversation
+	FieldSource   string                `json:"source"`
+	People        []string              `json:"people"`
+	User          string                `json:"user"`
+	Conversation  []ConversationMessage `json:"conversation"`
 	FieldTags     []string              `json:"tags,omitempty"`
 	FieldMetadata map[string]string     `json:"metadata,omitempty"`
 }
@@ -114,12 +114,8 @@ func (cd *ConversationDocument) Content() string {
 		}
 	}
 
-	// CONV header: CONV|{id}|{source}|{date}
-	date := ""
-	if timestamp := cd.Timestamp(); timestamp != nil {
-		date = timestamp.Format("2006-01-02")
-	}
-	builder.WriteString(fmt.Sprintf("CONV|%s|%s|%s\n", cd.FieldID, cd.FieldSource, date))
+	// CONV header: CONV|{id}|{source}
+	builder.WriteString(fmt.Sprintf("CONV|%s|%s\n", cd.FieldID, cd.FieldSource))
 
 	// USERS: USERS|{user1}|{user2}|...
 	builder.WriteString("USERS|")
@@ -145,7 +141,7 @@ func (cd *ConversationDocument) Content() string {
 			normalizedSpeaker = "primaryUser"
 		}
 
-		timeStr := msg.Time.Format("15:04")
+		timeStr := msg.Time.Format(time.RFC3339)
 		builder.WriteString(fmt.Sprintf("%s|||%s|||%s\n", normalizedSpeaker, timeStr, trimmed))
 	}
 
