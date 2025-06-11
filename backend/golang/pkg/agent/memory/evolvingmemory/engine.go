@@ -7,6 +7,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/weaviate/weaviate/entities/models"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
@@ -14,11 +15,11 @@ import (
 // MemoryEngine implements pure business logic for memory operations.
 // This contains no orchestration concerns (channels, workers, progress reporting).
 type MemoryEngine struct {
-	completionsService *ai.Service
-	embeddingsService  *ai.Service
+	CompletionsService *ai.Service
+	EmbeddingsService  *ai.Service
 	storage            storage.Interface
-	completionsModel   string
-	embeddingsModel    string
+	CompletionsModel   string
+	EmbeddingsModel    string
 }
 
 // NewMemoryEngine creates a new MemoryEngine instance.
@@ -40,11 +41,11 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 	}
 
 	return &MemoryEngine{
-		completionsService: completionsService,
-		embeddingsService:  embeddingsService,
+		CompletionsService: completionsService,
+		EmbeddingsService:  embeddingsService,
 		storage:            storage,
-		completionsModel:   completionsModel,
-		embeddingsModel:    embeddingsModel,
+		CompletionsModel:   completionsModel,
+		EmbeddingsModel:    embeddingsModel,
 	}, nil
 }
 
@@ -57,71 +58,65 @@ func convertEmbedding(embedding []float64) []float32 {
 	return result
 }
 
-// ExtractFacts extracts facts from a document using pure business logic.
-func (e *MemoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
-	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel)
-}
-
 // ProcessFact processes a single fact through the complete memory pipeline.
-func (e *MemoryEngine) ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error) {
+func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, source memory.Document) (FactResult, error) {
+	// Generate content for search and decision making
+	content := fact.GenerateContent()
+
 	// Search for similar memories
-	similar, err := e.SearchSimilar(ctx, fact.Content)
+	similar, err := SearchSimilarMemories(ctx, content, e.storage, e.EmbeddingsModel)
 	if err != nil {
-		return FactResult{Fact: fact, Error: fmt.Errorf("search failed: %w", err)}, nil
+		return FactResult{Fact: fact, Source: source, Error: fmt.Errorf("search failed: %w", err)}, nil
 	}
 
 	// Decide what action to take
-	decision, err := e.DecideAction(ctx, fact.Content, similar)
+	decision, err := e.DecideAction(ctx, content, similar)
 	if err != nil {
-		return FactResult{Fact: fact, Error: fmt.Errorf("decision failed: %w", err)}, nil
+		return FactResult{Fact: fact, Source: source, Error: fmt.Errorf("decision failed: %w", err)}, nil
 	}
 
 	// Execute the decision
-	return e.ExecuteDecision(ctx, fact, decision)
+	return e.ExecuteDecision(ctx, fact, source, decision)
 }
 
 // ExecuteDecision executes a memory decision (UPDATE, DELETE, ADD, NONE).
-func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error) {
+func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (FactResult, error) {
 	// Execute based on action
 	switch decision.Action {
 	case UPDATE:
-		embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, e.embeddingsModel)
+		content := fact.GenerateContent()
+		embedding, err := e.EmbeddingsService.Embedding(ctx, content, e.EmbeddingsModel)
 		if err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
+			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
 		}
 
-		if err := e.UpdateMemory(ctx, decision.TargetID, fact.Content, convertEmbedding(embedding)); err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("update failed: %w", err)}, nil
+		if err := e.UpdateMemory(ctx, decision.TargetID, content, convertEmbedding(embedding)); err != nil {
+			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("update failed: %w", err)}, nil
 		}
 
-		return FactResult{Fact: fact, Decision: decision}, nil
+		return FactResult{Fact: fact, Source: source, Decision: decision}, nil
 
 	case DELETE:
-		if err := e.DeleteMemory(ctx, decision.TargetID); err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("delete failed: %w", err)}, nil
+		if err := e.storage.Delete(ctx, decision.TargetID); err != nil {
+			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("delete failed: %w", err)}, nil
 		}
 
-		return FactResult{Fact: fact, Decision: decision}, nil
+		return FactResult{Fact: fact, Source: source, Decision: decision}, nil
 
 	case ADD:
-		obj, err := e.CreateMemoryObject(ctx, fact, decision)
+		obj, err := e.CreateMemoryObject(ctx, fact, source, decision)
 		if err != nil {
-			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("object creation failed: %w", err)}, nil
+			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("object creation failed: %w", err)}, nil
 		}
 
-		return FactResult{Fact: fact, Decision: decision, Object: obj}, nil
+		return FactResult{Fact: fact, Source: source, Decision: decision, Object: obj}, nil
 
 	case NONE:
-		return FactResult{Fact: fact, Decision: decision}, nil
+		return FactResult{Fact: fact, Source: source, Decision: decision}, nil
 
 	default:
-		return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("unknown action: %s", decision.Action)}, nil
+		return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("unknown action: %s", decision.Action)}, nil
 	}
-}
-
-// SearchSimilar searches for similar memories.
-func (e *MemoryEngine) SearchSimilar(ctx context.Context, fact string) ([]ExistingMemory, error) {
-	return SearchSimilarMemories(ctx, fact, e.storage, e.embeddingsModel)
 }
 
 // DecideAction decides what action to take with a fact given similar memories.
@@ -142,7 +137,7 @@ func (e *MemoryEngine) DecideAction(ctx context.Context, fact string, similar []
 		noneMemoryTool,
 	}
 
-	response, err := e.completionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, e.completionsModel)
+	response, err := e.CompletionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, e.CompletionsModel)
 	if err != nil {
 		return MemoryDecision{}, fmt.Errorf("LLM decision failed: %w", err)
 	}
@@ -165,55 +160,37 @@ func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newCon
 	return e.storage.Update(ctx, memoryID, updatedDoc, embedding)
 }
 
-// DeleteMemory deletes an existing memory.
-func (e *MemoryEngine) DeleteMemory(ctx context.Context, memoryID string) error {
-	return e.storage.Delete(ctx, memoryID)
-}
-
 // CreateMemoryObject creates a memory object for storage with separate document storage.
-func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
+func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
+	// Determine document type
+	var docType string
+	switch source.(type) {
+	case *memory.ConversationDocument:
+		docType = string(DocumentTypeConversation)
+	case *memory.TextDocument:
+		docType = string(DocumentTypeText)
+	default:
+		docType = "unknown"
+	}
+
 	documentID, err := e.storage.StoreDocument(
 		ctx,
-		fact.Source.Original.Content(),
-		string(fact.Source.Type),
-		fact.Source.Original.ID(),
-		fact.Source.Original.Metadata(),
+		source.Content(),
+		docType,
+		source.ID(),
+		source.Metadata(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("storing document: %w", err)
 	}
 
-	obj := CreateMemoryObjectWithDocumentReferences(fact, decision, []string{documentID})
+	obj := CreateMemoryObjectWithDocumentReferences(fact, source, decision, []string{documentID})
 
-	embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, e.embeddingsModel)
+	embedding, err := e.EmbeddingsService.Embedding(ctx, fact.GenerateContent(), e.EmbeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
 
 	obj.Vector = convertEmbedding(embedding)
 	return obj, nil
-}
-
-// StoreBatch stores a batch of objects.
-func (e *MemoryEngine) StoreBatch(ctx context.Context, objects []*models.Object) error {
-	return e.storage.StoreBatch(ctx, objects)
-}
-
-// GetDocumentReferences retrieves all document references for a memory.
-func (e *MemoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
-	storageRefs, err := e.storage.GetDocumentReferences(ctx, memoryID)
-	if err != nil {
-		return nil, err
-	}
-
-	refs := make([]*DocumentReference, len(storageRefs))
-	for i, storageRef := range storageRefs {
-		refs[i] = &DocumentReference{
-			ID:      storageRef.ID,
-			Content: storageRef.Content,
-			Type:    storageRef.Type,
-		}
-	}
-
-	return refs, nil
 }
