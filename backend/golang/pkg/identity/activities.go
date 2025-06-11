@@ -70,7 +70,9 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		return "", err
 	}
 
-	return response.Content, nil
+	cleanedContent := ai.StripThinkingTags(response.Content)
+
+	return cleanedContent, nil
 }
 
 func (a *identityActivities) RegisterWorkflowsAndActivities(worker worker.Worker) {
