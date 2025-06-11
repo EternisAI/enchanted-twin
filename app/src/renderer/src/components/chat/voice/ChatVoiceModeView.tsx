@@ -60,12 +60,6 @@ export default function VoiceModeChatView({
     return () => {
       stop()
     }
-  }, [chat.id])
-
-  useEffect(() => {
-    return () => {
-      window.api.livekit.stop()
-    }
   }, [])
 
   useEffect(() => {

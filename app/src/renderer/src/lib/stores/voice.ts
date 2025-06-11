@@ -18,13 +18,10 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     const newVoiceMode = !isVoiceMode
     window.api.voiceStore.set('isVoiceMode', newVoiceMode)
     set(() => ({ isVoiceMode: newVoiceMode }))
-    
-    // Start/stop LiveKit agent based on voice mode
-    // if (newVoiceMode) {
-    //   window.api.livekit.start(get().chatId)
-    // } else {
-    //   window.api.livekit.stop()
-    // }
+
+    if (!newVoiceMode) {
+      window.api.livekit.stop()
+    }
   },
   setVoiceMode: (isVoiceMode: boolean, toggleSidebar = true) => {
     if (toggleSidebar) {
@@ -33,12 +30,9 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     }
     window.api.voiceStore.set('isVoiceMode', isVoiceMode)
     set({ isVoiceMode })
-    
-    // Start/stop LiveKit agent based on voice mode
-    // if (isVoiceMode) {
-    //   window.api.livekit.start()
-    // } else {
-    //   window.api.livekit.stop()
-    // }
+
+    if (!isVoiceMode) {
+      window.api.livekit.stop()
+    }
   }
 }))
