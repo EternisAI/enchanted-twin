@@ -149,7 +149,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 
 		batchSize := 20
 		if dataSourceDB.Name == "WhatsApp" {
-			batchSize = 2
+			batchSize = 3
 		}
 		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
 
