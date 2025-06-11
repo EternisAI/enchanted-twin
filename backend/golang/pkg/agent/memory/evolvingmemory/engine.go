@@ -200,20 +200,6 @@ func (e *MemoryEngine) StoreBatch(ctx context.Context, objects []*models.Object)
 }
 
 // GetDocumentReferences retrieves all document references for a memory.
-func (e *MemoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
-	storageRefs, err := e.storage.GetDocumentReferences(ctx, memoryID)
-	if err != nil {
-		return nil, err
-	}
-
-	refs := make([]*DocumentReference, len(storageRefs))
-	for i, storageRef := range storageRefs {
-		refs[i] = &DocumentReference{
-			ID:      storageRef.ID,
-			Content: storageRef.Content,
-			Type:    storageRef.Type,
-		}
-	}
-
-	return refs, nil
+func (e *MemoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
+	return e.storage.GetDocumentReferences(ctx, memoryID)
 }

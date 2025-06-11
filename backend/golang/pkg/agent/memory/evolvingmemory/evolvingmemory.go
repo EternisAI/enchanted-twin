@@ -160,18 +160,11 @@ type NoneToolArguments struct {
 	Reason string `json:"reason"`
 }
 
-// DocumentReference holds reference to the original document that generated a memory fact.
-type DocumentReference struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
-	Type    string `json:"type"`
-}
-
 type MemoryStorage interface {
 	memory.Storage // Inherit the base storage interface
 
 	// Document reference operations - now supports multiple references per memory
-	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error)
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -189,7 +182,7 @@ type Dependencies struct {
 // StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
 	logger          *log.Logger
-	orchestrator    MemoryOrchestrator
+	orchestrator    *MemoryOrchestrator
 	storage         storage.Interface
 	engine          *MemoryEngine
 	embeddingsModel string
@@ -292,6 +285,6 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memor
 }
 
 // GetDocumentReferences retrieves all document references for a memory.
-func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
 	return s.engine.GetDocumentReferences(ctx, memoryID)
 }

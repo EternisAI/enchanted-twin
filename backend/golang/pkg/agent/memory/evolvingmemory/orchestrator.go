@@ -12,20 +12,15 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// MemoryOrchestrator defines the coordination interface for memory operations.
-// This interface handles orchestration concerns (channels, workers, progress reporting).
-type MemoryOrchestrator interface {
-	ProcessDocuments(ctx context.Context, docs []memory.Document, config Config) (<-chan Progress, <-chan error)
-}
-
-// memoryOrchestrator implements MemoryOrchestrator with coordination logic.
-type memoryOrchestrator struct {
+// MemoryOrchestrator handles coordination logic for memory operations.
+// This handles orchestration concerns (channels, workers, progress reporting).
+type MemoryOrchestrator struct {
 	engine *MemoryEngine
 	logger *log.Logger
 }
 
 // NewMemoryOrchestrator creates a new MemoryOrchestrator instance.
-func NewMemoryOrchestrator(engine *MemoryEngine, logger *log.Logger) (MemoryOrchestrator, error) {
+func NewMemoryOrchestrator(engine *MemoryEngine, logger *log.Logger) (*MemoryOrchestrator, error) {
 	if engine == nil {
 		return nil, fmt.Errorf("memory engine cannot be nil")
 	}
@@ -33,14 +28,14 @@ func NewMemoryOrchestrator(engine *MemoryEngine, logger *log.Logger) (MemoryOrch
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
-	return &memoryOrchestrator{
+	return &MemoryOrchestrator{
 		engine: engine,
 		logger: logger,
 	}, nil
 }
 
 // ProcessDocuments implements the new parallel processing pipeline with streaming progress.
-func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
+func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
 	progressCh := make(chan Progress, 100)
 	errorCh := make(chan error, 100)
 
@@ -109,7 +104,7 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 }
 
 // extractFactsWorker processes documents and extracts facts using the engine.
-func (o *memoryOrchestrator) extractFactsWorker(
+func (o *MemoryOrchestrator) extractFactsWorker(
 	ctx context.Context,
 	docs []PreparedDocument,
 	out chan<- ExtractedFact,
@@ -148,7 +143,7 @@ func (o *memoryOrchestrator) extractFactsWorker(
 }
 
 // processFactsWorker processes facts through memory decisions using the engine.
-func (o *memoryOrchestrator) processFactsWorker(
+func (o *MemoryOrchestrator) processFactsWorker(
 	ctx context.Context,
 	facts <-chan ExtractedFact,
 	out chan<- FactResult,
@@ -170,7 +165,7 @@ func (o *memoryOrchestrator) processFactsWorker(
 }
 
 // processSingleFact encapsulates the memory update logic using the engine.
-func (o *memoryOrchestrator) processSingleFact(
+func (o *MemoryOrchestrator) processSingleFact(
 	ctx context.Context,
 	fact ExtractedFact,
 	config Config,
@@ -188,7 +183,7 @@ func (o *memoryOrchestrator) processSingleFact(
 }
 
 // aggregateResults collects ADD operations for batch processing.
-func (o *memoryOrchestrator) aggregateResults(
+func (o *MemoryOrchestrator) aggregateResults(
 	ctx context.Context,
 	results <-chan FactResult,
 	out chan<- []*models.Object,
@@ -243,7 +238,7 @@ func (o *memoryOrchestrator) aggregateResults(
 }
 
 // streamingStore handles batch storage with progress reporting using the engine.
-func (o *memoryOrchestrator) streamingStore(
+func (o *MemoryOrchestrator) streamingStore(
 	ctx context.Context,
 	batches <-chan []*models.Object,
 	progress chan<- Progress,
