@@ -468,3 +468,59 @@ func TestOversizedMessageEdgeCases(t *testing.T) {
 		}
 	})
 }
+
+func TestFormatConversationForLLM(t *testing.T) {
+	tests := []struct {
+		name         string
+		conversation memory.ConversationDocument
+		expected     string
+	}{
+		{
+			name: "basic conversation",
+			conversation: memory.ConversationDocument{
+				Conversation: []memory.ConversationMessage{
+					{Speaker: "alice", Content: "Hello there!", Time: time.Now()},
+					{Speaker: "bob", Content: "Hi Alice!", Time: time.Now()},
+					{Speaker: "alice", Content: "How are you?", Time: time.Now()},
+				},
+			},
+			expected: "alice: Hello there!\nbob: Hi Alice!\nalice: How are you?",
+		},
+		{
+			name: "conversation with empty messages",
+			conversation: memory.ConversationDocument{
+				Conversation: []memory.ConversationMessage{
+					{Speaker: "alice", Content: "Hello", Time: time.Now()},
+					{Speaker: "bob", Content: "", Time: time.Now()},
+					{Speaker: "alice", Content: "   ", Time: time.Now()},
+					{Speaker: "charlie", Content: "World", Time: time.Now()},
+				},
+			},
+			expected: "alice: Hello\ncharlie: World",
+		},
+		{
+			name: "empty conversation",
+			conversation: memory.ConversationDocument{
+				Conversation: []memory.ConversationMessage{},
+			},
+			expected: "",
+		},
+		{
+			name: "conversation with whitespace",
+			conversation: memory.ConversationDocument{
+				Conversation: []memory.ConversationMessage{
+					{Speaker: "user", Content: "  Hello world  ", Time: time.Now()},
+					{Speaker: "assistant", Content: "\tGood morning!\n", Time: time.Now()},
+				},
+			},
+			expected: "user: Hello world\nassistant: Good morning!",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatConversationForLLM(tt.conversation)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

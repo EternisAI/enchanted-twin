@@ -249,32 +249,56 @@ func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Int
 	return memories, nil
 }
 
+// formatConversationForLLM formats a conversation document into a clean, readable format
+// optimized for LLM fact extraction instead of using the raw JSON format.
+func formatConversationForLLM(convDoc memory.ConversationDocument) string {
+	if len(convDoc.Conversation) == 0 {
+		return ""
+	}
+
+	var formatted strings.Builder
+
+	for _, msg := range convDoc.Conversation {
+		content := strings.TrimSpace(msg.Content)
+		if content == "" {
+			continue
+		}
+
+		formatted.WriteString(msg.Speaker)
+		formatted.WriteString(": ")
+		formatted.WriteString(content)
+		formatted.WriteString("\n")
+	}
+
+	return strings.TrimSpace(formatted.String())
+}
+
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
 func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
 
-	content := convDoc.Content()
+	content := formatConversationForLLM(convDoc)
 
 	if len(convDoc.Conversation) == 0 {
 		log.Printf("Skipping empty conversation: ID=%s", convDoc.ID())
 		return []ExtractedFact{}, nil
 	}
 
-	log.Printf("Normalized JSON length: %d", len(content))
-	log.Printf("User prompt %s", content[:min(500, len(content))])
+	log.Printf("Formatted conversation length: %d", len(content))
+	log.Printf("User prompt %s", content[:min(800, len(content))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
-	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(content))
+	log.Printf("Sending conversation to LLM - System prompt length: %d, Formatted length: %d", len(FactExtractionPrompt), len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
-		log.Printf("LLM completion FAILED for conversation %s: %v", convDoc.ID(), err)
+		log.Printf("❌LLM completion FAILED for conversation %s: %v", convDoc.ID(), err)
 		return nil, fmt.Errorf("LLM completion error for conversation %s: %w", convDoc.ID(), err)
 	}
 
@@ -283,7 +307,8 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	log.Printf("  Tool Calls Count: %d", len(llmResponse.ToolCalls))
 
 	if len(llmResponse.ToolCalls) == 0 {
-		log.Printf("WARNING: No tool calls returned for conversation %s - fact extraction may have failed", convDoc.ID())
+		log.Printf("❌ ERROR: No tool calls returned for conversation %s - fact extraction may have failed", convDoc.ID())
+		log.Printf("❌ ERROR: LLM response: %s", llmResponse.Content)
 	}
 
 	var extractedFacts []ExtractedFact
@@ -380,6 +405,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 	if len(llmResponse.ToolCalls) == 0 {
 		log.Printf("WARNING: No tool calls returned for document %s - fact extraction may have failed", textDoc.ID())
+		return nil, fmt.Errorf("LLM failed to call EXTRACT_FACTS tool for document %s - responded conversationally instead", textDoc.ID())
 	}
 
 	var extractedFacts []ExtractedFact

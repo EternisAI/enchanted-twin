@@ -120,15 +120,30 @@ func (o *memoryOrchestrator) extractFactsWorker(
 	defer wg.Done()
 
 	for _, doc := range docs {
+		// Measure document characteristics
+		docLength := len(doc.Original.Content())
+		docID := doc.Original.ID()
+
+		o.logger.Infof("Worker %d: Starting document %s (length: %d chars)",
+			workerID, docID, docLength)
+
 		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 
+		// Measure processing time
+		startTime := time.Now()
 		facts, err := o.engine.ExtractFacts(extractCtx, doc)
+		processingTime := time.Since(startTime)
+
 		cancel()
 
 		if err != nil {
-			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.Original.ID(), err)
+			o.logger.Errorf("Worker %d: ❌ FAILED document %s (length: %d chars, time: %v, error: %v)",
+				workerID, docID, docLength, processingTime, err)
 			continue
 		}
+
+		o.logger.Infof("Worker %d: ✅ SUCCESS document %s (length: %d chars, time: %v, facts: %d)",
+			workerID, docID, docLength, processingTime, len(facts))
 
 		for _, fact := range facts {
 			if fact.Content == "" {
