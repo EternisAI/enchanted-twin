@@ -21,6 +21,19 @@ The LiveKit agent requires the following environment variable:
 OPENAI_API_KEY=your_openai_api_key
 ```
 
+### Setting Environment Variables
+
+You can set the environment variable in several ways:
+
+1. **System Environment**: Set `OPENAI_API_KEY` in your system environment
+2. **Development**: Create a `.env` file in your app root with:
+   ```bash
+   OPENAI_API_KEY=sk-your-actual-openai-api-key-here
+   ```
+3. **Electron Process**: Set the environment variable before starting the Electron app
+
+**Important**: The agent will fail to start if `OPENAI_API_KEY` is not set, so make sure it's configured before trying to use voice mode.
+
 ## Usage from Renderer Process
 
 ### 1. Agent Dependencies (Automatic)
@@ -128,9 +141,10 @@ await voiceManager.endVoiceChat()
 
 The LiveKit agent uses the LiveKit framework's built-in room management. The agent will:
 
-1. Start with `python agent.py console` command
-2. Connect to rooms automatically through the LiveKit framework
-3. Handle room joining and participant management internally
+1. Start from dedicated Python virtual environment in console mode
+2. Apply termios patching for Electron compatibility  
+3. Connect to rooms automatically through the LiveKit framework
+4. Handle room joining and participant management internally
 
 If you need specific room management, you'll need to configure this through:
 - Your LiveKit server configuration
@@ -187,7 +201,7 @@ removeListener()
 
 ### Custom Prompt
 
-You can customize the agent's behavior by placing a `meta_prompt2.txt` file in your app directory. The agent will automatically load and use this prompt instead of the default one.
+You can customize the agent's behavior by placing a `meta_prompt2.txt` file in the LiveKit agent's working directory. The agent will automatically load and use this prompt instead of the default one.
 
 ### Environment Variables
 
@@ -216,4 +230,15 @@ The agent is automatically cleaned up when the app exits. The main process handl
 - Cleaning up resources
 - Terminating connections
 
-You should stil manually stop the agent when conversations end to free up resources. 
+You should stil manually stop the agent when conversations end to free up resources.
+
+## Technical Notes
+
+### Virtual Environment Integration
+The LiveKit agent uses a dedicated Python virtual environment with console mode support:
+- **Environment Isolation**: Dependencies installed via `uv pip install` with proper venv activation
+- **Virtual Environment**: Dedicated Python 3.12 environment with PATH configuration
+- **Console Mode**: Maintains console mode with termios patching for non-TTY environments
+- **Audio Access**: Direct Python execution from venv for reliable microphone and speaker access
+
+This approach ensures reliable access to audio devices while preventing TTY-related errors. 

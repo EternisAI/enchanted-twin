@@ -118,32 +118,178 @@ export class LiveKitAgentBootstrap {
     const agentFile = path.join(this.LIVEKIT_DIR, 'agent.py')
     const requirementsFile = path.join(this.LIVEKIT_DIR, 'requirements.txt')
     
-    // Copy agent file from main process
-    const agentSource = path.join(__dirname, 'livekitAgent.py')
-    const requirementsSource = path.join(__dirname, 'livekit_requirements.txt')
-    
-    try {
-      if (await this.exists(agentSource)) {
-        await fs.promises.copyFile(agentSource, agentFile)
-      } else {
-        log.warn('[LiveKit] Agent source file not found, creating basic version')
-        await fs.promises.writeFile(agentFile, `# LiveKit agent placeholder
+    // Embed agent files as strings for reliable deployment
+    const agentCode = `import asyncio
+import logging
+import os
 import sys
-print("LiveKit agent files not properly installed")
-sys.exit(1)
-`)
-      }
-      
-      if (await this.exists(requirementsSource)) {
-        await fs.promises.copyFile(requirementsSource, requirementsFile)
-      } else {
-        await fs.promises.writeFile(requirementsFile, `livekit-agents>=0.8.0
+from dotenv import load_dotenv
+
+# Patch termios for non-TTY environments before importing livekit
+if os.getenv('LIVEKIT_DISABLE_TERMIOS'):
+    import termios
+    original_tcgetattr = termios.tcgetattr
+    original_tcsetattr = termios.tcsetattr
+    
+    def patched_tcgetattr(fd):
+        # Check if fd is actually a TTY before attempting termios operations
+        if not os.isatty(fd):
+            # Return properly formatted dummy terminal attributes for non-TTY
+            # Structure: [iflag, oflag, cflag, lflag, ispeed, ospeed, cc]
+            # cc needs to be a list with at least 32 elements for VMIN/VTIME access
+            cc = [0] * 32  # Create list with 32 zero bytes
+            return [0, 0, 0, 0, 0, 0, cc]
+        try:
+            return original_tcgetattr(fd)
+        except OSError:
+            # Fallback for edge cases - also needs proper structure
+            cc = [0] * 32
+            return [0, 0, 0, 0, 0, 0, cc]
+    
+    def patched_tcsetattr(fd, when, attrs):
+        # Check if fd is actually a TTY before attempting termios operations
+        if not os.isatty(fd):
+            # Silently ignore for non-TTY
+            return None
+        try:
+            return original_tcsetattr(fd, when, attrs)
+        except OSError:
+            # Silently ignore for non-TTY
+            return None
+    
+    termios.tcgetattr = patched_tcgetattr
+    termios.tcsetattr = patched_tcsetattr
+
+from livekit.agents import (
+    Agent,
+    AgentSession,
+    JobContext,
+    RunContext,
+    WorkerOptions,
+    cli,
+    function_tool,
+)
+from livekit.plugins import deepgram, openai, silero
+
+# Load environment variables
+load_dotenv()
+
+# Configure logging with more detailed output
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# Log termios patching status
+if os.getenv('LIVEKIT_DISABLE_TERMIOS'):
+    logger.info("Termios patching enabled for non-TTY environment")
+
+# Verify required environment variables
+required_env_vars = [
+    "OPENAI_API_KEY"
+]
+
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_vars:
+    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+    logger.error("Please create a .env file with the required API keys")
+    sys.exit(1)
+
+# Default prompt - can be overridden by meta_prompt2.txt
+PROMPT = """You are a helpful AI assistant with voice capabilities. 
+You can have natural conversations and help users with various tasks.
+Be friendly, concise, and engaging in your responses.
+Keep your responses conversational and not too long."""
+
+# Try to load custom prompt if available
+try:
+    with open("meta_prompt2.txt", "r") as f:
+        PROMPT = f.read()
+        logger.info("Loaded custom prompt from meta_prompt2.txt")
+except FileNotFoundError:
+    logger.info("Using default prompt (meta_prompt2.txt not found)")
+
+async def entrypoint(ctx: JobContext):
+    """Main entry point for the LiveKit agent"""
+    
+    logger.info("Starting LiveKit agent entrypoint")
+    
+    # Connect to the room
+    await ctx.connect()
+    logger.info(f"Connected to LiveKit room: {ctx.room.name}")
+    
+    # Create the agent with instructions
+    agent = Agent(instructions=PROMPT)
+    logger.info("Agent created with instructions")
+    
+    # Create the agent session with voice components
+    logger.info("Initializing voice components...")
+    
+    # Initialize components with better configuration
+    vad = silero.VAD.load()
+    stt = openai.STT(model="whisper-1")
+    llm = openai.LLM(model="gpt-4o-mini", temperature=0.7)
+    tts = openai.TTS(model="tts-1", voice="alloy")
+    
+    logger.info("Voice components initialized")
+    
+    session = AgentSession(
+        vad=vad,
+        stt=stt,
+        llm=llm,
+        tts=tts,
+    )
+    
+    # Add event handlers for better debugging
+    @session.on("user_speech_transcribed")
+    def on_user_speech(transcript: str):
+        logger.info(f"User said: {transcript}")
+    
+    @session.on("agent_speech_generated")
+    def on_agent_speech(text: str):
+        logger.info(f"Agent responding: {text}")
+    
+    @session.on("user_speech_committed")
+    def on_speech_committed(msg):
+        logger.info("User speech committed, generating response...")
+    
+    # Start the session
+    logger.info("Starting agent session...")
+    await session.start(agent=agent, room=ctx.room)
+    logger.info("Agent session started successfully")
+    
+    # Wait a moment for the session to fully initialize
+    await asyncio.sleep(1)
+    
+    # Generate an initial greeting
+    logger.info("Generating initial greeting...")
+    try:
+        await session.generate_reply(
+            instructions="Say hello and introduce yourself as a voice assistant. Keep it brief and friendly, around 10-15 words."
+        )
+        logger.info("Initial greeting generated")
+    except Exception as e:
+        logger.error(f"Failed to generate initial greeting: {e}")
+    
+    # Keep the session running
+    logger.info("Agent is now active and ready for conversation")
+
+if __name__ == "__main__":
+    logger.info("Starting LiveKit agent in console mode")
+    # Run the agent with CLI support in console mode
+    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))`
+
+    const requirementsContent = `livekit-agents>=0.8.0
 livekit-plugins-openai>=0.8.0
 livekit-plugins-deepgram>=0.8.0
 livekit-plugins-silero>=0.8.0
-python-dotenv>=1.0.0
-`)
-      }
+python-dotenv>=1.0.0`
+    
+    try {
+      await fs.promises.writeFile(agentFile, agentCode)
+      await fs.promises.writeFile(requirementsFile, requirementsContent)
+      log.info('[LiveKit] Agent files created successfully')
     } catch (error) {
       log.error('[LiveKit] Failed to setup agent files:', error)
       throw error
@@ -182,7 +328,7 @@ python-dotenv>=1.0.0
       return
     }
 
-    log.info('[LiveKit] Installing Python dependencies')
+    log.info('[LiveKit] Installing Python dependencies using uv pip install')
     await this.run(this.UV_PATH, ['pip', 'install', '-r', 'requirements.txt'], {
       cwd: this.LIVEKIT_DIR,
       env: this.uvEnv(this.VENV_DIR),
@@ -263,19 +409,26 @@ python-dotenv>=1.0.0
     log.info('[LiveKit] Starting LiveKit agent')
     // Note: Room connection is handled by the LiveKit agent framework via ctx.connect()
     
-    const env = {
-      ...this.uvEnv(this.VENV_DIR),
-      OPENAI_API_KEY: process.env.OPENAI_API_KEY || ''
+    // Check for required environment variables before starting
+    if (!process.env.OPENAI_API_KEY) {
+      throw new Error('OPENAI_API_KEY environment variable is required but not set. Please add it to your environment or .env file.')
     }
 
-    // Start the agent - your original code uses: python agent_demo.py console
+    // Start the agent using the virtual environment Python
     this.agentProc = spawn(
       this.pythonBin(),
       ['agent.py', 'console'],
       { 
         cwd: this.LIVEKIT_DIR, 
-        env, 
-        stdio: 'pipe' 
+        env: {
+          ...process.env,
+          OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+          TERM: 'dumb',            // Use dumb terminal to avoid TTY features
+          PYTHONUNBUFFERED: '1',   // Ensure immediate output
+          NO_COLOR: '1',           // Disable color codes
+          LIVEKIT_DISABLE_TERMIOS: '1'  // Custom flag to disable termios
+        }, 
+        stdio: 'pipe'  // Use pipe for logging
       }
     )
 
