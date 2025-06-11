@@ -56,14 +56,6 @@ type Config struct {
 	StreamingProgress      bool
 }
 
-// Document preparation.
-type PreparedDocument struct {
-	Original   memory.Document
-	Type       DocumentType
-	Timestamp  time.Time
-	DateString string // Pre-formatted
-}
-
 // Structured fact types for the new extraction system.
 type StructuredFact struct {
 	Category        string  `json:"category"`
@@ -81,18 +73,14 @@ type ExtractStructuredFactsToolArguments struct {
 
 // Processing pipeline types.
 type ExtractedFact struct {
-	// Structured fact fields (primary data)
-	Category        string  `json:"category"`
-	Subject         string  `json:"subject"`
-	Attribute       string  `json:"attribute"`
-	Value           string  `json:"value"`
-	TemporalContext *string `json:"temporal_context,omitempty"`
-	Sensitivity     string  `json:"sensitivity"`
-	Importance      int     `json:"importance"`
+	StructuredFact // Embed the structured fact instead of duplicating fields
+	Source         memory.Document
+}
 
-	// Legacy fields
-	Content string // Derived from structured fields for backward compatibility
-	Source  PreparedDocument
+// GenerateContent creates the searchable content string from structured fields.
+func (ef ExtractedFact) GenerateContent() string {
+	// Simple combination for embeddings and search
+	return fmt.Sprintf("%s - %s", ef.Subject, ef.Value)
 }
 
 // Memory actions.
