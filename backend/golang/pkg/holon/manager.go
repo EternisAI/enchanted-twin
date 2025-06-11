@@ -230,7 +230,6 @@ func (m *Manager) setupNATSSubscription() error {
 			m.logger.Info("Successfully refreshed holon clients with new OAuth token")
 		}
 	})
-
 	if err != nil {
 		return fmt.Errorf("failed to subscribe to OAuth refresh events: %w", err)
 	}
@@ -308,7 +307,7 @@ type ScheduleStatus struct {
 	NextRun []time.Time                   `json:"next_run,omitempty"`
 }
 
-// refreshHolonClientsWithToken refreshes holon clients using the provided token
+// refreshHolonClientsWithToken refreshes holon clients using the provided token.
 func (m *Manager) refreshHolonClientsWithToken(ctx context.Context, accessToken, tokenType string) error {
 	var errors []error
 
