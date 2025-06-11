@@ -37,7 +37,6 @@ func (s *FriendService) StoreSentMessage(ctx context.Context, message string, ac
 		},
 	}
 
-	// Convert TextDocument to Document interface directly
 	docs := []memory.Document{&doc}
 	err := s.memoryService.Store(ctx, docs, func(processed, total int) {
 		// Progress callback - no action needed
@@ -461,7 +460,6 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 			FieldMetadata: metaData,
 			FieldTags:     []string{"friend", "question"},
 		}
-		// Convert TextDocument to Document interface directly
 		documents := []memory.Document{&doc}
 		if errStore := s.memoryService.Store(ctx, documents, func(processed, total int) {
 		}); errStore != nil {

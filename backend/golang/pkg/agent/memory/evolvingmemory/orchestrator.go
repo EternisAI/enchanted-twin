@@ -120,7 +120,7 @@ func (o *MemoryOrchestrator) extractFactsWorker(
 	for _, doc := range docs {
 		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 
-		facts, err := o.engine.ExtractFacts(extractCtx, doc)
+		facts, err := ExtractFactsFromDocument(extractCtx, doc, o.engine.CompletionsService, o.engine.CompletionsModel)
 		cancel()
 
 		if err != nil {
