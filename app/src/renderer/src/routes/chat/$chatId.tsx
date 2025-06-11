@@ -15,8 +15,7 @@ export const Route = createFileRoute('/chat/$chatId')({
   component: ChatRouteComponent,
   validateSearch: (search: Record<string, unknown>): ChatSearchParams => {
     return {
-      initialMessage: typeof search.initialMessage === 'string' ? search.initialMessage : undefined,
-      threadId: typeof search.threadId === 'string' ? search.threadId : undefined // Temporary until backend has full tool
+      initialMessage: typeof search.initialMessage === 'string' ? search.initialMessage : undefined
     }
   },
   loader: async ({ params }) => {
@@ -61,9 +60,7 @@ export const Route = createFileRoute('/chat/$chatId')({
 
 function ChatRouteComponent() {
   const { data, error } = Route.useLoaderData()
-  // @TODO: Remove threadId once backend has full tool support
-  const { initialMessage, threadId } = Route.useSearch()
-  console.log('threadId', threadId)
+  const { initialMessage } = Route.useSearch()
 
   if (!data) return <div className="p-4">Invalid chat ID.</div>
   if (error) return <div className="p-4 text-red-500">Error loading chat.</div>
@@ -73,7 +70,7 @@ function ChatRouteComponent() {
       <div className="flex-1 overflow-hidden w-full">
         <div className="flex flex-col items-center h-full w-full">
           <div className="w-full mx-auto h-full">
-            <ChatProvider chat={data} initialMessage={initialMessage}>
+            <ChatProvider key={data.id} chat={data} initialMessage={initialMessage}>
               <ChatView key={data.id} chat={data} />
             </ChatProvider>
           </div>
