@@ -27,6 +27,10 @@ func CountJSONLLines(filePath string) (int, error) {
 	}()
 
 	scanner := bufio.NewScanner(file)
+	const maxCapacity = 10 * 1024 * 1024
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, maxCapacity)
+
 	lineCount := 0
 
 	for scanner.Scan() {
@@ -66,8 +70,9 @@ func ReadJSONLBatch(filePath string, startIndex, batchSize int) ([]types.Record,
 	}()
 
 	scanner := bufio.NewScanner(file)
-	const maxCapacity = 10 * 1024 * 1024
-	buf := make([]byte, 0, 64*1024)
+	// Set a larger buffer to handle long lines (same as ReadJSONLBatch)
+	const maxCapacity = 10 * 1024 * 1024 // 10MB max line size
+	buf := make([]byte, 0, 64*1024)      // 64KB initial buffer
 	scanner.Buffer(buf, maxCapacity)
 
 	var results []types.Record

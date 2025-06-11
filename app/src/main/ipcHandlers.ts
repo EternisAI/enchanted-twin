@@ -125,7 +125,9 @@ export function registerIpcHandlers() {
     try {
       const userDataPath = app.getPath('userData')
       const dbPath = path.join(userDataPath, 'db')
+      const weaviatePath = path.join(userDataPath, 'weaviate')
       log.info(`Checking for database folder: ${dbPath}`)
+      log.info(`Checking for weaviate folder: ${weaviatePath}`)
 
       let dbDeleted = false
       if (fs.existsSync(dbPath)) {
@@ -135,6 +137,16 @@ export function registerIpcHandlers() {
         dbDeleted = true
       } else {
         log.info(`Database folder does not exist: ${dbPath}`)
+      }
+
+      let weaviateDeleted = false
+      if (fs.existsSync(weaviatePath)) {
+        log.info(`Deleting weaviate folder: ${weaviatePath}`)
+        fs.rmSync(weaviatePath, { recursive: true, force: true })
+        log.info(`Successfully deleted weaviate folder: ${weaviatePath}`)
+        weaviateDeleted = true
+      } else {
+        log.info(`Weaviate folder does not exist: ${weaviatePath}`)
       }
 
       const logsPath = app.getPath('logs')
@@ -154,7 +166,7 @@ export function registerIpcHandlers() {
         log.info(`main.log does not exist: ${mainLogPath}`)
       }
 
-      return dbDeleted || logDeleted
+      return dbDeleted || weaviateDeleted || logDeleted
     } catch (error) {
       log.error(`Failed to delete application data: ${error}`, error)
       throw error

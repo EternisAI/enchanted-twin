@@ -147,11 +147,16 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
+		batchSize := 20
+		if dataSourceDB.Name == "whatsapp" {
+			batchSize = 1
+		}
+
 		getBatchesInput := GetBatchesActivityInput{
 			DataSourceID:   dataSourceDB.ID,
 			DataSourceName: dataSourceDB.Name,
 			ProcessedPath:  *dataSourceDB.ProcessedPath,
-			BatchSize:      20,
+			BatchSize:      batchSize,
 		}
 
 		var getBatchesResponse GetBatchesActivityResponse
@@ -181,7 +186,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				DataSourceName: dataSourceDB.Name,
 				ProcessedPath:  *dataSourceDB.ProcessedPath,
 				BatchIndex:     batchIndex,
-				BatchSize:      20,
+				BatchSize:      batchSize,
 				TotalBatches:   getBatchesResponse.TotalBatches,
 			}
 
@@ -451,6 +456,7 @@ func (w *DataProcessingWorkflows) IndexBatchActivity(
 	if err != nil {
 		return IndexBatchActivityResponse{}, err
 	}
+	w.Logger.Info("Read records", "records", len(records))
 
 	if len(records) == 0 {
 		return IndexBatchActivityResponse{

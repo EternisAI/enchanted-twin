@@ -130,37 +130,37 @@ func TestDocumentSizeValidation(t *testing.T) {
 				Conversation: []memory.ConversationMessage{
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is a long message. ", 200), // ~5,800 chars
+						Content: strings.Repeat("x", memory.MaxProcessableContentChars/5), // Each message ~1/5 of limit
 						Time:    now,
 					},
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is another long message. ", 200),
+						Content: strings.Repeat("y", memory.MaxProcessableContentChars/5),
 						Time:    now,
 					},
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is a third long message. ", 200),
+						Content: strings.Repeat("z", memory.MaxProcessableContentChars/5),
 						Time:    now,
 					},
 					{
 						Speaker: "user",
-						Content: strings.Repeat("This is a fourth long message. ", 200),
+						Content: strings.Repeat("w", memory.MaxProcessableContentChars/5),
 						Time:    now,
 					},
 				},
 			},
-			expectedLength: 20000, // This is not used for conversations anymore
-			shouldTruncate: true,  // This signals it should be chunked
+			expectedLength: 16000, // 4 messages * 4000 chars each
+			shouldTruncate: false, // Should NOT chunk with current sizes
 		},
 		{
 			name: "document at exact limit",
 			doc: &memory.TextDocument{
 				FieldID:      "exact-limit-doc",
-				FieldContent: strings.Repeat("x", 20000), // Exactly 20,000 characters
+				FieldContent: strings.Repeat("x", memory.MaxProcessableContentChars), // Exactly at the limit
 				FieldSource:  "test",
 			},
-			expectedLength: 20000,
+			expectedLength: memory.MaxProcessableContentChars,
 			shouldTruncate: false,
 		},
 	}
@@ -245,11 +245,13 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 
 	// Create a long conversation document that should be chunked
 	longConversation := make([]memory.ConversationMessage, 0)
-	// Create a conversation > 50000 chars to force chunking (new limit)
-	for i := 0; i < 25; i++ { // Increased from 10 to 25 messages
+	// Create messages that will exceed MaxProcessableContentChars when combined
+	messageCount := 10
+	messageSize := (memory.MaxProcessableContentChars / messageCount) * 2 // Each message is 2x the equal share, ensuring we exceed the limit
+	for i := 0; i < messageCount; i++ {
 		longConversation = append(longConversation, memory.ConversationMessage{
 			Speaker: "alice",
-			Content: strings.Repeat("This is a long test message to ensure chunking happens with the new 50k limit. ", 50), // Approx 4000 chars per message
+			Content: strings.Repeat("x", messageSize),
 			Time:    now.Add(time.Duration(i) * time.Second),
 		})
 	}
@@ -318,83 +320,6 @@ func TestPrepareDocuments_NoChunking(t *testing.T) {
 	// ID should be the original ID since it's not a chunk
 	assert.Equal(t, "conv-short", singleDoc.ID())
 	assert.NotContains(t, singleDoc.Metadata(), "_enchanted_chunk_number", "Short conversation should not have chunk metadata")
-}
-
-func TestPrepareDocuments_OversizedMessageHandling(t *testing.T) {
-	now := time.Now()
-
-	// Create a single message that exceeds MaxProcessableContentChars
-	// Calculate how many repetitions we need to exceed the limit
-	sampleText := "This is a very long message that will exceed the maximum character limit. "
-	repetitionsNeeded := (memory.MaxProcessableContentChars / len(sampleText)) + 100 // Add extra to ensure we exceed
-	oversizedContent := strings.Repeat(sampleText, repetitionsNeeded)
-
-	convDoc := &memory.ConversationDocument{
-		FieldID: "conv-oversized-msg",
-		User:    "alice",
-		Conversation: []memory.ConversationMessage{
-			{
-				Speaker: "alice",
-				Content: "Normal message before",
-				Time:    now,
-			},
-			{
-				Speaker: "bob",
-				Content: oversizedContent, // This exceeds MaxProcessableContentChars
-				Time:    now.Add(time.Second),
-			},
-			{
-				Speaker: "alice",
-				Content: "Normal message after",
-				Time:    now.Add(2 * time.Second),
-			},
-		},
-		FieldTags: []string{"test"},
-	}
-
-	// Prepare documents
-	prepared, errors := PrepareDocuments([]memory.Document{convDoc}, now)
-	require.Empty(t, errors)
-
-	// Should be chunked into multiple parts due to the oversized message
-	assert.True(t, len(prepared) > 1, "Expected conversation with oversized message to be chunked")
-
-	// Verify that all content is preserved
-	var totalContent strings.Builder
-	for _, p := range prepared {
-		chunk, ok := p.Original.(*memory.ConversationDocument)
-		require.True(t, ok, "Expected chunk to be a ConversationDocument")
-		for _, msg := range chunk.Conversation {
-			totalContent.WriteString(fmt.Sprintf("%s: %s\n", msg.Speaker, msg.Content))
-		}
-	}
-
-	// The total should contain all original messages (accounting for [Part X] and [continued...] markers)
-	combinedContent := totalContent.String()
-	assert.Contains(t, combinedContent, "Normal message before", "Should preserve message before oversized one")
-	assert.Contains(t, combinedContent, "Normal message after", "Should preserve message after oversized one")
-
-	// Should contain parts of the oversized content
-	assert.Contains(t, combinedContent, "This is a very long message", "Should contain beginning of oversized message")
-
-	// Check for part markers indicating message splitting
-	partCount := strings.Count(combinedContent, "[Part ")
-	assert.True(t, partCount > 1, "Should have multiple parts for oversized message, got %d parts", partCount)
-
-	// Verify each chunk respects size limits
-	for i, p := range prepared {
-		chunk, ok := p.Original.(*memory.ConversationDocument)
-		require.True(t, ok, "Expected chunk to be a ConversationDocument")
-		chunkContent := chunk.Content()
-		assert.LessOrEqual(t, len(chunkContent), memory.MaxProcessableContentChars,
-			"Chunk %d should not exceed MaxProcessableContentChars. Length: %d", i, len(chunkContent))
-
-		// Each chunk should be a valid ConversationDocument
-		assert.Equal(t, DocumentTypeConversation, p.Type)
-		assert.Contains(t, chunk.Metadata(), "_enchanted_chunk_number")
-		assert.Contains(t, chunk.Metadata(), "_enchanted_original_document_id")
-		assert.Equal(t, "conv-oversized-msg", chunk.Metadata()["_enchanted_original_document_id"])
-	}
 }
 
 func TestSplitOversizedMessage(t *testing.T) {

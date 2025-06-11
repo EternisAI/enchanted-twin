@@ -3,6 +3,7 @@ package memory
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,7 +14,7 @@ const (
 	// for any single piece of content before chunking. Based on Qwen-2.5-70b's
 	// 128k token context window, targeting ~0.4x window size with 4-char/token
 	// conservative ratio.
-	MaxProcessableContentChars = 50000
+	MaxProcessableContentChars = 20000
 
 	// Boolean operators for tag filtering.
 	AND = "AND"
@@ -101,24 +102,47 @@ func (cd *ConversationDocument) ID() string {
 }
 
 func (cd *ConversationDocument) Content() string {
-	var content strings.Builder
-	content.Grow(len(cd.Conversation) * 50) // rough estimate
-	hasContent := false                     // Track if any substantive content is added
+	messages := make([]map[string]string, 0, len(cd.Conversation))
 	for _, msg := range cd.Conversation {
-		trimmedMsgContent := strings.TrimSpace(msg.Content)
-		if trimmedMsgContent == "" {
-			continue // Skip messages with only whitespace content
+		trimmed := strings.TrimSpace(msg.Content)
+		if trimmed == "" {
+			continue
 		}
-		content.WriteString(msg.Speaker)
-		content.WriteString(": ")
-		content.WriteString(trimmedMsgContent)
-		content.WriteString("\n")
-		hasContent = true
+
+		messages = append(messages, map[string]string{
+			"user":    msg.Speaker,
+			"time":    msg.Time.Format("2006-01-02 15:04:05"),
+			"content": trimmed,
+		})
 	}
-	if !hasContent {
-		return "" // If no messages had real content, return empty string
+
+	if len(messages) == 0 {
+		return ""
 	}
-	return strings.TrimSpace(content.String()) // Final trim for the whole block
+
+	// Use anonymous struct to control field order
+	conversation := struct {
+		People      []string            `json:"people"`
+		Source      string              `json:"source"`
+		PrimaryUser string              `json:"primaryUser"`
+		Tags        []string            `json:"tags"`
+		Messages    []map[string]string `json:"messages"`
+	}{
+		People:      cd.People,
+		Source:      cd.FieldSource,
+		PrimaryUser: cd.User,
+		Tags:        cd.FieldTags,
+		Messages:    messages,
+	}
+
+	// Marshal to pretty JSON
+	jsonBytes, err := json.MarshalIndent(conversation, "", "  ")
+	if err != nil {
+		// Fallback to empty string on error
+		return ""
+	}
+
+	return string(jsonBytes)
 }
 
 func (cd *ConversationDocument) Timestamp() *time.Time {
@@ -596,6 +620,7 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 type MemoryFact struct {
 	ID        string            `json:"id"`
 	Content   string            `json:"content"`
+	Subject   string            `json:"subject,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 	Source    string            `json:"source"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
