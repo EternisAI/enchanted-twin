@@ -794,7 +794,6 @@ evolvingmemory/
 - `ExtractFacts()` - LLM-based structured fact extraction
 - `ProcessFact()` - Memory decision making
 - `ExecuteDecision()` - Memory updates
-- `GetDocumentReferences()` - Document references retrieval
 
 **orchestrator.go** - Infrastructure coordination:
 - `MemoryOrchestrator` - Coordinates workers and channels
@@ -859,8 +858,8 @@ Look in `engine.go`:
 
 Check `engine.go`:
 - `DecideAction()` - Builds prompt and calls LLM
-- `buildDecisionPrompt()` - Constructs the decision prompt
-- `parseToolCallResponse()` - Parses LLM's decision
+- `BuildSeparateMemoryDecisionPrompts()` - Constructs the decision prompt (in pure.go)
+- `ParseMemoryDecisionResponse()` - Parses LLM's decision (in pure.go)
 
 ### Working with structured facts
 
@@ -961,7 +960,7 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 ### Processing flow for a conversation:
 1. `ConversationDocument` arrives at `StorageImpl.Store()`
 2. `MemoryOrchestrator.ProcessDocuments()` coordinates the pipeline
-3. Document gets prepared with metadata in `PrepareDocuments()`
+3. Documents are chunked if too large (via `doc.Chunk()`)
 4. Document is stored separately in `SourceDocument` table with deduplication
 5. `MemoryEngine.ExtractFacts()` extracts **structured facts**: `{Category: "preference", Subject: "user", Value: "likes pizza"}`
 6. For each fact, `MemoryEngine.ProcessFact()`:
@@ -970,7 +969,7 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
    - Validates the operation
    - Executes (immediate for UPDATE/DELETE, batched for ADD)
 7. New memories reference the stored document by ID + store structured fact fields
-8. `MemoryOrchestrator` batches new memories and flushes to storage
+8. `MemoryOrchestrator` batches new memories and flushes to storage directly
 
 ### Error handling:
 - Each stage returns errors through channels
