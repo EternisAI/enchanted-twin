@@ -53,7 +53,7 @@ func (a *identityActivities) GenerateUserProfileActivity(ctx context.Context) (s
 		}
 	}
 
-	a.logger.Info("Memory documents", "memory_documents", memoryDocuments)
+	a.logger.Info("Memory documents", "memory_documents", len(memoryDocuments))
 
 	systemPrompt, err := prompts.BuildIdentityPersonalitySystemPrompt()
 	if err != nil {

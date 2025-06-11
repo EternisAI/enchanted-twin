@@ -147,11 +147,17 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
+		batchSize := 20
+		if dataSourceDB.Name == "WhatsApp" {
+			batchSize = 3
+		}
+		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
+
 		getBatchesInput := GetBatchesActivityInput{
 			DataSourceID:   dataSourceDB.ID,
 			DataSourceName: dataSourceDB.Name,
 			ProcessedPath:  *dataSourceDB.ProcessedPath,
-			BatchSize:      20,
+			BatchSize:      batchSize,
 		}
 
 		var getBatchesResponse GetBatchesActivityResponse
@@ -181,7 +187,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 				DataSourceName: dataSourceDB.Name,
 				ProcessedPath:  *dataSourceDB.ProcessedPath,
 				BatchIndex:     batchIndex,
-				BatchSize:      1,
+				BatchSize:      batchSize,
 				TotalBatches:   getBatchesResponse.TotalBatches,
 			}
 
