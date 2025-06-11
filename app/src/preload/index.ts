@@ -114,7 +114,13 @@ const api = {
     start: () => ipcRenderer.invoke('livekit:start'),
     stop: () => ipcRenderer.invoke('livekit:stop'),
     isRunning: () => ipcRenderer.invoke('livekit:is-running'),
-    getState: () => ipcRenderer.invoke('livekit:get-state')
+    isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),
+    getState: () => ipcRenderer.invoke('livekit:get-state'),
+    onSessionStateChange: (callback: (data: { sessionReady: boolean }) => void) => {
+      const cleanup = () => ipcRenderer.removeAllListeners('livekit-session-state')
+      ipcRenderer.on('livekit-session-state', (_event, data) => callback(data))
+      return cleanup
+    }
   }
 }
 

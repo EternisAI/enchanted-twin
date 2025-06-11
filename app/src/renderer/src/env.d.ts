@@ -100,7 +100,14 @@ interface IApi {
     start: () => Promise<{ success: boolean; error?: string }>
     stop: () => Promise<{ success: boolean; error?: string }>
     isRunning: () => Promise<boolean>
-    getState: () => Promise<{ dependency: string; progress: number; status: string; error?: string }>
+    isSessionReady: () => Promise<boolean>
+    getState: () => Promise<{
+      dependency: string
+      progress: number
+      status: string
+      error?: string
+    }>
+    onSessionStateChange: (callback: (data: { sessionReady: boolean }) => void) => () => void
   }
 }
 

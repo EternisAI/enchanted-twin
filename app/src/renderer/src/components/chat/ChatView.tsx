@@ -6,11 +6,14 @@ import { Chat, ChatCategory } from '@renderer/graphql/generated/graphql'
 import { useToolCallUpdate } from '@renderer/hooks/useToolCallUpdate'
 import { useMessageStreamSubscription } from '@renderer/hooks/useMessageStreamSubscription'
 import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
-import VoiceModeChatView, { VoiceModeSwitch } from './voice/ChatVoiceModeView'
+import VoiceModeChatView from './voice/ChatVoiceModeView'
 import { useVoiceStore } from '@renderer/lib/stores/voice'
 import { useChat } from '@renderer/contexts/ChatContext'
 import { Role } from '@renderer/graphql/generated/graphql'
 import HolonThreadContext from '../holon/HolonThreadContext'
+import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
+import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/tooltip'
+import { Switch } from '../ui/switch'
 
 interface ChatViewProps {
   chat: Chat
@@ -130,7 +133,7 @@ export default function ChatView({ chat }: ChatViewProps) {
 
       <div className="flex flex-col w-full items-center justify-center px-2">
         <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
-          <VoiceModeSwitch voiceMode={isVoiceMode} setVoiceMode={() => toggleVoiceMode(false)} />
+          <VoiceModeToggle voiceMode={isVoiceMode} setVoiceMode={() => toggleVoiceMode(false)} />
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}
@@ -143,5 +146,39 @@ export default function ChatView({ chat }: ChatViewProps) {
         </div>
       </div>
     </div>
+  )
+}
+
+function VoiceModeToggle({
+  voiceMode,
+  setVoiceMode
+}: {
+  voiceMode: boolean
+  setVoiceMode: (voiceMode: boolean) => void
+}) {
+  const { isVoiceReady } = useDependencyStatus()
+
+  return (
+    <Tooltip>
+      <div className="flex justify-end w-full gap-2">
+        <TooltipTrigger asChild>
+          <div className="flex items-center gap-2">
+            <Switch
+              id="voiceMode"
+              className="data-[state=unchecked]:bg-foreground/30 cursor-pointer"
+              checked={voiceMode}
+              onCheckedChange={() => {
+                setVoiceMode(!voiceMode)
+              }}
+              disabled={!voiceMode && !isVoiceReady}
+            />
+            <label className="text-sm" htmlFor="voiceMode">
+              Voice Mode
+            </label>
+          </div>
+        </TooltipTrigger>
+      </div>
+      {!isVoiceReady && <TooltipContent>Installing dependencies...</TooltipContent>}
+    </Tooltip>
   )
 }

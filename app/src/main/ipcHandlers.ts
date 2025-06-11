@@ -5,13 +5,14 @@ import fs from 'fs'
 import { windowManager } from './windows'
 import { openOAuthWindow } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
-import { getKokoroState } from './kokoroManager'
-import { 
-  setupLiveKitAgent, 
-  startLiveKitAgent, 
-  stopLiveKitAgent, 
-  isLiveKitAgentRunning, 
-  getLiveKitAgentState 
+// import { getKokoroState } from './kokoroManager'
+import {
+  setupLiveKitAgent,
+  startLiveKitAgent,
+  stopLiveKitAgent,
+  isLiveKitAgentRunning,
+  getLiveKitAgentState,
+  isLiveKitSessionReady
 } from './livekitManager'
 
 const PATHNAME = 'input_data'
@@ -192,8 +193,8 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('launch-get-current-state', async () => {
     try {
-      const kokoroState = await getKokoroState()
-      return kokoroState
+      const livekitState = await getLiveKitAgentState()
+      return livekitState
     } catch (error) {
       log.error('Failed to get current launch state:', error)
       return null
@@ -233,6 +234,10 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('livekit:is-running', () => {
     return isLiveKitAgentRunning()
+  })
+
+  ipcMain.handle('livekit:is-session-ready', () => {
+    return isLiveKitSessionReady()
   })
 
   ipcMain.handle('livekit:get-state', async () => {
