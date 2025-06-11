@@ -61,7 +61,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 
 		workChunks := DistributeWork(chunkedDocs, config.Workers)
 
-		factStream := make(chan ExtractedFact, 1000)
+		factStream := make(chan FactResult, 1000)
 		resultStream := make(chan FactResult, 1000)
 		objectStream := make(chan []*models.Object, 100)
 
@@ -104,7 +104,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 func (o *MemoryOrchestrator) extractFactsWorker(
 	ctx context.Context,
 	docs []memory.Document,
-	out chan<- ExtractedFact,
+	out chan<- FactResult,
 	wg *sync.WaitGroup,
 	workerID int,
 	config Config,
@@ -126,11 +126,13 @@ func (o *MemoryOrchestrator) extractFactsWorker(
 			if fact.GenerateContent() == "" {
 				continue
 			}
-
-			// Now we need to attach the source document to each fact
-			// Since ExtractedFact still expects PreparedDocument, we need to fix this too
+			// Create FactResult with the source document
+			result := FactResult{
+				Fact:   fact,
+				Source: doc,
+			}
 			select {
-			case out <- fact:
+			case out <- result:
 			case <-ctx.Done():
 				return
 			}
@@ -141,7 +143,7 @@ func (o *MemoryOrchestrator) extractFactsWorker(
 // processFactsWorker processes facts through memory decisions using the engine.
 func (o *MemoryOrchestrator) processFactsWorker(
 	ctx context.Context,
-	facts <-chan ExtractedFact,
+	facts <-chan FactResult,
 	out chan<- FactResult,
 	wg *sync.WaitGroup,
 	workerID int,
@@ -149,11 +151,12 @@ func (o *MemoryOrchestrator) processFactsWorker(
 ) {
 	defer wg.Done()
 
-	for fact := range facts {
-		result := o.processSingleFact(ctx, fact, config)
+	for factResult := range facts {
+		// Process the fact and update the result
+		processedResult := o.processSingleFact(ctx, factResult, config)
 
 		select {
-		case out <- result:
+		case out <- processedResult:
 		case <-ctx.Done():
 			return
 		}
@@ -163,19 +166,26 @@ func (o *MemoryOrchestrator) processFactsWorker(
 // processSingleFact encapsulates the memory update logic using the engine.
 func (o *MemoryOrchestrator) processSingleFact(
 	ctx context.Context,
-	fact ExtractedFact,
+	factResult FactResult,
 	config Config,
 ) FactResult {
 	processCtx, processCancel := context.WithTimeout(ctx, config.MemoryDecisionTimeout)
 	defer processCancel()
 
-	result, err := o.engine.ProcessFact(processCtx, fact)
+	// Pass both the fact and source to ProcessFact
+	result, err := o.engine.ProcessFact(processCtx, factResult.Fact, factResult.Source)
 	if err != nil {
 		o.logger.Errorf("Failed to process fact: %v", err)
-		return FactResult{Fact: fact, Error: err}
+		factResult.Error = err
+		return factResult
 	}
 
-	return result
+	// Update the existing factResult with the processing results
+	factResult.Decision = result.Decision
+	factResult.Object = result.Object
+	factResult.Error = result.Error
+
+	return factResult
 }
 
 // aggregateResults collects ADD operations for batch processing.
