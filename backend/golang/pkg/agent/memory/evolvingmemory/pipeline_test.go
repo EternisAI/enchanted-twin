@@ -38,7 +38,7 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 
 	completionsURL := os.Getenv("COMPLETIONS_API_URL")
 	if completionsURL == "" {
-		completionsURL = "https://api.openai.com/v1"
+		completionsURL = "https://openrouter.ai/api/v1"
 	}
 	embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
 	if embeddingsURL == "" {
@@ -47,7 +47,7 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 
 	completionsModel := os.Getenv("COMPLETIONS_MODEL")
 	if completionsModel == "" {
-		completionsModel = "gpt-4o-mini"
+		completionsModel = "openai/gpt-4.1-mini"
 	}
 	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 	if embeddingsModel == "" {
