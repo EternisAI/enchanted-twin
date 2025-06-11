@@ -426,24 +426,8 @@ func (env *testEnvironment) storeDocuments(t *testing.T) {
 }
 
 func (env *testEnvironment) storeDocumentsWithTimeout(t *testing.T, timeout time.Duration) {
-	env.logger.Info("Documents loaded successfully", "count", len(env.documents))
-	env.logger.Info("Waiting for memory processing to complete...")
+	t.Helper()
 
-	config := evolvingmemory.DefaultConfig()
-
-	// Use custom timeout if specified
-	if localTimeout := os.Getenv("LOCAL_MODEL_TIMEOUT"); localTimeout != "" {
-		if duration, err := time.ParseDuration(localTimeout); err == nil {
-			config.FactExtractionTimeout = duration
-			config.MemoryDecisionTimeout = duration
-			config.StorageTimeout = duration
-			env.logger.Info("Using custom timeout for local model", "timeout", duration)
-		}
-	}
-
-	progressCh, errorCh := env.memory.StoreV2(env.ctx, env.documents, config)
-
-	var errors []error
 	processingTimeout := timeout
 
 	// Override with environment variable if set
@@ -454,35 +438,16 @@ func (env *testEnvironment) storeDocumentsWithTimeout(t *testing.T, timeout time
 		}
 	}
 
-	timeoutTimer := time.After(processingTimeout)
+	// Use context with timeout
+	ctx, cancel := context.WithTimeout(env.ctx, processingTimeout)
+	defer cancel()
 
-	for progressCh != nil || errorCh != nil {
-		select {
-		case progress, ok := <-progressCh:
-			if !ok {
-				progressCh = nil
-				continue
-			}
-			env.logger.Infof("Progress: %d/%d (stage: %s)", progress.Processed, progress.Total, progress.Stage)
-
-		case err, ok := <-errorCh:
-			if !ok {
-				errorCh = nil
-				continue
-			}
-			errors = append(errors, err)
-			env.logger.Errorf("Processing error: %v", err)
-
-		case <-timeoutTimer:
-			t.Fatalf("Memory processing timed out after %v", processingTimeout)
-
-		case <-env.ctx.Done():
-			t.Fatal("Context canceled during memory processing")
-		}
-	}
-
-	if len(errors) > 0 {
-		t.Fatalf("Memory processing failed with %d errors, first error: %v", len(errors), errors[0])
+	// Use Store with callback for progress tracking
+	err := env.memory.Store(ctx, env.documents, func(processed, total int) {
+		env.logger.Infof("Progress: %d/%d", processed, total)
+	})
+	if err != nil {
+		t.Fatalf("Memory processing failed: %v", err)
 	}
 
 	env.logger.Info("Documents stored successfully")
