@@ -356,6 +356,10 @@ func (s *service) LoadMCP(ctx context.Context) error {
 		if command == "docker" {
 			command = getDockerCommand()
 		}
+		if command == "npx" {
+			command = getNpxCommand()
+		}
+
 		transport, err := GetTransportWithIO(ctx, command, server.Args, server.Envs)
 		if err != nil {
 			log.Error("Error getting transport for MCP server", "server", server.Name, "error", err)
@@ -546,6 +550,11 @@ func GetTransportWithIO(
 	if command == "docker" {
 		effectiveCommand = getDockerCommand()
 	}
+
+	if command == "npx" {
+		effectiveCommand = getNpxCommand()
+	}
+
 	cmd := exec.Command(effectiveCommand, args...)
 	cmd.Env = os.Environ()
 	for _, env := range envs {
@@ -589,6 +598,30 @@ func getDockerCommand() string {
 	}
 
 	return dockerCommand
+}
+
+func getNpxCommand() string {
+	var npxCommand string
+	path, err := exec.LookPath("npx")
+	if err != nil {
+		commonPaths := []string{
+			"/usr/local/bin/npx",
+			"/usr/bin/npx",
+			filepath.Join(os.Getenv("HOME"), ".local/bin/npx"),
+		}
+		for _, p := range commonPaths {
+			if _, err := os.Stat(p); err == nil {
+				path = p
+				break
+			}
+		}
+	}
+	if path != "" {
+		npxCommand = path
+	} else {
+		npxCommand = "npx"
+	}
+	return npxCommand
 }
 
 func checkMCPServerValid(input model.ConnectMCPServerInput) bool {
