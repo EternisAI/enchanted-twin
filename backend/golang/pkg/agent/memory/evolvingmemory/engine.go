@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/weaviate/weaviate/entities/models"
 
@@ -34,6 +35,7 @@ type MemoryEngine interface {
 
 // memoryEngine implements MemoryEngine with pure business logic.
 type memoryEngine struct {
+	logger             *log.Logger
 	completionsService *ai.Service
 	embeddingsService  *ai.Service
 	storage            storage.Interface
@@ -42,7 +44,10 @@ type memoryEngine struct {
 }
 
 // NewMemoryEngine creates a new MemoryEngine instance.
-func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Service, storage storage.Interface, completionsModel, embeddingsModel string) (MemoryEngine, error) {
+func NewMemoryEngine(logger *log.Logger, completionsService *ai.Service, embeddingsService *ai.Service, storage storage.Interface, completionsModel, embeddingsModel string) (MemoryEngine, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
 	if completionsService == nil {
 		return nil, fmt.Errorf("completions service cannot be nil")
 	}
@@ -60,6 +65,7 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 	}
 
 	return &memoryEngine{
+		logger:             logger,
 		completionsService: completionsService,
 		embeddingsService:  embeddingsService,
 		storage:            storage,
@@ -79,7 +85,7 @@ func convertEmbedding(embedding []float64) []float32 {
 
 // ExtractFacts extracts facts from a document using pure business logic.
 func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
-	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel)
+	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel, e.logger)
 }
 
 // ProcessFact processes a single fact through the complete memory pipeline.
