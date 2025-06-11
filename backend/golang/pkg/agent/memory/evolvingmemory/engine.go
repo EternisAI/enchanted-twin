@@ -11,29 +11,9 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// MemoryEngine defines the pure business logic interface for memory operations.
-// This interface contains no orchestration concerns (channels, workers, progress reporting).
-type MemoryEngine interface {
-	// Core business operations
-	ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error)
-	ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error)
-	ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error)
-
-	// Memory operations
-	SearchSimilar(ctx context.Context, fact string) ([]ExistingMemory, error)
-	DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error)
-	UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error
-	DeleteMemory(ctx context.Context, memoryID string) error
-	CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error)
-
-	// Storage operations
-	StoreBatch(ctx context.Context, objects []*models.Object) error
-
-	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
-}
-
-// memoryEngine implements MemoryEngine with pure business logic.
-type memoryEngine struct {
+// MemoryEngine implements pure business logic for memory operations.
+// This contains no orchestration concerns (channels, workers, progress reporting).
+type MemoryEngine struct {
 	completionsService *ai.Service
 	embeddingsService  *ai.Service
 	storage            storage.Interface
@@ -42,7 +22,7 @@ type memoryEngine struct {
 }
 
 // NewMemoryEngine creates a new MemoryEngine instance.
-func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Service, storage storage.Interface, completionsModel, embeddingsModel string) (MemoryEngine, error) {
+func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Service, storage storage.Interface, completionsModel, embeddingsModel string) (*MemoryEngine, error) {
 	if completionsService == nil {
 		return nil, fmt.Errorf("completions service cannot be nil")
 	}
@@ -59,7 +39,7 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 		return nil, fmt.Errorf("embeddings model cannot be empty")
 	}
 
-	return &memoryEngine{
+	return &MemoryEngine{
 		completionsService: completionsService,
 		embeddingsService:  embeddingsService,
 		storage:            storage,
@@ -78,12 +58,12 @@ func convertEmbedding(embedding []float64) []float32 {
 }
 
 // ExtractFacts extracts facts from a document using pure business logic.
-func (e *memoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
+func (e *MemoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
 	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel)
 }
 
 // ProcessFact processes a single fact through the complete memory pipeline.
-func (e *memoryEngine) ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error) {
+func (e *MemoryEngine) ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error) {
 	// Search for similar memories
 	similar, err := e.SearchSimilar(ctx, fact.Content)
 	if err != nil {
@@ -101,7 +81,7 @@ func (e *memoryEngine) ProcessFact(ctx context.Context, fact ExtractedFact) (Fac
 }
 
 // ExecuteDecision executes a memory decision (UPDATE, DELETE, ADD, NONE).
-func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error) {
+func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (FactResult, error) {
 	// Execute based on action
 	switch decision.Action {
 	case UPDATE:
@@ -140,12 +120,12 @@ func (e *memoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, 
 }
 
 // SearchSimilar searches for similar memories.
-func (e *memoryEngine) SearchSimilar(ctx context.Context, fact string) ([]ExistingMemory, error) {
+func (e *MemoryEngine) SearchSimilar(ctx context.Context, fact string) ([]ExistingMemory, error) {
 	return SearchSimilarMemories(ctx, fact, e.storage, e.embeddingsModel)
 }
 
 // DecideAction decides what action to take with a fact given similar memories.
-func (e *memoryEngine) DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error) {
+func (e *MemoryEngine) DecideAction(ctx context.Context, fact string, similar []ExistingMemory) (MemoryDecision, error) {
 	// Build separate system and user messages to prevent prompt injection
 	systemPrompt, userPrompt := BuildSeparateMemoryDecisionPrompts(fact, similar)
 
@@ -171,7 +151,7 @@ func (e *memoryEngine) DecideAction(ctx context.Context, fact string, similar []
 }
 
 // UpdateMemory updates an existing memory.
-func (e *memoryEngine) UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error {
+func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error {
 	// Get the existing memory document
 	existingDoc, err := e.storage.GetByID(ctx, memoryID)
 	if err != nil {
@@ -186,12 +166,12 @@ func (e *memoryEngine) UpdateMemory(ctx context.Context, memoryID string, newCon
 }
 
 // DeleteMemory deletes an existing memory.
-func (e *memoryEngine) DeleteMemory(ctx context.Context, memoryID string) error {
+func (e *MemoryEngine) DeleteMemory(ctx context.Context, memoryID string) error {
 	return e.storage.Delete(ctx, memoryID)
 }
 
 // CreateMemoryObject creates a memory object for storage with separate document storage.
-func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
+func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
 	documentID, err := e.storage.StoreDocument(
 		ctx,
 		fact.Source.Original.Content(),
@@ -215,12 +195,12 @@ func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFac
 }
 
 // StoreBatch stores a batch of objects.
-func (e *memoryEngine) StoreBatch(ctx context.Context, objects []*models.Object) error {
+func (e *MemoryEngine) StoreBatch(ctx context.Context, objects []*models.Object) error {
 	return e.storage.StoreBatch(ctx, objects)
 }
 
 // GetDocumentReferences retrieves all document references for a memory.
-func (e *memoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
+func (e *MemoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	storageRefs, err := e.storage.GetDocumentReferences(ctx, memoryID)
 	if err != nil {
 		return nil, err

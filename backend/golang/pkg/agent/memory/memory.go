@@ -641,27 +641,27 @@ type QueryResult struct {
 	Facts []MemoryFact `json:"facts"`
 }
 
+// ProgressUpdate represents progress information for memory storage operations.
 type ProgressUpdate struct {
-	Processed int `json:"processed"`
-	Total     int `json:"total"`
+	Processed int    `json:"processed"`
+	Total     int    `json:"total"`
+	Stage     string `json:"stage,omitempty"`
 }
 
+// ProgressCallback is the standard callback function for tracking storage progress.
 type ProgressCallback func(processed, total int)
 
+// Storage defines the interface for memory storage operations.
 type Storage interface {
 	Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
 	Query(ctx context.Context, query string, filter *Filter) (QueryResult, error)
 }
 
-// Helper functions to convert slices to Document interface
-
-// TextDocumentsToDocuments converts a slice of TextDocument to a slice of Document.
+// TextDocumentsToDocuments is a helper function to convert a slice of TextDocuments to a slice of Documents.
 func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
 	docs := make([]Document, len(textDocs))
 	for i := range textDocs {
-		// Create a new variable for the address operation to avoid capturing loop variable
-		doc := textDocs[i]
-		docs[i] = &doc
+		docs[i] = &textDocs[i]
 	}
 	return docs
 }

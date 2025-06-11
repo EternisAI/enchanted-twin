@@ -167,11 +167,8 @@ type DocumentReference struct {
 	Type    string `json:"type"`
 }
 
-// MemoryStorage is the main interface for hot-swappable storage implementations.
-// This interface encapsulates all memory storage operations and business logic.
 type MemoryStorage interface {
 	memory.Storage // Inherit the base storage interface
-	StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error)
 
 	// Document reference operations - now supports multiple references per memory
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
@@ -187,12 +184,14 @@ type Dependencies struct {
 	EmbeddingsModel    string
 }
 
-// StorageImpl implements MemoryStorage using any storage backend.
+// StorageImpl is the main implementation of the MemoryStorage interface.
+// It orchestrates memory operations using a clean 3-layer architecture:
+// StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
 	logger          *log.Logger
 	orchestrator    MemoryOrchestrator
 	storage         storage.Interface
-	engine          MemoryEngine // Add engine reference for GetDocumentReference
+	engine          *MemoryEngine
 	embeddingsModel string
 }
 
@@ -232,16 +231,15 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}, nil
 }
 
-// Store implements the memory.Storage interface using the new StoreV2 pipeline.
-// This method provides backward compatibility while leveraging the new parallel processing architecture.
+// Store implements the memory.Storage interface.
 func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
 	// Use default configuration
 	config := DefaultConfig()
 
-	// Launch StoreV2 with channels
-	progressCh, errorCh := s.StoreV2(ctx, documents, config)
+	// Get the channels directly from orchestrator
+	progressCh, errorCh := s.orchestrator.ProcessDocuments(ctx, documents, config)
 
-	// Track total for progress reporting
+	// Convert internal Progress to external ProgressUpdate and handle callback
 	total := len(documents)
 	processed := 0
 
@@ -273,19 +271,19 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 		}
 	}
 
-	// If any errors occurred, return the first one
-	// (In a production system, you might want to combine errors)
+	// If any errors occurred, return meaningful error information
 	if len(errors) > 0 {
-		s.logger.Errorf("Store encountered %d errors, returning first: %v", len(errors), errors[0])
-		return errors[0]
+		if len(errors) == 1 {
+			s.logger.Errorf("Store encountered error: %v", errors[0])
+			return errors[0]
+		}
+		// Multiple errors - provide comprehensive information
+		s.logger.Errorf("Store encountered %d errors, returning first with details of others: %v", len(errors), errors[0])
+		return fmt.Errorf("multiple errors occurred (%d total): %w, and %d more",
+			len(errors), errors[0], len(errors)-1)
 	}
 
 	return nil
-}
-
-// StoreV2 implements the new processing pipeline by delegating to the orchestrator.
-func (s *StorageImpl) StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
-	return s.orchestrator.ProcessDocuments(ctx, documents, config)
 }
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
