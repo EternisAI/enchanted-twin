@@ -48,7 +48,7 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		defer close(progressCh)
 		defer close(errorCh)
 
-		// Check if context is already cancelled before starting work
+		// Check if context is already canceled before starting work
 		select {
 		case <-ctx.Done():
 			select {
@@ -186,7 +186,7 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		case <-done:
 			// Pipeline completed normally
 		case <-ctx.Done():
-			// Context was cancelled, send the cancellation error
+			// Context was canceled, send the cancellation error
 			select {
 			case errorCh <- ctx.Err():
 			default:
