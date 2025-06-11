@@ -34,8 +34,8 @@ interface IApi {
   openAppDataFolder: () => Promise<boolean>
   deleteAppData: () => Promise<boolean>
   isPackaged: () => Promise<boolean>
-  restartApp: () => void
-  notify: (notification: AppNotification) => void
+  restartApp: () => Promise<void>
+  notify: (notification: { id?: string; title?: string; message?: string }) => void
   onDeepLink: (cb: (url: string) => void) => void
   getNotificationStatus: () => Promise<string>
   openSettings: () => Promise<void>
@@ -94,6 +94,13 @@ interface IApi {
   voiceStore: {
     get: (key: string) => unknown
     set: (key: string, value: unknown) => void
+  }
+  livekit: {
+    setup: () => Promise<{ success: boolean; error?: string }>
+    start: () => Promise<{ success: boolean; error?: string }>
+    stop: () => Promise<{ success: boolean; error?: string }>
+    isRunning: () => Promise<boolean>
+    getState: () => Promise<{ dependency: string; progress: number; status: string; error?: string }>
   }
 }
 
