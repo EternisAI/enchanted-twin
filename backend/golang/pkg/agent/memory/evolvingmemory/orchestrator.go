@@ -20,12 +20,12 @@ type MemoryOrchestrator interface {
 
 // memoryOrchestrator implements MemoryOrchestrator with coordination logic.
 type memoryOrchestrator struct {
-	engine MemoryEngine
+	engine *MemoryEngine
 	logger *log.Logger
 }
 
 // NewMemoryOrchestrator creates a new MemoryOrchestrator instance.
-func NewMemoryOrchestrator(engine MemoryEngine, logger *log.Logger) (MemoryOrchestrator, error) {
+func NewMemoryOrchestrator(engine *MemoryEngine, logger *log.Logger) (MemoryOrchestrator, error) {
 	if engine == nil {
 		return nil, fmt.Errorf("memory engine cannot be nil")
 	}

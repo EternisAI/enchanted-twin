@@ -9,22 +9,22 @@ This package stores and retrieves user memories using hot-swappable storage back
 The package follows clean architecture principles with clear separation of concerns:
 
 ```
-┌─────────────────┐    ┌──────────────────────┐    ┌─────────────────┐
-│   StorageImpl   │───▶│ MemoryOrchestrator   │───▶│  MemoryEngine   │
-│ (Public API)    │    │   (Coordination)     │    │ (Business Logic)│
-└─────────────────┘    └──────────────────────┘    └─────────────────┘
-         │                       │                        │
-         │                       │                        ▼
-         │                       ▼               ┌──────────────────┐
-         │              ┌──────────────────┐     │ storage.Interface│ ← HOT-SWAPPABLE!
-         │              │   Channels &     │     └──────────────────┘
-         │              │   Workers &      │             │
-         │              │   Progress       │             ▼
-         │              └──────────────────┘    ┌─────────────────┐
-         │                                      │ WeaviateStorage │
-         ▼ (Clean Public Interface)             │ RedisStorage    │
-   ┌─────────────────┐                          │ PostgresStorage │
-   │  MemoryStorage  │                          └─────────────────┘
+┌─────────────────┐    ┌──────────────────────┐    ┌──────────────────┐
+│   StorageImpl   │───▶│ MemoryOrchestrator   │───▶│  MemoryEngine    │
+│ (Public API)    │    │   (Coordination)     │    │ (Business Logic) │
+└─────────────────┘    └──────────────────────┘    └──────────────────┘
+         │                       │                          │
+         │                       │                          ▼
+         │                       ▼                 ┌──────────────────┐
+         │             ┌──────────────────────┐    │ storage.Interface│ 
+         │             │   Channels &         │    └──────────────────┘
+         │             │   Workers &          │             │
+         │             │   Progress           │             ▼
+         │             └──────────────────────┘    ┌──────────────────┐
+         │                                         │ WeaviateStorage  │
+         ▼ (Clean Public Interface)                │ RedisStorage     │
+   ┌─────────────────┐                             │ PostgresStorage  │
+   │  MemoryStorage  │                             └──────────────────┘
    │   (Interface)   │
    └─────────────────┘
 ```
@@ -33,7 +33,7 @@ The package follows clean architecture principles with clear separation of conce
 
 1. **StorageImpl** - Thin public API maintaining interface compatibility
 2. **MemoryOrchestrator** - Infrastructure concerns (workers, channels, batching, timeouts)
-3. **MemoryEngine** - Pure business logic (fact extraction, memory decisions)
+3. **MemoryEngine** - Pure business logic struct (fact extraction, memory decisions)
 4. **storage.Interface** - Hot-swappable storage abstraction
 
 ## Structured Fact Extraction 🧠
@@ -271,7 +271,7 @@ The evolving memory system includes a sophisticated document storage architectur
 
 ```go
 // When creating a memory, documents are stored separately first
-func (e *memoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
+func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
     // 1. Store document separately with automatic deduplication
     documentID, err := e.storage.StoreDocument(
         ctx,
@@ -790,7 +790,7 @@ evolvingmemory/
 - `New()` - Constructor with full validation
 
 **engine.go** - Pure business logic (no infrastructure concerns):
-- `MemoryEngine` - Core business operations
+- `MemoryEngine` - Core business operations struct
 - `ExtractFacts()` - LLM-based structured fact extraction
 - `ProcessFact()` - Memory decision making
 - `ExecuteDecision()` - Memory updates
@@ -1018,7 +1018,7 @@ storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
 
 ### Testability
 - Pure functions in `pure.go` are fast to test
-- Business logic in `MemoryEngine` can be tested with mocks
+- Business logic in `MemoryEngine` can be tested with mock storage and AI services
 - Integration tests can use real or mock storage backends
 - No global state or hard dependencies
 
