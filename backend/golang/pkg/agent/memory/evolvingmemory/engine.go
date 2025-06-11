@@ -15,11 +15,11 @@ import (
 // MemoryEngine implements pure business logic for memory operations.
 // This contains no orchestration concerns (channels, workers, progress reporting).
 type MemoryEngine struct {
-	completionsService *ai.Service
-	embeddingsService  *ai.Service
+	CompletionsService *ai.Service
+	EmbeddingsService  *ai.Service
 	storage            storage.Interface
-	completionsModel   string
-	embeddingsModel    string
+	CompletionsModel   string
+	EmbeddingsModel    string
 }
 
 // NewMemoryEngine creates a new MemoryEngine instance.
@@ -41,11 +41,11 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 	}
 
 	return &MemoryEngine{
-		completionsService: completionsService,
-		embeddingsService:  embeddingsService,
+		CompletionsService: completionsService,
+		EmbeddingsService:  embeddingsService,
 		storage:            storage,
-		completionsModel:   completionsModel,
-		embeddingsModel:    embeddingsModel,
+		CompletionsModel:   completionsModel,
+		EmbeddingsModel:    embeddingsModel,
 	}, nil
 }
 
@@ -58,19 +58,13 @@ func convertEmbedding(embedding []float64) []float32 {
 	return result
 }
 
-// ExtractFacts extracts facts from a document using pure business logic.
-// This wrapper encapsulates the AI service dependencies from the orchestrator.
-func (e *MemoryEngine) ExtractFacts(ctx context.Context, doc memory.Document) ([]StructuredFact, error) {
-	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel)
-}
-
 // ProcessFact processes a single fact through the complete memory pipeline.
 func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, source memory.Document) (FactResult, error) {
 	// Generate content for search and decision making
 	content := fact.GenerateContent()
 
 	// Search for similar memories
-	similar, err := SearchSimilarMemories(ctx, content, e.storage, e.embeddingsModel)
+	similar, err := SearchSimilarMemories(ctx, content, e.storage, e.EmbeddingsModel)
 	if err != nil {
 		return FactResult{Fact: fact, Source: source, Error: fmt.Errorf("search failed: %w", err)}, nil
 	}
@@ -91,7 +85,7 @@ func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact StructuredFact,
 	switch decision.Action {
 	case UPDATE:
 		content := fact.GenerateContent()
-		embedding, err := e.embeddingsService.Embedding(ctx, content, e.embeddingsModel)
+		embedding, err := e.EmbeddingsService.Embedding(ctx, content, e.EmbeddingsModel)
 		if err != nil {
 			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
 		}
@@ -143,7 +137,7 @@ func (e *MemoryEngine) DecideAction(ctx context.Context, fact string, similar []
 		noneMemoryTool,
 	}
 
-	response, err := e.completionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, e.completionsModel)
+	response, err := e.CompletionsService.Completions(ctx, decisionMessages, memoryDecisionToolsList, e.CompletionsModel)
 	if err != nil {
 		return MemoryDecision{}, fmt.Errorf("LLM decision failed: %w", err)
 	}
@@ -192,7 +186,7 @@ func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFa
 
 	obj := CreateMemoryObjectWithDocumentReferences(fact, source, decision, []string{documentID})
 
-	embedding, err := e.embeddingsService.Embedding(ctx, fact.GenerateContent(), e.embeddingsModel)
+	embedding, err := e.EmbeddingsService.Embedding(ctx, fact.GenerateContent(), e.EmbeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
