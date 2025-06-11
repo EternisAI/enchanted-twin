@@ -71,16 +71,10 @@ type ExtractStructuredFactsToolArguments struct {
 	Facts []StructuredFact `json:"facts"`
 }
 
-// Processing pipeline types.
-type ExtractedFact struct {
-	StructuredFact // Embed the structured fact instead of duplicating fields
-	Source         memory.Document
-}
-
 // GenerateContent creates the searchable content string from structured fields.
-func (ef ExtractedFact) GenerateContent() string {
+func (sf StructuredFact) GenerateContent() string {
 	// Simple combination for embeddings and search
-	return fmt.Sprintf("%s - %s", ef.Subject, ef.Value)
+	return fmt.Sprintf("%s - %s", sf.Subject, sf.Value)
 }
 
 // Memory actions.
@@ -103,7 +97,8 @@ type MemoryDecision struct {
 
 // Processing result.
 type FactResult struct {
-	Fact     ExtractedFact
+	Fact     StructuredFact
+	Source   memory.Document // Source document for the fact
 	Decision MemoryDecision
 	Object   *models.Object // Only for ADD
 	Error    error

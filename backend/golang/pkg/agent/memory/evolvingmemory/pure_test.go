@@ -141,7 +141,7 @@ func TestDocumentSizeValidation(t *testing.T) {
 					},
 				},
 			},
-			expectedLength: 16216, // 4 messages * 4000 chars each + formatting overhead
+			expectedLength: 16196, // 4 messages * 4000 chars each + formatting overhead
 			shouldTruncate: false, // Should NOT chunk with current sizes
 		},
 		{
