@@ -169,7 +169,119 @@ from livekit.agents import (
     cli,
     function_tool,
 )
-from livekit.plugins import deepgram, openai, silero
+from livekit.plugins import openai, silero
+
+
+from livekit.plugins.openai.utils import to_chat_ctx
+from livekit.agents import APIConnectionError, llm
+import requests
+
+def send_message(message: str, chat_id: str):
+    url = "http://localhost:44999/query"
+
+    query = """
+    mutation sendmsg {
+    sendMessage(
+        chatId: \\"""" + chat_id + """\\",
+        text: \\"""" + message + """\\",
+        reasoning: false,
+        voice: false
+    ) {
+        createdAt
+        text
+    }
+    }
+    """
+    resp = requests.post(url, json={"query": query})
+    
+    if resp.status_code == 200:
+        body = resp.json()
+        return body["data"]["sendMessage"]["text"]
+    else:
+        return None
+    
+    
+class APIConnectOptions:
+    max_retry: int = 3
+    retry_interval: float = 2.0
+    timeout: float = 10.0
+    
+    def __post_init__(self) -> None:
+        if self.max_retry < 0:
+            raise ValueError("max_retry must be greater than or equal to 0")
+
+        if self.retry_interval < 0:
+            raise ValueError("retry_interval must be greater than or equal to 0")
+
+        if self.timeout < 0:
+            raise ValueError("timeout must be greater than or equal to 0")
+
+    def _interval_for_retry(self, num_retries: int) -> float:
+        if num_retries == 0:
+            return 0.1
+        return self.retry_interval
+
+
+class LLMStream(llm.LLMStream):
+    def __init__(self, llm, chat_ctx: llm.ChatContext, chat_id: str) -> None:
+        super().__init__(llm, chat_ctx=chat_ctx, tools=None, conn_options=None)
+        self._chat_id = chat_id
+        self._llm = llm
+        self._conn_options = APIConnectOptions()
+
+    async def _run(self) -> None:
+        # current function call that we're waiting for full completion (args are streamed)
+        # (defined inside the _run method to make sure the state is reset for each run/attempt)
+        self._oai_stream = None
+        self._tool_call_id: str | None = None
+        self._fnc_name: str | None = None
+        self._fnc_raw_arguments: str | None = None
+        self._tool_index: int | None = None
+        retryable = True
+
+        try:
+            
+            context = to_chat_ctx(self._chat_ctx, "1")
+            
+            full_message = ""
+            for item in context[::-1]:
+                if item["role"] == "assistant" and item["content"]!="":
+                    break
+                if item["role"] == "system":
+                    break
+                if item["role"] == "user":
+                    full_message = item["content"] + " " + full_message
+                
+            received_message = send_message(full_message, self._chat_id)
+            
+            chunk = llm.ChatChunk(id="1",
+                                  delta=llm.ChoiceDelta(content=received_message, role="assistant"))
+            self._event_ch.send_nowait(chunk)
+            
+        except Exception as e:
+            raise APIConnectionError(retryable=retryable) from e
+        
+
+class LLM(llm.LLM):
+    def __init__(self, chat_id: str) -> None:
+        super().__init__()
+        self._chat_id = chat_id
+        
+
+    def chat(
+        self,
+        *,
+        chat_ctx: llm.ChatContext,
+        tools = None,
+        conn_options = None,
+        parallel_tool_calls = None,
+        tool_choice = False,
+        response_format = False,
+        extra_kwargs = False):
+        
+        return LLMStream(llm=self, chat_ctx=chat_ctx, chat_id=self._chat_id)
+
+
 
 # Load environment variables
 load_dotenv()
@@ -187,7 +299,8 @@ if os.getenv('LIVEKIT_DISABLE_TERMIOS'):
 
 # Verify required environment variables
 required_env_vars = [
-    "OPENAI_API_KEY"
+    "OPENAI_API_KEY",
+    "CHAT_ID"
 ]
 
 missing_vars = [var for var in required_env_vars if not os.getenv(var)]
@@ -229,7 +342,7 @@ async def entrypoint(ctx: JobContext):
     # Initialize components with better configuration
     vad = silero.VAD.load()
     stt = openai.STT(model="whisper-1")
-    llm = openai.LLM(model="gpt-4o-mini", temperature=0.7)
+    llm = LLM(chat_id=os.getenv("CHAT_ID"))
     tts = openai.TTS(model="tts-1", voice="alloy")
     
     logger.info("Voice components initialized")
@@ -280,11 +393,13 @@ if __name__ == "__main__":
     # Run the agent with CLI support in console mode
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))`
 
-    const requirementsContent = `livekit-agents>=0.8.0
-livekit-plugins-openai>=0.8.0
-livekit-plugins-deepgram>=0.8.0
-livekit-plugins-silero>=0.8.0
-python-dotenv>=1.0.0`
+    const requirementsContent = `livekit==1.0.8
+livekit-agents==1.0.23
+livekit-plugins-openai==1.0.23
+livekit-plugins-deepgram==1.0.23
+livekit-plugins-silero==1.0.23
+python-dotenv>=1.0.0
+requests`
 
     try {
       await fs.promises.writeFile(agentFile, agentCode)
@@ -416,7 +531,7 @@ python-dotenv>=1.0.0`
     }
   }
 
-  async startAgent() {
+  async startAgent(chatId: string) {
     if (this.agentProc) {
       log.warn('[LiveKit] Agent is already running')
       return
@@ -438,6 +553,7 @@ python-dotenv>=1.0.0`
       env: {
         ...process.env,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
+        CHAT_ID: chatId,
         TERM: 'dumb', // Use dumb terminal to avoid TTY features
         PYTHONUNBUFFERED: '1', // Ensure immediate output
         NO_COLOR: '1', // Disable color codes

@@ -50,14 +50,14 @@ export async function setupLiveKitAgent(): Promise<void> {
   }
 }
 
-export async function startLiveKitAgent(): Promise<void> {
+export async function startLiveKitAgent(chatId: string): Promise<void> {
   if (!livekitAgent) {
     throw new Error('LiveKit agent not initialized')
   }
 
   try {
     sessionReady = false // Reset session state when starting
-    await livekitAgent.startAgent()
+    await livekitAgent.startAgent(chatId)
     log.info('LiveKit agent started successfully')
   } catch (error) {
     log.error('Failed to start LiveKit agent:', error)

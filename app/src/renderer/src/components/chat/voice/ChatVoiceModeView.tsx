@@ -56,8 +56,17 @@ export default function VoiceModeChatView({
   const visualState: 0 | 1 | 2 = isSpeaking ? 2 : isLoading ? 1 : 0
 
   useEffect(() => {
-    return () => stop()
-  }, [stop])
+    window.api.livekit.start(chat.id)
+    return () => {
+      stop()
+    }
+  }, [chat.id])
+
+  useEffect(() => {
+    return () => {
+      window.api.livekit.stop()
+    }
+  }, [])
 
   useEffect(() => {
     if (isSpeaking && triggeredRef.current) {
