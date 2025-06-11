@@ -33,7 +33,7 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 5 * time.Minute,
+		StartToCloseTimeout: 10 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second * 2,
 			MaximumInterval:    time.Minute * 10,

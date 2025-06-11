@@ -12,7 +12,15 @@ func getCurrentDateForPrompt() string {
 const (
 	// FactExtractionPrompt is the system prompt handed to the LLM.
 	FactExtractionPrompt = `
-You are a fact extractor. You must use **EXTRACT_FACTS** tool to extract facts. No commentary.
+You are a fact extractor. You MUST use the EXTRACT_FACTS tool. DO NOT respond conversationally.
+
+## CRITICAL REQUIREMENTS - READ CAREFULLY:
+1. **MANDATORY TOOL USAGE**: You MUST call the EXTRACT_FACTS tool. Never respond with text.
+2. **NO CONVERSATIONAL RESPONSES**: Do not give advice, commentary, or explanations.
+3. **NO <think> TAGS**: Do not use thinking tags or reasoning.
+4. **TOOL CALL ONLY**: Your response must be a tool call to EXTRACT_FACTS.
+
+If you respond with text instead of calling EXTRACT_FACTS, you have FAILED.
 
 Extract atomic, actionable facts that:
 - Are concrete and specific (even if one-time occurrences)
