@@ -10,27 +10,33 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 )
 
 // MemoryOrchestrator handles coordination logic for memory operations.
 // This handles orchestration concerns (channels, workers, progress reporting).
 type MemoryOrchestrator struct {
-	engine *MemoryEngine
-	logger *log.Logger
+	engine  *MemoryEngine
+	storage storage.Interface
+	logger  *log.Logger
 }
 
 // NewMemoryOrchestrator creates a new MemoryOrchestrator instance.
-func NewMemoryOrchestrator(engine *MemoryEngine, logger *log.Logger) (*MemoryOrchestrator, error) {
+func NewMemoryOrchestrator(engine *MemoryEngine, storage storage.Interface, logger *log.Logger) (*MemoryOrchestrator, error) {
 	if engine == nil {
 		return nil, fmt.Errorf("memory engine cannot be nil")
+	}
+	if storage == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
 	}
 	if logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
 	return &MemoryOrchestrator{
-		engine: engine,
-		logger: logger,
+		engine:  engine,
+		storage: storage,
+		logger:  logger,
 	}, nil
 }
 
@@ -262,7 +268,7 @@ func (o *MemoryOrchestrator) streamingStore(
 		}
 
 		storeCtx, cancel := context.WithTimeout(ctx, config.StorageTimeout)
-		err := o.engine.StoreBatch(storeCtx, batch)
+		err := o.storage.StoreBatch(storeCtx, batch)
 		cancel()
 
 		if err != nil {

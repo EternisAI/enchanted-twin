@@ -59,6 +59,7 @@ func convertEmbedding(embedding []float64) []float32 {
 }
 
 // ExtractFacts extracts facts from a document using pure business logic.
+// This wrapper encapsulates the AI service dependencies from the orchestrator.
 func (e *MemoryEngine) ExtractFacts(ctx context.Context, doc memory.Document) ([]StructuredFact, error) {
 	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel)
 }
@@ -69,7 +70,7 @@ func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, sou
 	content := fact.GenerateContent()
 
 	// Search for similar memories
-	similar, err := e.SearchSimilar(ctx, content)
+	similar, err := SearchSimilarMemories(ctx, content, e.storage, e.embeddingsModel)
 	if err != nil {
 		return FactResult{Fact: fact, Source: source, Error: fmt.Errorf("search failed: %w", err)}, nil
 	}
@@ -102,7 +103,7 @@ func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact StructuredFact,
 		return FactResult{Fact: fact, Source: source, Decision: decision}, nil
 
 	case DELETE:
-		if err := e.DeleteMemory(ctx, decision.TargetID); err != nil {
+		if err := e.storage.Delete(ctx, decision.TargetID); err != nil {
 			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("delete failed: %w", err)}, nil
 		}
 
@@ -122,11 +123,6 @@ func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact StructuredFact,
 	default:
 		return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("unknown action: %s", decision.Action)}, nil
 	}
-}
-
-// SearchSimilar searches for similar memories.
-func (e *MemoryEngine) SearchSimilar(ctx context.Context, fact string) ([]ExistingMemory, error) {
-	return SearchSimilarMemories(ctx, fact, e.storage, e.embeddingsModel)
 }
 
 // DecideAction decides what action to take with a fact given similar memories.
@@ -170,11 +166,6 @@ func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newCon
 	return e.storage.Update(ctx, memoryID, updatedDoc, embedding)
 }
 
-// DeleteMemory deletes an existing memory.
-func (e *MemoryEngine) DeleteMemory(ctx context.Context, memoryID string) error {
-	return e.storage.Delete(ctx, memoryID)
-}
-
 // CreateMemoryObject creates a memory object for storage with separate document storage.
 func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
 	// Determine document type
@@ -208,14 +199,4 @@ func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFa
 
 	obj.Vector = convertEmbedding(embedding)
 	return obj, nil
-}
-
-// StoreBatch stores a batch of objects.
-func (e *MemoryEngine) StoreBatch(ctx context.Context, objects []*models.Object) error {
-	return e.storage.StoreBatch(ctx, objects)
-}
-
-// GetDocumentReferences retrieves all document references for a memory.
-func (e *MemoryEngine) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
-	return e.storage.GetDocumentReferences(ctx, memoryID)
 }

@@ -193,7 +193,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	// Create the orchestrator with coordination logic
-	orchestrator, err := NewMemoryOrchestrator(engine, deps.Logger)
+	orchestrator, err := NewMemoryOrchestrator(engine, deps.Storage, deps.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory orchestrator: %w", err)
 	}
@@ -269,5 +269,5 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memor
 
 // GetDocumentReferences retrieves all document references for a memory.
 func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
-	return s.engine.GetDocumentReferences(ctx, memoryID)
+	return s.storage.GetDocumentReferences(ctx, memoryID)
 }
