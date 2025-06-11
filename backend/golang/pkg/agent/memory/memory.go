@@ -102,6 +102,17 @@ func (cd *ConversationDocument) ID() string {
 
 func (cd *ConversationDocument) Content() string {
 	var builder strings.Builder
+	primaryUser := cd.User
+
+	// Normalize people list
+	normalizedPeople := make([]string, len(cd.People))
+	for i, person := range cd.People {
+		if person == primaryUser {
+			normalizedPeople[i] = "primaryUser"
+		} else {
+			normalizedPeople[i] = person
+		}
+	}
 
 	// CONV header: CONV|{id}|{source}|{date}
 	date := ""
@@ -112,11 +123,11 @@ func (cd *ConversationDocument) Content() string {
 
 	// USERS: USERS|{user1}|{user2}|...
 	builder.WriteString("USERS|")
-	builder.WriteString(strings.Join(cd.People, "|"))
+	builder.WriteString(strings.Join(normalizedPeople, "|"))
 	builder.WriteString("\n")
 
-	// PRIMARY: PRIMARY|{primaryUser}
-	builder.WriteString(fmt.Sprintf("PRIMARY|%s\n", cd.User))
+	// PRIMARY: PRIMARY|primaryUser (always normalized)
+	builder.WriteString("PRIMARY|primaryUser\n")
 
 	// Separator
 	builder.WriteString("|||\n")
@@ -128,8 +139,14 @@ func (cd *ConversationDocument) Content() string {
 			continue
 		}
 
+		// Normalize speaker name
+		normalizedSpeaker := msg.Speaker
+		if msg.Speaker == primaryUser {
+			normalizedSpeaker = "primaryUser"
+		}
+
 		timeStr := msg.Time.Format("15:04")
-		builder.WriteString(fmt.Sprintf("%s|||%s|||%s\n", msg.Speaker, timeStr, trimmed))
+		builder.WriteString(fmt.Sprintf("%s|||%s|||%s\n", normalizedSpeaker, timeStr, trimmed))
 	}
 
 	// Final separator
