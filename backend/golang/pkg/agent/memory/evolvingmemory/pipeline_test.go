@@ -3,10 +3,13 @@ package evolvingmemory
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -16,9 +19,44 @@ import (
 )
 
 // createMockStorage creates a StorageImpl instance with mocked services for testing.
+// Returns nil, nil if AI services are not configured (tests should skip).
 func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
-	completionsService := ai.NewOpenAIService(logger, "test-key", "https://enchanted.ngrok.pro/v1")
-	embeddingsService := ai.NewOpenAIService(logger, "test-key", "https://enchanted.ngrok.pro/v1")
+	// Load environment variables
+	envPath := filepath.Join("..", "..", "..", "..", ".env")
+	_ = godotenv.Load(envPath)
+
+	completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+	embeddingsKey := os.Getenv("EMBEDDINGS_API_KEY")
+	if embeddingsKey == "" {
+		embeddingsKey = completionsKey
+	}
+
+	// Skip if no API keys are configured
+	if completionsKey == "" {
+		return nil, nil
+	}
+
+	completionsURL := os.Getenv("COMPLETIONS_API_URL")
+	if completionsURL == "" {
+		completionsURL = "https://api.openai.com/v1"
+	}
+	embeddingsURL := os.Getenv("EMBEDDINGS_API_URL")
+	if embeddingsURL == "" {
+		embeddingsURL = "https://api.openai.com/v1"
+	}
+
+	completionsModel := os.Getenv("COMPLETIONS_MODEL")
+	if completionsModel == "" {
+		completionsModel = "gpt-4o-mini"
+	}
+	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
+	if embeddingsModel == "" {
+		embeddingsModel = "text-embedding-3-small"
+	}
+
+	// Create real AI services (will only be used if API keys are set)
+	completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+	embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
 	mockStorage := &MockStorage{}
 	mockStorage.On("Query", mock.Anything, mock.AnythingOfType("string"), mock.Anything, mock.AnythingOfType("string")).Return(memory.QueryResult{
@@ -26,14 +64,15 @@ func createMockStorage(logger *log.Logger) (*StorageImpl, error) {
 	}, nil)
 	mockStorage.On("EnsureSchemaExists", mock.Anything).Return(nil)
 	mockStorage.On("StoreBatch", mock.Anything, mock.Anything).Return(nil)
+	mockStorage.On("StoreDocument", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return("doc-123", nil).Maybe()
 
 	storageImpl, err := New(Dependencies{
 		Logger:             logger,
 		Storage:            mockStorage,
 		CompletionsService: completionsService,
 		EmbeddingsService:  embeddingsService,
-		CompletionsModel:   "qwen3:8b",
-		EmbeddingsModel:    "nomic-embed-text:latest",
+		CompletionsModel:   completionsModel,
+		EmbeddingsModel:    embeddingsModel,
 	})
 	if err != nil {
 		return nil, err
@@ -65,6 +104,12 @@ func TestDefaultConfig(t *testing.T) {
 func TestStoreBasicFlow(t *testing.T) {
 	ctx := context.Background()
 	storage, err := createMockStorage(log.Default())
+
+	// Skip test if AI services are not configured
+	if storage == nil && err == nil {
+		t.Skip("Skipping test: AI services not configured")
+		return
+	}
 	require.NoError(t, err)
 
 	// Create test documents
@@ -116,7 +161,14 @@ func TestStoreBasicFlow(t *testing.T) {
 
 func TestStoreEmptyDocuments(t *testing.T) {
 	ctx := context.Background()
-	storage, _ := createMockStorage(log.Default())
+	storage, err := createMockStorage(log.Default())
+
+	// Skip test if AI services are not configured
+	if storage == nil && err == nil {
+		t.Skip("Skipping test: AI services not configured")
+		return
+	}
+	require.NoError(t, err)
 
 	progressCh, errorCh := storage.Store(ctx, []memory.Document{})
 
@@ -153,6 +205,12 @@ func TestPipelineIntegration_BasicFlow(t *testing.T) {
 
 	// This test verifies the basic pipeline flow with mocked dependencies
 	storage, err := createMockStorage(log.Default())
+
+	// Skip test if AI services are not configured
+	if storage == nil && err == nil {
+		t.Skip("Skipping test: AI services not configured")
+		return
+	}
 	require.NoError(t, err)
 
 	ctx := context.Background()
