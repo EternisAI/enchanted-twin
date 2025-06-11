@@ -48,21 +48,44 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		defer close(progressCh)
 		defer close(errorCh)
 
+		// Check if context is already cancelled before starting work
+		select {
+		case <-ctx.Done():
+			select {
+			case errorCh <- ctx.Err():
+			default:
+			}
+			return
+		default:
+		}
+
 		prepared, prepError := PrepareDocuments(documents, time.Now())
 		if prepError != nil {
 			select {
 			case errorCh <- prepError:
 			case <-ctx.Done():
+				select {
+				case errorCh <- ctx.Err():
+				default:
+				}
 				return
 			}
 			return
 		}
 
 		if len(prepared) == 0 {
-			progressCh <- Progress{
+			select {
+			case progressCh <- Progress{
 				Processed: 0,
 				Total:     len(documents),
 				Stage:     "preparation",
+			}:
+			case <-ctx.Done():
+				select {
+				case errorCh <- ctx.Err():
+				default:
+				}
+				return
 			}
 			return
 		}
@@ -73,6 +96,7 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		resultStream := make(chan FactResult, 1000)
 		objectStream := make(chan []*models.Object, 100)
 
+		// Launch workers with proper error handling
 		var extractWg sync.WaitGroup
 		for i, chunk := range workChunks {
 			extractWg.Add(1)
@@ -93,16 +117,81 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		storeWg.Add(1)
 		go o.streamingStore(ctx, objectStream, progressCh, errorCh, &storeWg, config)
 
-		extractWg.Wait()
-		close(factStream)
+		// Report initial progress
+		select {
+		case progressCh <- Progress{
+			Processed: 0,
+			Total:     len(prepared),
+			Stage:     "fact_extraction",
+		}:
+		case <-ctx.Done():
+			select {
+			case errorCh <- ctx.Err():
+			default:
+			}
+			return
+		}
 
-		processWg.Wait()
-		close(resultStream)
+		// Wait for completion with context cancellation handling
+		done := make(chan struct{})
+		go func() {
+			extractWg.Wait()
 
-		aggregateWg.Wait()
-		close(objectStream)
+			// Report progress after fact extraction
+			select {
+			case progressCh <- Progress{
+				Processed: len(prepared),
+				Total:     len(prepared),
+				Stage:     "fact_processing",
+			}:
+			case <-ctx.Done():
+			}
 
-		storeWg.Wait()
+			close(factStream)
+
+			processWg.Wait()
+
+			// Report progress after fact processing
+			select {
+			case progressCh <- Progress{
+				Processed: len(prepared),
+				Total:     len(prepared),
+				Stage:     "aggregation",
+			}:
+			case <-ctx.Done():
+			}
+
+			close(resultStream)
+
+			aggregateWg.Wait()
+			close(objectStream)
+
+			storeWg.Wait()
+
+			// Report final completion
+			select {
+			case progressCh <- Progress{
+				Processed: len(prepared),
+				Total:     len(prepared),
+				Stage:     "completed",
+			}:
+			case <-ctx.Done():
+			}
+
+			close(done)
+		}()
+
+		// Wait for either completion or cancellation
+		select {
+		case <-done:
+			// Pipeline completed normally
+		case <-ctx.Done():
+			// Context was cancelled, send the cancellation error
+			select {
+			case errorCh <- ctx.Err():
+			default:
+			}
+		}
 	}()
 
 	return progressCh, errorCh
@@ -120,6 +209,13 @@ func (o *memoryOrchestrator) extractFactsWorker(
 	defer wg.Done()
 
 	for _, doc := range docs {
+		// Check for context cancellation before processing each document
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+
 		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 
 		facts, err := o.engine.ExtractFacts(extractCtx, doc)
@@ -127,6 +223,7 @@ func (o *memoryOrchestrator) extractFactsWorker(
 
 		if err != nil {
 			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.Original.ID(), err)
+			// Continue processing other documents even if this one fails
 			continue
 		}
 
@@ -158,11 +255,21 @@ func (o *memoryOrchestrator) processFactsWorker(
 ) {
 	defer wg.Done()
 
-	for fact := range facts {
-		result := o.processSingleFact(ctx, fact, config)
-
+	for {
 		select {
-		case out <- result:
+		case fact, ok := <-facts:
+			if !ok {
+				// Channel is closed, exit
+				return
+			}
+
+			result := o.processSingleFact(ctx, fact, config)
+
+			select {
+			case out <- result:
+			case <-ctx.Done():
+				return
+			}
 		case <-ctx.Done():
 			return
 		}
