@@ -552,24 +552,12 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 					data[simplifiedKey] = t
 					if col == "ZMESSAGEDATE" {
 						timestamp = t
-						// Debug logging for timestamp conversion
-						if t.IsZero() {
-							s.logger.Warn("Failed to convert timestamp", "column", col, "rawValue", v, "type", "int64")
-						} else {
-							s.logger.Debug("Timestamp conversion success", "column", col, "rawValue", v, "convertedTime", t.Format(time.RFC3339))
-						}
 					}
 				} else if v, ok := val.(float64); ok {
 					t := convertWhatsAppTimestamp(v)
 					data[simplifiedKey] = t
 					if col == "ZMESSAGEDATE" {
 						timestamp = t
-						// Debug logging for timestamp conversion
-						if t.IsZero() {
-							s.logger.Warn("Failed to convert timestamp", "column", col, "rawValue", v, "type", "float64")
-						} else {
-							s.logger.Debug("Timestamp conversion success", "column", col, "rawValue", v, "convertedTime", t.Format(time.RFC3339))
-						}
 					}
 				} else if v, ok := val.(time.Time); ok {
 					// Handle time.Time values directly from database
@@ -577,19 +565,9 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 					data[simplifiedKey] = t
 					if col == "ZMESSAGEDATE" {
 						timestamp = t
-						// Debug logging for timestamp validation
-						if t.IsZero() {
-							s.logger.Warn("Invalid time.Time timestamp", "column", col, "rawValue", v.Format(time.RFC3339))
-						} else if !t.Equal(v) {
-							s.logger.Debug("Timestamp corrected", "column", col, "originalTime", v.Format(time.RFC3339), "correctedTime", t.Format(time.RFC3339))
-						} else {
-							s.logger.Debug("Timestamp validation success", "column", col, "time", t.Format(time.RFC3339))
-						}
 					}
 				} else {
 					data[simplifiedKey] = val
-					// Debug logging for unexpected timestamp types
-					s.logger.Warn("Unexpected timestamp type", "column", col, "type", fmt.Sprintf("%T", val), "value", val)
 				}
 			case "ZFROMJID", "ZTOJID", "ZCONTACTJID", "ZGROUPMEMBERJID", "ZPARTICIPANTJID", "GROUPMEMBERJID":
 				// Handle JID fields specially - they might be stored as BLOB or encoded
@@ -818,7 +796,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 					s.logger.Debug("Added participant from groupMemberName", "name", groupMemberName, "jid", actualSenderJID)
 				} else {
 					// Extract sender from JID
-					s.logger.Debug("Processing group participant", "senderJID", actualSenderJID, "pushName", pushName, "text", text[:min(50, len(text))])
+					// s.logger.Debug("Processing group participant", "senderJID", actualSenderJID, "pushName", pushName, "text", text[:min(50, len(text))])
 					senderPhone := extractSenderFromJID(actualSenderJID)
 					if senderPhone != "" {
 						// Try to resolve to contact name
@@ -891,7 +869,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 		for _, msg := range messages {
 			// Apply additional filtering at conversation level
 			if shouldFilterMessage(msg.Text, groupName) {
-				s.logger.Debug("Filtering message at conversation level", "text", msg.Text, "groupName", groupName)
+				// s.logger.Debug("Filtering message at conversation level", "text", msg.Text, "groupName", groupName)
 				continue
 			}
 
@@ -902,23 +880,23 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 				// For group messages, prioritize group member name from the JOIN
 				if msg.GroupMemberName != "" && msg.GroupMemberName != "null" && !strings.Contains(msg.GroupMemberName, "=") {
 					speaker = msg.GroupMemberName
-					s.logger.Debug("Using GroupMemberName as speaker", "name", msg.GroupMemberName, "jid", msg.FromJID)
+					// s.logger.Debug("Using GroupMemberName as speaker", "name", msg.GroupMemberName, "jid", msg.FromJID)
 				} else {
 					// Try to extract sender from JID
-					s.logger.Debug("Processing group message", "fromJID", msg.FromJID, "pushName", msg.PushName, "text", msg.Text[:min(50, len(msg.Text))])
+					// s.logger.Debug("Processing group message", "fromJID", msg.FromJID, "pushName", msg.PushName, "text", msg.Text[:min(50, len(msg.Text))])
 					senderPhone := extractSenderFromJID(msg.FromJID)
 					if senderPhone != "" {
 						// Try to resolve to contact name
 						if contactName, exists := contactNames[senderPhone]; exists && contactName != "" && !strings.Contains(contactName, "=") {
 							speaker = contactName
-							s.logger.Debug("Resolved speaker from phone", "phone", senderPhone, "name", contactName)
+							// s.logger.Debug("Resolved speaker from phone", "phone", senderPhone, "name", contactName)
 						} else if contactName, exists := contactNames[msg.FromJID]; exists && contactName != "" && !strings.Contains(contactName, "=") {
 							speaker = contactName
-							s.logger.Debug("Resolved speaker from full JID", "jid", msg.FromJID, "name", contactName)
+							// s.logger.Debug("Resolved speaker from full JID", "jid", msg.FromJID, "name", contactName)
 						} else {
 							// Fallback to phone number if no contact name found
 							speaker = senderPhone
-							s.logger.Debug("Using phone as speaker", "phone", senderPhone)
+							// s.logger.Debug("Using phone as speaker", "phone", senderPhone)
 						}
 					} else {
 						// If JID extraction failed, log and try other approaches
@@ -958,7 +936,7 @@ func (s *WhatsappProcessor) ReadWhatsAppDB(ctx context.Context, dbPath string) (
 
 			// Final validation - if speaker still looks corrupted, use "unknown"
 			if strings.Contains(speaker, "=") || (speaker != "me" && speaker != "unknown" && len(speaker) < 3) {
-				s.logger.Debug("Corrupted speaker name detected", "speaker", speaker, "fromJID", msg.FromJID, "pushName", msg.PushName)
+				// s.logger.Debug("Corrupted speaker name detected", "speaker", speaker, "fromJID", msg.FromJID, "pushName", msg.PushName)
 				// Try one more time with pushName if it's valid
 				if msg.PushName != "" && msg.PushName != "null" && !strings.Contains(msg.PushName, "=") && len(msg.PushName) > 4 {
 					speaker = msg.PushName
