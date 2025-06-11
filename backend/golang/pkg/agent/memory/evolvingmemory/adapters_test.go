@@ -74,7 +74,7 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("StoreV2_ConversationDocument", func(t *testing.T) {
+	t.Run("Store_ConversationDocument", func(t *testing.T) {
 		// Create test conversation document
 		convDoc := &memory.ConversationDocument{
 			FieldID: "conv-123",

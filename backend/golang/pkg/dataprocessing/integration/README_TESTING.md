@@ -130,7 +130,7 @@ The tests use the following defaults:
 - **Source**: "chatgpt"
 - **Input Path**: "testdata/chatgpt.zip"
 - **Output Path**: "./output/chatgpt_{uuid}.jsonl"
-- **Completions Model**: "gpt-4o-mini"
+- **Completions Model**: "openai/gpt-4.1-mini"
 - **Completions API URL**: "https://openrouter.ai/api/v1"
 - **Embeddings Model**: "text-embedding-3-small"
 - **Embeddings API URL**: "https://api.openai.com/v1" 

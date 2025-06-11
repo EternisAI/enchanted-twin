@@ -221,7 +221,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	completionsModel := config.CompletionsModel
 	if completionsModel == "" {
-		completionsModel = "gpt-4o-mini"
+		completionsModel = "openai/gpt-4.1-mini"
 	}
 
 	openAiService := newDeterministicAIService(sharedLogger, config.CompletionsApiKey, config.CompletionsApiUrl)
@@ -516,7 +516,7 @@ func getTestConfig(t *testing.T) testConfig {
 
 	completionsModel := os.Getenv("COMPLETIONS_MODEL")
 	if completionsModel == "" {
-		completionsModel = "gpt-4o-mini"
+		completionsModel = "openai/gpt-4.1-mini"
 	}
 
 	embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")

@@ -36,6 +36,57 @@ The package follows clean architecture principles with clear separation of conce
 3. **MemoryEngine** - Pure business logic (fact extraction, memory decisions)
 4. **storage.Interface** - Hot-swappable storage abstraction
 
+### Channel-Based Architecture 🚀
+
+The memory storage API uses **Go channels** for progress reporting and error handling, providing a clean async interface:
+
+#### Key Features
+
+1. **Streaming Progress**: Real-time progress updates with rich context (stages, document counts, timing)
+
+2. **Multiple Error Reporting**: Errors are streamed as they occur rather than aggregated
+
+3. **Context Cancellation**: Full support for Go's context cancellation patterns
+
+4. **Non-blocking Operation**: Progress reporting doesn't block the processing pipeline
+
+#### API Design
+
+```go
+// Channel-based API returns progress and error channels
+progressCh, errorCh := storage.Store(ctx, documents)
+
+// Process results concurrently
+for progressCh != nil || errorCh != nil {
+    select {
+    case progress, ok := <-progressCh:
+        if !ok { 
+            progressCh = nil
+            continue 
+        }
+        log.Printf("Progress: %d/%d (stage: %s)", 
+            progress.Processed, progress.Total, progress.Stage)
+            
+    case err, ok := <-errorCh:
+        if !ok { 
+            errorCh = nil
+            continue 
+        }
+        log.Printf("Error: %v", err)
+        
+    case <-ctx.Done():
+        return ctx.Err()
+    }
+}
+```
+
+**Progress Stages**:
+- `preparation` - Document preparation and validation
+- `fact_extraction` - LLM-based fact extraction  
+- `fact_processing` - Memory decisions (ADD/UPDATE/DELETE)
+- `storage` - Batch storage operations
+- `completed` - Final stage
+
 ## Structured Fact Extraction 🧠
 
 The evolving memory system uses **advanced structured fact extraction** to create rich, categorized memories with privacy controls and importance scoring.
@@ -219,24 +270,29 @@ docs := []memory.Document{
     &memory.ConversationDocument{...},   // Chat conversations
 }
 
-// Backward compatible API (still works)
-err := storage.Store(ctx, docs, func(processed, total int) {
-    log.Printf("Progress: %d/%d", processed, total)
-})
-
-// New channel-based API (recommended)
-config := evolvingmemory.DefaultConfig()
-progressCh, errorCh := storage.StoreV2(ctx, docs, config)
+// Primary channel-based API
+progressCh, errorCh := storage.Store(ctx, docs)
 
 // Process results
 for progressCh != nil || errorCh != nil {
     select {
     case progress, ok := <-progressCh:
-        if !ok { progressCh = nil; continue }
-        log.Printf("Progress: %d/%d", progress.Processed, progress.Total)
+        if !ok { 
+            progressCh = nil
+            continue 
+        }
+        log.Printf("Progress: %d/%d (stage: %s)", 
+            progress.Processed, progress.Total, progress.Stage)
+        
     case err, ok := <-errorCh:
-        if !ok { errorCh = nil; continue }
+        if !ok { 
+            errorCh = nil
+            continue 
+        }
         log.Printf("Error: %v", err)
+        
+    case <-ctx.Done():
+        return ctx.Err()
     }
 }
 
@@ -379,61 +435,17 @@ if err == nil && existingDoc != nil {
 
 ### Backward Compatibility
 
-The system maintains full backward compatibility:
+The system maintains compatibility with:
+- All document types and interfaces
+- Existing storage backends  
+- Current memory formats (enhanced with optional structured fields)
+- Query APIs and filtering capabilities
 
-#### Old Format Support
-```go
-// Old format in metadata
-{
-    "sourceDocumentId": "old-doc-123",
-    "sourceDocumentType": "conversation"
-}
-
-// Automatically converted when retrieved
-func GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
-    // Try new format first
-    if documentIDs := getNewFormatReferences(memory); len(documentIDs) > 0 {
-        return getDocumentsFromTable(documentIDs)
-    }
-    
-    // Fallback to old format
-    if oldDocID := getOldFormatReference(memory); oldDocID != "" {
-        return []*DocumentReference{{
-            ID:      oldDocID,
-            Content: "", // Empty in old format  
-            Type:    memory.FieldMetadata["sourceDocumentType"],
-        }}, nil
-    }
-}
-```
-
-#### Memory Object Structure
-
-**New Format (supports multiple document references + structured facts):**
-```go
-{
-    "content": "User: prefers high temperature settings with GPT-4 for creative writing (preference) (2025-01-15)",
-    "documentReferences": ["doc-id-1", "doc-id-2", "doc-id-3"],
-    "factCategory": "preference",
-    "factSubject": "user", 
-    "factAttribute": "llm_settings",
-    "factValue": "prefers high temperature settings with GPT-4 for creative writing tasks",
-    "factSensitivity": "low",
-    "factImportance": 2,
-    "factTemporalContext": "2025-01-15",
-    "metadataJson": "{\"speakerID\":\"user\"}",
-    "timestamp": "2025-01-01T12:00:00Z"
-}
-```
-
-**Old Format (still supported):**
-```go
-{
-    "content": "User loves pizza", 
-    "metadataJson": "{\"sourceDocumentId\":\"old-doc-123\",\"sourceDocumentType\":\"conversation\"}",
-    "timestamp": "2025-01-01T12:00:00Z"
-}
-```
+The architecture ensures zero breaking changes while providing:
+- Rich progress information with stage tracking
+- Streaming error reporting
+- Enhanced structured fact extraction
+- Improved performance through efficient batching
 
 ## Advanced Filtering
 
@@ -972,7 +984,7 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 ## Common Patterns
 
 ### Processing flow for a conversation:
-1. `ConversationDocument` arrives at `StorageImpl.StoreV2()`
+1. `ConversationDocument` arrives at `StorageImpl.Store()`
 2. `MemoryOrchestrator.ProcessDocuments()` coordinates the pipeline
 3. Document gets prepared with metadata in `PrepareDocuments()`
 4. Document is stored separately in `SourceDocument` table with deduplication
@@ -1036,12 +1048,18 @@ storage, _ := evolvingmemory.New(evolvingmemory.Dependencies{
 - No global state or hard dependencies
 
 ### Backward Compatibility
-All existing APIs are preserved:
-- `Store()` method works unchanged
-- `StoreConversations()` alias maintained
-- `Query()` delegated to storage
-- Zero breaking changes for existing consumers
-- Old memory format automatically enhanced with structured fields where possible
+The migration to channels maintains full backward compatibility:
+- `Query()` method unchanged - delegated to storage backend
+- Document types and interfaces preserved
+- Memory format enhanced with structured fields (non-breaking)
+- Existing storage backends continue to work
+- Zero breaking changes for API consumers
+
+All existing code continues to work while gaining the benefits of:
+- Richer progress information (stage tracking)
+- Better error handling (streaming errors)  
+- Improved performance (no double conversions)
+- Enhanced structured fact extraction capabilities
 
 ### Quality & Performance Improvements
 
