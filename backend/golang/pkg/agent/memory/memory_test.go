@@ -90,8 +90,8 @@ func TestConversationDocumentContent(t *testing.T) {
 	}
 
 	// Expected output with primaryUser normalization
-	expected := `CONV|whatsapp_family_dinner_2024_01_14|whatsapp
-USERS|primaryUser|Mom|Dad|Jake
+	expected := `CONVO|whatsapp_family_dinner_2024_01_14|whatsapp
+PEOPLE|primaryUser|Mom|Dad|Jake
 PRIMARY|primaryUser
 |||
 primaryUser|||2024-01-14T14:30:15Z|||Hey family! Just got promoted to Senior Software Engineer at Google! 🎉

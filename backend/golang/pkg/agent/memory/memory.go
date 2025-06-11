@@ -114,11 +114,11 @@ func (cd *ConversationDocument) Content() string {
 		}
 	}
 
-	// CONV header: CONV|{id}|{source}
-	builder.WriteString(fmt.Sprintf("CONV|%s|%s\n", cd.FieldID, cd.FieldSource))
+	// CONVO header: CONVO|{id}|{source}
+	builder.WriteString(fmt.Sprintf("CONVO|%s|%s\n", cd.FieldID, cd.FieldSource))
 
-	// USERS: USERS|{user1}|{user2}|...
-	builder.WriteString("USERS|")
+	// PEOPLE: PEOPLE|{user1}|{user2}|...
+	builder.WriteString("PEOPLE|")
 	builder.WriteString(strings.Join(normalizedPeople, "|"))
 	builder.WriteString("\n")
 
