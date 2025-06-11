@@ -6,11 +6,12 @@ type HolonToolResult = {
   title: string
   content: string
   actions: string[]
+  image_urls: string[]
 }
 
 export default function HolonToolComponent({ toolCall }: { toolCall: ToolCall }) {
   const toolCallResult = JSON.parse(toolCall.result?.content || '{}') as HolonToolResult
-  console.log('toolCall', toolCallResult)
+  console.log('HolonToolComponent toolCall', toolCallResult)
 
   return (
     <HolonThreadPreview
@@ -19,7 +20,7 @@ export default function HolonToolComponent({ toolCall }: { toolCall: ToolCall })
         title: toolCallResult.title,
         content: toolCallResult.content,
         actions: toolCallResult.actions,
-        imageURLs: []
+        imageURLs: toolCallResult.image_urls
       }}
     />
   )
