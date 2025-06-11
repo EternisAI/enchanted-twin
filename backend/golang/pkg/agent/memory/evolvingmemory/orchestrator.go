@@ -10,37 +10,38 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 )
 
-// MemoryOrchestrator defines the coordination interface for memory operations.
-// This interface handles orchestration concerns (channels, workers, progress reporting).
-type MemoryOrchestrator interface {
-	ProcessDocuments(ctx context.Context, docs []memory.Document, config Config) (<-chan Progress, <-chan error)
-}
-
-// memoryOrchestrator implements MemoryOrchestrator with coordination logic.
-type memoryOrchestrator struct {
-	engine *MemoryEngine
-	logger *log.Logger
+// MemoryOrchestrator handles coordination logic for memory operations.
+// This handles orchestration concerns (channels, workers, progress reporting).
+type MemoryOrchestrator struct {
+	engine  *MemoryEngine
+	storage storage.Interface
+	logger  *log.Logger
 }
 
 // NewMemoryOrchestrator creates a new MemoryOrchestrator instance.
-func NewMemoryOrchestrator(engine *MemoryEngine, logger *log.Logger) (MemoryOrchestrator, error) {
+func NewMemoryOrchestrator(engine *MemoryEngine, storage storage.Interface, logger *log.Logger) (*MemoryOrchestrator, error) {
 	if engine == nil {
 		return nil, fmt.Errorf("memory engine cannot be nil")
+	}
+	if storage == nil {
+		return nil, fmt.Errorf("storage cannot be nil")
 	}
 	if logger == nil {
 		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
-	return &memoryOrchestrator{
-		engine: engine,
-		logger: logger,
+	return &MemoryOrchestrator{
+		engine:  engine,
+		storage: storage,
+		logger:  logger,
 	}, nil
 }
 
 // ProcessDocuments implements the new parallel processing pipeline with streaming progress.
-func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
+func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
 	progressCh := make(chan Progress, 100)
 	errorCh := make(chan error, 100)
 
@@ -48,17 +49,14 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		defer close(progressCh)
 		defer close(errorCh)
 
-		prepared, prepError := PrepareDocuments(documents, time.Now())
-		if prepError != nil {
-			select {
-			case errorCh <- prepError:
-			case <-ctx.Done():
-				return
-			}
-			return
+		// Chunk documents first
+		var chunkedDocs []memory.Document
+		for _, doc := range documents {
+			chunks := doc.Chunk()
+			chunkedDocs = append(chunkedDocs, chunks...)
 		}
 
-		if len(prepared) == 0 {
+		if len(chunkedDocs) == 0 {
 			progressCh <- Progress{
 				Processed: 0,
 				Total:     len(documents),
@@ -67,9 +65,9 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		workChunks := DistributeWork(prepared, config.Workers)
+		workChunks := DistributeWork(chunkedDocs, config.Workers)
 
-		factStream := make(chan ExtractedFact, 1000)
+		factStream := make(chan FactResult, 1000)
 		resultStream := make(chan FactResult, 1000)
 		objectStream := make(chan []*models.Object, 100)
 
@@ -109,10 +107,10 @@ func (o *memoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 }
 
 // extractFactsWorker processes documents and extracts facts using the engine.
-func (o *memoryOrchestrator) extractFactsWorker(
+func (o *MemoryOrchestrator) extractFactsWorker(
 	ctx context.Context,
-	docs []PreparedDocument,
-	out chan<- ExtractedFact,
+	docs []memory.Document,
+	out chan<- FactResult,
 	wg *sync.WaitGroup,
 	workerID int,
 	config Config,
@@ -122,24 +120,25 @@ func (o *memoryOrchestrator) extractFactsWorker(
 	for _, doc := range docs {
 		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 
-		facts, err := o.engine.ExtractFacts(extractCtx, doc)
+		facts, err := ExtractFactsFromDocument(extractCtx, doc, o.engine.CompletionsService, o.engine.CompletionsModel)
 		cancel()
 
 		if err != nil {
-			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.Original.ID(), err)
+			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.ID(), err)
 			continue
 		}
 
 		for _, fact := range facts {
-			if fact.Content == "" {
+			if fact.GenerateContent() == "" {
 				continue
 			}
-
-			// Populate the missing fields in ExtractedFact
-			fact.Source = doc
-
+			// Create FactResult with the source document
+			result := FactResult{
+				Fact:   fact,
+				Source: doc,
+			}
 			select {
-			case out <- fact:
+			case out <- result:
 			case <-ctx.Done():
 				return
 			}
@@ -148,9 +147,9 @@ func (o *memoryOrchestrator) extractFactsWorker(
 }
 
 // processFactsWorker processes facts through memory decisions using the engine.
-func (o *memoryOrchestrator) processFactsWorker(
+func (o *MemoryOrchestrator) processFactsWorker(
 	ctx context.Context,
-	facts <-chan ExtractedFact,
+	facts <-chan FactResult,
 	out chan<- FactResult,
 	wg *sync.WaitGroup,
 	workerID int,
@@ -158,11 +157,12 @@ func (o *memoryOrchestrator) processFactsWorker(
 ) {
 	defer wg.Done()
 
-	for fact := range facts {
-		result := o.processSingleFact(ctx, fact, config)
+	for factResult := range facts {
+		// Process the fact and update the result
+		processedResult := o.processSingleFact(ctx, factResult, config)
 
 		select {
-		case out <- result:
+		case out <- processedResult:
 		case <-ctx.Done():
 			return
 		}
@@ -170,25 +170,32 @@ func (o *memoryOrchestrator) processFactsWorker(
 }
 
 // processSingleFact encapsulates the memory update logic using the engine.
-func (o *memoryOrchestrator) processSingleFact(
+func (o *MemoryOrchestrator) processSingleFact(
 	ctx context.Context,
-	fact ExtractedFact,
+	factResult FactResult,
 	config Config,
 ) FactResult {
 	processCtx, processCancel := context.WithTimeout(ctx, config.MemoryDecisionTimeout)
 	defer processCancel()
 
-	result, err := o.engine.ProcessFact(processCtx, fact)
+	// Pass both the fact and source to ProcessFact
+	result, err := o.engine.ProcessFact(processCtx, factResult.Fact, factResult.Source)
 	if err != nil {
 		o.logger.Errorf("Failed to process fact: %v", err)
-		return FactResult{Fact: fact, Error: err}
+		factResult.Error = err
+		return factResult
 	}
 
-	return result
+	// Update the existing factResult with the processing results
+	factResult.Decision = result.Decision
+	factResult.Object = result.Object
+	factResult.Error = result.Error
+
+	return factResult
 }
 
 // aggregateResults collects ADD operations for batch processing.
-func (o *memoryOrchestrator) aggregateResults(
+func (o *MemoryOrchestrator) aggregateResults(
 	ctx context.Context,
 	results <-chan FactResult,
 	out chan<- []*models.Object,
@@ -243,7 +250,7 @@ func (o *memoryOrchestrator) aggregateResults(
 }
 
 // streamingStore handles batch storage with progress reporting using the engine.
-func (o *memoryOrchestrator) streamingStore(
+func (o *MemoryOrchestrator) streamingStore(
 	ctx context.Context,
 	batches <-chan []*models.Object,
 	progress chan<- Progress,
@@ -261,7 +268,7 @@ func (o *memoryOrchestrator) streamingStore(
 		}
 
 		storeCtx, cancel := context.WithTimeout(ctx, config.StorageTimeout)
-		err := o.engine.StoreBatch(storeCtx, batch)
+		err := o.storage.StoreBatch(storeCtx, batch)
 		cancel()
 
 		if err != nil {

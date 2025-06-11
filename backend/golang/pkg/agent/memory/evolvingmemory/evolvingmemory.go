@@ -56,14 +56,6 @@ type Config struct {
 	StreamingProgress      bool
 }
 
-// Document preparation.
-type PreparedDocument struct {
-	Original   memory.Document
-	Type       DocumentType
-	Timestamp  time.Time
-	DateString string // Pre-formatted
-}
-
 // Structured fact types for the new extraction system.
 type StructuredFact struct {
 	Category        string  `json:"category"`
@@ -79,20 +71,10 @@ type ExtractStructuredFactsToolArguments struct {
 	Facts []StructuredFact `json:"facts"`
 }
 
-// Processing pipeline types.
-type ExtractedFact struct {
-	// Structured fact fields (primary data)
-	Category        string  `json:"category"`
-	Subject         string  `json:"subject"`
-	Attribute       string  `json:"attribute"`
-	Value           string  `json:"value"`
-	TemporalContext *string `json:"temporal_context,omitempty"`
-	Sensitivity     string  `json:"sensitivity"`
-	Importance      int     `json:"importance"`
-
-	// Legacy fields
-	Content string // Derived from structured fields for backward compatibility
-	Source  PreparedDocument
+// GenerateContent creates the searchable content string from structured fields.
+func (sf StructuredFact) GenerateContent() string {
+	// Simple combination for embeddings and search
+	return fmt.Sprintf("%s - %s", sf.Subject, sf.Value)
 }
 
 // Memory actions.
@@ -115,7 +97,8 @@ type MemoryDecision struct {
 
 // Processing result.
 type FactResult struct {
-	Fact     ExtractedFact
+	Fact     StructuredFact
+	Source   memory.Document // Source document for the fact
 	Decision MemoryDecision
 	Object   *models.Object // Only for ADD
 	Error    error
@@ -160,18 +143,11 @@ type NoneToolArguments struct {
 	Reason string `json:"reason"`
 }
 
-// DocumentReference holds reference to the original document that generated a memory fact.
-type DocumentReference struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
-	Type    string `json:"type"`
-}
-
 type MemoryStorage interface {
 	memory.Storage // Inherit the base storage interface
 
 	// Document reference operations - now supports multiple references per memory
-	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error)
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -189,7 +165,7 @@ type Dependencies struct {
 // StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
 	logger          *log.Logger
-	orchestrator    MemoryOrchestrator
+	orchestrator    *MemoryOrchestrator
 	storage         storage.Interface
 	engine          *MemoryEngine
 	embeddingsModel string
@@ -217,7 +193,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	// Create the orchestrator with coordination logic
-	orchestrator, err := NewMemoryOrchestrator(engine, deps.Logger)
+	orchestrator, err := NewMemoryOrchestrator(engine, deps.Storage, deps.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory orchestrator: %w", err)
 	}
@@ -292,6 +268,6 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memor
 }
 
 // GetDocumentReferences retrieves all document references for a memory.
-func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
-	return s.engine.GetDocumentReferences(ctx, memoryID)
+func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
+	return s.storage.GetDocumentReferences(ctx, memoryID)
 }
