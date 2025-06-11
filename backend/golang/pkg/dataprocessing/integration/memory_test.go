@@ -741,7 +741,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 				Limit:        &limit,
 			},
 			query:       "user preferences",
-			expectEmpty: true, // Changed to true since test data doesn't contain preferences
+			expectEmpty: false, // Test data contains environment preferences
 		},
 		{
 			name: "FactSubjectFiltering",
@@ -781,7 +781,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 				Limit:          &limit,
 			},
 			query:       "user preferences with medium importance",
-			expectEmpty: true, // Changed to true
+			expectEmpty: false, // Test data contains environment preferences with importance 2
 		},
 		{
 			name: "FactAttributeFiltering",
