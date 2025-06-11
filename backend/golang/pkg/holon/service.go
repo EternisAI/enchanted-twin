@@ -210,6 +210,31 @@ func (s *Service) GetFetcherStatus() (*SyncStatus, error) {
 	return s.fetcherService.GetSyncStatus(context.Background())
 }
 
+// RefreshAuthentication re-authenticates with updated OAuth token
+func (s *Service) RefreshAuthentication(ctx context.Context) error {
+	if s.logger != nil {
+		s.logger.Debug("Refreshing holon service authentication with updated OAuth token")
+	}
+
+	// Reset authentication state
+	s.participantID = nil
+	s.displayName = nil
+	s.isAuthenticated = false
+
+	// Re-authenticate with fresh token
+	if err := s.performRemoteAuth(ctx); err != nil {
+		if s.logger != nil {
+			s.logger.Error("Failed to refresh holon service authentication", "error", err)
+		}
+		return fmt.Errorf("failed to refresh authentication: %w", err)
+	}
+
+	if s.logger != nil {
+		s.logger.Debug("Successfully refreshed holon service authentication")
+	}
+	return nil
+}
+
 // getLocalUserIdentity returns the standardized local user identity.
 func (s *Service) getLocalUserIdentity() string {
 	// Use the same identity as the fetcher service for consistency

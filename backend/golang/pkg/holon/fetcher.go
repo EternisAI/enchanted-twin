@@ -798,6 +798,36 @@ func (f *FetcherService) authenticateForDeduplication(ctx context.Context, store
 	return nil
 }
 
+// RefreshAuthentication re-authenticates with updated OAuth token
+func (f *FetcherService) RefreshAuthentication(ctx context.Context, store *db.Store) error {
+	f.logDebug("Refreshing holon fetcher authentication with updated OAuth token")
+
+	// Create new authenticated client with fresh token
+	newClient, err := NewAuthenticatedAPIClient(
+		ctx,
+		f.config.APIBaseURL,
+		store,
+		f.logger,
+		WithTimeout(30*time.Second),
+	)
+	if err != nil {
+		f.logError("Failed to create new authenticated API client during refresh", err)
+		return fmt.Errorf("failed to create authenticated client: %w", err)
+	}
+
+	// Update the client
+	f.client = newClient
+
+	// Re-authenticate for deduplication with new token
+	if err := f.authenticateForDeduplication(ctx, store); err != nil {
+		f.logError("Failed to re-authenticate for deduplication during refresh", err)
+		return fmt.Errorf("failed to re-authenticate: %w", err)
+	}
+
+	f.logDebug("Successfully refreshed holon fetcher authentication")
+	return nil
+}
+
 // shouldSkipThread determines if a thread should be skipped during sync to avoid duplicates.
 func (f *FetcherService) shouldSkipThread(thread Thread) bool {
 	// If we're not authenticated, we can't perform deduplication
