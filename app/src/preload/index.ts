@@ -111,7 +111,7 @@ const api = {
   },
   livekit: {
     setup: () => ipcRenderer.invoke('livekit:setup'),
-    start: () => ipcRenderer.invoke('livekit:start'),
+    start: (chatId: string) => ipcRenderer.invoke('livekit:start', chatId),
     stop: () => ipcRenderer.invoke('livekit:stop'),
     isRunning: () => ipcRenderer.invoke('livekit:is-running'),
     isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),

@@ -97,7 +97,7 @@ interface IApi {
   }
   livekit: {
     setup: () => Promise<{ success: boolean; error?: string }>
-    start: () => Promise<{ success: boolean; error?: string }>
+    start: (chatId: string) => Promise<{ success: boolean; error?: string }>
     stop: () => Promise<{ success: boolean; error?: string }>
     isRunning: () => Promise<boolean>
     isSessionReady: () => Promise<boolean>
