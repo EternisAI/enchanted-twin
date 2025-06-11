@@ -308,42 +308,6 @@ type ScheduleStatus struct {
 	NextRun []time.Time                   `json:"next_run,omitempty"`
 }
 
-// RefreshHolonClientsAuthentication refreshes authentication for all holon clients
-// This should be called when OAuth tokens are refreshed
-func (m *Manager) RefreshHolonClientsAuthentication(ctx context.Context) error {
-	m.logger.Debug("Refreshing authentication for all holon clients after OAuth token update")
-
-	var errors []error
-
-	// Refresh holon service authentication
-	if m.service != nil {
-		if err := m.service.RefreshAuthentication(ctx); err != nil {
-			m.logger.Error("Failed to refresh holon service authentication", "error", err)
-			errors = append(errors, fmt.Errorf("holon service: %w", err))
-		} else {
-			m.logger.Debug("Successfully refreshed holon service authentication")
-		}
-	}
-
-	// Refresh fetcher service authentication
-	if m.fetcherService != nil {
-		if err := m.fetcherService.RefreshAuthentication(ctx, m.store); err != nil {
-			m.logger.Error("Failed to refresh fetcher service authentication", "error", err)
-			errors = append(errors, fmt.Errorf("fetcher service: %w", err))
-		} else {
-			m.logger.Debug("Successfully refreshed fetcher service authentication")
-		}
-	}
-
-	// If any errors occurred, return them
-	if len(errors) > 0 {
-		return fmt.Errorf("failed to refresh some holon clients: %v", errors)
-	}
-
-	m.logger.Debug("Successfully refreshed authentication for all holon clients")
-	return nil
-}
-
 // refreshHolonClientsWithToken refreshes holon clients using the provided token
 func (m *Manager) refreshHolonClientsWithToken(ctx context.Context, accessToken, tokenType string) error {
 	var errors []error
