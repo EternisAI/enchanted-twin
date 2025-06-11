@@ -188,11 +188,11 @@ type Dependencies struct {
 // It orchestrates memory operations using a clean 3-layer architecture:
 // StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
-	logger          *log.Logger        // Logger for debugging and monitoring
-	orchestrator    MemoryOrchestrator // Coordinates workers, channels, and batching
-	storage         storage.Interface  // Hot-swappable storage backend (Weaviate, Redis, etc.)
-	engine          MemoryEngine       // Engine reference for GetDocumentReference operations
-	embeddingsModel string             // Model name for embeddings generation
+	logger          *log.Logger
+	orchestrator    MemoryOrchestrator
+	storage         storage.Interface
+	engine          *MemoryEngine
+	embeddingsModel string
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
