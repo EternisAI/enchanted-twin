@@ -212,7 +212,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	// Create the memory engine with business logic
-	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsService, deps.Storage, deps.CompletionsModel, deps.EmbeddingsModel)
+	engine, err := NewMemoryEngine(deps.Logger, deps.CompletionsService, deps.EmbeddingsService, deps.Storage, deps.CompletionsModel, deps.EmbeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory engine: %w", err)
 	}

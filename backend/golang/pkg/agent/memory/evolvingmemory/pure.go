@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/log"
 	"github.com/openai/openai-go"
 	"github.com/weaviate/weaviate/entities/models"
 
@@ -123,7 +123,7 @@ func aggregateErrors(errors []error) error {
 
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
-func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
+func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]ExtractedFact, error) {
 	currentSystemDate := doc.Timestamp.Format("2006-01-02")
 	docEventDateStr := doc.DateString
 
@@ -135,7 +135,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 		}
 
 		// Extract for the document-level context (no specific speaker)
-		return extractFactsFromConversation(ctx, *convDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel)
+		return extractFactsFromConversation(ctx, *convDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, logger)
 
 	case DocumentTypeText:
 		textDoc, ok := doc.Original.(*memory.TextDocument)
@@ -143,7 +143,7 @@ func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, complet
 			return nil, fmt.Errorf("expected TextDocument but got %T", doc.Original)
 		}
 
-		return extractFactsFromTextDocument(ctx, *textDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel)
+		return extractFactsFromTextDocument(ctx, *textDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, logger)
 
 	default:
 		return nil, fmt.Errorf("unsupported document type: %s", doc.Type)
@@ -250,7 +250,7 @@ func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Int
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -258,32 +258,32 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 	content := convDoc.Content()
 
 	if len(convDoc.Conversation) == 0 {
-		log.Printf("Skipping empty conversation: ID=%s", convDoc.ID())
+		logger.Info("Skipping empty conversation", "id", convDoc.ID())
 		return []ExtractedFact{}, nil
 	}
 
-	log.Printf("Normalized JSON length: %d", len(content))
-	log.Printf("User prompt %s", content[:min(500, len(content))])
+	logger.Debug("Normalized JSON length", "length", len(content))
+	logger.Debug("User prompt", "content", content[:min(500, len(content))])
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
-	log.Printf("Sending conversation to LLM - System prompt length: %d, JSON length: %d", len(FactExtractionPrompt), len(content))
+	logger.Debug("Sending conversation to LLM", "system_prompt_length", len(FactExtractionPrompt), "json_length", len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
-		log.Printf("LLM completion FAILED for conversation %s: %v", convDoc.ID(), err)
+		logger.Error("LLM completion FAILED for conversation", "id", convDoc.ID(), "error", err)
 		return nil, fmt.Errorf("LLM completion error for conversation %s: %w", convDoc.ID(), err)
 	}
 
-	log.Printf("LLM Response for conversation %s:", convDoc.ID())
-	log.Printf("  Response Content: %s", llmResponse.Content)
-	log.Printf("  Tool Calls Count: %d", len(llmResponse.ToolCalls))
+	logger.Debug("LLM Response for conversation", "id", convDoc.ID())
+	logger.Debug("Response Content", "content", llmResponse.Content)
+	logger.Debug("Tool Calls Count", "count", len(llmResponse.ToolCalls))
 
 	if len(llmResponse.ToolCalls) == 0 {
-		log.Printf("WARNING: No tool calls returned for conversation %s - fact extraction may have failed", convDoc.ID())
+		logger.Warn("No tool calls returned for conversation - fact extraction may have failed", "id", convDoc.ID())
 	}
 
 	var extractedFacts []ExtractedFact
@@ -342,31 +342,27 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]ExtractedFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
 
 	content := textDoc.Content()
 	if content == "" {
-		log.Printf("Skipping empty text document: ID=%s", textDoc.ID())
+		logger.Info("Skipping empty text document", "id", textDoc.ID())
 		return []ExtractedFact{}, nil
 	}
 
-	log.Printf("=== FACT EXTRACTION START ===")
-	log.Printf("Document ID: %s", textDoc.ID())
-	log.Printf("Document Source: %s", textDoc.Source())
-	log.Printf("Document Tags: %v", textDoc.Tags())
-	log.Printf("Document Metadata: %v", textDoc.Metadata())
-	log.Printf("Content Length: %d", len(content))
-	log.Printf("Full Content: %s", content)
+	logger.Debug("=== FACT EXTRACTION START ===")
+	logger.Debug("Document details", "id", textDoc.ID(), "source", textDoc.Source(), "tags", textDoc.Tags(), "metadata", textDoc.Metadata(), "content_length", len(content))
+	logger.Debug("Full Content", "content", content)
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
 		openai.UserMessage(content),
 	}
 
-	log.Printf("Sending to LLM - System prompt length: %d, User message length: %d", len(FactExtractionPrompt), len(content))
+	logger.Debug("Sending to LLM", "system_prompt_length", len(FactExtractionPrompt), "user_message_length", len(content))
 
 	llmResponse, err := completionsService.Completions(ctx, llmMsgs, factExtractionToolsList, completionsModel)
 	if err != nil {
