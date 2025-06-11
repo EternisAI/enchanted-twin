@@ -108,6 +108,13 @@ const api = {
   screenpipeStore: {
     get: (key: string) => screenpipeStore.get(key),
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
+  },
+  livekit: {
+    setup: () => ipcRenderer.invoke('livekit:setup'),
+    start: () => ipcRenderer.invoke('livekit:start'),
+    stop: () => ipcRenderer.invoke('livekit:stop'),
+    isRunning: () => ipcRenderer.invoke('livekit:is-running'),
+    getState: () => ipcRenderer.invoke('livekit:get-state')
   }
 }
 

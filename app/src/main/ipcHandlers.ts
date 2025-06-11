@@ -6,6 +6,13 @@ import { windowManager } from './windows'
 import { openOAuthWindow } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
 import { getKokoroState } from './kokoroManager'
+import { 
+  setupLiveKitAgent, 
+  startLiveKitAgent, 
+  stopLiveKitAgent, 
+  isLiveKitAgentRunning, 
+  getLiveKitAgentState 
+} from './livekitManager'
 
 const PATHNAME = 'input_data'
 
@@ -189,6 +196,51 @@ export function registerIpcHandlers() {
       return kokoroState
     } catch (error) {
       log.error('Failed to get current launch state:', error)
+      return null
+    }
+  })
+
+  // LiveKit Agent IPC handlers
+  ipcMain.handle('livekit:setup', async () => {
+    try {
+      await setupLiveKitAgent()
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to setup LiveKit agent:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('livekit:start', async () => {
+    try {
+      await startLiveKitAgent()
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to start LiveKit agent:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('livekit:stop', async () => {
+    try {
+      await stopLiveKitAgent()
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to stop LiveKit agent:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('livekit:is-running', () => {
+    return isLiveKitAgentRunning()
+  })
+
+  ipcMain.handle('livekit:get-state', async () => {
+    try {
+      const state = await getLiveKitAgentState()
+      return state
+    } catch (error) {
+      log.error('Failed to get LiveKit agent state:', error)
       return null
     }
   })

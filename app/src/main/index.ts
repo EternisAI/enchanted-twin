@@ -16,6 +16,7 @@ import { setupAutoUpdater } from './autoUpdater'
 import { cleanupOAuthServer } from './oauthHandler'
 import { cleanupGoServer, initializeGoServer } from './goServer'
 import { startKokoro, cleanupKokoro } from './kokoroManager'
+import { startLiveKitSetup, cleanupLiveKitAgent } from './livekitManager'
 import { initializeAnalytics } from './analytics'
 
 const DEFAULT_BACKEND_PORT = Number(process.env.DEFAULT_BACKEND_PORT) || 44999
@@ -46,6 +47,7 @@ app.whenReady().then(async () => {
   setupMenu()
 
   startKokoro(mainWindow)
+  startLiveKitSetup(mainWindow)
   autoStartScreenpipeIfEnabled()
 
   electronApp.setAppUserModelId('com.electron')
@@ -71,5 +73,6 @@ app.on('will-quit', async () => {
   cleanupGoServer()
   cleanupOAuthServer()
   await cleanupKokoro()
+  await cleanupLiveKitAgent()
   cleanupScreenpipe()
 })
