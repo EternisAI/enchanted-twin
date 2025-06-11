@@ -675,8 +675,8 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	return false, nil
 }
 
-// PublishOAuthTokenRefresh publishes a NATS message when OAuth tokens are refreshed
-// This allows any service to subscribe to token refresh events
+// PublishOAuthTokenRefresh publishes a NATS message when OAuth tokens are refreshed.
+// This allows any service to subscribe to token refresh events.
 func PublishOAuthTokenRefresh(ctx context.Context, logger *log.Logger, store *db.Store, provider string) error {
 	logger.Debug("Publishing OAuth token refresh event", "provider", provider)
 
@@ -721,10 +721,10 @@ func PublishOAuthTokenRefresh(ctx context.Context, logger *log.Logger, store *db
 		return fmt.Errorf("failed to publish refresh event: %w", err)
 	}
 
-	logger.Info("Successfully published OAuth token refresh event to NATS", 
+	logger.Info("Successfully published OAuth token refresh event to NATS",
 		"provider", provider,
 		"subject", subject,
-		"username", token.Username, 
+		"username", token.Username,
 		"expires_at", token.ExpiresAt.Format(time.RFC3339))
 	return nil
 }

@@ -210,7 +210,7 @@ func (s *Service) GetFetcherStatus() (*SyncStatus, error) {
 	return s.fetcherService.GetSyncStatus(context.Background())
 }
 
-// RefreshAuthentication re-authenticates with updated OAuth token
+// RefreshAuthentication re-authenticates with updated OAuth token.
 func (s *Service) RefreshAuthentication(ctx context.Context) error {
 	if s.logger != nil {
 		s.logger.Debug("Refreshing holon service authentication with updated OAuth token")

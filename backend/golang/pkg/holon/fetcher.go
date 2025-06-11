@@ -798,7 +798,7 @@ func (f *FetcherService) authenticateForDeduplication(ctx context.Context, store
 	return nil
 }
 
-// RefreshAuthentication re-authenticates with updated OAuth token
+// RefreshAuthentication re-authenticates with updated OAuth token.
 func (f *FetcherService) RefreshAuthentication(ctx context.Context, store *db.Store) error {
 	f.logDebug("Refreshing holon fetcher authentication with updated OAuth token")
 
