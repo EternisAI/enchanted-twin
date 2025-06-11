@@ -167,8 +167,6 @@ type DocumentReference struct {
 	Type    string `json:"type"`
 }
 
-// MemoryStorage is the main interface for hot-swappable storage implementations.
-// This interface encapsulates all memory storage operations and business logic.
 type MemoryStorage interface {
 	memory.Storage // Inherit the base storage interface
 
@@ -186,13 +184,15 @@ type Dependencies struct {
 	EmbeddingsModel    string
 }
 
-// StorageImpl implements MemoryStorage using any storage backend.
+// StorageImpl is the main implementation of the MemoryStorage interface.
+// It orchestrates memory operations using a clean 3-layer architecture:
+// StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
-	logger          *log.Logger
-	orchestrator    MemoryOrchestrator
-	storage         storage.Interface
-	engine          MemoryEngine // Add engine reference for GetDocumentReference
-	embeddingsModel string
+	logger          *log.Logger        // Logger for debugging and monitoring
+	orchestrator    MemoryOrchestrator // Coordinates workers, channels, and batching
+	storage         storage.Interface  // Hot-swappable storage backend (Weaviate, Redis, etc.)
+	engine          MemoryEngine       // Engine reference for GetDocumentReference operations
+	embeddingsModel string             // Model name for embeddings generation
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -271,10 +271,16 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 		}
 	}
 
-	// If any errors occurred, return the first one
+	// If any errors occurred, return meaningful error information
 	if len(errors) > 0 {
-		s.logger.Errorf("Store encountered %d errors, returning first: %v", len(errors), errors[0])
-		return errors[0]
+		if len(errors) == 1 {
+			s.logger.Errorf("Store encountered error: %v", errors[0])
+			return errors[0]
+		}
+		// Multiple errors - provide comprehensive information
+		s.logger.Errorf("Store encountered %d errors, returning first with details of others: %v", len(errors), errors[0])
+		return fmt.Errorf("multiple errors occurred (%d total): %w, and %d more",
+			len(errors), errors[0], len(errors)-1)
 	}
 
 	return nil
