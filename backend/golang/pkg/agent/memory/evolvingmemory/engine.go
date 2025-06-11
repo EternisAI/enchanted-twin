@@ -7,6 +7,7 @@ import (
 	"github.com/openai/openai-go"
 	"github.com/weaviate/weaviate/entities/models"
 
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
@@ -58,20 +59,23 @@ func convertEmbedding(embedding []float64) []float32 {
 }
 
 // ExtractFacts extracts facts from a document using pure business logic.
-func (e *MemoryEngine) ExtractFacts(ctx context.Context, doc PreparedDocument) ([]ExtractedFact, error) {
+func (e *MemoryEngine) ExtractFacts(ctx context.Context, doc memory.Document) ([]ExtractedFact, error) {
 	return ExtractFactsFromDocument(ctx, doc, e.completionsService, e.completionsModel)
 }
 
 // ProcessFact processes a single fact through the complete memory pipeline.
 func (e *MemoryEngine) ProcessFact(ctx context.Context, fact ExtractedFact) (FactResult, error) {
+	// Generate content for search and decision making
+	content := fact.GenerateContent()
+
 	// Search for similar memories
-	similar, err := e.SearchSimilar(ctx, fact.Content)
+	similar, err := e.SearchSimilar(ctx, content)
 	if err != nil {
 		return FactResult{Fact: fact, Error: fmt.Errorf("search failed: %w", err)}, nil
 	}
 
 	// Decide what action to take
-	decision, err := e.DecideAction(ctx, fact.Content, similar)
+	decision, err := e.DecideAction(ctx, content, similar)
 	if err != nil {
 		return FactResult{Fact: fact, Error: fmt.Errorf("decision failed: %w", err)}, nil
 	}
@@ -85,12 +89,13 @@ func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact ExtractedFact, 
 	// Execute based on action
 	switch decision.Action {
 	case UPDATE:
-		embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, e.embeddingsModel)
+		content := fact.GenerateContent()
+		embedding, err := e.embeddingsService.Embedding(ctx, content, e.embeddingsModel)
 		if err != nil {
 			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
 		}
 
-		if err := e.UpdateMemory(ctx, decision.TargetID, fact.Content, convertEmbedding(embedding)); err != nil {
+		if err := e.UpdateMemory(ctx, decision.TargetID, content, convertEmbedding(embedding)); err != nil {
 			return FactResult{Fact: fact, Decision: decision, Error: fmt.Errorf("update failed: %w", err)}, nil
 		}
 
@@ -172,12 +177,23 @@ func (e *MemoryEngine) DeleteMemory(ctx context.Context, memoryID string) error 
 
 // CreateMemoryObject creates a memory object for storage with separate document storage.
 func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
+	// Determine document type
+	var docType string
+	switch fact.Source.(type) {
+	case *memory.ConversationDocument:
+		docType = string(DocumentTypeConversation)
+	case *memory.TextDocument:
+		docType = string(DocumentTypeText)
+	default:
+		docType = "unknown"
+	}
+
 	documentID, err := e.storage.StoreDocument(
 		ctx,
-		fact.Source.Original.Content(),
-		string(fact.Source.Type),
-		fact.Source.Original.ID(),
-		fact.Source.Original.Metadata(),
+		fact.Source.Content(),
+		docType,
+		fact.Source.ID(),
+		fact.Source.Metadata(),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("storing document: %w", err)
@@ -185,7 +201,7 @@ func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFac
 
 	obj := CreateMemoryObjectWithDocumentReferences(fact, decision, []string{documentID})
 
-	embedding, err := e.embeddingsService.Embedding(ctx, fact.Content, e.embeddingsModel)
+	embedding, err := e.embeddingsService.Embedding(ctx, fact.GenerateContent(), e.embeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}

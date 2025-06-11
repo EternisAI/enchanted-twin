@@ -12,57 +12,48 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-func TestPrepareDocuments(t *testing.T) {
-	currentTime := time.Now()
-
-	t.Run("conversation document preparation", func(t *testing.T) {
-		docs := []memory.Document{
-			&memory.ConversationDocument{
-				FieldID:     "conv1",
-				FieldSource: "whatsapp",
-				User:        "alice",
-				People:      []string{"alice", "bob"},
-				Conversation: []memory.ConversationMessage{
-					{Speaker: "alice", Content: "Hello", Time: time.Now()},
-					{Speaker: "bob", Content: "Hi there", Time: time.Now()},
-				},
+func TestDocumentChunking(t *testing.T) {
+	t.Run("conversation document chunking", func(t *testing.T) {
+		doc := &memory.ConversationDocument{
+			FieldID:     "conv1",
+			FieldSource: "whatsapp",
+			User:        "alice",
+			People:      []string{"alice", "bob"},
+			Conversation: []memory.ConversationMessage{
+				{Speaker: "alice", Content: "Hello", Time: time.Now()},
+				{Speaker: "bob", Content: "Hi there", Time: time.Now()},
 			},
 		}
 
-		prepared, err := PrepareDocuments(docs, currentTime)
-		assert.NoError(t, err)
-		assert.Len(t, prepared, 1)
+		chunks := doc.Chunk()
+		assert.Len(t, chunks, 1) // Small conversation should not be chunked
 
-		assert.Equal(t, DocumentTypeConversation, prepared[0].Type)
-		assert.NotZero(t, prepared[0].Timestamp)
-		assert.NotEmpty(t, prepared[0].DateString)
+		// Verify it's the same document
+		assert.Equal(t, doc.ID(), chunks[0].ID())
 	})
 
-	t.Run("text document preparation", func(t *testing.T) {
-		docs := []memory.Document{
-			&memory.TextDocument{
-				FieldID:      "text1",
-				FieldContent: "Some text content",
-				FieldSource:  "email",
-			},
+	t.Run("text document chunking", func(t *testing.T) {
+		doc := &memory.TextDocument{
+			FieldID:      "text1",
+			FieldContent: "Some text content",
+			FieldSource:  "email",
 		}
 
-		prepared, err := PrepareDocuments(docs, currentTime)
-		assert.NoError(t, err)
-		assert.Len(t, prepared, 1)
+		chunks := doc.Chunk()
+		assert.Len(t, chunks, 1) // Small text should not be chunked
 
-		assert.Equal(t, DocumentTypeText, prepared[0].Type)
-		assert.NotZero(t, prepared[0].Timestamp)
-		assert.NotEmpty(t, prepared[0].DateString)
+		// Verify it's the same document
+		assert.Equal(t, doc.ID(), chunks[0].ID())
 	})
 }
 
 func TestDistributeWork(t *testing.T) {
 	// Create test documents
-	docs := make([]PreparedDocument, 10)
+	docs := make([]memory.Document, 10)
 	for i := range docs {
-		docs[i] = PreparedDocument{
-			DateString: "test",
+		docs[i] = &memory.TextDocument{
+			FieldID:      fmt.Sprintf("doc-%d", i),
+			FieldContent: "test content",
 		}
 	}
 
@@ -150,7 +141,7 @@ func TestDocumentSizeValidation(t *testing.T) {
 					},
 				},
 			},
-			expectedLength: 16000, // 4 messages * 4000 chars each
+			expectedLength: 16216, // 4 messages * 4000 chars each + formatting overhead
 			shouldTruncate: false, // Should NOT chunk with current sizes
 		},
 		{
@@ -167,80 +158,57 @@ func TestDocumentSizeValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Because of chunking, we need to handle conversation documents differently now
-			if convDoc, isConv := tt.doc.(*memory.ConversationDocument); isConv {
-				prepared, err := PrepareDocuments([]memory.Document{convDoc}, now)
-				require.NoError(t, err)
-
-				// It should be chunked if it's large enough
-				if len(convDoc.Content()) > memory.MaxProcessableContentChars {
-					assert.True(t, len(prepared) > 1, "Expected large conversation to be chunked into multiple documents")
-
-					// A large conversation should be chunked, not truncated.
-					// The total content of chunks should equal the original content.
-					var combinedContent strings.Builder
-					for _, p := range prepared {
-						combinedContent.WriteString(p.Original.Content())
-						combinedContent.WriteString("\n") // The .Content() method joins with newline
-					}
-					// Trim the final newline
-					fullCombinedContent := strings.TrimSpace(combinedContent.String())
-					assert.Equal(t, convDoc.Content(), fullCombinedContent, "Combined content of chunks should match original")
-				} else {
-					assert.Len(t, prepared, 1, "Expected short conversation not to be chunked")
-					assert.Equal(t, convDoc.Content(), prepared[0].Original.Content())
-				}
-
-				// Each chunk should be a conversation doc
-				for _, p := range prepared {
-					_, isConvChunk := p.Original.(*memory.ConversationDocument)
-					assert.True(t, isConvChunk, "Chunk of a conversation should be a ConversationDocument")
-				}
-				return // Skip the rest of the test logic for this conversation document
-			}
-
-			// Test the clean function for text documents
-			prepared, err := PrepareDocuments([]memory.Document{tt.doc}, now)
-			require.NoError(t, err)
+			// Test chunking behavior
+			chunks := tt.doc.Chunk()
 
 			if len(tt.doc.Content()) > memory.MaxProcessableContentChars {
-				// Large text documents should now be chunked
-				assert.True(t, len(prepared) > 1, "Expected large text document to be chunked into multiple documents")
+				// Large documents should be chunked
+				assert.True(t, len(chunks) > 1, "Expected large document to be chunked into multiple documents")
 
 				// Verify total content is preserved across chunks
 				var combinedContent strings.Builder
-				for _, p := range prepared {
-					combinedContent.WriteString(p.Original.Content())
+				for _, chunk := range chunks {
+					combinedContent.WriteString(chunk.Content())
+					if _, isConv := chunk.(*memory.ConversationDocument); isConv {
+						combinedContent.WriteString("\n") // Conversation chunks have newlines between them
+					}
 				}
-				assert.Equal(t, tt.expectedLength, combinedContent.Len(),
-					"Combined content length should be %d, got %d", tt.expectedLength, combinedContent.Len())
 
-				// Each chunk should be a text document
-				for _, p := range prepared {
-					_, isTextChunk := p.Original.(*memory.TextDocument)
-					assert.True(t, isTextChunk, "Chunk of a text document should be a TextDocument")
+				// For conversation documents, trim the final newline
+				fullCombinedContent := combinedContent.String()
+				if _, isConv := tt.doc.(*memory.ConversationDocument); isConv {
+					fullCombinedContent = strings.TrimSpace(fullCombinedContent)
+					assert.Equal(t, tt.doc.Content(), fullCombinedContent, "Combined content of chunks should match original")
+				} else {
+					// For text documents, verify length
+					assert.Equal(t, tt.expectedLength, combinedContent.Len(),
+						"Combined content length should be %d, got %d", tt.expectedLength, combinedContent.Len())
+				}
+
+				// Each chunk should be the same type as the original
+				for _, chunk := range chunks {
+					assert.IsType(t, tt.doc, chunk, "Chunk should be same type as original document")
 				}
 			} else {
 				// Small documents should not be chunked
-				require.Len(t, prepared, 1)
-				validatedDoc := prepared[0].Original
-				actualLength := len(validatedDoc.Content())
+				require.Len(t, chunks, 1)
+				actualLength := len(chunks[0].Content())
 				assert.Equal(t, tt.expectedLength, actualLength,
 					"Content length should be %d, got %d", tt.expectedLength, actualLength)
-				assert.Equal(t, tt.doc.Content(), validatedDoc.Content(),
+				assert.Equal(t, tt.doc.Content(), chunks[0].Content(),
 					"Small document content should be the same")
 
 				// Verify other properties are preserved for small documents
-				assert.Equal(t, tt.doc.ID(), validatedDoc.ID())
-				assert.Equal(t, tt.doc.Tags(), validatedDoc.Tags())
-				assert.Equal(t, tt.doc.Metadata(), validatedDoc.Metadata())
-				assert.Equal(t, tt.doc.Source(), validatedDoc.Source())
+				assert.Equal(t, tt.doc.ID(), chunks[0].ID())
+				assert.Equal(t, tt.doc.Tags(), chunks[0].Tags())
+				assert.Equal(t, tt.doc.Metadata(), chunks[0].Metadata())
+				assert.Equal(t, tt.doc.Source(), chunks[0].Source())
 			}
 		})
 	}
 }
 
-func TestPrepareDocuments_Chunking(t *testing.T) {
+func TestDocumentChunking_Large(t *testing.T) {
 	now := time.Now()
 
 	// Create a long conversation document that should be chunked
@@ -268,19 +236,17 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 	t.Logf("Conversation content length: %d (MaxProcessableContentChars: %d)", contentLength, memory.MaxProcessableContentChars)
 	t.Logf("Should be chunked: %t", contentLength >= memory.MaxProcessableContentChars)
 
-	// Prepare documents
-	prepared, errors := PrepareDocuments([]memory.Document{convDoc}, now)
-	require.Empty(t, errors)
+	// Get chunks
+	chunks := convDoc.Chunk()
 
-	t.Logf("Number of prepared documents: %d", len(prepared))
+	t.Logf("Number of chunks: %d", len(chunks))
 
 	// We expect multiple chunks because the total size exceeds ConversationChunkMaxChars
-	assert.True(t, len(prepared) > 1, "Expected document to be split into multiple chunks, but got %d", len(prepared))
+	assert.True(t, len(chunks) > 1, "Expected document to be split into multiple chunks, but got %d", len(chunks))
 
 	// Check the first chunk
-	firstChunk, ok := prepared[0].Original.(*memory.ConversationDocument)
+	firstChunk, ok := chunks[0].(*memory.ConversationDocument)
 	require.True(t, ok, "Expected first chunk to be a ConversationDocument")
-	assert.Equal(t, DocumentTypeConversation, prepared[0].Type)
 	assert.Equal(t, "conv-long-chunk-1", firstChunk.ID())
 	assert.Equal(t, []string{"project-x"}, firstChunk.Tags())
 	assert.Contains(t, firstChunk.Metadata(), "_enchanted_chunk_number")
@@ -290,14 +256,14 @@ func TestPrepareDocuments_Chunking(t *testing.T) {
 	assert.NotEmpty(t, firstChunk.Conversation)
 
 	// Check the last chunk
-	lastChunk, ok := prepared[len(prepared)-1].Original.(*memory.ConversationDocument)
+	lastChunk, ok := chunks[len(chunks)-1].(*memory.ConversationDocument)
 	require.True(t, ok)
 	assert.Contains(t, lastChunk.Metadata(), "_enchanted_chunk_number")
-	expectedChunkNum := fmt.Sprintf("%d", len(prepared))
+	expectedChunkNum := fmt.Sprintf("%d", len(chunks))
 	assert.Equal(t, expectedChunkNum, lastChunk.Metadata()["_enchanted_chunk_number"])
 }
 
-func TestPrepareDocuments_NoChunking(t *testing.T) {
+func TestDocumentChunking_NoChunking(t *testing.T) {
 	now := time.Now()
 
 	// A short conversation that should not be chunked
@@ -309,12 +275,11 @@ func TestPrepareDocuments_NoChunking(t *testing.T) {
 		},
 	}
 
-	prepared, errors := PrepareDocuments([]memory.Document{convDoc}, now)
-	require.Empty(t, errors)
+	chunks := convDoc.Chunk()
 
 	// Should not be chunked
-	assert.Len(t, prepared, 1)
-	singleDoc, ok := prepared[0].Original.(*memory.ConversationDocument)
+	assert.Len(t, chunks, 1)
+	singleDoc, ok := chunks[0].(*memory.ConversationDocument)
 	require.True(t, ok)
 
 	// ID should be the original ID since it's not a chunk

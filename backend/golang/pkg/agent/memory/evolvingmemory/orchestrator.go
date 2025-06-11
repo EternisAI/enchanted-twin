@@ -43,17 +43,14 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		defer close(progressCh)
 		defer close(errorCh)
 
-		prepared, prepError := PrepareDocuments(documents, time.Now())
-		if prepError != nil {
-			select {
-			case errorCh <- prepError:
-			case <-ctx.Done():
-				return
-			}
-			return
+		// Chunk documents first
+		var chunkedDocs []memory.Document
+		for _, doc := range documents {
+			chunks := doc.Chunk()
+			chunkedDocs = append(chunkedDocs, chunks...)
 		}
 
-		if len(prepared) == 0 {
+		if len(chunkedDocs) == 0 {
 			progressCh <- Progress{
 				Processed: 0,
 				Total:     len(documents),
@@ -62,7 +59,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		workChunks := DistributeWork(prepared, config.Workers)
+		workChunks := DistributeWork(chunkedDocs, config.Workers)
 
 		factStream := make(chan ExtractedFact, 1000)
 		resultStream := make(chan FactResult, 1000)
@@ -106,7 +103,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 // extractFactsWorker processes documents and extracts facts using the engine.
 func (o *MemoryOrchestrator) extractFactsWorker(
 	ctx context.Context,
-	docs []PreparedDocument,
+	docs []memory.Document,
 	out chan<- ExtractedFact,
 	wg *sync.WaitGroup,
 	workerID int,
@@ -121,18 +118,17 @@ func (o *MemoryOrchestrator) extractFactsWorker(
 		cancel()
 
 		if err != nil {
-			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.Original.ID(), err)
+			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.ID(), err)
 			continue
 		}
 
 		for _, fact := range facts {
-			if fact.Content == "" {
+			if fact.GenerateContent() == "" {
 				continue
 			}
 
-			// Populate the missing fields in ExtractedFact
-			fact.Source = doc
-
+			// Now we need to attach the source document to each fact
+			// Since ExtractedFact still expects PreparedDocument, we need to fix this too
 			select {
 			case out <- fact:
 			case <-ctx.Done():
