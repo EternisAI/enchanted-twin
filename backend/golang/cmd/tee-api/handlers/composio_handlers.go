@@ -3,9 +3,9 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/eternisai/enchanted-twin/backend/golang/cmd/tee-api/models"
+	"github.com/eternisai/enchanted-twin/backend/golang/cmd/tee-api/services"
 	"github.com/gin-gonic/gin"
-	"oauth-proxy/models"
-	"oauth-proxy/services"
 )
 
 type ComposioHandler struct {

@@ -233,7 +233,7 @@ func GetComposioAuthUrl(ctx context.Context, logger *log.Logger, store *db.Store
 		return "", "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	authURL := fmt.Sprintf("%s/composio/auth", conf.ProxyTEEURL)
+	authURL := fmt.Sprintf("%s/composio/auth", conf.ProxyTeeURL)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
@@ -279,7 +279,7 @@ func GetComposioAccount(ctx context.Context, logger *log.Logger, store *db.Store
 	}
 
 	// Create and execute request to /auth/exchange
-	exchangeURL := fmt.Sprintf("%s/composio/account", conf.ProxyTEEURL)
+	exchangeURL := fmt.Sprintf("%s/composio/account", conf.ProxyTeeURL)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"GET",
@@ -346,7 +346,7 @@ func ExchangeToken(ctx context.Context, logger *log.Logger, provider string, oau
 	}
 
 	// Create and execute request to /auth/exchange
-	exchangeURL := fmt.Sprintf("%s/auth/exchange", conf.ProxyTEEURL)
+	exchangeURL := fmt.Sprintf("%s/auth/exchange", conf.ProxyTeeURL)
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",

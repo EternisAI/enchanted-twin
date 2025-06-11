@@ -10,8 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"oauth-proxy/config"
-	"oauth-proxy/models"
+	"github.com/eternisai/enchanted-twin/backend/golang/cmd/tee-api/config"
+	"github.com/eternisai/enchanted-twin/backend/golang/cmd/tee-api/models"
 )
 
 const (

@@ -1,11 +1,12 @@
 package handlers
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/eternisai/enchanted-twin/backend/golang/cmd/tee-api/models"
+	"github.com/eternisai/enchanted-twin/backend/golang/cmd/tee-api/services"
 	"github.com/gin-gonic/gin"
-	"oauth-proxy/models"
-	"oauth-proxy/services"
 )
 
 type OAuthHandler struct {
@@ -32,6 +33,7 @@ func (h *OAuthHandler) ExchangeToken(c *gin.Context) {
 		return
 	}
 
+	fmt.Println("ExchangeTokenReq: ", req)
 	tokenResponse, err := h.oauthService.ExchangeToken(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, models.ErrorResponse{

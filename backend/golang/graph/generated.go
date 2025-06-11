@@ -162,6 +162,7 @@ type ComplexityRoot struct {
 	Mutation struct {
 		Activate                  func(childComplexity int, inviteCode string) int
 		AddDataSource             func(childComplexity int, name string, path string) int
+		CompleteInitOAuthFlow     func(childComplexity int, state string, authCode string) int
 		CompleteOAuthFlow         func(childComplexity int, state string, authCode string) int
 		CompleteOAuthFlowComposio func(childComplexity int, accountID string, provider string) int
 		ConnectMCPServer          func(childComplexity int, input model.ConnectMCPServerInput) int
@@ -325,6 +326,7 @@ type MutationResolver interface {
 	Activate(ctx context.Context, inviteCode string) (bool, error)
 	JoinHolon(ctx context.Context, userID string, network *string) (bool, error)
 	CompleteOAuthFlowComposio(ctx context.Context, accountID string, provider string) (bool, error)
+	CompleteInitOAuthFlow(ctx context.Context, state string, authCode string) (string, error)
 }
 type QueryResolver interface {
 	Profile(ctx context.Context) (*model.UserProfile, error)
@@ -904,6 +906,18 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 		}
 
 		return e.complexity.Mutation.AddDataSource(childComplexity, args["name"].(string), args["path"].(string)), true
+
+	case "Mutation.completeInitOAuthFlow":
+		if e.complexity.Mutation.CompleteInitOAuthFlow == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_completeInitOAuthFlow_args(ctx, rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.CompleteInitOAuthFlow(childComplexity, args["state"].(string), args["authCode"].(string)), true
 
 	case "Mutation.completeOAuthFlow":
 		if e.complexity.Mutation.CompleteOAuthFlow == nil {
@@ -1895,6 +1909,47 @@ func (ec *executionContext) field_Mutation_addDataSource_argsPath(
 ) (string, error) {
 	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("path"))
 	if tmp, ok := rawArgs["path"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_completeInitOAuthFlow_args(ctx context.Context, rawArgs map[string]any) (map[string]any, error) {
+	var err error
+	args := map[string]any{}
+	arg0, err := ec.field_Mutation_completeInitOAuthFlow_argsState(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["state"] = arg0
+	arg1, err := ec.field_Mutation_completeInitOAuthFlow_argsAuthCode(ctx, rawArgs)
+	if err != nil {
+		return nil, err
+	}
+	args["authCode"] = arg1
+	return args, nil
+}
+func (ec *executionContext) field_Mutation_completeInitOAuthFlow_argsState(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("state"))
+	if tmp, ok := rawArgs["state"]; ok {
+		return ec.unmarshalNString2string(ctx, tmp)
+	}
+
+	var zeroVal string
+	return zeroVal, nil
+}
+
+func (ec *executionContext) field_Mutation_completeInitOAuthFlow_argsAuthCode(
+	ctx context.Context,
+	rawArgs map[string]any,
+) (string, error) {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("authCode"))
+	if tmp, ok := rawArgs["authCode"]; ok {
 		return ec.unmarshalNString2string(ctx, tmp)
 	}
 
@@ -7307,6 +7362,61 @@ func (ec *executionContext) fieldContext_Mutation_completeOAuthFlowComposio(ctx 
 	}()
 	ctx = graphql.WithFieldContext(ctx, fc)
 	if fc.Args, err = ec.field_Mutation_completeOAuthFlowComposio_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
+		ec.Error(ctx, err)
+		return fc, err
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _Mutation_completeInitOAuthFlow(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_Mutation_completeInitOAuthFlow(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().CompleteInitOAuthFlow(rctx, fc.Args["state"].(string), fc.Args["authCode"].(string))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalNString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_Mutation_completeInitOAuthFlow(ctx context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		IsMethod:   true,
+		IsResolver: true,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type String does not have child fields")
+		},
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = ec.Recover(ctx, r)
+			ec.Error(ctx, err)
+		}
+	}()
+	ctx = graphql.WithFieldContext(ctx, fc)
+	if fc.Args, err = ec.field_Mutation_completeInitOAuthFlow_args(ctx, field.ArgumentMap(ec.Variables)); err != nil {
 		ec.Error(ctx, err)
 		return fc, err
 	}
@@ -14352,6 +14462,13 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 		case "completeOAuthFlowComposio":
 			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
 				return ec._Mutation_completeOAuthFlowComposio(ctx, field)
+			})
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "completeInitOAuthFlow":
+			out.Values[i] = ec.OperationContext.RootResolverMiddleware(innerCtx, func(ctx context.Context) (res graphql.Marshaler) {
+				return ec._Mutation_completeInitOAuthFlow(ctx, field)
 			})
 			if out.Values[i] == graphql.Null {
 				out.Invalids++

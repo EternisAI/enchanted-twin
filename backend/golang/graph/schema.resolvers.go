@@ -502,6 +502,30 @@ func (r *mutationResolver) CompleteOAuthFlowComposio(ctx context.Context, accoun
 	return true, nil
 }
 
+// CompleteInitOAuthFlow is the resolver for the completeInitOAuthFlow field.
+func (r *mutationResolver) CompleteInitOAuthFlow(ctx context.Context, state string, authCode string) (string, error) {
+	result, _, err := auth.CompleteOAuthFlow(ctx, r.Logger, r.Store, state, authCode)
+	if err != nil {
+		return "", err
+	}
+
+	err = helpers.CreateScheduleIfNotExists(
+		r.Logger,
+		r.TemporalClient,
+		"refresh-login-token",
+		time.Minute*30,
+		auth.TokenRefreshWorkflow,
+		[]any{auth.TokenRefreshWorkflowInput{Provider: result}},
+	)
+	
+	if err != nil {
+		r.Logger.Error("Error creating schedule", "error", err)
+		return "", err
+	}
+
+	return result, nil
+}
+
 // Profile is the resolver for the profile field.
 func (r *queryResolver) Profile(ctx context.Context) (*model.UserProfile, error) {
 	if r.Store == nil {
