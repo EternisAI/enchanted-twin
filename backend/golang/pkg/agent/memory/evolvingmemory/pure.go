@@ -291,7 +291,13 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
-		openai.UserMessage(content),
+		openai.UserMessage(fmt.Sprintf(`CONVERSATION DATA TO ANALYZE:
+
+%s
+
+END OF CONVERSATION DATA
+
+INSTRUCTIONS: You must now call the EXTRACT_FACTS tool. Do NOT respond conversationally. Do NOT participate in the conversation above. Do NOT respond in Spanish or any other language from the conversation. Your ONLY job is to extract facts using the EXTRACT_FACTS tool.`, content)),
 	}
 
 	log.Printf("Sending conversation to LLM - System prompt length: %d, Formatted length: %d", len(FactExtractionPrompt), len(content))
@@ -388,7 +394,13 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(FactExtractionPrompt),
-		openai.UserMessage(content),
+		openai.UserMessage(fmt.Sprintf(`CONVERSATION DATA TO ANALYZE:
+
+%s
+
+END OF CONVERSATION DATA
+
+INSTRUCTIONS: You must now call the EXTRACT_FACTS tool. Do NOT respond conversationally. Do NOT participate in the conversation above. Do NOT respond in Spanish or any other language from the conversation. Your ONLY job is to extract facts using the EXTRACT_FACTS tool.`, content)),
 	}
 
 	log.Printf("Sending to LLM - System prompt length: %d, User message length: %d", len(FactExtractionPrompt), len(content))
