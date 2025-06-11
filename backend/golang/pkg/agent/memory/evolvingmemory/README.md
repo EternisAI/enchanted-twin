@@ -219,25 +219,12 @@ docs := []memory.Document{
     &memory.ConversationDocument{...},   // Chat conversations
 }
 
-// Backward compatible API (still works)
+// Store documents with progress callback
 err := storage.Store(ctx, docs, func(processed, total int) {
     log.Printf("Progress: %d/%d", processed, total)
 })
-
-// New channel-based API (recommended)
-config := evolvingmemory.DefaultConfig()
-progressCh, errorCh := storage.StoreV2(ctx, docs, config)
-
-// Process results
-for progressCh != nil || errorCh != nil {
-    select {
-    case progress, ok := <-progressCh:
-        if !ok { progressCh = nil; continue }
-        log.Printf("Progress: %d/%d", progress.Processed, progress.Total)
-    case err, ok := <-errorCh:
-        if !ok { errorCh = nil; continue }
-        log.Printf("Error: %v", err)
-    }
+if err != nil {
+    log.Fatal("Failed to store documents:", err)
 }
 
 // Query with advanced filtering
@@ -972,7 +959,7 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 ## Common Patterns
 
 ### Processing flow for a conversation:
-1. `ConversationDocument` arrives at `StorageImpl.StoreV2()`
+1. `ConversationDocument` arrives at `StorageImpl.Store()`
 2. `MemoryOrchestrator.ProcessDocuments()` coordinates the pipeline
 3. Document gets prepared with metadata in `PrepareDocuments()`
 4. Document is stored separately in `SourceDocument` table with deduplication
