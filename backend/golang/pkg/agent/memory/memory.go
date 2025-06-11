@@ -3,7 +3,6 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -102,47 +101,46 @@ func (cd *ConversationDocument) ID() string {
 }
 
 func (cd *ConversationDocument) Content() string {
-	messages := make([]map[string]string, 0, len(cd.Conversation))
+	var builder strings.Builder
+
+	// CONV header: CONV|{id}|{source}|{date}
+	date := ""
+	if timestamp := cd.Timestamp(); timestamp != nil {
+		date = timestamp.Format("2006-01-02")
+	}
+	builder.WriteString(fmt.Sprintf("CONV|%s|%s|%s\n", cd.FieldID, cd.FieldSource, date))
+
+	// USERS: USERS|{user1}|{user2}|...
+	builder.WriteString("USERS|")
+	builder.WriteString(strings.Join(cd.People, "|"))
+	builder.WriteString("\n")
+
+	// PRIMARY: PRIMARY|{primaryUser}
+	builder.WriteString(fmt.Sprintf("PRIMARY|%s\n", cd.User))
+
+	// Separator
+	builder.WriteString("|||\n")
+
+	// Messages: {speaker}|||{time}|||{content}
 	for _, msg := range cd.Conversation {
 		trimmed := strings.TrimSpace(msg.Content)
 		if trimmed == "" {
 			continue
 		}
 
-		messages = append(messages, map[string]string{
-			"user":    msg.Speaker,
-			"time":    msg.Time.Format("2006-01-02 15:04:05"),
-			"content": trimmed,
-		})
+		timeStr := msg.Time.Format("15:04")
+		builder.WriteString(fmt.Sprintf("%s|||%s|||%s\n", msg.Speaker, timeStr, trimmed))
 	}
 
-	if len(messages) == 0 {
-		return ""
-	}
+	// Final separator
+	builder.WriteString("|||\n")
 
-	// Use anonymous struct to control field order
-	conversation := struct {
-		People      []string            `json:"people"`
-		Source      string              `json:"source"`
-		PrimaryUser string              `json:"primaryUser"`
-		Tags        []string            `json:"tags"`
-		Messages    []map[string]string `json:"messages"`
-	}{
-		People:      cd.People,
-		Source:      cd.FieldSource,
-		PrimaryUser: cd.User,
-		Tags:        cd.FieldTags,
-		Messages:    messages,
-	}
+	// TAGS: TAGS|{tag1}|{tag2}|...
+	builder.WriteString("TAGS|")
+	builder.WriteString(strings.Join(cd.FieldTags, "|"))
+	builder.WriteString("\n")
 
-	// Marshal to pretty JSON
-	jsonBytes, err := json.MarshalIndent(conversation, "", "  ")
-	if err != nil {
-		// Fallback to empty string on error
-		return ""
-	}
-
-	return string(jsonBytes)
+	return builder.String()
 }
 
 func (cd *ConversationDocument) Timestamp() *time.Time {
