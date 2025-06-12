@@ -148,7 +148,7 @@ func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData Te
 		extractedUsername = strings.TrimPrefix(telegramData.PersonalInformation.Username, "@")
 	}
 
-	s.logger.Info("🟡 extractedUsername", "extractedUsername", extractedUsername)
+	s.logger.Info(" extractedUsername", "extractedUsername", extractedUsername)
 
 	return extractedUsername, nil
 }

@@ -90,15 +90,23 @@ func TestToDocuments(t *testing.T) {
 	assert.Equal(t, []string{"social", "chat"}, conversationDoc.Tags())
 
 	assert.NotNil(t, contactDoc, "Expected contact document")
-	assert.Equal(t, "John Doe", contactDoc.Content())
+	expectedContactContent := "CONTACT ENTRY: John Doe (Phone: +1234567890) - This is a contact from the user's Telegram contact list, not information about the primary user."
+	assert.Equal(t, expectedContactContent, contactDoc.Content())
 	assert.Equal(t, &expectedTimestamp, contactDoc.Timestamp())
-	assert.Equal(t, []string{"social", "contact"}, contactDoc.Tags())
-	assert.Equal(t, map[string]string{
-		"type":        "contact",
-		"firstName":   "John",
-		"lastName":    "Doe",
-		"phoneNumber": "+1234567890",
-	}, contactDoc.Metadata())
+	assert.Equal(t, []string{"social", "contact", "contact_list"}, contactDoc.Tags())
+
+	expectedMetadata := map[string]string{
+		"type":                "contact",
+		"document_type":       "contact_entry",
+		"data_category":       "contact_list",
+		"is_primary_user":     "false",
+		"contact_source":      "telegram_contacts",
+		"firstName":           "John",
+		"lastName":            "Doe",
+		"phoneNumber":         "+1234567890",
+		"extraction_guidance": "This is contact list data - extract relationship facts only, never facts about primaryUser",
+	}
+	assert.Equal(t, expectedMetadata, contactDoc.Metadata())
 }
 
 func TestProcessDirectoryInput(t *testing.T) {
@@ -549,8 +557,9 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 
 	// Verify contact document
 	assert.NotNil(t, contactDoc, "Expected contact document")
-	assert.Equal(t, "Alice Smith", contactDoc.FieldContent)
-	assert.Equal(t, []string{"social", "contact"}, contactDoc.FieldTags)
+	expectedContactContent := "CONTACT ENTRY: Alice Smith (Phone: +1234567890) - This is a contact from the user's Telegram contact list, not information about the primary user."
+	assert.Equal(t, expectedContactContent, contactDoc.FieldContent)
+	assert.Equal(t, []string{"social", "contact", "contact_list"}, contactDoc.FieldTags)
 
 	t.Log("✅ End-to-end ToDocuments test passed - messages are properly processed")
 }

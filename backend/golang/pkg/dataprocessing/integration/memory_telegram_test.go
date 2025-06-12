@@ -3,7 +3,6 @@ package integration
 import (
 	"fmt"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -54,9 +53,6 @@ func TestMemoryIntegrationTelegram(t *testing.T) {
 			Limit:  &limit,
 		}
 
-		time.Sleep(5 * time.Second)
-
-		env.logger.Info("🟡 Querying memories")
 		result, err := env.memory.Query(env.ctx, "What do you know about me ?", &filter)
 		require.NoError(t, err)
 		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)

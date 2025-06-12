@@ -432,7 +432,6 @@ func (env *testEnvironment) StoreDocuments(t *testing.T) {
 func (env *testEnvironment) StoreDocumentsWithTimeout(t *testing.T, timeout time.Duration) {
 	t.Helper()
 
-	env.logger.Info("🟡 Storing documents with timeout", "timeout", timeout)
 	processingTimeout := timeout
 
 	// Override with environment variable if set
@@ -454,8 +453,6 @@ func (env *testEnvironment) StoreDocumentsWithTimeout(t *testing.T, timeout time
 	if err != nil {
 		t.Fatalf("Memory processing failed: %v", err)
 	}
-
-	env.logger.Info("🟡 Documents stored successfully")
 }
 
 func getTestConfig(t *testing.T) testConfig {
