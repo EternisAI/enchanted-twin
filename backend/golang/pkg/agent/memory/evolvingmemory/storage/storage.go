@@ -215,17 +215,6 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 		properties[timestampProperty] = doc.Timestamp().Format(time.RFC3339)
 	}
 
-	// Log what fields we're preserving for debugging
-	preservedFields := []string{}
-	for key := range properties {
-		if key != contentProperty && key != metadataProperty && key != sourceProperty && key != timestampProperty {
-			preservedFields = append(preservedFields, key)
-		}
-	}
-	if len(preservedFields) > 0 {
-		s.logger.Debugf("Preserving fields during update: %v", preservedFields)
-	}
-
 	// Step 4: Save with all fields preserved
 	err = s.client.Data().Updater().
 		WithID(id).
@@ -237,7 +226,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 		return fmt.Errorf("updating object: %w", err)
 	}
 
-	s.logger.Infof("Successfully updated memory with ID %s (preserved %d fields)", id, len(preservedFields))
+	s.logger.Infof("Successfully updated memory with ID %s", id)
 	return nil
 }
 
