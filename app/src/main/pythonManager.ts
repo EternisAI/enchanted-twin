@@ -216,6 +216,7 @@ SEND_MESSAGE_URL = os.getenv("SEND_MESSAGE_URL")
 
 
 def send_message(context, chat_id: str):
+
     url = SEND_MESSAGE_URL
 
     query = """
@@ -239,6 +240,10 @@ def send_message(context, chat_id: str):
     
     if resp.status_code == 200:
         body = resp.json()
+
+        if not body or not body["data"] or not body["data"]["processMessageHistory"]:
+            return None
+
         return body["data"]["processMessageHistory"]["text"]
     else:
         return None
@@ -284,14 +289,15 @@ class LLMStream(llm.LLMStream):
 
         try:
             context = to_chat_ctx(self._chat_ctx, "1")
-            context = [item for item in context if item["role"] != "system" or item["content"]!=""]
+            context = [item for item in context if (item["role"] != "system" and item["content"]!="")]
             context = [{'role': item['role'].upper(), 'text': item['content']} for item in context]
             
             received_message = send_message(context, self._chat_id)
-            
-            chunk = llm.ChatChunk(id="1",
-                                  delta=llm.ChoiceDelta(content=received_message, role="assistant"))
-            self._event_ch.send_nowait(chunk)
+
+            if received_message is not None:
+              chunk = llm.ChatChunk(id="1",
+                                    delta=llm.ChoiceDelta(content=received_message, role="assistant"))
+              self._event_ch.send_nowait(chunk)
             
         except Exception as e:
             raise APIConnectionError(retryable=retryable) from e
