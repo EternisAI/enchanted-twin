@@ -39,7 +39,7 @@ export function Home() {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
-  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
+  const { isVoiceMode, stopVoiceMode, startVoiceMode } = useVoiceStore()
   const navigate = useNavigate()
   const router = useRouter()
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
@@ -184,12 +184,13 @@ export function Home() {
             }
           })
           setQuery('')
+          isVoiceMode && startVoiceMode(newChatId)
         }
       } catch (error) {
         console.error('Failed to create chat:', error)
       }
     },
-    [query, navigate, createChat, sendMessage, router, isReasonSelected]
+    [query, navigate, createChat, sendMessage, router, isReasonSelected, startVoiceMode]
   )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -216,7 +217,6 @@ export function Home() {
 
   const handleToggleToVoiceMode = async () => {
     await handleCreateChat('New Voice Chat', true)
-    toggleVoiceMode()
   }
 
   useEffect(() => {
@@ -349,7 +349,7 @@ export function Home() {
         className="relative w-full"
       >
         {isVoiceMode ? (
-          <VoiceModeInput isMuted={isMuted} isAgentSpeaking={false} onStop={toggleVoiceMode} />
+          <VoiceModeInput isMuted={isMuted} isAgentSpeaking={false} onStop={stopVoiceMode} />
         ) : (
           <ChatInputBox
             isVoiceReady={isVoiceReady}

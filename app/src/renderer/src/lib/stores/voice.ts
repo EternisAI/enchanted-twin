@@ -1,38 +1,21 @@
 import { create } from 'zustand'
-import { useSidebarStore } from './sidebar'
 
 interface VoiceStore {
   isVoiceMode: boolean
-  toggleVoiceMode: (toggleSidebar?: boolean) => void
-  setVoiceMode: (isVoiceMode: boolean, toggleSidebar?: boolean) => void
+
+  startVoiceMode: (chatId: string) => void
+  stopVoiceMode: () => void
 }
 
-export const useVoiceStore = create<VoiceStore>((set, get) => ({
+export const useVoiceStore = create<VoiceStore>((set) => ({
   isVoiceMode: window.api.voiceStore.get('isVoiceMode') as boolean,
-  toggleVoiceMode: (toggleSidebar = true) => {
-    const { setOpen } = useSidebarStore.getState()
-    const { isVoiceMode } = get()
-    if (toggleSidebar) {
-      setOpen(isVoiceMode)
-    }
-    const newVoiceMode = !isVoiceMode
-    window.api.voiceStore.set('isVoiceMode', newVoiceMode)
-    set(() => ({ isVoiceMode: newVoiceMode }))
 
-    if (!newVoiceMode) {
-      window.api.livekit.stop()
-    }
+  startVoiceMode: (chatId: string) => {
+    window.api.livekit.start(chatId)
+    set({ isVoiceMode: true })
   },
-  setVoiceMode: (isVoiceMode: boolean, toggleSidebar = true) => {
-    if (toggleSidebar) {
-      const { setOpen } = useSidebarStore.getState()
-      setOpen(!isVoiceMode)
-    }
-    window.api.voiceStore.set('isVoiceMode', isVoiceMode)
-    set({ isVoiceMode })
-
-    if (!isVoiceMode) {
-      window.api.livekit.stop()
-    }
+  stopVoiceMode: () => {
+    window.api.livekit.stop()
+    set({ isVoiceMode: false })
   }
 }))

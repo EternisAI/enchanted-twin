@@ -21,7 +21,7 @@ interface VoiceModeChatViewProps {
   activeToolCalls: ToolCall[]
   historicToolCalls: ToolCall[]
   onSendMessage: (text: string, reasoning: boolean, voice: boolean) => void
-  toggleVoiceMode: () => void
+  stopVoiceMode: () => void
   error: string
   isWaitingTwinResponse: boolean
 }
@@ -32,10 +32,10 @@ export default function VoiceModeChatView({
   activeToolCalls,
   historicToolCalls,
   // onSendMessage,
-  toggleVoiceMode,
+  stopVoiceMode,
   error
 }: VoiceModeChatViewProps) {
-  const { isSpeaking, speak, getFreqData, stop, isLoading } = useTTS()
+  const { isSpeaking, speak, getFreqData, isLoading } = useTTS()
 
   const triggeredRef = useRef(false)
 
@@ -54,13 +54,6 @@ export default function VoiceModeChatView({
   })
 
   const visualState: 0 | 1 | 2 = isSpeaking ? 2 : isLoading ? 1 : 0
-
-  useEffect(() => {
-    window.api.livekit.start(chat.id)
-    return () => {
-      stop()
-    }
-  }, [])
 
   useEffect(() => {
     if (isSpeaking && triggeredRef.current) {
@@ -106,7 +99,7 @@ export default function VoiceModeChatView({
             </div>
           )}
           {/* <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} /> */}
-          <VoiceModeInput isMuted={false} isAgentSpeaking={isSpeaking} onStop={toggleVoiceMode} />
+          <VoiceModeInput isMuted={false} isAgentSpeaking={isSpeaking} onStop={stopVoiceMode} />
           {/* <MessageInput
             isWaitingTwinResponse={isLoading || isSpeaking}
             onSend={onSendMessage}
