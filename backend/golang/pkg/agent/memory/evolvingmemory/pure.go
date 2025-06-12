@@ -33,23 +33,6 @@ func DistributeWork(docs []memory.Document, workers int) [][]memory.Document {
 
 // CreateMemoryObject builds the Weaviate object for ADD operations.
 func CreateMemoryObject(fact StructuredFact, source memory.Document, decision MemoryDecision) *models.Object {
-	metadata := make(map[string]string)
-
-	// Only keep document references for tracking lineage
-	metadata["sourceDocumentId"] = source.ID()
-
-	// Determine document type using type assertion
-	var docType string
-	switch source.(type) {
-	case *memory.ConversationDocument:
-		docType = string(DocumentTypeConversation)
-	case *memory.TextDocument:
-		docType = string(DocumentTypeText)
-	default:
-		docType = "unknown"
-	}
-	metadata["sourceDocumentType"] = docType
-
 	// Get tags from the source document
 	tags := source.Tags()
 
@@ -62,7 +45,7 @@ func CreateMemoryObject(fact StructuredFact, source memory.Document, decision Me
 	// Prepare properties with new direct fields
 	properties := map[string]interface{}{
 		"content":            fact.GenerateContent(),
-		"metadataJson":       marshalMetadata(metadata),
+		"metadataJson":       "{}",
 		"timestamp":          timestamp.Format(time.RFC3339),
 		"tags":               tags,
 		"documentReferences": []string{},
@@ -103,21 +86,6 @@ func CreateMemoryObjectWithDocumentReferences(fact StructuredFact, source memory
 	props["documentReferences"] = documentIDs
 
 	return obj
-}
-
-// marshalMetadata converts a metadata map to JSON string for storage.
-func marshalMetadata(metadata map[string]string) string {
-	if len(metadata) == 0 {
-		return "{}"
-	}
-
-	// Use proper JSON marshaling instead of manual construction
-	jsonBytes, err := json.Marshal(metadata)
-	if err != nil {
-		// Fallback to empty JSON object if marshaling fails
-		return "{}"
-	}
-	return string(jsonBytes)
 }
 
 // ExtractFactsFromDocument routes fact extraction based on document type.
