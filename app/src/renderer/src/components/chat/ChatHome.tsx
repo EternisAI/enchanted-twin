@@ -150,40 +150,47 @@ export function Home() {
     }
   }
 
-  const handleCreateChat = useCallback(async () => {
-    if (!query.trim()) return
+  const handleCreateChat = useCallback(
+    async (chatTitle?: string) => {
+      const message = query || chatTitle || ''
+      if (!message.trim()) return
 
-    try {
-      const { data: createData } = await createChat({
-        variables: { name: query, category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text }
-      })
-      const newChatId = createData?.createChat?.id
-
-      if (newChatId) {
-        navigate({
-          to: `/chat/${newChatId}`,
-          search: { initialMessage: query }
-        })
-
-        await client.cache.evict({ fieldName: 'getChats' })
-        await router.invalidate({
-          filter: (match) => match.routeId === '/chat/$chatId'
-        })
-
-        sendMessage({
+      try {
+        const { data: createData } = await createChat({
           variables: {
-            chatId: newChatId,
-            text: query,
-            reasoning: isReasonSelected,
-            voice: isVoiceMode
+            name: chatTitle || message,
+            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
           }
         })
-        setQuery('')
+        const newChatId = createData?.createChat?.id
+
+        if (newChatId) {
+          navigate({
+            to: `/chat/${newChatId}`,
+            search: { initialMessage: query }
+          })
+
+          await client.cache.evict({ fieldName: 'getChats' })
+          await router.invalidate({
+            filter: (match) => match.routeId === '/chat/$chatId'
+          })
+
+          sendMessage({
+            variables: {
+              chatId: newChatId,
+              text: query,
+              reasoning: isReasonSelected,
+              voice: isVoiceMode
+            }
+          })
+          setQuery('')
+        }
+      } catch (error) {
+        console.error('Failed to create chat:', error)
       }
-    } catch (error) {
-      console.error('Failed to create chat:', error)
-    }
-  }, [query, navigate, createChat, sendMessage, router, isReasonSelected, isVoiceMode])
+    },
+    [query, navigate, createChat, sendMessage, router, isReasonSelected, isVoiceMode]
+  )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
@@ -205,6 +212,12 @@ export function Home() {
         handleSuggestionClick(selectedSuggestion)
       }
     }
+  }
+
+  const handleToggleToVoiceMode = async () => {
+    console.log('handleToggleToVoiceMode')
+    await handleCreateChat('New Voice Chat')
+    toggleVoiceMode()
   }
 
   useEffect(() => {
@@ -345,7 +358,7 @@ export function Home() {
             textareaRef={textareaRef}
             isReasonSelected={isReasonSelected}
             isVoiceMode={isVoiceMode}
-            onVoiceModeChange={toggleVoiceMode}
+            onVoiceModeChange={handleToggleToVoiceMode}
             onInputChange={setQuery}
             handleSubmit={handleSubmit}
             setIsReasonSelected={setIsReasonSelected}
