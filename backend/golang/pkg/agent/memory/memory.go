@@ -30,7 +30,6 @@ type BooleanExpression struct {
 
 // TagsFilter provides flexible tag filtering options supporting AND, OR, and complex boolean expressions.
 type TagsFilter struct {
-	// Simple cases (backward compatible)
 	All []string `json:"all,omitempty"` // Must contain ALL specified tags (AND logic)
 	Any []string `json:"any,omitempty"` // Must contain ANY of the specified tags (OR logic)
 

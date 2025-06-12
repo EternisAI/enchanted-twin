@@ -22,6 +22,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 func TestConversationDocumentBasics(t *testing.T) {
@@ -535,12 +536,6 @@ func TestConcurrentDocumentStorage(t *testing.T) {
 	})
 }
 
-// FILTERING INTEGRATION TESTS 🧪
-
-// Helper functions for filtering tests.
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int          { return &i }
-
 // TestAdvancedFiltering_Integration tests the complete filtering pipeline.
 func TestAdvancedFiltering_Integration(t *testing.T) {
 	t.Run("filter validation in storage interface", func(t *testing.T) {
@@ -549,10 +544,10 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 
 		// Mock the Query method to verify filter is passed correctly
 		expectedFilter := &memory.Filter{
-			Source:   stringPtr("conversations"),
-			Subject:  stringPtr("alice"),
+			Source:   helpers.Ptr("conversations"),
+			Subject:  helpers.Ptr("alice"),
 			Distance: 0.7,
-			Limit:    intPtr(5),
+			Limit:    helpers.Ptr(5),
 		}
 
 		expectedResult := memory.QueryResult{
@@ -706,7 +701,7 @@ func TestAdvancedFiltering_Integration(t *testing.T) {
 			Tags: &memory.TagsFilter{
 				All: []string{"work", "important"},
 			},
-			Limit: intPtr(5),
+			Limit: helpers.Ptr(5),
 		}
 
 		expectedResult := memory.QueryResult{
@@ -794,10 +789,10 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		// Filter with empty string values
 		filter := &memory.Filter{
-			Source:   stringPtr(""),
-			Subject:  stringPtr(""),
+			Source:   helpers.Ptr(""),
+			Subject:  helpers.Ptr(""),
 			Distance: 0,
-			Limit:    intPtr(0),
+			Limit:    helpers.Ptr(0),
 		}
 
 		expectedResult := memory.QueryResult{
@@ -865,10 +860,10 @@ func TestFilterBehavior_EdgeCases(t *testing.T) {
 
 		// Filter with extreme values
 		filter := &memory.Filter{
-			Source:   stringPtr("very-long-source-name-that-might-cause-issues"),
-			Subject:  stringPtr("user-with-very-long-name-123456789"),
-			Distance: 2.0,           // > 1.0
-			Limit:    intPtr(10000), // Very large limit
+			Source:   helpers.Ptr("very-long-source-name-that-might-cause-issues"),
+			Subject:  helpers.Ptr("user-with-very-long-name-123456789"),
+			Distance: 2.0,                // > 1.0
+			Limit:    helpers.Ptr(10000), // Very large limit
 		}
 
 		expectedResult := memory.QueryResult{
@@ -981,8 +976,8 @@ func TestQueryResultStructure(t *testing.T) {
 		logger := log.New(os.Stdout)
 
 		filter := &memory.Filter{
-			Source: stringPtr("conversations"),
-			Limit:  intPtr(3),
+			Source: helpers.Ptr("conversations"),
+			Limit:  helpers.Ptr(3),
 		}
 
 		// Create realistic mock result
@@ -1088,10 +1083,10 @@ func TestFilterUsagePatterns(t *testing.T) {
 	t.Run("conversation filtering pattern", func(t *testing.T) {
 		// Pattern: Get recent conversations with a specific person
 		filter := &memory.Filter{
-			Source:   stringPtr("conversations"),
-			Subject:  stringPtr("alice"),
+			Source:   helpers.Ptr("conversations"),
+			Subject:  helpers.Ptr("alice"),
 			Distance: 0.8, // Semantic similarity threshold
-			Limit:    intPtr(10),
+			Limit:    helpers.Ptr(10),
 		}
 
 		assert.Equal(t, "conversations", *filter.Source)
@@ -1103,9 +1098,9 @@ func TestFilterUsagePatterns(t *testing.T) {
 	t.Run("email filtering pattern", func(t *testing.T) {
 		// Pattern: Find work-related emails
 		filter := &memory.Filter{
-			Source:   stringPtr("email"),
+			Source:   helpers.Ptr("email"),
 			Distance: 0.7,
-			Limit:    intPtr(20),
+			Limit:    helpers.Ptr(20),
 		}
 
 		assert.Equal(t, "email", *filter.Source)
@@ -1118,7 +1113,7 @@ func TestFilterUsagePatterns(t *testing.T) {
 		// Pattern: Pure semantic search with distance limit
 		filter := &memory.Filter{
 			Distance: 0.6,
-			Limit:    intPtr(5),
+			Limit:    helpers.Ptr(5),
 		}
 
 		assert.Nil(t, filter.Source)  // No source filter
@@ -1193,8 +1188,8 @@ func TestPerformanceImplications(t *testing.T) {
 		// - Combined with filters.And for multiple conditions
 
 		filter := &memory.Filter{
-			Source:  stringPtr("conversations"),
-			Subject: stringPtr("alice"),
+			Source:  helpers.Ptr("conversations"),
+			Subject: helpers.Ptr("alice"),
 		}
 
 		// This should generate efficient queries like:
@@ -1206,7 +1201,7 @@ func TestPerformanceImplications(t *testing.T) {
 	t.Run("memory usage patterns", func(t *testing.T) {
 		// Large result sets should be limited
 		filter := &memory.Filter{
-			Limit: intPtr(100), // Reasonable limit
+			Limit: helpers.Ptr(100), // Reasonable limit
 		}
 		assert.Equal(t, 100, *filter.Limit)
 
@@ -1446,7 +1441,7 @@ func TestTagsFilterAPI(t *testing.T) {
 	t.Run("fluent API usage examples", func(t *testing.T) {
 		// Example 1: Simple work-related documents
 		workFilter := &memory.Filter{
-			Source: stringPtr("conversations"),
+			Source: helpers.Ptr("conversations"),
 			Tags: &memory.TagsFilter{
 				All: []string{"work", "important"},
 			},
@@ -1459,7 +1454,7 @@ func TestTagsFilterAPI(t *testing.T) {
 			Tags: &memory.TagsFilter{
 				Any: []string{"urgent", "asap", "deadline"},
 			},
-			Limit: intPtr(20),
+			Limit: helpers.Ptr(20),
 		}
 		assert.Len(t, urgentFilter.Tags.Any, 3)
 		assert.Equal(t, 20, *urgentFilter.Limit)
@@ -1533,8 +1528,8 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 
 		// Test complex filter with multiple components
 		complexFilter := &memory.Filter{
-			Source:  stringPtr("conversations"),
-			Subject: stringPtr("alice"),
+			Source:  helpers.Ptr("conversations"),
+			Subject: helpers.Ptr("alice"),
 			Tags: &memory.TagsFilter{
 				Expression: &memory.BooleanExpression{
 					Operator: memory.OR,
@@ -1549,7 +1544,7 @@ func TestTagsFilteringIntegrationUpgrade(t *testing.T) {
 				},
 			},
 			Distance: 0.75,
-			Limit:    intPtr(8),
+			Limit:    helpers.Ptr(8),
 		}
 
 		expectedResult := memory.QueryResult{

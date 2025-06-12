@@ -160,21 +160,6 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		}
 	}
 
-	if docRefsInterface, ok := props[documentReferencesProperty].([]interface{}); ok {
-		var docRefs []string
-		for _, docRefInterface := range docRefsInterface {
-			if docRefStr, ok := docRefInterface.(string); ok {
-				docRefs = append(docRefs, docRefStr)
-			}
-		}
-		if len(docRefs) > 0 {
-			docRefsJSON, err := json.Marshal(docRefs)
-			if err == nil {
-				metadata[documentReferencesProperty] = string(docRefsJSON)
-			}
-		}
-	}
-
 	doc := &memory.TextDocument{
 		FieldID:        string(obj.ID),
 		FieldContent:   content,
@@ -189,26 +174,48 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 
 // Update updates an existing memory document in Weaviate.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	// Prepare metadata JSON (for backward compatibility)
-	metadataJSON, err := json.Marshal(doc.Metadata())
+	// Step 1: Fetch the existing object to preserve all fields
+	existing, err := s.client.Data().ObjectsGetter().
+		WithID(id).
+		WithClassName(ClassName).
+		Do(ctx)
 	if err != nil {
-		return fmt.Errorf("marshaling metadata: %w", err)
+		return fmt.Errorf("fetching existing object for update: %w", err)
 	}
 
-	properties := map[string]interface{}{
-		contentProperty:  doc.Content(),
-		metadataProperty: string(metadataJSON), // Keep for backward compatibility
+	if len(existing) == 0 {
+		return fmt.Errorf("no object found with ID %s", id)
 	}
 
-	// Extract and store source as direct field
+	// Step 2: Preserve all existing properties
+	properties, ok := existing[0].Properties.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid properties type for object %s", id)
+	}
+
+	// Step 3: Update only the fields that should change
+	properties[contentProperty] = doc.Content()
+
+	// Only update metadata if the TextDocument has non-empty metadata
+	if len(doc.Metadata()) > 0 {
+		metadataJSON, err := json.Marshal(doc.Metadata())
+		if err != nil {
+			return fmt.Errorf("marshaling metadata: %w", err)
+		}
+		properties[metadataProperty] = string(metadataJSON)
+	}
+
+	// Update source if provided
 	if source := doc.Source(); source != "" {
 		properties[sourceProperty] = source
 	}
 
+	// Update timestamp
 	if doc.Timestamp() != nil {
 		properties[timestampProperty] = doc.Timestamp().Format(time.RFC3339)
 	}
 
+	// Step 4: Save with all fields preserved
 	err = s.client.Data().Updater().
 		WithID(id).
 		WithClassName(ClassName).
@@ -324,7 +331,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 				}
 			}
 
-			// Define core legacy properties that MUST exist (these should never be missing)
+			// Define core properties that MUST exist
 			coreProps := map[string]string{
 				contentProperty:   "text",
 				timestampProperty: "date",
@@ -377,7 +384,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 			{
 				Name:        contentProperty,
 				DataType:    []string{"text"},
-				Description: "The content of the memory (deprecated: now derived from structured fact)",
+				Description: "The content of the memory",
 			},
 			{
 				Name:              timestampProperty,
@@ -389,7 +396,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 			{
 				Name:        metadataProperty,
 				DataType:    []string{"text"},
-				Description: "JSON-encoded metadata for the memory (legacy)",
+				Description: "JSON-encoded metadata (should be empty for new memories)",
 			},
 			{
 				Name:            sourceProperty,
@@ -602,17 +609,10 @@ func (s *WeaviateStorage) buildQueryBuilder(queryVector []float32, filter *memor
 	// 3. Define fields to retrieve
 	fields := s.buildQueryFields()
 
-	// 4. Set limit
-	limit := 10
-	if filter != nil && filter.Limit != nil {
-		limit = *filter.Limit
-	}
-
-	// 5. Build base query
+	// 4. Build base query
 	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
-		WithLimit(limit).
 		WithFields(fields...)
 
 	// 6. Add WHERE filters
@@ -939,19 +939,7 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		metaMap["factImportance"] = fmt.Sprintf("%d", int(factImportance))
 	}
 
-	// Add tags to metadata as JSON array
-	if tagsInterface, ok := obj[tagsProperty].([]interface{}); ok {
-		var tags []string
-		for _, tagItem := range tagsInterface {
-			if tagStr, ok := tagItem.(string); ok {
-				tags = append(tags, tagStr)
-			}
-		}
-		if len(tags) > 0 {
-			tagsJSON, _ := json.Marshal(tags)
-			metaMap["tags"] = string(tagsJSON)
-		}
-	}
+	// Tags and documentReferences are direct fields now, not in metadata
 
 	return memory.MemoryFact{
 		ID:        id,
@@ -1081,45 +1069,41 @@ func (s *WeaviateStorage) GetStoredDocumentsBatch(ctx context.Context, documentI
 func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
 	s.logger.Info("Getting document references", "memory_id", memoryID)
 
-	memory, err := s.GetByID(ctx, memoryID)
+	// Query Weaviate directly to get the documentReferences field
+	result, err := s.client.Data().ObjectsGetter().
+		WithID(memoryID).
+		WithClassName(ClassName).
+		Do(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("getting memory object: %w", err)
+		return nil, fmt.Errorf("getting object by ID: %w", err)
+	}
+
+	if len(result) == 0 {
+		return nil, fmt.Errorf("no object found with ID %s", memoryID)
+	}
+
+	obj := result[0]
+	props, ok := obj.Properties.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid properties type for object %s", memoryID)
 	}
 
 	var documentIDs []string
-	if refs, ok := memory.Metadata()[documentReferencesProperty]; ok {
-		if err := json.Unmarshal([]byte(refs), &documentIDs); err != nil {
-			s.logger.Warn("Failed to unmarshal document references", "error", err)
-		} else {
-			s.logger.Debug("Found document references in new format", "count", len(documentIDs))
-		}
-	}
 
-	if len(documentIDs) == 0 {
-		if oldDocID, ok := memory.Metadata()["sourceDocumentId"]; ok && oldDocID != "" {
-			s.logger.Debug("Found document reference in old format", "doc_id", oldDocID)
-
-			docType := memory.Metadata()["sourceDocumentType"]
-			if docType == "" {
-				docType = "unknown"
+	// Get documentReferences from direct field only
+	if docRefsInterface, ok := props[documentReferencesProperty].([]interface{}); ok {
+		for _, docRefInterface := range docRefsInterface {
+			if docRefStr, ok := docRefInterface.(string); ok {
+				documentIDs = append(documentIDs, docRefStr)
 			}
-
-			return []*DocumentReference{
-				{
-					ID:      oldDocID,
-					Content: "",
-					Type:    docType,
-				},
-			}, nil
 		}
+		s.logger.Debug("Found document references", "count", len(documentIDs))
 	}
 
 	if len(documentIDs) == 0 {
 		s.logger.Info("No document references found", "memory_id", memoryID)
 		return nil, nil
 	}
-
-	s.logger.Debug("Retrieving documents from new storage system", "count", len(documentIDs))
 
 	storedDocs, err := s.GetStoredDocumentsBatch(ctx, documentIDs)
 	if err != nil {
@@ -1423,7 +1407,7 @@ func (s *WeaviateStorage) buildTagsFilter(tagsFilter *memory.TagsFilter) (*filte
 		return nil, nil
 	}
 
-	// Handle simple ALL case (backward compatible)
+	// Handle simple ALL case
 	if len(tagsFilter.All) > 0 {
 		s.logger.Debug("Building tags filter with ALL logic", "tags", tagsFilter.All)
 		return filters.Where().
