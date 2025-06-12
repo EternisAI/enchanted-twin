@@ -59,7 +59,7 @@ import (
 	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
 
-// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout
+// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
 type customLogWriter struct{}
 
 func (w *customLogWriter) Write(p []byte) (n int, err error) {
@@ -86,7 +86,6 @@ func main() {
 	envs, _ := config.LoadConfig(false)
 	logger.Debug("Config loaded", "envs", envs)
 	logger.Info("Using database path", "path", envs.DBPath)
-
 
 	natsServer, err := bootstrap.StartEmbeddedNATSServer(logger)
 	if err != nil {
