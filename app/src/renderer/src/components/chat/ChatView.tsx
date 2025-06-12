@@ -46,6 +46,14 @@ export default function ChatView({ chat }: ChatViewProps) {
         tools: message.toolCalls.map((tool) => tool.name)
       })
     }
+
+    // Messages on voice mode are sent by python code via livekit
+    if (message.role === Role.User && isVoiceMode) {
+      upsertMessage(message)
+      window.api.analytics.capture('voice_message_sent', {
+        tools: message.toolCalls.map((tool) => tool.name)
+      })
+    }
   })
 
   useMessageStreamSubscription(chat.id, (messageId, chunk, isComplete, imageUrls) => {

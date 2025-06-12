@@ -31,7 +31,7 @@ export default function VoiceModeChatView({
   messages,
   activeToolCalls,
   historicToolCalls,
-  onSendMessage,
+  // onSendMessage,
   toggleVoiceMode,
   error
 }: VoiceModeChatViewProps) {
@@ -122,7 +122,7 @@ export default function VoiceModeChatView({
 
 export function VoiceModeInput({
   isMuted,
-  isAgentSpeaking,
+  // isAgentSpeaking,
   onStop
 }: {
   isMuted: boolean

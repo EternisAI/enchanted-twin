@@ -242,6 +242,28 @@ func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID str
 	}
 	
 	r.Logger.Info("Processing message history", "data", string(historyJson))
+
+	// Only publish the last user message to NATS
+	subject := fmt.Sprintf("chat.%s", chatID)
+	if len(messages) > 0 {
+		lastMsg := messages[len(messages)-1]
+		if lastMsg.Role == model.RoleUser {
+			text := lastMsg.Text
+			userMessageJson, err := json.Marshal(model.Message{
+				ID:        uuid.New().String(),
+				Text:      &text,
+				CreatedAt: time.Now().Format(time.RFC3339),
+				Role:      model.RoleUser,
+			})
+			if err != nil {
+				return nil, err
+			}
+			err = r.Nc.Publish(subject, userMessageJson)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 	
 	// Process the messages and save them to the database
 	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, reasoning, voice)
