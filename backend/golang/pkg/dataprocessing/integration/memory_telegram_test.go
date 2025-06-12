@@ -2,11 +2,11 @@ package integration
 
 import (
 	"fmt"
-	"os"
 	"testing"
-	"time"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMemoryIntegrationTelegram(t *testing.T) {
@@ -19,16 +19,10 @@ func TestMemoryIntegrationTelegram(t *testing.T) {
 
 	t.Run("Query telegram", func(t *testing.T) {
 		source := "telegram"
-		inputPath := "testdata/telegram_export_sample.jsonl"
-
-		_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, "telegram")
-		if err != nil {
-			t.Fatalf("Failed to process source: %v", err)
-		}
+		inputPath := "testdata/telegram_export_sample.json"
 
 		env.LoadDocuments(t, source, inputPath)
-
-		env.StoreDocumentsWithTimeout(t, 30*time.Minute)
+		env.StoreDocuments(t)
 
 		limit := 100
 		filter := memory.Filter{
@@ -36,31 +30,12 @@ func TestMemoryIntegrationTelegram(t *testing.T) {
 			Limit:  &limit,
 		}
 
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do we know about the user from %s source?", source), &filter)
+		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		require.NoError(t, err)
+		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
-		if err != nil {
-			env.logger.Warn("telegram query returned error (may be expected)", "error", err)
-			t.Logf("telegram query error (non-fatal): %v", err)
-		} else {
-			env.logger.Info("telegram query results", "fact_count", len(result.Facts))
-
-			if len(result.Facts) == 0 {
-				t.Logf("No facts extracted from telegram conversations (this may be normal)")
-			} else {
-				for _, fact := range result.Facts {
-					env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-				}
-			}
+		for _, fact := range result.Facts {
+			env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
 		}
 	})
-}
-
-func TestMainTelegram(m *testing.M) {
-	SetupSharedInfrastructure()
-
-	code := m.Run()
-
-	TeardownSharedInfrastructure()
-
-	os.Exit(code)
 }
