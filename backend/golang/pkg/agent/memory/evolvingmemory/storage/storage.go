@@ -174,21 +174,60 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 
 // Update updates an existing memory document in Weaviate.
 func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	properties := map[string]interface{}{
-		contentProperty:  doc.Content(),
-		metadataProperty: "{}", // Empty metadata
+	// Step 1: Fetch the existing object to preserve all fields
+	existing, err := s.client.Data().ObjectsGetter().
+		WithID(id).
+		WithClassName(ClassName).
+		Do(ctx)
+	if err != nil {
+		return fmt.Errorf("fetching existing object for update: %w", err)
 	}
 
-	// Extract and store source as direct field
+	if len(existing) == 0 {
+		return fmt.Errorf("no object found with ID %s", id)
+	}
+
+	// Step 2: Preserve all existing properties
+	properties, ok := existing[0].Properties.(map[string]interface{})
+	if !ok {
+		return fmt.Errorf("invalid properties type for object %s", id)
+	}
+
+	// Step 3: Update only the fields that should change
+	properties[contentProperty] = doc.Content()
+
+	// Only update metadata if the TextDocument has non-empty metadata
+	if len(doc.Metadata()) > 0 {
+		metadataJSON, err := json.Marshal(doc.Metadata())
+		if err != nil {
+			return fmt.Errorf("marshaling metadata: %w", err)
+		}
+		properties[metadataProperty] = string(metadataJSON)
+	}
+
+	// Update source if provided
 	if source := doc.Source(); source != "" {
 		properties[sourceProperty] = source
 	}
 
+	// Update timestamp
 	if doc.Timestamp() != nil {
 		properties[timestampProperty] = doc.Timestamp().Format(time.RFC3339)
 	}
 
-	err := s.client.Data().Updater().
+	// Log what fields we're preserving for debugging
+	preservedFields := []string{}
+	for key := range properties {
+		if key != contentProperty && key != metadataProperty && key != sourceProperty && key != timestampProperty {
+			preservedFields = append(preservedFields, key)
+		}
+	}
+	if len(preservedFields) > 0 {
+		s.logger.Debugf("Preserving fields during update: %v", preservedFields)
+	}
+
+	// Step 4: Save with all fields preserved
+	err = s.client.Data().Updater().
 		WithID(id).
 		WithClassName(ClassName).
 		WithProperties(properties).
@@ -198,7 +237,7 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 		return fmt.Errorf("updating object: %w", err)
 	}
 
-	s.logger.Infof("Successfully updated memory with ID %s", id)
+	s.logger.Infof("Successfully updated memory with ID %s (preserved %d fields)", id, len(preservedFields))
 	return nil
 }
 
