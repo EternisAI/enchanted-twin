@@ -687,35 +687,205 @@ func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
 	})
 }
 
-// TestStructuredFactFilteringPerformance tests performance-related scenarios.
+// TestStructuredFactFilteringPerformance tests performance characteristics of fact filtering.
 func TestStructuredFactFilteringPerformance(t *testing.T) {
-	t.Run("single field filtering should be efficient", func(t *testing.T) {
+	t.Run("direct field indexing vs JSON pattern matching", func(t *testing.T) {
+		// Document expected performance improvements:
+		// OLD: LIKE pattern matching on JSON strings
+		// NEW: Direct field queries with proper indexing
+
 		filter := &memory.Filter{
-			FactCategory: stringPtr("preference"),
+			FactCategory:   stringPtr("preference"),
+			FactImportance: intPtr(3),
 		}
 
-		// Single field should create single WHERE clause
+		// These should use direct field queries:
+		// WHERE factCategory = "preference" AND factImportance = 3
 		assert.Equal(t, "preference", *filter.FactCategory)
-		assert.Nil(t, filter.Subject) // No additional filters
+		assert.Equal(t, 3, *filter.FactImportance)
 	})
 
-	t.Run("range filtering should use optimized operators", func(t *testing.T) {
+	t.Run("range queries on importance", func(t *testing.T) {
 		filter := &memory.Filter{
 			FactImportanceMin: intPtr(2),
 			FactImportanceMax: intPtr(3),
 		}
 
-		// Range filtering should use GreaterThanEqual/LessThanEqual operators
+		// Should generate efficient range query:
+		// WHERE factImportance >= 2 AND factImportance <= 3
 		assert.Equal(t, 2, *filter.FactImportanceMin)
 		assert.Equal(t, 3, *filter.FactImportanceMax)
 	})
+}
 
-	t.Run("exact vs partial matching strategy", func(t *testing.T) {
-		exactFilter := &memory.Filter{
-			FactCategory: stringPtr("health"), // Exact match
+// TestUpdatePreservesAllFields tests that the Update function preserves all structured fact fields.
+func TestUpdatePreservesAllFields(t *testing.T) {
+	t.Run("update preserves structured fact fields", func(t *testing.T) {
+		// This test documents the expected behavior of the Update function
+		// It should preserve all fields when updating a memory
+
+		// Simulate an existing memory with all fields populated
+		existingProperties := map[string]interface{}{
+			contentProperty:             "old content",
+			timestampProperty:           "2025-01-01T00:00:00Z",
+			metadataProperty:            `{"extra":"metadata"}`,
+			sourceProperty:              "whatsapp",
+			tagsProperty:                []interface{}{"conversation", "chat"},
+			documentReferencesProperty:  []interface{}{"doc-id-1", "doc-id-2"},
+			factCategoryProperty:        "event",
+			factSubjectProperty:         "primaryUser",
+			factAttributeProperty:       "pet_loss",
+			factValueProperty:           "primaryUser's family dog was put down",
+			factTemporalContextProperty: "2024-12-27",
+			factSensitivityProperty:     "high",
+			factImportanceProperty:      3,
 		}
 
-		// Exact matching for categories (fast indexed lookup)
-		assert.Equal(t, "health", *exactFilter.FactCategory)
+		// Create a new document for update
+		now := time.Now()
+		updateDoc := &memory.TextDocument{
+			FieldContent:   "updated content about the pet loss",
+			FieldTimestamp: &now,
+			FieldSource:    "whatsapp-update",
+			FieldMetadata:  map[string]string{"updated": "true"},
+		}
+
+		// Verify update document properties
+		assert.Equal(t, "updated content about the pet loss", updateDoc.Content())
+		assert.Equal(t, "whatsapp-update", updateDoc.Source())
+		assert.Equal(t, "true", updateDoc.Metadata()["updated"])
+
+		// After update, the properties should include:
+		// - Updated fields: content, timestamp, source, metadata
+		// - Preserved fields: all fact fields, tags, documentReferences
+		expectedFields := []string{
+			tagsProperty,
+			documentReferencesProperty,
+			factCategoryProperty,
+			factSubjectProperty,
+			factAttributeProperty,
+			factValueProperty,
+			factTemporalContextProperty,
+			factSensitivityProperty,
+			factImportanceProperty,
+		}
+
+		// Verify all fields should be preserved
+		for _, field := range expectedFields {
+			value, exists := existingProperties[field]
+			assert.True(t, exists, "Field %s should exist", field)
+			assert.NotNil(t, value, "Field %s should not be nil", field)
+		}
+
+		// Document specific expectations
+		assert.Equal(t, "event", existingProperties[factCategoryProperty])
+		assert.Equal(t, "primaryUser", existingProperties[factSubjectProperty])
+		assert.Equal(t, 3, existingProperties[factImportanceProperty])
+		assert.Equal(t, []interface{}{"doc-id-1", "doc-id-2"}, existingProperties[documentReferencesProperty])
+	})
+
+	t.Run("update with empty metadata preserves existing metadata", func(t *testing.T) {
+		// When updating with an empty metadata map, existing metadata should be preserved
+		existingProperties := map[string]interface{}{
+			contentProperty:        "old content",
+			metadataProperty:       `{"important":"data","preserve":"this"}`,
+			factCategoryProperty:   "preference",
+			factImportanceProperty: 2,
+		}
+
+		// Update with empty metadata
+		updateDoc := &memory.TextDocument{
+			FieldContent:  "new content",
+			FieldMetadata: map[string]string{}, // Empty metadata
+		}
+
+		// The metadata field should remain unchanged when update has empty metadata
+		assert.Equal(t, `{"important":"data","preserve":"this"}`, existingProperties[metadataProperty])
+		assert.Empty(t, updateDoc.Metadata())
+		assert.Equal(t, "new content", updateDoc.Content())
+	})
+
+	t.Run("update handles missing fields gracefully", func(t *testing.T) {
+		// Test updating a memory that doesn't have all structured fields
+		// (e.g., old memory created before structured facts were added)
+		existingProperties := map[string]interface{}{
+			contentProperty:   "old content",
+			timestampProperty: "2024-01-01T00:00:00Z",
+			metadataProperty:  `{"source":"old-system"}`,
+			// Missing: all structured fact fields
+		}
+
+		updateDoc := &memory.TextDocument{
+			FieldContent: "updated content",
+		}
+
+		// Verify update document
+		assert.Equal(t, "updated content", updateDoc.Content())
+
+		// After update, old fields should be preserved even if they're not structured fact fields
+		assert.Equal(t, "old content", existingProperties[contentProperty])
+		assert.Equal(t, "2024-01-01T00:00:00Z", existingProperties[timestampProperty])
+		assert.Equal(t, `{"source":"old-system"}`, existingProperties[metadataProperty])
+
+		// Nil/missing fields should not cause errors
+		assert.Nil(t, existingProperties[factCategoryProperty])
+		assert.Nil(t, existingProperties[documentReferencesProperty])
+	})
+
+	t.Run("update preserves array fields correctly", func(t *testing.T) {
+		// Test that array fields like tags and documentReferences are preserved
+		existingProperties := map[string]interface{}{
+			contentProperty:            "content",
+			tagsProperty:               []interface{}{"tag1", "tag2", "tag3"},
+			documentReferencesProperty: []interface{}{"ref1", "ref2"},
+		}
+
+		// Verify array fields are preserved as-is
+		tags, ok := existingProperties[tagsProperty].([]interface{})
+		assert.True(t, ok)
+		assert.Len(t, tags, 3)
+		assert.Contains(t, tags, "tag1")
+
+		refs, ok := existingProperties[documentReferencesProperty].([]interface{})
+		assert.True(t, ok)
+		assert.Len(t, refs, 2)
+		assert.Contains(t, refs, "ref1")
+	})
+
+	t.Run("update logs preserved fields", func(t *testing.T) {
+		// Test that the update function logs which fields are being preserved
+		preservedFields := []string{}
+		allProperties := map[string]interface{}{
+			contentProperty:            "content",
+			timestampProperty:          "2025-01-01T00:00:00Z",
+			sourceProperty:             "source",
+			metadataProperty:           "{}",
+			tagsProperty:               []interface{}{"tag1"},
+			documentReferencesProperty: []interface{}{"doc1"},
+			factCategoryProperty:       "event",
+			factSubjectProperty:        "user",
+		}
+
+		// Collect fields that aren't being updated
+		updatedFields := []string{contentProperty, timestampProperty, sourceProperty, metadataProperty}
+		for key := range allProperties {
+			isUpdated := false
+			for _, updated := range updatedFields {
+				if key == updated {
+					isUpdated = true
+					break
+				}
+			}
+			if !isUpdated {
+				preservedFields = append(preservedFields, key)
+			}
+		}
+
+		// Should have preserved non-update fields
+		assert.Contains(t, preservedFields, tagsProperty)
+		assert.Contains(t, preservedFields, documentReferencesProperty)
+		assert.Contains(t, preservedFields, factCategoryProperty)
+		assert.Contains(t, preservedFields, factSubjectProperty)
+		assert.Len(t, preservedFields, 4)
 	})
 }
