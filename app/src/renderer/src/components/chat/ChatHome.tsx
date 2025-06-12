@@ -151,7 +151,7 @@ export function Home() {
   }
 
   const handleCreateChat = useCallback(
-    async (chatTitle?: string) => {
+    async (chatTitle?: string, isVoiceMode?: boolean) => {
       const message = query || chatTitle || ''
       if (!message.trim()) return
 
@@ -180,7 +180,7 @@ export function Home() {
               chatId: newChatId,
               text: query,
               reasoning: isReasonSelected,
-              voice: isVoiceMode
+              voice: isVoiceMode || false
             }
           })
           setQuery('')
@@ -189,7 +189,7 @@ export function Home() {
         console.error('Failed to create chat:', error)
       }
     },
-    [query, navigate, createChat, sendMessage, router, isReasonSelected, isVoiceMode]
+    [query, navigate, createChat, sendMessage, router, isReasonSelected]
   )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -215,8 +215,7 @@ export function Home() {
   }
 
   const handleToggleToVoiceMode = async () => {
-    console.log('handleToggleToVoiceMode')
-    await handleCreateChat('New Voice Chat')
+    await handleCreateChat('New Voice Chat', true)
     toggleVoiceMode()
   }
 
