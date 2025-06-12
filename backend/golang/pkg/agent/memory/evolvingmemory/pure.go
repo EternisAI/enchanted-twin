@@ -17,12 +17,12 @@ import (
 )
 
 // DistributeWork splits documents evenly among workers.
-func DistributeWork(docs []PreparedDocument, workers int) [][]PreparedDocument {
+func DistributeWork(docs []memory.Document, workers int) [][]memory.Document {
 	if workers <= 0 {
 		workers = 1
 	}
 
-	chunks := make([][]PreparedDocument, workers)
+	chunks := make([][]memory.Document, workers)
 	for i, doc := range docs {
 		workerIdx := i % workers
 		chunks[workerIdx] = append(chunks[workerIdx], doc)
@@ -32,21 +32,38 @@ func DistributeWork(docs []PreparedDocument, workers int) [][]PreparedDocument {
 }
 
 // CreateMemoryObject builds the Weaviate object for ADD operations.
-func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Object {
+func CreateMemoryObject(fact StructuredFact, source memory.Document, decision MemoryDecision) *models.Object {
 	metadata := make(map[string]string)
 
 	// Only keep document references for tracking lineage
-	metadata["sourceDocumentId"] = fact.Source.Original.ID()
-	metadata["sourceDocumentType"] = string(fact.Source.Type)
+	metadata["sourceDocumentId"] = source.ID()
+
+	// Determine document type using type assertion
+	var docType string
+	switch source.(type) {
+	case *memory.ConversationDocument:
+		docType = string(DocumentTypeConversation)
+	case *memory.TextDocument:
+		docType = string(DocumentTypeText)
+	default:
+		docType = "unknown"
+	}
+	metadata["sourceDocumentType"] = docType
 
 	// Get tags from the source document
-	tags := fact.Source.Original.Tags()
+	tags := source.Tags()
+
+	// Get timestamp from source document
+	timestamp := time.Now()
+	if ts := source.Timestamp(); ts != nil && !ts.IsZero() {
+		timestamp = *ts
+	}
 
 	// Prepare properties with new direct fields
 	properties := map[string]interface{}{
-		"content":            fact.Content,
+		"content":            fact.GenerateContent(),
 		"metadataJson":       marshalMetadata(metadata),
-		"timestamp":          fact.Source.Timestamp.Format(time.RFC3339),
+		"timestamp":          timestamp.Format(time.RFC3339),
 		"tags":               tags,
 		"documentReferences": []string{},
 		// Store structured fact fields
@@ -64,8 +81,8 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 	}
 
 	// Extract and store source as direct field
-	if source := fact.Source.Original.Source(); source != "" {
-		properties["source"] = source
+	if sourceField := source.Source(); sourceField != "" {
+		properties["source"] = sourceField
 	}
 
 	return &models.Object{
@@ -75,8 +92,8 @@ func CreateMemoryObject(fact ExtractedFact, decision MemoryDecision) *models.Obj
 }
 
 // CreateMemoryObjectWithDocumentReferences builds the Weaviate object with document references.
-func CreateMemoryObjectWithDocumentReferences(fact ExtractedFact, decision MemoryDecision, documentIDs []string) *models.Object {
-	obj := CreateMemoryObject(fact, decision)
+func CreateMemoryObjectWithDocumentReferences(fact StructuredFact, source memory.Document, decision MemoryDecision, documentIDs []string) *models.Object {
+	obj := CreateMemoryObject(fact, source, decision)
 
 	// Update with actual document references
 	props, ok := obj.Properties.(map[string]interface{})
@@ -103,50 +120,29 @@ func marshalMetadata(metadata map[string]string) string {
 	return string(jsonBytes)
 }
 
-// aggregateErrors combines multiple errors into a single error with context about all failures.
-func aggregateErrors(errors []error) error {
-	if len(errors) == 0 {
-		return nil
-	}
-
-	if len(errors) == 1 {
-		return errors[0]
-	}
-
-	var messages []string
-	for i, err := range errors {
-		messages = append(messages, fmt.Sprintf("error %d: %v", i+1, err))
-	}
-
-	return fmt.Errorf("multiple errors occurred (%d total): %s", len(errors), strings.Join(messages, "; "))
-}
-
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
-func ExtractFactsFromDocument(ctx context.Context, doc PreparedDocument, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
-	currentSystemDate := doc.Timestamp.Format("2006-01-02")
-	docEventDateStr := doc.DateString
+// Returns the extracted facts. The source document is already known by the caller.
+func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completionsService *ai.Service, completionsModel string) ([]StructuredFact, error) {
+	// Get timestamp from document
+	timestamp := time.Now()
+	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
+		timestamp = *ts
+	}
 
-	switch doc.Type {
-	case DocumentTypeConversation:
-		convDoc, ok := doc.Original.(*memory.ConversationDocument)
-		if !ok {
-			return nil, fmt.Errorf("expected ConversationDocument but got %T", doc.Original)
-		}
+	currentSystemDate := timestamp.Format("2006-01-02")
+	docEventDateStr := getCurrentDateForPrompt()
 
+	switch typedDoc := doc.(type) {
+	case *memory.ConversationDocument:
 		// Extract for the document-level context (no specific speaker)
-		return extractFactsFromConversation(ctx, *convDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel)
+		return extractFactsFromConversation(ctx, *typedDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, doc)
 
-	case DocumentTypeText:
-		textDoc, ok := doc.Original.(*memory.TextDocument)
-		if !ok {
-			return nil, fmt.Errorf("expected TextDocument but got %T", doc.Original)
-		}
-
-		return extractFactsFromTextDocument(ctx, *textDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel)
+	case *memory.TextDocument:
+		return extractFactsFromTextDocument(ctx, *typedDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, doc)
 
 	default:
-		return nil, fmt.Errorf("unsupported document type: %s", doc.Type)
+		return nil, fmt.Errorf("unsupported document type: %T", doc)
 	}
 }
 
@@ -236,12 +232,12 @@ func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Int
 	}
 
 	memories := make([]ExistingMemory, 0, len(result.Facts))
-	for _, fact := range result.Facts {
+	for _, memoryFact := range result.Facts {
 		mem := ExistingMemory{
-			ID:        fact.ID,
-			Content:   fact.Content,
-			Metadata:  fact.Metadata,
-			Timestamp: fact.Timestamp,
+			ID:        memoryFact.ID,
+			Content:   memoryFact.Content,
+			Metadata:  memoryFact.Metadata,
+			Timestamp: memoryFact.Timestamp,
 		}
 		memories = append(memories, mem)
 	}
@@ -250,7 +246,7 @@ func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Int
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document) ([]StructuredFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -259,7 +255,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 	if len(convDoc.Conversation) == 0 {
 		log.Printf("Skipping empty conversation: ID=%s", convDoc.ID())
-		return []ExtractedFact{}, nil
+		return []StructuredFact{}, nil
 	}
 
 	log.Printf("Normalized JSON length: %d", len(content))
@@ -286,7 +282,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		log.Printf("WARNING: No tool calls returned for conversation %s - fact extraction may have failed", convDoc.ID())
 	}
 
-	var extractedFacts []ExtractedFact
+	var extractedFacts []StructuredFact
 	for _, toolCall := range llmResponse.ToolCalls {
 		log.Printf("  Tool Call: Name=%s", toolCall.Function.Name)
 		log.Printf("  Arguments: %s", toolCall.Function.Arguments)
@@ -317,17 +313,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			log.Printf("      Importance: %d", structuredFact.Importance)
 			log.Printf("      Sensitivity: %s", structuredFact.Sensitivity)
 
-			// TODO: reconsider `content` field
-			extractedFacts = append(extractedFacts, ExtractedFact{
-				Content:         fmt.Sprintf("%s - %s", structuredFact.Subject, structuredFact.Value), // Combined for embeddings
-				Category:        structuredFact.Category,
-				Subject:         structuredFact.Subject,
-				Attribute:       structuredFact.Attribute,
-				Value:           structuredFact.Value,
-				Sensitivity:     structuredFact.Sensitivity,
-				Importance:      structuredFact.Importance,
-				TemporalContext: structuredFact.TemporalContext,
-			})
+			extractedFacts = append(extractedFacts, structuredFact)
 		}
 	}
 
@@ -342,7 +328,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string) ([]ExtractedFact, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document) ([]StructuredFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -350,7 +336,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 	content := textDoc.Content()
 	if content == "" {
 		log.Printf("Skipping empty text document: ID=%s", textDoc.ID())
-		return []ExtractedFact{}, nil
+		return []StructuredFact{}, nil
 	}
 
 	log.Printf("=== FACT EXTRACTION START ===")
@@ -382,7 +368,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		log.Printf("WARNING: No tool calls returned for document %s - fact extraction may have failed", textDoc.ID())
 	}
 
-	var extractedFacts []ExtractedFact
+	var extractedFacts []StructuredFact
 	for i, toolCall := range llmResponse.ToolCalls {
 		log.Printf("  Tool Call %d:", i+1)
 		log.Printf("    Name: %s", toolCall.Function.Name)
@@ -414,17 +400,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			log.Printf("      Importance: %d", structuredFact.Importance)
 			log.Printf("      Sensitivity: %s", structuredFact.Sensitivity)
 
-			// TODO: reconsider `content` field
-			extractedFacts = append(extractedFacts, ExtractedFact{
-				Content:         fmt.Sprintf("%s - %s", structuredFact.Subject, structuredFact.Value), // Combined for embeddings
-				Category:        structuredFact.Category,
-				Subject:         structuredFact.Subject,
-				Attribute:       structuredFact.Attribute,
-				Value:           structuredFact.Value,
-				Sensitivity:     structuredFact.Sensitivity,
-				Importance:      structuredFact.Importance,
-				TemporalContext: structuredFact.TemporalContext,
-			})
+			extractedFacts = append(extractedFacts, structuredFact)
 		}
 	}
 
@@ -442,56 +418,4 @@ func min(a, b int) int {
 		return a
 	}
 	return b
-}
-
-// PrepareDocuments is THE function that does all document processing before memory storage.
-// It handles chunking, truncation, and metadata preparation in one clean orchestrated flow.
-func PrepareDocuments(docs []memory.Document, currentTime time.Time) ([]PreparedDocument, error) {
-	var prepared []PreparedDocument
-	var errors []error
-
-	for _, doc := range docs {
-		// Use the new polymorphic Chunk() method - much cleaner!
-		chunks := doc.Chunk()
-
-		for _, chunk := range chunks {
-			var docType DocumentType
-			switch chunk.(type) {
-			case *memory.ConversationDocument:
-				docType = DocumentTypeConversation
-			case *memory.TextDocument:
-				docType = DocumentTypeText
-			default:
-				errors = append(errors, fmt.Errorf("unknown document type: %T", chunk))
-				continue
-			}
-
-			prep := addDocumentMetadata(chunk, docType, currentTime)
-			prepared = append(prepared, prep)
-		}
-	}
-
-	if len(errors) > 0 {
-		return nil, aggregateErrors(errors)
-	}
-
-	return prepared, nil
-}
-
-// addDocumentMetadata adds all the metadata, timestamps, and speaker info. Pure function.
-func addDocumentMetadata(doc memory.Document, docType DocumentType, currentTime time.Time) PreparedDocument {
-	// Use document timestamp as primary source
-	timestamp := currentTime
-	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
-		timestamp = *ts
-	}
-
-	prep := PreparedDocument{
-		Original:   doc,
-		Type:       docType,
-		Timestamp:  timestamp,
-		DateString: getCurrentDateForPrompt(),
-	}
-
-	return prep
 }

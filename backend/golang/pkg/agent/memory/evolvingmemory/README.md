@@ -32,7 +32,7 @@ The package follows clean architecture principles with clear separation of conce
 ### Layer Responsibilities
 
 1. **StorageImpl** - Thin public API maintaining interface compatibility
-2. **MemoryOrchestrator** - Infrastructure concerns (workers, channels, batching, timeouts)
+2. **MemoryOrchestrator** - Concrete struct handling infrastructure concerns (workers, channels, batching, timeouts)
 3. **MemoryEngine** - Pure business logic struct (fact extraction, memory decisions)
 4. **storage.Interface** - Hot-swappable storage abstraction
 
@@ -271,14 +271,14 @@ The evolving memory system includes a sophisticated document storage architectur
 
 ```go
 // When creating a memory, documents are stored separately first
-func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact ExtractedFact, decision MemoryDecision) (*models.Object, error) {
+func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
     // 1. Store document separately with automatic deduplication
     documentID, err := e.storage.StoreDocument(
         ctx,
-        fact.Source.Original.Content(),  // Full document content
-        string(fact.Source.Type),        // Document type
-        fact.Source.Original.ID(),       // Original source ID
-        fact.Source.Original.Metadata(), // Source metadata
+        source.Content(),    // Full document content
+        docType,             // Document type (text, conversation, etc.)
+        source.ID(),         // Original source ID
+        source.Metadata(),   // Source metadata
     )
     
     // 2. Create memory object with document reference + structured fact fields
@@ -794,7 +794,6 @@ evolvingmemory/
 - `ExtractFacts()` - LLM-based structured fact extraction
 - `ProcessFact()` - Memory decision making
 - `ExecuteDecision()` - Memory updates
-- `GetDocumentReferences()` - Document references retrieval
 
 **orchestrator.go** - Infrastructure coordination:
 - `MemoryOrchestrator` - Coordinates workers and channels
@@ -859,14 +858,14 @@ Look in `engine.go`:
 
 Check `engine.go`:
 - `DecideAction()` - Builds prompt and calls LLM
-- `buildDecisionPrompt()` - Constructs the decision prompt
-- `parseToolCallResponse()` - Parses LLM's decision
+- `BuildSeparateMemoryDecisionPrompts()` - Constructs the decision prompt (in pure.go)
+- `ParseMemoryDecisionResponse()` - Parses LLM's decision (in pure.go)
 
 ### Working with structured facts
 
 ```go
-// Extract structured fact data from memory objects
-fact := ExtractedFact{
+// Working with structured facts
+fact := StructuredFact{
     Category:        "preference",
     Subject:         "user",
     Attribute:       "coffee_type", 
@@ -878,7 +877,7 @@ fact := ExtractedFact{
 
 // Generate searchable content
 content := fact.GenerateContent() 
-// Result: "User: prefers dark roast over light roast (preference) (2025-01-15)"
+// Result: "user - prefers dark roast over light roast"
 
 // Future: Query by structured fields (when implemented)
 facts := storage.QueryByCategory(ctx, "preference")
@@ -961,7 +960,7 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 ### Processing flow for a conversation:
 1. `ConversationDocument` arrives at `StorageImpl.Store()`
 2. `MemoryOrchestrator.ProcessDocuments()` coordinates the pipeline
-3. Document gets prepared with metadata in `PrepareDocuments()`
+3. Documents are chunked if too large (via `doc.Chunk()`)
 4. Document is stored separately in `SourceDocument` table with deduplication
 5. `MemoryEngine.ExtractFacts()` extracts **structured facts**: `{Category: "preference", Subject: "user", Value: "likes pizza"}`
 6. For each fact, `MemoryEngine.ProcessFact()`:
@@ -970,7 +969,7 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
    - Validates the operation
    - Executes (immediate for UPDATE/DELETE, batched for ADD)
 7. New memories reference the stored document by ID + store structured fact fields
-8. `MemoryOrchestrator` batches new memories and flushes to storage
+8. `MemoryOrchestrator` batches new memories and flushes to storage directly
 
 ### Error handling:
 - Each stage returns errors through channels

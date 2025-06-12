@@ -657,15 +657,6 @@ type Storage interface {
 	Query(ctx context.Context, query string, filter *Filter) (QueryResult, error)
 }
 
-// TextDocumentsToDocuments is a helper function to convert a slice of TextDocuments to a slice of Documents.
-func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
-	docs := make([]Document, len(textDocs))
-	for i := range textDocs {
-		docs[i] = &textDocs[i]
-	}
-	return docs
-}
-
 // IsEmpty returns true if the TagsFilter has no filtering criteria.
 func (tf *TagsFilter) IsEmpty() bool {
 	if tf == nil {
