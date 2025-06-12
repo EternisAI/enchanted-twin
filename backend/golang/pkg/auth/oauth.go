@@ -17,8 +17,10 @@ import (
 
 	"github.com/charmbracelet/log"
 
+	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // generatePKCEPair generates PKCE code verifier and challenge.
@@ -521,6 +523,15 @@ func RefreshOAuthToken(
 		successCount++
 	}
 
+	// If we successfully refreshed tokens, publish refresh event for any interested services
+	if successCount > 0 {
+		logger.Debug("OAuth tokens were refreshed, publishing token refresh event", "provider", provider)
+		if err := PublishOAuthTokenRefresh(ctx, logger, store, provider); err != nil {
+			logger.Error("Failed to publish OAuth token refresh event", "provider", provider, "error", err)
+			// Don't fail the OAuth refresh if event publishing fails
+		}
+	}
+
 	// Return success if at least one token was refreshed
 	if successCount > 0 {
 		return true, nil
@@ -662,4 +673,58 @@ func IsWhitelisted(ctx context.Context, logger *log.Logger, store *db.Store) (bo
 	}
 
 	return false, nil
+}
+
+// PublishOAuthTokenRefresh publishes a NATS message when OAuth tokens are refreshed.
+// This allows any service to subscribe to token refresh events.
+func PublishOAuthTokenRefresh(ctx context.Context, logger *log.Logger, store *db.Store, provider string) error {
+	logger.Debug("Publishing OAuth token refresh event", "provider", provider)
+
+	// Get the fresh OAuth token that was just refreshed
+	tokens, err := store.GetOAuthTokensArray(ctx, provider)
+	if err != nil {
+		logger.Error("Failed to get refreshed OAuth tokens", "provider", provider, "error", err)
+		return fmt.Errorf("failed to get refreshed tokens: %w", err)
+	}
+
+	if len(tokens) == 0 {
+		logger.Error("No OAuth tokens found after refresh", "provider", provider)
+		return fmt.Errorf("no OAuth tokens available for provider: %s", provider)
+	}
+
+	// Use the first token (you might want to select a specific one in a multi-user system)
+	token := tokens[0]
+
+	// Get NATS client
+	nc, err := bootstrap.NewNatsClient()
+	if err != nil {
+		logger.Error("Failed to create NATS client for OAuth refresh notification", "error", err)
+		return fmt.Errorf("failed to create NATS client: %w", err)
+	}
+	defer nc.Close()
+
+	// Create refresh event payload with only essential token data
+	refreshEvent := map[string]interface{}{
+		"event":        "oauth_token_refreshed",
+		"provider":     provider,
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"access_token": token.AccessToken,
+		"token_type":   token.TokenType,
+		"expires_at":   token.ExpiresAt.Format(time.RFC3339),
+		"username":     token.Username,
+	}
+
+	// Publish to OAuth refresh subject - any service can subscribe to this
+	subject := fmt.Sprintf("oauth.%s.token.refreshed", provider)
+	if err := helpers.NatsPublish(nc, subject, refreshEvent); err != nil {
+		logger.Error("Failed to publish OAuth refresh event to NATS", "provider", provider, "error", err)
+		return fmt.Errorf("failed to publish refresh event: %w", err)
+	}
+
+	logger.Info("Successfully published OAuth token refresh event to NATS",
+		"provider", provider,
+		"subject", subject,
+		"username", token.Username,
+		"expires_at", token.ExpiresAt.Format(time.RFC3339))
+	return nil
 }
