@@ -306,7 +306,7 @@
     "list": [
       {
         "name": "Bridge.ai - Direct to Wallet Trading",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1472340271,
         "messages": [
           {
