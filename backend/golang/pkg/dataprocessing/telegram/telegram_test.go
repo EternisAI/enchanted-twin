@@ -675,3 +675,73 @@ func TestJSONLMarshallingSimple(t *testing.T) {
 	t.Log("✅ Before the fix: messages would appear as empty objects {} in JSON")
 	t.Log("✅ After the fix: messages contain all the expected data")
 }
+
+func TestContactDocumentWithClearContext(t *testing.T) {
+	// Test that contact documents now have clear context to prevent confusion with primary user
+	dbFile, err := os.CreateTemp("", "test_*.db")
+	if err != nil {
+		t.Fatalf("Failed to create temp db file: %v", err)
+	}
+	dbFile.Close()
+	defer os.Remove(dbFile.Name())
+
+	ctx := context.Background()
+	store, err := db.NewStore(ctx, dbFile.Name())
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	timestamp1, _ := time.Parse(time.RFC3339, "2023-01-15T10:30:00Z")
+
+	// Create a contact record like Guillaume Uguen from the test data
+	contactRecord := types.Record{
+		Data: map[string]interface{}{
+			"type":        "contact",
+			"firstName":   "Guillaume",
+			"lastName":    "Uguen",
+			"phoneNumber": "0033632728113",
+		},
+		Timestamp: timestamp1,
+		Source:    "telegram",
+	}
+
+	records := []types.Record{contactRecord}
+
+	logger := log.New(os.Stdout)
+	processor := NewTelegramProcessor(store, logger)
+
+	// Test ToDocuments
+	documents, err := processor.ToDocuments(ctx, records)
+	if err != nil {
+		t.Fatalf("ToDocuments failed: %v", err)
+	}
+
+	assert.Equal(t, 1, len(documents), "Expected 1 document")
+
+	contactDoc := documents[0]
+
+	// Verify the content now clearly indicates this is a contact entry
+	assert.Contains(t, contactDoc.Content(), "CONTACT ENTRY:", "Content should start with CONTACT ENTRY:")
+	assert.Contains(t, contactDoc.Content(), "Guillaume Uguen", "Content should contain the contact name")
+	assert.Contains(t, contactDoc.Content(), "Phone: 0033632728113", "Content should contain phone number")
+	assert.Contains(t, contactDoc.Content(), "not information about the primary user", "Content should clarify this is not about primary user")
+
+	// Verify enhanced metadata
+	metadata := contactDoc.Metadata()
+	assert.Equal(t, "contact_entry", metadata["document_type"], "Should have document_type as contact_entry")
+	assert.Equal(t, "contact_list", metadata["data_category"], "Should have data_category as contact_list")
+	assert.Equal(t, "false", metadata["is_primary_user"], "Should explicitly mark is_primary_user as false")
+	assert.Equal(t, "telegram_contacts", metadata["contact_source"], "Should specify contact source")
+	assert.Contains(t, metadata["extraction_guidance"], "extract relationship facts only", "Should provide extraction guidance")
+
+	// Verify enhanced tags
+	tags := contactDoc.Tags()
+	assert.Contains(t, tags, "contact", "Should have contact tag")
+	assert.Contains(t, tags, "contact_list", "Should have contact_list tag")
+	assert.Contains(t, tags, "social", "Should have social tag")
+
+	t.Log("✅ Contact document now has clear context to prevent confusion with primary user information")
+	t.Logf("✅ Content: %s", contactDoc.Content())
+	t.Logf("✅ Metadata: %+v", metadata)
+}

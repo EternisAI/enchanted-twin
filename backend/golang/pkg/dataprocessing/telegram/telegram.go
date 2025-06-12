@@ -517,16 +517,30 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			if !ok {
 				phoneNumber = ""
 			}
+
+			// Create more descriptive content that clearly indicates this is contact information
+			fullName := strings.TrimSpace(firstName + " " + lastName)
+			contactContent := fmt.Sprintf("CONTACT ENTRY: %s", fullName)
+			if phoneNumber != "" {
+				contactContent += fmt.Sprintf(" (Phone: %s)", phoneNumber)
+			}
+			contactContent += " - This is a contact from the user's Telegram contact list, not information about the primary user."
+
 			textDoc := &memory.TextDocument{
 				FieldSource:    "telegram",
-				FieldContent:   firstName + " " + lastName,
+				FieldContent:   contactContent,
 				FieldTimestamp: &record.Timestamp,
-				FieldTags:      []string{"social", "contact"},
+				FieldTags:      []string{"social", "contact", "contact_list"},
 				FieldMetadata: map[string]string{
-					"type":        "contact",
-					"firstName":   firstName,
-					"lastName":    lastName,
-					"phoneNumber": phoneNumber,
+					"type":                "contact",
+					"document_type":       "contact_entry",
+					"data_category":       "contact_list",
+					"is_primary_user":     "false",
+					"contact_source":      "telegram_contacts",
+					"firstName":           firstName,
+					"lastName":            lastName,
+					"phoneNumber":         phoneNumber,
+					"extraction_guidance": "This is contact list data - extract relationship facts only, never facts about primaryUser",
 				},
 			}
 			documents = append(documents, textDoc)

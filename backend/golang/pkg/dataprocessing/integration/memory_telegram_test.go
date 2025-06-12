@@ -57,7 +57,7 @@ func TestMemoryIntegrationTelegram(t *testing.T) {
 		time.Sleep(5 * time.Second)
 
 		env.logger.Info("🟡 Querying memories")
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do you we know about user from %s source?", source), &filter)
+		result, err := env.memory.Query(env.ctx, "What do you know about me ?", &filter)
 		require.NoError(t, err)
 		assert.NotEmpty(t, result.Facts, "should find memories from %s source", source)
 
