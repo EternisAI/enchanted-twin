@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
 func TestMemoryIntegrationTelegram(t *testing.T) {
