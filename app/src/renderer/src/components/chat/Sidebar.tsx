@@ -318,9 +318,6 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         disabled={isActive}
         to="/chat/$chatId"
         params={{ chatId: chat.id }}
-        search={(() => {
-          return chat.holonThreadId ? { threadId: chat.holonThreadId } : undefined
-        })()}
         onClick={() => {
           if (chat.category === ChatCategory.Voice) {
             startVoiceMode(chat.id)
