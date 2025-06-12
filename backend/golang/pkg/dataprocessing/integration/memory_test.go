@@ -241,6 +241,9 @@ func SetupTestEnvironment(t *testing.T) *testEnvironment {
 	})
 	require.NoError(t, err)
 
+	sharedLogger.Info("=CONFIG=", "Model", config.CompletionsModel)
+	sharedLogger.Info("=CONFIG=", "Model", config.EmbeddingsModel)
+
 	return &testEnvironment{
 		config:         config,
 		logger:         sharedLogger,
