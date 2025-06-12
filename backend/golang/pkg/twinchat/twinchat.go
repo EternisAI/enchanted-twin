@@ -463,7 +463,7 @@ func (s *Service) SendMessage(
 	}, nil
 }
 
-// ProcessMessageHistory processes a list of messages without saving them to the database
+// ProcessMessageHistory processes a list of messages and saves only the new ones (diff) to the database
 func (s *Service) ProcessMessageHistory(
 	ctx context.Context,
 	chatID string,
@@ -472,6 +472,37 @@ func (s *Service) ProcessMessageHistory(
 	isVoice bool,
 ) (*model.Message, error) {
 	now := time.Now()
+
+	// Create chat if it doesn't exist
+	if chatID == "" {
+		category := model.ChatCategoryText
+		if isVoice {
+			category = model.ChatCategoryVoice
+		}
+		chat, err := s.storage.CreateChat(ctx, "New chat", category, nil)
+		if err != nil {
+			return nil, err
+		}
+		s.logger.Info("Created new chat for message history", "chat_id", chat.ID)
+		chatID = chat.ID
+	}
+
+	// Fetch existing messages for the chat
+	existingMessages, err := s.storage.GetMessagesByChatId(ctx, chatID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Find the diff: only save messages that are not already present (by role and text, in order)
+	diffStart := 0
+	for i := 0; i < len(existingMessages) && i < len(messages); i++ {
+		if existingMessages[i].Role != messages[i].Role ||
+			existingMessages[i].Text == nil || *existingMessages[i].Text != messages[i].Text {
+			break
+		}
+		diffStart = i + 1
+	}
+	newMessages := messages[diffStart:]
 
 	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
 	if err != nil {
@@ -491,14 +522,59 @@ func (s *Service) ProcessMessageHistory(
 		messageHistory,
 		openai.SystemMessage(systemPrompt),
 	)
-	
-	// Convert MessageInput array to OpenAI messages
-	for _, msg := range messages {
+
+	// Add all existing messages to the message history for the AI
+	for _, msg := range existingMessages {
+		if msg.Text == nil {
+			continue
+		}
+		if msg.Role == model.RoleUser {
+			messageHistory = append(messageHistory, openai.UserMessage(*msg.Text))
+		} else if msg.Role == model.RoleAssistant {
+			messageHistory = append(messageHistory, openai.AssistantMessage(*msg.Text))
+		}
+	}
+
+	// Save only the new messages to the database and add to message history
+	for _, msg := range newMessages {
+		msgID := uuid.New().String()
+		createdAt := now.Format(time.RFC3339Nano)
+		dbMessage := repository.Message{
+			ID:           msgID,
+			ChatID:       chatID,
+			Text:         msg.Text,
+			Role:         msg.Role.String(),
+			CreatedAtStr: createdAt,
+		}
+		_, err = s.storage.AddMessageToChat(ctx, dbMessage)
+		if err != nil {
+			return nil, err
+		}
+		natsMsg := model.Message{
+			ID:        msgID,
+			Text:      &msg.Text,
+			ImageUrls: []string{},
+			CreatedAt: time.Now().Format(time.RFC3339),
+			Role:      msg.Role,
+		}
+		natsMsgJSON, err := json.Marshal(natsMsg)
+		if err != nil {
+			s.logger.Error("failed to marshal message for NATS", "error", err)
+		} else {
+			subject := fmt.Sprintf("chat.%s", chatID)
+			if err := s.nc.Publish(subject, natsMsgJSON); err != nil {
+				s.logger.Error("failed to publish message to NATS", "error", err)
+			}
+		}
 		if msg.Role == model.RoleUser {
 			messageHistory = append(messageHistory, openai.UserMessage(msg.Text))
 		} else if msg.Role == model.RoleAssistant {
 			messageHistory = append(messageHistory, openai.AssistantMessage(msg.Text))
 		}
+	}
+
+	if len(messages) == 0 {
+		return nil, fmt.Errorf("no messages provided in history")
 	}
 
 	assistantMessageId := uuid.New().String()
@@ -601,18 +677,65 @@ func (s *Service) ProcessMessageHistory(
 		}
 	}
 
-	// Create the response message but don't save it to the database
+	assistantMessageDb := repository.Message{
+		ID:           assistantMessageId,
+		ChatID:       chatID,
+		Text:         response.Content,
+		Role:         model.RoleAssistant.String(),
+		CreatedAtStr: time.Now().Format(time.RFC3339Nano),
+	}
+
+	if len(response.ToolCalls) > 0 {
+		toolCalls := make([]model.ToolCall, 0)
+		for _, toolCall := range response.ToolCalls {
+			toolCall := model.ToolCall{
+				ID:          toolCall.ID,
+				Name:        toolCall.Function.Name,
+				MessageID:   assistantMessageId,
+				IsCompleted: true,
+			}
+			result, ok := toolCallResultsMap[toolCall.ID]
+			if ok {
+				toolCall.Result = &result
+			}
+			toolCalls = append(toolCalls, toolCall)
+		}
+		toolCallsJson, err := json.Marshal(toolCalls)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal tool calls")
+		}
+		assistantMessageDb.ToolCallsStr = helpers.Ptr(string(toolCallsJson))
+	}
+	if len(response.ToolResults) > 0 {
+		toolResultsJson, err := json.Marshal(response.ToolResults)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal tool results")
+		}
+		assistantMessageDb.ToolResultsStr = helpers.Ptr(string(toolResultsJson))
+	}
+	if len(response.ImageURLs) > 0 {
+		imageURLsJson, err := json.Marshal(response.ImageURLs)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal image URLs")
+		}
+		assistantMessageDb.ImageURLsStr = helpers.Ptr(string(imageURLsJson))
+	}
+
+	idAssistant, err := s.storage.AddMessageToChat(ctx, assistantMessageDb)
+	if err != nil {
+		return nil, err
+	}
+
 	assistantMessage := &model.Message{
-		ID:          assistantMessageId,
+		ID:          idAssistant,
 		Text:        &response.Content,
 		ImageUrls:   response.ImageURLs,
 		CreatedAt:   now.Format(time.RFC3339),
 		Role:        model.RoleAssistant,
-		ToolCalls:   toolCalls,
-		ToolResults: toolResults,
+		ToolCalls:   assistantMessageDb.ToModel().ToolCalls,
+		ToolResults: assistantMessageDb.ToModel().ToolResults,
 	}
 
-	// Publish to NATS for any subscribers
 	assistantMessageJson, err := json.Marshal(assistantMessage)
 	if err != nil {
 		return nil, err
@@ -621,6 +744,13 @@ func (s *Service) ProcessMessageHistory(
 	if err != nil {
 		return nil, err
 	}
+
+	go func() {
+		err := s.IndexConversation(context.Background(), chatID)
+		if err != nil {
+			s.logger.Error("failed to index conversation", "chat_id", chatID, "error", err)
+		}
+	}()
 
 	return assistantMessage, nil
 }
