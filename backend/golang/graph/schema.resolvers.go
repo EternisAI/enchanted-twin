@@ -228,27 +228,22 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 
-// ProcessMessageHistory processes a list of messages but doesn't save the history
+// ProcessMessageHistory processes a list of messages and saves them to the database
 func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, reasoning bool, voice bool) (*model.Message, error) {
-	// subject := fmt.Sprintf("chat.%s.history", chatID)
-
-	// Convert input messages to the format expected by the service
+	// Convert input messages to the format expected by the service for logging purposes
 	historyJson, err := json.Marshal(map[string]interface{}{
 		"chatId":   chatID,
 		"messages": messages,
+		"count":    len(messages),
 	})
-
-	fmt.Println(string(historyJson))
-
+	
 	if err != nil {
 		return nil, err
 	}
-
-	// err = r.Nc.Publish(subject, historyJson)
-	if err != nil {
-		return nil, err
-	}
-
+	
+	r.Logger.Info("Processing message history", "data", string(historyJson))
+	
+	// Process the messages and save them to the database
 	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, reasoning, voice)
 }
 
