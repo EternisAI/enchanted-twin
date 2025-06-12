@@ -222,7 +222,8 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		return nil, err
 	}
 
-	var records []types.Record
+	estimatedRecords := len(telegramData.Contacts.List) + len(telegramData.Chats.List)
+	records := make([]types.Record, 0, estimatedRecords)
 	conversationMap := make(map[string]*conversationData)
 
 	for _, contact := range telegramData.Contacts.List {
@@ -248,105 +249,171 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		records = append(records, record)
 	}
 
+	totalChats := len(telegramData.Chats.List)
+	s.logger.Info("Processing chats", "totalChats", totalChats)
+
+	processedChats := 0
+	totalMessages := 0
+	processedMessages := 0
+
 	for _, chat := range telegramData.Chats.List {
+		totalMessages += len(chat.Messages)
+	}
+	s.logger.Info("Total messages to process", "count", totalMessages)
+
+	const batchSize = 1000
+	const progressInterval = 10
+
+	for chatIndex, chat := range telegramData.Chats.List {
+
 		if chat.Type == "private_supergroup" {
 			s.logger.Info("Skipping private_supergroup chat", "chatId", chat.ID, "chatName", chat.Name)
+			processedChats++
 			continue
 		}
 
 		chatId := strconv.Itoa(chat.ID)
+		chatMessageCount := len(chat.Messages)
 
-		for _, message := range chat.Messages {
-			timestamp, err := parseTimestamp(message.Date, message.DateUnixtime)
-			if err != nil {
-				s.logger.Warn("Failed to parse message timestamp", "error", err)
-				continue
-			}
-
-			var fullText string
-			if len(message.TextEntities) > 0 {
-				for _, entity := range message.TextEntities {
-					fullText += entity.Text
-				}
-			} else {
-				switch textValue := message.Text.(type) {
-				case string:
-					fullText = textValue
-				case []interface{}:
-					for _, item := range textValue {
-						if textEntity, ok := item.(map[string]interface{}); ok {
-							if text, ok := textEntity["text"].(string); ok {
-								fullText += text
-							}
-						}
-					}
-				}
-			}
-
-			if fullText == "" {
-				continue
-			}
-
-			var myMessage bool
-			if effectiveUserName == "" {
-				myMessage = false
-			} else {
-				normalizedEffectiveUserName := strings.TrimPrefix(effectiveUserName, "@")
-				normalizedMessageFrom := strings.TrimPrefix(message.From, "@")
-				myMessage = strings.EqualFold(normalizedMessageFrom, normalizedEffectiveUserName)
-			}
-
-			to := ""
-			if myMessage {
-				to = chat.Name
-			} else {
-				to = effectiveUserName
-			}
-
-			conv, exists := conversationMap[chatId]
-			if !exists {
-				conv = &conversationData{
-					chatId:       chatId,
-					chatType:     chat.Type,
-					chatName:     chat.Name,
-					messages:     []messageData{},
-					people:       make(map[string]bool),
-					firstMessage: timestamp,
-					lastMessage:  timestamp,
-				}
-				conversationMap[chatId] = conv
-			}
-
-			msg := messageData{
-				ID:            message.ID,
-				MessageType:   message.Type,
-				From:          message.From,
-				To:            to,
-				Text:          fullText,
-				Timestamp:     timestamp,
-				ForwardedFrom: message.ForwardedFrom,
-				SavedFrom:     message.SavedFrom,
-				MyMessage:     myMessage,
-			}
-
-			conv.messages = append(conv.messages, msg)
-			conv.people[message.From] = true
-			conv.people[to] = true
-
-			if timestamp.Before(conv.firstMessage) {
-				conv.firstMessage = timestamp
-			}
-			if timestamp.After(conv.lastMessage) {
-				conv.lastMessage = timestamp
-			}
-		}
-	}
-
-	for _, conv := range conversationMap {
-		if len(conv.messages) == 0 {
+		if chatMessageCount == 0 {
+			processedChats++
 			continue
 		}
 
+		s.logger.Debug("Processing chat",
+			"chatId", chat.ID,
+			"chatName", chat.Name,
+			"messageCount", chatMessageCount,
+			"progress", fmt.Sprintf("%d/%d", chatIndex+1, totalChats))
+
+		conv := &conversationData{
+			chatId:       chatId,
+			chatType:     chat.Type,
+			chatName:     chat.Name,
+			messages:     make([]messageData, 0, chatMessageCount),
+			people:       make(map[string]bool),
+			firstMessage: time.Now(),
+			lastMessage:  time.Time{},
+		}
+
+		for i := 0; i < len(chat.Messages); i += batchSize {
+			end := i + batchSize
+			if end > len(chat.Messages) {
+				end = len(chat.Messages)
+			}
+
+			for j := i; j < end; j++ {
+				message := chat.Messages[j]
+
+				timestamp, err := parseTimestamp(message.Date, message.DateUnixtime)
+				if err != nil {
+					s.logger.Warn("Failed to parse message timestamp", "error", err, "messageId", message.ID)
+					processedMessages++
+					continue
+				}
+
+				var fullText string
+				if len(message.TextEntities) > 0 {
+
+					var textBuilder strings.Builder
+					for _, entity := range message.TextEntities {
+						textBuilder.WriteString(entity.Text)
+					}
+					fullText = textBuilder.String()
+				} else {
+					switch textValue := message.Text.(type) {
+					case string:
+						fullText = textValue
+					case []interface{}:
+						var textBuilder strings.Builder
+						for _, item := range textValue {
+							if textEntity, ok := item.(map[string]interface{}); ok {
+								if text, ok := textEntity["text"].(string); ok {
+									textBuilder.WriteString(text)
+								}
+							}
+						}
+						fullText = textBuilder.String()
+					}
+				}
+
+				if fullText == "" {
+					processedMessages++
+					continue
+				}
+
+				var myMessage bool
+				if effectiveUserName == "" {
+					myMessage = false
+				} else {
+					normalizedEffectiveUserName := strings.TrimPrefix(effectiveUserName, "@")
+					normalizedMessageFrom := strings.TrimPrefix(message.From, "@")
+					myMessage = strings.EqualFold(normalizedMessageFrom, normalizedEffectiveUserName)
+				}
+
+				to := ""
+				if myMessage {
+					to = chat.Name
+				} else {
+					to = effectiveUserName
+				}
+
+				msg := messageData{
+					ID:            message.ID,
+					MessageType:   message.Type,
+					From:          message.From,
+					To:            to,
+					Text:          fullText,
+					Timestamp:     timestamp,
+					ForwardedFrom: message.ForwardedFrom,
+					SavedFrom:     message.SavedFrom,
+					MyMessage:     myMessage,
+				}
+
+				conv.messages = append(conv.messages, msg)
+				conv.people[message.From] = true
+				if to != "" {
+					conv.people[to] = true
+				}
+
+				if len(conv.messages) == 1 || timestamp.Before(conv.firstMessage) {
+					conv.firstMessage = timestamp
+				}
+				if timestamp.After(conv.lastMessage) {
+					conv.lastMessage = timestamp
+				}
+
+				processedMessages++
+			}
+
+			if totalMessages > 10000 && (processedMessages%5000 == 0 || processedMessages == totalMessages) {
+				s.logger.Info("Message processing progress",
+					"processed", processedMessages,
+					"total", totalMessages,
+					"percentage", fmt.Sprintf("%.1f%%", float64(processedMessages)/float64(totalMessages)*100))
+			}
+		}
+
+		if len(conv.messages) > 0 {
+			conversationMap[chatId] = conv
+		}
+
+		processedChats++
+
+		if totalChats > 50 && (processedChats%progressInterval == 0 || processedChats == totalChats) {
+			s.logger.Info("Chat processing progress",
+				"processed", processedChats,
+				"total", totalChats,
+				"percentage", fmt.Sprintf("%.1f%%", float64(processedChats)/float64(totalChats)*100))
+		}
+	}
+
+	s.logger.Info("Completed message processing",
+		"totalChats", processedChats,
+		"totalMessages", processedMessages,
+		"conversations", len(conversationMap))
+
+	for _, conv := range conversationMap {
 		var people []string
 		for person := range conv.people {
 			if person != "" {
@@ -373,6 +440,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		records = append(records, record)
 	}
 
+	s.logger.Info("Processing completed", "totalRecords", len(records))
 	return records, nil
 }
 
