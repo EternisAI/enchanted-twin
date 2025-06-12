@@ -55,6 +55,18 @@ The "primaryUser" field in conversation metadata tells you who is the main perso
 | context_env | Environment | work_culture, neighborhood |
 | affective_marker | Emotional patterns | stress_trigger, joy_source |
 | event | Time-bound occurrences | travel, meetings, appointments |
+| conversation_context | Summary of entire conversation | conversation_summary, interaction_context |
+
+## MANDATORY: Conversation Summary Fact
+
+**When input is a CONVERSATION (begins with CONVO), ALWAYS include ONE conversation summary fact as the FIRST fact**:)
+- Category: "conversation_context"
+- Subject: The person primaryUser is conversing with (use their name, located in People field and attached to each of their messages)
+- Attribute: "conversation_summary"
+- Value: High-level summary of what was discussed (15-40 words)
+- Temporal_context: Include if conversation has specific time reference
+
+**For non-conversation inputs** (statements, observations, etc.), skip this requirement.
 
 ## CRITICAL RULES
 
@@ -77,6 +89,31 @@ The "primaryUser" field in conversation metadata tells you who is the main perso
 2. goal_plan + athletic_goal + "competing in a local CrossFit competition next month"
 
 ## Examples
+
+### Conversation Summary Example (REQUIRED for conversation inputs)
+**Input**: Text conversation between primaryUser and Sarah discussing weekend plans and restaurant recommendations
+<json>
+{
+  "facts": [
+    {
+      "category": "conversation_context",
+      "subject": "Sarah",
+      "attribute": "conversation_summary",
+      "value": "discussed weekend plans and recommendations for new Italian restaurant downtown",
+      "sensitivity": "low",
+      "importance": 2
+    },
+    {
+      "category": "preference",
+      "subject": "primaryUser",
+      "attribute": "cuisine_preference",
+      "value": "interested in trying new Italian restaurants based on recommendations",
+      "sensitivity": "low",
+      "importance": 1
+    }
+  ]
+}
+</json>
 
 ### Multiple facts from compound input
 **Input**: "Just switched my running to mornings - 6am works way better than evenings for me now. I'm training for the May marathon."
@@ -344,8 +381,9 @@ The "primaryUser" field in conversation metadata tells you who is the main perso
 ❌ **Avoid**: Assumptions without multiple supporting contextual clues
 ❌ **Avoid**: Speculative interpretations of unstated motivations or feelings
 
-## FINAL CHECKLIST FOR QWEN 2.5
+## FINAL CHECKLIST
 Before outputting, verify each fact:
+✓ **FIRST FACT**: If input is a conversation, include conversation_context summary as the first fact
 ✓ **CHECK METADATA**: Use "primaryUser" for whoever is listed in conversation metadata "primaryUser" field
 ✓ Subject is "primaryUser" for main person (NEVER use their actual name like "John")
 ✓ Only ONE concept per fact (split compounds)
