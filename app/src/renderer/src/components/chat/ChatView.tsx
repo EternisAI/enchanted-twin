@@ -21,7 +21,7 @@ interface ChatViewProps {
 
 export default function ChatView({ chat }: ChatViewProps) {
   const bottomRef = useRef<HTMLDivElement | null>(null)
-  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
+  const { isVoiceMode, stopVoiceMode, startVoiceMode } = useVoiceStore()
   const [mounted, setMounted] = useState(false)
 
   const {
@@ -107,7 +107,7 @@ export default function ChatView({ chat }: ChatViewProps) {
     return (
       <VoiceModeChatView
         chat={chat}
-        toggleVoiceMode={toggleVoiceMode}
+        stopVoiceMode={stopVoiceMode}
         messages={messages}
         activeToolCalls={activeToolCalls}
         historicToolCalls={historicToolCalls}
@@ -141,7 +141,16 @@ export default function ChatView({ chat }: ChatViewProps) {
 
       <div className="flex flex-col w-full items-center justify-center px-2">
         <div className="pb-4 w-full max-w-4xl flex flex-col gap-4 justify-center items-center ">
-          <VoiceModeToggle voiceMode={isVoiceMode} setVoiceMode={() => toggleVoiceMode(false)} />
+          <VoiceModeToggle
+            voiceMode={isVoiceMode}
+            setVoiceMode={() => {
+              if (isVoiceMode) {
+                stopVoiceMode()
+              } else {
+                startVoiceMode(chat.id)
+              }
+            }}
+          />
           <MessageInput
             isWaitingTwinResponse={isWaitingTwinResponse}
             onSend={sendMessage}
