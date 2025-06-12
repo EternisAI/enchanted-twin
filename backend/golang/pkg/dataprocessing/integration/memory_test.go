@@ -26,9 +26,10 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	jsonHelpers "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 var (
@@ -275,7 +276,7 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
-	count, err := helpers.CountJSONLLines(env.config.OutputPath)
+	count, err := jsonHelpers.CountJSONLLines(env.config.OutputPath)
 	if err != nil {
 		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
@@ -287,7 +288,7 @@ func (env *testEnvironment) loadDocuments(t *testing.T, source, inputPath string
 
 	for batchIndex := 0; ; batchIndex++ {
 		startIndex := batchIndex * batchSize
-		records, err := helpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
+		records, err := jsonHelpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
 		require.NoError(t, err)
 
 		if len(records) == 0 {
@@ -343,7 +344,7 @@ func (env *testEnvironment) loadDocumentsFromJSONL(t *testing.T, source, inputPa
 		return
 	}
 
-	count, err := helpers.CountJSONLLines(inputPath)
+	count, err := jsonHelpers.CountJSONLLines(inputPath)
 	if err != nil {
 		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
@@ -360,7 +361,7 @@ func (env *testEnvironment) loadDocumentsFromJSONL(t *testing.T, source, inputPa
 
 	for batchIndex := 0; ; batchIndex++ {
 		startIndex := batchIndex * batchSize
-		records, err := helpers.ReadJSONLBatch(inputPath, startIndex, batchSize)
+		records, err := jsonHelpers.ReadJSONLBatch(inputPath, startIndex, batchSize)
 		require.NoError(t, err)
 
 		if len(records) == 0 {
@@ -651,7 +652,7 @@ func TestMemoryIntegration(t *testing.T) {
 
 	// 	limit := 100
 	// 	filter := memory.Filter{
-	// 		FactImportanceMin: intPtr(3),
+	// 		FactImportanceMin: helpers.Ptr(3),
 	// 		Limit:             &limit,
 	// 	}
 
@@ -736,7 +737,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactCategoryFiltering",
 			filter: memory.Filter{
-				FactCategory: stringPtr("preference"),
+				FactCategory: helpers.Ptr("preference"),
 				Source:       &env.config.Source,
 				Limit:        &limit,
 			},
@@ -746,7 +747,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactSubjectFiltering",
 			filter: memory.Filter{
-				Subject: stringPtr("user"),
+				Subject: helpers.Ptr("user"),
 				Source:  &env.config.Source,
 				Limit:   &limit,
 			},
@@ -755,7 +756,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactImportanceFiltering",
 			filter: memory.Filter{
-				FactImportance: intPtr(3),
+				FactImportance: helpers.Ptr(3),
 				Source:         &env.config.Source,
 				Limit:          &limit,
 			},
@@ -764,8 +765,8 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactImportanceRangeFiltering",
 			filter: memory.Filter{
-				FactImportanceMin: intPtr(2),
-				FactImportanceMax: intPtr(3),
+				FactImportanceMin: helpers.Ptr(2),
+				FactImportanceMax: helpers.Ptr(3),
 				Source:            &env.config.Source,
 				Limit:             &limit,
 			},
@@ -774,9 +775,9 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "CombinedStructuredFiltering",
 			filter: memory.Filter{
-				FactCategory:   stringPtr("preference"),
-				Subject:        stringPtr("user"),
-				FactImportance: intPtr(2),
+				FactCategory:   helpers.Ptr("preference"),
+				Subject:        helpers.Ptr("user"),
+				FactImportance: helpers.Ptr(2),
 				Source:         &env.config.Source,
 				Limit:          &limit,
 			},
@@ -786,7 +787,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactAttributeFiltering",
 			filter: memory.Filter{
-				FactAttribute: stringPtr("health_metric"),
+				FactAttribute: helpers.Ptr("health_metric"),
 				Source:        &env.config.Source,
 				Limit:         &limit,
 			},
@@ -805,9 +806,9 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "CombinedAdvancedFiltering",
 			filter: memory.Filter{
-				FactCategory:   stringPtr("health"),
-				Subject:        stringPtr("user"),
-				FactImportance: intPtr(3),
+				FactCategory:   helpers.Ptr("health"),
+				Subject:        helpers.Ptr("user"),
+				FactImportance: helpers.Ptr(3),
 				Source:         &env.config.Source,
 				Limit:          &limit,
 			},
@@ -829,9 +830,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 		})
 	}
 }
-
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int          { return &i }
 
 func TestMemoryIntegrationSimple(t *testing.T) {
 	if testing.Short() {
@@ -886,11 +884,11 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		err := os.WriteFile(emptyFile, []byte(""), 0o644)
 		require.NoError(t, err)
 
-		count, err := helpers.CountJSONLLines(emptyFile)
+		count, err := jsonHelpers.CountJSONLLines(emptyFile)
 		require.NoError(t, err)
 		assert.Equal(t, 0, count)
 
-		records, err := helpers.ReadJSONLBatch(emptyFile, 0, 10)
+		records, err := jsonHelpers.ReadJSONLBatch(emptyFile, 0, 10)
 		require.NoError(t, err)
 		assert.Empty(t, records)
 
@@ -905,20 +903,20 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		err := os.WriteFile(singleRecordFile, []byte(singleRecordData), 0o644)
 		require.NoError(t, err)
 
-		count, err := helpers.CountJSONLLines(singleRecordFile)
+		count, err := jsonHelpers.CountJSONLLines(singleRecordFile)
 		require.NoError(t, err)
 		assert.Equal(t, 1, count)
 
-		records, err := helpers.ReadJSONLBatch(singleRecordFile, 0, 1)
+		records, err := jsonHelpers.ReadJSONLBatch(singleRecordFile, 0, 1)
 		require.NoError(t, err)
 		assert.Len(t, records, 1)
 		assert.Equal(t, "Single test record", records[0].Data["content"])
 
-		records, err = helpers.ReadJSONLBatch(singleRecordFile, 0, 10)
+		records, err = jsonHelpers.ReadJSONLBatch(singleRecordFile, 0, 10)
 		require.NoError(t, err)
 		assert.Len(t, records, 1)
 
-		records, err = helpers.ReadJSONLBatch(singleRecordFile, 1, 10)
+		records, err = jsonHelpers.ReadJSONLBatch(singleRecordFile, 1, 10)
 		require.NoError(t, err)
 		assert.Empty(t, records)
 
@@ -938,7 +936,7 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		err := os.WriteFile(batchBoundaryFile, []byte(testData), 0o644)
 		require.NoError(t, err)
 
-		count, err := helpers.CountJSONLLines(batchBoundaryFile)
+		count, err := jsonHelpers.CountJSONLLines(batchBoundaryFile)
 		require.NoError(t, err)
 		assert.Equal(t, 6, count)
 
@@ -946,7 +944,7 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		expectedBatches := 3
 
 		for batchIndex := 0; batchIndex < expectedBatches; batchIndex++ {
-			records, err := helpers.ReadJSONLBatch(batchBoundaryFile, batchIndex*batchSize, batchSize)
+			records, err := jsonHelpers.ReadJSONLBatch(batchBoundaryFile, batchIndex*batchSize, batchSize)
 			require.NoError(t, err)
 
 			if batchIndex < expectedBatches-1 {
@@ -961,7 +959,7 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 			}
 		}
 
-		records, err := helpers.ReadJSONLBatch(batchBoundaryFile, expectedBatches*batchSize, batchSize)
+		records, err := jsonHelpers.ReadJSONLBatch(batchBoundaryFile, expectedBatches*batchSize, batchSize)
 		require.NoError(t, err)
 		assert.Empty(t, records, "Should get empty results when reading beyond file end")
 	})
@@ -977,7 +975,7 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		err := os.WriteFile(smallBatchFile, []byte(testData), 0o644)
 		require.NoError(t, err)
 
-		count, err := helpers.CountJSONLLines(smallBatchFile)
+		count, err := jsonHelpers.CountJSONLLines(smallBatchFile)
 		require.NoError(t, err)
 		assert.Equal(t, 10, count)
 
@@ -1001,7 +999,7 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 				batchIndex := 0
 
 				for {
-					records, err := helpers.ReadJSONLBatch(smallBatchFile, batchIndex*tc.batchSize, tc.batchSize)
+					records, err := jsonHelpers.ReadJSONLBatch(smallBatchFile, batchIndex*tc.batchSize, tc.batchSize)
 					require.NoError(t, err)
 
 					if len(records) == 0 {
@@ -1045,7 +1043,7 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		batchIndex := 0
 
 		for {
-			records, err := helpers.ReadJSONLBatch(partialBatchFile, batchIndex*batchSize, batchSize)
+			records, err := jsonHelpers.ReadJSONLBatch(partialBatchFile, batchIndex*batchSize, batchSize)
 			require.NoError(t, err)
 
 			if len(records) == 0 {
@@ -1074,19 +1072,19 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		err := os.WriteFile(testFile, []byte(testData), 0o644)
 		require.NoError(t, err)
 
-		_, err = helpers.ReadJSONLBatch(testFile, 0, 0)
+		_, err = jsonHelpers.ReadJSONLBatch(testFile, 0, 0)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "batchSize must be positive")
 
-		_, err = helpers.ReadJSONLBatch(testFile, 0, -1)
+		_, err = jsonHelpers.ReadJSONLBatch(testFile, 0, -1)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "batchSize must be positive")
 
-		_, err = helpers.ReadJSONLBatch(testFile, -1, 1)
+		_, err = jsonHelpers.ReadJSONLBatch(testFile, -1, 1)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "startIndex cannot be negative")
 
-		_, err = helpers.ReadJSONLBatch("", 0, 1)
+		_, err = jsonHelpers.ReadJSONLBatch("", 0, 1)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "filePath cannot be empty")
 	})
@@ -1102,7 +1100,7 @@ func TestBatchProcessingEdgeCases(t *testing.T) {
 		err := os.WriteFile(largeBatchFile, []byte(testData), 0o644)
 		require.NoError(t, err)
 
-		records, err := helpers.ReadJSONLBatch(largeBatchFile, 0, 1000)
+		records, err := jsonHelpers.ReadJSONLBatch(largeBatchFile, 0, 1000)
 		require.NoError(t, err)
 		assert.Len(t, records, 5, "Should return all records when batch size exceeds file size")
 

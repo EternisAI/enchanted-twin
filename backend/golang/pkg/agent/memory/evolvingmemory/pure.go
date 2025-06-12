@@ -33,23 +33,6 @@ func DistributeWork(docs []memory.Document, workers int) [][]memory.Document {
 
 // CreateMemoryObject builds the Weaviate object for ADD operations.
 func CreateMemoryObject(fact StructuredFact, source memory.Document, decision MemoryDecision) *models.Object {
-	metadata := make(map[string]string)
-
-	// Only keep document references for tracking lineage
-	metadata["sourceDocumentId"] = source.ID()
-
-	// Determine document type using type assertion
-	var docType string
-	switch source.(type) {
-	case *memory.ConversationDocument:
-		docType = string(DocumentTypeConversation)
-	case *memory.TextDocument:
-		docType = string(DocumentTypeText)
-	default:
-		docType = "unknown"
-	}
-	metadata["sourceDocumentType"] = docType
-
 	// Get tags from the source document
 	tags := source.Tags()
 
@@ -62,7 +45,7 @@ func CreateMemoryObject(fact StructuredFact, source memory.Document, decision Me
 	// Prepare properties with new direct fields
 	properties := map[string]interface{}{
 		"content":            fact.GenerateContent(),
-		"metadataJson":       marshalMetadata(metadata),
+		"metadataJson":       "{}",
 		"timestamp":          timestamp.Format(time.RFC3339),
 		"tags":               tags,
 		"documentReferences": []string{},
@@ -105,41 +88,17 @@ func CreateMemoryObjectWithDocumentReferences(fact StructuredFact, source memory
 	return obj
 }
 
-// marshalMetadata converts a metadata map to JSON string for storage.
-func marshalMetadata(metadata map[string]string) string {
-	if len(metadata) == 0 {
-		return "{}"
-	}
-
-	// Use proper JSON marshaling instead of manual construction
-	jsonBytes, err := json.Marshal(metadata)
-	if err != nil {
-		// Fallback to empty JSON object if marshaling fails
-		return "{}"
-	}
-	return string(jsonBytes)
-}
-
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
 // Returns the extracted facts. The source document is already known by the caller.
 func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]StructuredFact, error) {
-	// Get timestamp from document
-	timestamp := time.Now()
-	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
-		timestamp = *ts
-	}
-
-	currentSystemDate := timestamp.Format("2006-01-02")
-	docEventDateStr := getCurrentDateForPrompt()
-
 	switch typedDoc := doc.(type) {
 	case *memory.ConversationDocument:
 		// Extract for the document-level context (no specific speaker)
-		return extractFactsFromConversation(ctx, *typedDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, doc, logger)
+		return extractFactsFromConversation(ctx, *typedDoc, completionsService, completionsModel, doc, logger)
 
 	case *memory.TextDocument:
-		return extractFactsFromTextDocument(ctx, *typedDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, doc, logger)
+		return extractFactsFromTextDocument(ctx, *typedDoc, completionsService, completionsModel, doc, logger)
 
 	default:
 		return nil, fmt.Errorf("unsupported document type: %T", doc)
@@ -225,8 +184,8 @@ func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (Memo
 
 // SearchSimilarMemories performs semantic search for similar memories.
 // This is pure business logic extracted from the adapter.
-func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Interface, embeddingsModel string) ([]ExistingMemory, error) {
-	result, err := storage.Query(ctx, fact, nil, embeddingsModel)
+func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filter, storage storage.Interface, embeddingsModel string) ([]ExistingMemory, error) {
+	result, err := storage.Query(ctx, fact, filter, embeddingsModel)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}
@@ -246,7 +205,7 @@ func SearchSimilarMemories(ctx context.Context, fact string, storage storage.Int
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]StructuredFact, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]StructuredFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -284,10 +243,11 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 	var extractedFacts []StructuredFact
 	for _, toolCall := range llmResponse.ToolCalls {
-		logger.Debug("Tool Call", "name", toolCall.Function.Name, "arguments", toolCall.Function.Arguments)
+		logger.Debug("Tool Call", "name", toolCall.Function.Name)
+		logger.Debug("Arguments", "args", toolCall.Function.Arguments)
 
 		if toolCall.Function.Name != ExtractFactsToolName {
-			logger.Debug("SKIPPING: Wrong tool name", "expected", ExtractFactsToolName, "got", toolCall.Function.Name)
+			logger.Debug("SKIPPING: Wrong tool name", "expected", ExtractFactsToolName)
 			continue
 		}
 
@@ -304,7 +264,14 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		}
 
 		for factIdx, structuredFact := range args.Facts {
-			logger.Debug("Conversation Fact", "index", factIdx+1, "category", structuredFact.Category, "subject", structuredFact.Subject, "attribute", structuredFact.Attribute, "value", structuredFact.Value, "importance", structuredFact.Importance, "sensitivity", structuredFact.Sensitivity)
+			logger.Debug("Conversation Fact",
+				"index", factIdx+1,
+				"category", structuredFact.Category,
+				"subject", structuredFact.Subject,
+				"attribute", structuredFact.Attribute,
+				"value", structuredFact.Value,
+				"importance", structuredFact.Importance,
+				"sensitivity", structuredFact.Sensitivity)
 
 			extractedFacts = append(extractedFacts, structuredFact)
 		}
@@ -321,7 +288,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]StructuredFact, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]StructuredFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -333,7 +300,12 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 	}
 
 	logger.Debug("=== FACT EXTRACTION START ===")
-	logger.Debug("Document details", "id", textDoc.ID(), "source", textDoc.Source(), "tags", textDoc.Tags(), "metadata", textDoc.Metadata(), "content_length", len(content))
+	logger.Debug("Document details",
+		"id", textDoc.ID(),
+		"source", textDoc.Source(),
+		"tags", textDoc.Tags(),
+		"metadata", textDoc.Metadata(),
+		"content_length", len(content))
 	logger.Debug("Full Content", "content", content)
 
 	llmMsgs := []openai.ChatCompletionMessageParamUnion{
@@ -357,10 +329,11 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 	var extractedFacts []StructuredFact
 	for i, toolCall := range llmResponse.ToolCalls {
-		logger.Debug("Tool Call", "index", i+1, "name", toolCall.Function.Name, "arguments", toolCall.Function.Arguments)
+		logger.Debug("Tool Call", "index", i+1, "name", toolCall.Function.Name)
+		logger.Debug("Arguments", "args", toolCall.Function.Arguments)
 
 		if toolCall.Function.Name != ExtractFactsToolName {
-			logger.Debug("SKIPPING: Wrong tool name", "expected", ExtractFactsToolName, "got", toolCall.Function.Name)
+			logger.Debug("SKIPPING: Wrong tool name", "expected", ExtractFactsToolName)
 			continue
 		}
 
@@ -377,7 +350,14 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		}
 
 		for factIdx, structuredFact := range args.Facts {
-			logger.Debug("Text Document Fact", "index", factIdx+1, "category", structuredFact.Category, "subject", structuredFact.Subject, "attribute", structuredFact.Attribute, "value", structuredFact.Value, "importance", structuredFact.Importance, "sensitivity", structuredFact.Sensitivity)
+			logger.Debug("Text Document Fact",
+				"index", factIdx+1,
+				"category", structuredFact.Category,
+				"subject", structuredFact.Subject,
+				"attribute", structuredFact.Attribute,
+				"value", structuredFact.Value,
+				"importance", structuredFact.Importance,
+				"sensitivity", structuredFact.Sensitivity)
 
 			extractedFacts = append(extractedFacts, structuredFact)
 		}
