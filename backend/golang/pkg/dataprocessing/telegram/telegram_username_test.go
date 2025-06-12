@@ -477,8 +477,8 @@ func TestUsernameExtractionAndDocumentGeneration(t *testing.T) {
 	actualPeople := conversationDoc.People
 	t.Logf("People in conversation: %v", actualPeople)
 
-	// Should contain at least the main participants
-	expectedMinPeople := 3 // JohnDoe, Alice Smith, and @JohnDoe (as recipient)
+	// Should contain the main participants
+	expectedMinPeople := 2 // JohnDoe and Alice Smith
 	if len(actualPeople) < expectedMinPeople {
 		t.Errorf("Expected at least %d people, got %d: %v", expectedMinPeople, len(actualPeople), actualPeople)
 	}

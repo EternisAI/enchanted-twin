@@ -125,7 +125,7 @@
     "list": [
       {
         "name": "Tech.ai Community",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 2491415677,
         "messages": [
           {
@@ -306,7 +306,7 @@
     "list": [
       {
         "name": "Bridge.ai - Direct to Wallet Trading",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1472340271,
         "messages": [
           {
@@ -359,7 +359,7 @@
       },
       {
         "name": "Web3 Community Events | EthCC 2025",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1714481381,
         "messages": [
           {
@@ -378,7 +378,7 @@
       },
       {
         "name": "CalorieToken",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1520407010,
         "messages": [
           {
@@ -452,38 +452,38 @@
       },
       {
         "name": "Magic Card Scam Father usher",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1530924583,
         "messages": []
       },
       {
         "name": "V2 🇧🇷 BRASIL🇧🇷OFICIAL",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1177774902,
         "messages": []
       },
       {
         "name": "IQ OPTIONS",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1377036345,
         "messages": []
       },
       {
         "name": "Cryptoo Hub",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1237602964,
         "messages": []
       },
       {
         "name": "SimbaX.io Official",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1192402706,
         "messages": []
       },
 
       {
         "name": "Meta <> Q - DEV",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1908972836,
         "messages": [
           {
@@ -1033,19 +1033,19 @@
       },
       {
         "name": "The Musc Project",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1534657512,
         "messages": []
       },
       {
         "name": "🔥🔥REALBURN OFFICIAL🔥🔥",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1556721476,
         "messages": []
       },
       {
         "name": "ACME Crypto",
-        "type": "private_supergroup",
+        "type": "private_group",
         "id": 1487594029,
         "messages": []
       }

@@ -399,6 +399,7 @@ func TestProcessRealTelegramExport(t *testing.T) {
 		t.Error("Expected to find contacts, but found none")
 	}
 
+	// private_group chats are processed, so we expect to find conversations
 	if conversationCount == 0 {
 		t.Error("Expected to find conversations, but found none")
 	}
