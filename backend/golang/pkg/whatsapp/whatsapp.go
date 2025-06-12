@@ -442,11 +442,11 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 			processedItems := 0
 
-			contactDocuments := []memory.TextDocument{}
+			var contactDocuments []memory.Document
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
 					timestamp := time.Now()
-					document := memory.TextDocument{
+					document := &memory.TextDocument{
 						FieldSource:    "whatsapp",
 						FieldContent:   fmt.Sprintf("WhatsApp Contact name: %s. Contact ID: %s.", *pushname.Pushname, *pushname.ID),
 						FieldTimestamp: &timestamp,
@@ -492,7 +492,7 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 
 				logger.Info("Storing WhatsApp contacts through evolvingmemory fact extraction", "count", len(contactDocuments))
-				err = memoryStorage.Store(ctx, memory.TextDocumentsToDocuments(contactDocuments), func(processed, total int) {
+				err = memoryStorage.Store(ctx, contactDocuments, func(processed, total int) {
 					logger.Info("WhatsApp contacts storage progress", "processed", processed, "total", total)
 
 					UpdateSyncStatus(SyncStatus{
