@@ -2,7 +2,7 @@ build/
 .idea
 .env
 bin/
-output/
+output*/
 data_input/
 store.db*
 *.db-shm
