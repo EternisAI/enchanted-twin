@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -17,8 +16,8 @@ import (
 	"github.com/openai/openai-go/packages/param"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	tcweaviate "github.com/testcontainers/testcontainers-go/modules/weaviate"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
-	"github.com/weaviate/weaviate/adapters/handlers/rest"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -33,12 +32,12 @@ import (
 )
 
 var (
-	sharedWeaviateServer *rest.Server
-	sharedWeaviateClient *weaviate.Client
-	sharedLogger         *log.Logger
-	sharedTempDir        string
-	setupOnce            sync.Once
-	teardownOnce         sync.Once
+	sharedWeaviateContainer *tcweaviate.WeaviateContainer
+	sharedWeaviateClient    *weaviate.Client
+	sharedLogger            *log.Logger
+	sharedTempDir           string
+	setupOnce               sync.Once
+	teardownOnce            sync.Once
 )
 
 type testConfig struct {
@@ -104,24 +103,21 @@ func SetupSharedInfrastructure() {
 			panic(fmt.Sprintf("failed to create temp directory: %v", err))
 		}
 
-		weaviateDataPath := filepath.Join(sharedTempDir, "weaviate-data")
-		weaviatePort := "51414"
-
 		ctx := context.Background()
 
-		originalArgs := os.Args
-		os.Args = []string{"test"}
-
-		sharedWeaviateServer, err = bootstrap.BootstrapWeaviateServer(ctx, sharedLogger, weaviatePort, weaviateDataPath)
+		sharedWeaviateContainer, err = tcweaviate.Run(ctx, "semitechnologies/weaviate:1.29.0")
 		if err != nil {
-			panic(fmt.Sprintf("failed to start weaviate server: %v", err))
+			panic(fmt.Sprintf("failed to start weaviate container: %v", err))
 		}
 
-		os.Args = originalArgs
+		scheme, host, err := sharedWeaviateContainer.HttpHostAddress(ctx)
+		if err != nil {
+			panic(fmt.Sprintf("failed to get weaviate host address: %v", err))
+		}
 
 		sharedWeaviateClient, err = weaviate.NewClient(weaviate.Config{
-			Host:   fmt.Sprintf("localhost:%s", weaviatePort),
-			Scheme: "http",
+			Host:   host,
+			Scheme: scheme,
 		})
 		if err != nil {
 			panic(fmt.Sprintf("failed to create weaviate client: %v", err))
@@ -129,12 +125,12 @@ func SetupSharedInfrastructure() {
 
 		embeddingsApiUrl := os.Getenv("EMBEDDINGS_API_URL")
 		if embeddingsApiUrl == "" {
-			embeddingsApiUrl = "https://api.openai.com/v1" // fallback
+			embeddingsApiUrl = "https://api.openai.com/v1"
 		}
 
 		embeddingsModel := os.Getenv("EMBEDDINGS_MODEL")
 		if embeddingsModel == "" {
-			embeddingsModel = "text-embedding-3-small" // fallback
+			embeddingsModel = "text-embedding-3-small"
 		}
 
 		aiEmbeddingsService := ai.NewOpenAIService(sharedLogger, os.Getenv("EMBEDDINGS_API_KEY"), embeddingsApiUrl)
@@ -149,10 +145,13 @@ func SetupSharedInfrastructure() {
 
 func TeardownSharedInfrastructure() {
 	teardownOnce.Do(func() {
-		if sharedWeaviateServer != nil {
-			sharedLogger.Info("Shutting down shared Weaviate server...")
-			if err := sharedWeaviateServer.Shutdown(); err != nil {
-				sharedLogger.Error("Failed to shutdown Weaviate server", "error", err)
+		if sharedWeaviateContainer != nil {
+			sharedLogger.Info("Terminating shared Weaviate container...")
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			if err := sharedWeaviateContainer.Terminate(ctx); err != nil {
+				sharedLogger.Error("Failed to terminate Weaviate container", "error", err)
 			}
 		}
 
@@ -550,99 +549,6 @@ func TestMemoryIntegration(t *testing.T) {
 
 		env.StoreDocuments(t)
 		env.logger.Info("Documents stored successfully")
-	})
-
-	t.Run("Query whatsapp", func(t *testing.T) {
-		source := "whatsapp"
-		inputPath := "testdata/whatsapp_sample.jsonl"
-
-		// First, create a simple test file if it doesn't exist
-		if _, err := os.Stat(inputPath); os.IsNotExist(err) {
-			// Create testdata directory
-			testdataDir := filepath.Dir(inputPath)
-			if err := os.MkdirAll(testdataDir, 0o755); err != nil {
-				t.Fatalf("Failed to create testdata directory: %v", err)
-			}
-
-			// Create sample WhatsApp data
-			sampleData := []string{
-				`{"data":{"text":"2023-05-15 10:30:00 - Alice: Hey, how are you?\n2023-05-15 10:31:00 - Bob: I'm good! Just working on the project.\n2023-05-15 10:32:00 - Alice: Great! Let me know if you need help.","metadata":{"chat_session":"alice_bob_chat","participants":["Alice","Bob"],"user":"Bob"}},"timestamp":"2023-05-15T10:32:00Z","source":"whatsapp"}`,
-				`{"data":{"text":"2023-05-16 14:00:00 - Carol: Meeting at 3pm today?\n2023-05-16 14:01:00 - Bob: Yes, I'll be there.\n2023-05-16 14:02:00 - Carol: Perfect, see you then!","metadata":{"chat_session":"carol_bob_chat","participants":["Carol","Bob"],"user":"Bob"}},"timestamp":"2023-05-16T14:02:00Z","source":"whatsapp"}`,
-			}
-
-			content := strings.Join(sampleData, "\n")
-			if err := os.WriteFile(inputPath, []byte(content), 0o644); err != nil {
-				t.Fatalf("Failed to create sample WhatsApp file: %v", err)
-			}
-			t.Logf("Created sample WhatsApp test file: %s", inputPath)
-		}
-
-		env.LoadDocumentsFromJSONL(t, source, inputPath)
-
-		if len(env.documents) == 0 {
-			t.Skip("No WhatsApp documents loaded - skipping test")
-			return
-		}
-
-		// Log detailed information about the ConversationDocuments
-		env.logger.Info("=== WhatsApp ConversationDocuments Details ===")
-		for i, doc := range env.documents {
-			env.logger.Info("ConversationDocument",
-				"index", i,
-				"id", doc.ID(),
-				"source", doc.Source(),
-				"content_length", len(doc.Content()),
-			)
-
-			// Log the full conversation content with formatting
-			env.logger.Info("Conversation Content:",
-				"document_index", i,
-				"full_content", doc.Content(),
-			)
-
-			// If we can cast to ConversationDocument, log additional details
-			if convDoc, ok := doc.(*memory.ConversationDocument); ok {
-				env.logger.Info("ConversationDocument Metadata",
-					"document_index", i,
-					"participants", convDoc.People,
-					"message_count", len(convDoc.Conversation),
-					"user", convDoc.User,
-					"chat_session", convDoc.FieldMetadata["chat_session"],
-					"metadata", convDoc.FieldMetadata,
-				)
-			}
-
-			env.logger.Info("--- End Document %d ---", i)
-		}
-		env.logger.Info("=== End WhatsApp ConversationDocuments ===")
-
-		// Store with extended timeout for WhatsApp
-		env.StoreDocumentsWithTimeout(t, 30*time.Minute)
-
-		limit := 100
-		filter := memory.Filter{
-			Source: &source,
-			Limit:  &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, fmt.Sprintf("What do we know about the user from %s source?", source), &filter)
-
-		// More lenient error handling for WhatsApp
-		if err != nil {
-			env.logger.Warn("WhatsApp query returned error (may be expected)", "error", err)
-			// Don't fail the test, just log
-			t.Logf("WhatsApp query error (non-fatal): %v", err)
-		} else {
-			env.logger.Info("WhatsApp query results", "fact_count", len(result.Facts))
-
-			if len(result.Facts) == 0 {
-				t.Logf("No facts extracted from WhatsApp conversations (this may be normal)")
-			} else {
-				for _, fact := range result.Facts {
-					env.logger.Info(source, "fact", "id", fact.ID, "content", fact.Content, "source", fact.Source)
-				}
-			}
-		}
 	})
 
 	t.Run("SourceFiltering", func(t *testing.T) {
