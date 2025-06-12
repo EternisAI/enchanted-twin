@@ -463,7 +463,7 @@ func (s *Service) SendMessage(
 	}, nil
 }
 
-// ProcessMessageHistory processes a list of messages and saves only the new ones (diff) to the database
+// ProcessMessageHistory processes a list of messages and saves only the new ones (diff) to the database.
 func (s *Service) ProcessMessageHistory(
 	ctx context.Context,
 	chatID string,
@@ -528,9 +528,10 @@ func (s *Service) ProcessMessageHistory(
 		if msg.Text == nil {
 			continue
 		}
-		if msg.Role == model.RoleUser {
+		switch msg.Role {
+		case model.RoleUser:
 			messageHistory = append(messageHistory, openai.UserMessage(*msg.Text))
-		} else if msg.Role == model.RoleAssistant {
+		case model.RoleAssistant:
 			messageHistory = append(messageHistory, openai.AssistantMessage(*msg.Text))
 		}
 	}
@@ -566,9 +567,10 @@ func (s *Service) ProcessMessageHistory(
 				s.logger.Error("failed to publish message to NATS", "error", err)
 			}
 		}
-		if msg.Role == model.RoleUser {
+		switch msg.Role {
+		case model.RoleUser:
 			messageHistory = append(messageHistory, openai.UserMessage(msg.Text))
-		} else if msg.Role == model.RoleAssistant {
+		case model.RoleAssistant:
 			messageHistory = append(messageHistory, openai.AssistantMessage(msg.Text))
 		}
 	}
