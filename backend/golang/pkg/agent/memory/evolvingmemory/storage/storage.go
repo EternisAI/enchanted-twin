@@ -572,10 +572,11 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	// Step 1: Generate query vector
-	queryVector, err := s.generateQueryVector(ctx, queryText, embeddingsModel)
+	vector, err := s.embeddingsService.Embedding(ctx, queryText, embeddingsModel)
 	if err != nil {
-		return memory.QueryResult{}, fmt.Errorf("generating query vector: %w", err)
+		return memory.QueryResult{}, fmt.Errorf("failed to create embedding: %w", err)
 	}
+	queryVector := s.convertToFloat32(vector)
 
 	// Step 2: Build GraphQL query
 	queryBuilder, err := s.buildQueryBuilder(queryVector, filter)
@@ -585,15 +586,6 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 
 	// Step 3 & 4: Execute and process
 	return s.executeAndProcessQuery(ctx, queryBuilder)
-}
-
-// generateQueryVector converts query text to embedding vector.
-func (s *WeaviateStorage) generateQueryVector(ctx context.Context, queryText, embeddingsModel string) ([]float32, error) {
-	vector, err := s.embeddingsService.Embedding(ctx, queryText, embeddingsModel)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create embedding: %w", err)
-	}
-	return s.convertToFloat32(vector), nil
 }
 
 // buildQueryBuilder constructs GraphQL query with filters and vector search.

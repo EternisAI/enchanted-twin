@@ -37,9 +37,8 @@ func (s *FriendService) StoreSentMessage(ctx context.Context, message string, ac
 		},
 	}
 
-	err := s.memoryService.Store(ctx, memory.TextDocumentsToDocuments([]memory.TextDocument{doc}), func(processed, total int) {
-		// Progress callback - no action needed
-	})
+	docs := []memory.Document{&doc}
+	err := s.memoryService.Store(ctx, docs, nil)
 	if err != nil {
 		s.logger.Error("Failed to store sent message", "error", err, "message", message)
 		return fmt.Errorf("failed to store sent message: %w", err)
@@ -459,9 +458,8 @@ func (s *FriendService) SendQuestion(ctx context.Context, input SendQuestionInpu
 			FieldMetadata: metaData,
 			FieldTags:     []string{"friend", "question"},
 		}
-		docs := []memory.TextDocument{doc}
-		if errStore := s.memoryService.Store(ctx, memory.TextDocumentsToDocuments(docs), func(processed, total int) {
-		}); errStore != nil {
+		documents := []memory.Document{&doc}
+		if errStore := s.memoryService.Store(ctx, documents, nil); errStore != nil {
 			s.logger.Error("Failed to store question in memory", "error", errStore)
 		}
 	}

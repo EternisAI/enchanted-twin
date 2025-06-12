@@ -74,7 +74,7 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	t.Run("StoreV2_ConversationDocument", func(t *testing.T) {
+	t.Run("Store_ConversationDocument", func(t *testing.T) {
 		// Create test conversation document
 		convDoc := &memory.ConversationDocument{
 			FieldID: "conv-123",
@@ -87,20 +87,13 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 
 		// Convert to unified document interface
 		docs := []memory.Document{convDoc}
-		config := DefaultConfig()
 
-		// Test StoreV2 functionality
-		progressCh, errorCh := storageImpl.StoreV2(context.Background(), docs, config)
-
-		// Process channels (this will likely fail with mock storage, but tests the interface)
-		select {
-		case <-progressCh:
-			t.Log("Received progress update")
-		case err := <-errorCh:
-			t.Logf("Received expected error with mock storage: %v", err)
-		case <-time.After(time.Second):
-			t.Log("Test completed without hanging")
-		}
+		// Test Store functionality (this will likely fail with mock storage, but tests the interface)
+		err := storageImpl.Store(context.Background(), docs, func(processed, total int) {
+			t.Logf("Progress: %d/%d", processed, total)
+		})
+		// We expect this to fail with mock storage, but the interface should work
+		t.Logf("Store returned (expected error with mock): %v", err)
 	})
 
 	t.Run("Store_TextDocument", func(t *testing.T) {
