@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 // MockWeaviateClient provides mock implementation for testing.
@@ -32,10 +33,6 @@ type MockNearVectorBuilder struct {
 	mock.Mock
 }
 
-// Helper functions for creating filter pointer values.
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int          { return &i }
-
 // TestFilterStructure tests the basic Filter struct functionality.
 func TestFilterStructure(t *testing.T) {
 	t.Run("empty filter", func(t *testing.T) {
@@ -49,10 +46,10 @@ func TestFilterStructure(t *testing.T) {
 
 	t.Run("populated filter", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:   stringPtr("conversations"),
-			Subject:  stringPtr("alice"),
+			Source:   helpers.Ptr("conversations"),
+			Subject:  helpers.Ptr("alice"),
 			Distance: 0.7,
-			Limit:    intPtr(5),
+			Limit:    helpers.Ptr(5),
 		}
 		assert.Equal(t, "conversations", *filter.Source)
 		assert.Equal(t, "alice", *filter.Subject)
@@ -66,7 +63,7 @@ func TestDirectFieldFiltering(t *testing.T) {
 	// This test documents the expected behavior without requiring a real Weaviate client
 	t.Run("source field filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source: stringPtr("conversations"),
+			Source: helpers.Ptr("conversations"),
 		}
 
 		// Document expected behavior:
@@ -77,7 +74,7 @@ func TestDirectFieldFiltering(t *testing.T) {
 
 	t.Run("subject filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			Subject: stringPtr("alice"),
+			Subject: helpers.Ptr("alice"),
 		}
 
 		// Document expected behavior:
@@ -88,10 +85,10 @@ func TestDirectFieldFiltering(t *testing.T) {
 
 	t.Run("combined filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:   stringPtr("conversations"),
-			Subject:  stringPtr("alice"),
+			Source:   helpers.Ptr("conversations"),
+			Subject:  helpers.Ptr("alice"),
 			Distance: 0.8,
-			Limit:    intPtr(10),
+			Limit:    helpers.Ptr(10),
 		}
 
 		// Document expected behavior:
@@ -174,8 +171,8 @@ func TestBackwardCompatibility(t *testing.T) {
 func TestFilterValidation(t *testing.T) {
 	t.Run("empty string values", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:  stringPtr(""),
-			Subject: stringPtr(""),
+			Source:  helpers.Ptr(""),
+			Subject: helpers.Ptr(""),
 		}
 
 		// Empty strings should be handled appropriately
@@ -185,7 +182,7 @@ func TestFilterValidation(t *testing.T) {
 
 	t.Run("negative limit", func(t *testing.T) {
 		filter := &memory.Filter{
-			Limit: intPtr(-5),
+			Limit: helpers.Ptr(-5),
 		}
 
 		// Document expected behavior for negative limits
@@ -306,7 +303,7 @@ func TestPerformanceBehavior(t *testing.T) {
 		// WHERE source = "conversations"
 
 		filter := &memory.Filter{
-			Source: stringPtr("conversations"),
+			Source: helpers.Ptr("conversations"),
 		}
 
 		// This test documents that we should be using:
@@ -319,8 +316,8 @@ func TestPerformanceBehavior(t *testing.T) {
 
 	t.Run("combined filter performance", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:  stringPtr("conversations"),
-			Subject: stringPtr("alice"),
+			Source:  helpers.Ptr("conversations"),
+			Subject: helpers.Ptr("alice"),
 		}
 
 		// Should generate:
@@ -408,8 +405,8 @@ func TestStorageInterface(t *testing.T) {
 
 		// Example usage:
 		filter := &memory.Filter{
-			Source: stringPtr("conversations"),
-			Limit:  intPtr(5),
+			Source: helpers.Ptr("conversations"),
+			Limit:  helpers.Ptr(5),
 		}
 
 		assert.NotNil(t, filter)
@@ -423,7 +420,7 @@ func TestTagsFilteringIntegration(t *testing.T) {
 			Tags: &memory.TagsFilter{
 				All: []string{"work", "important"},
 			},
-			Limit: intPtr(5),
+			Limit: helpers.Ptr(5),
 		}
 
 		// Test the filter structure validation
@@ -442,13 +439,13 @@ func TestTagsFilteringIntegration(t *testing.T) {
 	t.Run("schema alignment verification", func(t *testing.T) {
 		// This test verifies that our Filter.Tags field properly aligns with the Weaviate schema
 		filter := &memory.Filter{
-			Source:  stringPtr("conversations"),
-			Subject: stringPtr("alice"),
+			Source:  helpers.Ptr("conversations"),
+			Subject: helpers.Ptr("alice"),
 			Tags: &memory.TagsFilter{
 				All: []string{"work", "urgent"},
 			},
 			Distance: 0.8,
-			Limit:    intPtr(10),
+			Limit:    helpers.Ptr(10),
 		}
 
 		// Verify all filter components are properly structured
@@ -467,7 +464,7 @@ func TestTagsFilteringIntegration(t *testing.T) {
 			Tags: &memory.TagsFilter{
 				All: []string{"project", "meeting", "Q1"},
 			},
-			Limit: intPtr(20),
+			Limit: helpers.Ptr(20),
 		}
 
 		// Test the filter structure validation
@@ -489,7 +486,7 @@ func TestTagsFilteringIntegration(t *testing.T) {
 func TestStructuredFactFiltering(t *testing.T) {
 	t.Run("fact category filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory: stringPtr("preference"),
+			FactCategory: helpers.Ptr("preference"),
 		}
 		assert.Equal(t, "preference", *filter.FactCategory)
 		assert.Nil(t, filter.Subject)
@@ -498,7 +495,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 
 	t.Run("fact subject filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			Subject: stringPtr("alice"),
+			Subject: helpers.Ptr("alice"),
 		}
 		assert.Equal(t, "alice", *filter.Subject)
 		assert.Nil(t, filter.FactCategory)
@@ -506,14 +503,14 @@ func TestStructuredFactFiltering(t *testing.T) {
 
 	t.Run("fact attribute filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactAttribute: stringPtr("coffee_preference"),
+			FactAttribute: helpers.Ptr("coffee_preference"),
 		}
 		assert.Equal(t, "coffee_preference", *filter.FactAttribute)
 	})
 
 	t.Run("fact importance exact filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactImportance: intPtr(3),
+			FactImportance: helpers.Ptr(3),
 		}
 		assert.Equal(t, 3, *filter.FactImportance)
 		assert.Nil(t, filter.FactImportanceMin)
@@ -522,8 +519,8 @@ func TestStructuredFactFiltering(t *testing.T) {
 
 	t.Run("fact importance range filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactImportanceMin: intPtr(2),
-			FactImportanceMax: intPtr(3),
+			FactImportanceMin: helpers.Ptr(2),
+			FactImportanceMax: helpers.Ptr(3),
 		}
 		assert.Equal(t, 2, *filter.FactImportanceMin)
 		assert.Equal(t, 3, *filter.FactImportanceMax)
@@ -532,11 +529,11 @@ func TestStructuredFactFiltering(t *testing.T) {
 
 	t.Run("combined structured fact filtering", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory:   stringPtr("health"),
-			Subject:        stringPtr("user"),
-			FactAttribute:  stringPtr("health_metric"),
-			FactImportance: intPtr(3),
-			Source:         stringPtr("conversations"),
+			FactCategory:   helpers.Ptr("health"),
+			Subject:        helpers.Ptr("user"),
+			FactAttribute:  helpers.Ptr("health_metric"),
+			FactImportance: helpers.Ptr(3),
+			Source:         helpers.Ptr("conversations"),
 		}
 		// Test all fields are set correctly
 		assert.Equal(t, "health", *filter.FactCategory)
@@ -551,9 +548,9 @@ func TestStructuredFactFiltering(t *testing.T) {
 func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 	t.Run("empty string structured fact fields", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory:  stringPtr(""),
-			Subject:       stringPtr(""),
-			FactAttribute: stringPtr(""),
+			FactCategory:  helpers.Ptr(""),
+			Subject:       helpers.Ptr(""),
+			FactAttribute: helpers.Ptr(""),
 		}
 
 		// Empty strings should be handled appropriately
@@ -564,9 +561,9 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 
 	t.Run("negative importance values", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactImportance:    intPtr(-1),
-			FactImportanceMin: intPtr(-5),
-			FactImportanceMax: intPtr(0),
+			FactImportance:    helpers.Ptr(-1),
+			FactImportanceMin: helpers.Ptr(-5),
+			FactImportanceMax: helpers.Ptr(0),
 		}
 
 		// Negative values should be accepted but handled appropriately by storage
@@ -577,9 +574,9 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 
 	t.Run("out of range importance values", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactImportance:    intPtr(10), // Beyond expected 1-3 range
-			FactImportanceMin: intPtr(5),
-			FactImportanceMax: intPtr(15),
+			FactImportance:    helpers.Ptr(10), // Beyond expected 1-3 range
+			FactImportanceMin: helpers.Ptr(5),
+			FactImportanceMax: helpers.Ptr(15),
 		}
 
 		// Out-of-range values should be accepted (storage layer validates)
@@ -590,8 +587,8 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 
 	t.Run("invalid range (min > max)", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactImportanceMin: intPtr(3),
-			FactImportanceMax: intPtr(1), // Min > Max
+			FactImportanceMin: helpers.Ptr(3),
+			FactImportanceMax: helpers.Ptr(1), // Min > Max
 		}
 
 		// Invalid ranges should be accepted (query will return no results)
@@ -601,7 +598,7 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 
 	t.Run("nil structured fact fields", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source: stringPtr("conversations"), // Only set non-structured field
+			Source: helpers.Ptr("conversations"), // Only set non-structured field
 		}
 
 		// Legacy field should be set
@@ -621,9 +618,9 @@ func TestStructuredFactFilteringEdgeCases(t *testing.T) {
 func TestStructuredFactFilteringCombinations(t *testing.T) {
 	t.Run("user preferences with importance", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactCategory:   stringPtr("preference"),
-			FactImportance: intPtr(2),
-			Subject:        stringPtr("user"),
+			FactCategory:   helpers.Ptr("preference"),
+			FactImportance: helpers.Ptr(2),
+			Subject:        helpers.Ptr("user"),
 		}
 
 		assert.Equal(t, "preference", *filter.FactCategory)
@@ -635,12 +632,12 @@ func TestStructuredFactFilteringCombinations(t *testing.T) {
 		now := time.Now()
 		sevenDaysAgo := now.AddDate(0, 0, -7)
 		filter := &memory.Filter{
-			FactCategory:      stringPtr("work"),
-			Subject:           stringPtr("user"),
-			Source:            stringPtr("conversations"),
-			FactImportanceMin: intPtr(2),
+			FactCategory:      helpers.Ptr("work"),
+			Subject:           helpers.Ptr("user"),
+			Source:            helpers.Ptr("conversations"),
+			FactImportanceMin: helpers.Ptr(2),
 			TimestampAfter:    &sevenDaysAgo,
-			Limit:             intPtr(50),
+			Limit:             helpers.Ptr(50),
 		}
 
 		// Test all fields are set correctly
@@ -657,10 +654,10 @@ func TestStructuredFactFilteringCombinations(t *testing.T) {
 func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
 	t.Run("legacy filter without structured facts", func(t *testing.T) {
 		filter := &memory.Filter{
-			Source:   stringPtr("conversations"),
-			Subject:  stringPtr("alice"),
+			Source:   helpers.Ptr("conversations"),
+			Subject:  helpers.Ptr("alice"),
 			Distance: 0.7,
-			Limit:    intPtr(10),
+			Limit:    helpers.Ptr(10),
 		}
 
 		// Legacy fields should work unchanged
@@ -679,7 +676,7 @@ func TestStructuredFactFilteringBackwardCompatibility(t *testing.T) {
 
 	t.Run("exact vs partial matching strategy", func(t *testing.T) {
 		exactFilter := &memory.Filter{
-			FactCategory: stringPtr("health"), // Exact match
+			FactCategory: helpers.Ptr("health"), // Exact match
 		}
 
 		// Exact matching for categories (fast indexed lookup)
@@ -695,8 +692,8 @@ func TestStructuredFactFilteringPerformance(t *testing.T) {
 		// NEW: Direct field queries with proper indexing
 
 		filter := &memory.Filter{
-			FactCategory:   stringPtr("preference"),
-			FactImportance: intPtr(3),
+			FactCategory:   helpers.Ptr("preference"),
+			FactImportance: helpers.Ptr(3),
 		}
 
 		// These should use direct field queries:
@@ -707,8 +704,8 @@ func TestStructuredFactFilteringPerformance(t *testing.T) {
 
 	t.Run("range queries on importance", func(t *testing.T) {
 		filter := &memory.Filter{
-			FactImportanceMin: intPtr(2),
-			FactImportanceMax: intPtr(3),
+			FactImportanceMin: helpers.Ptr(2),
+			FactImportanceMax: helpers.Ptr(3),
 		}
 
 		// Should generate efficient range query:
