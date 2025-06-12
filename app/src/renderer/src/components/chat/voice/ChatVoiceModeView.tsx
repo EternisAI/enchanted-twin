@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
-import { Mic, MicOff, X, AlertCircle, Loader2 } from 'lucide-react'
+import { Mic, MicOff, X } from 'lucide-react'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import VoiceVisualizer from './VoiceVisualizer'
@@ -98,15 +98,7 @@ export default function VoiceModeChatView({
               Error: {error}
             </div>
           )}
-          {/* <VoiceModeSwitch voiceMode setVoiceMode={toggleVoiceMode} /> */}
           <VoiceModeInput isMuted={false} isAgentSpeaking={isSpeaking} onStop={stopVoiceMode} />
-          {/* <MessageInput
-            isWaitingTwinResponse={isLoading || isSpeaking}
-            onSend={onSendMessage}
-            onStop={stop}
-            isReasonSelected={false}
-            voiceMode
-          /> */}
         </div>
       </div>
     </div>
@@ -168,16 +160,25 @@ export function VoiceModeInput({
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="flex flex-col gap-4 items-center pb-4"
       >
-        <div className="flex items-center gap-3 px-4 py-3 bg-blue-500/10 border border-blue-500 rounded-lg text-blue-600 dark:text-blue-400">
-          <Loader2 className="w-5 h-5 flex-shrink-0 animate-spin" />
-          <span className="text-sm font-medium">Initializing voice session...</span>
+        <div className="flex flex-col items-center gap-1.5 px-4 py-3">
+          <Mic className="w-5 h-5 flex-shrink-0" />
+          <span className="text-lg font-medium">Initializing voice session</span>
+          <div className="w-32 h-1 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full bg-gray-500 dark:bg-gray-400"
+              initial={{ width: '0%' }}
+              animate={{ width: '100%' }}
+              transition={{
+                duration: 5,
+                ease: 'linear',
+                repeat: Infinity,
+                repeatType: 'loop'
+              }}
+            />
+          </div>
         </div>
-        <Button
-          onClick={onStop}
-          variant="outline"
-          className="border-blue-200 text-blue-600 hover:bg-blue-50"
-        >
-          Exit Voice Mode
+        <Button onClick={onStop} variant="outline">
+          Exit
         </Button>
       </motion.div>
     )
@@ -191,24 +192,19 @@ export function VoiceModeInput({
         transition={{ duration: 0.3, ease: 'easeOut' }}
         className="flex flex-col gap-4 items-center pb-4"
       >
-        <div className="flex items-center gap-3 px-4 py-3 bg-red-500/10 border border-red-500 rounded-lg text-red-600 dark:text-red-400">
-          <AlertCircle className="w-5 h-5 flex-shrink-0" />
-          <span className="text-sm font-medium">Microphone access is required for voice mode</span>
+        <div className="flex flex-col items-center gap-1 px-4 py-3">
+          <Mic className="w-5 h-5 flex-shrink-0" />
+          <span className="text-lg font-semibold">Allow Microphone Access</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            To talk to Enchanted, you&apos;ll need to allow microphone access.
+          </span>
         </div>
         <div className="flex gap-2">
-          <Button
-            onClick={requestMicrophoneAccess}
-            disabled={isRequestingAccess}
-            className="bg-red-500 hover:bg-red-600 text-white"
-          >
-            {isRequestingAccess ? 'Requesting...' : 'Request Microphone Access'}
+          <Button onClick={requestMicrophoneAccess} disabled={isRequestingAccess}>
+            {isRequestingAccess ? 'Requesting...' : 'Allow Access'}
           </Button>
-          <Button
-            onClick={onStop}
-            variant="outline"
-            className="border-red-200 text-red-600 hover:bg-red-50"
-          >
-            Exit Voice Mode
+          <Button onClick={onStop} variant="outline">
+            Exit
           </Button>
         </div>
       </motion.div>
