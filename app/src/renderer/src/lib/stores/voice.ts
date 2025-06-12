@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-
+import { useSidebarStore } from './sidebar'
 interface VoiceStore {
   isVoiceMode: boolean
 
@@ -12,10 +12,14 @@ export const useVoiceStore = create<VoiceStore>((set) => ({
 
   startVoiceMode: (chatId: string) => {
     window.api.livekit.start(chatId)
+    const { setOpen } = useSidebarStore.getState()
+    setOpen(false)
     set({ isVoiceMode: true })
   },
   stopVoiceMode: () => {
     window.api.livekit.stop()
+    const { setOpen } = useSidebarStore.getState()
+    setOpen(true)
     set({ isVoiceMode: false })
   }
 }))
