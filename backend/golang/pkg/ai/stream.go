@@ -3,7 +3,6 @@ package ai
 
 import (
 	"context"
-	"time"
 
 	"github.com/openai/openai-go"
 )
@@ -42,11 +41,7 @@ func (s *Service) CompletionsStream(
 
 		s.logger.Debug("Starting stream", "model", model, "messages_count", len(messages), "tools_count", len(tools))
 
-		// Add timeout context to prevent hanging
-		timeoutCtx, cancel := context.WithTimeout(ctx, 1*time.Minute)
-		defer cancel()
-
-		stream := s.client.Chat.Completions.NewStreaming(timeoutCtx, params)
+		stream := s.client.Chat.Completions.NewStreaming(ctx, params)
 		defer func() {
 			if err := stream.Close(); err != nil {
 				s.logger.Error("Error closing stream", "error", err)
