@@ -1,14 +1,5 @@
 package evolvingmemory
 
-import (
-	"time"
-)
-
-// Added for dynamic date in FactRetrievalPrompt.
-func getCurrentDateForPrompt() string {
-	return time.Now().Format("2006-01-02")
-}
-
 const (
 	// FactExtractionPrompt is the system prompt handed to the LLM.
 	FactExtractionPrompt = `
