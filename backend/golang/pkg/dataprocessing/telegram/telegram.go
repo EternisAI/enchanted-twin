@@ -265,7 +265,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 	const progressInterval = 10
 
 	for chatIndex, chat := range telegramData.Chats.List {
-
 		if chat.Type == "private_supergroup" {
 			s.logger.Info("Skipping private_supergroup chat", "chatId", chat.ID, "chatName", chat.Name)
 			processedChats++
@@ -314,7 +313,6 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 
 				var fullText string
 				if len(message.TextEntities) > 0 {
-
 					var textBuilder strings.Builder
 					for _, entity := range message.TextEntities {
 						textBuilder.WriteString(entity.Text)
