@@ -552,13 +552,6 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 	assert.Equal(t, "Alice Smith", contactDoc.FieldContent)
 	assert.Equal(t, []string{"social", "contact"}, contactDoc.FieldTags)
 
-	t.Logf("conversationDoc: %+v", conversationDoc)
-	t.Logf("contactDoc: %+v", contactDoc)
-
-	for _, msg := range conversationDoc.Conversation {
-		t.Logf("🟡 speaker: %s, content: %s, time: %s", msg.Speaker, msg.Content, msg.Time)
-	}
-
 	t.Log("✅ End-to-end ToDocuments test passed - messages are properly processed")
 }
 

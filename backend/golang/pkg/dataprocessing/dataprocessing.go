@@ -332,8 +332,6 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		return false, err
 	}
 
-	s.logger.Info("🟡 records", "records", records)
-
 	err = SaveRecords(records, outputPath)
 	if err != nil {
 		return false, err

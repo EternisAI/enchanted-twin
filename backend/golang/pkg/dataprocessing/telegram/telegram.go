@@ -501,12 +501,6 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				}
 			}
 
-			s.logger.Info("🟡 conversationDoc", "conversationDoc", conversationDoc.Conversation)
-			s.logger.Info("🟡 conversationDoc", "conversationDoc", conversationDoc.User)
-			for _, msg := range conversationDoc.Conversation {
-				s.logger.Info("🟡 speaker", "speaker", msg.Speaker, "content", msg.Content, "time", msg.Time)
-			}
-
 			documents = append(documents, conversationDoc)
 		}
 
