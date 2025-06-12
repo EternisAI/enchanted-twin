@@ -229,6 +229,30 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 
+// ProcessMessageHistory processes a list of messages but doesn't save the history
+func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, reasoning bool, voice bool) (*model.Message, error) {
+	// subject := fmt.Sprintf("chat.%s.history", chatID)
+
+	// Convert input messages to the format expected by the service
+	historyJson, err := json.Marshal(map[string]interface{}{
+		"chatId":   chatID,
+		"messages": messages,
+	})
+
+	fmt.Println(string(historyJson))
+
+	if err != nil {
+		return nil, err
+	}
+	
+	// err = r.Nc.Publish(subject, historyJson)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, reasoning, voice)
+}
+
 // DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.GetChat(ctx, chatID)

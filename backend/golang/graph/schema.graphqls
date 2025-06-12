@@ -140,6 +140,12 @@ type Mutation {
     reasoning: Boolean! = False
     voice: Boolean! = False
   ): Message!
+  processMessageHistory(
+    chatId: ID!
+    messages: [MessageInput!]!
+    reasoning: Boolean! = False
+    voice: Boolean! = False
+  ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
   addDataSource(name: String!, path: String!): Boolean!
@@ -323,4 +329,9 @@ type Thread {
   actions: [String!]
   views: Int!
   remoteThreadId: Int
+}
+
+input MessageInput {
+  text: String!
+  role: Role!
 }

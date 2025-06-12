@@ -463,6 +463,168 @@ func (s *Service) SendMessage(
 	}, nil
 }
 
+// ProcessMessageHistory processes a list of messages without saving them to the database
+func (s *Service) ProcessMessageHistory(
+	ctx context.Context,
+	chatID string,
+	messages []*model.MessageInput,
+	isReasoning bool,
+	isVoice bool,
+) (*model.Message, error) {
+	now := time.Now()
+
+	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
+	if err != nil {
+		s.logger.Error("failed to get user memory profile", "error", err)
+		userMemoryProfile = ""
+	}
+
+	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
+	if err != nil {
+		return nil, err
+	}
+
+	s.logger.Info("System prompt for history processing", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+
+	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
+	messageHistory = append(
+		messageHistory,
+		openai.SystemMessage(systemPrompt),
+	)
+	
+	// Convert MessageInput array to OpenAI messages
+	for _, msg := range messages {
+		if msg.Role == model.RoleUser {
+			messageHistory = append(messageHistory, openai.UserMessage(msg.Text))
+		} else if msg.Role == model.RoleAssistant {
+			messageHistory = append(messageHistory, openai.AssistantMessage(msg.Text))
+		}
+	}
+
+	assistantMessageId := uuid.New().String()
+
+	preToolCallback := func(toolCall openai.ChatCompletionMessageToolCall) {
+		tcJson, err := json.Marshal(model.ToolCall{
+			ID:          toolCall.ID,
+			Name:        toolCall.Function.Name,
+			MessageID:   assistantMessageId,
+			IsCompleted: false,
+		})
+		if err != nil {
+			s.logger.Error("failed to marshal tool call", "error", err)
+			return
+		}
+		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
+		err = s.nc.Publish(subject, tcJson)
+		if err != nil {
+			s.logger.Error("failed to publish tool call", "error", err)
+		}
+	}
+
+	toolCallResultsMap := make(map[string]model.ToolCallResult)
+	postToolCallback := func(toolCall openai.ChatCompletionMessageToolCall, toolResult types.ToolResult) {
+		tcJson, err := json.Marshal(model.ToolCall{
+			ID:        toolCall.ID,
+			Name:      toolCall.Function.Name,
+			MessageID: assistantMessageId,
+			Result: &model.ToolCallResult{
+				Content:   helpers.Ptr(toolResult.Content()),
+				ImageUrls: toolResult.ImageURLs(),
+			},
+			IsCompleted: true,
+		})
+		toolCallResultsMap[toolCall.ID] = model.ToolCallResult{
+			Content:   helpers.Ptr(toolResult.Content()),
+			ImageUrls: toolResult.ImageURLs(),
+		}
+		if err != nil {
+			s.logger.Error("failed to marshal tool call", "error", err)
+			return
+		}
+		subject := fmt.Sprintf("chat.%s.tool_call", chatID)
+		err = s.nc.Publish(subject, tcJson)
+		if err != nil {
+			s.logger.Error("failed to publish tool call", "error", err)
+		}
+	}
+
+	createdAt := time.Now().Format(time.RFC3339)
+
+	onDelta := func(delta agent.StreamDelta) {
+		payload := model.MessageStreamPayload{
+			MessageID:  assistantMessageId,
+			ImageUrls:  delta.ImageURLs,
+			Chunk:      delta.ContentDelta,
+			Role:       model.RoleAssistant,
+			IsComplete: delta.IsCompleted,
+			CreatedAt:  &createdAt,
+		}
+		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
+	}
+
+	origin := map[string]any{
+		"chat_id":    chatID,
+		"message_id": uuid.New().String(),
+	}
+
+	s.logger.Info("Executing agent with message history", "reasoning", isReasoning)
+	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
+	if err != nil {
+		return nil, err
+	}
+	s.logger.Debug(
+		"Agent response for message history",
+		"content",
+		response.Content,
+		"tool_calls",
+		len(response.ToolCalls),
+		"tool_results",
+		len(response.ToolResults),
+	)
+
+	subject := fmt.Sprintf("chat.%s", chatID)
+	toolResults := make([]string, len(response.ToolResults))
+	for i, v := range response.ToolResults {
+		toolResultsJson, err := json.Marshal(v)
+		if err != nil {
+			return nil, err
+		}
+		toolResults[i] = string(toolResultsJson)
+	}
+
+	toolCalls := make([]*model.ToolCall, len(response.ToolCalls))
+	for i, v := range response.ToolCalls {
+		toolCalls[i] = &model.ToolCall{
+			ID:          v.ID,
+			Name:        v.Function.Name,
+			IsCompleted: true,
+		}
+	}
+
+	// Create the response message but don't save it to the database
+	assistantMessage := &model.Message{
+		ID:          assistantMessageId,
+		Text:        &response.Content,
+		ImageUrls:   response.ImageURLs,
+		CreatedAt:   now.Format(time.RFC3339),
+		Role:        model.RoleAssistant,
+		ToolCalls:   toolCalls,
+		ToolResults: toolResults,
+	}
+
+	// Publish to NATS for any subscribers
+	assistantMessageJson, err := json.Marshal(assistantMessage)
+	if err != nil {
+		return nil, err
+	}
+	err = s.nc.Publish(subject, assistantMessageJson)
+	if err != nil {
+		return nil, err
+	}
+
+	return assistantMessage, nil
+}
+
 func (s *Service) GetChats(ctx context.Context) ([]*model.Chat, error) {
 	return s.storage.GetChats(ctx)
 }
