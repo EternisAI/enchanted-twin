@@ -1,7 +1,7 @@
 package evolvingmemory
 
 const (
-	// FactExtractionPrompt is the system prompt handed to the LLM.
+	// Currently optimized for Qwen 2.5.
 	FactExtractionPrompt = `
 You are a fact extractor. Return **only valid JSON**. No commentary.
 
@@ -44,7 +44,7 @@ The "primaryUser" field in conversation metadata tells you who is the main perso
 ## Categories
 
 | Category | Description | Example attributes |
-|----------|-------------|-------------------|
+|----------|-------------|--------------------|
 | profile_stable | Core identity | name, age, occupation, location |
 | preference | Likes/dislikes | food, tools, communication_style |
 | goal_plan | Targets with timelines | career_goal, fitness_target |
@@ -56,7 +56,7 @@ The "primaryUser" field in conversation metadata tells you who is the main perso
 | affective_marker | Emotional patterns | stress_trigger, joy_source |
 | event | Time-bound occurrences | travel, meetings, appointments |
 
-## CRITICAL RULES FOR QWEN 2.5
+## CRITICAL RULES
 
 1. **Subject naming**: ALWAYS use "primaryUser" for the main person, NEVER use their actual name
 2. **Atomic facts only**: Extract ONE concept per fact - split compound statements
