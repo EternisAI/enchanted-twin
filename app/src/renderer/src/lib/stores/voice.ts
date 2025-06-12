@@ -10,7 +10,8 @@ interface VoiceStore {
 export const useVoiceStore = create<VoiceStore>((set) => ({
   isVoiceMode: window.api.voiceStore.get('isVoiceMode') as boolean,
 
-  startVoiceMode: (chatId: string) => {
+  startVoiceMode: async (chatId: string) => {
+    await window.api.livekit.stop()
     window.api.livekit.start(chatId)
     const { setOpen } = useSidebarStore.getState()
     setOpen(false)
