@@ -9,9 +9,10 @@ run:
 build:
 	go build -o bin/enchanted-twin cmd/server/main.go
 
-restart-schema:
+fresh-db:
 	@echo "Removing Weaviate data directory to restart with fresh schema..."
-	rm -rf ./output/weaviate
+	rm -rf ./output
+	rm -rf ./store.db*
 	@echo "Weaviate schema will be recreated on next server startup."
 
 release:
