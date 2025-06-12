@@ -10,10 +10,9 @@ build:
 	go build -o bin/enchanted-twin cmd/server/main.go
 
 fresh-db:
-	@echo "Removing Weaviate data directory to restart with fresh schema..."
+	@echo "Removing all Weaviate and SQLite data to restart with fresh schema..."
 	rm -rf ./output
-	rm -rf ./store.db*
-	@echo "Weaviate schema will be recreated on next server startup."
+	@echo "All data will be recreated on next server startup."
 
 release:
 	GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
