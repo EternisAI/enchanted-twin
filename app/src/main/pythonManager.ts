@@ -345,19 +345,6 @@ async def entrypoint(ctx: JobContext):
     
     session = AgentSession( vad=vad, stt=stt, llm=llm, tts=tts)
     
-    # Add event handlers for better debugging
-    @session.on("user_speech_transcribed")
-    def on_user_speech(transcript: str):
-        logger.info(f"User said: {transcript}")
-    
-    @session.on("agent_speech_generated")
-    def on_agent_speech(text: str):
-        logger.info(f"Agent responding: {text}")
-    
-    @session.on("user_speech_committed")
-    def on_speech_committed(msg):
-        logger.info("User speech committed, generating response...")
-    
     # Start the session
     logger.info("Starting agent session...")
     await session.start(agent=agent, room=ctx.room)
@@ -365,7 +352,7 @@ async def entrypoint(ctx: JobContext):
     
     # Wait a moment for the session to fully initialize
     await asyncio.sleep(1)
-    
+
     logger.info("Agent is now active and ready for conversation")
 
 if __name__ == "__main__":
