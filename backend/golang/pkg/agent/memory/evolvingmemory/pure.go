@@ -92,22 +92,13 @@ func CreateMemoryObjectWithDocumentReferences(fact StructuredFact, source memory
 // This is pure business logic extracted from the adapter.
 // Returns the extracted facts. The source document is already known by the caller.
 func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completionsService *ai.Service, completionsModel string) ([]StructuredFact, error) {
-	// Get timestamp from document
-	timestamp := time.Now()
-	if ts := doc.Timestamp(); ts != nil && !ts.IsZero() {
-		timestamp = *ts
-	}
-
-	currentSystemDate := timestamp.Format("2006-01-02")
-	docEventDateStr := getCurrentDateForPrompt()
-
 	switch typedDoc := doc.(type) {
 	case *memory.ConversationDocument:
 		// Extract for the document-level context (no specific speaker)
-		return extractFactsFromConversation(ctx, *typedDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, doc)
+		return extractFactsFromConversation(ctx, *typedDoc, completionsService, completionsModel, doc)
 
 	case *memory.TextDocument:
-		return extractFactsFromTextDocument(ctx, *typedDoc, currentSystemDate, docEventDateStr, completionsService, completionsModel, doc)
+		return extractFactsFromTextDocument(ctx, *typedDoc, completionsService, completionsModel, doc)
 
 	default:
 		return nil, fmt.Errorf("unsupported document type: %T", doc)
@@ -214,7 +205,7 @@ func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filt
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document) ([]StructuredFact, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document) ([]StructuredFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -296,7 +287,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, currentSystemDate string, docEventDateStr string, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document) ([]StructuredFact, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document) ([]StructuredFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
