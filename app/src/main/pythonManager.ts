@@ -366,15 +366,6 @@ async def entrypoint(ctx: JobContext):
     # Wait a moment for the session to fully initialize
     await asyncio.sleep(1)
     
-    logger.info("Generating initial greeting...")
-    #try:
-    #    await session.generate_reply(
-    #        instructions="Say hello and introduce yourself as a voice assistant. Keep it brief and friendly, around 10-15 words."
-    #    )
-    #    logger.info("Initial greeting generated")
-    #except Exception as e:
-    #    logger.error(f"Failed to generate initial greeting: {e}")
-    
     logger.info("Agent is now active and ready for conversation")
 
 if __name__ == "__main__":
