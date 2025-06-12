@@ -121,6 +121,12 @@ const api = {
       ipcRenderer.on('livekit-session-state', (_event, data) => callback(data))
       return cleanup
     }
+  },
+  onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => {
+    const listener = (_: unknown, data: { source: 'stdout' | 'stderr'; line: string }) =>
+      callback(data)
+    ipcRenderer.on('go-log', listener)
+    return () => ipcRenderer.removeListener('go-log', listener)
   }
 }
 

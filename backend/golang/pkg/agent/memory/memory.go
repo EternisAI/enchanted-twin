@@ -3,7 +3,6 @@ package memory
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -88,10 +87,10 @@ type ConversationMessage struct {
 // ConversationDocument represents a document containing structured conversation data.
 type ConversationDocument struct {
 	FieldID       string                `json:"id"`
-	FieldSource   string                `json:"source"`       // Merged from StructuredConversation
-	People        []string              `json:"people"`       // Merged from StructuredConversation
-	User          string                `json:"user"`         // Merged from StructuredConversation
-	Conversation  []ConversationMessage `json:"conversation"` // Merged from StructuredConversation
+	FieldSource   string                `json:"source"`
+	People        []string              `json:"people"`
+	User          string                `json:"user"`
+	Conversation  []ConversationMessage `json:"conversation"`
 	FieldTags     []string              `json:"tags,omitempty"`
 	FieldMetadata map[string]string     `json:"metadata,omitempty"`
 }
@@ -102,47 +101,59 @@ func (cd *ConversationDocument) ID() string {
 }
 
 func (cd *ConversationDocument) Content() string {
-	messages := make([]map[string]string, 0, len(cd.Conversation))
+	var builder strings.Builder
+	primaryUser := cd.User
+
+	// Normalize people list
+	normalizedPeople := make([]string, len(cd.People))
+	for i, person := range cd.People {
+		if person == primaryUser {
+			normalizedPeople[i] = "primaryUser"
+		} else {
+			normalizedPeople[i] = person
+		}
+	}
+
+	// CONVO header: CONVO|{id}|{source}
+	builder.WriteString(fmt.Sprintf("CONVO|%s|%s\n", cd.FieldID, cd.FieldSource))
+
+	// PEOPLE: PEOPLE|{user1}|{user2}|...
+	builder.WriteString("PEOPLE|")
+	builder.WriteString(strings.Join(normalizedPeople, "|"))
+	builder.WriteString("\n")
+
+	// PRIMARY: PRIMARY|primaryUser (always normalized)
+	builder.WriteString("PRIMARY|primaryUser\n")
+
+	// Separator
+	builder.WriteString("|||\n")
+
+	// Messages: {speaker}|||{time}|||{content}
 	for _, msg := range cd.Conversation {
 		trimmed := strings.TrimSpace(msg.Content)
 		if trimmed == "" {
 			continue
 		}
 
-		messages = append(messages, map[string]string{
-			"user":    msg.Speaker,
-			"time":    msg.Time.Format("2006-01-02 15:04:05"),
-			"content": trimmed,
-		})
+		// Normalize speaker name
+		normalizedSpeaker := msg.Speaker
+		if msg.Speaker == primaryUser {
+			normalizedSpeaker = "primaryUser"
+		}
+
+		timeStr := msg.Time.Format(time.RFC3339)
+		builder.WriteString(fmt.Sprintf("%s|||%s|||%s\n", normalizedSpeaker, timeStr, trimmed))
 	}
 
-	if len(messages) == 0 {
-		return ""
-	}
+	// Final separator
+	builder.WriteString("|||\n")
 
-	// Use anonymous struct to control field order
-	conversation := struct {
-		People      []string            `json:"people"`
-		Source      string              `json:"source"`
-		PrimaryUser string              `json:"primaryUser"`
-		Tags        []string            `json:"tags"`
-		Messages    []map[string]string `json:"messages"`
-	}{
-		People:      cd.People,
-		Source:      cd.FieldSource,
-		PrimaryUser: cd.User,
-		Tags:        cd.FieldTags,
-		Messages:    messages,
-	}
+	// TAGS: TAGS|{tag1}|{tag2}|...
+	builder.WriteString("TAGS|")
+	builder.WriteString(strings.Join(cd.FieldTags, "|"))
+	builder.WriteString("\n")
 
-	// Marshal to pretty JSON
-	jsonBytes, err := json.MarshalIndent(conversation, "", "  ")
-	if err != nil {
-		// Fallback to empty string on error
-		return ""
-	}
-
-	return string(jsonBytes)
+	return builder.String()
 }
 
 func (cd *ConversationDocument) Timestamp() *time.Time {
@@ -630,29 +641,20 @@ type QueryResult struct {
 	Facts []MemoryFact `json:"facts"`
 }
 
+// ProgressUpdate represents progress information for memory storage operations.
 type ProgressUpdate struct {
-	Processed int `json:"processed"`
-	Total     int `json:"total"`
+	Processed int    `json:"processed"`
+	Total     int    `json:"total"`
+	Stage     string `json:"stage,omitempty"`
 }
 
+// ProgressCallback is the standard callback function for tracking storage progress.
 type ProgressCallback func(processed, total int)
 
+// Storage defines the interface for memory storage operations.
 type Storage interface {
 	Store(ctx context.Context, documents []Document, progressCallback ProgressCallback) error
 	Query(ctx context.Context, query string, filter *Filter) (QueryResult, error)
-}
-
-// Helper functions to convert slices to Document interface
-
-// TextDocumentsToDocuments converts a slice of TextDocument to a slice of Document.
-func TextDocumentsToDocuments(textDocs []TextDocument) []Document {
-	docs := make([]Document, len(textDocs))
-	for i := range textDocs {
-		// Create a new variable for the address operation to avoid capturing loop variable
-		doc := textDocs[i]
-		docs[i] = &doc
-	}
-	return docs
 }
 
 // IsEmpty returns true if the TagsFilter has no filtering criteria.

@@ -56,14 +56,6 @@ type Config struct {
 	StreamingProgress      bool
 }
 
-// Document preparation.
-type PreparedDocument struct {
-	Original   memory.Document
-	Type       DocumentType
-	Timestamp  time.Time
-	DateString string // Pre-formatted
-}
-
 // Structured fact types for the new extraction system.
 type StructuredFact struct {
 	Category        string  `json:"category"`
@@ -79,20 +71,10 @@ type ExtractStructuredFactsToolArguments struct {
 	Facts []StructuredFact `json:"facts"`
 }
 
-// Processing pipeline types.
-type ExtractedFact struct {
-	// Structured fact fields (primary data)
-	Category        string  `json:"category"`
-	Subject         string  `json:"subject"`
-	Attribute       string  `json:"attribute"`
-	Value           string  `json:"value"`
-	TemporalContext *string `json:"temporal_context,omitempty"`
-	Sensitivity     string  `json:"sensitivity"`
-	Importance      int     `json:"importance"`
-
-	// Legacy fields
-	Content string // Derived from structured fields for backward compatibility
-	Source  PreparedDocument
+// GenerateContent creates the searchable content string from structured fields.
+func (sf StructuredFact) GenerateContent() string {
+	// Simple combination for embeddings and search
+	return fmt.Sprintf("%s - %s", sf.Subject, sf.Value)
 }
 
 // Memory actions.
@@ -115,7 +97,8 @@ type MemoryDecision struct {
 
 // Processing result.
 type FactResult struct {
-	Fact     ExtractedFact
+	Fact     StructuredFact
+	Source   memory.Document // Source document for the fact
 	Decision MemoryDecision
 	Object   *models.Object // Only for ADD
 	Error    error
@@ -160,21 +143,11 @@ type NoneToolArguments struct {
 	Reason string `json:"reason"`
 }
 
-// DocumentReference holds reference to the original document that generated a memory fact.
-type DocumentReference struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
-	Type    string `json:"type"`
-}
-
-// MemoryStorage is the main interface for hot-swappable storage implementations.
-// This interface encapsulates all memory storage operations and business logic.
 type MemoryStorage interface {
 	memory.Storage // Inherit the base storage interface
-	StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error)
 
 	// Document reference operations - now supports multiple references per memory
-	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
+	GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error)
 }
 
 // Dependencies holds all the required dependencies for creating a MemoryStorage instance.
@@ -187,12 +160,14 @@ type Dependencies struct {
 	EmbeddingsModel    string
 }
 
-// StorageImpl implements MemoryStorage using any storage backend.
+// StorageImpl is the main implementation of the MemoryStorage interface.
+// It orchestrates memory operations using a clean 3-layer architecture:
+// StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
 	logger          *log.Logger
-	orchestrator    MemoryOrchestrator
+	orchestrator    *MemoryOrchestrator
 	storage         storage.Interface
-	engine          MemoryEngine // Add engine reference for GetDocumentReference
+	engine          *MemoryEngine
 	embeddingsModel string
 }
 
@@ -218,7 +193,7 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	// Create the orchestrator with coordination logic
-	orchestrator, err := NewMemoryOrchestrator(engine, deps.Logger)
+	orchestrator, err := NewMemoryOrchestrator(engine, deps.Storage, deps.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory orchestrator: %w", err)
 	}
@@ -232,16 +207,15 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}, nil
 }
 
-// Store implements the memory.Storage interface using the new StoreV2 pipeline.
-// This method provides backward compatibility while leveraging the new parallel processing architecture.
+// Store implements the memory.Storage interface.
 func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, callback memory.ProgressCallback) error {
 	// Use default configuration
 	config := DefaultConfig()
 
-	// Launch StoreV2 with channels
-	progressCh, errorCh := s.StoreV2(ctx, documents, config)
+	// Get the channels directly from orchestrator
+	progressCh, errorCh := s.orchestrator.ProcessDocuments(ctx, documents, config)
 
-	// Track total for progress reporting
+	// Convert internal Progress to external ProgressUpdate and handle callback
 	total := len(documents)
 	processed := 0
 
@@ -273,19 +247,19 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 		}
 	}
 
-	// If any errors occurred, return the first one
-	// (In a production system, you might want to combine errors)
+	// If any errors occurred, return meaningful error information
 	if len(errors) > 0 {
-		s.logger.Errorf("Store encountered %d errors, returning first: %v", len(errors), errors[0])
-		return errors[0]
+		if len(errors) == 1 {
+			s.logger.Errorf("Store encountered error: %v", errors[0])
+			return errors[0]
+		}
+		// Multiple errors - provide comprehensive information
+		s.logger.Errorf("Store encountered %d errors, returning first with details of others: %v", len(errors), errors[0])
+		return fmt.Errorf("multiple errors occurred (%d total): %w, and %d more",
+			len(errors), errors[0], len(errors)-1)
 	}
 
 	return nil
-}
-
-// StoreV2 implements the new processing pipeline by delegating to the orchestrator.
-func (s *StorageImpl) StoreV2(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
-	return s.orchestrator.ProcessDocuments(ctx, documents, config)
 }
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
@@ -294,6 +268,6 @@ func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memor
 }
 
 // GetDocumentReferences retrieves all document references for a memory.
-func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error) {
-	return s.engine.GetDocumentReferences(ctx, memoryID)
+func (s *StorageImpl) GetDocumentReferences(ctx context.Context, memoryID string) ([]*storage.DocumentReference, error) {
+	return s.storage.GetDocumentReferences(ctx, memoryID)
 }

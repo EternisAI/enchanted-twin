@@ -10,6 +10,7 @@ import { createHashHistory } from '@tanstack/react-router'
 import { ApolloClientProvider } from './graphql/provider'
 import { ThemeProvider } from './lib/theme'
 import { TTSProvider } from './lib/ttsProvider'
+import { GoLogsProvider } from './contexts/GoLogsContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import InvitationGate from './components/onboarding/InvitationGate'
 import UpdateNotification from './components/UpdateNotification'
@@ -39,14 +40,16 @@ function App() {
     <ThemeProvider defaultTheme={savedTheme}>
       <TTSProvider>
         <ApolloClientProvider>
-          <div className="flex flex-col h-full w-full">
-            <UpdateNotification />
+          <GoLogsProvider>
+            <div className="flex flex-col h-full w-full">
+              <UpdateNotification />
 
-            <Toaster position="bottom-right" />
-            <InvitationGate>
-              <RouterProvider router={router} />
-            </InvitationGate>
-          </div>
+              <Toaster position="bottom-right" />
+              <InvitationGate>
+                <RouterProvider router={router} />
+              </InvitationGate>
+            </div>
+          </GoLogsProvider>
         </ApolloClientProvider>
       </TTSProvider>
     </ThemeProvider>
