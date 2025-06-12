@@ -65,11 +65,7 @@ func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, sou
 
 	// Search for similar memories filtered by the same subject
 	// This ensures we only update memories about the same person/entity
-	limit := 10
-	filter := &memory.Filter{
-		Subject: &fact.Subject,
-		Limit:   &limit,
-	}
+	filter := &memory.Filter{Subject: &fact.Subject}
 	similar, err := SearchSimilarMemories(ctx, content, filter, e.storage, e.EmbeddingsModel)
 	if err != nil {
 		return FactResult{Fact: fact, Source: source, Error: fmt.Errorf("search failed: %w", err)}, nil

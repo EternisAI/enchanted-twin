@@ -620,17 +620,10 @@ func (s *WeaviateStorage) buildQueryBuilder(queryVector []float32, filter *memor
 	// 3. Define fields to retrieve
 	fields := s.buildQueryFields()
 
-	// 4. Set limit
-	limit := 10
-	if filter != nil && filter.Limit != nil {
-		limit = *filter.Limit
-	}
-
-	// 5. Build base query
+	// 4. Build base query
 	queryBuilder := s.client.GraphQL().Get().
 		WithClassName(ClassName).
 		WithNearVector(nearVector).
-		WithLimit(limit).
 		WithFields(fields...)
 
 	// 6. Add WHERE filters
