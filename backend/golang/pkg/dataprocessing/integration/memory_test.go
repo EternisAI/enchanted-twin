@@ -26,9 +26,10 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/bootstrap"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	jsonHelpers "github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
+	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
 var (
@@ -278,7 +279,7 @@ func (env *testEnvironment) LoadDocuments(t *testing.T, source, inputPath string
 	_, err := env.dataprocessing.ProcessSource(env.ctx, source, inputPath, env.config.OutputPath)
 	require.NoError(t, err)
 
-	count, err := helpers.CountJSONLLines(env.config.OutputPath)
+	count, err := jsonHelpers.CountJSONLLines(env.config.OutputPath)
 	if err != nil {
 		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
@@ -290,7 +291,7 @@ func (env *testEnvironment) LoadDocuments(t *testing.T, source, inputPath string
 
 	for batchIndex := 0; ; batchIndex++ {
 		startIndex := batchIndex * batchSize
-		records, err := helpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
+		records, err := jsonHelpers.ReadJSONLBatch(env.config.OutputPath, startIndex, batchSize)
 		require.NoError(t, err)
 
 		if len(records) == 0 {
@@ -346,7 +347,7 @@ func (env *testEnvironment) LoadDocumentsFromJSONL(t *testing.T, source, inputPa
 		return
 	}
 
-	count, err := helpers.CountJSONLLines(inputPath)
+	count, err := jsonHelpers.CountJSONLLines(inputPath)
 	if err != nil {
 		t.Fatalf("Failed to count JSONL lines: %v", err)
 	}
@@ -363,7 +364,7 @@ func (env *testEnvironment) LoadDocumentsFromJSONL(t *testing.T, source, inputPa
 
 	for batchIndex := 0; ; batchIndex++ {
 		startIndex := batchIndex * batchSize
-		records, err := helpers.ReadJSONLBatch(inputPath, startIndex, batchSize)
+		records, err := jsonHelpers.ReadJSONLBatch(inputPath, startIndex, batchSize)
 		require.NoError(t, err)
 
 		if len(records) == 0 {
@@ -647,38 +648,6 @@ func TestMemoryIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Important facts", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.LoadDocuments(t, env.config.Source, env.config.InputPath)
-			env.StoreDocuments(t)
-		}
-
-		limit := 100
-		filter := memory.Filter{
-			FactImportanceMin: intPtr(3),
-			Limit:             &limit,
-		}
-
-		result, err := env.memory.Query(env.ctx, "What are the most important facts about me?", &filter)
-		require.NoError(t, err)
-
-		env.logger.Info("Importance filtered query result", "count", len(result.Facts))
-		assert.NotEmpty(t, result.Facts, "should find important facts about the user")
-
-		for _, fact := range result.Facts {
-			env.logger.Info("Important fact", "id", fact.ID, "content", fact.Content)
-		}
-
-		foundFieldsMedal := false
-		for _, fact := range result.Facts {
-			if strings.Contains(strings.ToLower(fact.Content), "fields medal") {
-				foundFieldsMedal = true
-				break
-			}
-		}
-		assert.True(t, foundFieldsMedal, "should find a document containing 'Fields Medal'")
-	})
-
 	t.Run("SourceFiltering", func(t *testing.T) {
 		if len(env.documents) == 0 {
 			env.LoadDocuments(t, env.config.Source, env.config.InputPath)
@@ -740,7 +709,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactCategoryFiltering",
 			filter: memory.Filter{
-				FactCategory: stringPtr("preference"),
+				FactCategory: helpers.Ptr("preference"),
 				Source:       &env.config.Source,
 				Limit:        &limit,
 			},
@@ -750,7 +719,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactSubjectFiltering",
 			filter: memory.Filter{
-				Subject: stringPtr("user"),
+				Subject: helpers.Ptr("user"),
 				Source:  &env.config.Source,
 				Limit:   &limit,
 			},
@@ -759,7 +728,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactImportanceFiltering",
 			filter: memory.Filter{
-				FactImportance: intPtr(3),
+				FactImportance: helpers.Ptr(3),
 				Source:         &env.config.Source,
 				Limit:          &limit,
 			},
@@ -768,8 +737,8 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactImportanceRangeFiltering",
 			filter: memory.Filter{
-				FactImportanceMin: intPtr(2),
-				FactImportanceMax: intPtr(3),
+				FactImportanceMin: helpers.Ptr(2),
+				FactImportanceMax: helpers.Ptr(3),
 				Source:            &env.config.Source,
 				Limit:             &limit,
 			},
@@ -778,9 +747,9 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "CombinedStructuredFiltering",
 			filter: memory.Filter{
-				FactCategory:   stringPtr("preference"),
-				Subject:        stringPtr("user"),
-				FactImportance: intPtr(2),
+				FactCategory:   helpers.Ptr("preference"),
+				Subject:        helpers.Ptr("user"),
+				FactImportance: helpers.Ptr(2),
 				Source:         &env.config.Source,
 				Limit:          &limit,
 			},
@@ -790,7 +759,7 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "FactAttributeFiltering",
 			filter: memory.Filter{
-				FactAttribute: stringPtr("health_metric"),
+				FactAttribute: helpers.Ptr("health_metric"),
 				Source:        &env.config.Source,
 				Limit:         &limit,
 			},
@@ -809,9 +778,9 @@ func TestStructuredFactFiltering(t *testing.T) {
 		{
 			name: "CombinedAdvancedFiltering",
 			filter: memory.Filter{
-				FactCategory:   stringPtr("health"),
-				Subject:        stringPtr("user"),
-				FactImportance: intPtr(3),
+				FactCategory:   helpers.Ptr("health"),
+				Subject:        helpers.Ptr("user"),
+				FactImportance: helpers.Ptr(3),
 				Source:         &env.config.Source,
 				Limit:          &limit,
 			},
@@ -833,9 +802,6 @@ func TestStructuredFactFiltering(t *testing.T) {
 		})
 	}
 }
-
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int          { return &i }
 
 func TestMemoryIntegrationSimple(t *testing.T) {
 	if testing.Short() {

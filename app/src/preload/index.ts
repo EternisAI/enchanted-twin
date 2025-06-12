@@ -108,6 +108,12 @@ const api = {
   screenpipeStore: {
     get: (key: string) => screenpipeStore.get(key),
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
+  },
+  onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => {
+    const listener = (_: unknown, data: { source: 'stdout' | 'stderr'; line: string }) =>
+      callback(data)
+    ipcRenderer.on('go-log', listener)
+    return () => ipcRenderer.removeListener('go-log', listener)
   }
 }
 

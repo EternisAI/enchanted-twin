@@ -9,10 +9,10 @@ run:
 build:
 	go build -o bin/enchanted-twin cmd/server/main.go
 
-restart-schema:
-	@echo "Removing Weaviate data directory to restart with fresh schema..."
-	rm -rf ./output/weaviate
-	@echo "Weaviate schema will be recreated on next server startup."
+fresh-db:
+	@echo "Removing all Weaviate and SQLite data to restart with fresh schema..."
+	rm -rf ./output
+	@echo "All data will be recreated on next server startup."
 
 release:
 	GOOS=darwin GOARCH=amd64 go build -o bin/enchanted-twin-darwin-amd64 cmd/server/main.go
@@ -20,8 +20,7 @@ release:
 	GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
 
 lint:
-	golangci-lint fmt
-	golangci-lint run --fix
+	golangci-lint run
 
 test:
 	go test -short ./...
