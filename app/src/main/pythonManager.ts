@@ -123,10 +123,33 @@ export class LiveKitAgentBootstrap {
 import logging
 import os
 import sys
-from dotenv import load_dotenv
+import requests
+
+from livekit.agents import (
+    Agent,
+    AgentSession,
+    JobContext,
+    RunContext,
+    WorkerOptions,
+    cli,
+    function_tool,
+)
+from livekit.plugins import openai, silero
+from livekit.plugins.openai.utils import to_chat_ctx
+from livekit.agents import APIConnectionError, llm
+
+# Configure logging with more detailed output
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 # Patch termios for non-TTY environments before importing livekit
 if os.getenv('LIVEKIT_DISABLE_TERMIOS'):
+
+    logger.info("Starting termios patching")
     import termios
     original_tcgetattr = termios.tcgetattr
     original_tcsetattr = termios.tcsetattr
@@ -160,30 +183,46 @@ if os.getenv('LIVEKIT_DISABLE_TERMIOS'):
     termios.tcgetattr = patched_tcgetattr
     termios.tcsetattr = patched_tcsetattr
 
-from livekit.agents import (
-    Agent,
-    AgentSession,
-    JobContext,
-    RunContext,
-    WorkerOptions,
-    cli,
-    function_tool,
-)
-from livekit.plugins import openai, silero
+    logger.info("Termios patching enabled for non-TTY environment")
 
+    
 
-from livekit.plugins.openai.utils import to_chat_ctx
-from livekit.agents import APIConnectionError, llm
-import requests
+# Verify required environment variables
+required_env_vars = [
+    "OPENAI_API_KEY",
+    "CHAT_ID",
+    "TINFOIL_API_KEY",
+    "TINFOIL_AUDIO_URL",
+    "TINFOIL_STT_MODEL",
+    "TINFOIL_TTS_MODEL",
+    "SEND_MESSAGE_URL"
+]
+
+missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+if missing_vars:
+    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
+    logger.error("Please create a .env file with the required API keys")
+    sys.exit(1)
+
+TTS_API_KEY = os.getenv("TINFOIL_API_KEY")
+TTS_URL = os.getenv("TINFOIL_AUDIO_URL")
+TTS_MODEL = os.getenv("TINFOIL_TTS_MODEL")
+
+STT_API_KEY = os.getenv("TINFOIL_API_KEY")
+STT_URL = os.getenv("TINFOIL_AUDIO_URL")
+STT_MODEL = os.getenv("TINFOIL_STT_MODEL")
+CHAT_ID = os.getenv("CHAT_ID")
+SEND_MESSAGE_URL = os.getenv("SEND_MESSAGE_URL")
+
 
 def send_message(message: str, chat_id: str):
-    url = "http://localhost:44999/query"
+    url = SEND_MESSAGE_URL
 
     query = """
-    mutation sendmsg {
+    mutation sendmsg($chatId: ID!, $text: String!) {
     sendMessage(
-        chatId: \\"""" + chat_id + """\\",
-        text: \\"""" + message + """\\",
+        chatId: $chatId,
+        text: $text,
         reasoning: false,
         voice: false
     ) {
@@ -192,7 +231,10 @@ def send_message(message: str, chat_id: str):
     }
     }
     """
-    resp = requests.post(url, json={"query": query})
+    
+    variables = { "chatId": chat_id, "text": message}
+    
+    resp = requests.post(url, json={"query": query, "variables": variables})
     
     if resp.status_code == 200:
         body = resp.json()
@@ -240,9 +282,7 @@ class LLMStream(llm.LLMStream):
         retryable = True
 
         try:
-            
             context = to_chat_ctx(self._chat_ctx, "1")
-            
             full_message = ""
             for item in context[::-1]:
                 if item["role"] == "assistant" and item["content"]!="":
@@ -268,9 +308,7 @@ class LLM(llm.LLM):
         self._chat_id = chat_id
         
 
-    def chat(
-        self,
-        *,
+    def chat( self, *,
         chat_ctx: llm.ChatContext,
         tools = None,
         conn_options = None,
@@ -278,50 +316,8 @@ class LLM(llm.LLM):
         tool_choice = False,
         response_format = False,
         extra_kwargs = False):
-        
         return LLMStream(llm=self, chat_ctx=chat_ctx, chat_id=self._chat_id)
 
-
-
-# Load environment variables
-load_dotenv()
-
-# Configure logging with more detailed output
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
-# Log termios patching status
-if os.getenv('LIVEKIT_DISABLE_TERMIOS'):
-    logger.info("Termios patching enabled for non-TTY environment")
-
-# Verify required environment variables
-required_env_vars = [
-    "OPENAI_API_KEY",
-    "CHAT_ID"
-]
-
-missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-if missing_vars:
-    logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-    logger.error("Please create a .env file with the required API keys")
-    sys.exit(1)
-
-# Default prompt - can be overridden by meta_prompt2.txt
-PROMPT = """You are a helpful AI assistant with voice capabilities. 
-You can have natural conversations and help users with various tasks.
-Be friendly, concise, and engaging in your responses.
-Keep your responses conversational and not too long."""
-
-# Try to load custom prompt if available
-try:
-    with open("meta_prompt2.txt", "r") as f:
-        PROMPT = f.read()
-        logger.info("Loaded custom prompt from meta_prompt2.txt")
-except FileNotFoundError:
-    logger.info("Using default prompt (meta_prompt2.txt not found)")
 
 async def entrypoint(ctx: JobContext):
     """Main entry point for the LiveKit agent"""
@@ -333,7 +329,7 @@ async def entrypoint(ctx: JobContext):
     logger.info(f"Connected to LiveKit room: {ctx.room.name}")
     
     # Create the agent with instructions
-    agent = Agent(instructions=PROMPT)
+    agent = Agent(instructions="")
     logger.info("Agent created with instructions")
     
     # Create the agent session with voice components
@@ -341,18 +337,13 @@ async def entrypoint(ctx: JobContext):
     
     # Initialize components with better configuration
     vad = silero.VAD.load()
-    stt = openai.STT(model="whisper-1")
+    stt = openai.STT(base_url=STT_URL, model=STT_MODEL, api_key=STT_API_KEY)
     llm = LLM(chat_id=os.getenv("CHAT_ID"))
-    tts = openai.TTS(model="tts-1", voice="alloy")
+    tts = openai.TTS(base_url=TTS_URL, model=TTS_MODEL, api_key=TTS_API_KEY, voice="af_v0bella")
     
     logger.info("Voice components initialized")
     
-    session = AgentSession(
-        vad=vad,
-        stt=stt,
-        llm=llm,
-        tts=tts,
-    )
+    session = AgentSession( vad=vad, stt=stt, llm=llm, tts=tts)
     
     # Add event handlers for better debugging
     @session.on("user_speech_transcribed")
@@ -375,22 +366,19 @@ async def entrypoint(ctx: JobContext):
     # Wait a moment for the session to fully initialize
     await asyncio.sleep(1)
     
-    # Generate an initial greeting
     logger.info("Generating initial greeting...")
-    try:
-        await session.generate_reply(
-            instructions="Say hello and introduce yourself as a voice assistant. Keep it brief and friendly, around 10-15 words."
-        )
-        logger.info("Initial greeting generated")
-    except Exception as e:
-        logger.error(f"Failed to generate initial greeting: {e}")
+    #try:
+    #    await session.generate_reply(
+    #        instructions="Say hello and introduce yourself as a voice assistant. Keep it brief and friendly, around 10-15 words."
+    #    )
+    #    logger.info("Initial greeting generated")
+    #except Exception as e:
+    #    logger.error(f"Failed to generate initial greeting: {e}")
     
-    # Keep the session running
     logger.info("Agent is now active and ready for conversation")
 
 if __name__ == "__main__":
     logger.info("Starting LiveKit agent in console mode")
-    # Run the agent with CLI support in console mode
     cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))`
 
     const requirementsContent = `livekit==1.0.8
@@ -554,6 +542,11 @@ requests`
         ...process.env,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         CHAT_ID: chatId,
+        TINFOIL_API_KEY: process.env.TINFOIL_API_KEY,
+        TINFOIL_AUDIO_URL: process.env.TINFOIL_AUDIO_URL,
+        TINFOIL_STT_MODEL: process.env.TINFOIL_STT_MODEL,
+        TINFOIL_TTS_MODEL: process.env.TINFOIL_TTS_MODEL,
+        SEND_MESSAGE_URL: `http://localhost:44999/query`,
         TERM: 'dumb', // Use dumb terminal to avoid TTY features
         PYTHONUNBUFFERED: '1', // Ensure immediate output
         NO_COLOR: '1', // Disable color codes
