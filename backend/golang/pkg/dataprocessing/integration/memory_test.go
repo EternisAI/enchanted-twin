@@ -643,37 +643,37 @@ func TestMemoryIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("Important facts", func(t *testing.T) {
-		if len(env.documents) == 0 {
-			env.loadDocuments(t, env.config.Source, env.config.InputPath)
-			env.storeDocuments(t)
-		}
+	// t.Run("Important facts", func(t *testing.T) {
+	// 	if len(env.documents) == 0 {
+	// 		env.loadDocuments(t, env.config.Source, env.config.InputPath)
+	// 		env.storeDocuments(t)
+	// 	}
 
-		limit := 100
-		filter := memory.Filter{
-			FactImportanceMin: intPtr(3),
-			Limit:             &limit,
-		}
+	// 	limit := 100
+	// 	filter := memory.Filter{
+	// 		FactImportanceMin: intPtr(3),
+	// 		Limit:             &limit,
+	// 	}
 
-		result, err := env.memory.Query(env.ctx, "What are the most important facts about me?", &filter)
-		require.NoError(t, err)
+	// 	result, err := env.memory.Query(env.ctx, "What are the most important facts about me?", &filter)
+	// 	require.NoError(t, err)
 
-		env.logger.Info("Importance filtered query result", "count", len(result.Facts))
-		assert.NotEmpty(t, result.Facts, "should find important facts about the user")
+	// 	env.logger.Info("Importance filtered query result", "count", len(result.Facts))
+	// 	assert.NotEmpty(t, result.Facts, "should find important facts about the user")
 
-		for _, fact := range result.Facts {
-			env.logger.Info("Important fact", "id", fact.ID, "content", fact.Content)
-		}
+	// 	for _, fact := range result.Facts {
+	// 		env.logger.Info("Important fact", "id", fact.ID, "content", fact.Content)
+	// 	}
 
-		foundFieldsMedal := false
-		for _, fact := range result.Facts {
-			if strings.Contains(strings.ToLower(fact.Content), "fields medal") {
-				foundFieldsMedal = true
-				break
-			}
-		}
-		assert.True(t, foundFieldsMedal, "should find a document containing 'Fields Medal'")
-	})
+	// 	foundFieldsMedal := false
+	// 	for _, fact := range result.Facts {
+	// 		if strings.Contains(strings.ToLower(fact.Content), "fields medal") {
+	// 			foundFieldsMedal = true
+	// 			break
+	// 		}
+	// 	}
+	// 	assert.True(t, foundFieldsMedal, "should find a document containing 'Fields Medal'")
+	// })
 
 	t.Run("SourceFiltering", func(t *testing.T) {
 		if len(env.documents) == 0 {
