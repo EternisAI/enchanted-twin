@@ -165,9 +165,10 @@ func TestUsernameExtraction(t *testing.T) {
 
 	var userMessage, otherMessage *messageData
 	for i := range messages {
-		if messages[i].From == "JohnDoe" {
+		switch messages[i].From {
+		case "JohnDoe":
 			userMessage = &messages[i]
-		} else if messages[i].From == "Alice Smith" {
+		case "Alice Smith":
 			otherMessage = &messages[i]
 		}
 	}

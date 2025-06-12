@@ -428,15 +428,15 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp db file: %v", err)
 	}
-	dbFile.Close()
-	defer os.Remove(dbFile.Name())
+	dbFile.Close()                 //nolint:errcheck
+	defer os.Remove(dbFile.Name()) //nolint:errcheck
 
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, dbFile.Name())
 	if err != nil {
 		t.Fatalf("Failed to create store: %v", err)
 	}
-	defer store.Close()
+	defer store.Close() //nolint:errcheck
 
 	// Set up source username
 	sourceUsername := db.SourceUsername{
@@ -562,7 +562,7 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 }
 
 func TestJSONLMarshallingSimple(t *testing.T) {
-	// This test verifies that messageData structs can be properly marshalled to JSON
+	// This test verifies that messageData structs can be properly marshaled to JSON
 	// It would FAIL before the fix (when fields were unexported) and PASS after the fix
 
 	timestamp1, _ := time.Parse(time.RFC3339, "2023-01-15T10:30:00Z")
@@ -604,14 +604,12 @@ func TestJSONLMarshallingSimple(t *testing.T) {
 			"people":   []string{"JohnDoe", "Alice"},
 			"user":     "JohnDoe",
 		},
-		Timestamp: timestamp1,
-		Source:    "telegram",
 	}
 
-	// Test JSON marshalling directly
+	// Test JSON marshaling directly
 	jsonData, err := json.Marshal(record.Data)
 	if err != nil {
-		t.Fatalf("JSON marshalling failed: %v", err)
+		t.Fatalf("JSON marshaling failed: %v", err)
 	}
 
 	// Unmarshal back to verify structure
@@ -677,7 +675,7 @@ func TestJSONLMarshallingSimple(t *testing.T) {
 		t.Errorf("Expected myMessage false, got %v", msg2Map["myMessage"])
 	}
 
-	t.Log("✅ CRITICAL JSON MARSHALLING TEST PASSED!")
+	t.Log("✅ CRITICAL JSON MARSHALING TEST PASSED!")
 	t.Log("✅ Messages are properly serialized with all fields (id, from, text, myMessage, etc.)")
 	t.Log("✅ This test would have FAILED before making messageData fields exported")
 	t.Log("✅ Before the fix: messages would appear as empty objects {} in JSON")
