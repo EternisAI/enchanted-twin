@@ -755,6 +755,12 @@ filter := &memory.Filter{
 - `DELETE` - Remove an outdated memory (immediate)
 - `NONE` - Do nothing (fact isn't worth remembering)
 
+**Subject-Filtered Updates:**
+- Memory updates are now filtered by `factSubject` to prevent cross-contamination
+- When searching for similar memories to update, only memories about the same subject are considered
+- Example: A fact about "Alice" will only update existing memories about "Alice", never about "Bob"
+- This ensures data integrity and prevents incorrect memory associations
+
 **Speaker Rules:**
 - Document-level memories can't modify speaker-specific ones
 - Speakers can only modify their own memories
@@ -980,15 +986,17 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 ## Gotchas
 
 1. **UPDATE/DELETE are immediate** - They happen right away, not batched
-2. **Speaker validation is strict** - Can't modify other people's memories
-3. **Facts can be empty** - Not all documents produce extractable facts
-4. **Channels close in order** - Progress channel closes before error channel
-5. **Storage abstraction** - Don't depend on Weaviate-specific features
-6. **Document content vs hash** - Ensure `GetStoredDocument()` returns actual content, not content hash
-7. **Multiple references** - Use `GetDocumentReferences()` for complete audit trail
-8. **Backward compatibility** - Old format memories have empty content in document references
-9. **Structured fact migration** - New installs get structured fact fields, existing schemas get them added automatically
-10. **Content generation** - Structured facts generate rich searchable content strings automatically
+2. **UPDATE preserves all fields** - Update operations fetch existing object and preserve all structured fields (tags, documentReferences, factCategory, etc.)
+3. **Subject filtering on updates** - Memory updates only affect facts about the same subject to prevent cross-contamination
+4. **Speaker validation is strict** - Can't modify other people's memories
+5. **Facts can be empty** - Not all documents produce extractable facts
+6. **Channels close in order** - Progress channel closes before error channel
+7. **Storage abstraction** - Don't depend on Weaviate-specific features
+8. **Document content vs hash** - Ensure `GetStoredDocument()` returns actual content, not content hash
+9. **Multiple references** - Use `GetDocumentReferences()` for complete audit trail
+10. **Backward compatibility** - Old format memories have empty content in document references
+11. **Structured fact migration** - New installs get structured fact fields, existing schemas get them added automatically
+12. **Content generation** - Structured facts generate rich searchable content strings automatically
 
 ## Architecture Benefits
 
