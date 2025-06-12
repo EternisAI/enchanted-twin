@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -58,13 +59,24 @@ import (
 	waTools "github.com/EternisAI/enchanted-twin/pkg/whatsapp/tools"
 )
 
+// customLogWriter routes logs to stderr if they contain "err" or "error", otherwise to stdout.
+type customLogWriter struct{}
+
+func (w *customLogWriter) Write(p []byte) (n int, err error) {
+	logContent := strings.ToLower(string(p))
+	if strings.Contains(logContent, "err") || strings.Contains(logContent, "error") || strings.Contains(logContent, "failed") {
+		return os.Stderr.Write(p)
+	}
+	return os.Stdout.Write(p)
+}
+
 func main() {
 	whatsappQRChan := whatsapp.GetQRChannel()
 	var currentWhatsAppQRCode *string
 	whatsAppConnected := false
 	var whatsappClient *whatsmeow.Client
 
-	logger := log.NewWithOptions(os.Stdout, log.Options{
+	logger := log.NewWithOptions(&customLogWriter{}, log.Options{
 		ReportCaller:    true,
 		ReportTimestamp: true,
 		Level:           log.DebugLevel,

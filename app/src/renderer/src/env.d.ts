@@ -95,6 +95,11 @@ interface IApi {
     get: (key: string) => unknown
     set: (key: string, value: unknown) => void
   }
+  screenpipeStore: {
+    get: (key: string) => unknown
+    set: (key: string, value: unknown) => void
+  }
+  onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => () => void
 }
 
 interface ScreenpipeStatus {

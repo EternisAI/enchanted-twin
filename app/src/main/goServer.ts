@@ -5,6 +5,7 @@ import { join } from 'path'
 import { app } from 'electron'
 import { createErrorWindow, waitForBackend, createSplashWindow } from './helpers'
 import { BrowserWindow } from 'electron'
+import split2 from 'split2'
 
 let goServerProcess: ChildProcess | null = null
 let splashWindow: BrowserWindow | null = null
@@ -98,6 +99,10 @@ async function startGoServer(
         goServerProcess = null
       })
 
+      if (goServerProcess.stderr) {
+        forward(goServerProcess.stderr, 'stderr')
+      }
+
       goServerProcess.stdout?.on('data', (data) => {
         log.info(`Go Server stdout: ${data.toString().trim()}`)
       })
@@ -132,4 +137,16 @@ export function cleanupGoServer() {
     }
     goServerProcess = null
   }
+}
+
+function forward(stream: NodeJS.ReadableStream, source: 'stdout' | 'stderr') {
+  stream.pipe(split2()).on('data', (line: string) => {
+    if (!line) return
+    // const clean = stripAnsi(line)   // zap ANSI color ESCs
+    log[source === 'stdout' ? 'info' : 'error'](`Go ${source}: ${line}`)
+
+    BrowserWindow.getAllWindows().forEach((win) =>
+      win.webContents.send('go-log', { source, line: line })
+    )
+  })
 }
