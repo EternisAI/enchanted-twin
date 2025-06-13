@@ -56,11 +56,6 @@ type Config struct {
 	StreamingProgress      bool
 }
 
-// ExtractMemoryFactsToolArguments is used for the LLM fact extraction tool.
-type ExtractMemoryFactsToolArguments struct {
-	Facts []memory.MemoryFact `json:"facts"`
-}
-
 // Memory actions.
 type MemoryAction string
 

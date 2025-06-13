@@ -251,19 +251,19 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			continue
 		}
 
-		var args ExtractMemoryFactsToolArguments
+		var args []memory.MemoryFact
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			logger.Error("FAILED to unmarshal tool arguments", "error", err)
 			continue
 		}
 
-		logger.Debug("Successfully parsed structured facts from conversation", "count", len(args.Facts))
+		logger.Debug("Successfully parsed structured facts from conversation", "count", len(args))
 
-		if len(args.Facts) == 0 {
+		if len(args) == 0 {
 			logger.Warn("Tool call returned zero facts for conversation", "id", convDoc.ID())
 		}
 
-		for factIdx, memoryFact := range args.Facts {
+		for factIdx, memoryFact := range args {
 			logger.Debug("Conversation Fact",
 				"index", factIdx+1,
 				"category", memoryFact.Category,
@@ -337,19 +337,19 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			continue
 		}
 
-		var args ExtractMemoryFactsToolArguments
+		var args []memory.MemoryFact
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			logger.Error("FAILED to unmarshal tool arguments", "error", err)
 			continue
 		}
 
-		logger.Debug("Successfully parsed structured facts", "count", len(args.Facts))
+		logger.Debug("Successfully parsed structured facts", "count", len(args))
 
-		if len(args.Facts) == 0 {
+		if len(args) == 0 {
 			logger.Warn("Tool call returned zero facts for document", "id", textDoc.ID())
 		}
 
-		for factIdx, memoryFact := range args.Facts {
+		for factIdx, memoryFact := range args {
 			logger.Debug("Text Document Fact",
 				"index", factIdx+1,
 				"category", memoryFact.Category,
