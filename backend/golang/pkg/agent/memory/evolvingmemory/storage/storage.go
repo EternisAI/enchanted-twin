@@ -16,7 +16,6 @@ import (
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
@@ -90,16 +89,28 @@ type WeaviateStorage struct {
 	embeddingsWrapper *EmbeddingWrapper
 }
 
+// NewStorageInput contains the dependencies needed to create a WeaviateStorage instance.
+type NewStorageInput struct {
+	Client            *weaviate.Client
+	Logger            *log.Logger
+	EmbeddingsWrapper *EmbeddingWrapper
+}
+
 // New creates a new WeaviateStorage instance.
-func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) (Interface, error) {
-	embeddingsWrapper, err := NewEmbeddingWrapper(embeddingsService, embeddingsModel)
-	if err != nil {
-		return nil, fmt.Errorf("creating embedding wrapper: %w", err)
+func New(input NewStorageInput) (Interface, error) {
+	if input.Client == nil {
+		return nil, fmt.Errorf("client cannot be nil")
+	}
+	if input.Logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+	if input.EmbeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddingsWrapper cannot be nil")
 	}
 	return &WeaviateStorage{
-		client:            client,
-		logger:            logger,
-		embeddingsWrapper: embeddingsWrapper,
+		client:            input.Client,
+		logger:            input.Logger,
+		embeddingsWrapper: input.EmbeddingsWrapper,
 	}, nil
 }
 
