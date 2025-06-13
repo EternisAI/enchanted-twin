@@ -633,6 +633,7 @@ type MemoryFact struct {
 	Subject   string            `json:"subject,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 	Source    string            `json:"source"`
+	Tags      []string          `json:"tags,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
