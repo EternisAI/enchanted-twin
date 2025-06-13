@@ -49,6 +49,12 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		defer close(progressCh)
 		defer close(errorCh)
 
+		// Validate configuration
+		if config.Workers <= 0 {
+			errorCh <- fmt.Errorf("invalid worker count: %d, must be > 0", config.Workers)
+			return
+		}
+
 		// Chunk documents first
 		var chunkedDocs []memory.Document
 		for _, doc := range documents {
@@ -56,7 +62,9 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			chunkedDocs = append(chunkedDocs, chunks...)
 		}
 
-		if len(chunkedDocs) == 0 {
+		totalDocuments := len(chunkedDocs)
+
+		if totalDocuments == 0 {
 			progressCh <- Progress{
 				Processed: 0,
 				Total:     len(documents),
@@ -96,7 +104,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 
 		var storeWg sync.WaitGroup
 		storeWg.Add(1)
-		go o.streamingStore(ctx, objectStream, progressCh, errorCh, &storeWg, config)
+		go o.streamingStore(ctx, objectStream, progressCh, errorCh, &storeWg, config, totalDocuments)
 
 		extractWg.Wait()
 		close(factStream)
@@ -125,6 +133,7 @@ func (o *MemoryOrchestrator) extractFactsWorkerDynamic(
 	defer wg.Done()
 
 	processedCount := 0
+	failedCount := 0
 	startTime := time.Now()
 
 	for doc := range documentQueue {
@@ -138,6 +147,18 @@ func (o *MemoryOrchestrator) extractFactsWorkerDynamic(
 
 		if err != nil {
 			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.ID(), err)
+			failedCount++
+
+			// Send error as a FactResult with error field
+			result := FactResult{
+				Source: doc,
+				Error:  fmt.Errorf("fact extraction failed for document %s: %w", doc.ID(), err),
+			}
+			select {
+			case out <- result:
+			case <-ctx.Done():
+				return
+			}
 			continue
 		}
 
@@ -164,9 +185,9 @@ func (o *MemoryOrchestrator) extractFactsWorkerDynamic(
 	}
 
 	totalTime := time.Since(startTime)
-	if processedCount > 0 {
-		o.logger.Infof("Worker %d: Completed, processed %d documents in %v (avg: %v/doc)",
-			workerID, processedCount, totalTime, totalTime/time.Duration(processedCount))
+	if processedCount > 0 || failedCount > 0 {
+		o.logger.Infof("Worker %d: Completed, processed %d documents, %d failed in %v (avg: %v/doc)",
+			workerID, processedCount, failedCount, totalTime, totalTime/time.Duration(processedCount+failedCount))
 	} else {
 		o.logger.Infof("Worker %d: Completed, processed 0 documents", workerID)
 	}
@@ -229,7 +250,8 @@ func (o *MemoryOrchestrator) aggregateResults(
 ) {
 	defer wg.Done()
 
-	var batch []*models.Object
+	// Pre-allocate batch with expected capacity
+	batch := make([]*models.Object, 0, config.BatchSize)
 	ticker := time.NewTicker(config.FlushInterval)
 	defer ticker.Stop()
 
@@ -237,7 +259,7 @@ func (o *MemoryOrchestrator) aggregateResults(
 		if len(batch) > 0 {
 			select {
 			case out <- batch:
-				batch = nil
+				batch = make([]*models.Object, 0, config.BatchSize)
 			case <-ctx.Done():
 				return
 			}
@@ -282,6 +304,7 @@ func (o *MemoryOrchestrator) streamingStore(
 	errors chan<- error,
 	wg *sync.WaitGroup,
 	config Config,
+	totalDocuments int,
 ) {
 	defer wg.Done()
 
@@ -309,7 +332,7 @@ func (o *MemoryOrchestrator) streamingStore(
 		select {
 		case progress <- Progress{
 			Processed: totalProcessed,
-			Total:     totalProcessed,
+			Total:     totalDocuments,
 			Stage:     "storage",
 		}:
 		case <-ctx.Done():
