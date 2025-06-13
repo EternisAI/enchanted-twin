@@ -17,7 +17,7 @@ import (
 )
 
 // CreateMemoryObject builds the Weaviate object for ADD operations.
-func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document, decision MemoryDecision) *models.Object {
+func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document) *models.Object {
 	// Get tags from the source document
 	tags := source.Tags()
 
@@ -60,8 +60,8 @@ func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document, decisio
 }
 
 // CreateMemoryObjectWithDocumentReferences builds the Weaviate object with document references.
-func CreateMemoryObjectWithDocumentReferences(fact *memory.MemoryFact, source memory.Document, decision MemoryDecision, documentIDs []string) *models.Object {
-	obj := CreateMemoryObject(fact, source, decision)
+func CreateMemoryObjectWithDocumentReferences(fact *memory.MemoryFact, source memory.Document, documentIDs []string) *models.Object {
+	obj := CreateMemoryObject(fact, source)
 
 	// Update with actual document references
 	props, ok := obj.Properties.(map[string]interface{})

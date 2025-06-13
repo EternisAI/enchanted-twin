@@ -159,7 +159,7 @@ func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact *memory.Memo
 		return nil, fmt.Errorf("storing document: %w", err)
 	}
 
-	obj := CreateMemoryObjectWithDocumentReferences(fact, source, decision, []string{documentID})
+	obj := CreateMemoryObjectWithDocumentReferences(fact, source, []string{documentID})
 
 	embedding, err := e.EmbeddingsWrapper.Embedding(ctx, fact.GenerateContent())
 	if err != nil {
