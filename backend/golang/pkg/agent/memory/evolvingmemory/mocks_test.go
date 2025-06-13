@@ -17,17 +17,17 @@ type MockStorage struct {
 	mock.Mock
 }
 
-func (m *MockStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
+func (m *MockStorage) GetByID(ctx context.Context, id string) (*memory.MemoryFact, error) {
 	args := m.Called(ctx, id)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	doc, _ := args.Get(0).(*memory.TextDocument)
-	return doc, args.Error(1)
+	fact, _ := args.Get(0).(*memory.MemoryFact)
+	return fact, args.Error(1)
 }
 
-func (m *MockStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
-	args := m.Called(ctx, id, doc, vector)
+func (m *MockStorage) Update(ctx context.Context, id string, fact *memory.MemoryFact, vector []float32) error {
+	args := m.Called(ctx, id, fact, vector)
 	return args.Error(0)
 }
 
