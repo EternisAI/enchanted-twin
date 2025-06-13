@@ -29,6 +29,7 @@ export interface DataSourcesPanelProps {
 export interface PendingDataSource {
   name: string
   path: string
+  fileSize?: number
 }
 
 export interface ExportInstructions {

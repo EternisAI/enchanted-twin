@@ -9,7 +9,7 @@ function ImportDataSettings() {
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <div className="flex flex-col gap-4 w-full">
-        <DataSourcesPanel showStatus={true} />
+        <DataSourcesPanel />
       </div>
     </div>
   )
