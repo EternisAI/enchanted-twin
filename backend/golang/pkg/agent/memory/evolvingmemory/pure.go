@@ -251,19 +251,20 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			continue
 		}
 
-		var args []memory.MemoryFact
+		var args ExtractMemoryFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			logger.Error("FAILED to unmarshal tool arguments", "error", err)
 			continue
 		}
 
-		logger.Debug("Successfully parsed structured facts from conversation", "count", len(args))
+		logger.Debug("Successfully parsed structured facts from conversation", "count", len(args.Facts))
 
-		if len(args) == 0 {
+		if len(args.Facts) == 0 {
 			logger.Warn("Tool call returned zero facts for conversation", "id", convDoc.ID())
 		}
 
-		for factIdx, memoryFact := range args {
+		for factIdx := range args.Facts {
+			memoryFact := &args.Facts[factIdx]
 			logger.Debug("Conversation Fact",
 				"index", factIdx+1,
 				"category", memoryFact.Category,
@@ -273,7 +274,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 				"importance", memoryFact.Importance,
 				"sensitivity", memoryFact.Sensitivity)
 
-			extractedFacts = append(extractedFacts, &memoryFact)
+			extractedFacts = append(extractedFacts, memoryFact)
 		}
 	}
 
@@ -337,19 +338,20 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			continue
 		}
 
-		var args []memory.MemoryFact
+		var args ExtractMemoryFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			logger.Error("FAILED to unmarshal tool arguments", "error", err)
 			continue
 		}
 
-		logger.Debug("Successfully parsed structured facts", "count", len(args))
+		logger.Debug("Successfully parsed structured facts", "count", len(args.Facts))
 
-		if len(args) == 0 {
+		if len(args.Facts) == 0 {
 			logger.Warn("Tool call returned zero facts for document", "id", textDoc.ID())
 		}
 
-		for factIdx, memoryFact := range args {
+		for factIdx := range args.Facts {
+			memoryFact := &args.Facts[factIdx]
 			logger.Debug("Text Document Fact",
 				"index", factIdx+1,
 				"category", memoryFact.Category,
@@ -359,7 +361,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 				"importance", memoryFact.Importance,
 				"sensitivity", memoryFact.Sensitivity)
 
-			extractedFacts = append(extractedFacts, &memoryFact)
+			extractedFacts = append(extractedFacts, memoryFact)
 		}
 	}
 
