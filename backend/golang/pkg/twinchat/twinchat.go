@@ -34,6 +34,7 @@ type Storage interface {
 	DeleteChat(ctx context.Context, chatID string) error
 	GetMessagesByChatId(ctx context.Context, chatId string) ([]*model.Message, error)
 	AddMessageToChat(ctx context.Context, message repository.Message) (string, error)
+	ReplaceMessagesByChatId(ctx context.Context, chatID string, messages []repository.Message) error
 }
 
 type Service struct {
@@ -463,7 +464,7 @@ func (s *Service) SendMessage(
 	}, nil
 }
 
-// ProcessMessageHistory processes a list of messages and saves only the new ones (diff) to the database.
+// ProcessMessageHistory processes a list of messages by deleting all existing messages and saving all provided messages.
 func (s *Service) ProcessMessageHistory(
 	ctx context.Context,
 	chatID string,
@@ -487,22 +488,26 @@ func (s *Service) ProcessMessageHistory(
 		chatID = chat.ID
 	}
 
-	// Fetch existing messages for the chat
-	existingMessages, err := s.storage.GetMessagesByChatId(ctx, chatID)
-	if err != nil {
-		return nil, err
+	// Prepare messages for database storage
+	dbMessages := make([]repository.Message, 0, len(messages))
+	for _, msg := range messages {
+		msgID := uuid.New().String()
+		createdAt := now.Format(time.RFC3339Nano)
+		dbMessage := repository.Message{
+			ID:           msgID,
+			ChatID:       chatID,
+			Text:         msg.Text,
+			Role:         msg.Role.String(),
+			CreatedAtStr: createdAt,
+		}
+		dbMessages = append(dbMessages, dbMessage)
 	}
 
-	// Find the diff: only save messages that are not already present (by role and text, in order)
-	diffStart := 0
-	for i := 0; i < len(existingMessages) && i < len(messages); i++ {
-		if existingMessages[i].Role != messages[i].Role ||
-			existingMessages[i].Text == nil || *existingMessages[i].Text != messages[i].Text {
-			break
-		}
-		diffStart = i + 1
+	// Efficiently replace all messages in a single transaction
+	err := s.storage.ReplaceMessagesByChatId(ctx, chatID, dbMessages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to replace messages: %w", err)
 	}
-	newMessages := messages[diffStart:]
 
 	userMemoryProfile, err := s.identityService.GetUserProfile(ctx)
 	if err != nil {
@@ -523,36 +528,11 @@ func (s *Service) ProcessMessageHistory(
 		openai.SystemMessage(systemPrompt),
 	)
 
-	// Add all existing messages to the message history for the AI
-	for _, msg := range existingMessages {
-		if msg.Text == nil {
-			continue
-		}
-		switch msg.Role {
-		case model.RoleUser:
-			messageHistory = append(messageHistory, openai.UserMessage(*msg.Text))
-		case model.RoleAssistant:
-			messageHistory = append(messageHistory, openai.AssistantMessage(*msg.Text))
-		}
-	}
-
-	// Save only the new messages to the database and add to message history
-	for _, msg := range newMessages {
-		msgID := uuid.New().String()
-		createdAt := now.Format(time.RFC3339Nano)
-		dbMessage := repository.Message{
-			ID:           msgID,
-			ChatID:       chatID,
-			Text:         msg.Text,
-			Role:         msg.Role.String(),
-			CreatedAtStr: createdAt,
-		}
-		_, err = s.storage.AddMessageToChat(ctx, dbMessage)
-		if err != nil {
-			return nil, err
-		}
+	// Publish messages to NATS and build message history for AI
+	for i, msg := range messages {
+		dbMsg := dbMessages[i]
 		natsMsg := model.Message{
-			ID:        msgID,
+			ID:        dbMsg.ID,
 			Text:      &msg.Text,
 			ImageUrls: []string{},
 			CreatedAt: time.Now().Format(time.RFC3339),
