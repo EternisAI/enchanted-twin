@@ -52,10 +52,7 @@ type DocumentExtractionJob struct {
 func (j DocumentExtractionJob) Process(ctx context.Context) ([]FactResult, error) {
 	facts, err := ExtractFactsFromDocument(ctx, j.Document, j.Service, j.Model, j.Logger)
 	if err != nil {
-		return []FactResult{{
-			Source: j.Document,
-			Error:  fmt.Errorf("fact extraction failed for document %s: %w", j.Document.ID(), err),
-		}}, nil // Return error as result, not as error
+		return nil, fmt.Errorf("fact extraction failed for document %s: %w", j.Document.ID(), err)
 	}
 
 	results := make([]FactResult, 0, len(facts))
@@ -81,9 +78,7 @@ type FactProcessingJob struct {
 func (j FactProcessingJob) Process(ctx context.Context) (FactResult, error) {
 	result, err := j.Engine.ProcessFact(ctx, j.FactResult.Fact, j.FactResult.Source)
 	if err != nil {
-		j.Logger.Errorf("Failed to process fact: %v", err)
-		j.FactResult.Error = err
-		return j.FactResult, nil
+		return FactResult{}, fmt.Errorf("failed to process fact: %w", err)
 	}
 
 	j.FactResult.Decision = result.Decision
