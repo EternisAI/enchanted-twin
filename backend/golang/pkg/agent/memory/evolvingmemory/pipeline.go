@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// DefaultConfig provides default configuration values.
+// DefaultConfig returns reasonable defaults for the processing pipeline.
 func DefaultConfig() Config {
 	return Config{
 		Workers:                4,
