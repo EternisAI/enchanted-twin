@@ -184,8 +184,8 @@ func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (Memo
 
 // SearchSimilarMemories performs semantic search for similar memories.
 // This is pure business logic extracted from the adapter.
-func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filter, storage storage.Interface, embeddingsModel string) ([]ExistingMemory, error) {
-	result, err := storage.Query(ctx, fact, filter, embeddingsModel)
+func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filter, storage storage.Interface) ([]ExistingMemory, error) {
+	result, err := storage.Query(ctx, fact, filter)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}

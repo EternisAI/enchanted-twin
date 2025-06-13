@@ -72,7 +72,7 @@ type Interface interface {
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
-	Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error)
+	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 
 	// Document reference operations - now supports multiple references
@@ -89,15 +89,17 @@ type WeaviateStorage struct {
 	client            *weaviate.Client
 	logger            *log.Logger
 	embeddingsService *ai.Service
+	embeddingsModel   string
 	vectorPool        sync.Pool
 }
 
 // New creates a new WeaviateStorage instance.
-func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service) Interface {
+func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) Interface {
 	return &WeaviateStorage{
 		client:            client,
 		logger:            logger,
 		embeddingsService: embeddingsService,
+		embeddingsModel:   embeddingsModel,
 		vectorPool: sync.Pool{
 			New: func() interface{} {
 				slice := make([]float32, 0, 3072)
@@ -575,11 +577,11 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 }
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error) {
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	// Step 1: Generate query vector
-	vector, err := s.embeddingsService.Embedding(ctx, queryText, embeddingsModel)
+	vector, err := s.embeddingsService.Embedding(ctx, queryText, s.embeddingsModel)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("failed to create embedding: %w", err)
 	}

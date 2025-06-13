@@ -230,7 +230,7 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
 
-	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
+	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, config.EmbeddingsModel)
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
