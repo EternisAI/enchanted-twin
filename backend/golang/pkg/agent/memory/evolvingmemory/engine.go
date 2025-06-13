@@ -150,24 +150,8 @@ func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newCon
 
 // CreateMemoryObject creates a memory object for storage with separate document storage.
 func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
-	// Determine document type
-	var docType string
-	switch source.(type) {
-	case *memory.ConversationDocument:
-		docType = string(DocumentTypeConversation)
-	case *memory.TextDocument:
-		docType = string(DocumentTypeText)
-	default:
-		docType = "unknown"
-	}
-
-	documentID, err := e.storage.StoreDocument(
-		ctx,
-		source.Content(),
-		docType,
-		source.ID(),
-		source.Metadata(),
-	)
+	// Use UpsertDocument for all document types - idempotent and simple
+	documentID, err := e.storage.UpsertDocument(ctx, source)
 	if err != nil {
 		return nil, fmt.Errorf("storing document: %w", err)
 	}
