@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from 'react'
 
 import { useOnboardingStore } from '@renderer/lib/stores/onboarding'
 import { useTheme } from '@renderer/lib/theme'
+import { useVoiceStore } from '@renderer/lib/stores/voice'
 
 export function OnboardingDoneAnimation() {
   const navigate = useNavigate()
   const { completeOnboarding } = useOnboardingStore()
+  const { stopVoiceMode } = useVoiceStore()
 
   return (
     <motion.div
@@ -38,6 +40,7 @@ export function OnboardingDoneAnimation() {
         onAnimationComplete={() => {
           completeOnboarding()
           navigate({ to: '/' })
+          stopVoiceMode()
         }}
       />
     </motion.div>

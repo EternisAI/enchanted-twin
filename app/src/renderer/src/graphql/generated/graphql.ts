@@ -164,6 +164,11 @@ export type Message = {
   toolResults: Array<Scalars['String']['output']>;
 };
 
+export type MessageInput = {
+  role: Role;
+  text: Scalars['String']['input'];
+};
+
 export type MessageStreamPayload = {
   __typename?: 'MessageStreamPayload';
   chunk: Scalars['String']['output'];
@@ -185,6 +190,7 @@ export type Mutation = {
   deleteChat: Chat;
   deleteDataSource: Scalars['Boolean']['output'];
   joinHolon: Scalars['Boolean']['output'];
+  processMessageHistory: Message;
   refreshExpiredOAuthTokens: Array<OAuthStatus>;
   removeMCPServer: Scalars['Boolean']['output'];
   sendMessage: Message;
@@ -244,6 +250,13 @@ export type MutationDeleteDataSourceArgs = {
 export type MutationJoinHolonArgs = {
   network?: InputMaybe<Scalars['String']['input']>;
   userId: Scalars['String']['input'];
+};
+
+
+export type MutationProcessMessageHistoryArgs = {
+  chatId: Scalars['ID']['input'];
+  isOnboarding: Scalars['Boolean']['input'];
+  messages: Array<MessageInput>;
 };
 
 
@@ -404,6 +417,7 @@ export type Thread = {
   id: Scalars['ID']['output'];
   imageURLs: Array<Scalars['String']['output']>;
   messages: Array<ThreadMessage>;
+  remoteThreadId?: Maybe<Scalars['Int']['output']>;
   title: Scalars['String']['output'];
   views: Scalars['Int']['output'];
 };
@@ -416,6 +430,7 @@ export type ThreadMessage = {
   createdAt: Scalars['DateTime']['output'];
   id: Scalars['ID']['output'];
   isDelivered?: Maybe<Scalars['Boolean']['output']>;
+  state: Scalars['String']['output'];
 };
 
 export type Tool = {
