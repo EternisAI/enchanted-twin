@@ -74,12 +74,12 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
   const { location } = useRouterState()
   const navigate = useNavigate()
   const { openOmnibar } = useOmnibarStore()
-  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
+  const { isVoiceMode, stopVoiceMode } = useVoiceStore()
   const [showAllChats, setShowAllChats] = useState(false)
 
   const handleNewChat = () => {
     if (isVoiceMode) {
-      toggleVoiceMode()
+      stopVoiceMode()
     }
     navigate({ to: '/', search: { focusInput: 'true' } })
   }
@@ -268,7 +268,7 @@ export function Sidebar({ chats, setSidebarOpen }: SidebarProps) {
 function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
   const navigate = useNavigate()
   const router = useRouter()
-  const { setVoiceMode } = useVoiceStore()
+  const { startVoiceMode, stopVoiceMode } = useVoiceStore()
   const [deleteChat] = useMutation(DeleteChatDocument, {
     refetchQueries: [GetChatsDocument],
     onError: (error) => {
@@ -319,7 +319,11 @@ function SidebarItem({ chat, isActive }: { chat: Chat; isActive: boolean }) {
         to="/chat/$chatId"
         params={{ chatId: chat.id }}
         onClick={() => {
-          setVoiceMode(chat.category === ChatCategory.Voice)
+          if (chat.category === ChatCategory.Voice) {
+            startVoiceMode(chat.id)
+          } else {
+            stopVoiceMode()
+          }
           window.api.analytics.capture('open_chat', {
             method: 'ui'
           })

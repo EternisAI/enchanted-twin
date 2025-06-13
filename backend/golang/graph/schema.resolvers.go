@@ -229,6 +229,47 @@ func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text 
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 
+// ProcessMessageHistory processes a list of messages and saves them to the database.
+func (r *mutationResolver) ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error) {
+	// Convert input messages to the format expected by the service for logging purposes
+	historyJson, err := json.Marshal(map[string]interface{}{
+		"chatId":     chatID,
+		"messages":   messages,
+		"count":      len(messages),
+		"onboarding": isOnboarding,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.Logger.Info("Processing message history", "data", string(historyJson))
+
+	// Only publish the last user message to NATS
+	subject := fmt.Sprintf("chat.%s", chatID)
+	if len(messages) > 0 {
+		lastMsg := messages[len(messages)-1]
+		if lastMsg.Role == model.RoleUser {
+			text := lastMsg.Text
+			userMessageJson, err := json.Marshal(model.Message{
+				ID:        uuid.New().String(),
+				Text:      &text,
+				CreatedAt: time.Now().Format(time.RFC3339),
+				Role:      model.RoleUser,
+			})
+			if err != nil {
+				return nil, err
+			}
+			err = r.Nc.Publish(subject, userMessageJson)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	// Process the messages and save them to the database
+	return r.TwinChatService.ProcessMessageHistory(ctx, chatID, messages, isOnboarding)
+}
+
 // DeleteChat is the resolver for the deleteChat field.
 func (r *mutationResolver) DeleteChat(ctx context.Context, chatID string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.GetChat(ctx, chatID)
