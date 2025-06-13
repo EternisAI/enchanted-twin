@@ -1155,22 +1155,45 @@ func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, o
 		return "", fmt.Errorf("checking for existing document: %w", err)
 	}
 
-	if data, ok := result.Data["Get"].(map[string]interface{}); ok {
-		if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
-			for _, doc := range docs {
-				if docMap, ok := doc.(map[string]interface{}); ok {
-					if existingContent, ok := docMap[contentProperty].(string); ok {
-						if existingContent == content {
-							if additional, ok := docMap["_additional"].(map[string]interface{}); ok {
-								if id, ok := additional["id"].(string); ok {
-									s.logger.Debug("Found existing document with same content", "id", id)
-									return id, nil
-								}
-							}
-						}
-					}
-				}
+	// Check for existing document with same content
+	data, ok := result.Data["Get"].(map[string]interface{})
+	if !ok {
+		s.logger.Debug("No 'Get' field in GraphQL response")
+		// Continue to create new document
+	} else if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
+		// Check each document for matching content
+		for i, doc := range docs {
+			docMap, ok := doc.(map[string]interface{})
+			if !ok {
+				s.logger.Warn("Document is not a map", "index", i, "type", fmt.Sprintf("%T", doc))
+				continue
 			}
+
+			existingContent, ok := docMap[contentProperty].(string)
+			if !ok {
+				s.logger.Warn("Missing or invalid content property", "index", i, "property", contentProperty)
+				continue
+			}
+
+			if existingContent != content {
+				continue // This is normal - just not a match
+			}
+
+			// Content matches, extract ID
+			additional, ok := docMap["_additional"].(map[string]interface{})
+			if !ok {
+				s.logger.Warn("Missing _additional field in matching document", "index", i)
+				continue
+			}
+
+			id, ok := additional["id"].(string)
+			if !ok {
+				s.logger.Error("Missing or invalid ID in _additional field", "index", i, "additional", additional)
+				continue
+			}
+
+			s.logger.Debug("Found existing document with same content", "id", id)
+			return id, nil
 		}
 	}
 
@@ -1523,9 +1546,58 @@ func (s *WeaviateStorage) buildBooleanExpressionFilter(expr *memory.BooleanExpre
 	return nil, fmt.Errorf("boolean expression must be either a leaf node (with tags) or a branch node (with left/right operands)")
 }
 
+// extractDocumentIDFromGraphQL extracts the document ID from a GraphQL response.
+func extractDocumentIDFromGraphQL(result *models.GraphQLResponse, className string) (string, bool) {
+	data, ok := result.Data["Get"].(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+
+	docs, ok := data[className].([]interface{})
+	if !ok || len(docs) == 0 {
+		return "", false
+	}
+
+	docMap, ok := docs[0].(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+
+	additional, ok := docMap["_additional"].(map[string]interface{})
+	if !ok {
+		return "", false
+	}
+
+	id, ok := additional["id"].(string)
+	return id, ok
+}
+
 // UpdateOrCreateDocument updates an existing document by originalID or creates a new one.
 // This prevents duplicate documents for conversations that grow over time.
+//
+// The method uses originalID as the unique identifier to determine if a document exists.
+// For updates, it preserves the original createdAt timestamp.
+//
+// Input validation:
+// - originalID must be non-empty and <= 255 characters
+// - content must be non-empty
+// - docType must be non-empty
+//
+// Thread safety: This method has a potential race condition between existence check
+// and document creation. In production, consider using database-level upsert operations
+// or distributed locking for high-concurrency scenarios.
 func (s *WeaviateStorage) UpdateOrCreateDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
+	// Input validation
+	if originalID == "" || len(originalID) > 255 {
+		return "", fmt.Errorf("invalid originalID: must be non-empty and <= 255 characters")
+	}
+	if content == "" {
+		return "", fmt.Errorf("content cannot be empty")
+	}
+	if docType == "" {
+		return "", fmt.Errorf("docType cannot be empty")
+	}
+
 	// First, try to find existing document by originalID
 	whereFilter := filters.Where().
 		WithPath([]string{documentOriginalIDProperty}).
@@ -1545,19 +1617,10 @@ func (s *WeaviateStorage) UpdateOrCreateDocument(ctx context.Context, content, d
 		return "", fmt.Errorf("checking for existing document by originalID: %w", err)
 	}
 
-	// Check if document exists
-	var existingID string
-	if data, ok := result.Data["Get"].(map[string]interface{}); ok {
-		if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
-			if docMap, ok := docs[0].(map[string]interface{}); ok {
-				if additional, ok := docMap["_additional"].(map[string]interface{}); ok {
-					if id, ok := additional["id"].(string); ok {
-						existingID = id
-						s.logger.Debug("Found existing document by originalID", "id", id, "originalID", originalID)
-					}
-				}
-			}
-		}
+	// Check if document exists using helper function
+	existingID, found := extractDocumentIDFromGraphQL(result, DocumentClassName)
+	if found {
+		s.logger.Debug("Found existing document by originalID", "id", existingID, "originalID", originalID)
 	}
 
 	metadataJSON, err := json.Marshal(metadata)
