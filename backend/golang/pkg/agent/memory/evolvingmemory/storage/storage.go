@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/go-openapi/strfmt"
+	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	weaviateGraphql "github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
@@ -80,7 +82,7 @@ type Interface interface {
 
 	// Document storage operations
 	StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
-	UpdateOrCreateDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
+	UpsertDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
 }
@@ -1546,147 +1548,70 @@ func (s *WeaviateStorage) buildBooleanExpressionFilter(expr *memory.BooleanExpre
 	return nil, fmt.Errorf("boolean expression must be either a leaf node (with tags) or a branch node (with left/right operands)")
 }
 
-// extractDocumentIDFromGraphQL extracts the document ID from a GraphQL response.
-func extractDocumentIDFromGraphQL(result *models.GraphQLResponse, className string) (string, bool) {
-	data, ok := result.Data["Get"].(map[string]interface{})
-	if !ok {
-		return "", false
-	}
-
-	docs, ok := data[className].([]interface{})
-	if !ok || len(docs) == 0 {
-		return "", false
-	}
-
-	docMap, ok := docs[0].(map[string]interface{})
-	if !ok {
-		return "", false
-	}
-
-	additional, ok := docMap["_additional"].(map[string]interface{})
-	if !ok {
-		return "", false
-	}
-
-	id, ok := additional["id"].(string)
-	return id, ok
+// deterministicID generates a stable UUID5 from originalID for idempotent upserts.
+func deterministicID(originalID string) string {
+	// Use UUID v5 with a namespace to generate deterministic UUIDs
+	namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8") // DNS namespace UUID
+	return uuid.NewSHA1(namespace, []byte(originalID)).String()
 }
 
-// UpdateOrCreateDocument updates an existing document by originalID or creates a new one.
-// This prevents duplicate documents for conversations that grow over time.
-//
-// The method uses originalID as the unique identifier to determine if a document exists.
-// For updates, it preserves the original createdAt timestamp.
-//
-// Input validation:
-// - originalID must be non-empty and <= 255 characters
-// - content must be non-empty
-// - docType must be non-empty
-//
-// Thread safety: This method has a potential race condition between existence check
-// and document creation. In production, consider using database-level upsert operations
-// or distributed locking for high-concurrency scenarios.
-func (s *WeaviateStorage) UpdateOrCreateDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
-	// Input validation
-	if originalID == "" || len(originalID) > 255 {
-		return "", fmt.Errorf("invalid originalID: must be non-empty and <= 255 characters")
-	}
-	if content == "" {
-		return "", fmt.Errorf("content cannot be empty")
-	}
-	if docType == "" {
-		return "", fmt.Errorf("docType cannot be empty")
-	}
-
-	// First, try to find existing document by originalID
-	whereFilter := filters.Where().
-		WithPath([]string{documentOriginalIDProperty}).
-		WithOperator(filters.Equal).
-		WithValueText(originalID)
-
-	fields := []weaviateGraphql.Field{
-		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
-	}
-
-	result, err := s.client.GraphQL().Get().
-		WithClassName(DocumentClassName).
-		WithFields(fields...).
-		WithWhere(whereFilter).
-		Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("checking for existing document by originalID: %w", err)
-	}
-
-	// Check if document exists using helper function
-	existingID, found := extractDocumentIDFromGraphQL(result, DocumentClassName)
-	if found {
-		s.logger.Debug("Found existing document by originalID", "id", existingID, "originalID", originalID)
-	}
-
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return "", fmt.Errorf("marshaling metadata: %w", err)
-	}
-
-	// Calculate content hash for the new content
+// sha256hex returns the SHA256 hash of content as hex string.
+func sha256hex(content string) string {
 	hasher := sha256.New()
 	hasher.Write([]byte(content))
-	contentHash := hex.EncodeToString(hasher.Sum(nil))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
 
-	if existingID != "" {
-		// Update existing document - don't overwrite createdAt
-		updateProperties := map[string]interface{}{
-			contentProperty:             content,
-			documentContentHashProperty: contentHash,
-			documentTypeProperty:        docType,
-			documentOriginalIDProperty:  originalID,
-			documentMetadataProperty:    string(metadataJSON),
-			// Preserve original createdAt by not including it in update
-		}
+// mustJSON marshals data to JSON, panicking on error (use only for trusted data).
+func mustJSON(data interface{}) string {
+	b, err := json.Marshal(data)
+	if err != nil {
+		panic(fmt.Sprintf("failed to marshal JSON: %v", err))
+	}
+	return string(b)
+}
 
-		err = s.client.Data().Updater().
-			WithID(existingID).
-			WithClassName(DocumentClassName).
-			WithProperties(updateProperties).
-			Do(ctx)
-		if err != nil {
-			return "", fmt.Errorf("updating document: %w", err)
-		}
-		s.logger.Debug("Updated existing document", "id", existingID, "originalID", originalID)
-		return existingID, nil
+// UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
+func (s *WeaviateStorage) UpsertDocument(
+	ctx context.Context,
+	content, docType, originalID string,
+	metadata map[string]string,
+) (string, error) {
+	if originalID == "" || len(originalID) > 255 {
+		return "", fmt.Errorf("invalid originalID")
+	}
+	if content == "" || docType == "" {
+		return "", fmt.Errorf("content and docType must be non-empty")
 	}
 
-	// Create new document if none exists - include createdAt
-	createProperties := map[string]interface{}{
+	id := deterministicID(originalID)
+
+	// Build properties — createdAt omitted to preserve original value on updates
+	props := map[string]any{
 		contentProperty:             content,
-		documentContentHashProperty: contentHash,
+		documentContentHashProperty: sha256hex(content),
 		documentTypeProperty:        docType,
 		documentOriginalIDProperty:  originalID,
-		documentMetadataProperty:    string(metadataJSON),
-		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
+		documentMetadataProperty:    mustJSON(metadata),
 	}
 
-	batcher := s.client.Batch().ObjectsBatcher()
 	obj := &models.Object{
 		Class:      DocumentClassName,
-		Properties: createProperties,
+		ID:         strfmt.UUID(id),
+		Properties: props,
 	}
-	batcher = batcher.WithObjects(obj)
 
-	batchResult, err := batcher.Do(ctx)
+	// One call, acts as upsert
+	res, err := s.client.Batch().
+		ObjectsBatcher().
+		WithObjects(obj).
+		Do(ctx)
 	if err != nil {
-		return "", fmt.Errorf("creating document: %w", err)
+		return "", fmt.Errorf("batch upsert failed: %w", err)
+	}
+	if len(res) == 0 || (res[0].Result != nil && res[0].Result.Errors != nil) {
+		return "", fmt.Errorf("upsert error: %+v", res)
 	}
 
-	if len(batchResult) == 0 {
-		return "", fmt.Errorf("no result returned from document creation")
-	}
-
-	if batchResult[0].Result.Errors != nil && len(batchResult[0].Result.Errors.Error) > 0 {
-		return "", fmt.Errorf("error creating document: %s", batchResult[0].Result.Errors.Error[0].Message)
-	}
-
-	id := string(batchResult[0].ID)
-	s.logger.Debug("Created new document", "id", id, "originalID", originalID)
 	return id, nil
 }

@@ -185,7 +185,7 @@ func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFa
 
 	if useUpdateOrCreate {
 		// Use update-or-create for conversations to prevent duplicates
-		documentID, err = e.storage.UpdateOrCreateDocument(
+		documentID, err = e.storage.UpsertDocument(
 			ctx,
 			source.Content(),
 			docType,

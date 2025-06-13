@@ -65,8 +65,8 @@ func TestStorageImplBasicFunctionality(t *testing.T) {
 	// Add mock for the new StoreDocument method
 	mockStorage.On("StoreDocument", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("map[string]string")).Return("mock-doc-id", nil)
 
-	// Add mock for the new UpdateOrCreateDocument method
-	mockStorage.On("UpdateOrCreateDocument", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("map[string]string")).Return("mock-doc-id", nil)
+	// Add mock for the new UpsertDocument method
+	mockStorage.On("UpsertDocument", mock.Anything, mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("map[string]string")).Return("mock-doc-id", nil)
 
 	// Add mock for GetStoredDocument
 	mockStorage.On("GetStoredDocument", mock.Anything, mock.AnythingOfType("string")).Return(&storage.StoredDocument{

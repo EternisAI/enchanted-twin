@@ -74,7 +74,7 @@ func (m *MockStorage) StoreDocument(ctx context.Context, content, docType, origi
 	return args.String(0), args.Error(1)
 }
 
-func (m *MockStorage) UpdateOrCreateDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
+func (m *MockStorage) UpsertDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
 	args := m.Called(ctx, content, docType, originalID, metadata)
 	return args.String(0), args.Error(1)
 }
