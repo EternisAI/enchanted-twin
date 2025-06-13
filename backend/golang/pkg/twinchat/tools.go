@@ -135,3 +135,36 @@ func (e *sendToChat) Definition() openai.ChatCompletionToolParam {
 		},
 	}
 }
+
+type finalizeOnboarding struct{}
+
+func NewFinalizeOnboardingTool() *finalizeOnboarding {
+	return &finalizeOnboarding{}
+}
+
+func (f *finalizeOnboarding) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
+	return &types.StructuredToolResult{
+		ToolName: "finalize_onboarding",
+		ToolParams: map[string]any{
+			"status": "completed",
+		},
+		Output: map[string]any{
+			"content": "Onboarding has been successfully finalized! Welcome aboard!",
+		},
+	}, nil
+}
+
+func (f *finalizeOnboarding) Definition() openai.ChatCompletionToolParam {
+	return openai.ChatCompletionToolParam{
+		Type: "function",
+		Function: openai.FunctionDefinitionParam{
+			Name:        "finalize_onboarding",
+			Description: param.NewOpt("Call this tool to finalize the onboarding process after collecting all required information"),
+			Parameters: openai.FunctionParameters{
+				"type":       "object",
+				"properties": map[string]any{},
+				"required":   []string{},
+			},
+		},
+	}
+}

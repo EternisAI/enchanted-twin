@@ -469,17 +469,13 @@ func (s *Service) ProcessMessageHistory(
 	ctx context.Context,
 	chatID string,
 	messages []*model.MessageInput,
-	isReasoning bool,
-	isVoice bool,
+	isOnboarding bool,
 ) (*model.Message, error) {
 	now := time.Now()
 
 	// Create chat if it doesn't exist
 	if chatID == "" {
 		category := model.ChatCategoryText
-		if isVoice {
-			category = model.ChatCategoryVoice
-		}
 		chat, err := s.storage.CreateChat(ctx, "New chat", category, nil)
 		if err != nil {
 			return nil, err
@@ -516,12 +512,26 @@ func (s *Service) ProcessMessageHistory(
 		userMemoryProfile = ""
 	}
 
-	systemPrompt, err := s.buildSystemPrompt(ctx, chatID, isVoice, userMemoryProfile)
-	if err != nil {
-		return nil, err
+	var systemPrompt string
+	if isOnboarding {
+		systemPrompt = `You are an onboarding agent. Your job is to welcome new users and gather some basic information about them.
+
+You need to ask exactly 3 questions in a friendly and conversational manner:
+1. What is your name?
+2. What is your favorite color?
+3. What is your favorite animal?
+
+After the user has answered all three questions, you should call the finalize_onboarding tool to complete the onboarding process.
+
+Be warm, welcoming, and conversational. Ask one question at a time and wait for the user's response before moving to the next question.`
+	} else {
+		systemPrompt, err = s.buildSystemPrompt(ctx, chatID, true, userMemoryProfile)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	s.logger.Info("System prompt for history processing", "prompt", systemPrompt, "isVoice", isVoice, "isReasoning", isReasoning)
+	s.logger.Info("System prompt for history processing", "prompt", systemPrompt, "isOnboarding", isOnboarding)
 
 	messageHistory := make([]openai.ChatCompletionMessageParamUnion, 0)
 	messageHistory = append(
@@ -621,16 +631,33 @@ func (s *Service) ProcessMessageHistory(
 		_ = helpers.NatsPublish(s.nc, fmt.Sprintf("chat.%s.stream", chatID), payload)
 	}
 
-	origin := map[string]any{
-		"chat_id":    chatID,
-		"message_id": uuid.New().String(),
+	s.logger.Info("Executing agent with message history", "onboarding", isOnboarding)
+	
+	// Create custom agent for onboarding with specific tools
+	agent := agent.NewAgent(
+		s.logger,
+		s.nc,
+		s.aiService,
+		s.completionsModel,
+		s.reasoningModel,
+		preToolCallback,
+		postToolCallback,
+	)
+
+	var toolsList []tools.Tool
+	if isOnboarding {
+		// For onboarding, only provide the finalize_onboarding tool
+		toolsList = []tools.Tool{NewFinalizeOnboardingTool()}
+	} else {
+		// For normal conversations, use the full tool registry excluding send_to_chat
+		toolsList = s.toolRegistry.Excluding("send_to_chat").GetAll()
 	}
 
-	s.logger.Info("Executing agent with message history", "reasoning", isReasoning)
-	response, err := s.Execute(ctx, origin, messageHistory, preToolCallback, postToolCallback, onDelta, isReasoning)
+	response, err := agent.ExecuteStream(ctx, messageHistory, toolsList, onDelta, false)
 	if err != nil {
 		return nil, err
 	}
+	
 	s.logger.Debug(
 		"Agent response for message history",
 		"content",
