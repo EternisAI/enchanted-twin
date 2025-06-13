@@ -74,16 +74,23 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		}
 
 		// Create channels for the pipeline
-		documentQueue := make(chan memory.Document, len(chunkedDocs))
+		// Use bounded buffer to avoid duplicating all documents in memory
+		documentQueue := make(chan memory.Document, 128) // Small buffer for smooth flow
 		factStream := make(chan FactResult, 1000)
 		resultStream := make(chan FactResult, 1000)
 		objectStream := make(chan []*models.Object, 100)
 
-		// Load all documents into the queue
-		for _, doc := range chunkedDocs {
-			documentQueue <- doc
-		}
-		close(documentQueue)
+		// Start producer goroutine to feed documents
+		go func() {
+			defer close(documentQueue)
+			for _, doc := range chunkedDocs {
+				select {
+				case documentQueue <- doc:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}()
 
 		// Start extraction workers that pull from the shared queue
 		var extractWg sync.WaitGroup
@@ -138,7 +145,7 @@ func (o *MemoryOrchestrator) extractFactsWorkerDynamic(
 
 	for doc := range documentQueue {
 		docStartTime := time.Now()
-		o.logger.Debugf("Worker %d: Starting document %s (queue depth: ~%d)", workerID, doc.ID(), len(documentQueue))
+		o.logger.Debugf("Worker %d: Starting document %s", workerID, doc.ID())
 
 		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 
