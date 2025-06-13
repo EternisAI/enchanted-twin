@@ -154,6 +154,9 @@ func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newCon
 	if err != nil {
 		return fmt.Errorf("getting existing memory: %w", err)
 	}
+	if existingFact == nil {
+		return fmt.Errorf("memory %s not found", memoryID)
+	}
 
 	// Update the content
 	updatedFact := *existingFact
