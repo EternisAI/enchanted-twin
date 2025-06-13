@@ -149,17 +149,17 @@ func (e *MemoryEngine) DecideAction(ctx context.Context, fact string, similar []
 
 // UpdateMemory updates an existing memory.
 func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error {
-	// Get the existing memory document
-	existingDoc, err := e.storage.GetByID(ctx, memoryID)
+	// Get the existing memory fact
+	existingFact, err := e.storage.GetByID(ctx, memoryID)
 	if err != nil {
 		return fmt.Errorf("getting existing memory: %w", err)
 	}
 
 	// Update the content
-	updatedDoc := *existingDoc
-	updatedDoc.FieldContent = newContent
+	updatedFact := *existingFact
+	updatedFact.Content = newContent
 
-	return e.storage.Update(ctx, memoryID, updatedDoc, embedding)
+	return e.storage.Update(ctx, memoryID, &updatedFact, embedding)
 }
 
 // CreateMemoryObject creates a memory object for storage with separate document storage.
