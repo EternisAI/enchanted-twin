@@ -490,9 +490,10 @@ func (s *Service) ProcessMessageHistory(
 
 	// Prepare messages for database storage
 	dbMessages := make([]repository.Message, 0, len(messages))
-	for _, msg := range messages {
+	for i, msg := range messages {
 		msgID := uuid.New().String()
-		createdAt := now.Format(time.RFC3339Nano)
+		// Ensure each message has a unique timestamp by adding microseconds based on index
+		createdAt := now.Add(time.Microsecond * time.Duration(i)).Format(time.RFC3339Nano)
 		dbMessage := repository.Message{
 			ID:           msgID,
 			ChatID:       chatID,
