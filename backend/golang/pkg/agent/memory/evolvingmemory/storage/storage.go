@@ -47,6 +47,24 @@ const (
 	documentCreatedAtProperty   = "createdAt"
 )
 
+// WeaviateMemoryFact represents the structure stored in Weaviate for clean deserialization.
+type WeaviateMemoryFact struct {
+	Content            string   `json:"content"`
+	Timestamp          string   `json:"timestamp"` // RFC3339 string from Weaviate
+	MetadataJson       string   `json:"metadataJson"`
+	Source             string   `json:"source"`
+	Tags               []string `json:"tags"`
+	DocumentReferences []string `json:"documentReferences"`
+	// Structured fact fields
+	FactCategory        string  `json:"factCategory"`
+	FactSubject         string  `json:"factSubject"`
+	FactAttribute       string  `json:"factAttribute"`
+	FactValue           string  `json:"factValue"`
+	FactTemporalContext string  `json:"factTemporalContext"`
+	FactSensitivity     string  `json:"factSensitivity"`
+	FactImportance      float64 `json:"factImportance"`
+}
+
 // DocumentReference holds the original document information.
 type DocumentReference struct {
 	ID      string
@@ -136,78 +154,53 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.Memor
 		return nil, fmt.Errorf("invalid properties type for object %s", id)
 	}
 
-	// Extract basic fields
-	content, _ := props[contentProperty].(string)
-	source, _ := props[sourceProperty].(string)
-	subject, _ := props[factSubjectProperty].(string)
+	// Clean struct deserialization approach (CTO's suggestion!)
+	propsJSON, err := json.Marshal(props)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling properties for deserialization: %w", err)
+	}
+
+	var weaviateFact WeaviateMemoryFact
+	if err := json.Unmarshal(propsJSON, &weaviateFact); err != nil {
+		return nil, fmt.Errorf("deserializing properties to struct: %w", err)
+	}
 
 	// Parse timestamp
 	var timestamp time.Time
-	if ts, ok := props[timestampProperty].(string); ok {
-		parsed, err := time.Parse(time.RFC3339, ts)
-		if err == nil {
+	if weaviateFact.Timestamp != "" {
+		if parsed, err := time.Parse(time.RFC3339, weaviateFact.Timestamp); err == nil {
 			timestamp = parsed
 		}
 	}
 
-	// Extract structured fact fields
-	category, _ := props[factCategoryProperty].(string)
-	attribute, _ := props[factAttributeProperty].(string)
-	value, _ := props[factValueProperty].(string)
-	sensitivity, _ := props[factSensitivityProperty].(string)
-
-	var importance int
-	if imp, ok := props[factImportanceProperty].(float64); ok {
-		importance = int(imp)
-	}
-
+	// Handle temporal context pointer
 	var temporalContext *string
-	if tc, ok := props[factTemporalContextProperty].(string); ok && tc != "" {
-		temporalContext = &tc
+	if weaviateFact.FactTemporalContext != "" {
+		temporalContext = &weaviateFact.FactTemporalContext
 	}
 
-	// Extract document references
-	var documentReferences []string
-	if docRefsInterface, ok := props[documentReferencesProperty].([]interface{}); ok {
-		for _, docRefInterface := range docRefsInterface {
-			if docRefStr, ok := docRefInterface.(string); ok {
-				documentReferences = append(documentReferences, docRefStr)
-			}
-		}
-	}
-
-	// Extract tags
-	var tags []string
-	if tagsInterface, ok := props[tagsProperty].([]interface{}); ok {
-		for _, tagInterface := range tagsInterface {
-			if tagStr, ok := tagInterface.(string); ok {
-				tags = append(tags, tagStr)
-			}
-		}
-	}
-
-	// Parse legacy metadata if present
+	// Parse legacy metadata
 	metadata := make(map[string]string)
-	if metaStr, ok := props[metadataProperty].(string); ok && metaStr != "" && metaStr != "{}" {
-		if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
+	if weaviateFact.MetadataJson != "" && weaviateFact.MetadataJson != "{}" {
+		if err := json.Unmarshal([]byte(weaviateFact.MetadataJson), &metadata); err != nil {
 			s.logger.Warnf("Failed to unmarshal metadata for object %s: %v", id, err)
 		}
 	}
 
 	return &memory.MemoryFact{
 		ID:                 string(obj.ID),
-		Content:            content,
+		Content:            weaviateFact.Content,
 		Timestamp:          timestamp,
-		Category:           category,
-		Subject:            subject,
-		Attribute:          attribute,
-		Value:              value,
+		Category:           weaviateFact.FactCategory,
+		Subject:            weaviateFact.FactSubject,
+		Attribute:          weaviateFact.FactAttribute,
+		Value:              weaviateFact.FactValue,
 		TemporalContext:    temporalContext,
-		Sensitivity:        sensitivity,
-		Importance:         importance,
-		Source:             source,
-		DocumentReferences: documentReferences,
-		Tags:               tags,
+		Sensitivity:        weaviateFact.FactSensitivity,
+		Importance:         int(weaviateFact.FactImportance),
+		Source:             weaviateFact.Source,
+		DocumentReferences: weaviateFact.DocumentReferences,
+		Tags:               weaviateFact.Tags,
 		Metadata:           metadata,
 	}, nil
 }
@@ -954,14 +947,6 @@ func (s *WeaviateStorage) parseQueryResponseToFacts(resp *models.GraphQLResponse
 	return facts, nil
 }
 
-// Helper to safely extract string from interface{}.
-func getString(obj map[string]interface{}, key string) string {
-	if val, ok := obj[key].(string); ok {
-		return val
-	}
-	return ""
-}
-
 // parseMemoryItem converts a single GraphQL item to MemoryFact.
 func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, error) {
 	obj, ok := item.(map[string]interface{})
@@ -969,83 +954,67 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		return memory.MemoryFact{}, fmt.Errorf("item is not a map")
 	}
 
-	// Extract basic fields
-	content, _ := obj[contentProperty].(string)
-	source, _ := obj[sourceProperty].(string)
+	// Extract ID from _additional (special field not in main struct)
+	additional, _ := obj["_additional"].(map[string]interface{})
+	id, _ := additional["id"].(string)
 
-	// Extract structured fact fields
-	category, _ := obj[factCategoryProperty].(string)
-	subject, _ := obj[factSubjectProperty].(string)
-	attribute, _ := obj[factAttributeProperty].(string)
-	value, _ := obj[factValueProperty].(string)
-	sensitivity, _ := obj[factSensitivityProperty].(string)
-
-	var importance int
-	if imp, ok := obj[factImportanceProperty].(float64); ok {
-		importance = int(imp)
+	// Remove _additional from obj to avoid JSON deserialization issues
+	objCopy := make(map[string]interface{})
+	for k, v := range obj {
+		if k != "_additional" {
+			objCopy[k] = v
+		}
 	}
 
-	var temporalContext *string
-	if tc, ok := obj[factTemporalContextProperty].(string); ok && tc != "" {
-		temporalContext = &tc
+	// Clean struct deserialization approach (CTO's suggestion!)
+	objJSON, err := json.Marshal(objCopy)
+	if err != nil {
+		return memory.MemoryFact{}, fmt.Errorf("marshaling item for deserialization: %w", err)
+	}
+
+	var weaviateFact WeaviateMemoryFact
+	if err := json.Unmarshal(objJSON, &weaviateFact); err != nil {
+		return memory.MemoryFact{}, fmt.Errorf("deserializing item to struct: %w", err)
 	}
 
 	// Parse timestamp
 	var timestamp time.Time
-	if tsStr := getString(obj, timestampProperty); tsStr != "" {
-		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
+	if weaviateFact.Timestamp != "" {
+		if t, err := time.Parse(time.RFC3339, weaviateFact.Timestamp); err == nil {
 			timestamp = t
 		} else {
-			s.logger.Warn("Failed to parse timestamp", "timestamp_str", tsStr, "error", err)
+			s.logger.Warn("Failed to parse timestamp", "timestamp_str", weaviateFact.Timestamp, "error", err)
 		}
 	}
 
-	// Extract ID from _additional
-	additional, _ := obj["_additional"].(map[string]interface{})
-	id, _ := additional["id"].(string)
-
-	// Extract document references
-	var documentReferences []string
-	if docRefsInterface, ok := obj[documentReferencesProperty].([]interface{}); ok {
-		for _, docRefInterface := range docRefsInterface {
-			if docRefStr, ok := docRefInterface.(string); ok {
-				documentReferences = append(documentReferences, docRefStr)
-			}
-		}
+	// Handle temporal context pointer
+	var temporalContext *string
+	if weaviateFact.FactTemporalContext != "" {
+		temporalContext = &weaviateFact.FactTemporalContext
 	}
 
-	// Extract tags
-	var tags []string
-	if tagsInterface, ok := obj[tagsProperty].([]interface{}); ok {
-		for _, tagInterface := range tagsInterface {
-			if tagStr, ok := tagInterface.(string); ok {
-				tags = append(tags, tagStr)
-			}
-		}
-	}
-
-	// Parse legacy metadata if present
+	// Parse legacy metadata
 	metaMap := make(map[string]string)
-	if metadataJSON, ok := obj[metadataProperty].(string); ok && metadataJSON != "" && metadataJSON != "{}" {
-		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
+	if weaviateFact.MetadataJson != "" && weaviateFact.MetadataJson != "{}" {
+		if err := json.Unmarshal([]byte(weaviateFact.MetadataJson), &metaMap); err != nil {
 			s.logger.Debug("Could not unmarshal metadata", "id", id, "error", err)
 		}
 	}
 
 	return memory.MemoryFact{
 		ID:                 id,
-		Content:            content,
+		Content:            weaviateFact.Content,
 		Timestamp:          timestamp,
-		Category:           category,
-		Subject:            subject,
-		Attribute:          attribute,
-		Value:              value,
+		Category:           weaviateFact.FactCategory,
+		Subject:            weaviateFact.FactSubject,
+		Attribute:          weaviateFact.FactAttribute,
+		Value:              weaviateFact.FactValue,
 		TemporalContext:    temporalContext,
-		Sensitivity:        sensitivity,
-		Importance:         importance,
-		Source:             source,
-		DocumentReferences: documentReferences,
-		Tags:               tags,
+		Sensitivity:        weaviateFact.FactSensitivity,
+		Importance:         int(weaviateFact.FactImportance),
+		Source:             weaviateFact.Source,
+		DocumentReferences: weaviateFact.DocumentReferences,
+		Tags:               weaviateFact.Tags,
 		Metadata:           metaMap,
 	}, nil
 }
