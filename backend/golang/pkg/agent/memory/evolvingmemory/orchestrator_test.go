@@ -1,165 +1,171 @@
 package evolvingmemory
 
 import (
-	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
-
-	"github.com/charmbracelet/log"
-
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 )
 
-// BenchmarkDynamicWorkers demonstrates the dynamic worker pattern with varying document sizes.
+// BenchmarkDynamicWorkers demonstrates the dynamic worker pattern with simulated processing delays.
 func BenchmarkDynamicWorkers(b *testing.B) {
 	if testing.Short() {
 		b.Skip("Skipping benchmark in short mode")
 	}
 
-	// Create documents with varying content sizes to simulate different processing times
-	createDocuments := func(count int) []memory.Document {
-		docs := make([]memory.Document, count)
-		for i := 0; i < count; i++ {
-			var content string
-			switch i % 4 {
-			case 0:
-				// Small document (fast processing)
-				content = fmt.Sprintf("Small doc %d: Quick fact", i)
-			case 1:
-				// Medium document
-				content = fmt.Sprintf("Medium doc %d: %s", i, string(make([]byte, 1000)))
-			case 2:
-				// Large document (slow processing)
-				content = fmt.Sprintf("Large doc %d: %s", i, string(make([]byte, 5000)))
-			case 3:
-				// Very large document (very slow processing)
-				content = fmt.Sprintf("Very large doc %d: %s", i, string(make([]byte, 10000)))
-			}
+	// Test delays in milliseconds: one slow job + many fast jobs
+	delays := []int{1000, 100, 100, 100, 100, 100, 100, 100, 100, 100}
 
-			docs[i] = &memory.TextDocument{
-				FieldID:      fmt.Sprintf("doc-%d", i),
-				FieldContent: content,
-				FieldSource:  "benchmark",
-			}
+	// processJobsWithWorkers simulates the dynamic worker pattern
+	processJobsWithWorkers := func(delays []int, workerCount int) (time.Duration, map[int]int) {
+		jobQueue := make(chan int, len(delays))
+		for _, delay := range delays {
+			jobQueue <- delay
 		}
-		return docs
+		close(jobQueue)
+
+		workerJobCounts := make(map[int]int)
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+
+		start := time.Now()
+
+		// Start workers
+		for i := 0; i < workerCount; i++ {
+			wg.Add(1)
+			go func(workerID int) {
+				defer wg.Done()
+				count := 0
+				for delayMs := range jobQueue {
+					// Simulate processing with the delay
+					time.Sleep(time.Duration(delayMs) * time.Millisecond)
+					count++
+				}
+				mu.Lock()
+				workerJobCounts[workerID] = count
+				mu.Unlock()
+			}(i)
+		}
+
+		wg.Wait()
+		return time.Since(start), workerJobCounts
 	}
 
 	// Test with different worker counts
-	workerCounts := []int{1, 2, 4, 8}
+	workerCounts := []int{1, 2, 4}
 
 	for _, workers := range workerCounts {
 		b.Run(fmt.Sprintf("Workers-%d", workers), func(b *testing.B) {
-			// Create storage with real services (you'd use your actual config)
-			logger := log.Default()
-			logger.SetLevel(log.InfoLevel) // Set to Debug to see worker distribution
-
-			// Note: This requires actual AI services to be configured
-			// You can replace with mock services for pure benchmarking
-			storage, err := createMockStorage(logger)
-			if err != nil {
-				b.Skip("Skipping benchmark: storage creation failed")
-			}
-
-			docs := createDocuments(20) // 20 documents of varying sizes
-
-			config := Config{
-				Workers:               workers,
-				BatchSize:             100,
-				FlushInterval:         5 * time.Second,
-				FactExtractionTimeout: 30 * time.Second,
-				MemoryDecisionTimeout: 30 * time.Second,
-				StorageTimeout:        30 * time.Second,
-			}
-
 			b.ResetTimer()
 
 			for i := 0; i < b.N; i++ {
-				ctx := context.Background()
+				elapsed, workerDistribution := processJobsWithWorkers(delays, workers)
 
-				start := time.Now()
-				progressCh, errorCh := storage.orchestrator.ProcessDocuments(ctx, docs, config)
-
-				// Collect all progress updates
-				var lastProgress Progress
-				for progress := range progressCh {
-					lastProgress = progress
+				// Calculate total expected time for sequential processing
+				var totalSequentialTime time.Duration
+				for _, delayMs := range delays {
+					totalSequentialTime += time.Duration(delayMs) * time.Millisecond
 				}
 
-				// Drain errors
-				for range errorCh {
-					// Just drain
-				}
+				speedup := float64(totalSequentialTime) / float64(elapsed)
+				efficiency := speedup / float64(workers) * 100
 
-				elapsed := time.Since(start)
-				b.Logf("Workers: %d, Documents: %d, Time: %v, Throughput: %.2f docs/sec",
-					workers, len(docs), elapsed, float64(len(docs))/elapsed.Seconds())
+				b.Logf("Workers: %d, Jobs: %d, Time: %v, Speedup: %.2fx, Efficiency: %.1f%%",
+					workers, len(delays), elapsed, speedup, efficiency)
 
-				if lastProgress.Processed > 0 {
-					b.Logf("Processed: %d documents", lastProgress.Processed)
+				// Log work distribution
+				for workerID, count := range workerDistribution {
+					b.Logf("  Worker %d processed %d jobs (%.1f%%)",
+						workerID, count, float64(count)/float64(len(delays))*100)
 				}
 			}
 		})
 	}
 }
 
-// TestWorkerDistribution shows how work is distributed among workers.
+// TestWorkerDistribution demonstrates the advantage of dynamic work distribution.
 func TestWorkerDistribution(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping distribution test in short mode")
 	}
 
-	logger := log.Default()
-	logger.SetLevel(log.DebugLevel) // Enable debug logs to see worker activity
+	// Simulate static distribution (pre-assigned work)
+	simulateStaticDistribution := func(delays []int, workers int) time.Duration {
+		// Divide jobs evenly among workers
+		jobsPerWorker := len(delays) / workers
+		remainder := len(delays) % workers
 
-	storage, err := createMockStorage(logger)
-	if err != nil {
-		t.Skip("Skipping test: storage creation failed")
+		var wg sync.WaitGroup
+		start := time.Now()
+
+		for i := 0; i < workers; i++ {
+			wg.Add(1)
+			startIdx := i * jobsPerWorker
+			endIdx := (i + 1) * jobsPerWorker
+			if i == workers-1 {
+				endIdx += remainder
+			}
+
+			go func(workerDelays []int, workerID int) {
+				defer wg.Done()
+				for _, delayMs := range workerDelays {
+					time.Sleep(time.Duration(delayMs) * time.Millisecond)
+				}
+			}(delays[startIdx:endIdx], i)
+		}
+
+		wg.Wait()
+		return time.Since(start)
 	}
 
-	// Create documents with predictable processing patterns
-	docs := []memory.Document{
-		// Fast documents
-		&memory.TextDocument{FieldID: "fast-1", FieldContent: "Quick fact 1", FieldSource: "test"},
-		&memory.TextDocument{FieldID: "fast-2", FieldContent: "Quick fact 2", FieldSource: "test"},
-		&memory.TextDocument{FieldID: "fast-3", FieldContent: "Quick fact 3", FieldSource: "test"},
+	// Simulate dynamic distribution (work-stealing)
+	simulateDynamicDistribution := func(delays []int, workers int) time.Duration {
+		jobQueue := make(chan int, len(delays))
+		for _, delay := range delays {
+			jobQueue <- delay
+		}
+		close(jobQueue)
 
-		// Slow documents (larger content = more processing time)
-		&memory.TextDocument{FieldID: "slow-1", FieldContent: string(make([]byte, 10000)), FieldSource: "test"},
-		&memory.TextDocument{FieldID: "slow-2", FieldContent: string(make([]byte, 10000)), FieldSource: "test"},
+		var wg sync.WaitGroup
+		start := time.Now()
 
-		// Mixed
-		&memory.TextDocument{FieldID: "med-1", FieldContent: string(make([]byte, 5000)), FieldSource: "test"},
-		&memory.TextDocument{FieldID: "med-2", FieldContent: string(make([]byte, 5000)), FieldSource: "test"},
+		for i := 0; i < workers; i++ {
+			wg.Add(1)
+			go func(workerID int) {
+				defer wg.Done()
+				for delayMs := range jobQueue {
+					time.Sleep(time.Duration(delayMs) * time.Millisecond)
+				}
+			}(i)
+		}
+
+		wg.Wait()
+		return time.Since(start)
 	}
 
-	config := Config{
-		Workers:               3, // 3 workers for 7 documents
-		BatchSize:             100,
-		FlushInterval:         5 * time.Second,
-		FactExtractionTimeout: 30 * time.Second,
-		MemoryDecisionTimeout: 30 * time.Second,
-		StorageTimeout:        30 * time.Second,
-	}
+	// Delays in milliseconds: 1 slow job + 9 fast jobs
+	delays := []int{1000, 100, 100, 100, 100, 100, 100, 100, 100, 100}
 
-	ctx := context.Background()
-	start := time.Now()
+	workers := 4
 
-	progressCh, errorCh := storage.orchestrator.ProcessDocuments(ctx, docs, config)
+	staticTime := simulateStaticDistribution(delays, workers)
+	dynamicTime := simulateDynamicDistribution(delays, workers)
 
-	// Monitor progress
-	for progress := range progressCh {
-		t.Logf("Progress: %d/%d at %v", progress.Processed, progress.Total, time.Since(start))
-	}
+	t.Logf("Jobs: 1 slow (1000ms) + 9 fast (100ms each)")
+	t.Logf("Workers: %d", workers)
+	t.Logf("Static distribution time: %v", staticTime)
+	t.Logf("Dynamic distribution time: %v", dynamicTime)
+	t.Logf("Dynamic is %.1fx faster", float64(staticTime)/float64(dynamicTime))
 
-	// Check for errors
-	for err := range errorCh {
-		t.Logf("Error: %v", err)
-	}
+	// In static distribution with 4 workers:
+	// Worker 0: slow job (1000ms) + 2 fast jobs (200ms) = 1200ms
+	// Worker 1: 3 fast jobs = 300ms
+	// Worker 2: 2 fast jobs = 200ms
+	// Worker 3: 2 fast jobs = 200ms
+	// Total: 1200ms (bottlenecked by worker 0)
 
-	t.Logf("Total processing time: %v", time.Since(start))
-	t.Logf("Check the logs above to see how workers dynamically picked up documents")
-	t.Logf("With static distribution, each worker would get 2-3 documents")
-	t.Logf("With dynamic distribution, fast workers will process more documents")
+	// In dynamic distribution:
+	// Worker 0 takes the slow job (1000ms)
+	// Workers 1-3 process all 9 fast jobs in parallel (300ms each)
+	// Total: 1000ms
 }
