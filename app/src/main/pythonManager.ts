@@ -25,6 +25,7 @@ export class LiveKitAgentBootstrap {
 
   private readonly LIVEKIT_DIR = path.join(this.USER_DIR, 'dependencies', 'livekit-agent')
   private readonly VENV_DIR = path.join(this.LIVEKIT_DIR, '.venv')
+  private readonly greetingFile = path.join(this.LIVEKIT_DIR, 'greeting.txt')
 
   /** absolute path to the python executable in the venv */
   private pythonBin(): string {
@@ -214,6 +215,8 @@ STT_MODEL = os.getenv("TINFOIL_STT_MODEL")
 CHAT_ID = os.getenv("CHAT_ID")
 SEND_MESSAGE_URL = os.getenv("SEND_MESSAGE_URL")
 
+GREETING = open(os.path.join(os.path.dirname(__file__), 'greeting.txt')).read()
+
 def get_chat_history(chat_id: str):
     url = SEND_MESSAGE_URL
     
@@ -380,7 +383,8 @@ async def entrypoint(ctx: JobContext):
     logger.info("Agent session started successfully")
     
     # Wait a moment for the session to fully initialize
-    await asyncio.sleep(1)
+    if GREETING:
+        await session.say(GREETING)
 
     logger.info("Agent is now active and ready for conversation")
 
@@ -526,7 +530,7 @@ requests`
     }
   }
 
-  async startAgent(chatId: string) {
+  async startAgent(chatId: string, isOnboarding: boolean = false) {
     if (this.agentProc) {
       log.warn('[LiveKit] Agent is already running')
       return
@@ -541,6 +545,13 @@ requests`
         'OPENAI_API_KEY environment variable is required but not set. Please add it to your environment or .env file.'
       )
     }
+
+    let greeting = ``
+    if (isOnboarding) {
+      greeting = `Hey! may I ask some questions?`
+    }
+
+    await fs.promises.writeFile(this.greetingFile, greeting)
 
     // Start the agent using the virtual environment Python
     this.agentProc = spawn(this.pythonBin(), ['agent.py', 'console'], {
@@ -610,6 +621,9 @@ requests`
 
     this.agentProc = null
     log.info('[LiveKit] Agent stopped')
+
+    // Clear the greeting file content
+    await fs.promises.writeFile(this.greetingFile, '')
   }
 
   isAgentRunning(): boolean {
