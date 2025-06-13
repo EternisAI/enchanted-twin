@@ -634,7 +634,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 	}
 
 	s.logger.Info("Executing agent with message history", "onboarding", isOnboarding)
-	
+
 	// Create custom agent for onboarding with specific tools
 	agent := agent.NewAgent(
 		s.logger,
@@ -659,7 +659,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	s.logger.Debug(
 		"Agent response for message history",
 		"content",

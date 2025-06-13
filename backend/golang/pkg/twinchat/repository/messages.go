@@ -114,7 +114,7 @@ func (r *Repository) GetMessagesByChatId(
 	return result, nil
 }
 
-// DeleteMessagesByChatId deletes all messages for a specific chat ID
+// DeleteMessagesByChatId deletes all messages for a specific chat ID.
 func (r *Repository) DeleteMessagesByChatId(ctx context.Context, chatID string) error {
 	// Start a transaction to ensure consistency
 	tx, err := r.db.BeginTxx(ctx, nil)
@@ -157,7 +157,7 @@ func (r *Repository) DeleteMessagesByChatId(ctx context.Context, chatID string) 
 	return nil
 }
 
-// ReplaceMessagesByChatId efficiently deletes all messages for a chat and inserts new ones in a single transaction
+// ReplaceMessagesByChatId efficiently deletes all messages for a chat and inserts new ones in a single transaction.
 func (r *Repository) ReplaceMessagesByChatId(ctx context.Context, chatID string, messages []Message) error {
 	// Start a transaction to ensure atomicity
 	tx, err := r.db.BeginTxx(ctx, nil)
@@ -199,7 +199,12 @@ func (r *Repository) ReplaceMessagesByChatId(ctx context.Context, chatID string,
 		if err != nil {
 			return fmt.Errorf("failed to prepare insert statement: %w", err)
 		}
-		defer stmt.Close()
+		defer func() {
+			if closeErr := stmt.Close(); closeErr != nil {
+				// Log the error but don't override the main error
+				r.logger.Error("Failed to close prepared statement", "error", closeErr)
+			}
+		}()
 
 		// Execute batch insert
 		for _, message := range messages {
