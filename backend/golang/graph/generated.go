@@ -168,7 +168,7 @@ type ComplexityRoot struct {
 		DeleteChat                func(childComplexity int, chatID string) int
 		DeleteDataSource          func(childComplexity int, id string) int
 		JoinHolon                 func(childComplexity int, userID string, network *string) int
-		ProcessMessageHistory     func(childComplexity int, chatID string, messages []*model.MessageInput, reasoning bool, voice bool) int
+		ProcessMessageHistory     func(childComplexity int, chatID string, messages []*model.MessageInput, isOnboarding bool) int
 		RefreshExpiredOAuthTokens func(childComplexity int) int
 		RemoveMCPServer           func(childComplexity int, id string) int
 		SendMessage               func(childComplexity int, chatID string, text string, reasoning bool, voice bool) int
@@ -308,7 +308,7 @@ type MutationResolver interface {
 	UpdateProfile(ctx context.Context, input model.UpdateProfileInput) (bool, error)
 	CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (*model.Chat, error)
 	SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error)
-	ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, reasoning bool, voice bool) (*model.Message, error)
+	ProcessMessageHistory(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (*model.Message, error)
 	DeleteChat(ctx context.Context, chatID string) (*model.Chat, error)
 	StartIndexing(ctx context.Context) (bool, error)
 	AddDataSource(ctx context.Context, name string, path string) (bool, error)
@@ -987,7 +987,7 @@ func (e *executableSchema) Complexity(ctx context.Context, typeName, field strin
 			return 0, false
 		}
 
-		return e.complexity.Mutation.ProcessMessageHistory(childComplexity, args["chatId"].(string), args["messages"].([]*model.MessageInput), args["reasoning"].(bool), args["voice"].(bool)), true
+		return e.complexity.Mutation.ProcessMessageHistory(childComplexity, args["chatId"].(string), args["messages"].([]*model.MessageInput), args["isOnboarding"].(bool)), true
 
 	case "Mutation.refreshExpiredOAuthTokens":
 		if e.complexity.Mutation.RefreshExpiredOAuthTokens == nil {
@@ -2112,16 +2112,11 @@ func (ec *executionContext) field_Mutation_processMessageHistory_args(ctx contex
 		return nil, err
 	}
 	args["messages"] = arg1
-	arg2, err := ec.field_Mutation_processMessageHistory_argsReasoning(ctx, rawArgs)
+	arg2, err := ec.field_Mutation_processMessageHistory_argsIsOnboarding(ctx, rawArgs)
 	if err != nil {
 		return nil, err
 	}
-	args["reasoning"] = arg2
-	arg3, err := ec.field_Mutation_processMessageHistory_argsVoice(ctx, rawArgs)
-	if err != nil {
-		return nil, err
-	}
-	args["voice"] = arg3
+	args["isOnboarding"] = arg2
 	return args, nil
 }
 func (ec *executionContext) field_Mutation_processMessageHistory_argsChatID(
@@ -2150,25 +2145,12 @@ func (ec *executionContext) field_Mutation_processMessageHistory_argsMessages(
 	return zeroVal, nil
 }
 
-func (ec *executionContext) field_Mutation_processMessageHistory_argsReasoning(
+func (ec *executionContext) field_Mutation_processMessageHistory_argsIsOnboarding(
 	ctx context.Context,
 	rawArgs map[string]any,
 ) (bool, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("reasoning"))
-	if tmp, ok := rawArgs["reasoning"]; ok {
-		return ec.unmarshalNBoolean2bool(ctx, tmp)
-	}
-
-	var zeroVal bool
-	return zeroVal, nil
-}
-
-func (ec *executionContext) field_Mutation_processMessageHistory_argsVoice(
-	ctx context.Context,
-	rawArgs map[string]any,
-) (bool, error) {
-	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("voice"))
-	if tmp, ok := rawArgs["voice"]; ok {
+	ctx = graphql.WithPathContext(ctx, graphql.NewPathWithField("isOnboarding"))
+	if tmp, ok := rawArgs["isOnboarding"]; ok {
 		return ec.unmarshalNBoolean2bool(ctx, tmp)
 	}
 
@@ -6368,7 +6350,7 @@ func (ec *executionContext) _Mutation_processMessageHistory(ctx context.Context,
 	}()
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().ProcessMessageHistory(rctx, fc.Args["chatId"].(string), fc.Args["messages"].([]*model.MessageInput), fc.Args["reasoning"].(bool), fc.Args["voice"].(bool))
+		return ec.resolvers.Mutation().ProcessMessageHistory(rctx, fc.Args["chatId"].(string), fc.Args["messages"].([]*model.MessageInput), fc.Args["isOnboarding"].(bool))
 	})
 	if err != nil {
 		ec.Error(ctx, err)

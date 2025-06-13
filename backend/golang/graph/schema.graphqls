@@ -143,8 +143,7 @@ type Mutation {
   processMessageHistory(
     chatId: ID!
     messages: [MessageInput!]!
-    reasoning: Boolean! = False
-    voice: Boolean! = False
+    isOnboarding: Boolean! = False
   ): Message!
   deleteChat(chatId: ID!): Chat!
   startIndexing: Boolean!
