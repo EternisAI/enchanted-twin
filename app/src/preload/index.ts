@@ -54,7 +54,9 @@ const api = {
   },
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   onOpenSettings: (callback: () => void) => {
-    ipcRenderer.on('open-settings', callback)
+    const listener = () => callback()
+    ipcRenderer.on('open-settings', listener)
+    return () => ipcRenderer.removeListener('open-settings', listener)
   },
   screenpipe: {
     getStatus: () => ipcRenderer.invoke('screenpipe:get-status'),

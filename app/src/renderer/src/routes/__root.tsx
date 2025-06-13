@@ -56,9 +56,12 @@ function RootComponent() {
       }
     }
     window.addEventListener('keydown', handleKeyDown)
-    window.api.onOpenSettings(() => navigate({ to: DEFAULT_SETTINGS_ROUTE }))
+    const removeOpenSettingsListener = window.api.onOpenSettings(() =>
+      navigate({ to: DEFAULT_SETTINGS_ROUTE })
+    )
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
+      removeOpenSettingsListener()
     }
   }, [sidebarOpen, navigate, isCompleted, omnibar.isOpen, location.pathname, setSidebarOpen])
 
