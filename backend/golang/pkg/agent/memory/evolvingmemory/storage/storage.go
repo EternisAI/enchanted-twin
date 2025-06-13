@@ -1570,21 +1570,21 @@ func (s *WeaviateStorage) UpdateOrCreateDocument(ctx context.Context, content, d
 	hasher.Write([]byte(content))
 	contentHash := hex.EncodeToString(hasher.Sum(nil))
 
-	properties := map[string]interface{}{
-		contentProperty:             content,
-		documentContentHashProperty: contentHash,
-		documentTypeProperty:        docType,
-		documentOriginalIDProperty:  originalID,
-		documentMetadataProperty:    string(metadataJSON),
-		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
-	}
-
 	if existingID != "" {
-		// Update existing document
+		// Update existing document - don't overwrite createdAt
+		updateProperties := map[string]interface{}{
+			contentProperty:             content,
+			documentContentHashProperty: contentHash,
+			documentTypeProperty:        docType,
+			documentOriginalIDProperty:  originalID,
+			documentMetadataProperty:    string(metadataJSON),
+			// Preserve original createdAt by not including it in update
+		}
+
 		err = s.client.Data().Updater().
 			WithID(existingID).
 			WithClassName(DocumentClassName).
-			WithProperties(properties).
+			WithProperties(updateProperties).
 			Do(ctx)
 		if err != nil {
 			return "", fmt.Errorf("updating document: %w", err)
@@ -1593,11 +1593,20 @@ func (s *WeaviateStorage) UpdateOrCreateDocument(ctx context.Context, content, d
 		return existingID, nil
 	}
 
-	// Create new document if none exists
+	// Create new document if none exists - include createdAt
+	createProperties := map[string]interface{}{
+		contentProperty:             content,
+		documentContentHashProperty: contentHash,
+		documentTypeProperty:        docType,
+		documentOriginalIDProperty:  originalID,
+		documentMetadataProperty:    string(metadataJSON),
+		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
+	}
+
 	batcher := s.client.Batch().ObjectsBatcher()
 	obj := &models.Object{
 		Class:      DocumentClassName,
-		Properties: properties,
+		Properties: createProperties,
 	}
 	batcher = batcher.WithObjects(obj)
 
