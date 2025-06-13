@@ -81,8 +81,7 @@ type Interface interface {
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 
 	// Document storage operations
-	StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
-	UpsertDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
+	UpsertDocument(ctx context.Context, doc memory.Document) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
 }
@@ -1130,114 +1129,6 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	return refs, nil
 }
 
-// StoreDocument stores a document in the separate document storage system.
-// It returns the document ID if successful.
-func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
-	hasher := sha256.New()
-	hasher.Write([]byte(content))
-	contentHash := hex.EncodeToString(hasher.Sum(nil))
-
-	whereFilter := filters.Where().
-		WithPath([]string{documentContentHashProperty}).
-		WithOperator(filters.Equal).
-		WithValueText(contentHash)
-
-	fields := []weaviateGraphql.Field{
-		{Name: contentProperty},
-		{Name: documentContentHashProperty},
-		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
-	}
-
-	result, err := s.client.GraphQL().Get().
-		WithClassName(DocumentClassName).
-		WithFields(fields...).
-		WithWhere(whereFilter).
-		Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("checking for existing document: %w", err)
-	}
-
-	// Check for existing document with same content
-	data, ok := result.Data["Get"].(map[string]interface{})
-	if !ok {
-		s.logger.Debug("No 'Get' field in GraphQL response")
-		// Continue to create new document
-	} else if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
-		// Check each document for matching content
-		for i, doc := range docs {
-			docMap, ok := doc.(map[string]interface{})
-			if !ok {
-				s.logger.Warn("Document is not a map", "index", i, "type", fmt.Sprintf("%T", doc))
-				continue
-			}
-
-			existingContent, ok := docMap[contentProperty].(string)
-			if !ok {
-				s.logger.Warn("Missing or invalid content property", "index", i, "property", contentProperty)
-				continue
-			}
-
-			if existingContent != content {
-				continue // This is normal - just not a match
-			}
-
-			// Content matches, extract ID
-			additional, ok := docMap["_additional"].(map[string]interface{})
-			if !ok {
-				s.logger.Warn("Missing _additional field in matching document", "index", i)
-				continue
-			}
-
-			id, ok := additional["id"].(string)
-			if !ok {
-				s.logger.Error("Missing or invalid ID in _additional field", "index", i, "additional", additional)
-				continue
-			}
-
-			s.logger.Debug("Found existing document with same content", "id", id)
-			return id, nil
-		}
-	}
-
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return "", fmt.Errorf("marshaling metadata: %w", err)
-	}
-
-	properties := map[string]interface{}{
-		contentProperty:             content,
-		documentContentHashProperty: contentHash,
-		documentTypeProperty:        docType,
-		documentOriginalIDProperty:  originalID,
-		documentMetadataProperty:    string(metadataJSON),
-		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
-	}
-
-	batcher := s.client.Batch().ObjectsBatcher()
-	obj := &models.Object{
-		Class:      DocumentClassName,
-		Properties: properties,
-	}
-	batcher = batcher.WithObjects(obj)
-
-	batchResult, err := batcher.Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("creating document: %w", err)
-	}
-
-	if len(batchResult) == 0 {
-		return "", fmt.Errorf("no result returned from document creation")
-	}
-
-	if batchResult[0].Result.Errors != nil && len(batchResult[0].Result.Errors.Error) > 0 {
-		return "", fmt.Errorf("error creating document: %s", batchResult[0].Result.Errors.Error[0].Message)
-	}
-
-	id := string(batchResult[0].ID)
-	s.logger.Debug("Stored new document", "id", id)
-	return id, nil
-}
-
 // GetStoredDocument retrieves a document from the separate document table.
 func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error) {
 	result, err := s.client.Data().ObjectsGetter().
@@ -1572,27 +1463,34 @@ func mustJSON(data interface{}) string {
 }
 
 // UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
-func (s *WeaviateStorage) UpsertDocument(
-	ctx context.Context,
-	content, docType, originalID string,
-	metadata map[string]string,
-) (string, error) {
-	if originalID == "" || len(originalID) > 255 {
-		return "", fmt.Errorf("invalid originalID")
+func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Document) (string, error) {
+	if doc.ID() == "" || len(doc.ID()) > 255 {
+		return "", fmt.Errorf("invalid document ID")
 	}
-	if content == "" || docType == "" {
-		return "", fmt.Errorf("content and docType must be non-empty")
+	if doc.Content() == "" {
+		return "", fmt.Errorf("content must be non-empty")
 	}
 
-	id := deterministicID(originalID)
+	// Determine document type based on concrete type
+	var docType string
+	switch doc.(type) {
+	case *memory.ConversationDocument:
+		docType = "conversation"
+	case *memory.TextDocument:
+		docType = "text"
+	default:
+		docType = "unknown"
+	}
+
+	id := deterministicID(doc.ID())
 
 	// Build properties — createdAt omitted to preserve original value on updates
 	props := map[string]any{
-		contentProperty:             content,
-		documentContentHashProperty: sha256hex(content),
+		contentProperty:             doc.Content(),
+		documentContentHashProperty: sha256hex(doc.Content()),
 		documentTypeProperty:        docType,
-		documentOriginalIDProperty:  originalID,
-		documentMetadataProperty:    mustJSON(metadata),
+		documentOriginalIDProperty:  doc.ID(),
+		documentMetadataProperty:    mustJSON(doc.Metadata()),
 	}
 
 	obj := &models.Object{
