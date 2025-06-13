@@ -143,13 +143,39 @@ func NewFinalizeOnboardingTool() *finalizeOnboarding {
 }
 
 func (f *finalizeOnboarding) Execute(ctx context.Context, inputs map[string]any) (types.ToolResult, error) {
+	name, ok := inputs["name"].(string)
+	if !ok || name == "" {
+		return &types.StructuredToolResult{
+			ToolName:   "finalize_onboarding",
+			ToolParams: inputs,
+			ToolError:  "name parameter is required and must be a non-empty string",
+		}, fmt.Errorf("name parameter is required")
+	}
+
+	context, _ := inputs["context"].(string) // Optional parameter
+
+	// Create the structured response
+	onboardingData := map[string]any{
+		"name":    name,
+		"context": context,
+	}
+
+	onboardingJSON, err := json.Marshal(onboardingData)
+	if err != nil {
+		return &types.StructuredToolResult{
+			ToolName:   "finalize_onboarding",
+			ToolParams: inputs,
+			ToolError:  fmt.Sprintf("Failed to marshal onboarding data: %v", err),
+		}, fmt.Errorf("failed to marshal onboarding data: %v", err)
+	}
+
 	return &types.StructuredToolResult{
 		ToolName: "finalize_onboarding",
 		ToolParams: map[string]any{
 			"status": "completed",
 		},
 		Output: map[string]any{
-			"content": "Onboarding has been successfully finalized! Welcome aboard!",
+			"content": string(onboardingJSON),
 		},
 	}, nil
 }
@@ -159,11 +185,20 @@ func (f *finalizeOnboarding) Definition() openai.ChatCompletionToolParam {
 		Type: "function",
 		Function: openai.FunctionDefinitionParam{
 			Name:        "finalize_onboarding",
-			Description: param.NewOpt("Call this tool to finalize the onboarding process after collecting all required information"),
+			Description: param.NewOpt("Call this tool to finalize the onboarding process after collecting the user's name and other information. Extract the name and any additional context (like favorite color, animal, etc.) from the conversation."),
 			Parameters: openai.FunctionParameters{
-				"type":       "object",
-				"properties": map[string]any{},
-				"required":   []string{},
+				"type": "object",
+				"properties": map[string]any{
+					"name": map[string]any{
+						"type":        "string",
+						"description": "The user's name that they provided during onboarding",
+					},
+					"context": map[string]any{
+						"type":        "string",
+						"description": "Additional information the user shared (e.g., 'favorite color: blue, favorite animal: cat')",
+					},
+				},
+				"required": []string{"name"},
 			},
 		},
 	}
