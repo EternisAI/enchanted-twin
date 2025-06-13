@@ -212,9 +212,9 @@ export function registerIpcHandlers() {
     }
   })
 
-  ipcMain.handle('livekit:start', async (_, chatId: string) => {
+  ipcMain.handle('livekit:start', async (_, chatId: string, isOnboarding = false) => {
     try {
-      await startLiveKitAgent(chatId)
+      await startLiveKitAgent(chatId, isOnboarding)
       return { success: true }
     } catch (error) {
       log.error('Failed to start LiveKit agent:', error)

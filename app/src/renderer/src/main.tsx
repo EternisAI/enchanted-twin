@@ -1,7 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import './assets/main.css'
 
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Toaster } from 'sonner'
 import { createRouter, RouterProvider } from '@tanstack/react-router'
@@ -56,8 +55,4 @@ function App() {
   )
 }
 
-export default createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>
-)
+export default createRoot(document.getElementById('root')!).render(<App />)

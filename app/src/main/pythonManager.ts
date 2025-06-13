@@ -26,6 +26,7 @@ export class LiveKitAgentBootstrap {
   private readonly LIVEKIT_DIR = path.join(this.USER_DIR, 'dependencies', 'livekit-agent')
   private readonly VENV_DIR = path.join(this.LIVEKIT_DIR, '.venv')
   private readonly greetingFile = path.join(this.LIVEKIT_DIR, 'greeting.txt')
+  private readonly onboardingStateFile = path.join(this.LIVEKIT_DIR, 'onboarding_state.txt')
 
   /** absolute path to the python executable in the venv */
   private pythonBin(): string {
@@ -214,8 +215,15 @@ STT_URL = os.getenv("TINFOIL_AUDIO_URL")
 STT_MODEL = os.getenv("TINFOIL_STT_MODEL")
 CHAT_ID = os.getenv("CHAT_ID")
 SEND_MESSAGE_URL = os.getenv("SEND_MESSAGE_URL")
-
 GREETING = open(os.path.join(os.path.dirname(__file__), 'greeting.txt')).read()
+
+def get_onboarding_state():
+    """Read the current onboarding state from file"""
+    try:
+        with open(os.path.join(os.path.dirname(__file__), 'onboarding_state.txt'), 'r') as f:
+            return f.read().strip().lower() == "true"
+    except FileNotFoundError:
+        return False
 
 def get_chat_history(chat_id: str):
     url = SEND_MESSAGE_URL
@@ -247,23 +255,23 @@ def get_chat_history(chat_id: str):
 def send_message(context, chat_id: str):
 
     url = SEND_MESSAGE_URL
+    is_onboarding = get_onboarding_state()
 
     query = """
-    mutation sendmsg($chatId: ID!, $context: [MessageInput!]!) {
+   mutation sendmsg($chatId: ID!, $context: [MessageInput!]!, $isOnboarding: Boolean!) {
     processMessageHistory(
-        chatId: $chatId,
-        messages: $context,
-        reasoning: false,
-        voice: false
+      chatId: $chatId        
+      messages: $context    
+      isOnboarding: $isOnboarding 
     ) {
         id
         text
         createdAt
-    }
+      }
     }
     """
     
-    variables = { "chatId": chat_id, "context": context}
+    variables = { "chatId": chat_id, "context": context, "isOnboarding": is_onboarding}
     
     resp = requests.post(url, json={"query": query, "variables": variables})
     
@@ -536,7 +544,8 @@ requests`
       return
     }
 
-    log.info('[LiveKit] Starting LiveKit agent')
+    log.info('[LiveKit] Starting LiveKit agent', isOnboarding)
+
     // Note: Room connection is handled by the LiveKit agent framework via ctx.connect()
 
     // Check for required environment variables before starting
@@ -548,10 +557,13 @@ requests`
 
     let greeting = ``
     if (isOnboarding) {
-      greeting = `Hey! may I ask some questions?`
+      greeting = `Hello there! Welcome to Enchanted, what is your name?`
     }
 
     await fs.promises.writeFile(this.greetingFile, greeting)
+    await fs.promises.writeFile(this.onboardingStateFile, isOnboarding.toString())
+
+    isOnboarding && console.log('isOnboarding starting', isOnboarding)
 
     // Start the agent using the virtual environment Python
     this.agentProc = spawn(this.pythonBin(), ['agent.py', 'console'], {
@@ -560,6 +572,7 @@ requests`
         ...process.env,
         OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         CHAT_ID: chatId,
+
         TINFOIL_API_KEY: process.env.TINFOIL_API_KEY,
         TINFOIL_AUDIO_URL: process.env.TINFOIL_AUDIO_URL,
         TINFOIL_STT_MODEL: process.env.TINFOIL_STT_MODEL,
@@ -622,12 +635,18 @@ requests`
     this.agentProc = null
     log.info('[LiveKit] Agent stopped')
 
-    // Clear the greeting file content
+    // Clear the greeting and onboarding state files
     await fs.promises.writeFile(this.greetingFile, '')
+    await fs.promises.writeFile(this.onboardingStateFile, 'false')
   }
 
   isAgentRunning(): boolean {
     return this.agentProc !== null
+  }
+
+  async updateOnboardingState(isOnboarding: boolean): Promise<void> {
+    await fs.promises.writeFile(this.onboardingStateFile, isOnboarding.toString())
+    log.info(`[LiveKit] Updated onboarding state to: ${isOnboarding}`)
   }
 
   async cleanup() {
