@@ -56,13 +56,13 @@ type WeaviateMemoryFact struct {
 	Tags               []string `json:"tags"`
 	DocumentReferences []string `json:"documentReferences"`
 	// Structured fact fields
-	FactCategory        string  `json:"factCategory"`
-	FactSubject         string  `json:"factSubject"`
-	FactAttribute       string  `json:"factAttribute"`
-	FactValue           string  `json:"factValue"`
-	FactTemporalContext string  `json:"factTemporalContext"`
-	FactSensitivity     string  `json:"factSensitivity"`
-	FactImportance      float64 `json:"factImportance"`
+	FactCategory        string `json:"factCategory"`
+	FactSubject         string `json:"factSubject"`
+	FactAttribute       string `json:"factAttribute"`
+	FactValue           string `json:"factValue"`
+	FactTemporalContext string `json:"factTemporalContext"`
+	FactSensitivity     string `json:"factSensitivity"`
+	FactImportance      int    `json:"factImportance"`
 }
 
 // DocumentReference holds the original document information.
@@ -197,7 +197,7 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.Memor
 		Value:              weaviateFact.FactValue,
 		TemporalContext:    temporalContext,
 		Sensitivity:        weaviateFact.FactSensitivity,
-		Importance:         int(weaviateFact.FactImportance),
+		Importance:         weaviateFact.FactImportance,
 		Source:             weaviateFact.Source,
 		DocumentReferences: weaviateFact.DocumentReferences,
 		Tags:               weaviateFact.Tags,
@@ -1011,7 +1011,7 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		Value:              weaviateFact.FactValue,
 		TemporalContext:    temporalContext,
 		Sensitivity:        weaviateFact.FactSensitivity,
-		Importance:         int(weaviateFact.FactImportance),
+		Importance:         weaviateFact.FactImportance,
 		Source:             weaviateFact.Source,
 		DocumentReferences: weaviateFact.DocumentReferences,
 		Tags:               weaviateFact.Tags,
