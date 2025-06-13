@@ -185,8 +185,11 @@ func New(deps Dependencies) (MemoryStorage, error) {
 		return nil, fmt.Errorf("embeddings service cannot be nil")
 	}
 
+	// Create the embedding wrapper
+	embeddingsWrapper := storage.NewEmbeddingWrapper(deps.EmbeddingsService, deps.EmbeddingsModel)
+
 	// Create the memory engine with business logic
-	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsService, deps.Storage, deps.CompletionsModel, deps.EmbeddingsModel)
+	engine, err := NewMemoryEngine(deps.CompletionsService, embeddingsWrapper, deps.Storage, deps.CompletionsModel)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory engine: %w", err)
 	}

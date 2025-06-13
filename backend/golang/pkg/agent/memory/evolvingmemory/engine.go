@@ -16,19 +16,18 @@ import (
 // This contains no orchestration concerns (channels, workers, progress reporting).
 type MemoryEngine struct {
 	CompletionsService *ai.Service
-	EmbeddingsService  *ai.Service
+	EmbeddingsWrapper  *storage.EmbeddingWrapper
 	storage            storage.Interface
 	CompletionsModel   string
-	EmbeddingsModel    string
 }
 
 // NewMemoryEngine creates a new MemoryEngine instance.
-func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Service, storage storage.Interface, completionsModel, embeddingsModel string) (*MemoryEngine, error) {
+func NewMemoryEngine(completionsService *ai.Service, embeddingsWrapper *storage.EmbeddingWrapper, storage storage.Interface, completionsModel string) (*MemoryEngine, error) {
 	if completionsService == nil {
 		return nil, fmt.Errorf("completions service cannot be nil")
 	}
-	if embeddingsService == nil {
-		return nil, fmt.Errorf("embeddings service cannot be nil")
+	if embeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddings wrapper cannot be nil")
 	}
 	if storage == nil {
 		return nil, fmt.Errorf("storage cannot be nil")
@@ -36,26 +35,13 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsService *ai.Servi
 	if completionsModel == "" {
 		return nil, fmt.Errorf("completions model cannot be empty")
 	}
-	if embeddingsModel == "" {
-		return nil, fmt.Errorf("embeddings model cannot be empty")
-	}
 
 	return &MemoryEngine{
 		CompletionsService: completionsService,
-		EmbeddingsService:  embeddingsService,
+		EmbeddingsWrapper:  embeddingsWrapper,
 		storage:            storage,
 		CompletionsModel:   completionsModel,
-		EmbeddingsModel:    embeddingsModel,
 	}, nil
-}
-
-// convertEmbedding converts a slice of float64 to float32 for vector operations.
-func convertEmbedding(embedding []float64) []float32 {
-	result := make([]float32, len(embedding))
-	for i, v := range embedding {
-		result[i] = float32(v)
-	}
-	return result
 }
 
 // ProcessFact processes a single fact through the complete memory pipeline.
@@ -87,12 +73,12 @@ func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact StructuredFact,
 	switch decision.Action {
 	case UPDATE:
 		content := fact.GenerateContent()
-		embedding, err := e.EmbeddingsService.Embedding(ctx, content, e.EmbeddingsModel)
+		embedding, err := e.EmbeddingsWrapper.Embedding(ctx, content)
 		if err != nil {
 			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("embedding failed: %w", err)}, nil
 		}
 
-		if err := e.UpdateMemory(ctx, decision.TargetID, content, convertEmbedding(embedding)); err != nil {
+		if err := e.UpdateMemory(ctx, decision.TargetID, content, embedding); err != nil {
 			return FactResult{Fact: fact, Source: source, Decision: decision, Error: fmt.Errorf("update failed: %w", err)}, nil
 		}
 
@@ -188,11 +174,11 @@ func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFa
 
 	obj := CreateMemoryObjectWithDocumentReferences(fact, source, decision, []string{documentID})
 
-	embedding, err := e.EmbeddingsService.Embedding(ctx, fact.GenerateContent(), e.EmbeddingsModel)
+	embedding, err := e.EmbeddingsWrapper.Embedding(ctx, fact.GenerateContent())
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
 
-	obj.Vector = convertEmbedding(embedding)
+	obj.Vector = embedding
 	return obj, nil
 }
