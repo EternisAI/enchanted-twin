@@ -214,6 +214,32 @@ STT_MODEL = os.getenv("TINFOIL_STT_MODEL")
 CHAT_ID = os.getenv("CHAT_ID")
 SEND_MESSAGE_URL = os.getenv("SEND_MESSAGE_URL")
 
+def get_chat_history(chat_id: str):
+    url = SEND_MESSAGE_URL
+    
+    query = """
+    query getChatHistory($id: ID!) {
+        getChat(id: $id) {
+            messages {
+                role
+                text
+            }
+        }
+    }
+    """
+    
+    variables = { "id": chat_id}
+    
+    resp = requests.post(url, json={"query": query, "variables": variables})
+    
+    if resp.status_code == 200:
+        body = resp.json()
+        history = body["data"]["getChat"]["messages"]  
+        history = [item for item in history if item["role"] != "system"]
+        return history
+    
+    return []
+
 
 def send_message(context, chat_id: str):
 
@@ -271,11 +297,12 @@ class APIConnectOptions:
 
 
 class LLMStream(llm.LLMStream):
-    def __init__(self, llm, chat_ctx: llm.ChatContext, chat_id: str) -> None:
+    def __init__(self, llm, chat_ctx: llm.ChatContext, chat_id: str, chat_history: list) -> None:
         super().__init__(llm, chat_ctx=chat_ctx, tools=None, conn_options=None)
         self._chat_id = chat_id
         self._llm = llm
         self._conn_options = APIConnectOptions()
+        self._chat_history = chat_history
 
     async def _run(self) -> None:
         # current function call that we're waiting for full completion (args are streamed)
@@ -291,7 +318,7 @@ class LLMStream(llm.LLMStream):
             context = to_chat_ctx(self._chat_ctx, "1")
             context = [item for item in context if (item["role"] != "system" and item["content"]!="")]
             context = [{'role': item['role'].upper(), 'text': item['content']} for item in context]
-            
+            context = self._chat_history + context
             received_message = send_message(context, self._chat_id)
 
             if received_message is not None:
@@ -307,6 +334,7 @@ class LLM(llm.LLM):
     def __init__(self, chat_id: str) -> None:
         super().__init__()
         self._chat_id = chat_id
+        self._chat_history = get_chat_history(chat_id)
         
 
     def chat( self, *,
@@ -317,7 +345,7 @@ class LLM(llm.LLM):
         tool_choice = False,
         response_format = False,
         extra_kwargs = False):
-        return LLMStream(llm=self, chat_ctx=chat_ctx, chat_id=self._chat_id)
+        return LLMStream(llm=self, chat_ctx=chat_ctx, chat_id=self._chat_id, chat_history=self._chat_history)
 
 
 async def entrypoint(ctx: JobContext):
