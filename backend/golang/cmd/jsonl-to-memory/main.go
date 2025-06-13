@@ -240,9 +240,8 @@ func main() {
 		Logger:             logger,
 		Storage:            weaviateStorage,
 		CompletionsService: aiCompletionsService,
-		EmbeddingsService:  aiEmbeddingsService,
 		CompletionsModel:   envs.CompletionsModel,
-		EmbeddingsModel:    envs.EmbeddingsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
 	}
 
 	memoryStorage, err := evolvingmemory.New(memoryDeps)

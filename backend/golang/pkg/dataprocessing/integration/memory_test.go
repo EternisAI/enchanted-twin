@@ -244,13 +244,13 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 		t.Fatalf("Failed to create storage interface: %v", err)
 	}
 
-	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+	var mem evolvingmemory.MemoryStorage
+	mem, err = evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
 		Storage:            storageInterface,
 		CompletionsService: openAiService.Service,
-		EmbeddingsService:  aiEmbeddingsService,
 		CompletionsModel:   config.CompletionsModel,
-		EmbeddingsModel:    config.EmbeddingsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
 	})
 	require.NoError(t, err)
 

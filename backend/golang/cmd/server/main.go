@@ -225,7 +225,6 @@ func main() {
 	logger.Info("Creating evolving memory instance")
 	memoryCreateStart := time.Now()
 
-	// Create embedding wrapper and storage interface
 	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, envs.EmbeddingsModel)
 	if err != nil {
 		logger.Fatal("Failed to create embedding wrapper", "error", err)
@@ -244,9 +243,8 @@ func main() {
 		Logger:             logger,
 		Storage:            storageInterface,
 		CompletionsService: aiCompletionsService,
-		EmbeddingsService:  aiEmbeddingsService,
 		CompletionsModel:   envs.CompletionsModel,
-		EmbeddingsModel:    envs.EmbeddingsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
 	})
 	if err != nil {
 		logger.Error("Failed to create evolving memory", "error", err)
