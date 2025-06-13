@@ -886,6 +886,35 @@ func (s *WeaviateStorage) parseQueryResponseToFacts(resp *models.GraphQLResponse
 	return facts, nil
 }
 
+// Helper to safely extract string from interface{}.
+func getString(obj map[string]interface{}, key string) string {
+	if val, ok := obj[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+// Helper to safely extract string array from interface{}.
+func getStringArray(obj map[string]interface{}, key string) []string {
+	var result []string
+	if arr, ok := obj[key].([]interface{}); ok {
+		for _, item := range arr {
+			if str, ok := item.(string); ok {
+				result = append(result, str)
+			}
+		}
+	}
+	return result
+}
+
+// Helper to safely extract int from interface{}.
+func getInt(obj map[string]interface{}, key string) int {
+	if val, ok := obj[key].(float64); ok {
+		return int(val)
+	}
+	return 0
+}
+
 // parseMemoryItem converts a single GraphQL item to MemoryFact.
 func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, error) {
 	obj, ok := item.(map[string]interface{})
@@ -893,62 +922,60 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		return memory.MemoryFact{}, fmt.Errorf("item is not a map")
 	}
 
-	// Extract basic fields
-	content, _ := obj[contentProperty].(string)
-	metadataJSON, _ := obj[metadataProperty].(string)
-	source, _ := obj[sourceProperty].(string)
-	subject, _ := obj[factSubjectProperty].(string)
+	// Extract ID from _additional
+	id := ""
+	if additional, ok := obj["_additional"].(map[string]interface{}); ok {
+		id = getString(additional, "id")
+	}
 
 	// Parse timestamp
 	var timestamp time.Time
-	if tsStr, ok := obj[timestampProperty].(string); ok {
+	if tsStr := getString(obj, timestampProperty); tsStr != "" {
 		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
 			timestamp = t
 		} else {
-			s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", err)
+			s.logger.Warn("Failed to parse timestamp", "timestamp_str", tsStr, "error", err)
 		}
 	}
 
-	// Extract ID from _additional
-	additional, _ := obj["_additional"].(map[string]interface{})
-	id, _ := additional["id"].(string)
-
-	// Build metadata map
+	// Parse metadata from JSON
 	metaMap := make(map[string]string)
-	if metadataJSON != "" {
+	if metadataJSON := getString(obj, metadataProperty); metadataJSON != "" {
 		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
-			s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", err)
+			s.logger.Debug("Could not unmarshal metadata", "id", id, "error", err)
 		}
 	}
 
-	// Extract structured fact fields and add to metadata (except factSubject which is now top-level)
-	if factCategory, ok := obj[factCategoryProperty].(string); ok && factCategory != "" {
-		metaMap["factCategory"] = factCategory
-	}
-	if factAttribute, ok := obj[factAttributeProperty].(string); ok && factAttribute != "" {
-		metaMap["factAttribute"] = factAttribute
-	}
-	if factValue, ok := obj[factValueProperty].(string); ok && factValue != "" {
-		metaMap["factValue"] = factValue
-	}
-	if factTemporalContext, ok := obj[factTemporalContextProperty].(string); ok && factTemporalContext != "" {
-		metaMap["factTemporalContext"] = factTemporalContext
-	}
-	if factSensitivity, ok := obj[factSensitivityProperty].(string); ok && factSensitivity != "" {
-		metaMap["factSensitivity"] = factSensitivity
-	}
-	if factImportance, ok := obj[factImportanceProperty].(float64); ok {
-		metaMap["factImportance"] = fmt.Sprintf("%d", int(factImportance))
+	// Add structured fact fields to metadata
+	factFields := map[string]string{
+		factCategoryProperty:        getString(obj, factCategoryProperty),
+		factAttributeProperty:       getString(obj, factAttributeProperty),
+		factValueProperty:           getString(obj, factValueProperty),
+		factTemporalContextProperty: getString(obj, factTemporalContextProperty),
+		factSensitivityProperty:     getString(obj, factSensitivityProperty),
 	}
 
-	// Tags and documentReferences are direct fields now, not in metadata
+	for key, value := range factFields {
+		if value != "" {
+			// Remove property suffix for cleaner metadata keys
+			metaKey := strings.TrimPrefix(key, "fact")
+			metaKey = strings.ToLower(metaKey[:1]) + metaKey[1:]
+			metaMap[metaKey] = value
+		}
+	}
+
+	// Handle importance as int
+	if importance := getInt(obj, factImportanceProperty); importance > 0 {
+		metaMap["importance"] = fmt.Sprintf("%d", importance)
+	}
 
 	return memory.MemoryFact{
 		ID:        id,
-		Content:   content,
-		Subject:   subject,
+		Content:   getString(obj, contentProperty),
+		Subject:   getString(obj, factSubjectProperty),
 		Timestamp: timestamp,
-		Source:    source,
+		Source:    getString(obj, sourceProperty),
+		Tags:      getStringArray(obj, tagsProperty),
 		Metadata:  metaMap,
 	}, nil
 }
