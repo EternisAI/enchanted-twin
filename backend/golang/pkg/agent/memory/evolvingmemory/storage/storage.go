@@ -1453,15 +1453,6 @@ func sha256hex(content string) string {
 	return hex.EncodeToString(hasher.Sum(nil))
 }
 
-// mustJSON marshals data to JSON, panicking on error (use only for trusted data).
-func mustJSON(data interface{}) string {
-	b, err := json.Marshal(data)
-	if err != nil {
-		panic(fmt.Sprintf("failed to marshal JSON: %v", err))
-	}
-	return string(b)
-}
-
 // UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
 func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Document) (string, error) {
 	if doc.ID() == "" || len(doc.ID()) > 255 {
@@ -1484,13 +1475,19 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 
 	id := deterministicID(doc.ID())
 
-	// Build properties — createdAt omitted to preserve original value on updates
+	// Marshal metadata
+	metadataJSON, err := json.Marshal(doc.Metadata())
+	if err != nil {
+		return "", fmt.Errorf("marshaling document metadata: %w", err)
+	}
+
+	// Build properties - omit createdAt to preserve original timestamps on updates
 	props := map[string]any{
 		contentProperty:             doc.Content(),
 		documentContentHashProperty: sha256hex(doc.Content()),
 		documentTypeProperty:        docType,
 		documentOriginalIDProperty:  doc.ID(),
-		documentMetadataProperty:    mustJSON(doc.Metadata()),
+		documentMetadataProperty:    string(metadataJSON),
 	}
 
 	obj := &models.Object{
