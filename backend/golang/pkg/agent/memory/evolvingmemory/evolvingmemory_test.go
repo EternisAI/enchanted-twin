@@ -161,7 +161,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		mockStorage := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		mockStorage, err := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		require.NoError(t, err)
 
 		storageImpl, err := New(Dependencies{
 			Logger:             logger,
@@ -228,7 +229,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		mockStorage := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		mockStorage, err := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		require.NoError(t, err)
 
 		storageImpl, err := New(Dependencies{
 			Logger:             logger,
@@ -293,7 +295,8 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		mockStorage := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		mockStorage, err := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		require.NoError(t, err)
 
 		storageImpl, err := New(Dependencies{
 			Logger:             logger,

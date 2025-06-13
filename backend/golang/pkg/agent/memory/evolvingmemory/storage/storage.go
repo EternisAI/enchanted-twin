@@ -91,13 +91,16 @@ type WeaviateStorage struct {
 }
 
 // New creates a new WeaviateStorage instance.
-func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) Interface {
-	embeddingsWrapper := NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) (Interface, error) {
+	embeddingsWrapper, err := NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+	if err != nil {
+		return nil, fmt.Errorf("creating embedding wrapper: %w", err)
+	}
 	return &WeaviateStorage{
 		client:            client,
 		logger:            logger,
 		embeddingsWrapper: embeddingsWrapper,
-	}
+	}, nil
 }
 
 // GetByID retrieves a specific memory document from Weaviate by its ID.

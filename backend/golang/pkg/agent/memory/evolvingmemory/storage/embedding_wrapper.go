@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
@@ -14,11 +15,17 @@ type EmbeddingWrapper struct {
 }
 
 // NewEmbeddingWrapper creates a new embedding wrapper with the specified model.
-func NewEmbeddingWrapper(service *ai.Service, model string) *EmbeddingWrapper {
+func NewEmbeddingWrapper(service *ai.Service, model string) (*EmbeddingWrapper, error) {
+	if service == nil {
+		return nil, fmt.Errorf("ai service cannot be nil")
+	}
+	if model == "" {
+		return nil, fmt.Errorf("model cannot be empty")
+	}
 	return &EmbeddingWrapper{
 		service: service,
 		model:   model,
-	}
+	}, nil
 }
 
 // Embedding returns a single embedding as float32 slice using the configured model.
