@@ -109,6 +109,20 @@ const api = {
     get: (key: string) => screenpipeStore.get(key),
     set: (key: string, value: unknown) => screenpipeStore.set(key, value)
   },
+  livekit: {
+    setup: () => ipcRenderer.invoke('livekit:setup'),
+    start: (chatId: string, isOnboarding?: boolean) =>
+      ipcRenderer.invoke('livekit:start', chatId, isOnboarding),
+    stop: () => ipcRenderer.invoke('livekit:stop'),
+    isRunning: () => ipcRenderer.invoke('livekit:is-running'),
+    isSessionReady: () => ipcRenderer.invoke('livekit:is-session-ready'),
+    getState: () => ipcRenderer.invoke('livekit:get-state'),
+    onSessionStateChange: (callback: (data: { sessionReady: boolean }) => void) => {
+      const cleanup = () => ipcRenderer.removeAllListeners('livekit-session-state')
+      ipcRenderer.on('livekit-session-state', (_event, data) => callback(data))
+      return cleanup
+    }
+  },
   onGoLog: (callback: (data: { source: 'stdout' | 'stderr'; line: string }) => void) => {
     const listener = (_: unknown, data: { source: 'stdout' | 'stderr'; line: string }) =>
       callback(data)
