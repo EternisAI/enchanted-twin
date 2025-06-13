@@ -166,22 +166,43 @@ func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newCon
 func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
 	// Determine document type
 	var docType string
+	var useUpdateOrCreate bool
 	switch source.(type) {
 	case *memory.ConversationDocument:
 		docType = string(DocumentTypeConversation)
+		// Conversations should use update-or-create to prevent duplicates
+		useUpdateOrCreate = true
 	case *memory.TextDocument:
 		docType = string(DocumentTypeText)
+		useUpdateOrCreate = false
 	default:
 		docType = "unknown"
+		useUpdateOrCreate = false
 	}
 
-	documentID, err := e.storage.StoreDocument(
-		ctx,
-		source.Content(),
-		docType,
-		source.ID(),
-		source.Metadata(),
-	)
+	var documentID string
+	var err error
+
+	if useUpdateOrCreate {
+		// Use update-or-create for conversations to prevent duplicates
+		documentID, err = e.storage.UpdateOrCreateDocument(
+			ctx,
+			source.Content(),
+			docType,
+			source.ID(),
+			source.Metadata(),
+		)
+	} else {
+		// Use regular store for other document types
+		documentID, err = e.storage.StoreDocument(
+			ctx,
+			source.Content(),
+			docType,
+			source.ID(),
+			source.Metadata(),
+		)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("storing document: %w", err)
 	}
