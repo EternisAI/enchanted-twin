@@ -155,9 +155,8 @@ type Dependencies struct {
 	Logger             *log.Logger
 	Storage            storage.Interface
 	CompletionsService *ai.Service
-	EmbeddingsService  *ai.Service
 	CompletionsModel   string
-	EmbeddingsModel    string
+	EmbeddingsWrapper  *storage.EmbeddingWrapper
 }
 
 // StorageImpl is the main implementation of the MemoryStorage interface.
@@ -181,18 +180,12 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	if deps.CompletionsService == nil {
 		return nil, fmt.Errorf("completions service cannot be nil")
 	}
-	if deps.EmbeddingsService == nil {
-		return nil, fmt.Errorf("embeddings service cannot be nil")
-	}
-
-	// Create the embedding wrapper
-	embeddingsWrapper, err := storage.NewEmbeddingWrapper(deps.EmbeddingsService, deps.EmbeddingsModel)
-	if err != nil {
-		return nil, fmt.Errorf("creating embedding wrapper: %w", err)
+	if deps.EmbeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddings wrapper cannot be nil")
 	}
 
 	// Create the memory engine with business logic
-	engine, err := NewMemoryEngine(deps.CompletionsService, embeddingsWrapper, deps.Storage, deps.CompletionsModel)
+	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsWrapper, deps.Storage, deps.CompletionsModel)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory engine: %w", err)
 	}
