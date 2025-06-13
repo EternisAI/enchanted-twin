@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Input } from '@renderer/components/ui/input'
 import { Calendar, Search, GraduationCap, Telescope, Brain } from 'lucide-react'
 import { useNavigate, useRouter, useSearch } from '@tanstack/react-router'
 import { useQuery, useMutation, gql } from '@apollo/client'
+import { toast } from 'sonner'
+
+import { Input } from '@renderer/components/ui/input'
 import {
   GetProfileDocument,
   GetChatsDocument,
@@ -11,7 +13,6 @@ import {
   SendMessageDocument,
   ChatCategory
 } from '@renderer/graphql/generated/graphql'
-import { toast } from 'sonner'
 import { client } from '@renderer/graphql/lib'
 import { ContextCard } from './ContextCard'
 import { cn } from '@renderer/lib/utils'
@@ -21,6 +22,7 @@ import { useVoiceStore } from '@renderer/lib/stores/voice'
 import ChatInputBox from './ChatInputBox'
 import VoiceVisualizer from './voice/VoiceVisualizer'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
+import { VoiceModeInput } from './voice/ChatVoiceModeView'
 
 interface IndexRouteSearch {
   focusInput?: string
@@ -37,7 +39,7 @@ export function Home() {
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
-  const { isVoiceMode, toggleVoiceMode } = useVoiceStore()
+  const { isVoiceMode, stopVoiceMode, startVoiceMode } = useVoiceStore()
   const navigate = useNavigate()
   const router = useRouter()
   const searchParams = useSearch({ from: '/' }) as IndexRouteSearch
@@ -47,6 +49,7 @@ export function Home() {
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const debouncedQuery = useDebounce(query, 300)
   const [isReasonSelected, setIsReasonSelected] = useState(false)
+  const [isMuted] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
   const [sendMessage] = useMutation(SendMessageDocument)
@@ -147,40 +150,48 @@ export function Home() {
     }
   }
 
-  const handleCreateChat = useCallback(async () => {
-    if (!query.trim()) return
+  const handleCreateChat = useCallback(
+    async (chatTitle?: string, isVoiceMode?: boolean) => {
+      const message = query || chatTitle || ''
+      if (!message.trim()) return
 
-    try {
-      const { data: createData } = await createChat({
-        variables: { name: query, category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text }
-      })
-      const newChatId = createData?.createChat?.id
-
-      if (newChatId) {
-        navigate({
-          to: `/chat/${newChatId}`,
-          search: { initialMessage: query }
-        })
-
-        await client.cache.evict({ fieldName: 'getChats' })
-        await router.invalidate({
-          filter: (match) => match.routeId === '/chat/$chatId'
-        })
-
-        sendMessage({
+      try {
+        const { data: createData } = await createChat({
           variables: {
-            chatId: newChatId,
-            text: query,
-            reasoning: isReasonSelected,
-            voice: isVoiceMode
+            name: chatTitle || message,
+            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
           }
         })
-        setQuery('')
+        const newChatId = createData?.createChat?.id
+
+        if (newChatId) {
+          navigate({
+            to: `/chat/${newChatId}`,
+            search: { initialMessage: query }
+          })
+
+          await client.cache.evict({ fieldName: 'getChats' })
+          await router.invalidate({
+            filter: (match) => match.routeId === '/chat/$chatId'
+          })
+
+          sendMessage({
+            variables: {
+              chatId: newChatId,
+              text: query,
+              reasoning: isReasonSelected,
+              voice: isVoiceMode || false
+            }
+          })
+          setQuery('')
+          isVoiceMode && startVoiceMode(newChatId)
+        }
+      } catch (error) {
+        console.error('Failed to create chat:', error)
       }
-    } catch (error) {
-      console.error('Failed to create chat:', error)
-    }
-  }, [query, navigate, createChat, sendMessage, router, isReasonSelected, isVoiceMode])
+    },
+    [query, navigate, createChat, sendMessage, router, isReasonSelected, startVoiceMode]
+  )
 
   const handleSubmit = (e: React.FormEvent | React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.preventDefault()
@@ -202,6 +213,10 @@ export function Home() {
         handleSuggestionClick(selectedSuggestion)
       }
     }
+  }
+
+  const handleToggleToVoiceMode = async () => {
+    await handleCreateChat('New Voice Chat', true)
   }
 
   useEffect(() => {
@@ -333,18 +348,22 @@ export function Home() {
         }}
         className="relative w-full"
       >
-        <ChatInputBox
-          isVoiceReady={isVoiceReady}
-          query={query}
-          textareaRef={textareaRef}
-          isReasonSelected={isReasonSelected}
-          isVoiceMode={isVoiceMode}
-          onVoiceModeChange={toggleVoiceMode}
-          onInputChange={setQuery}
-          handleSubmit={handleSubmit}
-          setIsReasonSelected={setIsReasonSelected}
-          handleCreateChat={handleCreateChat}
-        />
+        {isVoiceMode ? (
+          <VoiceModeInput isMuted={isMuted} isAgentSpeaking={false} onStop={stopVoiceMode} />
+        ) : (
+          <ChatInputBox
+            isVoiceReady={isVoiceReady}
+            query={query}
+            textareaRef={textareaRef}
+            isReasonSelected={isReasonSelected}
+            isVoiceMode={isVoiceMode}
+            onVoiceModeChange={handleToggleToVoiceMode}
+            onInputChange={setQuery}
+            handleSubmit={handleSubmit}
+            setIsReasonSelected={setIsReasonSelected}
+            handleCreateChat={handleCreateChat}
+          />
+        )}
 
         <AnimatePresence mode="wait">
           {!isVoiceMode && (

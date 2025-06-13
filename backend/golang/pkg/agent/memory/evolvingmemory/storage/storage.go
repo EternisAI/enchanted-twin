@@ -7,17 +7,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/go-openapi/strfmt"
+	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	weaviateGraphql "github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
 	"github.com/weaviate/weaviate/entities/models"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 )
 
@@ -72,14 +72,14 @@ type Interface interface {
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
-	Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error)
+	Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error)
 	EnsureSchemaExists(ctx context.Context) error
 
 	// Document reference operations - now supports multiple references
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 
 	// Document storage operations
-	StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
+	UpsertDocument(ctx context.Context, doc memory.Document) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
 }
@@ -88,23 +88,32 @@ type Interface interface {
 type WeaviateStorage struct {
 	client            *weaviate.Client
 	logger            *log.Logger
-	embeddingsService *ai.Service
-	vectorPool        sync.Pool
+	embeddingsWrapper *EmbeddingWrapper
+}
+
+// NewStorageInput contains the dependencies needed to create a WeaviateStorage instance.
+type NewStorageInput struct {
+	Client            *weaviate.Client
+	Logger            *log.Logger
+	EmbeddingsWrapper *EmbeddingWrapper
 }
 
 // New creates a new WeaviateStorage instance.
-func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service) Interface {
-	return &WeaviateStorage{
-		client:            client,
-		logger:            logger,
-		embeddingsService: embeddingsService,
-		vectorPool: sync.Pool{
-			New: func() interface{} {
-				slice := make([]float32, 0, 3072)
-				return &slice
-			},
-		},
+func New(input NewStorageInput) (Interface, error) {
+	if input.Client == nil {
+		return nil, fmt.Errorf("client cannot be nil")
 	}
+	if input.Logger == nil {
+		return nil, fmt.Errorf("logger cannot be nil")
+	}
+	if input.EmbeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddingsWrapper cannot be nil")
+	}
+	return &WeaviateStorage{
+		client:            input.Client,
+		logger:            input.Logger,
+		embeddingsWrapper: input.EmbeddingsWrapper,
+	}, nil
 }
 
 // GetByID retrieves a specific memory fact from Weaviate by its ID.
@@ -637,15 +646,14 @@ func (s *WeaviateStorage) ensureDocumentClassExists(ctx context.Context) error {
 }
 
 // Query retrieves memories relevant to the query text.
-func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error) {
+func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	// Step 1: Generate query vector
-	vector, err := s.embeddingsService.Embedding(ctx, queryText, embeddingsModel)
+	queryVector, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("failed to create embedding: %w", err)
 	}
-	queryVector := s.convertToFloat32(vector)
 
 	// Step 2: Build GraphQL query
 	queryBuilder, err := s.buildQueryBuilder(queryVector, filter)
@@ -946,6 +954,14 @@ func (s *WeaviateStorage) parseQueryResponseToFacts(resp *models.GraphQLResponse
 	return facts, nil
 }
 
+// Helper to safely extract string from interface{}.
+func getString(obj map[string]interface{}, key string) string {
+	if val, ok := obj[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
 // parseMemoryItem converts a single GraphQL item to MemoryFact.
 func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, error) {
 	obj, ok := item.(map[string]interface{})
@@ -976,11 +992,11 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 
 	// Parse timestamp
 	var timestamp time.Time
-	if tsStr, ok := obj[timestampProperty].(string); ok {
+	if tsStr := getString(obj, timestampProperty); tsStr != "" {
 		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
 			timestamp = t
 		} else {
-			s.logger.Warn("Failed to parse timestamp from Weaviate", "timestamp_str", tsStr, "error", err)
+			s.logger.Warn("Failed to parse timestamp", "timestamp_str", tsStr, "error", err)
 		}
 	}
 
@@ -1012,7 +1028,7 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 	metaMap := make(map[string]string)
 	if metadataJSON, ok := obj[metadataProperty].(string); ok && metadataJSON != "" && metadataJSON != "{}" {
 		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
-			s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", err)
+			s.logger.Debug("Could not unmarshal metadata", "id", id, "error", err)
 		}
 	}
 
@@ -1210,91 +1226,6 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	return refs, nil
 }
 
-// StoreDocument stores a document in the separate document storage system.
-// It returns the document ID if successful.
-func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
-	hasher := sha256.New()
-	hasher.Write([]byte(content))
-	contentHash := hex.EncodeToString(hasher.Sum(nil))
-
-	whereFilter := filters.Where().
-		WithPath([]string{documentContentHashProperty}).
-		WithOperator(filters.Equal).
-		WithValueText(contentHash)
-
-	fields := []weaviateGraphql.Field{
-		{Name: contentProperty},
-		{Name: documentContentHashProperty},
-		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
-	}
-
-	result, err := s.client.GraphQL().Get().
-		WithClassName(DocumentClassName).
-		WithFields(fields...).
-		WithWhere(whereFilter).
-		Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("checking for existing document: %w", err)
-	}
-
-	if data, ok := result.Data["Get"].(map[string]interface{}); ok {
-		if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
-			for _, doc := range docs {
-				if docMap, ok := doc.(map[string]interface{}); ok {
-					if existingContent, ok := docMap[contentProperty].(string); ok {
-						if existingContent == content {
-							if additional, ok := docMap["_additional"].(map[string]interface{}); ok {
-								if id, ok := additional["id"].(string); ok {
-									s.logger.Debug("Found existing document with same content", "id", id)
-									return id, nil
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return "", fmt.Errorf("marshaling metadata: %w", err)
-	}
-
-	properties := map[string]interface{}{
-		contentProperty:             content,
-		documentContentHashProperty: contentHash,
-		documentTypeProperty:        docType,
-		documentOriginalIDProperty:  originalID,
-		documentMetadataProperty:    string(metadataJSON),
-		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
-	}
-
-	batcher := s.client.Batch().ObjectsBatcher()
-	obj := &models.Object{
-		Class:      DocumentClassName,
-		Properties: properties,
-	}
-	batcher = batcher.WithObjects(obj)
-
-	batchResult, err := batcher.Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("creating document: %w", err)
-	}
-
-	if len(batchResult) == 0 {
-		return "", fmt.Errorf("no result returned from document creation")
-	}
-
-	if batchResult[0].Result.Errors != nil && len(batchResult[0].Result.Errors.Error) > 0 {
-		return "", fmt.Errorf("error creating document: %s", batchResult[0].Result.Errors.Error[0].Message)
-	}
-
-	id := string(batchResult[0].ID)
-	s.logger.Debug("Stored new document", "id", id)
-	return id, nil
-}
-
 // GetStoredDocument retrieves a document from the separate document table.
 func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error) {
 	result, err := s.client.Data().ObjectsGetter().
@@ -1345,31 +1276,6 @@ func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID stri
 	}
 
 	return doc, nil
-}
-
-// convertToFloat32 efficiently converts []float64 to []float32 using memory pooling.
-func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
-	if len(vector) == 0 {
-		return nil
-	}
-
-	pooledSlicePtr, ok := s.vectorPool.Get().(*[]float32)
-	if !ok {
-		s.logger.Error("Failed to get vector pool")
-		return nil
-	}
-
-	*pooledSlicePtr = (*pooledSlicePtr)[:0]
-
-	for _, val := range vector {
-		*pooledSlicePtr = append(*pooledSlicePtr, float32(val))
-	}
-
-	result := make([]float32, len(*pooledSlicePtr))
-	copy(result, *pooledSlicePtr)
-
-	s.vectorPool.Put(pooledSlicePtr)
-	return result
 }
 
 // addMemoryFactFields adds the new structured fact fields to the existing schema.
@@ -1603,4 +1509,76 @@ func (s *WeaviateStorage) buildBooleanExpressionFilter(expr *memory.BooleanExpre
 	}
 
 	return nil, fmt.Errorf("boolean expression must be either a leaf node (with tags) or a branch node (with left/right operands)")
+}
+
+// deterministicID generates a stable UUID5 from originalID for idempotent upserts.
+func deterministicID(originalID string) string {
+	// Use UUID v5 with a namespace to generate deterministic UUIDs
+	namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8") // DNS namespace UUID
+	return uuid.NewSHA1(namespace, []byte(originalID)).String()
+}
+
+// sha256hex returns the SHA256 hash of content as hex string.
+func sha256hex(content string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(content))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
+func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Document) (string, error) {
+	if doc.ID() == "" || len(doc.ID()) > 255 {
+		return "", fmt.Errorf("invalid document ID")
+	}
+	if doc.Content() == "" {
+		return "", fmt.Errorf("content must be non-empty")
+	}
+
+	// Determine document type based on concrete type
+	var docType string
+	switch doc.(type) {
+	case *memory.ConversationDocument:
+		docType = "conversation"
+	case *memory.TextDocument:
+		docType = "text"
+	default:
+		docType = "unknown"
+	}
+
+	id := deterministicID(doc.ID())
+
+	// Marshal metadata
+	metadataJSON, err := json.Marshal(doc.Metadata())
+	if err != nil {
+		return "", fmt.Errorf("marshaling document metadata: %w", err)
+	}
+
+	// Build properties - omit createdAt to preserve original timestamps on updates
+	props := map[string]any{
+		contentProperty:             doc.Content(),
+		documentContentHashProperty: sha256hex(doc.Content()),
+		documentTypeProperty:        docType,
+		documentOriginalIDProperty:  doc.ID(),
+		documentMetadataProperty:    string(metadataJSON),
+	}
+
+	obj := &models.Object{
+		Class:      DocumentClassName,
+		ID:         strfmt.UUID(id),
+		Properties: props,
+	}
+
+	// One call, acts as upsert
+	res, err := s.client.Batch().
+		ObjectsBatcher().
+		WithObjects(obj).
+		Do(ctx)
+	if err != nil {
+		return "", fmt.Errorf("batch upsert failed: %w", err)
+	}
+	if len(res) == 0 || (res[0].Result != nil && res[0].Result.Errors != nil) {
+		return "", fmt.Errorf("upsert error: %+v", res)
+	}
+
+	return id, nil
 }
