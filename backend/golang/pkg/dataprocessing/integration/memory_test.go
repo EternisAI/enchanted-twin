@@ -230,7 +230,16 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
 
-	storageInterface, err := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, config.EmbeddingsModel)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, config.EmbeddingsModel)
+	if err != nil {
+		t.Fatalf("Failed to create embedding wrapper: %v", err)
+	}
+
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            sharedWeaviateClient,
+		Logger:            sharedLogger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
 	if err != nil {
 		t.Fatalf("Failed to create storage interface: %v", err)
 	}

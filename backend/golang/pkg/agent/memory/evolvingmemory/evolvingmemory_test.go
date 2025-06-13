@@ -161,7 +161,14 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		mockStorage, err := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+		require.NoError(t, err)
+
+		mockStorage, err := storage.New(storage.NewStorageInput{
+			Client:            mockClient,
+			Logger:            logger,
+			EmbeddingsWrapper: embeddingsWrapper,
+		})
 		require.NoError(t, err)
 
 		storageImpl, err := New(Dependencies{
@@ -229,7 +236,14 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		mockStorage, err := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+		require.NoError(t, err)
+
+		mockStorage, err := storage.New(storage.NewStorageInput{
+			Client:            mockClient,
+			Logger:            logger,
+			EmbeddingsWrapper: embeddingsWrapper,
+		})
 		require.NoError(t, err)
 
 		storageImpl, err := New(Dependencies{
@@ -295,7 +309,14 @@ func TestStore_BackwardCompatibility(t *testing.T) {
 		completionsService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
 		embeddingsService := ai.NewOpenAIService(logger, embeddingsKey, embeddingsURL)
 
-		mockStorage, err := storage.New(mockClient, logger, embeddingsService, embeddingsModel)
+		embeddingsWrapper, err := storage.NewEmbeddingWrapper(embeddingsService, embeddingsModel)
+		require.NoError(t, err)
+
+		mockStorage, err := storage.New(storage.NewStorageInput{
+			Client:            mockClient,
+			Logger:            logger,
+			EmbeddingsWrapper: embeddingsWrapper,
+		})
 		require.NoError(t, err)
 
 		storageImpl, err := New(Dependencies{

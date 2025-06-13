@@ -225,8 +225,17 @@ func main() {
 	logger.Info("Creating evolving memory instance")
 	memoryCreateStart := time.Now()
 
-	// Create storage interface first
-	storageInterface, err := storage.New(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel)
+	// Create embedding wrapper and storage interface
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, envs.EmbeddingsModel)
+	if err != nil {
+		logger.Fatal("Failed to create embedding wrapper", "error", err)
+	}
+
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
 	if err != nil {
 		logger.Fatal("Failed to create storage interface", "error", err)
 	}

@@ -222,7 +222,16 @@ func main() {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	}
 
-	weaviateStorage, err := storage.New(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, envs.EmbeddingsModel)
+	if err != nil {
+		logger.Fatal("Failed to create embedding wrapper", "error", err)
+	}
+
+	weaviateStorage, err := storage.New(storage.NewStorageInput{
+		Client:            weaviateClient,
+		Logger:            logger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
 	if err != nil {
 		logger.Fatal("Failed to create weaviate storage", "error", err)
 	}
