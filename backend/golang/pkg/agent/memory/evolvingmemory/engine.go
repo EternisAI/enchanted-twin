@@ -59,7 +59,7 @@ func convertEmbedding(embedding []float64) []float32 {
 }
 
 // ProcessFact processes a single fact through the complete memory pipeline.
-func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, source memory.Document) (FactResult, error) {
+func (e *MemoryEngine) ProcessFact(ctx context.Context, fact *memory.MemoryFact, source memory.Document) (FactResult, error) {
 	// Generate content for search and decision making
 	content := fact.GenerateContent()
 
@@ -82,7 +82,7 @@ func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, sou
 }
 
 // ExecuteDecision executes a memory decision (UPDATE, DELETE, ADD, NONE).
-func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (FactResult, error) {
+func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact *memory.MemoryFact, source memory.Document, decision MemoryDecision) (FactResult, error) {
 	// Execute based on action
 	switch decision.Action {
 	case UPDATE:
@@ -163,7 +163,7 @@ func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newCon
 }
 
 // CreateMemoryObject creates a memory object for storage with separate document storage.
-func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
+func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact *memory.MemoryFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
 	// Determine document type
 	var docType string
 	switch source.(type) {
