@@ -141,41 +141,65 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.Memor
 		}
 	}
 
-	// Parse metadata
+	// Extract structured fact fields
+	category, _ := props[factCategoryProperty].(string)
+	attribute, _ := props[factAttributeProperty].(string)
+	value, _ := props[factValueProperty].(string)
+	sensitivity, _ := props[factSensitivityProperty].(string)
+
+	var importance int
+	if imp, ok := props[factImportanceProperty].(float64); ok {
+		importance = int(imp)
+	}
+
+	var temporalContext *string
+	if tc, ok := props[factTemporalContextProperty].(string); ok && tc != "" {
+		temporalContext = &tc
+	}
+
+	// Extract document references
+	var documentReferences []string
+	if docRefsInterface, ok := props[documentReferencesProperty].([]interface{}); ok {
+		for _, docRefInterface := range docRefsInterface {
+			if docRefStr, ok := docRefInterface.(string); ok {
+				documentReferences = append(documentReferences, docRefStr)
+			}
+		}
+	}
+
+	// Extract tags
+	var tags []string
+	if tagsInterface, ok := props[tagsProperty].([]interface{}); ok {
+		for _, tagInterface := range tagsInterface {
+			if tagStr, ok := tagInterface.(string); ok {
+				tags = append(tags, tagStr)
+			}
+		}
+	}
+
+	// Parse legacy metadata if present
 	metadata := make(map[string]string)
-	if metaStr, ok := props[metadataProperty].(string); ok {
+	if metaStr, ok := props[metadataProperty].(string); ok && metaStr != "" && metaStr != "{}" {
 		if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
 			s.logger.Warnf("Failed to unmarshal metadata for object %s: %v", id, err)
 		}
 	}
 
-	// Extract structured fact fields and add to metadata
-	if factCategory, ok := props[factCategoryProperty].(string); ok && factCategory != "" {
-		metadata["factCategory"] = factCategory
-	}
-	if factAttribute, ok := props[factAttributeProperty].(string); ok && factAttribute != "" {
-		metadata["factAttribute"] = factAttribute
-	}
-	if factValue, ok := props[factValueProperty].(string); ok && factValue != "" {
-		metadata["factValue"] = factValue
-	}
-	if factTemporalContext, ok := props[factTemporalContextProperty].(string); ok && factTemporalContext != "" {
-		metadata["factTemporalContext"] = factTemporalContext
-	}
-	if factSensitivity, ok := props[factSensitivityProperty].(string); ok && factSensitivity != "" {
-		metadata["factSensitivity"] = factSensitivity
-	}
-	if factImportance, ok := props[factImportanceProperty].(float64); ok {
-		metadata["factImportance"] = fmt.Sprintf("%d", int(factImportance))
-	}
-
 	return &memory.MemoryFact{
-		ID:        string(obj.ID),
-		Content:   content,
-		Subject:   subject,
-		Timestamp: timestamp,
-		Source:    source,
-		Metadata:  metadata,
+		ID:                 string(obj.ID),
+		Content:            content,
+		Timestamp:          timestamp,
+		Category:           category,
+		Subject:            subject,
+		Attribute:          attribute,
+		Value:              value,
+		TemporalContext:    temporalContext,
+		Sensitivity:        sensitivity,
+		Importance:         importance,
+		Source:             source,
+		DocumentReferences: documentReferences,
+		Tags:               tags,
+		Metadata:           metadata,
 	}, nil
 }
 
@@ -202,61 +226,55 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, fact *memory.Me
 
 	// Step 3: Update only the fields that should change
 	properties[contentProperty] = fact.Content
+	properties[timestampProperty] = fact.Timestamp.Format(time.RFC3339)
+
+	// Update structured fact fields
+	if fact.Category != "" {
+		properties[factCategoryProperty] = fact.Category
+	}
+	if fact.Subject != "" {
+		properties[factSubjectProperty] = fact.Subject
+	}
+	if fact.Attribute != "" {
+		properties[factAttributeProperty] = fact.Attribute
+	}
+	if fact.Value != "" {
+		properties[factValueProperty] = fact.Value
+	}
+	if fact.Sensitivity != "" {
+		properties[factSensitivityProperty] = fact.Sensitivity
+	}
+	if fact.Importance > 0 {
+		properties[factImportanceProperty] = fact.Importance
+	}
+	if fact.TemporalContext != nil {
+		properties[factTemporalContextProperty] = *fact.TemporalContext
+	}
 
 	// Update source if provided
 	if fact.Source != "" {
 		properties[sourceProperty] = fact.Source
 	}
 
-	// Update subject if provided
-	if fact.Subject != "" {
-		properties[factSubjectProperty] = fact.Subject
+	// Update document references
+	if len(fact.DocumentReferences) > 0 {
+		properties[documentReferencesProperty] = fact.DocumentReferences
 	}
 
-	// Update timestamp
-	properties[timestampProperty] = fact.Timestamp.Format(time.RFC3339)
+	// Update tags
+	if len(fact.Tags) > 0 {
+		properties[tagsProperty] = fact.Tags
+	}
 
-	// Extract structured fact fields from metadata and update as direct fields
+	// Store metadata as JSON if present
 	if len(fact.Metadata) > 0 {
-		// Update structured fact fields if present in metadata
-		if val, ok := fact.Metadata["factCategory"]; ok {
-			properties[factCategoryProperty] = val
+		metadataJSON, err := json.Marshal(fact.Metadata)
+		if err != nil {
+			return fmt.Errorf("marshaling metadata: %w", err)
 		}
-		if val, ok := fact.Metadata["factAttribute"]; ok {
-			properties[factAttributeProperty] = val
-		}
-		if val, ok := fact.Metadata["factValue"]; ok {
-			properties[factValueProperty] = val
-		}
-		if val, ok := fact.Metadata["factTemporalContext"]; ok {
-			properties[factTemporalContextProperty] = val
-		}
-		if val, ok := fact.Metadata["factSensitivity"]; ok {
-			properties[factSensitivityProperty] = val
-		}
-		if val, ok := fact.Metadata["factImportance"]; ok {
-			// Convert string to int
-			if importance, err := fmt.Sscanf(val, "%d", new(int)); err == nil && importance == 1 {
-				properties[factImportanceProperty] = importance
-			}
-		}
-
-		// Store remaining metadata as JSON
-		// First remove structured fact fields from metadata to avoid duplication
-		cleanedMetadata := make(map[string]string)
-		for k, v := range fact.Metadata {
-			if !strings.HasPrefix(k, "fact") {
-				cleanedMetadata[k] = v
-			}
-		}
-
-		if len(cleanedMetadata) > 0 {
-			metadataJSON, err := json.Marshal(cleanedMetadata)
-			if err != nil {
-				return fmt.Errorf("marshaling metadata: %w", err)
-			}
-			properties[metadataProperty] = string(metadataJSON)
-		}
+		properties[metadataProperty] = string(metadataJSON)
+	} else {
+		properties[metadataProperty] = "{}"
 	}
 
 	// Step 4: Save with all fields preserved
@@ -411,7 +429,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 			if needsUpdate {
 				s.logger.Info("Schema needs update to add new structured fact fields")
-				return s.addStructuredFactFields(ctx)
+				return s.addMemoryFactFields(ctx)
 			}
 
 			s.logger.Info("Schema validation successful")
@@ -937,9 +955,24 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 
 	// Extract basic fields
 	content, _ := obj[contentProperty].(string)
-	metadataJSON, _ := obj[metadataProperty].(string)
 	source, _ := obj[sourceProperty].(string)
+
+	// Extract structured fact fields
+	category, _ := obj[factCategoryProperty].(string)
 	subject, _ := obj[factSubjectProperty].(string)
+	attribute, _ := obj[factAttributeProperty].(string)
+	value, _ := obj[factValueProperty].(string)
+	sensitivity, _ := obj[factSensitivityProperty].(string)
+
+	var importance int
+	if imp, ok := obj[factImportanceProperty].(float64); ok {
+		importance = int(imp)
+	}
+
+	var temporalContext *string
+	if tc, ok := obj[factTemporalContextProperty].(string); ok && tc != "" {
+		temporalContext = &tc
+	}
 
 	// Parse timestamp
 	var timestamp time.Time
@@ -955,43 +988,49 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 	additional, _ := obj["_additional"].(map[string]interface{})
 	id, _ := additional["id"].(string)
 
-	// Build metadata map
+	// Extract document references
+	var documentReferences []string
+	if docRefsInterface, ok := obj[documentReferencesProperty].([]interface{}); ok {
+		for _, docRefInterface := range docRefsInterface {
+			if docRefStr, ok := docRefInterface.(string); ok {
+				documentReferences = append(documentReferences, docRefStr)
+			}
+		}
+	}
+
+	// Extract tags
+	var tags []string
+	if tagsInterface, ok := obj[tagsProperty].([]interface{}); ok {
+		for _, tagInterface := range tagsInterface {
+			if tagStr, ok := tagInterface.(string); ok {
+				tags = append(tags, tagStr)
+			}
+		}
+	}
+
+	// Parse legacy metadata if present
 	metaMap := make(map[string]string)
-	if metadataJSON != "" {
+	if metadataJSON, ok := obj[metadataProperty].(string); ok && metadataJSON != "" && metadataJSON != "{}" {
 		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
 			s.logger.Debug("Could not unmarshal metadataJson for retrieved doc, using empty map", "id", id, "error", err)
 		}
 	}
 
-	// Extract structured fact fields and add to metadata (except factSubject which is now top-level)
-	if factCategory, ok := obj[factCategoryProperty].(string); ok && factCategory != "" {
-		metaMap["factCategory"] = factCategory
-	}
-	if factAttribute, ok := obj[factAttributeProperty].(string); ok && factAttribute != "" {
-		metaMap["factAttribute"] = factAttribute
-	}
-	if factValue, ok := obj[factValueProperty].(string); ok && factValue != "" {
-		metaMap["factValue"] = factValue
-	}
-	if factTemporalContext, ok := obj[factTemporalContextProperty].(string); ok && factTemporalContext != "" {
-		metaMap["factTemporalContext"] = factTemporalContext
-	}
-	if factSensitivity, ok := obj[factSensitivityProperty].(string); ok && factSensitivity != "" {
-		metaMap["factSensitivity"] = factSensitivity
-	}
-	if factImportance, ok := obj[factImportanceProperty].(float64); ok {
-		metaMap["factImportance"] = fmt.Sprintf("%d", int(factImportance))
-	}
-
-	// Tags and documentReferences are direct fields now, not in metadata
-
 	return memory.MemoryFact{
-		ID:        id,
-		Content:   content,
-		Subject:   subject,
-		Timestamp: timestamp,
-		Source:    source,
-		Metadata:  metaMap,
+		ID:                 id,
+		Content:            content,
+		Timestamp:          timestamp,
+		Category:           category,
+		Subject:            subject,
+		Attribute:          attribute,
+		Value:              value,
+		TemporalContext:    temporalContext,
+		Sensitivity:        sensitivity,
+		Importance:         importance,
+		Source:             source,
+		DocumentReferences: documentReferences,
+		Tags:               tags,
+		Metadata:           metaMap,
 	}, nil
 }
 
@@ -1333,8 +1372,8 @@ func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
 	return result
 }
 
-// addStructuredFactFields adds the new structured fact fields to the existing schema.
-func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
+// addMemoryFactFields adds the new structured fact fields to the existing schema.
+func (s *WeaviateStorage) addMemoryFactFields(ctx context.Context) error {
 	// Get existing properties to check what needs to be added
 	existingProps, err := s.getExistingProperties(ctx)
 	if err != nil {
