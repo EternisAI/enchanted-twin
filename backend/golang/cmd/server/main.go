@@ -226,7 +226,10 @@ func main() {
 	memoryCreateStart := time.Now()
 
 	// Create storage interface first
-	storageInterface := storage.New(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel)
+	storageInterface, err := storage.New(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel)
+	if err != nil {
+		logger.Fatal("Failed to create storage interface", "error", err)
+	}
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             logger,

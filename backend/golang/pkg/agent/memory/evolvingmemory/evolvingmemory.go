@@ -186,7 +186,10 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	// Create the embedding wrapper
-	embeddingsWrapper := storage.NewEmbeddingWrapper(deps.EmbeddingsService, deps.EmbeddingsModel)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(deps.EmbeddingsService, deps.EmbeddingsModel)
+	if err != nil {
+		return nil, fmt.Errorf("creating embedding wrapper: %w", err)
+	}
 
 	// Create the memory engine with business logic
 	engine, err := NewMemoryEngine(deps.CompletionsService, embeddingsWrapper, deps.Storage, deps.CompletionsModel)

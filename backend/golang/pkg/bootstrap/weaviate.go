@@ -181,7 +181,10 @@ func InitSchema(client *weaviate.Client, logger *log.Logger, embeddingsService *
 	start := time.Now()
 
 	// Create storage instance and call EnsureSchemaExists
-	storageInstance := storage.New(client, logger, embeddingsService, embeddingsModel)
+	storageInstance, err := storage.New(client, logger, embeddingsService, embeddingsModel)
+	if err != nil {
+		return fmt.Errorf("creating storage instance: %w", err)
+	}
 	if err := storageInstance.EnsureSchemaExists(context.Background()); err != nil {
 		return err
 	}

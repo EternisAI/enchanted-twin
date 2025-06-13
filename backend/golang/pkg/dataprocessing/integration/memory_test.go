@@ -230,7 +230,10 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
 
-	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, config.EmbeddingsModel)
+	storageInterface, err := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService, config.EmbeddingsModel)
+	if err != nil {
+		t.Fatalf("Failed to create storage interface: %v", err)
+	}
 
 	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
