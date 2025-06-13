@@ -74,13 +74,18 @@ func (m *MockStorage) StoreDocument(ctx context.Context, content, docType, origi
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockStorage) UpdateOrCreateDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
+	args := m.Called(ctx, content, docType, originalID, metadata)
+	return args.String(0), args.Error(1)
+}
+
 func (m *MockStorage) GetStoredDocument(ctx context.Context, documentID string) (*storage.StoredDocument, error) {
 	args := m.Called(ctx, documentID)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	storedDoc, _ := args.Get(0).(*storage.StoredDocument)
-	return storedDoc, args.Error(1)
+	doc, _ := args.Get(0).(*storage.StoredDocument)
+	return doc, args.Error(1)
 }
 
 func (m *MockStorage) GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*storage.StoredDocument, error) {
