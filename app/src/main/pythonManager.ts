@@ -235,7 +235,7 @@ def get_chat_history(chat_id: str):
     if resp.status_code == 200:
         body = resp.json()
         history = body["data"]["getChat"]["messages"]  
-        history = [item for item in history if item["role"] != "system"]
+        history = [item for item in history if item["role"].lower() != "system"]
         return history
     
     return []
