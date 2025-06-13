@@ -614,7 +614,7 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	}
 
 	doc := memory.ConversationDocument{
-		FieldID:      uuid.New().String(),
+		FieldID:      chatID,
 		FieldSource:  "chat",
 		People:       people,
 		User:         primaryUser,
