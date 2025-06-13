@@ -521,7 +521,9 @@ You need to ask exactly 3 questions in a friendly and conversational manner:
 2. What is your favorite color?
 3. What is your favorite animal?
 
-After the user has answered all three questions, you should call the finalize_onboarding tool to complete the onboarding process.
+After the user has answered all three questions, you should call the finalize_onboarding tool with:
+- name: the user's name (required)
+- context: a summary of their other answers (e.g., "favorite color: blue, favorite animal: cat")
 
 Be warm, welcoming, and conversational. Ask one question at a time and wait for the user's response before moving to the next question.`
 	} else {
