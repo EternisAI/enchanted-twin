@@ -33,6 +33,7 @@ var extractFactsTool = openai.ChatCompletionToolParam{
 									"context_env",
 									"affective_marker",
 									"event",
+									"conversation_context",
 								},
 								"description": "Category of the fact",
 							},

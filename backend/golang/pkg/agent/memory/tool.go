@@ -82,13 +82,22 @@ func (t *MemorySearchTool) Execute(ctx context.Context, input map[string]any) (t
 
 	resultText := ""
 	for i, fact := range result.Facts {
+		// Extract document references from metadata if present
+		docRefs := ""
+
+		if fact.Metadata != nil && fact.Metadata["documentReferences"] != "" {
+			docRefs = fmt.Sprintf(", DocRefs: %s", fact.Metadata["documentReferences"])
+		}
+
 		resultText += fmt.Sprintf(
-			"Memory %d: %s - %s (Source: %s, Time: %s)\n",
+			"Memory %d [ID: %s]: %s - %s (Source: %s, Time: %s%s)\n",
 			i+1,
+			fact.ID,
 			fact.Subject,
 			fact.Content,
 			fact.Source,
 			fact.Timestamp.Format("2006-01-02 15:04:05"),
+			docRefs,
 		)
 	}
 
