@@ -1,6 +1,4 @@
-import { useEffect } from 'react'
-
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 interface InstallationStatus {
   dependency: string
@@ -15,6 +13,7 @@ export default function useDependencyStatus() {
     progress: 0,
     status: 'Not started'
   })
+  const [isLiveKitSessionReady, setIsLiveKitSessionReady] = useState(false)
 
   const fetchCurrentState = async () => {
     try {
@@ -22,6 +21,9 @@ export default function useDependencyStatus() {
       if (currentState) {
         setInstallationStatus(currentState)
       }
+
+      const sessionReady = await window.api.livekit.isSessionReady()
+      setIsLiveKitSessionReady(sessionReady)
     } catch (error) {
       console.error('Failed to fetch current state:', error)
     }
@@ -35,15 +37,20 @@ export default function useDependencyStatus() {
       setInstallationStatus(data)
     })
 
+    const cleanupSessionState = window.api.livekit.onSessionStateChange((data) => {
+      setIsLiveKitSessionReady(data.sessionReady)
+    })
+
     window.api.launch.notifyReady()
 
     return () => {
       removeListener()
+      cleanupSessionState()
     }
   }, [])
 
   const isVoiceReady =
-    installationStatus.status?.toLowerCase() === 'completed' || installationStatus.progress === 100
+    installationStatus.status?.toLowerCase() === 'ready' || installationStatus.progress === 100
 
-  return { installationStatus, isVoiceReady }
+  return { installationStatus, isVoiceReady, isLiveKitSessionReady }
 }
