@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/go-openapi/strfmt"
+	"github.com/google/uuid"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 	weaviateGraphql "github.com/weaviate/weaviate-go-client/v5/weaviate/graphql"
@@ -77,7 +79,7 @@ type Interface interface {
 	GetDocumentReferences(ctx context.Context, memoryID string) ([]*DocumentReference, error)
 
 	// Document storage operations
-	StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error)
+	UpsertDocument(ctx context.Context, doc memory.Document) (string, error)
 	GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error)
 	GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*StoredDocument, error)
 }
@@ -1160,91 +1162,6 @@ func (s *WeaviateStorage) GetDocumentReferences(ctx context.Context, memoryID st
 	return refs, nil
 }
 
-// StoreDocument stores a document in the separate document storage system.
-// It returns the document ID if successful.
-func (s *WeaviateStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
-	hasher := sha256.New()
-	hasher.Write([]byte(content))
-	contentHash := hex.EncodeToString(hasher.Sum(nil))
-
-	whereFilter := filters.Where().
-		WithPath([]string{documentContentHashProperty}).
-		WithOperator(filters.Equal).
-		WithValueText(contentHash)
-
-	fields := []weaviateGraphql.Field{
-		{Name: contentProperty},
-		{Name: documentContentHashProperty},
-		{Name: "_additional", Fields: []weaviateGraphql.Field{{Name: "id"}}},
-	}
-
-	result, err := s.client.GraphQL().Get().
-		WithClassName(DocumentClassName).
-		WithFields(fields...).
-		WithWhere(whereFilter).
-		Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("checking for existing document: %w", err)
-	}
-
-	if data, ok := result.Data["Get"].(map[string]interface{}); ok {
-		if docs, ok := data[DocumentClassName].([]interface{}); ok && len(docs) > 0 {
-			for _, doc := range docs {
-				if docMap, ok := doc.(map[string]interface{}); ok {
-					if existingContent, ok := docMap[contentProperty].(string); ok {
-						if existingContent == content {
-							if additional, ok := docMap["_additional"].(map[string]interface{}); ok {
-								if id, ok := additional["id"].(string); ok {
-									s.logger.Debug("Found existing document with same content", "id", id)
-									return id, nil
-								}
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-
-	metadataJSON, err := json.Marshal(metadata)
-	if err != nil {
-		return "", fmt.Errorf("marshaling metadata: %w", err)
-	}
-
-	properties := map[string]interface{}{
-		contentProperty:             content,
-		documentContentHashProperty: contentHash,
-		documentTypeProperty:        docType,
-		documentOriginalIDProperty:  originalID,
-		documentMetadataProperty:    string(metadataJSON),
-		documentCreatedAtProperty:   time.Now().Format(time.RFC3339),
-	}
-
-	batcher := s.client.Batch().ObjectsBatcher()
-	obj := &models.Object{
-		Class:      DocumentClassName,
-		Properties: properties,
-	}
-	batcher = batcher.WithObjects(obj)
-
-	batchResult, err := batcher.Do(ctx)
-	if err != nil {
-		return "", fmt.Errorf("creating document: %w", err)
-	}
-
-	if len(batchResult) == 0 {
-		return "", fmt.Errorf("no result returned from document creation")
-	}
-
-	if batchResult[0].Result.Errors != nil && len(batchResult[0].Result.Errors.Error) > 0 {
-		return "", fmt.Errorf("error creating document: %s", batchResult[0].Result.Errors.Error[0].Message)
-	}
-
-	id := string(batchResult[0].ID)
-	s.logger.Debug("Stored new document", "id", id)
-	return id, nil
-}
-
 // GetStoredDocument retrieves a document from the separate document table.
 func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID string) (*StoredDocument, error) {
 	result, err := s.client.Data().ObjectsGetter().
@@ -1528,4 +1445,76 @@ func (s *WeaviateStorage) buildBooleanExpressionFilter(expr *memory.BooleanExpre
 	}
 
 	return nil, fmt.Errorf("boolean expression must be either a leaf node (with tags) or a branch node (with left/right operands)")
+}
+
+// deterministicID generates a stable UUID5 from originalID for idempotent upserts.
+func deterministicID(originalID string) string {
+	// Use UUID v5 with a namespace to generate deterministic UUIDs
+	namespace := uuid.MustParse("6ba7b810-9dad-11d1-80b4-00c04fd430c8") // DNS namespace UUID
+	return uuid.NewSHA1(namespace, []byte(originalID)).String()
+}
+
+// sha256hex returns the SHA256 hash of content as hex string.
+func sha256hex(content string) string {
+	hasher := sha256.New()
+	hasher.Write([]byte(content))
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
+// UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
+func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Document) (string, error) {
+	if doc.ID() == "" || len(doc.ID()) > 255 {
+		return "", fmt.Errorf("invalid document ID")
+	}
+	if doc.Content() == "" {
+		return "", fmt.Errorf("content must be non-empty")
+	}
+
+	// Determine document type based on concrete type
+	var docType string
+	switch doc.(type) {
+	case *memory.ConversationDocument:
+		docType = "conversation"
+	case *memory.TextDocument:
+		docType = "text"
+	default:
+		docType = "unknown"
+	}
+
+	id := deterministicID(doc.ID())
+
+	// Marshal metadata
+	metadataJSON, err := json.Marshal(doc.Metadata())
+	if err != nil {
+		return "", fmt.Errorf("marshaling document metadata: %w", err)
+	}
+
+	// Build properties - omit createdAt to preserve original timestamps on updates
+	props := map[string]any{
+		contentProperty:             doc.Content(),
+		documentContentHashProperty: sha256hex(doc.Content()),
+		documentTypeProperty:        docType,
+		documentOriginalIDProperty:  doc.ID(),
+		documentMetadataProperty:    string(metadataJSON),
+	}
+
+	obj := &models.Object{
+		Class:      DocumentClassName,
+		ID:         strfmt.UUID(id),
+		Properties: props,
+	}
+
+	// One call, acts as upsert
+	res, err := s.client.Batch().
+		ObjectsBatcher().
+		WithObjects(obj).
+		Do(ctx)
+	if err != nil {
+		return "", fmt.Errorf("batch upsert failed: %w", err)
+	}
+	if len(res) == 0 || (res[0].Result != nil && res[0].Result.Errors != nil) {
+		return "", fmt.Errorf("upsert error: %+v", res)
+	}
+
+	return id, nil
 }
