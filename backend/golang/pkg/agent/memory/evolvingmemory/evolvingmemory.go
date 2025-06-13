@@ -164,11 +164,10 @@ type Dependencies struct {
 // It orchestrates memory operations using a clean 3-layer architecture:
 // StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
-	logger          *log.Logger
-	orchestrator    *MemoryOrchestrator
-	storage         storage.Interface
-	engine          *MemoryEngine
-	embeddingsModel string
+	logger       *log.Logger
+	orchestrator *MemoryOrchestrator
+	storage      storage.Interface
+	engine       *MemoryEngine
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -199,11 +198,10 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	return &StorageImpl{
-		logger:          deps.Logger,
-		orchestrator:    orchestrator,
-		storage:         deps.Storage,
-		engine:          engine,
-		embeddingsModel: deps.EmbeddingsModel,
+		logger:       deps.Logger,
+		orchestrator: orchestrator,
+		storage:      deps.Storage,
+		engine:       engine,
 	}, nil
 }
 
@@ -264,7 +262,7 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
 func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
-	return s.storage.Query(ctx, queryText, filter, s.embeddingsModel)
+	return s.storage.Query(ctx, queryText, filter)
 }
 
 // GetDocumentReferences retrieves all document references for a memory.

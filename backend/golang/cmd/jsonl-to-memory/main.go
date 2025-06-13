@@ -222,7 +222,7 @@ func main() {
 		aiEmbeddingsService = ai.NewOpenAIService(logger, envs.EmbeddingsAPIKey, envs.EmbeddingsAPIURL)
 	}
 
-	weaviateStorage := storage.New(weaviateClient, logger, aiEmbeddingsService)
+	weaviateStorage := storage.New(weaviateClient, logger, aiEmbeddingsService, envs.EmbeddingsModel)
 
 	memoryDeps := evolvingmemory.Dependencies{
 		Logger:             logger,
