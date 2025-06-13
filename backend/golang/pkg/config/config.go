@@ -61,7 +61,7 @@ func LoadConfig(printEnv bool) (*Config, error) {
 		EmbeddingsAPIURL:   getEnv("EMBEDDINGS_API_URL", "https://api.openai.com/v1", printEnv),
 		EmbeddingsModel:    getEnv("EMBEDDINGS_MODEL", "text-embedding-3-small", printEnv),
 		EmbeddingsAPIKey:   getEnv("EMBEDDINGS_API_KEY", "", printEnv),
-		DBPath:             getEnv("DB_PATH", "./store.db", printEnv),
+		DBPath:             getEnv("DB_PATH", "./output/sqlite/store.db", printEnv),
 		AppDataPath:        getEnv("APP_DATA_PATH", "./output", printEnv),
 		TelegramToken:      getEnv("TELEGRAM_TOKEN", "", printEnv),
 		TelegramChatServer: getEnvOrPanic("TELEGRAM_CHAT_SERVER", printEnv),
