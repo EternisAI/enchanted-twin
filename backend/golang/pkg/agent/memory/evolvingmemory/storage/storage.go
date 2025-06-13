@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/log"
@@ -88,24 +87,16 @@ type Interface interface {
 type WeaviateStorage struct {
 	client            *weaviate.Client
 	logger            *log.Logger
-	embeddingsService *ai.Service
-	embeddingsModel   string
-	vectorPool        sync.Pool
+	embeddingsWrapper *EmbeddingWrapper
 }
 
 // New creates a new WeaviateStorage instance.
 func New(client *weaviate.Client, logger *log.Logger, embeddingsService *ai.Service, embeddingsModel string) Interface {
+	embeddingsWrapper := NewEmbeddingWrapper(embeddingsService, embeddingsModel)
 	return &WeaviateStorage{
 		client:            client,
 		logger:            logger,
-		embeddingsService: embeddingsService,
-		embeddingsModel:   embeddingsModel,
-		vectorPool: sync.Pool{
-			New: func() interface{} {
-				slice := make([]float32, 0, 3072)
-				return &slice
-			},
-		},
+		embeddingsWrapper: embeddingsWrapper,
 	}
 }
 
@@ -581,11 +572,10 @@ func (s *WeaviateStorage) Query(ctx context.Context, queryText string, filter *m
 	s.logger.Info("Query method called", "query_text", queryText, "filter", filter)
 
 	// Step 1: Generate query vector
-	vector, err := s.embeddingsService.Embedding(ctx, queryText, s.embeddingsModel)
+	queryVector, err := s.embeddingsWrapper.Embedding(ctx, queryText)
 	if err != nil {
 		return memory.QueryResult{}, fmt.Errorf("failed to create embedding: %w", err)
 	}
-	queryVector := s.convertToFloat32(vector)
 
 	// Step 2: Build GraphQL query
 	queryBuilder, err := s.buildQueryBuilder(queryVector, filter)
@@ -1291,31 +1281,6 @@ func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID stri
 	}
 
 	return doc, nil
-}
-
-// convertToFloat32 efficiently converts []float64 to []float32 using memory pooling.
-func (s *WeaviateStorage) convertToFloat32(vector []float64) []float32 {
-	if len(vector) == 0 {
-		return nil
-	}
-
-	pooledSlicePtr, ok := s.vectorPool.Get().(*[]float32)
-	if !ok {
-		s.logger.Error("Failed to get vector pool")
-		return nil
-	}
-
-	*pooledSlicePtr = (*pooledSlicePtr)[:0]
-
-	for _, val := range vector {
-		*pooledSlicePtr = append(*pooledSlicePtr, float32(val))
-	}
-
-	result := make([]float32, len(*pooledSlicePtr))
-	copy(result, *pooledSlicePtr)
-
-	s.vectorPool.Put(pooledSlicePtr)
-	return result
 }
 
 // addStructuredFactFields adds the new structured fact fields to the existing schema.
