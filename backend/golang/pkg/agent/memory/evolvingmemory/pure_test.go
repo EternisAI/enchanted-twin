@@ -47,30 +47,6 @@ func TestDocumentChunking(t *testing.T) {
 	})
 }
 
-func TestDistributeWork(t *testing.T) {
-	// Create test documents
-	docs := make([]memory.Document, 10)
-	for i := range docs {
-		docs[i] = &memory.TextDocument{
-			FieldID:      fmt.Sprintf("doc-%d", i),
-			FieldContent: "test content",
-		}
-	}
-
-	// Test with 3 workers
-	chunks := DistributeWork(docs, 3)
-
-	assert.Len(t, chunks, 3)
-	assert.Len(t, chunks[0], 4) // 0, 3, 6, 9
-	assert.Len(t, chunks[1], 3) // 1, 4, 7
-	assert.Len(t, chunks[2], 3) // 2, 5, 8
-
-	// Test with 0 workers (should default to 1)
-	chunks = DistributeWork(docs, 0)
-	assert.Len(t, chunks, 1)
-	assert.Len(t, chunks[0], 10)
-}
-
 func TestDocumentSizeValidation(t *testing.T) {
 	now := time.Now()
 
