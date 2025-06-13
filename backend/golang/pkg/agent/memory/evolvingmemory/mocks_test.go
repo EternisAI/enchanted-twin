@@ -46,8 +46,8 @@ func (m *MockStorage) DeleteAll(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockStorage) Query(ctx context.Context, queryText string, filter *memory.Filter, embeddingsModel string) (memory.QueryResult, error) {
-	args := m.Called(ctx, queryText, filter, embeddingsModel)
+func (m *MockStorage) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
+	args := m.Called(ctx, queryText, filter)
 	if args.Get(0) == nil {
 		return memory.QueryResult{}, args.Error(1)
 	}
@@ -69,8 +69,8 @@ func (m *MockStorage) GetDocumentReferences(ctx context.Context, memoryID string
 	return docRefs, args.Error(1)
 }
 
-func (m *MockStorage) StoreDocument(ctx context.Context, content, docType, originalID string, metadata map[string]string) (string, error) {
-	args := m.Called(ctx, content, docType, originalID, metadata)
+func (m *MockStorage) UpsertDocument(ctx context.Context, doc memory.Document) (string, error) {
+	args := m.Called(ctx, doc)
 	return args.String(0), args.Error(1)
 }
 
@@ -79,8 +79,8 @@ func (m *MockStorage) GetStoredDocument(ctx context.Context, documentID string) 
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	storedDoc, _ := args.Get(0).(*storage.StoredDocument)
-	return storedDoc, args.Error(1)
+	doc, _ := args.Get(0).(*storage.StoredDocument)
+	return doc, args.Error(1)
 }
 
 func (m *MockStorage) GetStoredDocumentsBatch(ctx context.Context, documentIDs []string) ([]*storage.StoredDocument, error) {

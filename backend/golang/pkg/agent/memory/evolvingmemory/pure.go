@@ -16,21 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// DistributeWork splits documents evenly among workers.
-func DistributeWork(docs []memory.Document, workers int) [][]memory.Document {
-	if workers <= 0 {
-		workers = 1
-	}
-
-	chunks := make([][]memory.Document, workers)
-	for i, doc := range docs {
-		workerIdx := i % workers
-		chunks[workerIdx] = append(chunks[workerIdx], doc)
-	}
-
-	return chunks
-}
-
 // CreateMemoryObject builds the Weaviate object for ADD operations.
 func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document, decision MemoryDecision) *models.Object {
 	// Get tags from the source document
@@ -184,8 +169,8 @@ func ParseMemoryDecisionResponse(llmResponse openai.ChatCompletionMessage) (Memo
 
 // SearchSimilarMemories performs semantic search for similar memories.
 // This is pure business logic extracted from the adapter.
-func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filter, storage storage.Interface, embeddingsModel string) ([]ExistingMemory, error) {
-	result, err := storage.Query(ctx, fact, filter, embeddingsModel)
+func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filter, storage storage.Interface) ([]ExistingMemory, error) {
+	result, err := storage.Query(ctx, fact, filter)
 	if err != nil {
 		return nil, fmt.Errorf("querying similar memories: %w", err)
 	}

@@ -139,20 +139,18 @@ type Dependencies struct {
 	Logger             *log.Logger
 	Storage            storage.Interface
 	CompletionsService *ai.Service
-	EmbeddingsService  *ai.Service
 	CompletionsModel   string
-	EmbeddingsModel    string
+	EmbeddingsWrapper  *storage.EmbeddingWrapper
 }
 
 // StorageImpl is the main implementation of the MemoryStorage interface.
 // It orchestrates memory operations using a clean 3-layer architecture:
 // StorageImpl (public API) -> MemoryOrchestrator (coordination) -> MemoryEngine (business logic).
 type StorageImpl struct {
-	logger          *log.Logger
-	orchestrator    *MemoryOrchestrator
-	storage         storage.Interface
-	engine          *MemoryEngine
-	embeddingsModel string
+	logger       *log.Logger
+	orchestrator *MemoryOrchestrator
+	storage      storage.Interface
+	engine       *MemoryEngine
 }
 
 // New creates a new StorageImpl instance that can work with any storage backend.
@@ -166,12 +164,12 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	if deps.CompletionsService == nil {
 		return nil, fmt.Errorf("completions service cannot be nil")
 	}
-	if deps.EmbeddingsService == nil {
-		return nil, fmt.Errorf("embeddings service cannot be nil")
+	if deps.EmbeddingsWrapper == nil {
+		return nil, fmt.Errorf("embeddings wrapper cannot be nil")
 	}
 
 	// Create the memory engine with business logic
-	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsService, deps.Storage, deps.CompletionsModel, deps.EmbeddingsModel)
+	engine, err := NewMemoryEngine(deps.CompletionsService, deps.EmbeddingsWrapper, deps.Storage, deps.CompletionsModel)
 	if err != nil {
 		return nil, fmt.Errorf("creating memory engine: %w", err)
 	}
@@ -183,11 +181,10 @@ func New(deps Dependencies) (MemoryStorage, error) {
 	}
 
 	return &StorageImpl{
-		logger:          deps.Logger,
-		orchestrator:    orchestrator,
-		storage:         deps.Storage,
-		engine:          engine,
-		embeddingsModel: deps.EmbeddingsModel,
+		logger:       deps.Logger,
+		orchestrator: orchestrator,
+		storage:      deps.Storage,
+		engine:       engine,
 	}, nil
 }
 
@@ -248,7 +245,7 @@ func (s *StorageImpl) Store(ctx context.Context, documents []memory.Document, ca
 
 // Query implements the memory.Storage interface by delegating to the storage interface.
 func (s *StorageImpl) Query(ctx context.Context, queryText string, filter *memory.Filter) (memory.QueryResult, error) {
-	return s.storage.Query(ctx, queryText, filter, s.embeddingsModel)
+	return s.storage.Query(ctx, queryText, filter)
 }
 
 // GetDocumentReferences retrieves all document references for a memory.
