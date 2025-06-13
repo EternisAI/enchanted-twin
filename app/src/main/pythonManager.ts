@@ -126,6 +126,8 @@ import logging
 import os
 import sys
 import requests
+import aiohttp
+
 
 from livekit.agents import (
     Agent,
@@ -252,7 +254,7 @@ def get_chat_history(chat_id: str):
     return []
 
 
-def send_message(context, chat_id: str):
+async def send_message(context, chat_id: str):
 
     url = SEND_MESSAGE_URL
     is_onboarding = get_onboarding_state()
@@ -272,18 +274,14 @@ def send_message(context, chat_id: str):
     """
     
     variables = { "chatId": chat_id, "context": context, "isOnboarding": is_onboarding}
-    
-    resp = requests.post(url, json={"query": query, "variables": variables})
-    
-    if resp.status_code == 200:
-        body = resp.json()
 
-        if not body or not body["data"] or not body["data"]["processMessageHistory"]:
-            return None
-
-        return body["data"]["processMessageHistory"]["text"]
-    else:
-        return None
+    async with aiohttp.ClientSession() as session:
+        async with session.post(url, json={"query": query, "variables": variables}) as resp:
+            if resp.status == 200:
+                body = await resp.json()
+                print(body)
+                return body["data"]["processMessageHistory"]["text"]
+    return None
     
     
 class APIConnectOptions:
@@ -330,7 +328,7 @@ class LLMStream(llm.LLMStream):
             context = [item for item in context if (item["role"] != "system" and item["content"]!="")]
             context = [{'role': item['role'].upper(), 'text': item['content']} for item in context]
             context = self._chat_history + context
-            received_message = send_message(context, self._chat_id)
+            received_message = await send_message(context, self._chat_id)
 
             if received_message is not None:
               chunk = llm.ChatChunk(id="1",
