@@ -56,25 +56,9 @@ type Config struct {
 	StreamingProgress      bool
 }
 
-// Structured fact types for the new extraction system.
-type StructuredFact struct {
-	Category        string  `json:"category"`
-	Subject         string  `json:"subject"`
-	Attribute       string  `json:"attribute"`
-	Value           string  `json:"value"`
-	TemporalContext *string `json:"temporal_context,omitempty"`
-	Sensitivity     string  `json:"sensitivity"`
-	Importance      int     `json:"importance"`
-}
-
-type ExtractStructuredFactsToolArguments struct {
-	Facts []StructuredFact `json:"facts"`
-}
-
-// GenerateContent creates the searchable content string from structured fields.
-func (sf StructuredFact) GenerateContent() string {
-	// Simple combination for embeddings and search
-	return fmt.Sprintf("%s - %s", sf.Subject, sf.Value)
+// ExtractMemoryFactsToolArguments is used for the LLM fact extraction tool.
+type ExtractMemoryFactsToolArguments struct {
+	Facts []memory.MemoryFact `json:"facts"`
 }
 
 // Memory actions.
@@ -97,7 +81,7 @@ type MemoryDecision struct {
 
 // Processing result.
 type FactResult struct {
-	Fact     StructuredFact
+	Fact     *memory.MemoryFact
 	Source   memory.Document // Source document for the fact
 	Decision MemoryDecision
 	Object   *models.Object // Only for ADD
