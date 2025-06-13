@@ -11,6 +11,7 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
 // MemoryOrchestrator handles coordination logic for memory operations.
@@ -40,6 +41,58 @@ func NewMemoryOrchestrator(engine *MemoryEngine, storage storage.Interface, logg
 	}, nil
 }
 
+// DocumentExtractionJob wraps a document for the worker pool.
+type DocumentExtractionJob struct {
+	Document memory.Document
+	Service  *ai.Service
+	Model    string
+	Logger   *log.Logger
+}
+
+func (j DocumentExtractionJob) Process(ctx context.Context) ([]FactResult, error) {
+	facts, err := ExtractFactsFromDocument(ctx, j.Document, j.Service, j.Model, j.Logger)
+	if err != nil {
+		return []FactResult{{
+			Source: j.Document,
+			Error:  fmt.Errorf("fact extraction failed for document %s: %w", j.Document.ID(), err),
+		}}, nil // Return error as result, not as error
+	}
+
+	results := make([]FactResult, 0, len(facts))
+	for _, fact := range facts {
+		if fact.GenerateContent() != "" {
+			results = append(results, FactResult{
+				Fact:   fact,
+				Source: j.Document,
+			})
+		}
+	}
+
+	return results, nil
+}
+
+// FactProcessingJob wraps a fact for memory decision processing.
+type FactProcessingJob struct {
+	FactResult FactResult
+	Engine     *MemoryEngine
+	Logger     *log.Logger
+}
+
+func (j FactProcessingJob) Process(ctx context.Context) (FactResult, error) {
+	result, err := j.Engine.ProcessFact(ctx, j.FactResult.Fact, j.FactResult.Source)
+	if err != nil {
+		j.Logger.Errorf("Failed to process fact: %v", err)
+		j.FactResult.Error = err
+		return j.FactResult, nil
+	}
+
+	j.FactResult.Decision = result.Decision
+	j.FactResult.Object = result.Object
+	j.FactResult.Error = result.Error
+
+	return j.FactResult, nil
+}
+
 // ProcessDocuments implements the new parallel processing pipeline with streaming progress.
 func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []memory.Document, config Config) (<-chan Progress, <-chan error) {
 	progressCh := make(chan Progress, 100)
@@ -55,7 +108,7 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		// Chunk documents first
+		// Step 1: Chunk documents
 		var chunkedDocs []memory.Document
 		for _, doc := range documents {
 			chunks := doc.Chunk()
@@ -63,7 +116,6 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 		}
 
 		totalDocuments := len(chunkedDocs)
-
 		if totalDocuments == 0 {
 			progressCh <- Progress{
 				Processed: 0,
@@ -73,178 +125,77 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		// Create channels for the pipeline
-		// Use bounded buffer to avoid duplicating all documents in memory
-		documentQueue := make(chan memory.Document, 128) // Small buffer for smooth flow
-		factStream := make(chan FactResult, 1000)
-		resultStream := make(chan FactResult, 1000)
-		objectStream := make(chan []*models.Object, 100)
+		// Step 2: Create extraction jobs
+		extractJobs := make([]DocumentExtractionJob, len(chunkedDocs))
+		for i, doc := range chunkedDocs {
+			extractJobs[i] = DocumentExtractionJob{
+				Document: doc,
+				Service:  o.engine.CompletionsService,
+				Model:    o.engine.CompletionsModel,
+				Logger:   o.logger,
+			}
+		}
 
-		// Start producer goroutine to feed documents
+		// Step 3: Run extraction in parallel
+		extractPool := NewWorkerPool[DocumentExtractionJob](config.Workers, o.logger)
+		extractionResults := extractPool.Process(ctx, extractJobs, config.FactExtractionTimeout)
+
+		// Step 4: Collect facts and create processing jobs
+		var processJobs []FactProcessingJob
+		for result := range extractionResults {
+			if result.Error != nil {
+				o.logger.Errorf("Extraction failed: %v", result.Error)
+				continue
+			}
+
+			for _, factResult := range result.Result {
+				processJobs = append(processJobs, FactProcessingJob{
+					FactResult: factResult,
+					Engine:     o.engine,
+					Logger:     o.logger,
+				})
+			}
+		}
+
+		// Step 5: Process facts in parallel
+		processPool := NewWorkerPool[FactProcessingJob](config.Workers, o.logger)
+		processingResults := processPool.Process(ctx, processJobs, config.MemoryDecisionTimeout)
+
+		// Step 6: Convert ProcessResult channel to FactResult channel
+		factResultCh := make(chan FactResult, 1000)
 		go func() {
-			defer close(documentQueue)
-			for _, doc := range chunkedDocs {
+			defer close(factResultCh)
+			for result := range processingResults {
+				if result.Error != nil {
+					o.logger.Errorf("Processing failed: %v", result.Error)
+					continue
+				}
 				select {
-				case documentQueue <- doc:
+				case factResultCh <- result.Result:
 				case <-ctx.Done():
 					return
 				}
 			}
 		}()
 
-		// Start extraction workers that pull from the shared queue
-		var extractWg sync.WaitGroup
-		for i := range config.Workers {
-			extractWg.Add(1)
-			go o.extractFactsWorkerDynamic(ctx, documentQueue, factStream, &extractWg, i, config)
-		}
-
-		var processWg sync.WaitGroup
-		for range config.Workers {
-			processWg.Add(1)
-			go o.processFactsWorker(ctx, factStream, resultStream, &processWg, config)
-		}
+		// Step 7: Aggregate and store results
+		objectStream := make(chan []*models.Object, 100)
 
 		var aggregateWg sync.WaitGroup
 		aggregateWg.Add(1)
-		go o.aggregateResults(ctx, resultStream, objectStream, &aggregateWg, config)
+		go o.aggregateResults(ctx, factResultCh, objectStream, &aggregateWg, config)
 
+		// Step 8: Store batches
 		var storeWg sync.WaitGroup
 		storeWg.Add(1)
 		go o.streamingStore(ctx, objectStream, progressCh, errorCh, &storeWg, config, totalDocuments)
 
-		extractWg.Wait()
-		close(factStream)
-
-		processWg.Wait()
-		close(resultStream)
-
 		aggregateWg.Wait()
 		close(objectStream)
-
 		storeWg.Wait()
 	}()
 
 	return progressCh, errorCh
-}
-
-// extractFactsWorkerDynamic processes documents from a shared queue (work-stealing pattern).
-func (o *MemoryOrchestrator) extractFactsWorkerDynamic(
-	ctx context.Context,
-	documentQueue <-chan memory.Document,
-	out chan<- FactResult,
-	wg *sync.WaitGroup,
-	workerID int,
-	config Config,
-) {
-	defer wg.Done()
-
-	processedCount := 0
-	failedCount := 0
-	startTime := time.Now()
-
-	for doc := range documentQueue {
-		docStartTime := time.Now()
-		o.logger.Debugf("Worker %d: Starting document %s", workerID, doc.ID())
-
-		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
-
-		facts, err := ExtractFactsFromDocument(extractCtx, doc, o.engine.CompletionsService, o.engine.CompletionsModel, o.logger)
-		cancel()
-
-		if err != nil {
-			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.ID(), err)
-			failedCount++
-
-			// Send error as a FactResult with error field
-			result := FactResult{
-				Source: doc,
-				Error:  fmt.Errorf("fact extraction failed for document %s: %w", doc.ID(), err),
-			}
-			select {
-			case out <- result:
-			case <-ctx.Done():
-				return
-			}
-			continue
-		}
-
-		processedCount++
-		processingTime := time.Since(docStartTime)
-		o.logger.Debugf("Worker %d: Completed document %s in %v (extracted %d facts)", workerID, doc.ID(), processingTime, len(facts))
-
-		for _, fact := range facts {
-			if fact.GenerateContent() == "" {
-				continue
-			}
-			// Create FactResult with the source document
-			result := FactResult{
-				Fact:   fact,
-				Source: doc,
-			}
-			select {
-			case out <- result:
-			case <-ctx.Done():
-				o.logger.Infof("Worker %d: Processed %d documents before context cancellation", workerID, processedCount)
-				return
-			}
-		}
-	}
-
-	totalTime := time.Since(startTime)
-	if processedCount > 0 || failedCount > 0 {
-		o.logger.Infof("Worker %d: Completed, processed %d documents, %d failed in %v (avg: %v/doc)",
-			workerID, processedCount, failedCount, totalTime, totalTime/time.Duration(processedCount+failedCount))
-	} else {
-		o.logger.Infof("Worker %d: Completed, processed 0 documents", workerID)
-	}
-}
-
-// processFactsWorker processes facts through memory decisions using the engine.
-func (o *MemoryOrchestrator) processFactsWorker(
-	ctx context.Context,
-	facts <-chan FactResult,
-	out chan<- FactResult,
-	wg *sync.WaitGroup,
-	config Config,
-) {
-	defer wg.Done()
-
-	for factResult := range facts {
-		// Process the fact and update the result
-		processedResult := o.processSingleFact(ctx, factResult, config)
-
-		select {
-		case out <- processedResult:
-		case <-ctx.Done():
-			return
-		}
-	}
-}
-
-// processSingleFact encapsulates the memory update logic using the engine.
-func (o *MemoryOrchestrator) processSingleFact(
-	ctx context.Context,
-	factResult FactResult,
-	config Config,
-) FactResult {
-	processCtx, processCancel := context.WithTimeout(ctx, config.MemoryDecisionTimeout)
-	defer processCancel()
-
-	// Pass both the fact and source to ProcessFact
-	result, err := o.engine.ProcessFact(processCtx, factResult.Fact, factResult.Source)
-	if err != nil {
-		o.logger.Errorf("Failed to process fact: %v", err)
-		factResult.Error = err
-		return factResult
-	}
-
-	// Update the existing factResult with the processing results
-	factResult.Decision = result.Decision
-	factResult.Object = result.Object
-	factResult.Error = result.Error
-
-	return factResult
 }
 
 // aggregateResults collects ADD operations for batch processing.
