@@ -16,21 +16,6 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// DistributeWork splits documents evenly among workers.
-func DistributeWork(docs []memory.Document, workers int) [][]memory.Document {
-	if workers <= 0 {
-		workers = 1
-	}
-
-	chunks := make([][]memory.Document, workers)
-	for i, doc := range docs {
-		workerIdx := i % workers
-		chunks[workerIdx] = append(chunks[workerIdx], doc)
-	}
-
-	return chunks
-}
-
 // CreateMemoryObject builds the Weaviate object for ADD operations.
 func CreateMemoryObject(fact StructuredFact, source memory.Document, decision MemoryDecision) *models.Object {
 	// Get tags from the source document
