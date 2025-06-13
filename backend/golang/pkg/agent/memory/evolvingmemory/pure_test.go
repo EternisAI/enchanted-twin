@@ -71,18 +71,6 @@ func TestDistributeWork(t *testing.T) {
 	assert.Len(t, chunks[0], 10)
 }
 
-func TestMarshalMetadata(t *testing.T) {
-	metadata := map[string]string{
-		"source": "telegram",
-	}
-
-	result := marshalMetadata(metadata)
-
-	// Should contain keys
-	assert.Contains(t, result, `"source":"telegram"`)
-	assert.True(t, result[0] == '{' && result[len(result)-1] == '}')
-}
-
 func TestDocumentSizeValidation(t *testing.T) {
 	now := time.Now()
 

@@ -143,53 +143,53 @@ With structured facts, you can now filter by **any combination** of fact propert
 ```go
 // ✅ By category - all implemented categories
 filter := &memory.Filter{
-    FactCategory: stringPtr("preference"),
+    FactCategory: helpers.Ptr("preference"),
 }
 result, err := storage.Query(ctx, "user preferences", filter)
 
 // ✅ By importance level - precise control
 filter := &memory.Filter{
-    FactImportance: intPtr(3), // importance = 3
+    FactImportance: helpers.Ptr(3), // importance = 3
 }
 result, err := storage.Query(ctx, "life-changing events", filter)
 
 // ✅ By sensitivity (GDPR-ready privacy controls)
 filter := &memory.Filter{
-    FactSensitivity: stringPtr("high"), // sensitivity = "high"
+    FactSensitivity: helpers.Ptr("high"), // sensitivity = "high"
 }
 result, err := storage.Query(ctx, "sensitive information", filter)
 
 // ✅ By subject - facts about specific people/entities
 filter := &memory.Filter{
-    FactSubject: stringPtr("alice"),
+    FactSubject: helpers.Ptr("alice"),
 }
 result, err := storage.Query(ctx, "facts about alice", filter)
 
 // ✅ By attribute - specific properties
 filter := &memory.Filter{
-    FactAttribute: stringPtr("health_metric"),
+    FactAttribute: helpers.Ptr("health_metric"),
 }
 result, err := storage.Query(ctx, "health measurements", filter)
 
 // ✅ By temporal context - time-based filtering
 filter := &memory.Filter{
-    FactTemporalContext: stringPtr("2025-01"),
+    FactTemporalContext: helpers.Ptr("2025-01"),
 }
 result, err := storage.Query(ctx, "january events", filter)
 
 // ✅ By fact value - partial text matching
 filter := &memory.Filter{
-    FactValue: stringPtr("coffee"),
+    FactValue: helpers.Ptr("coffee"),
 }
 result, err := storage.Query(ctx, "coffee-related preferences", filter)
 
 // ✅ Combined semantic + structured search - the power combo!
 filter := &memory.Filter{
-    Source:            stringPtr("conversations"),
-    FactCategory:      stringPtr("preference"),
-    FactImportanceMin: intPtr(2),
+    Source:            helpers.Ptr("conversations"),
+    FactCategory:      helpers.Ptr("preference"),
+    FactImportanceMin: helpers.Ptr(2),
     Distance:          0.8,
-    Limit:             intPtr(10),
+    Limit:             helpers.Ptr(10),
 }
 result, err := storage.Query(ctx, "important preferences from conversations", filter)
 ```
@@ -229,10 +229,10 @@ if err != nil {
 
 // Query with advanced filtering
 filter := &memory.Filter{
-    Source:      stringPtr("conversations"),
-    Subject:     stringPtr("alice"),
+    Source:      helpers.Ptr("conversations"),
+    Subject:     helpers.Ptr("alice"),
     Distance:    0.7,  // Max semantic distance
-    Limit:       intPtr(10),
+    Limit:       helpers.Ptr(10),
 }
 result, err := storage.Query(ctx, "work discussions", filter)
 ```
@@ -484,25 +484,25 @@ The filtering system uses **direct object fields** for performance while maintai
 #### Basic Filtering (Backward Compatible)
 ```go
 // Helper functions for pointer creation
-func stringPtr(s string) *string { return &s }
-func intPtr(i int) *int { return &i }
+func helpers.Ptr(s string) *string { return &s }
+func helpers.Ptr(i int) *int { return &i }
 
 // Filter by source
 filter := &memory.Filter{
-    Source: stringPtr("email"),
+    Source: helpers.Ptr("email"),
 }
 result, err := storage.Query(ctx, "work meetings", filter)
 
 // Filter by subject
 filter := &memory.Filter{
-    Subject: stringPtr("alice"),
+    Subject: helpers.Ptr("alice"),
 }
 result, err := storage.Query(ctx, "alice's preferences", filter)
 
 // Limit results with semantic distance
 filter := &memory.Filter{
     Distance: 0.7,
-    Limit:    intPtr(5),
+    Limit:    helpers.Ptr(5),
 }
 result, err := storage.Query(ctx, "recent activities", filter)
 ```
@@ -512,31 +512,31 @@ result, err := storage.Query(ctx, "recent activities", filter)
 ```go
 // Filter by fact category - get all preferences
 filter := &memory.Filter{
-    FactCategory: stringPtr("preference"),
+    FactCategory: helpers.Ptr("preference"),
 }
 result, err := storage.Query(ctx, "user preferences", filter)
 
 // Filter by importance - only critical facts (importance = 3)
 filter := &memory.Filter{
-    FactImportance: intPtr(3),
+    FactImportance: helpers.Ptr(3),
 }
 result, err := storage.Query(ctx, "life events", filter)
 
 // High importance facts only (importance >= 2)
 filter := &memory.Filter{
-    FactImportanceMin: intPtr(2),
+    FactImportanceMin: helpers.Ptr(2),
 }
 result, err := storage.Query(ctx, "significant memories", filter)
 
 // Filter by subject - facts about Alice
 filter := &memory.Filter{
-    Subject: stringPtr("alice"),
+    Subject: helpers.Ptr("alice"),
 }
 result, err := storage.Query(ctx, "alice information", filter)
 
 // Filter by attribute - all health metrics
 filter := &memory.Filter{
-    FactAttribute: stringPtr("health_metric"),
+    FactAttribute: helpers.Ptr("health_metric"),
 }
 result, err := storage.Query(ctx, "health data", filter)
 
@@ -560,9 +560,9 @@ result, err := storage.Query(ctx, "facts from specific documents", filter)
 ```go
 // Preferences from conversations with high importance
 filter := &memory.Filter{
-    FactCategory:   stringPtr("preference"),
-    FactImportance: intPtr(3),
-    Source:         stringPtr("conversations"),
+    FactCategory:   helpers.Ptr("preference"),
+    FactImportance: helpers.Ptr(3),
+    Source:         helpers.Ptr("conversations"),
 }
 result, err := storage.Query(ctx, "important preferences", filter)
 
@@ -570,17 +570,17 @@ result, err := storage.Query(ctx, "important preferences", filter)
 now := time.Now()
 sevenDaysAgo := now.AddDate(0, 0, -7)
 filter := &memory.Filter{
-    FactCategory:      stringPtr("health"),
-    FactImportanceMin: intPtr(2),
+    FactCategory:      helpers.Ptr("health"),
+    FactImportanceMin: helpers.Ptr(2),
     TimestampAfter:    &sevenDaysAgo,
 }
 result, err := storage.Query(ctx, "recent health updates", filter)
 
 // Facts about specific person from multiple documents
 filter := &memory.Filter{
-    Subject:            stringPtr("bob"),
+    Subject:            helpers.Ptr("bob"),
     DocumentReferences: []string{"conv-123", "conv-456"},
-    FactCategory:       stringPtr("preference"),
+    FactCategory:       helpers.Ptr("preference"),
 }
 result, err := storage.Query(ctx, "bob's preferences from conversations", filter)
 ```
@@ -590,20 +590,20 @@ result, err := storage.Query(ctx, "bob's preferences from conversations", filter
 ```go
 // Life-changing events only (importance = 3)
 filter := &memory.Filter{
-    FactImportance: intPtr(3),
+    FactImportance: helpers.Ptr(3),
 }
 result, err := storage.Query(ctx, "major life events", filter)
 
 // Meaningful information affecting decisions (importance >= 2)
 filter := &memory.Filter{
-    FactImportanceMin: intPtr(2),
+    FactImportanceMin: helpers.Ptr(2),
 }
 result, err := storage.Query(ctx, "decision-relevant facts", filter)
 
 // Importance range: meaningful to critical (2-3)
 filter := &memory.Filter{
-    FactImportanceMin: intPtr(2),
-    FactImportanceMax: intPtr(3),
+    FactImportanceMin: helpers.Ptr(2),
+    FactImportanceMax: helpers.Ptr(3),
 }
 result, err := storage.Query(ctx, "significant facts", filter)
 ```
@@ -613,29 +613,29 @@ result, err := storage.Query(ctx, "significant facts", filter)
 ```go
 // All user preferences
 filter := &memory.Filter{
-    FactCategory: stringPtr("preference"),
-    Subject:      stringPtr("user"),
+    FactCategory: helpers.Ptr("preference"),
+    Subject:      helpers.Ptr("user"),
 }
 result, err := storage.Query(ctx, "user preferences", filter)
 
 // Goals and plans
 filter := &memory.Filter{
-    FactCategory: stringPtr("goal_plan"),
+    FactCategory: helpers.Ptr("goal_plan"),
     Distance:     0.9,
 }
 result, err := storage.Query(ctx, "future plans", filter)
 
 // Relationship information
 filter := &memory.Filter{
-    FactCategory:   stringPtr("relationship"),
-    FactImportance: intPtr(2),
+    FactCategory:   helpers.Ptr("relationship"),
+    FactImportance: helpers.Ptr(2),
 }
 result, err := storage.Query(ctx, "important relationships", filter)
 
 // Health and wellness data
 filter := &memory.Filter{
-    FactCategory:    stringPtr("health"),
-    FactImportance: intPtr(3),  // Critical health facts
+    FactCategory:    helpers.Ptr("health"),
+    FactImportance: helpers.Ptr(3),  // Critical health facts
 }
 result, err := storage.Query(ctx, "health information", filter)
 ```
@@ -658,13 +658,13 @@ The evolvingmemory package supports **polynomial boolean logic** for tags filter
 // Simple AND (backward compatible): Find documents with ALL tags
 filter := &memory.Filter{
     Tags: memory.NewTagsFilterAll("work", "important"),
-    Limit: intPtr(10),
+    Limit: helpers.Ptr(10),
 }
 
 // Simple OR: Find documents with ANY of the tags  
 filter := &memory.Filter{
     Tags: memory.NewTagsFilterAny("urgent", "deadline", "asap"),
-    Limit: intPtr(20),
+    Limit: helpers.Ptr(20),
 }
 ```
 
@@ -680,7 +680,7 @@ expr := memory.NewBooleanExpressionBranch(
 
 filter := &memory.Filter{
     Tags: memory.NewTagsFilterExpression(expr),
-    Source: stringPtr("conversations"),
+    Source: helpers.Ptr("conversations"),
     Distance: 0.8,
 }
 
@@ -754,6 +754,12 @@ filter := &memory.Filter{
 - `UPDATE` - Replace an existing memory's content (immediate)
 - `DELETE` - Remove an outdated memory (immediate)
 - `NONE` - Do nothing (fact isn't worth remembering)
+
+**Subject-Filtered Updates:**
+- Memory updates are now filtered by `factSubject` to prevent cross-contamination
+- When searching for similar memories to update, only memories about the same subject are considered
+- Example: A fact about "Alice" will only update existing memories about "Alice", never about "Bob"
+- This ensures data integrity and prevents incorrect memory associations
 
 **Speaker Rules:**
 - Document-level memories can't modify speaker-specific ones
@@ -870,7 +876,7 @@ fact := StructuredFact{
     Subject:         "user",
     Attribute:       "coffee_type", 
     Value:           "prefers dark roast over light roast",
-    TemporalContext: stringPtr("2025-01-15"),
+    TemporalContext: helpers.Ptr("2025-01-15"),
     Sensitivity:     "low",
     Importance:      2,
 }
@@ -980,15 +986,17 @@ Most tests gracefully skip when AI services aren't configured, allowing for fast
 ## Gotchas
 
 1. **UPDATE/DELETE are immediate** - They happen right away, not batched
-2. **Speaker validation is strict** - Can't modify other people's memories
-3. **Facts can be empty** - Not all documents produce extractable facts
-4. **Channels close in order** - Progress channel closes before error channel
-5. **Storage abstraction** - Don't depend on Weaviate-specific features
-6. **Document content vs hash** - Ensure `GetStoredDocument()` returns actual content, not content hash
-7. **Multiple references** - Use `GetDocumentReferences()` for complete audit trail
-8. **Backward compatibility** - Old format memories have empty content in document references
-9. **Structured fact migration** - New installs get structured fact fields, existing schemas get them added automatically
-10. **Content generation** - Structured facts generate rich searchable content strings automatically
+2. **UPDATE preserves all fields** - Update operations fetch existing object and preserve all structured fields (tags, documentReferences, factCategory, etc.)
+3. **Subject filtering on updates** - Memory updates only affect facts about the same subject to prevent cross-contamination
+4. **Speaker validation is strict** - Can't modify other people's memories
+5. **Facts can be empty** - Not all documents produce extractable facts
+6. **Channels close in order** - Progress channel closes before error channel
+7. **Storage abstraction** - Don't depend on Weaviate-specific features
+8. **Document content vs hash** - Ensure `GetStoredDocument()` returns actual content, not content hash
+9. **Multiple references** - Use `GetDocumentReferences()` for complete audit trail
+10. **Backward compatibility** - Old format memories have empty content in document references
+11. **Structured fact migration** - New installs get structured fact fields, existing schemas get them added automatically
+12. **Content generation** - Structured facts generate rich searchable content strings automatically
 
 ## Architecture Benefits
 
