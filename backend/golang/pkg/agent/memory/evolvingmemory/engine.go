@@ -45,7 +45,7 @@ func NewMemoryEngine(completionsService *ai.Service, embeddingsWrapper *storage.
 }
 
 // ProcessFact processes a single fact through the complete memory pipeline.
-func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, source memory.Document) (FactResult, error) {
+func (e *MemoryEngine) ProcessFact(ctx context.Context, fact *memory.MemoryFact, source memory.Document) (FactResult, error) {
 	// Generate content for search and decision making
 	content := fact.GenerateContent()
 
@@ -68,7 +68,7 @@ func (e *MemoryEngine) ProcessFact(ctx context.Context, fact StructuredFact, sou
 }
 
 // ExecuteDecision executes a memory decision (UPDATE, DELETE, ADD, NONE).
-func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (FactResult, error) {
+func (e *MemoryEngine) ExecuteDecision(ctx context.Context, fact *memory.MemoryFact, source memory.Document, decision MemoryDecision) (FactResult, error) {
 	// Execute based on action
 	switch decision.Action {
 	case UPDATE:
@@ -135,28 +135,31 @@ func (e *MemoryEngine) DecideAction(ctx context.Context, fact string, similar []
 
 // UpdateMemory updates an existing memory.
 func (e *MemoryEngine) UpdateMemory(ctx context.Context, memoryID string, newContent string, embedding []float32) error {
-	// Get the existing memory document
-	existingDoc, err := e.storage.GetByID(ctx, memoryID)
+	// Get the existing memory fact
+	existingFact, err := e.storage.GetByID(ctx, memoryID)
 	if err != nil {
 		return fmt.Errorf("getting existing memory: %w", err)
 	}
+	if existingFact == nil {
+		return fmt.Errorf("memory %s not found", memoryID)
+	}
 
 	// Update the content
-	updatedDoc := *existingDoc
-	updatedDoc.FieldContent = newContent
+	updatedFact := *existingFact
+	updatedFact.Content = newContent
 
-	return e.storage.Update(ctx, memoryID, updatedDoc, embedding)
+	return e.storage.Update(ctx, memoryID, &updatedFact, embedding)
 }
 
 // CreateMemoryObject creates a memory object for storage with separate document storage.
-func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact StructuredFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
+func (e *MemoryEngine) CreateMemoryObject(ctx context.Context, fact *memory.MemoryFact, source memory.Document, decision MemoryDecision) (*models.Object, error) {
 	// Use UpsertDocument for all document types - idempotent and simple
 	documentID, err := e.storage.UpsertDocument(ctx, source)
 	if err != nil {
 		return nil, fmt.Errorf("storing document: %w", err)
 	}
 
-	obj := CreateMemoryObjectWithDocumentReferences(fact, source, decision, []string{documentID})
+	obj := CreateMemoryObjectWithDocumentReferences(fact, source, []string{documentID})
 
 	embedding, err := e.EmbeddingsWrapper.Embedding(ctx, fact.GenerateContent())
 	if err != nil {

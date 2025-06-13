@@ -17,7 +17,7 @@ import (
 )
 
 // CreateMemoryObject builds the Weaviate object for ADD operations.
-func CreateMemoryObject(fact StructuredFact, source memory.Document, decision MemoryDecision) *models.Object {
+func CreateMemoryObject(fact *memory.MemoryFact, source memory.Document) *models.Object {
 	// Get tags from the source document
 	tags := source.Tags()
 
@@ -60,8 +60,8 @@ func CreateMemoryObject(fact StructuredFact, source memory.Document, decision Me
 }
 
 // CreateMemoryObjectWithDocumentReferences builds the Weaviate object with document references.
-func CreateMemoryObjectWithDocumentReferences(fact StructuredFact, source memory.Document, decision MemoryDecision, documentIDs []string) *models.Object {
-	obj := CreateMemoryObject(fact, source, decision)
+func CreateMemoryObjectWithDocumentReferences(fact *memory.MemoryFact, source memory.Document, documentIDs []string) *models.Object {
+	obj := CreateMemoryObject(fact, source)
 
 	// Update with actual document references
 	props, ok := obj.Properties.(map[string]interface{})
@@ -76,7 +76,7 @@ func CreateMemoryObjectWithDocumentReferences(fact StructuredFact, source memory
 // ExtractFactsFromDocument routes fact extraction based on document type.
 // This is pure business logic extracted from the adapter.
 // Returns the extracted facts. The source document is already known by the caller.
-func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]StructuredFact, error) {
+func ExtractFactsFromDocument(ctx context.Context, doc memory.Document, completionsService *ai.Service, completionsModel string, logger *log.Logger) ([]*memory.MemoryFact, error) {
 	switch typedDoc := doc.(type) {
 	case *memory.ConversationDocument:
 		// Extract for the document-level context (no specific speaker)
@@ -190,7 +190,7 @@ func SearchSimilarMemories(ctx context.Context, fact string, filter *memory.Filt
 }
 
 // extractFactsFromConversation extracts facts for a given speaker from a structured conversation.
-func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]StructuredFact, error) {
+func extractFactsFromConversation(ctx context.Context, convDoc memory.ConversationDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]*memory.MemoryFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -199,7 +199,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 
 	if len(convDoc.Conversation) == 0 {
 		logger.Info("Skipping empty conversation", "id", convDoc.ID())
-		return []StructuredFact{}, nil
+		return []*memory.MemoryFact{}, nil
 	}
 
 	logger.Debug("Normalized JSON length", "length", len(content))
@@ -226,7 +226,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 		logger.Warn("No tool calls returned for conversation - fact extraction may have failed", "id", convDoc.ID())
 	}
 
-	var extractedFacts []StructuredFact
+	var extractedFacts []*memory.MemoryFact
 	for _, toolCall := range llmResponse.ToolCalls {
 		logger.Debug("Tool Call", "name", toolCall.Function.Name)
 		logger.Debug("Arguments", "args", toolCall.Function.Arguments)
@@ -236,7 +236,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			continue
 		}
 
-		var args ExtractStructuredFactsToolArguments
+		var args ExtractMemoryFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			logger.Error("FAILED to unmarshal tool arguments", "error", err)
 			continue
@@ -248,17 +248,18 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 			logger.Warn("Tool call returned zero facts for conversation", "id", convDoc.ID())
 		}
 
-		for factIdx, structuredFact := range args.Facts {
+		for factIdx := range args.Facts {
+			memoryFact := &args.Facts[factIdx]
 			logger.Debug("Conversation Fact",
 				"index", factIdx+1,
-				"category", structuredFact.Category,
-				"subject", structuredFact.Subject,
-				"attribute", structuredFact.Attribute,
-				"value", structuredFact.Value,
-				"importance", structuredFact.Importance,
-				"sensitivity", structuredFact.Sensitivity)
+				"category", memoryFact.Category,
+				"subject", memoryFact.Subject,
+				"attribute", memoryFact.Attribute,
+				"value", memoryFact.Value,
+				"importance", memoryFact.Importance,
+				"sensitivity", memoryFact.Sensitivity)
 
-			extractedFacts = append(extractedFacts, structuredFact)
+			extractedFacts = append(extractedFacts, memoryFact)
 		}
 	}
 
@@ -273,7 +274,7 @@ func extractFactsFromConversation(ctx context.Context, convDoc memory.Conversati
 }
 
 // extractFactsFromTextDocument extracts facts from text documents.
-func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]StructuredFact, error) {
+func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocument, completionsService *ai.Service, completionsModel string, sourceDoc memory.Document, logger *log.Logger) ([]*memory.MemoryFact, error) {
 	factExtractionToolsList := []openai.ChatCompletionToolParam{
 		extractFactsTool,
 	}
@@ -281,7 +282,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 	content := textDoc.Content()
 	if content == "" {
 		logger.Info("Skipping empty text document", "id", textDoc.ID())
-		return []StructuredFact{}, nil
+		return []*memory.MemoryFact{}, nil
 	}
 
 	logger.Debug("=== FACT EXTRACTION START ===")
@@ -312,7 +313,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 		logger.Warn("No tool calls returned for document - fact extraction may have failed", "id", textDoc.ID())
 	}
 
-	var extractedFacts []StructuredFact
+	var extractedFacts []*memory.MemoryFact
 	for i, toolCall := range llmResponse.ToolCalls {
 		logger.Debug("Tool Call", "index", i+1, "name", toolCall.Function.Name)
 		logger.Debug("Arguments", "args", toolCall.Function.Arguments)
@@ -322,7 +323,7 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			continue
 		}
 
-		var args ExtractStructuredFactsToolArguments
+		var args ExtractMemoryFactsToolArguments
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 			logger.Error("FAILED to unmarshal tool arguments", "error", err)
 			continue
@@ -334,17 +335,18 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 			logger.Warn("Tool call returned zero facts for document", "id", textDoc.ID())
 		}
 
-		for factIdx, structuredFact := range args.Facts {
+		for factIdx := range args.Facts {
+			memoryFact := &args.Facts[factIdx]
 			logger.Debug("Text Document Fact",
 				"index", factIdx+1,
-				"category", structuredFact.Category,
-				"subject", structuredFact.Subject,
-				"attribute", structuredFact.Attribute,
-				"value", structuredFact.Value,
-				"importance", structuredFact.Importance,
-				"sensitivity", structuredFact.Sensitivity)
+				"category", memoryFact.Category,
+				"subject", memoryFact.Subject,
+				"attribute", memoryFact.Attribute,
+				"value", memoryFact.Value,
+				"importance", memoryFact.Importance,
+				"sensitivity", memoryFact.Sensitivity)
 
-			extractedFacts = append(extractedFacts, structuredFact)
+			extractedFacts = append(extractedFacts, memoryFact)
 		}
 	}
 

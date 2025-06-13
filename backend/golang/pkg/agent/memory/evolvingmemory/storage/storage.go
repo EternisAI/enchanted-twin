@@ -47,6 +47,24 @@ const (
 	documentCreatedAtProperty   = "createdAt"
 )
 
+// WeaviateMemoryFact represents the structure stored in Weaviate for clean deserialization.
+type WeaviateMemoryFact struct {
+	Content            string   `json:"content"`
+	Timestamp          string   `json:"timestamp"` // RFC3339 string from Weaviate
+	MetadataJson       string   `json:"metadataJson"`
+	Source             string   `json:"source"`
+	Tags               []string `json:"tags"`
+	DocumentReferences []string `json:"documentReferences"`
+	// Structured fact fields
+	FactCategory        string `json:"factCategory"`
+	FactSubject         string `json:"factSubject"`
+	FactAttribute       string `json:"factAttribute"`
+	FactValue           string `json:"factValue"`
+	FactTemporalContext string `json:"factTemporalContext"`
+	FactSensitivity     string `json:"factSensitivity"`
+	FactImportance      int    `json:"factImportance"`
+}
+
 // DocumentReference holds the original document information.
 type DocumentReference struct {
 	ID      string
@@ -67,8 +85,8 @@ type StoredDocument struct {
 
 // Interface defines the storage operations needed by evolvingmemory.
 type Interface interface {
-	GetByID(ctx context.Context, id string) (*memory.TextDocument, error)
-	Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error
+	GetByID(ctx context.Context, id string) (*memory.MemoryFact, error)
+	Update(ctx context.Context, id string, fact *memory.MemoryFact, vector []float32) error
 	Delete(ctx context.Context, id string) error
 	StoreBatch(ctx context.Context, objects []*models.Object) error
 	DeleteAll(ctx context.Context) error
@@ -116,8 +134,8 @@ func New(input NewStorageInput) (Interface, error) {
 	}, nil
 }
 
-// GetByID retrieves a specific memory document from Weaviate by its ID.
-func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextDocument, error) {
+// GetByID retrieves a specific memory fact from Weaviate by its ID.
+func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.MemoryFact, error) {
 	result, err := s.client.Data().ObjectsGetter().
 		WithID(id).
 		WithClassName(ClassName).
@@ -136,53 +154,59 @@ func (s *WeaviateStorage) GetByID(ctx context.Context, id string) (*memory.TextD
 		return nil, fmt.Errorf("invalid properties type for object %s", id)
 	}
 
-	content, ok := props[contentProperty].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid content type for object %s", id)
+	// Clean struct deserialization approach (CTO's suggestion!)
+	propsJSON, err := json.Marshal(props)
+	if err != nil {
+		return nil, fmt.Errorf("marshaling properties for deserialization: %w", err)
 	}
 
-	var timestamp *time.Time
-	if ts, ok := props[timestampProperty].(string); ok {
-		parsed, err := time.Parse(time.RFC3339, ts)
-		if err == nil {
-			timestamp = &parsed
+	var weaviateFact WeaviateMemoryFact
+	if err := json.Unmarshal(propsJSON, &weaviateFact); err != nil {
+		return nil, fmt.Errorf("deserializing properties to struct: %w", err)
+	}
+
+	// Parse timestamp
+	var timestamp time.Time
+	if weaviateFact.Timestamp != "" {
+		if parsed, err := time.Parse(time.RFC3339, weaviateFact.Timestamp); err == nil {
+			timestamp = parsed
 		}
 	}
 
-	// Parse direct fields
-	source, _ := props[sourceProperty].(string)
+	// Handle temporal context pointer
+	var temporalContext *string
+	if weaviateFact.FactTemporalContext != "" {
+		temporalContext = &weaviateFact.FactTemporalContext
+	}
 
-	// Parse metadata
+	// Parse legacy metadata
 	metadata := make(map[string]string)
-	if metaStr, ok := props[metadataProperty].(string); ok {
-		if err := json.Unmarshal([]byte(metaStr), &metadata); err != nil {
+	if weaviateFact.MetadataJson != "" && weaviateFact.MetadataJson != "{}" {
+		if err := json.Unmarshal([]byte(weaviateFact.MetadataJson), &metadata); err != nil {
 			s.logger.Warnf("Failed to unmarshal metadata for object %s: %v", id, err)
 		}
 	}
 
-	var tags []string
-	if tagsInterface, ok := props[tagsProperty].([]interface{}); ok {
-		for _, tagInterface := range tagsInterface {
-			if tagStr, ok := tagInterface.(string); ok {
-				tags = append(tags, tagStr)
-			}
-		}
-	}
-
-	doc := &memory.TextDocument{
-		FieldID:        string(obj.ID),
-		FieldContent:   content,
-		FieldTimestamp: timestamp,
-		FieldMetadata:  metadata,
-		FieldSource:    source, // Populate the direct source field
-		FieldTags:      tags,
-	}
-
-	return doc, nil
+	return &memory.MemoryFact{
+		ID:                 string(obj.ID),
+		Content:            weaviateFact.Content,
+		Timestamp:          timestamp,
+		Category:           weaviateFact.FactCategory,
+		Subject:            weaviateFact.FactSubject,
+		Attribute:          weaviateFact.FactAttribute,
+		Value:              weaviateFact.FactValue,
+		TemporalContext:    temporalContext,
+		Sensitivity:        weaviateFact.FactSensitivity,
+		Importance:         weaviateFact.FactImportance,
+		Source:             weaviateFact.Source,
+		DocumentReferences: weaviateFact.DocumentReferences,
+		Tags:               weaviateFact.Tags,
+		Metadata:           metadata,
+	}, nil
 }
 
-// Update updates an existing memory document in Weaviate.
-func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.TextDocument, vector []float32) error {
+// Update updates an existing memory fact in Weaviate.
+func (s *WeaviateStorage) Update(ctx context.Context, id string, fact *memory.MemoryFact, vector []float32) error {
 	// Step 1: Fetch the existing object to preserve all fields
 	existing, err := s.client.Data().ObjectsGetter().
 		WithID(id).
@@ -203,25 +227,56 @@ func (s *WeaviateStorage) Update(ctx context.Context, id string, doc memory.Text
 	}
 
 	// Step 3: Update only the fields that should change
-	properties[contentProperty] = doc.Content()
+	properties[contentProperty] = fact.Content
+	properties[timestampProperty] = fact.Timestamp.Format(time.RFC3339)
 
-	// Only update metadata if the TextDocument has non-empty metadata
-	if len(doc.Metadata()) > 0 {
-		metadataJSON, err := json.Marshal(doc.Metadata())
+	// Update structured fact fields
+	if fact.Category != "" {
+		properties[factCategoryProperty] = fact.Category
+	}
+	if fact.Subject != "" {
+		properties[factSubjectProperty] = fact.Subject
+	}
+	if fact.Attribute != "" {
+		properties[factAttributeProperty] = fact.Attribute
+	}
+	if fact.Value != "" {
+		properties[factValueProperty] = fact.Value
+	}
+	if fact.Sensitivity != "" {
+		properties[factSensitivityProperty] = fact.Sensitivity
+	}
+	if fact.Importance > 0 {
+		properties[factImportanceProperty] = fact.Importance
+	}
+	if fact.TemporalContext != nil {
+		properties[factTemporalContextProperty] = *fact.TemporalContext
+	}
+
+	// Update source if provided
+	if fact.Source != "" {
+		properties[sourceProperty] = fact.Source
+	}
+
+	// Update document references
+	if len(fact.DocumentReferences) > 0 {
+		properties[documentReferencesProperty] = fact.DocumentReferences
+	}
+
+	// Update tags
+	if len(fact.Tags) > 0 {
+		properties[tagsProperty] = fact.Tags
+	}
+
+	// Store metadata as JSON if present
+	if len(fact.Metadata) > 0 {
+		metadataJSON, err := json.Marshal(fact.Metadata)
 		if err != nil {
 			return fmt.Errorf("marshaling metadata: %w", err)
 		}
 		properties[metadataProperty] = string(metadataJSON)
-	}
-
-	// Update source if provided
-	if source := doc.Source(); source != "" {
-		properties[sourceProperty] = source
-	}
-
-	// Update timestamp
-	if doc.Timestamp() != nil {
-		properties[timestampProperty] = doc.Timestamp().Format(time.RFC3339)
+	} else {
+		properties[metadataProperty] = "{}"
 	}
 
 	// Step 4: Save with all fields preserved
@@ -376,7 +431,7 @@ func (s *WeaviateStorage) ensureMemoryClassExists(ctx context.Context) error {
 
 			if needsUpdate {
 				s.logger.Info("Schema needs update to add new structured fact fields")
-				return s.addStructuredFactFields(ctx)
+				return s.addMemoryFactFields(ctx)
 			}
 
 			s.logger.Info("Schema validation successful")
@@ -892,35 +947,6 @@ func (s *WeaviateStorage) parseQueryResponseToFacts(resp *models.GraphQLResponse
 	return facts, nil
 }
 
-// Helper to safely extract string from interface{}.
-func getString(obj map[string]interface{}, key string) string {
-	if val, ok := obj[key].(string); ok {
-		return val
-	}
-	return ""
-}
-
-// Helper to safely extract string array from interface{}.
-func getStringArray(obj map[string]interface{}, key string) []string {
-	var result []string
-	if arr, ok := obj[key].([]interface{}); ok {
-		for _, item := range arr {
-			if str, ok := item.(string); ok {
-				result = append(result, str)
-			}
-		}
-	}
-	return result
-}
-
-// Helper to safely extract int from interface{}.
-func getInt(obj map[string]interface{}, key string) int {
-	if val, ok := obj[key].(float64); ok {
-		return int(val)
-	}
-	return 0
-}
-
 // parseMemoryItem converts a single GraphQL item to MemoryFact.
 func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, error) {
 	obj, ok := item.(map[string]interface{})
@@ -928,61 +954,68 @@ func (s *WeaviateStorage) parseMemoryItem(item interface{}) (memory.MemoryFact, 
 		return memory.MemoryFact{}, fmt.Errorf("item is not a map")
 	}
 
-	// Extract ID from _additional
-	id := ""
-	if additional, ok := obj["_additional"].(map[string]interface{}); ok {
-		id = getString(additional, "id")
+	// Extract ID from _additional (special field not in main struct)
+	additional, _ := obj["_additional"].(map[string]interface{})
+	id, _ := additional["id"].(string)
+
+	// Remove _additional from obj to avoid JSON deserialization issues
+	objCopy := make(map[string]interface{})
+	for k, v := range obj {
+		if k != "_additional" {
+			objCopy[k] = v
+		}
+	}
+
+	// Clean struct deserialization approach (CTO's suggestion!)
+	objJSON, err := json.Marshal(objCopy)
+	if err != nil {
+		return memory.MemoryFact{}, fmt.Errorf("marshaling item for deserialization: %w", err)
+	}
+
+	var weaviateFact WeaviateMemoryFact
+	if err := json.Unmarshal(objJSON, &weaviateFact); err != nil {
+		return memory.MemoryFact{}, fmt.Errorf("deserializing item to struct: %w", err)
 	}
 
 	// Parse timestamp
 	var timestamp time.Time
-	if tsStr := getString(obj, timestampProperty); tsStr != "" {
-		if t, err := time.Parse(time.RFC3339, tsStr); err == nil {
+	if weaviateFact.Timestamp != "" {
+		if t, err := time.Parse(time.RFC3339, weaviateFact.Timestamp); err == nil {
 			timestamp = t
 		} else {
-			s.logger.Warn("Failed to parse timestamp", "timestamp_str", tsStr, "error", err)
+			s.logger.Warn("Failed to parse timestamp", "timestamp_str", weaviateFact.Timestamp, "error", err)
 		}
 	}
 
-	// Parse metadata from JSON
+	// Handle temporal context pointer
+	var temporalContext *string
+	if weaviateFact.FactTemporalContext != "" {
+		temporalContext = &weaviateFact.FactTemporalContext
+	}
+
+	// Parse legacy metadata
 	metaMap := make(map[string]string)
-	if metadataJSON := getString(obj, metadataProperty); metadataJSON != "" {
-		if err := json.Unmarshal([]byte(metadataJSON), &metaMap); err != nil {
+	if weaviateFact.MetadataJson != "" && weaviateFact.MetadataJson != "{}" {
+		if err := json.Unmarshal([]byte(weaviateFact.MetadataJson), &metaMap); err != nil {
 			s.logger.Debug("Could not unmarshal metadata", "id", id, "error", err)
 		}
 	}
 
-	// Add structured fact fields to metadata
-	factFields := map[string]string{
-		factCategoryProperty:        getString(obj, factCategoryProperty),
-		factAttributeProperty:       getString(obj, factAttributeProperty),
-		factValueProperty:           getString(obj, factValueProperty),
-		factTemporalContextProperty: getString(obj, factTemporalContextProperty),
-		factSensitivityProperty:     getString(obj, factSensitivityProperty),
-	}
-
-	for key, value := range factFields {
-		if value != "" {
-			// Remove property suffix for cleaner metadata keys
-			metaKey := strings.TrimPrefix(key, "fact")
-			metaKey = strings.ToLower(metaKey[:1]) + metaKey[1:]
-			metaMap[metaKey] = value
-		}
-	}
-
-	// Handle importance as int
-	if importance := getInt(obj, factImportanceProperty); importance > 0 {
-		metaMap["importance"] = fmt.Sprintf("%d", importance)
-	}
-
 	return memory.MemoryFact{
-		ID:        id,
-		Content:   getString(obj, contentProperty),
-		Subject:   getString(obj, factSubjectProperty),
-		Timestamp: timestamp,
-		Source:    getString(obj, sourceProperty),
-		Tags:      getStringArray(obj, tagsProperty),
-		Metadata:  metaMap,
+		ID:                 id,
+		Content:            weaviateFact.Content,
+		Timestamp:          timestamp,
+		Category:           weaviateFact.FactCategory,
+		Subject:            weaviateFact.FactSubject,
+		Attribute:          weaviateFact.FactAttribute,
+		Value:              weaviateFact.FactValue,
+		TemporalContext:    temporalContext,
+		Sensitivity:        weaviateFact.FactSensitivity,
+		Importance:         weaviateFact.FactImportance,
+		Source:             weaviateFact.Source,
+		DocumentReferences: weaviateFact.DocumentReferences,
+		Tags:               weaviateFact.Tags,
+		Metadata:           metaMap,
 	}, nil
 }
 
@@ -1214,8 +1247,8 @@ func (s *WeaviateStorage) GetStoredDocument(ctx context.Context, documentID stri
 	return doc, nil
 }
 
-// addStructuredFactFields adds the new structured fact fields to the existing schema.
-func (s *WeaviateStorage) addStructuredFactFields(ctx context.Context) error {
+// addMemoryFactFields adds the new structured fact fields to the existing schema.
+func (s *WeaviateStorage) addMemoryFactFields(ctx context.Context) error {
 	// Get existing properties to check what needs to be added
 	existingProps, err := s.getExistingProperties(ctx)
 	if err != nil {
