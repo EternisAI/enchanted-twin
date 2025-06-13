@@ -65,22 +65,29 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 			return
 		}
 
-		workChunks := DistributeWork(chunkedDocs, config.Workers)
-
+		// Create channels for the pipeline
+		documentQueue := make(chan memory.Document, len(chunkedDocs))
 		factStream := make(chan FactResult, 1000)
 		resultStream := make(chan FactResult, 1000)
 		objectStream := make(chan []*models.Object, 100)
 
+		// Load all documents into the queue
+		for _, doc := range chunkedDocs {
+			documentQueue <- doc
+		}
+		close(documentQueue)
+
+		// Start extraction workers that pull from the shared queue
 		var extractWg sync.WaitGroup
-		for i, chunk := range workChunks {
+		for i := range config.Workers {
 			extractWg.Add(1)
-			go o.extractFactsWorker(ctx, chunk, factStream, &extractWg, i, config)
+			go o.extractFactsWorkerDynamic(ctx, documentQueue, factStream, &extractWg, i, config)
 		}
 
 		var processWg sync.WaitGroup
-		for i := 0; i < config.Workers; i++ {
+		for range config.Workers {
 			processWg.Add(1)
-			go o.processFactsWorker(ctx, factStream, resultStream, &processWg, i, config)
+			go o.processFactsWorker(ctx, factStream, resultStream, &processWg, config)
 		}
 
 		var aggregateWg sync.WaitGroup
@@ -106,10 +113,10 @@ func (o *MemoryOrchestrator) ProcessDocuments(ctx context.Context, documents []m
 	return progressCh, errorCh
 }
 
-// extractFactsWorker processes documents and extracts facts using the engine.
-func (o *MemoryOrchestrator) extractFactsWorker(
+// extractFactsWorkerDynamic processes documents from a shared queue (work-stealing pattern).
+func (o *MemoryOrchestrator) extractFactsWorkerDynamic(
 	ctx context.Context,
-	docs []memory.Document,
+	documentQueue <-chan memory.Document,
 	out chan<- FactResult,
 	wg *sync.WaitGroup,
 	workerID int,
@@ -117,7 +124,13 @@ func (o *MemoryOrchestrator) extractFactsWorker(
 ) {
 	defer wg.Done()
 
-	for _, doc := range docs {
+	processedCount := 0
+	startTime := time.Now()
+
+	for doc := range documentQueue {
+		docStartTime := time.Now()
+		o.logger.Debugf("Worker %d: Starting document %s (queue depth: ~%d)", workerID, doc.ID(), len(documentQueue))
+
 		extractCtx, cancel := context.WithTimeout(ctx, config.FactExtractionTimeout)
 
 		facts, err := ExtractFactsFromDocument(extractCtx, doc, o.engine.CompletionsService, o.engine.CompletionsModel, o.logger)
@@ -127,6 +140,10 @@ func (o *MemoryOrchestrator) extractFactsWorker(
 			o.logger.Errorf("Worker %d: Failed to extract facts from document %s: %v", workerID, doc.ID(), err)
 			continue
 		}
+
+		processedCount++
+		processingTime := time.Since(docStartTime)
+		o.logger.Debugf("Worker %d: Completed document %s in %v (extracted %d facts)", workerID, doc.ID(), processingTime, len(facts))
 
 		for _, fact := range facts {
 			if fact.GenerateContent() == "" {
@@ -140,9 +157,18 @@ func (o *MemoryOrchestrator) extractFactsWorker(
 			select {
 			case out <- result:
 			case <-ctx.Done():
+				o.logger.Infof("Worker %d: Processed %d documents before context cancellation", workerID, processedCount)
 				return
 			}
 		}
+	}
+
+	totalTime := time.Since(startTime)
+	if processedCount > 0 {
+		o.logger.Infof("Worker %d: Completed, processed %d documents in %v (avg: %v/doc)",
+			workerID, processedCount, totalTime, totalTime/time.Duration(processedCount))
+	} else {
+		o.logger.Infof("Worker %d: Completed, processed 0 documents", workerID)
 	}
 }
 
@@ -152,7 +178,6 @@ func (o *MemoryOrchestrator) processFactsWorker(
 	facts <-chan FactResult,
 	out chan<- FactResult,
 	wg *sync.WaitGroup,
-	workerID int,
 	config Config,
 ) {
 	defer wg.Done()
