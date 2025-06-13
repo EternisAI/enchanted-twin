@@ -1,4 +1,4 @@
-import { Clock, ExternalLink, FileUp, Settings } from 'lucide-react'
+import { ExternalLink, FileUp, Settings, Upload, CheckCircle } from 'lucide-react'
 import { Button } from '../ui/button'
 import {
   Dialog,
@@ -15,6 +15,9 @@ import { ReactNode, useState } from 'react'
 import { TabsContent } from '../ui/tabs'
 import { TabsList, TabsTrigger } from '../ui/tabs'
 import { Tabs } from '../ui/tabs'
+import { Card } from '../ui/card'
+import { cn } from '@renderer/lib/utils'
+import { ScrollArea } from '../ui/scroll-area'
 
 export const DataSourceDialog = ({
   selectedSource,
@@ -42,44 +45,68 @@ export const DataSourceDialog = ({
 
   return (
     <Dialog open={!!selectedSource} onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>Add {selectedSource.name} Data</DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground flex items-center gap-2">
-            <Clock className="h-4 w-4 text-muted-foreground/50" />
-            {EXPORT_INSTRUCTIONS[selectedSource.name]?.timeEstimate}
-          </DialogDescription>
+      <DialogContent className="max-w-2xl max-h-[90vh] p-0 flex flex-col">
+        <DialogHeader className="p-6 border-b">
+          <div className="flex items-start gap-4">
+            <div className="p-3 bg-primary/10 rounded-lg">{selectedSource.icon}</div>
+            <div className="flex-1">
+              <DialogTitle className="text-xl">Import {selectedSource.label}</DialogTitle>
+              <DialogDescription className="mt-1">{selectedSource.description}</DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className={`grid ${customComponent ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
-            <TabsTrigger value="file" className="flex py-2 items-center gap-2">
-              <FileUp className="h-4 w-4" />
-              File Upload
-            </TabsTrigger>
+        <ScrollArea className="flex-1">
+          <div className="px-6 py-4">
+            {customComponent ? (
+              <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+                <TabsList className="grid grid-cols-2 p-1 bg-muted h-auto mb-6">
+                  <TabsTrigger
+                    value="file"
+                    className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                  >
+                    <FileUp className="h-4 w-4 mr-2" />
+                    File Upload
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value={customComponent.name}
+                    className="data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    {customComponent.name}
+                  </TabsTrigger>
+                </TabsList>
 
-            {customComponent && (
-              <TabsTrigger value={customComponent.name} className="flex items-center gap-2">
-                <Settings className="h-4 w-4" />
-                {customComponent.name}
-              </TabsTrigger>
+                <TabsContent value="file" className="mt-0">
+                  <StandardFileUpload
+                    selectedSource={selectedSource}
+                    pendingDataSources={pendingDataSources}
+                    onFileSelect={onFileSelect}
+                  />
+                </TabsContent>
+
+                <TabsContent value={customComponent.name} className="mt-0">
+                  {customComponent.component}
+                </TabsContent>
+              </Tabs>
+            ) : (
+              <StandardFileUpload
+                selectedSource={selectedSource}
+                pendingDataSources={pendingDataSources}
+                onFileSelect={onFileSelect}
+              />
             )}
-          </TabsList>
+          </div>
+        </ScrollArea>
 
-          <TabsContent value="file">
-            <StandardFileUpload
-              selectedSource={selectedSource}
-              pendingDataSources={pendingDataSources}
-              onFileSelect={onFileSelect}
-              onClose={onClose}
-              onAddSource={onAddSource}
-            />
-          </TabsContent>
-
-          {customComponent && (
-            <TabsContent value="QR Code">{customComponent.component}</TabsContent>
-          )}
-        </Tabs>
+        <DialogFooter className="px-6 py-4 border-t">
+          <Button variant="outline" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button onClick={onAddSource} disabled={!pendingDataSources[selectedSource.name]}>
+            Add Data Source
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -88,71 +115,93 @@ export const DataSourceDialog = ({
 const StandardFileUpload = ({
   selectedSource,
   pendingDataSources,
-  onFileSelect,
-  onClose,
-  onAddSource
+  onFileSelect
 }: {
   selectedSource: DataSource
   pendingDataSources: Record<string, PendingDataSource>
   onFileSelect: () => void
-  onClose: () => void
-  onAddSource: () => void
 }) => {
+  const hasSelectedFile = !!pendingDataSources[selectedSource.name]?.path
+  const instructions = EXPORT_INSTRUCTIONS[selectedSource.name]
+
   return (
     <>
-      <div className="space-y-8">
-        <div className="space-y-4 py-4">
-          <div className="rounded-lg">
-            <ol className="space-y-4 flex flex-col gap-3">
-              {EXPORT_INSTRUCTIONS[selectedSource.name]?.steps.map((step, index) => (
-                <li key={index} className="flex gap-3">
-                  <div className="flex-shrink-0 w-6 h-6 rounded-full bg-accent flex items-center justify-center text-primary font-medium text-sm">
-                    {index + 1}
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm">{step}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
-            {EXPORT_INSTRUCTIONS[selectedSource.name]?.link && (
-              <Button variant="link" className="mt-4 p-0 h-auto text-primary" asChild>
-                <a
-                  href={EXPORT_INSTRUCTIONS[selectedSource.name].link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  Open {selectedSource.name} Export Page <ExternalLink className="h-4 w-4" />
-                </a>
-              </Button>
-            )}
+      <div className="flex flex-col gap-4">
+        {/* Export Instructions */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold">How to export your data</h3>
+          <div className="flex flex-col gap-4 py-4">
+            {instructions?.steps.map((step, index) => (
+              <div key={index} className="flex gap-2">
+                <div className="flex-shrink-0 w-6 h-6 rounded-full bg-accent flex items-center justify-center">
+                  <span className="text-sm font-medium text-accent-foreground">{index + 1}</span>
+                </div>
+                <p className="text-sm text-foreground pt-0.5">{step}</p>
+              </div>
+            ))}
           </div>
+
+          {instructions?.link && (
+            <Button variant="outline" size="sm" className="mt-2" asChild>
+              <a
+                href={instructions.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2"
+              >
+                Open {selectedSource.label} Export Page
+                <ExternalLink className="h-3.5 w-3.5" />
+              </a>
+            </Button>
+          )}
         </div>
 
-        <div className="flex flex-col gap-2 bg-card p-4 rounded-lg dark text-white dark:bg-muted dark:text-muted-foreground">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-2">
-              <div
-                className="flex-1 h-9 px-3 py-1 flex flex-col justify-center rounded-md border bg-background text-sm"
-                onClick={onFileSelect}
-              >
-                {pendingDataSources[selectedSource.name]?.path
-                  ? truncatePath(pendingDataSources[selectedSource.name]?.path)
-                  : selectedSource.fileRequirement}
-              </div>
-              <Button onClick={onFileSelect}>Browse</Button>
+        {/* File Selection */}
+        <div className="space-y-4">
+          <h3 className="text-sm font-semibold">Select your export file</h3>
+          <Card
+            className={cn(
+              'p-6 border-2 border-dashed cursor-pointer transition-colors',
+              hasSelectedFile ? 'border-primary bg-primary/5' : 'hover:border-primary/50'
+            )}
+            onClick={onFileSelect}
+          >
+            <div className="flex flex-col items-center gap-3 text-center">
+              {hasSelectedFile ? (
+                <>
+                  <CheckCircle className="h-10 w-10 text-primary" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">File selected</p>
+                    <p className="text-xs text-muted-foreground">
+                      {truncatePath(pendingDataSources[selectedSource.name].path)}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onFileSelect()
+                    }}
+                  >
+                    Change file
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Upload className="h-10 w-10 text-muted-foreground" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium">Click to browse</p>
+                    <p className="text-xs text-muted-foreground">
+                      {selectedSource.fileRequirement}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
-          </div>
+          </Card>
         </div>
       </div>
-      <DialogFooter className="pt-4">
-        <Button variant="outline" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button onClick={onAddSource} disabled={!pendingDataSources[selectedSource.name]}>
-          Add Source
-        </Button>
-      </DialogFooter>
     </>
   )
 }

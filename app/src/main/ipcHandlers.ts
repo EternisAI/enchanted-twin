@@ -55,6 +55,25 @@ export function registerIpcHandlers() {
         properties: ['openFile'],
         filters: options?.filters
       })
+      
+      // Add file size information
+      if (!result.canceled && result.filePaths.length > 0) {
+        const fileSizes: number[] = []
+        for (const filePath of result.filePaths) {
+          try {
+            const stats = fs.statSync(filePath)
+            fileSizes.push(stats.size)
+          } catch (error) {
+            console.error('Error getting file stats:', error)
+            fileSizes.push(0)
+          }
+        }
+        return {
+          ...result,
+          fileSizes
+        }
+      }
+      
       return result
     }
   )
