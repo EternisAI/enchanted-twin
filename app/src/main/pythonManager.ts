@@ -384,8 +384,88 @@ def get_chat_history(chat_id: str):
     return []
 
 
-async def send_message(context, chat_id: str):
+async def send_message_stream(context, chat_id: str):
+    """Stream messages from the GraphQL subscription"""
+    import websockets
+    import json
+    
+    ws_url = SEND_MESSAGE_URL.replace('http://', 'ws://')
+    is_onboarding = get_onboarding_state()
 
+    subscription = """
+    subscription streamMsg($chatId: ID!, $context: [MessageInput!]!, $isOnboarding: Boolean!) {
+        processMessageHistoryStream(
+            chatId: $chatId        
+            messages: $context    
+            isOnboarding: $isOnboarding 
+        ) {
+            messageId
+            chunk
+            role
+            isComplete
+            createdAt
+            imageUrls
+        }
+    }
+    """
+    
+    variables = {"chatId": chat_id, "context": context, "isOnboarding": is_onboarding}
+    
+    try:
+        async with websockets.connect(
+            ws_url,
+            subprotocols=["graphql-ws"]
+        ) as websocket:
+            # Send connection init
+            await websocket.send(json.dumps({"type": "connection_init"}))
+            
+            # Wait for connection ack
+            response = await websocket.recv()
+            ack = json.loads(response)
+            if ack.get("type") != "connection_ack":
+                logger.error(f"Expected connection_ack, got: {ack}")
+                return
+            
+            # Send subscription
+            start_message = {
+                "id": "1",
+                "type": "start",
+                "payload": {
+                    "query": subscription,
+                    "variables": variables
+                }
+            }
+            await websocket.send(json.dumps(start_message))
+            
+            # Stream chunks as they arrive
+            async for message in websocket:
+                data = json.loads(message)
+                
+                if data.get("type") == "data":
+                    payload = data.get("payload", {}).get("data", {}).get("processMessageHistoryStream", {})
+                    chunk = payload.get("chunk", "")
+                    is_complete = payload.get("isComplete", False)
+                    
+                    if chunk:
+                        yield chunk  # Yield each chunk for streaming
+                    
+                    if is_complete:
+                        return  # End the generator
+                elif data.get("type") == "error":
+                    logger.error(f"GraphQL subscription error: {data}")
+                    return  # End the generator on error
+                elif data.get("type") == "complete":
+                    return  # End the generator when complete
+            
+    except Exception as e:
+        logger.error(f"WebSocket streaming error: {e}")
+        # Fallback to HTTP mutation if WebSocket fails
+        fallback_message = await send_message_fallback(context, chat_id)
+        if fallback_message:
+            yield fallback_message
+
+async def send_message_fallback(context, chat_id: str):
+    """Fallback to HTTP mutation if streaming fails"""
     url = SEND_MESSAGE_URL
     is_onboarding = get_onboarding_state()
 
@@ -411,7 +491,7 @@ async def send_message(context, chat_id: str):
                 body = await resp.json()
                 print(body)
                 return body["data"]["processMessageHistory"]["text"]
-    return None
+    return ""
     
     
 class APIConnectOptions:
@@ -458,12 +538,15 @@ class LLMStream(llm.LLMStream):
             context = [item for item in context if (item["role"] != "system" and item["content"]!="")]
             context = [{'role': item['role'].upper(), 'text': item['content']} for item in context]
             context = self._chat_history + context
-            received_message = await send_message(context, self._chat_id)
-
-            if received_message is not None:
-              chunk = llm.ChatChunk(id="1",
-                                    delta=llm.ChoiceDelta(content=received_message, role="assistant"))
-              self._event_ch.send_nowait(chunk)
+            
+            # Stream the response
+            async for chunk_text in send_message_stream(context, self._chat_id):
+                if chunk_text:
+                    chunk = llm.ChatChunk(
+                        id="1",
+                        delta=llm.ChoiceDelta(content=chunk_text, role="assistant")
+                    )
+                    self._event_ch.send_nowait(chunk)
             
         except Exception as e:
             raise APIConnectionError(retryable=retryable) from e
@@ -579,7 +662,8 @@ livekit-plugins-openai==1.0.23
 livekit-plugins-deepgram==1.0.23
 livekit-plugins-silero==1.0.23
 python-dotenv>=1.0.0
-requests`
+requests
+websockets>=12.0`
 
     try {
       await fs.promises.writeFile(agentFile, agentCode)
