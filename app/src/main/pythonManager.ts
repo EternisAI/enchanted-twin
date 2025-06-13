@@ -11,6 +11,18 @@ export interface DependencyProgress {
   error?: string
 }
 
+export type AgentState = "initializing" | "idle" | "listening" | "thinking" | "speaking"
+
+export interface AgentStateUpdate {
+  state: AgentState
+  timestamp: number
+}
+
+export interface AgentCommand {
+  type: 'mute' | 'unmute' | 'get_state'
+  timestamp: number
+}
+
 type RunOptions = SpawnOptions & { label: string }
 
 /* ─────────────────────────────────────────────────────────────────────────── */
@@ -38,6 +50,7 @@ export class LiveKitAgentBootstrap {
   private agentProc: import('child_process').ChildProcess | null = null
   private onProgress?: (data: DependencyProgress) => void
   private onSessionReady?: (ready: boolean) => void
+  private onStateChange?: (state: AgentState) => void
   private latestProgress: DependencyProgress = {
     dependency: 'LiveKit Agent',
     progress: 0,
@@ -46,14 +59,69 @@ export class LiveKitAgentBootstrap {
 
   constructor(
     onProgress?: (data: DependencyProgress) => void,
-    onSessionReady?: (ready: boolean) => void
+    onSessionReady?: (ready: boolean) => void,
+    onStateChange?: (state: AgentState) => void
   ) {
     this.onProgress = onProgress
     this.onSessionReady = onSessionReady
+    this.onStateChange = onStateChange
   }
 
   getLatestProgress() {
     return this.latestProgress
+  }
+
+  getCurrentState(): AgentState {
+    log.warn('[LiveKit] getCurrentState called but state is managed by Python agent')
+    return 'idle' // Default fallback since state is managed by Python
+  }
+
+  sendCommand(command: AgentCommand) {
+    if (!this.agentProc || !this.agentProc.stdin) {
+      log.warn('[LiveKit] Cannot send command: agent process not running or stdin not available')
+      return false
+    }
+
+    try {
+      const commandStr = JSON.stringify(command) + '\n'
+      this.agentProc.stdin.write(commandStr)
+      log.info(`[LiveKit] Sent command: ${command.type}`)
+      return true
+    } catch (error) {
+      log.error('[LiveKit] Failed to send command:', error)
+      return false
+    }
+  }
+
+  muteUser() {
+    return this.sendCommand({ type: 'mute', timestamp: Date.now() })
+  }
+
+  unmuteUser() {
+    return this.sendCommand({ type: 'unmute', timestamp: Date.now() })
+  }
+
+  private handleAgentOutput(data: string) {
+    const lines = data.toString().trim().split('\n')
+    
+    for (const line of lines) {
+      if (line.startsWith('STATE:')) {
+        try {
+          const stateData = JSON.parse(line.substring(6)) as AgentStateUpdate
+          log.info(`[LiveKit] Agent state changed to: ${stateData.state}`)
+          this.onStateChange?.(stateData.state)
+        } catch (error) {
+          log.error('[LiveKit] Failed to parse state update:', error)
+        }
+      } else if (line.trim()) {
+        log.info(`[LiveKit] [agent] ${line}`)
+        
+        // Check for session ready indicators
+        if (line.includes('Agent session started successfully')) {
+          this.onSessionReady?.(true)
+        }
+      }
+    }
   }
 
   /* ── helpers ────────────────────────────────────────────────────────────── */
@@ -125,6 +193,8 @@ export class LiveKitAgentBootstrap {
 import logging
 import os
 import sys
+import json
+import threading
 import requests
 import aiohttp
 
@@ -141,6 +211,7 @@ from livekit.agents import (
 from livekit.plugins import openai, silero
 from livekit.plugins.openai.utils import to_chat_ctx
 from livekit.agents import APIConnectionError, llm
+from livekit.agents import utils as agent_utils
 
 # Configure logging with more detailed output
 logging.basicConfig(
@@ -148,6 +219,65 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Global mute state management
+class MuteManager:
+    def __init__(self):
+        self.is_muted = False
+        self.lock = threading.Lock()
+    
+    def set_muted(self, muted):
+        with self.lock:
+            self.is_muted = muted
+            logger.info(f"Agent {'muted' if muted else 'unmuted'}")
+    
+    def get_muted(self):
+        with self.lock:
+            return self.is_muted
+
+# Global mute manager instance
+mute_manager = MuteManager()
+
+def report_state(state):
+    """Report state changes to TypeScript"""
+    import time
+    state_update = {
+        "state": state,
+        "timestamp": int(time.time() * 1000)
+    }
+    print(f"STATE:{json.dumps(state_update)}", flush=True)
+
+def handle_command(command):
+    """Handle commands from TypeScript"""
+    try:
+        if command["type"] == "mute":
+            mute_manager.set_muted(True)
+        elif command["type"] == "unmute":
+            mute_manager.set_muted(False)
+    except Exception as e:
+        logger.error(f"Error handling command: {e}")
+
+def start_command_listener():
+    """Start listening for commands on stdin in a separate thread"""
+    def command_loop():
+        try:
+            while True:
+                line = sys.stdin.readline()
+                if not line:
+                    break
+                line = line.strip()
+                if line:
+                    try:
+                        command = json.loads(line)
+                        handle_command(command)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"Invalid command JSON: {e}")
+        except Exception as e:
+            logger.error(f"Command listener error: {e}")
+    
+    thread = threading.Thread(target=command_loop, daemon=True)
+    thread.start()
+    logger.info("Command listener started")
 
 
 # Patch termios for non-TTY environments before importing livekit
@@ -356,11 +486,31 @@ class LLM(llm.LLM):
         extra_kwargs = False):
         return LLMStream(llm=self, chat_ctx=chat_ctx, chat_id=self._chat_id, chat_history=self._chat_history)
 
+    
+class MyAgentSession(AgentSession):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    @agent_utils.log_exceptions(logger=logger)
+    async def _forward_audio_task(self) -> None:
+        audio_input = self.input.audio
+        if audio_input is None:
+            return
+
+        async for frame in audio_input:
+            if mute_manager.get_muted():
+                continue  # Skip forwarding audio frames if muted
+            if self._activity is not None:
+                self._activity.push_audio(frame)
+
 
 async def entrypoint(ctx: JobContext):
     """Main entry point for the LiveKit agent"""
     
     logger.info("Starting LiveKit agent entrypoint")
+    
+    # Start command listener for TypeScript communication
+    start_command_listener()
     
     # Connect to the room
     await ctx.connect()
@@ -381,7 +531,32 @@ async def entrypoint(ctx: JobContext):
     
     logger.info("Voice components initialized")
     
-    session = AgentSession( vad=vad, stt=stt, llm=llm, tts=tts)
+    session = MyAgentSession( vad=vad, stt=stt, llm=llm, tts=tts)
+    
+    # State change handler - map and report LiveKit states to TypeScript
+    def on_agent_state_changed(event):
+        """Handle agent state changes and report them to TypeScript"""
+        # Extract the new state from the event object
+        new_state = str(event.new_state).lower() if hasattr(event, 'new_state') else str(event).lower()
+        
+        # Map internal states to our defined states
+        state_mapping = {
+            "initializing": "initializing",
+            "idle": "idle", 
+            "listening": "listening",
+            "thinking": "thinking",
+            "speaking": "speaking"
+        }
+        
+        # Try to map the state, default to the original if not found
+        mapped_state = state_mapping.get(new_state, new_state)
+        if mapped_state in ["initializing", "idle", "listening", "thinking", "speaking"]:
+            report_state(mapped_state)
+        
+        logger.info(f"Agent state changed to: {event}")
+    
+    # Connect the state change handler
+    session.on("agent_state_changed", on_agent_state_changed)
     
     # Start the session
     logger.info("Starting agent session...")
@@ -585,15 +760,7 @@ requests`
     })
 
     this.agentProc.stdout?.on('data', (data) => {
-      const output = data.toString().trim()
-      if (output) {
-        log.info(`[LiveKit] [agent] ${output}`)
-
-        // Check for session ready indicators
-        if (output.includes('Agent session started successfully')) {
-          this.onSessionReady?.(true)
-        }
-      }
+      this.handleAgentOutput(data.toString())
     })
 
     this.agentProc.stderr?.on('data', (data) => {
@@ -608,6 +775,8 @@ requests`
       this.onSessionReady?.(false)
       this.agentProc = null
     })
+
+    // this.muteUser()
 
     log.info('[LiveKit] Agent started successfully')
   }

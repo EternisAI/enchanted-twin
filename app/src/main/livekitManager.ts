@@ -1,5 +1,5 @@
 import log from 'electron-log/main'
-import { DependencyProgress, LiveKitAgentBootstrap } from './pythonManager'
+import { AgentState, DependencyProgress, LiveKitAgentBootstrap } from './pythonManager'
 
 let livekitAgent: LiveKitAgentBootstrap | null = null
 let sessionReady = false
@@ -20,7 +20,13 @@ export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
     }
   }
 
-  livekitAgent = new LiveKitAgentBootstrap(agentProgress, agentSessionReady)
+  const agentStateChange = (state: AgentState) => {
+    if (mainWindow) {
+      log.info(`[LiveKit] Agent state changed: ${state}`)
+    }
+  }
+
+  livekitAgent = new LiveKitAgentBootstrap(agentProgress, agentSessionReady, agentStateChange)
 
   try {
     livekitAgent.setup()
