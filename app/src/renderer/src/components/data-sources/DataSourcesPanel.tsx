@@ -40,7 +40,8 @@ export function DataSourcesPanel({
   const [pendingDataSources, setPendingDataSources] = useState<Record<string, PendingDataSource>>(
     {}
   )
-  const [isIndexingInitiated, setIsIndexingInitiated] = useState(false)
+  // Track which data sources are being initiated (waiting for backend confirmation)
+  const [initiatingDataSources, setInitiatingDataSources] = useState<Set<string>>(new Set())
   // Store file sizes separately so they persist after clearing pending sources
   const [dataSourceFileSizes, setDataSourceFileSizes] = useState<Record<string, number>>({})
 
@@ -48,7 +49,8 @@ export function DataSourcesPanel({
   const isIndexing = indexingData?.indexingStatus?.status === IndexingState.IndexingData
   const isProcessing = indexingData?.indexingStatus?.status === IndexingState.ProcessingData
   const isNotStarted = indexingData?.indexingStatus?.status === IndexingState.NotStarted
-  const isGlobalProcessing = isIndexing || isProcessing || isNotStarted || isIndexingInitiated
+  const isGlobalProcessing =
+    isIndexing || isProcessing || isNotStarted || initiatingDataSources.size > 0
 
   // Group data sources by type
   const groupedDataSources = useMemo(() => {
@@ -146,7 +148,8 @@ export function DataSourcesPanel({
       if (!pendingSource) return
 
       try {
-        setIsIndexingInitiated(true)
+        // Mark this data source as initiating
+        setInitiatingDataSources((prev) => new Set(prev).add(sourceName))
 
         // Add the data source
         await addDataSource({
@@ -177,19 +180,43 @@ export function DataSourcesPanel({
       } catch (error) {
         console.error('Error starting import:', error)
         toast.error('Failed to start import. Please try again.')
-      } finally {
-        setIsIndexingInitiated(false)
+        // Remove from initiating set on error
+        setInitiatingDataSources((prev) => {
+          const newSet = new Set(prev)
+          newSet.delete(sourceName)
+          return newSet
+        })
       }
     },
     [addDataSource, pendingDataSources, refetch, startIndexing]
   )
 
-  // Reset loading state when actual status is received
+  // Clear initiating data sources when they appear in the actual data sources list
   useEffect(() => {
-    if (isIndexing || isProcessing || isNotStarted) {
-      setIsIndexingInitiated(false)
+    if (initiatingDataSources.size > 0 && data?.getDataSources) {
+      setInitiatingDataSources((prev) => {
+        const newSet = new Set(prev)
+        // Remove data sources that now exist in the backend
+        data.getDataSources.forEach((source) => {
+          if (newSet.has(source.name)) {
+            newSet.delete(source.name)
+          }
+        })
+        return newSet
+      })
     }
-  }, [isIndexing, isProcessing, isNotStarted])
+  }, [data?.getDataSources, initiatingDataSources.size])
+
+  // Timeout mechanism to clear stuck initiating data sources
+  useEffect(() => {
+    if (initiatingDataSources.size > 0) {
+      const timeout = setTimeout(() => {
+        setInitiatingDataSources(new Set())
+      }, 30000) // Clear after 30 seconds
+
+      return () => clearTimeout(timeout)
+    }
+  }, [initiatingDataSources.size])
 
   // Handle indexing completion
   useEffect(() => {
@@ -225,6 +252,7 @@ export function DataSourcesPanel({
             fileSize={dataSourceFileSizes[source.name]}
             isImporting={hasActiveImport}
             isGlobalProcessing={isGlobalProcessing}
+            isInitiating={initiatingDataSources.has(source.name)}
             onSelect={handleSourceSelected}
             onRemovePending={() => handleRemoveDataSource(source.name)}
             onStartImport={() => handleStartImport(source.name)}
