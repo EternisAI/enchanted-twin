@@ -17,6 +17,7 @@ interface UnifiedDataSourceCardProps {
   fileSize?: number
   isImporting: boolean
   isGlobalProcessing: boolean
+  isInitiating?: boolean
   onSelect: (source: DataSource) => void
   onRemovePending: () => void
   onStartImport: () => void
@@ -29,6 +30,7 @@ export const UnifiedDataSourceCard = ({
   fileSize,
   isImporting,
   isGlobalProcessing,
+  isInitiating,
   onSelect,
   onRemovePending,
   onStartImport
@@ -39,7 +41,8 @@ export const UnifiedDataSourceCard = ({
   const importingSource = indexedSources.find((s) => s.isProcessed && !s.isIndexed)
 
   // Also check if this source is being processed (handles the delay in subscription updates)
-  const isBeingProcessed = indexedSources.some((s) => !s.isProcessed && !s.isIndexed)
+  const isBeingProcessed =
+    indexedSources.some((s) => !s.isProcessed && !s.isIndexed) || isInitiating
 
   // Get the most recent indexed source
   const latestIndexedSource = indexedSources
@@ -131,9 +134,11 @@ export const UnifiedDataSourceCard = ({
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span>
-                    {importingSource?.isProcessed
-                      ? `Indexing ${Math.round(importingSource.indexProgress ?? 0)}%`
-                      : 'Processing'}
+                    {isInitiating
+                      ? 'Starting import...'
+                      : importingSource?.isProcessed
+                        ? `Indexing ${Math.round(importingSource.indexProgress ?? 0)}%`
+                        : 'Processing'}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground">
