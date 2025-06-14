@@ -24,7 +24,7 @@ make test-integration
 go test -v ./pkg/dataprocessing/integration/... -run TestMemoryIntegration
 
 # Run only structured fact filtering tests
-go test -v ./pkg/dataprocessing/integration/... -run TestStructuredFactFiltering
+go test -v ./pkg/dataprocessing/integration/... -run TestMemoryFactFiltering
 
 # Run specific sub-tests
 go test -v ./pkg/dataprocessing/integration/... -run TestMemoryIntegration/BasicQuerying
@@ -69,7 +69,7 @@ Tests are organized into logical groups:
    - `SourceFiltering` - Tests filtering by source
    - `DistanceFiltering` - Tests distance-based filtering
 
-2. **TestStructuredFactFiltering** - Tests for structured fact filtering:
+2. **TestMemoryFactFiltering** - Tests for structured fact filtering:
    - Category filtering
    - Subject filtering  
    - Importance filtering (exact and range)

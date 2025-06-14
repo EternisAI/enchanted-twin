@@ -20,7 +20,8 @@ release:
 	GOOS=linux GOARCH=amd64 go build -o bin/enchanted-twin-linux-amd64 cmd/server/main.go
 
 lint:
-	golangci-lint run
+	golangci-lint fmt
+	golangci-lint run --fix
 
 test:
 	go test -short ./...

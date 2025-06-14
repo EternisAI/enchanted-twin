@@ -149,13 +149,13 @@ export function EnableVoiceModeButton({ onClick, isVoiceReady }: VoiceModeButton
               className="flex items-center gap-2"
             >
               <AudioLines className="w-4 h-4" />
-              Voice Output
+              Talk
             </motion.span>
           </AnimatePresence>
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>{isVoiceReady ? 'Listen to output' : 'Installing voice dependencies...'}</p>
+        <p>{isVoiceReady ? 'Use voice mode' : 'Installing voice dependencies...'}</p>
       </TooltipContent>
     </Tooltip>
   )
@@ -188,7 +188,7 @@ export function DisableVoiceModeButton({ onClick }: VoiceModeButtonProps) {
         </Button>
       </TooltipTrigger>
       <TooltipContent>
-        <p>Stop voice output</p>
+        <p>Stop voice mode</p>
       </TooltipContent>
     </Tooltip>
   )

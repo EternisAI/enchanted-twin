@@ -120,6 +120,11 @@ type Message struct {
 	CreatedAt   string      `json:"createdAt"`
 }
 
+type MessageInput struct {
+	Text string `json:"text"`
+	Role Role   `json:"role"`
+}
+
 type MessageStreamPayload struct {
 	MessageID  string   `json:"messageId"`
 	Chunk      string   `json:"chunk"`
