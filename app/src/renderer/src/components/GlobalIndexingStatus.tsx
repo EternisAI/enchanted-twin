@@ -1,10 +1,10 @@
-import { useSubscription } from '@apollo/client'
-import { IndexingState, IndexingStatusDocument } from '@renderer/graphql/generated/graphql'
+import { IndexingState } from '@renderer/graphql/generated/graphql'
+import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
 import { Button } from './ui/button'
 import { useNavigate } from '@tanstack/react-router'
 
 export function GlobalIndexingStatus() {
-  const { data: indexingData } = useSubscription(IndexingStatusDocument)
+  const { data: indexingData } = useIndexingStatus()
   const navigate = useNavigate()
 
   // Workflow states
