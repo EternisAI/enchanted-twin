@@ -1,5 +1,11 @@
 export const truncatePath = (path: string): string => {
-  return path.length > 40 ? '...' + path.slice(-37) : path
+  if (path.length <= 40) return path
+
+  const pathParts = path.split('/')
+  const fileName = pathParts.pop() || ''
+  const parentDir = pathParts.pop() || ''
+
+  return `…/${parentDir}/${fileName}`
 }
 
 // Estimate time based on source type and progress
