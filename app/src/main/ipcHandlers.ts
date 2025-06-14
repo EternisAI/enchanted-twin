@@ -5,7 +5,15 @@ import fs from 'fs'
 import { windowManager } from './windows'
 import { openOAuthWindow } from './oauthHandler'
 import { checkForUpdates } from './autoUpdater'
-import { getKokoroState } from './kokoroManager'
+// import { getKokoroState } from './kokoroManager'
+import {
+  setupLiveKitAgent,
+  startLiveKitAgent,
+  stopLiveKitAgent,
+  isLiveKitAgentRunning,
+  getLiveKitAgentState,
+  isLiveKitSessionReady
+} from './livekitManager'
 
 const PATHNAME = 'input_data'
 
@@ -204,10 +212,59 @@ export function registerIpcHandlers() {
 
   ipcMain.handle('launch-get-current-state', async () => {
     try {
-      const kokoroState = await getKokoroState()
-      return kokoroState
+      const livekitState = await getLiveKitAgentState()
+      return livekitState
     } catch (error) {
       log.error('Failed to get current launch state:', error)
+      return null
+    }
+  })
+
+  // LiveKit Agent IPC handlers
+  ipcMain.handle('livekit:setup', async () => {
+    try {
+      await setupLiveKitAgent()
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to setup LiveKit agent:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('livekit:start', async (_, chatId: string, isOnboarding = false) => {
+    try {
+      await startLiveKitAgent(chatId, isOnboarding)
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to start LiveKit agent:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('livekit:stop', async () => {
+    try {
+      await stopLiveKitAgent()
+      return { success: true }
+    } catch (error) {
+      log.error('Failed to stop LiveKit agent:', error)
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  })
+
+  ipcMain.handle('livekit:is-running', () => {
+    return isLiveKitAgentRunning()
+  })
+
+  ipcMain.handle('livekit:is-session-ready', () => {
+    return isLiveKitSessionReady()
+  })
+
+  ipcMain.handle('livekit:get-state', async () => {
+    try {
+      const state = await getLiveKitAgentState()
+      return state
+    } catch (error) {
+      log.error('Failed to get LiveKit agent state:', error)
       return null
     }
   })

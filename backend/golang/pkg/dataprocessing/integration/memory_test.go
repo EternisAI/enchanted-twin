@@ -230,15 +230,27 @@ func setupTestEnvironment(t *testing.T) *testEnvironment {
 
 	dataprocessingService := dataprocessing.NewDataProcessingService(openAiService.Service, completionsModel, store, sharedLogger)
 
-	storageInterface := storage.New(sharedWeaviateClient, sharedLogger, aiEmbeddingsService)
+	embeddingsWrapper, err := storage.NewEmbeddingWrapper(aiEmbeddingsService, config.EmbeddingsModel)
+	if err != nil {
+		t.Fatalf("Failed to create embedding wrapper: %v", err)
+	}
 
-	mem, err := evolvingmemory.New(evolvingmemory.Dependencies{
+	storageInterface, err := storage.New(storage.NewStorageInput{
+		Client:            sharedWeaviateClient,
+		Logger:            sharedLogger,
+		EmbeddingsWrapper: embeddingsWrapper,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create storage interface: %v", err)
+	}
+
+	var mem evolvingmemory.MemoryStorage
+	mem, err = evolvingmemory.New(evolvingmemory.Dependencies{
 		Logger:             sharedLogger,
 		Storage:            storageInterface,
 		CompletionsService: openAiService.Service,
-		EmbeddingsService:  aiEmbeddingsService,
 		CompletionsModel:   config.CompletionsModel,
-		EmbeddingsModel:    config.EmbeddingsModel,
+		EmbeddingsWrapper:  embeddingsWrapper,
 	})
 	require.NoError(t, err)
 
@@ -715,7 +727,7 @@ func TestMemoryIntegration(t *testing.T) {
 	})
 }
 
-func TestStructuredFactFiltering(t *testing.T) {
+func TestMemoryFactFiltering(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
