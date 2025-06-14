@@ -18,7 +18,10 @@ export function useIndexingStatus() {
           isProcessed: ds.isProcessed,
           isIndexed: ds.isIndexed,
           indexProgress: ds.indexProgress,
+          hasError: ds.hasError,
           startTime: undefined // Will be set by the store's updateIndexingStatus method
+          // Note: The subscription doesn't include all DataSource fields (e.g., path, updatedAt)
+          // These are only available from the getDataSources query
         }))
       })
     }

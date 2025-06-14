@@ -38,11 +38,12 @@ export const UnifiedDataSourceCard = ({
   const { getDataSourceProgress } = useIndexingStore()
 
   // Find the currently importing source
-  const importingSource = indexedSources.find((s) => s.isProcessed && !s.isIndexed)
+  const importingSource = indexedSources.find((s) => s.isProcessed && !s.isIndexed && !s.hasError)
 
   // Also check if this source is being processed (handles the delay in subscription updates)
+  // But exclude sources with errors as they're not actively processing
   const isBeingProcessed =
-    indexedSources.some((s) => !s.isProcessed && !s.isIndexed) || isInitiating
+    indexedSources.some((s) => !s.isProcessed && !s.isIndexed && !s.hasError) || isInitiating
 
   // Get the most recent indexed source
   const latestIndexedSource = indexedSources
@@ -63,6 +64,10 @@ export const UnifiedDataSourceCard = ({
   const importStartTime = startTimeMs ? new Date(startTimeMs) : undefined
 
   const hasError = indexedSources.some((s) => s.hasError)
+
+  // Check if this source appears to be stuck (has been in processing state for too long)
+  const isStuck = importingSource && startTimeMs && Date.now() - startTimeMs > 300000 // 5 minutes
+
   const canImport = !isImporting && !isGlobalProcessing && !importingSource && !isBeingProcessed
 
   return (
@@ -128,17 +133,15 @@ export const UnifiedDataSourceCard = ({
           )}
 
           {/* Importing status */}
-          {(importingSource || isBeingProcessed) && (
+          {(importingSource || isBeingProcessed) && !isStuck && (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span>
-                    {isInitiating
-                      ? 'Starting import...'
-                      : importingSource?.isProcessed
-                        ? `Indexing ${Math.round(importingSource.indexProgress ?? 0)}%`
-                        : 'Processing'}
+                    {importingSource?.isProcessed
+                      ? `Indexing ${Math.round(importingSource.indexProgress ?? 0)}%`
+                      : 'Processing'}
                   </span>
                 </div>
                 <div className="flex items-center gap-1 text-muted-foreground">
@@ -149,6 +152,14 @@ export const UnifiedDataSourceCard = ({
                 </div>
               </div>
               <Progress value={progress} className="h-1.5" />
+            </div>
+          )}
+
+          {/* Stuck status */}
+          {isStuck && (
+            <div className="flex items-center gap-2 text-sm text-amber-600">
+              <AlertCircle className="h-4 w-4" />
+              <span>Import appears to be stuck</span>
             </div>
           )}
 

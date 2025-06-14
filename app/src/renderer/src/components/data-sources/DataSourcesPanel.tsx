@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from '@apollo/client'
 import { GetDataSourcesDocument, IndexingState } from '@renderer/graphql/generated/graphql'
 import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
+import { useIndexingStore } from '@renderer/stores/indexingStore'
 import { History } from 'lucide-react'
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { DataSource, DataSourcesPanelProps, PendingDataSource, IndexedDataSource } from './types'
@@ -34,6 +35,7 @@ export function DataSourcesPanel({
 }) {
   const { data, refetch } = useQuery(GetDataSourcesDocument)
   const { data: indexingData } = useIndexingStatus()
+  const { clearStartTimes } = useIndexingStore()
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null)
@@ -196,7 +198,7 @@ export function DataSourcesPanel({
     if (initiatingDataSources.size > 0 && data?.getDataSources) {
       setInitiatingDataSources((prev) => {
         const newSet = new Set(prev)
-        // Remove data sources that now exist in the backend
+        // Remove data sources that now exist in the backend (regardless of their state)
         data.getDataSources.forEach((source) => {
           if (newSet.has(source.name)) {
             newSet.delete(source.name)
@@ -206,6 +208,31 @@ export function DataSourcesPanel({
       })
     }
   }, [data?.getDataSources, initiatingDataSources.size])
+
+  // Clear initiating data sources when workflow ends or fails
+  useEffect(() => {
+    const status = indexingData?.indexingStatus?.status
+    const isWorkflowComplete =
+      status === IndexingState.Completed ||
+      status === IndexingState.Failed ||
+      (!isIndexing && !isProcessing && !isNotStarted)
+
+    if (isWorkflowComplete) {
+      // Clear all initiating data sources when workflow ends
+      if (initiatingDataSources.size > 0) {
+        setInitiatingDataSources(new Set())
+      }
+      // Clear all start times from the store
+      clearStartTimes()
+    }
+  }, [
+    indexingData?.indexingStatus?.status,
+    isIndexing,
+    isProcessing,
+    isNotStarted,
+    initiatingDataSources.size,
+    clearStartTimes
+  ])
 
   // Timeout mechanism to clear stuck initiating data sources
   useEffect(() => {
@@ -261,7 +288,7 @@ export function DataSourcesPanel({
       </div>
 
       <Dialog open={!!selectedSource} onOpenChange={() => setSelectedSource(null)}>
-        <DialogContent className="fixed left-[50%] top-[50%] z-[200] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-center data-[state=open]:slide-in-from-center sm:rounded-lg">
+        <DialogContent>
           <DataSourceDialog
             selectedSource={selectedSource}
             onClose={() => setSelectedSource(null)}
