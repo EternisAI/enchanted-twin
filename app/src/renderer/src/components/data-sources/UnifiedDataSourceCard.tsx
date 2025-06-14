@@ -1,4 +1,3 @@
-import { useState, useEffect } from 'react'
 import { CheckCircle2, Loader2, Plus, Play, RefreshCw, Clock, AlertCircle } from 'lucide-react'
 import { format } from 'date-fns'
 import { Button } from '../ui/button'
@@ -9,6 +8,7 @@ import { Progress } from '../ui/progress'
 import { Badge } from '../ui/badge'
 import { DataSource, PendingDataSource, IndexedDataSource } from './types'
 import { estimateRemainingTime } from './utils'
+import { useIndexingStore } from '@renderer/stores/indexingStore'
 
 interface UnifiedDataSourceCardProps {
   source: DataSource
@@ -33,7 +33,7 @@ export const UnifiedDataSourceCard = ({
   onRemovePending,
   onStartImport
 }: UnifiedDataSourceCardProps) => {
-  const [importStartTime, setImportStartTime] = useState<Date | undefined>()
+  const { getDataSourceProgress } = useIndexingStore()
 
   // Find the currently importing source
   const importingSource = indexedSources.find((s) => s.isProcessed && !s.isIndexed)
@@ -53,14 +53,11 @@ export const UnifiedDataSourceCard = ({
       : 5
     : 0
 
-  // Track import start time
-  useEffect(() => {
-    if (importingSource && !importStartTime) {
-      setImportStartTime(new Date())
-    } else if (!importingSource) {
-      setImportStartTime(undefined)
-    }
-  }, [importingSource, importStartTime])
+  // Get start time from the store
+  const startTimeMs = importingSource
+    ? getDataSourceProgress(importingSource.id)?.startTime
+    : undefined
+  const importStartTime = startTimeMs ? new Date(startTimeMs) : undefined
 
   const hasError = indexedSources.some((s) => s.hasError)
   const canImport = !isImporting && !isGlobalProcessing && !importingSource && !isBeingProcessed
