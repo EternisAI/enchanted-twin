@@ -1,9 +1,6 @@
-import { useQuery, useMutation, useSubscription } from '@apollo/client'
-import {
-  GetDataSourcesDocument,
-  IndexingState,
-  IndexingStatusDocument
-} from '@renderer/graphql/generated/graphql'
+import { useQuery, useMutation } from '@apollo/client'
+import { GetDataSourcesDocument, IndexingState } from '@renderer/graphql/generated/graphql'
+import { useIndexingStatus } from '@renderer/hooks/useIndexingStatus'
 import { History } from 'lucide-react'
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { DataSource, DataSourcesPanelProps, PendingDataSource, IndexedDataSource } from './types'
@@ -36,7 +33,7 @@ export function DataSourcesPanel({
   onIndexingComplete?: () => void
 }) {
   const { data, refetch } = useQuery(GetDataSourcesDocument)
-  const { data: indexingData } = useSubscription(IndexingStatusDocument)
+  const { data: indexingData } = useIndexingStatus()
   const [addDataSource] = useMutation(ADD_DATA_SOURCE)
   const [startIndexing] = useMutation(START_INDEXING)
   const [selectedSource, setSelectedSource] = useState<DataSource | null>(null)
@@ -64,8 +61,9 @@ export function DataSourcesPanel({
         }
         grouped[source.name].push({
           ...source,
-          indexProgress: indexingData?.indexingStatus?.dataSources?.find((s) => s.id === source.id)
-            ?.indexProgress
+          indexProgress:
+            indexingData?.indexingStatus?.dataSources?.find((s) => s.id === source.id)
+              ?.indexProgress ?? undefined
         })
       })
     }
