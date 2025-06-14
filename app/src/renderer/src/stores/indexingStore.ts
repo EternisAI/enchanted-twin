@@ -8,6 +8,7 @@ export interface DataSourceProgress {
   isProcessed?: boolean
   isIndexed?: boolean
   indexProgress?: number | null
+  hasError?: boolean
   startTime?: number
 }
 
