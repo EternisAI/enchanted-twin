@@ -224,6 +224,8 @@ func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Reco
 		id := getString("id")
 
 		conversation := &memory.ConversationDocument{
+			User:        "user",
+			People:      []string{"user", "assistant"},
 			FieldID:     id,
 			FieldSource: "chatgpt",
 			FieldTags:   []string{"chat", "conversation"},

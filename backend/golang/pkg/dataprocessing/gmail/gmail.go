@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -584,7 +585,7 @@ func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string) ([]ty
 }
 
 func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) ([]memory.Document, error) {
-	out := []memory.TextDocument{}
+	out := []memory.ConversationDocument{}
 	for _, r := range recs {
 		get := func(k string) string {
 			if v, ok := r.Data[k]; ok {
@@ -597,31 +598,53 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 		if get("content") == "" {
 			continue
 		}
-		// Generate proper document ID using message_id if available, or fallback to timestamp
-		messageID := get("message_id")
-		docID := fmt.Sprintf("gmail-email-%s", messageID)
-		if messageID == "" {
-			// Fallback to timestamp-based ID
-			docID = fmt.Sprintf("gmail-email-%d", r.Timestamp.Unix())
+		user := ""
+		sourceUsername, err := g.store.GetSourceUsername(ctx, "gmail")
+		if err != nil {
+			logrus.Errorf("get source username: %v", err)
 		}
+		if sourceUsername != nil {
+			user = sourceUsername.Username
+		}
+		people := []string{user, get("from"), get("to")}
 
-		out = append(out, memory.TextDocument{
-			FieldID:        docID,
-			FieldSource:    "gmail",
-			FieldContent:   get("content"),
-			FieldTimestamp: &r.Timestamp,
-			FieldTags:      []string{"email"},
+		idComponents := fmt.Sprintf("%d-%s-%s-%s",
+			r.Timestamp.Unix(),
+			get("from"),
+			get("to"),
+			get("subject"))
+		hasher := sha256.New()
+		hasher.Write([]byte(idComponents))
+		emailHash := fmt.Sprintf("%x", hasher.Sum(nil))[:16]
+		documentID := fmt.Sprintf("gmail-email-%s", emailHash)
+
+		out = append(out, memory.ConversationDocument{
+			FieldID:     documentID,
+			User:        user,
+			People:      people,
+			FieldSource: "gmail",
+			FieldTags:   []string{"email"},
 			FieldMetadata: map[string]string{
 				"from":    get("from"),
 				"to":      get("to"),
 				"subject": get("subject"),
 			},
+			Conversation: []memory.ConversationMessage{
+				{
+					Content: get("content"),
+					Speaker: extractEmailAddress(get("from")),
+					Time:    r.Timestamp,
+				},
+			},
 		})
+
+		g.logger.Info("🟡 document", "document", out)
 	}
 	var documents []memory.Document
 	for _, document := range out {
 		documents = append(documents, &document)
 	}
+
 	return documents, nil
 }
 
