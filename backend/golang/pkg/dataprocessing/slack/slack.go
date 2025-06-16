@@ -147,7 +147,11 @@ func (s *SlackProcessor) ToDocuments(ctx context.Context, records []types.Record
 
 		message = fmt.Sprintf("From %s in channel %s: %s", authorUsername, channelName, message)
 
+		// Generate unique document ID using channel + timestamp + author
+		docID := fmt.Sprintf("slack-msg-%s-%s-%d", channelName, authorUsername, record.Timestamp.Unix())
+
 		textDocuments = append(textDocuments, memory.TextDocument{
+			FieldID:        docID,
 			FieldSource:    "slack",
 			FieldContent:   message,
 			FieldTimestamp: &record.Timestamp,

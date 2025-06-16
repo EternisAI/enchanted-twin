@@ -592,7 +592,15 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			}
 			contactContent += " - This is a contact from the user's Telegram contact list, not information about the primary user."
 
+			// Generate a unique ID for the contact
+			contactID := fmt.Sprintf("telegram-contact-%s", phoneNumber)
+			if phoneNumber == "" {
+				// Fallback to name-based ID if no phone number
+				contactID = fmt.Sprintf("telegram-contact-%s", strings.ReplaceAll(fullName, " ", "-"))
+			}
+
 			textDoc := &memory.TextDocument{
+				FieldID:        contactID,
 				FieldSource:    "telegram",
 				FieldContent:   contactContent,
 				FieldTimestamp: &record.Timestamp,

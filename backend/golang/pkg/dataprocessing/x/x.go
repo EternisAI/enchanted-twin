@@ -249,6 +249,7 @@ func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([
 		content := ""
 		metadata := map[string]string{}
 		tags := []string{"social"}
+		var docID string
 
 		getString := func(key string) string {
 			if val, ok := record.Data[key]; ok {
@@ -264,6 +265,7 @@ func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([
 		case "like":
 			content = getString("fullText")
 			tweetId := getString("tweetId")
+			docID = fmt.Sprintf("x-like-%s", tweetId)
 			metadata = map[string]string{
 				"type": "like",
 				"id":   tweetId,
@@ -274,6 +276,7 @@ func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([
 		case "tweet":
 			content = getString("fullText")
 			id := getString("id")
+			docID = fmt.Sprintf("x-tweet-%s", id)
 			favoriteCount := getString("favoriteCount")
 			retweetCount := getString("retweetCount")
 			metadata = map[string]string{
@@ -286,13 +289,23 @@ func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([
 
 		case "directMessage":
 			content = getString("text")
+			conversationId := getString("conversationId")
+			senderId := getString("senderId")
+			// Use conversation + sender + timestamp for unique DM ID
+			docID = fmt.Sprintf("x-dm-%s-%s-%d", conversationId, senderId, record.Timestamp.Unix())
 			metadata = map[string]string{
 				"type": "direct_message",
 			}
 			tags = append(tags, "direct_message")
 		}
 
+		// Fallback ID if none was set
+		if docID == "" {
+			docID = fmt.Sprintf("x-%s-%d", recordType, record.Timestamp.Unix())
+		}
+
 		documents = append(documents, memory.TextDocument{
+			FieldID:        docID,
 			FieldSource:    "x",
 			FieldContent:   content,
 			FieldTimestamp: &record.Timestamp,

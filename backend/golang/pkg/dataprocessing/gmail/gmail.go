@@ -597,7 +597,16 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 		if get("content") == "" {
 			continue
 		}
+		// Generate proper document ID using message_id if available, or fallback to timestamp
+		messageID := get("message_id")
+		docID := fmt.Sprintf("gmail-email-%s", messageID)
+		if messageID == "" {
+			// Fallback to timestamp-based ID
+			docID = fmt.Sprintf("gmail-email-%d", r.Timestamp.Unix())
+		}
+
 		out = append(out, memory.TextDocument{
+			FieldID:        docID,
 			FieldSource:    "gmail",
 			FieldContent:   get("content"),
 			FieldTimestamp: &r.Timestamp,
