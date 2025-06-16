@@ -23,6 +23,7 @@ type Thread struct {
 	CreatorID     int       `json:"creatorId"`
 	CreatorName   string    `json:"creatorName"`
 	DedupThreadID string    `json:"dedupThreadId"`
+	ImageURLs     []string  `json:"image_urls,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
@@ -35,6 +36,7 @@ type Reply struct {
 	ParticipantDisplayName string    `json:"participantDisplayName"`
 	Content                string    `json:"content"`
 	DedupReplyID           string    `json:"dedupReplyId"`
+	ImageURLs              []string  `json:"image_urls,omitempty"`
 	CreatedAt              time.Time `json:"createdAt"`
 	UpdatedAt              time.Time `json:"updatedAt"`
 }
@@ -55,28 +57,32 @@ type UpdateParticipantRequest struct {
 
 // CreateThreadRequest for creating a new thread.
 type CreateThreadRequest struct {
-	Title         string `json:"title"`
-	Content       string `json:"content,omitempty"`
-	DedupThreadID string `json:"dedupThreadId"`
+	Title         string   `json:"title"`
+	Content       string   `json:"content,omitempty"`
+	DedupThreadID string   `json:"dedupThreadId"`
+	ImageURLs     []string `json:"image_urls,omitempty"`
 }
 
 // UpdateThreadRequest for updating a thread.
 type UpdateThreadRequest struct {
-	Title   string `json:"title"`
-	Content string `json:"content,omitempty"`
+	Title     string   `json:"title"`
+	Content   string   `json:"content,omitempty"`
+	ImageURLs []string `json:"image_urls,omitempty"`
 }
 
 // CreateReplyRequest for creating a new reply.
 type CreateReplyRequest struct {
-	ThreadID      int    `json:"threadId"`
-	ParticipantID int    `json:"participantId"`
-	Content       string `json:"content"`
-	DedupReplyID  string `json:"dedupReplyId"`
+	ThreadID      int      `json:"threadId"`
+	ParticipantID int      `json:"participantId"`
+	Content       string   `json:"content"`
+	DedupReplyID  string   `json:"dedupReplyId"`
+	ImageURLs     []string `json:"image_urls,omitempty"`
 }
 
 // UpdateReplyRequest for updating a reply.
 type UpdateReplyRequest struct {
-	Content string `json:"content"`
+	Content   string   `json:"content"`
+	ImageURLs []string `json:"image_urls,omitempty"`
 }
 
 // Response types
@@ -133,7 +139,7 @@ type ParticipantResponse struct {
 	ID               int       `json:"id"`
 	Name             string    `json:"name"`
 	Email            string    `json:"email"`
-	DisplayName      string    `json:"display_name"`
+	DisplayName      string `json:"display_name"`
 	CollisionCounter int       `json:"collision_counter"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
