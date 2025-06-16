@@ -415,6 +415,12 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 			}
 		}
 
+		// Skip conversations where the user is the only participant
+		if len(people) == 1 && people[0] == userDisplayName {
+			s.logger.Debug("Skipping conversation with only user messages", "chatId", conv.chatId, "chatName", conv.chatName)
+			continue
+		}
+
 		conversationDataMap := map[string]interface{}{
 			"type":     "conversation",
 			"chatId":   conv.chatId,
