@@ -404,11 +404,8 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		"totalMessages", processedMessages,
 		"conversations", len(conversationMap))
 
-	// Create user display name from personal information
+	// Use first name as user display name
 	userDisplayName := telegramData.PersonalInformation.FirstName
-	if telegramData.PersonalInformation.LastName != "" {
-		userDisplayName += " " + telegramData.PersonalInformation.LastName
-	}
 
 	for _, conv := range conversationMap {
 		var people []string
