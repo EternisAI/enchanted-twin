@@ -474,13 +474,18 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 							f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
 						} else {
 							// Create the missing thread
+							// Normalize image URLs
+							imageURLs := parentThread.ImageURLs
+							if imageURLs == nil {
+								imageURLs = []string{}
+							}
 							_, err = f.repository.CreateThread(
 								ctx,
 								threadID,
 								parentThread.Title,
 								parentThread.Content,
 								threadAuthorIdentity,
-								parentThread.ImageURLs, // Use image URLs from parent thread
+								imageURLs,               // Use normalized image URLs from parent thread
 								[]string{}, // actions
 								nil,        // expiresAt
 								"received",
@@ -1011,13 +1016,18 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 							f.logError(fmt.Sprintf("Failed to create/update thread author %s", threadAuthorIdentity), err)
 						} else {
 							// Create the missing thread
+							// Normalize image URLs
+							imageURLs := parentThread.ImageURLs
+							if imageURLs == nil {
+								imageURLs = []string{}
+							}
 							_, err = f.repository.CreateThread(
 								ctx,
 								threadID,
 								parentThread.Title,
 								parentThread.Content,
 								threadAuthorIdentity,
-								parentThread.ImageURLs, // Use image URLs from parent thread
+								imageURLs,               // Use normalized image URLs from parent thread
 								[]string{}, // actions
 								nil,        // expiresAt
 								"received",
