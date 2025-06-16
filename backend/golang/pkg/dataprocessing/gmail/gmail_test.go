@@ -494,7 +494,9 @@ func TestToDocuments(t *testing.T) {
 		"from":    "support@example.com",
 		"to":      "testuser@example.com",
 		"subject": "Welcome to the Platform",
+		"user":    "",
 	}
+
 	if len(doc.Metadata()) != len(expectedMetadata) {
 		t.Errorf("Expected %d metadata entries, got %d", len(expectedMetadata), len(doc.Metadata()))
 	}

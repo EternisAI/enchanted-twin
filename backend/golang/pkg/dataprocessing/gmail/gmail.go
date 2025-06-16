@@ -599,12 +599,14 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 			continue
 		}
 		user := ""
-		sourceUsername, err := g.store.GetSourceUsername(ctx, "gmail")
-		if err != nil {
-			logrus.Errorf("get source username: %v", err)
-		}
-		if sourceUsername != nil {
-			user = sourceUsername.Username
+		if g.store != nil {
+			sourceUsername, err := g.store.GetSourceUsername(ctx, "gmail")
+			if err != nil {
+				logrus.Errorf("get source username: %v", err)
+			}
+			if sourceUsername != nil {
+				user = sourceUsername.Username
+			}
 		}
 		people := []string{user, get("from"), get("to")}
 
