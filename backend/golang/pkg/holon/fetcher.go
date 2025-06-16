@@ -317,7 +317,7 @@ func (f *FetcherService) syncThreadsInternal(ctx context.Context, useMetadata bo
 		if imageURLs == nil {
 			imageURLs = []string{} // Ensure we have an empty slice instead of nil
 		}
-		actions := []string{}   // HolonZero doesn't have actions in current schema
+		actions := []string{} // HolonZero doesn't have actions in current schema
 
 		_, err = f.repository.CreateThread(
 			ctx,
@@ -485,7 +485,7 @@ func (f *FetcherService) syncReplies(ctx context.Context) error {
 								parentThread.Title,
 								parentThread.Content,
 								threadAuthorIdentity,
-								imageURLs,               // Use normalized image URLs from parent thread
+								imageURLs,  // Use normalized image URLs from parent thread
 								[]string{}, // actions
 								nil,        // expiresAt
 								"received",
@@ -586,7 +586,7 @@ func (f *FetcherService) PushPendingThreads(ctx context.Context) error {
 		createReq := CreateThreadRequest{
 			Title:         thread.Title,
 			Content:       thread.Content,
-			DedupThreadID: thread.ID, // Use local thread ID as dedup ID
+			DedupThreadID: thread.ID,        // Use local thread ID as dedup ID
 			ImageURLs:     thread.ImageURLs, // Include image URLs from local thread
 		}
 
@@ -1027,7 +1027,7 @@ func (f *FetcherService) SyncReplies(ctx context.Context) ([]Reply, error) {
 								parentThread.Title,
 								parentThread.Content,
 								threadAuthorIdentity,
-								imageURLs,               // Use normalized image URLs from parent thread
+								imageURLs,  // Use normalized image URLs from parent thread
 								[]string{}, // actions
 								nil,        // expiresAt
 								"received",
