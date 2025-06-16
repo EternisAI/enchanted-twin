@@ -139,7 +139,7 @@ type ParticipantResponse struct {
 	ID               int       `json:"id"`
 	Name             string    `json:"name"`
 	Email            string    `json:"email"`
-	DisplayName      string `json:"display_name"`
+	DisplayName      string    `json:"display_name"`
 	CollisionCounter int       `json:"collision_counter"`
 	CreatedAt        time.Time `json:"created_at"`
 	UpdatedAt        time.Time `json:"updated_at"`
