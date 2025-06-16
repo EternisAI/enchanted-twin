@@ -13,12 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -26,6 +20,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -969,6 +968,48 @@ func (r *subscriptionResolver) MessageStream(ctx context.Context, chatID string)
 	}()
 
 	return ch, nil
+}
+
+// ProcessMessageHistoryStream is the resolver for the processMessageHistoryStream subscription.
+func (r *subscriptionResolver) ProcessMessageHistoryStream(ctx context.Context, chatID string, messages []*model.MessageInput, isOnboarding bool) (<-chan *model.MessageStreamPayload, error) {
+	// Convert input messages to the format expected by the service for logging purposes
+	historyJson, err := json.Marshal(map[string]interface{}{
+		"chatId":     chatID,
+		"messages":   messages,
+		"count":      len(messages),
+		"onboarding": isOnboarding,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	r.Logger.Info("Processing message history with streaming", "data", string(historyJson))
+
+	// Use the streaming service method
+	streamChan, err := r.TwinChatService.ProcessMessageHistoryStream(ctx, chatID, messages, isOnboarding)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the service channel to the expected GraphQL channel
+	gqlChan := make(chan *model.MessageStreamPayload, 10)
+
+	go func() {
+		defer close(gqlChan)
+		for {
+			select {
+			case payload, ok := <-streamChan:
+				if !ok {
+					return
+				}
+				gqlChan <- &payload
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	return gqlChan, nil
 }
 
 // WhatsAppSyncStatus is the resolver for the whatsAppSyncStatus field.
