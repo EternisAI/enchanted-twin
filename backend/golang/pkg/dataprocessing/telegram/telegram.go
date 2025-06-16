@@ -340,14 +340,9 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 					continue
 				}
 
-				var myMessage bool
-				if effectiveUserName == "" {
-					myMessage = false
-				} else {
-					normalizedEffectiveUserName := strings.TrimPrefix(effectiveUserName, "@")
-					normalizedMessageFrom := strings.TrimPrefix(message.From, "@")
-					myMessage = strings.EqualFold(normalizedMessageFrom, normalizedEffectiveUserName)
-				}
+				// Identify user messages by from_id matching user_id
+				expectedFromID := fmt.Sprintf("user%d", telegramData.PersonalInformation.UserID)
+				myMessage := message.FromID == expectedFromID
 
 				to := ""
 				if myMessage {
@@ -369,10 +364,8 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 				}
 
 				conv.messages = append(conv.messages, msg)
+				// Add all speakers to people list (including the user)
 				conv.people[message.From] = true
-				if to != "" {
-					conv.people[to] = true
-				}
 
 				if len(conv.messages) == 1 || timestamp.Before(conv.firstMessage) {
 					conv.firstMessage = timestamp
@@ -411,6 +404,12 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		"totalMessages", processedMessages,
 		"conversations", len(conversationMap))
 
+	// Create user display name from personal information
+	userDisplayName := telegramData.PersonalInformation.FirstName
+	if telegramData.PersonalInformation.LastName != "" {
+		userDisplayName += " " + telegramData.PersonalInformation.LastName
+	}
+
 	for _, conv := range conversationMap {
 		var people []string
 		for person := range conv.people {
@@ -426,7 +425,7 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 			"chatName": conv.chatName,
 			"messages": conv.messages,
 			"people":   people,
-			"user":     effectiveUserName,
+			"user":     userDisplayName,
 		}
 
 		record := types.Record{
@@ -470,16 +469,6 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
 	var documents []memory.Document
 
-	sourceUsername, err := s.store.GetSourceUsername(ctx, s.Name())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get source username: %v", err)
-	}
-
-	var extractedUser string
-	if sourceUsername != nil {
-		extractedUser = strings.TrimPrefix(sourceUsername.Username, "@")
-	}
-
 	for _, record := range records {
 		if record.Data["type"] == "conversation" {
 			chatIdInterface, ok := record.Data["chatId"]
@@ -516,12 +505,15 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				}
 			}
 
+			// Extract user from the record data (which now contains the display name)
+			userFromRecord, _ := record.Data["user"].(string)
+
 			conversationDoc := &memory.ConversationDocument{
 				FieldID:      chatId,
 				FieldSource:  "telegram",
 				FieldTags:    []string{"social", "chat"},
 				People:       people,
-				User:         extractedUser,
+				User:         userFromRecord,
 				Conversation: []memory.ConversationMessage{},
 				FieldMetadata: map[string]string{
 					"type":   "conversation",
