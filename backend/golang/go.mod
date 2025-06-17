@@ -48,6 +48,7 @@ require (
 	github.com/KimMachineGun/automemlimit v0.7.1 // indirect
 	github.com/VividCortex/ewma v1.2.0 // indirect
 	github.com/alexedwards/argon2id v1.0.0 // indirect
+	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	github.com/armon/go-metrics v0.4.1 // indirect
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.36.3 // indirect
@@ -79,12 +80,14 @@ require (
 	github.com/cheggaaa/pb/v3 v3.1.4 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
+	github.com/cubicdaiya/gonp v1.0.4 // indirect
 	github.com/danaugrs/go-tsne v0.0.0-20200708172100-6b7d1d577fd3 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/edsrzf/mmap-go v1.2.0 // indirect
 	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
+	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/getsentry/sentry-go v0.30.0 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
@@ -107,6 +110,7 @@ require (
 	github.com/goccy/go-json v0.10.4 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/btree v1.1.3 // indirect
+	github.com/google/cel-go v0.24.1 // indirect
 	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/gregjones/httpcache v0.0.0-20171119193500-2bcd89a1743f // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
@@ -124,6 +128,8 @@ require (
 	github.com/ikawaha/kagome-dict-ko v0.2.1 // indirect
 	github.com/ikawaha/kagome-dict/ipa v1.2.0 // indirect
 	github.com/ikawaha/kagome/v2 v2.10.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/johnbellone/grpc-middleware-sentry v0.4.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/karrick/godirwalk v1.15.3 // indirect
@@ -153,7 +159,11 @@ require (
 	github.com/pbnjay/memory v0.0.0-20210728143218-7b4eea64cf58 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/petermattis/goid v0.0.0-20250319124200-ccd6737f222a // indirect
+	github.com/pganalyze/pg_query_go/v6 v6.1.0 // indirect
 	github.com/pingcap/errors v0.11.5-0.20240311024730-e056997136bb // indirect
+	github.com/pingcap/failpoint v0.0.0-20240528011301-b51a646c7c86 // indirect
+	github.com/pingcap/log v1.1.0 // indirect
+	github.com/pingcap/tidb/pkg/parser v0.0.0-20250324122243-d51e00e5bbf0 // indirect
 	github.com/pion/datachannel v1.5.10 // indirect
 	github.com/pion/dtls/v3 v3.0.6 // indirect
 	github.com/pion/ice/v4 v4.0.10 // indirect
@@ -169,19 +179,27 @@ require (
 	github.com/pion/stun/v3 v3.0.0 // indirect
 	github.com/pion/transport/v3 v3.0.7 // indirect
 	github.com/pion/turn/v4 v4.0.1 // indirect
+	github.com/riza-io/grpc-go v0.2.0 // indirect
 	github.com/rs/xid v1.6.0 // indirect
 	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
 	github.com/sethvargo/go-retry v0.3.0 // indirect
 	github.com/spaolacci/murmur3 v1.1.0 // indirect
+	github.com/spf13/cobra v1.9.1 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
+	github.com/sqlc-dev/sqlc v1.29.0 // indirect
 	github.com/ssor/bom v0.0.0-20170718123548-6386211fdfcf // indirect
+	github.com/stoewer/go-strcase v1.2.0 // indirect
 	github.com/tailor-inc/graphql v0.5.7 // indirect
 	github.com/termie/go-shutil v0.0.0-20140729215957-bcacb06fecae // indirect
+	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/vcaesar/cedar v0.20.2 // indirect
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
+	github.com/wasilibs/go-pgquery v0.0.0-20250409022910-10ac41983c07 // indirect
+	github.com/wasilibs/wazero-helpers v0.0.0-20240620070341-3dff1577cd52 // indirect
 	github.com/weaviate/contextionary v1.2.1 // indirect
 	github.com/weaviate/fgprof v0.0.0-20241024091527-0000bf3ee8aa // indirect
 	github.com/weaviate/s5cmd/v2 v2.0.1 // indirect
@@ -196,6 +214,7 @@ require (
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/net v0.40.0 // indirect
 	gonum.org/v1/gonum v0.15.1 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gotest.tools/v3 v3.5.2 // indirect
 )

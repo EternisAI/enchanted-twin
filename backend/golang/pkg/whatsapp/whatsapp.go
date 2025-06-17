@@ -378,7 +378,7 @@ func convertMessagesToConversationDocument(messages []whatsappdb.WhatsappMessage
 		conversationMessages = append(conversationMessages, memory.ConversationMessage{
 			Speaker: msg.SenderName,
 			Content: msg.Content,
-			Time:    msg.Timestamp,
+			Time:    msg.SentAt,
 		})
 
 		if !peopleMap[msg.SenderName] {
@@ -526,7 +526,7 @@ func shouldFlushToMemory(ctx context.Context, database *db.DB, conversationID st
 		}
 
 		if err == nil {
-			timeDiff := newMessageTime.Sub(latestMessage.Timestamp)
+			timeDiff := newMessageTime.Sub(latestMessage.SentAt)
 			if timeDiff > DefaultMaxTimeBetweenMessages {
 				logger.Debug("Flushing to memory due to time gap (fallback)",
 					"conversation_id", conversationID,
@@ -936,7 +936,7 @@ func EventHandler(memoryStorage memory.Storage, database *db.DB, logger *log.Log
 				SenderName:     senderName,
 				Content:        content,
 				MessageType:    messageType,
-				Timestamp:      messageTimestamp,
+				SentAt:         messageTimestamp,
 				FromMe:         v.Info.IsFromMe,
 			})
 			if err != nil {

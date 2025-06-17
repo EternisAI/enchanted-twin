@@ -1,22 +1,22 @@
 -- WhatsApp message queries
 -- name: InsertWhatsappMessage :exec
-INSERT INTO whatsapp_messages (id, conversation_id, sender_jid, sender_name, content, message_type, timestamp, from_me)
+INSERT INTO whatsapp_messages (id, conversation_id, sender_jid, sender_name, content, message_type, sent_at, from_me)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetWhatsappMessagesByConversation :many
-SELECT id, conversation_id, sender_jid, sender_name, content, message_type, timestamp, from_me, created_at
+SELECT id, conversation_id, sender_jid, sender_name, content, message_type, sent_at, from_me, created_at
 FROM whatsapp_messages 
 WHERE conversation_id = ? 
-ORDER BY timestamp ASC;
+ORDER BY sent_at ASC;
 
 -- name: GetWhatsappMessageCount :one
 SELECT COUNT(*) FROM whatsapp_messages WHERE conversation_id = ?;
 
 -- name: GetLatestWhatsappMessage :one
-SELECT id, conversation_id, sender_jid, sender_name, content, message_type, timestamp, from_me, created_at
+SELECT id, conversation_id, sender_jid, sender_name, content, message_type, sent_at, from_me, created_at
 FROM whatsapp_messages 
 WHERE conversation_id = ? 
-ORDER BY timestamp DESC 
+ORDER BY sent_at DESC 
 LIMIT 1;
 
 -- name: DeleteWhatsappMessagesByConversation :exec

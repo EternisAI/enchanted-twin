@@ -47,10 +47,10 @@ func (q *Queries) GetAllConversationIDs(ctx context.Context) ([]string, error) {
 }
 
 const getLatestWhatsappMessage = `-- name: GetLatestWhatsappMessage :one
-SELECT id, conversation_id, sender_jid, sender_name, content, message_type, timestamp, from_me, created_at
+SELECT id, conversation_id, sender_jid, sender_name, content, message_type, sent_at, from_me, created_at
 FROM whatsapp_messages 
 WHERE conversation_id = ? 
-ORDER BY timestamp DESC 
+ORDER BY sent_at DESC 
 LIMIT 1
 `
 
@@ -64,7 +64,7 @@ func (q *Queries) GetLatestWhatsappMessage(ctx context.Context, conversationID s
 		&i.SenderName,
 		&i.Content,
 		&i.MessageType,
-		&i.Timestamp,
+		&i.SentAt,
 		&i.FromMe,
 		&i.CreatedAt,
 	)
@@ -83,10 +83,10 @@ func (q *Queries) GetWhatsappMessageCount(ctx context.Context, conversationID st
 }
 
 const getWhatsappMessagesByConversation = `-- name: GetWhatsappMessagesByConversation :many
-SELECT id, conversation_id, sender_jid, sender_name, content, message_type, timestamp, from_me, created_at
+SELECT id, conversation_id, sender_jid, sender_name, content, message_type, sent_at, from_me, created_at
 FROM whatsapp_messages 
 WHERE conversation_id = ? 
-ORDER BY timestamp ASC
+ORDER BY sent_at ASC
 `
 
 func (q *Queries) GetWhatsappMessagesByConversation(ctx context.Context, conversationID string) ([]WhatsappMessage, error) {
@@ -105,7 +105,7 @@ func (q *Queries) GetWhatsappMessagesByConversation(ctx context.Context, convers
 			&i.SenderName,
 			&i.Content,
 			&i.MessageType,
-			&i.Timestamp,
+			&i.SentAt,
 			&i.FromMe,
 			&i.CreatedAt,
 		); err != nil {
@@ -123,7 +123,7 @@ func (q *Queries) GetWhatsappMessagesByConversation(ctx context.Context, convers
 }
 
 const insertWhatsappMessage = `-- name: InsertWhatsappMessage :exec
-INSERT INTO whatsapp_messages (id, conversation_id, sender_jid, sender_name, content, message_type, timestamp, from_me)
+INSERT INTO whatsapp_messages (id, conversation_id, sender_jid, sender_name, content, message_type, sent_at, from_me)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `
 
@@ -134,7 +134,7 @@ type InsertWhatsappMessageParams struct {
 	SenderName     string    `json:"senderName"`
 	Content        string    `json:"content"`
 	MessageType    string    `json:"messageType"`
-	Timestamp      time.Time `json:"timestamp"`
+	SentAt         time.Time `json:"sentAt"`
 	FromMe         bool      `json:"fromMe"`
 }
 
@@ -147,7 +147,7 @@ func (q *Queries) InsertWhatsappMessage(ctx context.Context, arg InsertWhatsappM
 		arg.SenderName,
 		arg.Content,
 		arg.MessageType,
-		arg.Timestamp,
+		arg.SentAt,
 		arg.FromMe,
 	)
 	return err

@@ -129,7 +129,7 @@ type WhatsappMessage struct {
 	SenderName     string    `json:"senderName"`
 	Content        string    `json:"content"`
 	MessageType    string    `json:"messageType"`
-	Timestamp      time.Time `json:"timestamp"`
+	SentAt         time.Time `json:"sentAt"`
 	FromMe         bool      `json:"fromMe"`
 	CreatedAt      time.Time `json:"createdAt"`
 }
