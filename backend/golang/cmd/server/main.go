@@ -395,6 +395,24 @@ func main() {
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
 
+	// Initialize thread processor with AI and memory services for LLM-based filtering
+	logger.Info("Initializing thread processor with LLM-based evaluation")
+	holonService.InitializeThreadProcessor(aiCompletionsService, envs.CompletionsModel, mem)
+
+	// Initialize and start background processor for automatic thread processing
+	processingInterval := 30 * time.Second // Process received threads every 30 seconds
+	holonService.InitializeBackgroundProcessor(processingInterval)
+
+	// Start background processing in a goroutine
+	go func() {
+		ctx := context.Background()
+		if err := holonService.StartBackgroundProcessing(ctx); err != nil {
+			logger.Error("Failed to start background thread processing", "error", err)
+		} else {
+			logger.Info("Background thread processing started successfully")
+		}
+	}()
+
 	// Initialize HolonZero API fetcher service with the main logger
 	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
@@ -406,6 +424,8 @@ func main() {
 			if err := holonManager.Stop(); err != nil {
 				logger.Error("Failed to stop holon manager", "error", err)
 			}
+			// Stop background thread processing on shutdown
+			holonService.StopBackgroundProcessing()
 		}()
 	}
 
