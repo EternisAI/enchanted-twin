@@ -76,7 +76,6 @@ func (ca *ConversationAnalyzer) AssessConversationBoundary(ctx context.Context, 
 		}, nil
 	}
 
-	// Build context from recent messages
 	var messageContext strings.Builder
 	messageContext.WriteString("Recent messages in this conversation:\n")
 
@@ -123,7 +122,6 @@ Use the analyze_conversation_boundary tool to provide your assessment.`, message
 
 	ca.logger.Debug("AI conversation assessment", "response", response)
 
-	// Extract tool call result
 	if len(response.ToolCalls) == 0 {
 		return nil, fmt.Errorf("no tool calls returned from AI")
 	}
@@ -133,7 +131,6 @@ Use the analyze_conversation_boundary tool to provide your assessment.`, message
 		return nil, fmt.Errorf("unexpected tool call: %s", toolCall.Function.Name)
 	}
 
-	// Parse the structured response
 	var assessment ConversationAssessment
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &assessment); err != nil {
 		return nil, fmt.Errorf("failed to parse tool response: %w", err)

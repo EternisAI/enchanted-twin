@@ -409,9 +409,7 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			logger.Error("Failed to rollback transaction", "error", err)
-		}
+		_ = tx.Rollback()
 	}()
 
 	txQueries := database.WhatsappQueries.WithTx(tx)
