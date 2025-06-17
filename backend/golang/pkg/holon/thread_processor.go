@@ -14,7 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 )
 
-// ThreadProcessor handles LLM-based thread evaluation and state management
+// ThreadProcessor handles LLM-based thread evaluation and state management.
 type ThreadProcessor struct {
 	logger           *log.Logger
 	aiService        *ai.Service
@@ -23,7 +23,7 @@ type ThreadProcessor struct {
 	memoryService    evolvingmemory.MemoryStorage
 }
 
-// NewThreadProcessor creates a new thread processor
+// NewThreadProcessor creates a new thread processor.
 func NewThreadProcessor(
 	logger *log.Logger,
 	aiService *ai.Service,
@@ -40,7 +40,7 @@ func NewThreadProcessor(
 	}
 }
 
-// ThreadEvaluationResult represents the result of evaluating a thread
+// ThreadEvaluationResult represents the result of evaluating a thread.
 type ThreadEvaluationResult struct {
 	ShouldShow bool
 	Reason     string
@@ -48,7 +48,7 @@ type ThreadEvaluationResult struct {
 	NewState   string
 }
 
-// EvaluateThread uses LLM to determine if a thread is interesting for the user
+// EvaluateThread uses LLM to determine if a thread is interesting for the user.
 func (tp *ThreadProcessor) EvaluateThread(ctx context.Context, thread *model.Thread) (*ThreadEvaluationResult, error) {
 	// Get user context from memory
 	userContext, err := tp.getUserContext(ctx)
@@ -117,7 +117,7 @@ func (tp *ThreadProcessor) EvaluateThread(ctx context.Context, thread *model.Thr
 	return result, nil
 }
 
-// ProcessReceivedThreads processes all threads with 'received' state
+// ProcessReceivedThreads processes all threads with 'received' state.
 func (tp *ThreadProcessor) ProcessReceivedThreads(ctx context.Context) error {
 	// Get all threads with 'received' state
 	receivedThreads, err := tp.repo.GetThreadsByState(ctx, "received")
@@ -137,7 +137,7 @@ func (tp *ThreadProcessor) ProcessReceivedThreads(ctx context.Context) error {
 	return nil
 }
 
-// ProcessSingleThread processes a single thread and updates its state with evaluation data
+// ProcessSingleThread processes a single thread and updates its state with evaluation data.
 func (tp *ThreadProcessor) ProcessSingleThread(ctx context.Context, thread *model.Thread) error {
 	evaluation, err := tp.EvaluateThread(ctx, thread)
 	if err != nil {
@@ -146,14 +146,14 @@ func (tp *ThreadProcessor) ProcessSingleThread(ctx context.Context, thread *mode
 
 	// Convert values to pointers for nullable parameters
 	evaluatedBy := "llm-processor"
-	
+
 	// Update thread state with evaluation data using nullable pointer parameters
 	if err := tp.repo.UpdateThreadWithEvaluation(
 		ctx,
 		thread.ID,
 		evaluation.NewState,
-		&evaluation.Reason,      // Pass pointer to allow nil
-		&evaluation.Confidence,  // Pass pointer to allow nil
+		&evaluation.Reason,     // Pass pointer to allow nil
+		&evaluation.Confidence, // Pass pointer to allow nil
 		&evaluatedBy,           // Pass pointer to allow nil
 	); err != nil {
 		return fmt.Errorf("failed to update thread with evaluation: %w", err)
@@ -169,7 +169,7 @@ func (tp *ThreadProcessor) ProcessSingleThread(ctx context.Context, thread *mode
 	return nil
 }
 
-// getUserContext retrieves user preferences and context from memory
+// getUserContext retrieves user preferences and context from memory.
 func (tp *ThreadProcessor) getUserContext(ctx context.Context) (string, error) {
 	if tp.memoryService == nil {
 		return "No memory service available", nil
@@ -200,7 +200,7 @@ func (tp *ThreadProcessor) getUserContext(ctx context.Context) (string, error) {
 	return strings.Join(contextParts, "\n"), nil
 }
 
-// buildEvaluationSystemPrompt creates the system prompt for thread evaluation
+// buildEvaluationSystemPrompt creates the system prompt for thread evaluation.
 func (tp *ThreadProcessor) buildEvaluationSystemPrompt(userContext string) string {
 	return fmt.Sprintf(`You are an intelligent content curator that helps filter threads based on user interests and preferences.
 
@@ -223,7 +223,7 @@ Guidelines for evaluation:
 Use the evaluate_thread_interest tool to provide your assessment.`, userContext)
 }
 
-// buildThreadEvaluationPrompt creates the user prompt with thread details
+// buildThreadEvaluationPrompt creates the user prompt with thread details.
 func (tp *ThreadProcessor) buildThreadEvaluationPrompt(thread *model.Thread) string {
 	var messagePreview strings.Builder
 
@@ -275,7 +275,7 @@ Please assess whether this thread would be interesting and relevant to the user 
 		messagePreview.String())
 }
 
-// parseEvaluationResponse parses the LLM response and returns evaluation result
+// parseEvaluationResponse parses the LLM response and returns evaluation result.
 func (tp *ThreadProcessor) parseEvaluationResponse(response openai.ChatCompletionMessage) (*ThreadEvaluationResult, error) {
 	if len(response.ToolCalls) == 0 {
 		// Default to showing if no tool call (conservative approach)
