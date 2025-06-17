@@ -114,6 +114,11 @@ func (s *Service) GetHolons(ctx context.Context, userID string) ([]string, error
 }
 
 func (s *Service) GetThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
+	return s.repo.GetDisplayThreads(ctx, first, offset)
+}
+
+// GetAllThreads returns all threads regardless of state (for internal use)
+func (s *Service) GetAllThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
 	return s.repo.GetThreads(ctx, first, offset)
 }
 
