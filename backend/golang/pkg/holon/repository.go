@@ -783,7 +783,8 @@ func (r *Repository) GetThreadsByState(ctx context.Context, state string) ([]*mo
 }
 
 // UpdateThreadWithEvaluation updates a thread's state along with evaluation data
-func (r *Repository) UpdateThreadWithEvaluation(ctx context.Context, threadID, state, reason string, confidence float64, evaluatedBy string) error {
+// Use pointers for nullable fields to allow clearing them by passing nil
+func (r *Repository) UpdateThreadWithEvaluation(ctx context.Context, threadID, state string, reason *string, confidence *float64, evaluatedBy *string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := r.db.ExecContext(ctx, `
@@ -793,6 +794,34 @@ func (r *Repository) UpdateThreadWithEvaluation(ctx context.Context, threadID, s
 	`, state, reason, confidence, now, evaluatedBy, threadID)
 	if err != nil {
 		return fmt.Errorf("failed to update thread with evaluation: %w", err)
+	}
+	return nil
+}
+
+// ClearThreadEvaluation clears all evaluation fields for a thread
+func (r *Repository) ClearThreadEvaluation(ctx context.Context, threadID string) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE threads 
+		SET evaluation_reason = NULL, evaluation_confidence = NULL, evaluated_at = NULL, evaluated_by = NULL
+		WHERE id = ?
+	`, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to clear thread evaluation: %w", err)
+	}
+	return nil
+}
+
+// UpdateThreadEvaluationOnly updates only the evaluation fields without changing state
+func (r *Repository) UpdateThreadEvaluationOnly(ctx context.Context, threadID string, reason *string, confidence *float64, evaluatedBy *string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE threads 
+		SET evaluation_reason = ?, evaluation_confidence = ?, evaluated_at = ?, evaluated_by = ?
+		WHERE id = ?
+	`, reason, confidence, now, evaluatedBy, threadID)
+	if err != nil {
+		return fmt.Errorf("failed to update thread evaluation: %w", err)
 	}
 	return nil
 }

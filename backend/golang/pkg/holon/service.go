@@ -275,9 +275,13 @@ func (s *Service) InitializeThreadProcessor(aiService *ai.Service, completionsMo
 			s.repo,
 			memoryService,
 		)
-		s.logger.Info("Thread processor initialized successfully")
+		if s.logger != nil {
+			s.logger.Info("Thread processor initialized successfully")
+		}
 	} else {
-		s.logger.Warn("Thread processor not initialized - missing AI service or completions model")
+		if s.logger != nil {
+			s.logger.Warn("Thread processor not initialized - missing AI service or completions model")
+		}
 	}
 }
 
@@ -306,7 +310,9 @@ func (s *Service) ProcessSingleReceivedThread(ctx context.Context, threadID stri
 	if thread.Messages == nil || len(thread.Messages) == 0 {
 		// For threads without messages, we need to check the thread state directly
 		// This is a simplified check - in a real implementation you'd query the state from DB
-		s.logger.Debug("Thread has no messages, processing anyway", "thread_id", threadID)
+		if s.logger != nil {
+			s.logger.Debug("Thread has no messages, processing anyway", "thread_id", threadID)
+		}
 	}
 
 	return s.threadProcessor.ProcessSingleThread(ctx, thread)
@@ -315,18 +321,26 @@ func (s *Service) ProcessSingleReceivedThread(ctx context.Context, threadID stri
 // BootstrapProcessAllReceivedThreads is called during system bootstrap to process any existing received threads
 func (s *Service) BootstrapProcessAllReceivedThreads(ctx context.Context) error {
 	if s.threadProcessor == nil {
-		s.logger.Warn("Thread processor not initialized, skipping bootstrap processing")
+		if s.logger != nil {
+			s.logger.Warn("Thread processor not initialized, skipping bootstrap processing")
+		}
 		return nil
 	}
 
-	s.logger.Info("Starting bootstrap processing of received threads")
+	if s.logger != nil {
+		s.logger.Info("Starting bootstrap processing of received threads")
+	}
 
 	if err := s.ProcessReceivedThreads(ctx); err != nil {
-		s.logger.Error("Failed to process received threads during bootstrap", "error", err)
+		if s.logger != nil {
+			s.logger.Error("Failed to process received threads during bootstrap", "error", err)
+		}
 		return err
 	}
 
-	s.logger.Info("Bootstrap processing of received threads completed")
+	if s.logger != nil {
+		s.logger.Info("Bootstrap processing of received threads completed")
+	}
 	return nil
 }
 
@@ -343,12 +357,16 @@ func (s *Service) IsThreadProcessorReady() bool {
 // InitializeBackgroundProcessor sets up the background processor for automatic thread processing
 func (s *Service) InitializeBackgroundProcessor(processingInterval time.Duration) {
 	if s.backgroundProcessor != nil {
-		s.logger.Warn("Background processor already initialized")
+		if s.logger != nil {
+			s.logger.Warn("Background processor already initialized")
+		}
 		return
 	}
 
 	s.backgroundProcessor = NewBackgroundProcessor(s, s.logger, processingInterval)
-	s.logger.Info("Background processor initialized", "interval", processingInterval)
+	if s.logger != nil {
+		s.logger.Info("Background processor initialized", "interval", processingInterval)
+	}
 }
 
 // StartBackgroundProcessing starts the background thread processing
