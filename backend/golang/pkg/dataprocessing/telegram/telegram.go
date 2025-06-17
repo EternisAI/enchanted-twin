@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -418,6 +419,12 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		// Skip conversations where the user is the only participant
 		if len(people) == 1 && people[0] == userDisplayName {
 			s.logger.Debug("Skipping conversation with only user messages", "chatId", conv.chatId, "chatName", conv.chatName)
+			continue
+		}
+
+		// Skip system conversations with Telegram
+		if slices.Contains(people, "Telegram") {
+			s.logger.Debug("Skipping system conversation with Telegram", "chatId", conv.chatId, "chatName", conv.chatName)
 			continue
 		}
 
