@@ -767,7 +767,7 @@ Be warm, welcoming, and conversational. Ask one question at a time and wait for 
 	return assistantMessage, nil
 }
 
-// ProcessMessageHistoryStream processes a list of messages and returns a channel for streaming the response
+// ProcessMessageHistoryStream processes a list of messages and returns a channel for streaming the response.
 func (s *Service) ProcessMessageHistoryStream(
 	ctx context.Context,
 	chatID string,
@@ -1250,7 +1250,7 @@ func (s *Service) IndexConversation(ctx context.Context, chatID string) error {
 	}
 
 	doc := memory.ConversationDocument{
-		FieldID:      uuid.New().String(),
+		FieldID:      chatID,
 		FieldSource:  "chat",
 		People:       people,
 		User:         primaryUser,
