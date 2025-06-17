@@ -107,7 +107,11 @@ interface IApi {
       status: string
       error?: string
     }>
+    mute: () => Promise<boolean>
+    unmute: () => Promise<boolean>
+    getAgentState: () => Promise<'initializing' | 'idle' | 'listening' | 'thinking' | 'speaking'>
     onSessionStateChange: (callback: (data: { sessionReady: boolean }) => void) => () => void
+    onAgentStateChange: (callback: (data: { state: string }) => void) => () => void
   }
   screenpipeStore: {
     get: (key: string) => unknown

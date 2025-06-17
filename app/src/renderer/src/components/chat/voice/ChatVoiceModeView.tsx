@@ -1,18 +1,17 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { TooltipContent, TooltipTrigger } from '@radix-ui/react-tooltip'
 import { Mic, MicOff, X } from 'lucide-react'
 
 import { Chat, Message, Role, ToolCall } from '@renderer/graphql/generated/graphql'
 import VoiceVisualizer from './VoiceVisualizer'
-import { useMessageSubscription } from '@renderer/hooks/useMessageSubscription'
-import { useTTS } from '@renderer/hooks/useTTS'
 import { UserMessageBubble } from '../Message'
 import ToolCallCenter from './toolCallCenter/ToolCallCenter'
-import { extractReasoningAndReply, getToolConfig } from '../config'
+import { getToolConfig } from '../config'
 import { Tooltip } from '@renderer/components/ui/tooltip'
 import { Button } from '@renderer/components/ui/button'
 import { cn } from '@renderer/lib/utils'
+import useVoiceAgent from '@renderer/hooks/useVoiceAgent'
 import useDependencyStatus from '@renderer/hooks/useDependencyStatus'
 
 interface VoiceModeChatViewProps {
@@ -31,13 +30,10 @@ export default function VoiceModeChatView({
   messages,
   activeToolCalls,
   historicToolCalls,
-  // onSendMessage,
   stopVoiceMode,
   error
 }: VoiceModeChatViewProps) {
-  const { isSpeaking, speak, getFreqData, isLoading } = useTTS()
-
-  const triggeredRef = useRef(false)
+  const { isAgentSpeaking } = useVoiceAgent()
 
   const lastUserMessage = useMemo(() => {
     if (!chat || messages.length === 0) return null
@@ -45,21 +41,7 @@ export default function VoiceModeChatView({
     return lastUserMessage || null
   }, [chat, messages])
 
-  useMessageSubscription(chat.id, (message) => {
-    if (message.role === Role.Assistant) {
-      triggeredRef.current = true
-      const { replyText } = extractReasoningAndReply(message.text ?? '')
-      speak(replyText ?? '')
-    }
-  })
-
-  const visualState: 0 | 1 | 2 = isSpeaking ? 2 : isLoading ? 1 : 0
-
-  useEffect(() => {
-    if (isSpeaking && triggeredRef.current) {
-      triggeredRef.current = false
-    }
-  }, [isSpeaking])
+  const visualState: 0 | 1 | 2 = isAgentSpeaking ? 2 : isAgentSpeaking ? 2 : 0
 
   const currentToolCall = activeToolCalls.find((tc) => !tc.isCompleted)
   const { toolUrl } = getToolConfig(currentToolCall?.name || '')
@@ -76,7 +58,7 @@ export default function VoiceModeChatView({
           <VoiceVisualizer
             className="absolute inset-0"
             visualState={visualState}
-            getFreqData={getFreqData}
+            getFreqData={() => new Uint8Array()}
             toolUrl={toolUrl}
           />
           <ToolCallCenter activeToolCalls={activeToolCalls} historicToolCalls={historicToolCalls} />
@@ -98,27 +80,20 @@ export default function VoiceModeChatView({
               Error: {error}
             </div>
           )}
-          <VoiceModeInput isMuted={false} isAgentSpeaking={isSpeaking} onStop={stopVoiceMode} />
+          <VoiceModeInput onStop={stopVoiceMode} />
         </div>
       </div>
     </div>
   )
 }
 
-export function VoiceModeInput({
-  isMuted,
-  // isAgentSpeaking,
-  onStop
-}: {
-  isMuted: boolean
-  isAgentSpeaking: boolean
-  onStop: () => void
-}) {
+export function VoiceModeInput({ onStop }: { onStop: () => void }) {
+  const { isLiveKitSessionReady } = useDependencyStatus()
+  const { isMuted, toggleMute } = useVoiceAgent()
   const [microphoneStatus, setMicrophoneStatus] = useState<
     'granted' | 'denied' | 'not-determined' | 'loading'
   >('loading')
   const [isRequestingAccess, setIsRequestingAccess] = useState(false)
-  const { isLiveKitSessionReady } = useDependencyStatus()
 
   const queryMicrophoneStatus = async () => {
     try {
@@ -221,7 +196,7 @@ export function VoiceModeInput({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            // onClick={onClick}
+            onClick={toggleMute}
             className={cn(
               '!px-2.5 rounded-full transition-all shadow-none hover:shadow-lg active:shadow-sm border-none !bg-gray-100 dark:!bg-gray-800 hover:!bg-gray-200 dark:!hover:!bg-gray-700'
             )}
