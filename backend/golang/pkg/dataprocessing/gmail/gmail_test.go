@@ -368,7 +368,10 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	logger := log.New(os.Stdout)
-	processor := NewGmailProcessor(nil, logger)
+	processor, err := NewGmailProcessor(nil, logger)
+	if err != nil {
+		t.Fatalf("Failed to create gmail processor: %v", err)
+	}
 
 	if processor.Name() != "gmail" {
 		t.Errorf("Expected processor name to be 'gmail', got %s", processor.Name())
@@ -438,7 +441,10 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
 	logger := log.New(os.Stdout)
-	gmailProcessor := NewGmailProcessor(nil, logger)
+	gmailProcessor, err := NewGmailProcessor(nil, logger)
+	if err != nil {
+		t.Fatalf("Failed to create gmail processor: %v", err)
+	}
 	documents, err := gmailProcessor.ToDocuments(context.Background(), records)
 	if err != nil {
 		t.Fatalf("Failed to convert to documents: %v", err)
@@ -577,12 +583,19 @@ Content-Type: text/plain; charset=UTF-8
 I want to give out my MacBook Air 2023 for free it's in health and good condition along side a charger so it's perfect , I want to give it because I just got a new one so I want to give it out to anyone interested in it you can text me on 310-421-4920`
 
 	logger := log.New(os.Stdout)
-	processor, ok := NewGmailProcessor(nil, logger).(*GmailProcessor)
+	processor, err := NewGmailProcessor(nil, logger)
+	if err != nil {
+		t.Fatalf("Failed to create gmail processor: %v", err)
+	}
+	processor, ok := processor.(*GmailProcessor)
 	if !ok {
 		t.Fatalf("Failed to cast processor to *GmailProcessor")
 	}
-
-	record, err := processor.processEmail(content, "johndoe@gmail.com")
+	gmailProcessor, ok := processor.(*GmailProcessor)
+	if !ok {
+		t.Fatalf("Failed to cast processor to *GmailProcessor")
+	}
+	record, err := gmailProcessor.processEmail(content, "johndoe@gmail.com")
 	if err != nil {
 		t.Fatalf("Failed to process email: %v", err)
 	}

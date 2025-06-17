@@ -14,7 +14,10 @@ import (
 
 func TestToDocuments(t *testing.T) {
 	logger := log.New(os.Stdout)
-	slack := NewSlackProcessor(nil, logger)
+	slack, err := NewSlackProcessor(nil, logger)
+	if err != nil {
+		t.Fatalf("Failed to create slack processor: %v", err)
+	}
 	tempFile, err := os.CreateTemp("", "test-slack-*.jsonl")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)

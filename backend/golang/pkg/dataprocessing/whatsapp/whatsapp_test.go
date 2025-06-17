@@ -16,7 +16,10 @@ import (
 
 func TestToDocuments(t *testing.T) {
 	logger := log.New(os.Stdout)
-	processor := NewWhatsappProcessor(nil, logger)
+	processor, err := NewWhatsappProcessor(nil, logger)
+	if err != nil {
+		t.Fatalf("Failed to create whatsapp processor: %v", err)
+	}
 
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
@@ -148,7 +151,10 @@ func TestToDocuments(t *testing.T) {
 
 func TestToDocumentsEdgeCases(t *testing.T) {
 	logger := log.New(os.Stdout)
-	processor := NewWhatsappProcessor(nil, logger)
+	processor, err := NewWhatsappProcessor(nil, logger)
+	if err != nil {
+		t.Fatalf("Failed to create whatsapp processor: %v", err)
+	}
 	baseTime := time.Date(2025, 6, 8, 15, 59, 3, 0, time.UTC)
 
 	t.Run("EmptyConversation", func(t *testing.T) {

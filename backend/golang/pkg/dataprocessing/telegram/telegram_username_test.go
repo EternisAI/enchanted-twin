@@ -102,7 +102,10 @@ func TestUsernameExtraction(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create telegram processor: %v", err)
+	}
 	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
@@ -231,7 +234,10 @@ func TestUsernameExtractionFallback(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create telegram processor: %v", err)
+	}
 	_, err = source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
@@ -302,7 +308,10 @@ func TestProcessFileWithStoreExample(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	source := NewTelegramProcessor(store, logger)
+	source, err := NewTelegramProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create telegram processor: %v", err)
+	}
 	records, err := source.ProcessFile(ctx, tmpFile.Name())
 	if err != nil {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
@@ -419,7 +428,10 @@ func TestUsernameExtractionAndDocumentGeneration(t *testing.T) {
 	defer store.Close() //nolint:errcheck
 
 	logger := log.New(os.Stdout)
-	processor := NewTelegramProcessor(store, logger)
+	processor, err := NewTelegramProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create telegram processor: %v", err)
+	}
 
 	// Step 1: Process the file (this should extract and store the username)
 	records, err := processor.ProcessFile(ctx, tmpFile.Name())

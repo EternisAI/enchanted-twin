@@ -309,48 +309,66 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		records, err = processor.ProcessFile(context.Background(), inputPath)
+		records, err = processor.ProcessFile(ctx, inputPath)
+		if err != nil {
+			return false, err
+		}
 	case "slack":
 		source, err := slack.NewSlackProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(context.Background(), inputPath)
+		records, err = source.ProcessDirectory(ctx, inputPath)
+		if err != nil {
+			return false, err
+		}
 	case "gmail":
 		source, err := gmail.NewGmailProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(context.Background(), inputPath)
+		records, err = source.ProcessDirectory(ctx, inputPath)
+		if err != nil {
+			return false, err
+		}
 	case "x":
 		source, err := x.NewXProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(context.Background(), inputPath)
+		records, err = source.ProcessDirectory(ctx, inputPath)
+		if err != nil {
+			return false, err
+		}
 	case "whatsapp":
 		source, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessFile(context.Background(), inputPath)
+		records, err = source.ProcessFile(ctx, inputPath)
+		if err != nil {
+			return false, err
+		}
 	case "chatgpt":
 		chatgptProcessor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = chatgptProcessor.ProcessDirectory(context.Background(), inputPath)
+		records, err = chatgptProcessor.ProcessDirectory(ctx, inputPath)
+		if err != nil {
+			return false, err
+		}
 	case "misc":
 		source, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(context.Background(), inputPath)
+		records, err = source.ProcessDirectory(ctx, inputPath)
+		if err != nil {
+			return false, err
+		}
 	default:
 		return false, fmt.Errorf("unsupported source: %s", sourceType)
-	}
-	if err != nil {
-		return false, err
 	}
 
 	err = SaveRecords(records, outputPath)
@@ -540,7 +558,6 @@ func SaveRecords(records []types.Record, outputPath string) error {
 
 func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, accessToken string) ([]types.Record, error) {
 	var records []types.Record
-	var err error
 
 	var authorized bool
 	switch sourceName {
@@ -550,12 +567,18 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 			return nil, err
 		}
 		records, authorized, err = gmailProcessor.Sync(ctx, accessToken)
+		if err != nil {
+			return nil, err
+		}
 	case "x":
 		xProcessor, err := x.NewXProcessor(d.store, d.logger)
 		if err != nil {
 			return nil, err
 		}
 		records, authorized, err = xProcessor.Sync(ctx, accessToken)
+		if err != nil {
+			return nil, err
+		}
 	default:
 		return nil, fmt.Errorf("unsupported source: %s", sourceName)
 	}
@@ -564,10 +587,6 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 		if err := d.store.SetOAuthTokenError(ctx, accessToken, true); err != nil {
 			d.logger.Warn("Error setting OAuth token error status", "sourceName", sourceName, "error", err)
 		}
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	return records, nil

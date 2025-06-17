@@ -355,10 +355,3 @@ func extractFactsFromTextDocument(ctx context.Context, textDoc memory.TextDocume
 
 	return extractedFacts, nil
 }
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
