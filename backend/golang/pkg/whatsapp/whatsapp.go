@@ -462,7 +462,6 @@ func shouldFlushToMemory(ctx context.Context, database *db.DB, conversationID st
 		if err != nil {
 			logger.Error("Failed to get recent messages for AI assessment", "error", err)
 		} else {
-
 			if len(recentMessages) > 10 {
 				recentMessages = recentMessages[len(recentMessages)-10:]
 			}
