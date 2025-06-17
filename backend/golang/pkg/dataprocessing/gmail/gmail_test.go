@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestGmailProcessor(t *testing.T) {
@@ -368,7 +369,11 @@ aifHP9gTjCs0OGaIqGiLqUHisw~~">=0D=0A</body>=0A=0A=0A</html>=0A
 	}
 
 	logger := log.New(os.Stdout)
-	processor, err := NewGmailProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	processor, err := NewGmailProcessor(store, logger)
 	if err != nil {
 		t.Fatalf("Failed to create gmail processor: %v", err)
 	}
@@ -441,7 +446,11 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("Failed to convert to documents: %v", err)
 	}
 	logger := log.New(os.Stdout)
-	gmailProcessor, err := NewGmailProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	gmailProcessor, err := NewGmailProcessor(store, logger)
 	if err != nil {
 		t.Fatalf("Failed to create gmail processor: %v", err)
 	}
@@ -500,7 +509,7 @@ func TestToDocuments(t *testing.T) {
 		"from":    "support@example.com",
 		"to":      "testuser@example.com",
 		"subject": "Welcome to the Platform",
-		"user":    "",
+		"user":    "johndoe@gmail.com",
 	}
 
 	if len(doc.Metadata()) != len(expectedMetadata) {
@@ -583,7 +592,11 @@ Content-Type: text/plain; charset=UTF-8
 I want to give out my MacBook Air 2023 for free it's in health and good condition along side a charger so it's perfect , I want to give it because I just got a new one so I want to give it out to anyone interested in it you can text me on 310-421-4920`
 
 	logger := log.New(os.Stdout)
-	processor, err := NewGmailProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	processor, err := NewGmailProcessor(store, logger)
 	if err != nil {
 		t.Fatalf("Failed to create gmail processor: %v", err)
 	}

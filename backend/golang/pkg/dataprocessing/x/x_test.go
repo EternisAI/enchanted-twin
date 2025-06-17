@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestToDocuments(t *testing.T) {
@@ -42,7 +43,11 @@ func TestToDocuments(t *testing.T) {
 		t.Fatalf("ReadJSONL failed: %v", err)
 	}
 	logger := log.New(os.Stdout)
-	source, err := NewXProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	source, err := NewXProcessor(store, logger)
 	if err != nil {
 		t.Fatalf("Failed to create x processor: %v", err)
 	}

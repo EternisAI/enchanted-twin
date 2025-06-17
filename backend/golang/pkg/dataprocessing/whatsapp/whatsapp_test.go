@@ -12,11 +12,16 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestToDocuments(t *testing.T) {
 	logger := log.New(os.Stdout)
-	processor, err := NewWhatsappProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	processor, err := NewWhatsappProcessor(store, logger)
 	if err != nil {
 		t.Fatalf("Failed to create whatsapp processor: %v", err)
 	}
@@ -151,7 +156,11 @@ func TestToDocuments(t *testing.T) {
 
 func TestToDocumentsEdgeCases(t *testing.T) {
 	logger := log.New(os.Stdout)
-	processor, err := NewWhatsappProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	processor, err := NewWhatsappProcessor(store, logger)
 	if err != nil {
 		t.Fatalf("Failed to create whatsapp processor: %v", err)
 	}

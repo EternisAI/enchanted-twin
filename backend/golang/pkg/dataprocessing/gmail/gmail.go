@@ -647,7 +647,6 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 			},
 		})
 
-		g.logger.Info("🟡 document", "document", out)
 	}
 	var documents []memory.Document
 	for _, document := range out {
