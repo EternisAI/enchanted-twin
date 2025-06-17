@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/log"
-	_ "github.com/lib/pq"
+	_ "github.com/mattn/go-sqlite3"
 	"go.uber.org/zap"
 
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
