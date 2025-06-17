@@ -114,7 +114,7 @@ func TestProcessDirectoryInput(t *testing.T) {
   "personal_information": {
     "user_id": 1601587058,
     "first_name": "JohnDoe",
-    "username": "@JohnDoe"
+    "username": "@BitcoinBruv"
   },
   "contacts": {
     "about": "Contact list",
@@ -135,6 +135,20 @@ func TestProcessDirectoryInput(t *testing.T) {
             "date_unixtime": "1673776200",
             "from": "JohnDoe",
             "from_id": "user1601587058",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Test message"
+              }
+            ]
+          },
+		  {
+            "id": 2,
+            "type": "message",
+            "date": "2023-01-15T10:31:00",
+            "date_unixtime": "1673776200",
+            "from": "Alice",
+            "from_id": "user1601587059",
             "text_entities": [
               {
                 "type": "plain",
@@ -193,8 +207,8 @@ func TestProcessDirectoryInput(t *testing.T) {
 		messages, ok := record.Data["messages"].([]messageData)
 		if !ok {
 			t.Errorf("Expected messages to be []messageData, got %T", record.Data["messages"])
-		} else if len(messages) != 1 {
-			t.Errorf("Expected 1 message in conversation, got %d", len(messages))
+		} else if len(messages) != 2 {
+			t.Errorf("Expected 2 messages in conversation, got %d", len(messages))
 		} else if messages[0].Text != "Test message" {
 			t.Errorf("Expected 'Test message', got %v", messages[0].Text)
 		}
@@ -208,7 +222,7 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
   "personal_information": {
     "user_id": 1601587058,
     "first_name": "JohnDoe",
-    "username": "@JohnDoe"
+    "username": "@BitcoinBruv"
   },
   "contacts": {
     "about": "Contact list",
@@ -233,6 +247,20 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
               {
                 "type": "plain",
                 "text": "Custom JSON test message"
+              }
+            ]
+          },
+          {
+            "id": 2,
+            "type": "message",
+            "date": "2023-01-15T10:31:00",
+            "date_unixtime": "1673776260",
+            "from": "Alice",
+            "from_id": "user9999999",
+            "text_entities": [
+              {
+                "type": "plain",
+                "text": "Reply message"
               }
             ]
           }
@@ -287,8 +315,8 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 		messages, ok := record.Data["messages"].([]messageData)
 		if !ok {
 			t.Errorf("Expected messages to be []messageData, got %T", record.Data["messages"])
-		} else if len(messages) != 1 {
-			t.Errorf("Expected 1 message in conversation, got %d", len(messages))
+		} else if len(messages) != 2 {
+			t.Errorf("Expected 2 messages in conversation, got %d", len(messages))
 		} else if messages[0].Text != "Custom JSON test message" {
 			t.Errorf("Expected 'Custom JSON test message', got %v", messages[0].Text)
 		}
@@ -450,7 +478,7 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 	// Set up source username
 	sourceUsername := db.SourceUsername{
 		Source:   "telegram",
-		Username: "@JohnDoe",
+		Username: "@BitcoinBruv",
 	}
 	err = store.SetSourceUsername(ctx, sourceUsername)
 	if err != nil {
@@ -467,7 +495,7 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 	msg1 := messageData{
 		ID:          1,
 		MessageType: "message",
-		From:        "@JohnDoe",
+		From:        "JohnDoe",
 		To:          "Alice",
 		Text:        "Hello Alice, how are you?",
 		Timestamp:   timestamp1,
@@ -478,7 +506,7 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 		ID:          2,
 		MessageType: "message",
 		From:        "Alice",
-		To:          "@JohnDoe",
+		To:          "JohnDoe",
 		Text:        "Hi John! I'm doing great, thanks!",
 		Timestamp:   timestamp2,
 		MyMessage:   false,
@@ -491,8 +519,8 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 			"chatType": "personal_chat",
 			"chatName": "Chat with Alice",
 			"messages": []messageData{msg1, msg2},
-			"people":   []string{"@JohnDoe", "Alice"},
-			"user":     "@JohnDoe",
+			"people":   []string{"JohnDoe", "Alice"},
+			"user":     "JohnDoe",
 		},
 		Timestamp: timestamp1,
 		Source:    "telegram",
@@ -539,14 +567,14 @@ func TestToDocumentsEndToEnd(t *testing.T) {
 	assert.Equal(t, "12345", conversationDoc.FieldID)
 	assert.Equal(t, "telegram", conversationDoc.FieldSource)
 	assert.Equal(t, []string{"social", "chat"}, conversationDoc.FieldTags)
-	assert.Equal(t, []string{"@JohnDoe", "Alice"}, conversationDoc.People)
+	assert.Equal(t, []string{"JohnDoe", "Alice"}, conversationDoc.People)
 	assert.Equal(t, "JohnDoe", conversationDoc.User)
 
 	// Verify messages in conversation
 	assert.Equal(t, 2, len(conversationDoc.Conversation), "Expected 2 messages in conversation")
 
 	msg1Doc := conversationDoc.Conversation[0]
-	assert.Equal(t, "@JohnDoe", msg1Doc.Speaker)
+	assert.Equal(t, "JohnDoe", msg1Doc.Speaker)
 	assert.Equal(t, "Hello Alice, how are you?", msg1Doc.Content)
 	assert.Equal(t, timestamp1, msg1Doc.Time)
 
