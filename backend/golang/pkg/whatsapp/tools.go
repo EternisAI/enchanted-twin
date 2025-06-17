@@ -2,11 +2,13 @@ package whatsapp
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/log"
 	openai "github.com/openai/openai-go"
+	"github.com/openai/openai-go/packages/param"
 
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	whatsappdb "github.com/EternisAI/enchanted-twin/pkg/db/sqlc/whatsapp"
@@ -22,6 +24,36 @@ type ConversationAssessment struct {
 	IsNewConversation bool    `json:"is_new_conversation"`
 	Confidence        float64 `json:"confidence"`
 	Reasoning         string  `json:"reasoning"`
+}
+
+// conversationAnalysisTool defines the proper OpenAI tool for conversation analysis.
+var conversationAnalysisTool = openai.ChatCompletionToolParam{
+	Type: "function",
+	Function: openai.FunctionDefinitionParam{
+		Name:        "analyze_conversation_boundary",
+		Description: param.NewOpt("Analyze whether a new message starts a new conversation or continues an existing one"),
+		Parameters: openai.FunctionParameters{
+			"type": "object",
+			"properties": map[string]any{
+				"is_new_conversation": map[string]any{
+					"type":        "boolean",
+					"description": "Whether the new message starts a new conversation (true) or continues the existing one (false)",
+				},
+				"confidence": map[string]any{
+					"type":        "number",
+					"minimum":     0.0,
+					"maximum":     1.0,
+					"description": "Confidence level in the assessment (0.0 to 1.0)",
+				},
+				"reasoning": map[string]any{
+					"type":        "string",
+					"description": "Brief explanation of the assessment decision",
+				},
+			},
+			"required":             []string{"is_new_conversation", "confidence", "reasoning"},
+			"additionalProperties": false,
+		},
+	},
 }
 
 func NewConversationAnalyzer(logger *log.Logger, aiService *ai.Service, model string) *ConversationAnalyzer {
@@ -71,71 +103,40 @@ Consider these factors:
 - Questions that reference previous messages (indicating continuation)
 - Time-sensitive responses vs standalone statements
 
-Respond in this exact format:
-DECISION: [NEW_CONVERSATION or CONTINUING_CONVERSATION]
-CONFIDENCE: [number between 0.0 and 1.0]
-REASONING: [brief explanation of your assessment]
-
 Be conservative - only mark as NEW_CONVERSATION when you're quite confident there's a clear boundary.`
 
 	userPrompt := fmt.Sprintf(`Analyze this conversation context and determine if the new message starts a new conversation:
 
 %s
 
-Is the new message starting a new conversation or continuing the existing one?`, messageContext.String())
+Use the analyze_conversation_boundary tool to provide your assessment.`, messageContext.String())
 
 	messages := []openai.ChatCompletionMessageParamUnion{
 		openai.SystemMessage(systemPrompt),
 		openai.UserMessage(userPrompt),
 	}
 
-	params := openai.ChatCompletionNewParams{
-		Messages: messages,
-		Model:    ca.model,
-	}
-
-	response, err := ca.aiService.ParamsCompletions(ctx, params)
+	response, err := ca.aiService.Completions(ctx, messages, []openai.ChatCompletionToolParam{conversationAnalysisTool}, ca.model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get AI assessment: %w", err)
 	}
 
-	content := response.Content
-	ca.logger.Debug("AI conversation assessment", "response", content)
+	ca.logger.Debug("AI conversation assessment", "response", response)
+
+	// Extract tool call result
+	if len(response.ToolCalls) == 0 {
+		return nil, fmt.Errorf("no tool calls returned from AI")
+	}
+
+	toolCall := response.ToolCalls[0]
+	if toolCall.Function.Name != "analyze_conversation_boundary" {
+		return nil, fmt.Errorf("unexpected tool call: %s", toolCall.Function.Name)
+	}
 
 	// Parse the structured response
-	assessment := &ConversationAssessment{
-		Confidence: 0.5, // default
-		Reasoning:  "AI assessment completed",
-	}
-
-	// Extract decision
-	if strings.Contains(content, "DECISION: NEW_CONVERSATION") {
-		assessment.IsNewConversation = true
-	} else if strings.Contains(content, "DECISION: CONTINUING_CONVERSATION") {
-		assessment.IsNewConversation = false
-	}
-
-	// Extract confidence
-	if confStart := strings.Index(content, "CONFIDENCE: "); confStart != -1 {
-		confStr := content[confStart+12:]
-		if idx := strings.Index(confStr, "\n"); idx != -1 {
-			confStr = confStr[:idx]
-		}
-		confStr = strings.TrimSpace(confStr)
-
-		var confidence float64
-		if _, err := fmt.Sscanf(confStr, "%f", &confidence); err == nil {
-			assessment.Confidence = confidence
-		}
-	}
-
-	// Extract reasoning
-	if reasonStart := strings.Index(content, "REASONING: "); reasonStart != -1 {
-		reasonStr := content[reasonStart+11:]
-		if idx := strings.Index(reasonStr, "\n"); idx != -1 {
-			reasonStr = reasonStr[:idx]
-		}
-		assessment.Reasoning = strings.TrimSpace(reasonStr)
+	var assessment ConversationAssessment
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &assessment); err != nil {
+		return nil, fmt.Errorf("failed to parse tool response: %w", err)
 	}
 
 	ca.logger.Debug("Parsed conversation assessment",
@@ -143,5 +144,5 @@ Is the new message starting a new conversation or continuing the existing one?`,
 		"confidence", assessment.Confidence,
 		"reasoning", assessment.Reasoning)
 
-	return assessment, nil
+	return &assessment, nil
 }
