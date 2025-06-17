@@ -35,8 +35,15 @@ type SlackProcessor struct {
 	logger *log.Logger
 }
 
-func NewSlackProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &SlackProcessor{store: store}
+func NewSlackProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &SlackProcessor{store: store, logger: logger}, nil
 }
 
 func (s *SlackProcessor) Name() string {
@@ -44,10 +51,6 @@ func (s *SlackProcessor) Name() string {
 }
 
 func (s *SlackProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("store is nil")
-	}
-
 	jsonData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err

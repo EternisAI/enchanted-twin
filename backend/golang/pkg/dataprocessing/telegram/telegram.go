@@ -99,8 +99,15 @@ type messageData struct {
 	MyMessage     bool      `json:"myMessage"`
 }
 
-func NewTelegramProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &TelegramProcessor{store: store, logger: logger}
+func NewTelegramProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &TelegramProcessor{store: store, logger: logger}, nil
 }
 
 func (s *TelegramProcessor) Name() string {
@@ -108,10 +115,6 @@ func (s *TelegramProcessor) Name() string {
 }
 
 func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData TelegramData) (string, error) {
-	if s.store == nil {
-		return "", fmt.Errorf("store is nil")
-	}
-
 	extractedUsername := ""
 	if telegramData.PersonalInformation.Username != "" {
 		userIDStr := ""
@@ -163,10 +166,6 @@ func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 }
 
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]types.Record, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("store is nil")
-	}
-
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
 		return nil, err

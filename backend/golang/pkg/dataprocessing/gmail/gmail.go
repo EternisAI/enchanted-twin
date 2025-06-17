@@ -27,7 +27,6 @@ import (
 
 	"github.com/charmbracelet/log"
 	"github.com/jaytaylor/html2text"
-	"github.com/sirupsen/logrus"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
@@ -40,8 +39,16 @@ type GmailProcessor struct {
 	logger *log.Logger
 }
 
-func NewGmailProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &GmailProcessor{store: store, logger: logger}
+func NewGmailProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	return &GmailProcessor{store: store, logger: logger}, nil
 }
 
 func (g *GmailProcessor) Name() string { return "gmail" }
@@ -573,7 +580,7 @@ func (g *GmailProcessor) ProcessDirectory(ctx context.Context, dir string) ([]ty
 		}
 		recs, err := g.ProcessFile(ctx, p)
 		if err != nil {
-			logrus.Errorf("process %s: %v", p, err)
+			g.logger.Error("process", "path", p, "error", err)
 			return nil
 		}
 		mu.Lock()
@@ -599,15 +606,15 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 			continue
 		}
 		user := ""
-		if g.store != nil {
-			sourceUsername, err := g.store.GetSourceUsername(ctx, "gmail")
-			if err != nil {
-				logrus.Errorf("get source username: %v", err)
-			}
-			if sourceUsername != nil {
-				user = sourceUsername.Username
-			}
+
+		sourceUsername, err := g.store.GetSourceUsername(ctx, "gmail")
+		if err != nil {
+			g.logger.Error("get source username", "error", err)
 		}
+		if sourceUsername != nil {
+			user = sourceUsername.Username
+		}
+
 		people := []string{user, get("from"), get("to")}
 
 		idComponents := fmt.Sprintf("%d-%s-%s-%s",
@@ -706,10 +713,6 @@ func cleanEmailText(content string) string {
 
 // extractAndStoreUserEmail stores the detected user email in the database.
 func (g *GmailProcessor) extractAndStoreUserEmail(ctx context.Context, userEmail string) error {
-	if g.store == nil {
-		return fmt.Errorf("store is nil")
-	}
-
 	if userEmail == "" {
 		return fmt.Errorf("user email is empty")
 	}

@@ -36,8 +36,15 @@ type XProcessor struct {
 	logger *log.Logger
 }
 
-func NewXProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &XProcessor{store: store, logger: logger}
+func NewXProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &XProcessor{store: store, logger: logger}, nil
 }
 
 func (s *XProcessor) Name() string {
@@ -323,10 +330,6 @@ func (s *XProcessor) ToDocuments(ctx context.Context, records []types.Record) ([
 }
 
 func (s *XProcessor) extractUsername(ctx context.Context, account Account) (string, error) {
-	if s.store == nil {
-		return "", fmt.Errorf("store is nil")
-	}
-
 	extractedUsername := ""
 	if account.Account.Username != "" {
 		sourceUsername := db.SourceUsername{

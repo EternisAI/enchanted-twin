@@ -32,14 +32,30 @@ type TextDocumentProcessor struct {
 	logger           *log.Logger
 }
 
-func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) processor.Processor {
+func NewTextDocumentProcessor(openAiService *ai.Service, completionsModel string, store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if openAiService == nil {
+		return nil, fmt.Errorf("openAiService is nil")
+	}
+
+	if completionsModel == "" {
+		return nil, fmt.Errorf("completionsModel is empty")
+	}
+
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+
 	return &TextDocumentProcessor{
 		openAiService:    openAiService,
 		chunkSize:        DefaultChunkSize,
 		completionsModel: completionsModel,
 		store:            store,
 		logger:           logger,
-	}
+	}, nil
 }
 
 func (s *TextDocumentProcessor) Name() string {
