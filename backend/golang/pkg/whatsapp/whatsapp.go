@@ -409,8 +409,8 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() {
-		if err != nil {
-			tx.Rollback()
+		if err := tx.Rollback(); err != nil {
+			logger.Error("Failed to rollback transaction", "error", err)
 		}
 	}()
 
@@ -422,7 +422,6 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 	}
 
 	if len(messages) == 0 {
-
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit empty transaction: %w", err)
 		}
@@ -431,7 +430,6 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 
 	conversationDoc := convertMessagesToConversationDocument(messages, conversationID)
 	if conversationDoc == nil {
-
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit empty transaction: %w", err)
 		}
