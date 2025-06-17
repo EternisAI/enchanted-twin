@@ -15,6 +15,7 @@ import (
 type ConversationAnalyzer struct {
 	logger    *log.Logger
 	aiService *ai.Service
+	model     string
 }
 
 type ConversationAssessment struct {
@@ -23,10 +24,14 @@ type ConversationAssessment struct {
 	Reasoning         string  `json:"reasoning"`
 }
 
-func NewConversationAnalyzer(logger *log.Logger, aiService *ai.Service) *ConversationAnalyzer {
+func NewConversationAnalyzer(logger *log.Logger, aiService *ai.Service, model string) *ConversationAnalyzer {
+	if model == "" {
+		model = "gpt-4o-mini"
+	}
 	return &ConversationAnalyzer{
 		logger:    logger,
 		aiService: aiService,
+		model:     model,
 	}
 }
 
@@ -86,7 +91,7 @@ Is the new message starting a new conversation or continuing the existing one?`,
 
 	params := openai.ChatCompletionNewParams{
 		Messages: messages,
-		Model:    "gpt-4o-mini",
+		Model:    ca.model,
 	}
 
 	response, err := ca.aiService.ParamsCompletions(ctx, params)

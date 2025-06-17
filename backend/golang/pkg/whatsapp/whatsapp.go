@@ -74,58 +74,60 @@ type SyncStatus struct {
 	IsCompleted       bool
 }
 
-var (
-	QRChan     chan QRCodeEvent
-	QRChanOnce sync.Once
-
-	latestQREvent     *QRCodeEvent
-	latestQREventLock sync.RWMutex
-
-	ConnectChan     chan struct{}
-	ConnectChanOnce sync.Once
-
+type GlobalState struct {
+	qrChan          chan QRCodeEvent
+	qrChanOnce      sync.Once
+	latestQREvent   *QRCodeEvent
+	connectChan     chan struct{}
+	connectChanOnce sync.Once
 	allContacts     []WhatsappContact
-	allContactsLock sync.RWMutex
+	syncStatus      SyncStatus
+	mu              sync.RWMutex
+}
 
-	syncStatus     SyncStatus
-	syncStatusLock sync.RWMutex
-)
+var globalState = &GlobalState{}
 
 func GetQRChannel() chan QRCodeEvent {
-	QRChanOnce.Do(func() {
-		QRChan = make(chan QRCodeEvent, 100)
+	globalState.mu.Lock()
+	defer globalState.mu.Unlock()
+
+	globalState.qrChanOnce.Do(func() {
+		globalState.qrChan = make(chan QRCodeEvent, 100)
 	})
-	return QRChan
+	return globalState.qrChan
 }
 
 func GetLatestQREvent() *QRCodeEvent {
-	latestQREventLock.RLock()
-	defer latestQREventLock.RUnlock()
-	return latestQREvent
+	globalState.mu.RLock()
+	defer globalState.mu.RUnlock()
+	return globalState.latestQREvent
 }
 
 func SetLatestQREvent(evt QRCodeEvent) {
-	latestQREventLock.Lock()
-	defer latestQREventLock.Unlock()
-	latestQREvent = &evt
+	globalState.mu.Lock()
+	defer globalState.mu.Unlock()
+	globalState.latestQREvent = &evt
 }
 
 func GetConnectChannel() chan struct{} {
-	ConnectChanOnce.Do(func() {
-		ConnectChan = make(chan struct{}, 1)
+	globalState.mu.Lock()
+	defer globalState.mu.Unlock()
+
+	globalState.connectChanOnce.Do(func() {
+		globalState.connectChan = make(chan struct{}, 1)
 	})
-	return ConnectChan
+	return globalState.connectChan
 }
 
 func GetSyncStatus() SyncStatus {
-	syncStatusLock.RLock()
-	defer syncStatusLock.RUnlock()
-	return syncStatus
+	globalState.mu.RLock()
+	defer globalState.mu.RUnlock()
+	return globalState.syncStatus
 }
 
 func UpdateSyncStatus(newStatus SyncStatus) {
-	syncStatusLock.Lock()
-	defer syncStatusLock.Unlock()
+	globalState.mu.Lock()
+	defer globalState.mu.Unlock()
 
 	newStatus.LastUpdateTime = time.Now()
 
@@ -162,14 +164,14 @@ func UpdateSyncStatus(newStatus SyncStatus) {
 		newStatus.EstimatedTimeLeft = "Complete"
 	}
 
-	syncStatus = newStatus
+	globalState.syncStatus = newStatus
 }
 
 func StartSync() {
-	syncStatusLock.Lock()
-	defer syncStatusLock.Unlock()
+	globalState.mu.Lock()
+	defer globalState.mu.Unlock()
 
-	syncStatus = SyncStatus{
+	globalState.syncStatus = SyncStatus{
 		IsSyncing:         true,
 		Progress:          0,
 		ProcessedItems:    0,
@@ -231,15 +233,15 @@ type WhatsappContact struct {
 }
 
 func addContact(jid, name string) {
-	allContactsLock.Lock()
-	defer allContactsLock.Unlock()
+	globalState.mu.Lock()
+	defer globalState.mu.Unlock()
 
-	exists := lo.ContainsBy(allContacts, func(c WhatsappContact) bool {
+	exists := lo.ContainsBy(globalState.allContacts, func(c WhatsappContact) bool {
 		return c.Jid == jid
 	})
 
 	if !exists {
-		allContacts = append(allContacts, WhatsappContact{
+		globalState.allContacts = append(globalState.allContacts, WhatsappContact{
 			Jid:  jid,
 			Name: name,
 		})
@@ -247,10 +249,10 @@ func addContact(jid, name string) {
 }
 
 func findContactByJID(jid string) (WhatsappContact, bool) {
-	allContactsLock.RLock()
-	defer allContactsLock.RUnlock()
+	globalState.mu.RLock()
+	defer globalState.mu.RUnlock()
 
-	contact, found := lo.Find(allContacts, func(c WhatsappContact) bool {
+	contact, found := lo.Find(globalState.allContacts, func(c WhatsappContact) bool {
 		return c.Jid == jid
 	})
 
@@ -259,7 +261,7 @@ func findContactByJID(jid string) (WhatsappContact, bool) {
 	}
 
 	normJID := normalizeJID(jid)
-	return lo.Find(allContacts, func(c WhatsappContact) bool {
+	return lo.Find(globalState.allContacts, func(c WhatsappContact) bool {
 		return normalizeJID(c.Jid) == normJID
 	})
 }
@@ -301,8 +303,8 @@ func formatDetailedProgressMessage(totalContacts, processedMessages, totalMessag
 }
 
 const (
-	MaxMessagesInBuffer             = 100
-	MaxTimeBetweenMessages          = 48 * time.Hour
+	DefaultMaxMessagesInBuffer      = 100
+	DefaultMaxTimeBetweenMessages   = 48 * time.Hour
 	ConversationConfidenceThreshold = 0.8
 )
 
@@ -450,7 +452,7 @@ func shouldFlushToMemory(ctx context.Context, database *db.DB, conversationID st
 		return false, fmt.Errorf("failed to get message count: %w", err)
 	}
 
-	if messageCount >= MaxMessagesInBuffer {
+	if messageCount >= DefaultMaxMessagesInBuffer {
 		logger.Debug("Flushing to memory due to message count",
 			"conversation_id", conversationID,
 			"count", messageCount)
@@ -502,7 +504,7 @@ func shouldFlushToMemory(ctx context.Context, database *db.DB, conversationID st
 
 		if err == nil {
 			timeDiff := newMessageTime.Sub(latestMessage.Timestamp)
-			if timeDiff > MaxTimeBetweenMessages {
+			if timeDiff > DefaultMaxTimeBetweenMessages {
 				logger.Debug("Flushing to memory due to time gap (fallback)",
 					"conversation_id", conversationID,
 					"time_diff", timeDiff.String())
@@ -632,7 +634,7 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 func EventHandler(memoryStorage memory.Storage, database *db.DB, logger *log.Logger, nc *nats.Conn, config *config.Config, aiService *ai.Service) func(interface{}) {
 	var analyzer *ConversationAnalyzer
 	if aiService != nil {
-		analyzer = NewConversationAnalyzer(logger, aiService)
+		analyzer = NewConversationAnalyzer(logger, aiService, config.CompletionsModel)
 	}
 
 	return func(evt interface{}) {
@@ -932,25 +934,36 @@ func EventHandler(memoryStorage memory.Storage, database *db.DB, logger *log.Log
 }
 
 type ConnectionManager struct {
-	client       *whatsmeow.Client
-	logger       *log.Logger
-	nc           *nats.Conn
-	isConnected  bool
-	isConnecting bool
-	reconnectMux sync.Mutex
-	ctx          context.Context
-	cancel       context.CancelFunc
-	maxRetries   int
-	baseDelay    time.Duration
+	client          *whatsmeow.Client
+	logger          *log.Logger
+	nc              *nats.Conn
+	isConnected     bool
+	isConnecting    bool
+	isReconnecting  bool
+	reconnectMux    sync.Mutex
+	ctx             context.Context
+	cancel          context.CancelFunc
+	maxRetries      int
+	baseDelay       time.Duration
+	reconnectCancel context.CancelFunc
+	reconnectMux2   sync.Mutex
 }
 
-func NewConnectionManager(client *whatsmeow.Client, logger *log.Logger, nc *nats.Conn) *ConnectionManager {
+type ConnectionManagerConfig struct {
+	MaxMessagesInBuffer    int
+	MaxTimeBetweenMessages time.Duration
+	client                 *whatsmeow.Client
+	logger                 *log.Logger
+	nc                     *nats.Conn
+}
+
+func NewConnectionManager(config ConnectionManagerConfig) *ConnectionManager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &ConnectionManager{
-		client:     client,
-		logger:     logger,
-		nc:         nc,
+		client:     config.client,
+		logger:     config.logger,
+		nc:         config.nc,
 		ctx:        ctx,
 		cancel:     cancel,
 		maxRetries: 10,
@@ -1071,17 +1084,112 @@ func (cm *ConnectionManager) handleConnectionEvents(evt interface{}) {
 		default:
 		}
 
+		// Prevent multiple concurrent reconnection attempts
+		cm.reconnectMux2.Lock()
+		if cm.isReconnecting {
+			cm.reconnectMux2.Unlock()
+			return
+		}
+		cm.isReconnecting = true
+		cm.reconnectMux2.Unlock()
+
+		// Cancel any existing reconnection attempt
+		if cm.reconnectCancel != nil {
+			cm.reconnectCancel()
+		}
+
+		// Create new context for reconnection
+		reconnectCtx, cancel := context.WithCancel(cm.ctx)
+		cm.reconnectCancel = cancel
+
 		// Attempt reconnection
 		go func() {
+			defer func() {
+				cm.reconnectMux2.Lock()
+				cm.isReconnecting = false
+				cm.reconnectMux2.Unlock()
+			}()
+
 			cm.logger.Info("Attempting to reconnect WhatsApp client")
-			if err := cm.connectWithRetry(); err != nil {
-				cm.logger.Error("Failed to reconnect WhatsApp client", "error", err)
+			if err := cm.connectWithRetryContext(reconnectCtx); err != nil {
+				select {
+				case <-reconnectCtx.Done():
+					cm.logger.Info("Reconnection canceled")
+				default:
+					cm.logger.Error("Failed to reconnect WhatsApp client", "error", err)
+				}
 			}
 		}()
 
 	case *events.ConnectFailure:
 		cm.logger.Error("WhatsApp connection failure")
 		cm.isConnected = false
+	}
+}
+
+func (cm *ConnectionManager) connectWithRetryContext(ctx context.Context) error {
+	var lastErr error
+
+	for attempt := 0; attempt <= cm.maxRetries; attempt++ {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if attempt > 0 {
+			delay := cm.calculateBackoff(attempt)
+			cm.logger.Info("Retrying WhatsApp connection",
+				"attempt", attempt,
+				"delay", delay.String(),
+				"last_error", lastErr)
+
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		err := cm.attemptConnectionContext(ctx)
+		if err == nil {
+			cm.isConnected = true
+			cm.logger.Info("WhatsApp connection established successfully")
+			return nil
+		}
+
+		lastErr = err
+		cm.logger.Error("WhatsApp connection attempt failed",
+			"attempt", attempt+1,
+			"error", err)
+	}
+
+	return fmt.Errorf("failed to connect after %d attempts, last error: %w", cm.maxRetries, lastErr)
+}
+
+func (cm *ConnectionManager) attemptConnectionContext(ctx context.Context) error {
+	timeoutCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				cm.logger.Error("Recovered from panic during connection", "panic", r)
+				errChan <- fmt.Errorf("connection panic: %v", r)
+			}
+		}()
+
+		err := cm.client.Connect()
+		errChan <- err
+	}()
+
+	select {
+	case <-timeoutCtx.Done():
+		return fmt.Errorf("connection timeout: %w", timeoutCtx.Err())
+	case err := <-errChan:
+		return err
 	}
 }
 
@@ -1092,15 +1200,48 @@ func (cm *ConnectionManager) monitorConnection() {
 	for {
 		select {
 		case <-cm.ctx.Done():
+			// Cancel any ongoing reconnection attempts
+			if cm.reconnectCancel != nil {
+				cm.reconnectCancel()
+			}
 			return
 		case <-ticker.C:
 			if !cm.client.IsConnected() && cm.isConnected {
 				cm.logger.Warn("WhatsApp connection lost, attempting reconnection")
 				cm.isConnected = false
 
+				// Prevent multiple concurrent reconnection attempts
+				cm.reconnectMux2.Lock()
+				if cm.isReconnecting {
+					cm.reconnectMux2.Unlock()
+					continue
+				}
+				cm.isReconnecting = true
+				cm.reconnectMux2.Unlock()
+
+				// Cancel any existing reconnection attempt
+				if cm.reconnectCancel != nil {
+					cm.reconnectCancel()
+				}
+
+				// Create new context for reconnection
+				reconnectCtx, cancel := context.WithCancel(cm.ctx)
+				cm.reconnectCancel = cancel
+
 				go func() {
-					if err := cm.connectWithRetry(); err != nil {
-						cm.logger.Error("Failed to reconnect during monitoring", "error", err)
+					defer func() {
+						cm.reconnectMux2.Lock()
+						cm.isReconnecting = false
+						cm.reconnectMux2.Unlock()
+					}()
+
+					if err := cm.connectWithRetryContext(reconnectCtx); err != nil {
+						select {
+						case <-reconnectCtx.Done():
+							cm.logger.Info("Reconnection canceled during monitoring")
+						default:
+							cm.logger.Error("Failed to reconnect during monitoring", "error", err)
+						}
 					}
 				}()
 			}
@@ -1110,6 +1251,11 @@ func (cm *ConnectionManager) monitorConnection() {
 
 func (cm *ConnectionManager) Disconnect() {
 	cm.cancel()
+
+	// Cancel any ongoing reconnection attempts
+	if cm.reconnectCancel != nil {
+		cm.reconnectCancel()
+	}
 
 	cm.reconnectMux.Lock()
 	defer cm.reconnectMux.Unlock()
@@ -1150,20 +1296,22 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logg
 	client := whatsmeow.NewClient(deviceStore, clientLog)
 	client.AddEventHandler(EventHandler(memoryStorage, database, logger, nc, config, aiService))
 
-	// Create connection manager
-	connManager := NewConnectionManager(client, logger, nc)
+	connManager := NewConnectionManager(ConnectionManagerConfig{
+		client:                 client,
+		logger:                 logger,
+		nc:                     nc,
+		MaxMessagesInBuffer:    DefaultMaxMessagesInBuffer,
+		MaxTimeBetweenMessages: DefaultMaxTimeBetweenMessages,
+	})
 
 	logger.Info("Waiting for WhatsApp connection signal...")
 	connectChan := GetConnectChannel()
 	<-connectChan
 	logger.Info("Received signal to start WhatsApp connection")
 
-	// Use connection manager for robust connection handling
 	if client.Store.ID == nil {
-		// First time setup - handle QR code flow
 		qrChan, _ := client.GetQRChannel(context.Background())
 
-		// Start connection in a goroutine to handle QR events
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
