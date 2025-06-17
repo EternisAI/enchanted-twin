@@ -144,14 +144,17 @@ func (tp *ThreadProcessor) ProcessSingleThread(ctx context.Context, thread *mode
 		return fmt.Errorf("failed to evaluate thread %s: %w", thread.ID, err)
 	}
 
-	// Update thread state with evaluation data
+	// Convert values to pointers for nullable parameters
+	evaluatedBy := "llm-processor"
+	
+	// Update thread state with evaluation data using nullable pointer parameters
 	if err := tp.repo.UpdateThreadWithEvaluation(
 		ctx,
 		thread.ID,
 		evaluation.NewState,
-		evaluation.Reason,
-		evaluation.Confidence,
-		"llm-processor",
+		&evaluation.Reason,      // Pass pointer to allow nil
+		&evaluation.Confidence,  // Pass pointer to allow nil
+		&evaluatedBy,           // Pass pointer to allow nil
 	); err != nil {
 		return fmt.Errorf("failed to update thread with evaluation: %w", err)
 	}

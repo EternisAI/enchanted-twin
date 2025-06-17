@@ -43,12 +43,13 @@ func (bp *BackgroundProcessor) Start(ctx context.Context) error {
 		return nil // Already running
 	}
 
+	// Set running state and immediately increment WaitGroup to ensure they're always paired
+	bp.running = true
+	bp.wg.Add(1)
+
 	if !bp.service.IsThreadProcessorReady() {
 		bp.logger.Warn("Thread processor not ready, background processing will be limited")
 	}
-
-	bp.running = true
-	bp.wg.Add(1)
 
 	go func() {
 		defer bp.wg.Done()

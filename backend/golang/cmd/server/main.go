@@ -403,14 +403,21 @@ func main() {
 	processingInterval := 30 * time.Second // Process received threads every 30 seconds
 	holonService.InitializeBackgroundProcessor(processingInterval)
 
-	// Start background processing in a goroutine
-	go func() {
-		ctx := context.Background()
-		if err := holonService.StartBackgroundProcessing(ctx); err != nil {
-			logger.Error("Failed to start background thread processing", "error", err)
-		} else {
-			logger.Info("Background thread processing started successfully")
-		}
+	// Create a cancellable context for background processing that will be cancelled on shutdown
+	backgroundCtx, cancelBackgroundProcessing := context.WithCancel(context.Background())
+
+	// Start background processing (this method spawns its own goroutine, so no need for additional go func)
+	if err := holonService.StartBackgroundProcessing(backgroundCtx); err != nil {
+		logger.Error("Failed to start background thread processing", "error", err)
+		cancelBackgroundProcessing() // Clean up context if startup fails
+	} else {
+		logger.Info("Background thread processing started successfully")
+	}
+
+	// Ensure background processing context is always cancelled and service stopped on shutdown
+	defer func() {
+		cancelBackgroundProcessing() // Cancel the context to stop background goroutines
+		holonService.StopBackgroundProcessing() // Stop the service and wait for cleanup
 	}()
 
 	// Initialize HolonZero API fetcher service with the main logger
@@ -424,8 +431,6 @@ func main() {
 			if err := holonManager.Stop(); err != nil {
 				logger.Error("Failed to stop holon manager", "error", err)
 			}
-			// Stop background thread processing on shutdown
-			holonService.StopBackgroundProcessing()
 		}()
 	}
 
