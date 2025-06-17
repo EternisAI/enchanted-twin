@@ -102,6 +102,58 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 	return threads, nil
 }
 
+// GetDisplayThreads returns threads filtered by state for UI display (visible, pending, broadcasted)
+func (r *Repository) GetDisplayThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
+	query := `
+		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
+		       t.image_urls, t.actions, t.views, t.state, t.remote_thread_id,
+		       a.identity, a.alias
+		FROM threads t
+		JOIN authors a ON t.author_identity = a.identity
+		WHERE t.state IN ('visible', 'pending', 'broadcasted')
+		ORDER BY t.created_at DESC
+		LIMIT ? OFFSET ?
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, first, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query display threads: %w", err)
+	}
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			_ = cerr
+		}
+	}()
+
+	var threads []*model.Thread
+	for rows.Next() {
+		var thread dbThread
+		var threadAuthor dbAuthor
+
+		err := rows.Scan(
+			&thread.ID, &thread.Title, &thread.Content, &thread.AuthorIdentity,
+			&thread.CreatedAt, &thread.ExpiresAt, &thread.ImageURLs, &thread.Actions,
+			&thread.Views, &thread.State, &thread.RemoteThreadID, &threadAuthor.Identity, &threadAuthor.Alias,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan display thread row: %w", err)
+		}
+
+		threadModel, err := r.dbThreadToModel(ctx, &thread, &threadAuthor)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert display thread to model: %w", err)
+		}
+
+		threads = append(threads, threadModel)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating display threads: %w", err)
+	}
+
+	return threads, nil
+}
+
 func (r *Repository) GetThread(ctx context.Context, threadID string) (*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
