@@ -323,7 +323,6 @@ if os.getenv('LIVEKIT_DISABLE_TERMIOS'):
 
 # Verify required environment variables
 required_env_vars = [
-    "OPENAI_API_KEY",
     "CHAT_ID",
     "TINFOIL_API_KEY",
     "TINFOIL_AUDIO_URL",
@@ -805,11 +804,17 @@ websockets>=12.0`
 
     // Note: Room connection is handled by the LiveKit agent framework via ctx.connect()
 
+    const requiredEnvVars = [
+      'TINFOIL_API_KEY',
+      'TINFOIL_AUDIO_URL',
+      'TINFOIL_STT_MODEL',
+      'TINFOIL_TTS_MODEL'
+    ]
+
     // Check for required environment variables before starting
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error(
-        'OPENAI_API_KEY environment variable is required but not set. Please add it to your environment or .env file.'
-      )
+    const missingEnvVars = requiredEnvVars.filter((envVar) => !process.env[envVar])
+    if (missingEnvVars.length > 0) {
+      throw new Error(`Missing required environment variables: ${missingEnvVars.join(', ')}`)
     }
 
     let greeting = ``
@@ -827,7 +832,6 @@ websockets>=12.0`
       cwd: this.LIVEKIT_DIR,
       env: {
         ...process.env,
-        OPENAI_API_KEY: process.env.OPENAI_API_KEY,
         CHAT_ID: chatId,
 
         TINFOIL_API_KEY: process.env.TINFOIL_API_KEY,
