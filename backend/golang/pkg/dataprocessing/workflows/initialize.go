@@ -147,8 +147,9 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
+		// TODO: systematically decide batching strategy
 		batchSize := 20
-		if dataSourceDB.Name == "WhatsApp" {
+		if dataSourceDB.Name == "whatsapp" || dataSourceDB.Name == "telegram" {
 			batchSize = 3
 		}
 		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
