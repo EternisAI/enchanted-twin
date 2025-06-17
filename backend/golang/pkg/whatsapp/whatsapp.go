@@ -408,9 +408,12 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback() // This will be a no-op if tx.Commit() succeeds
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
 
-	// Use transaction-aware queries
 	txQueries := database.WhatsappQueries.WithTx(tx)
 
 	messages, err := txQueries.GetWhatsappMessagesByConversation(ctx, conversationID)
@@ -419,7 +422,7 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 	}
 
 	if len(messages) == 0 {
-		// No messages to process, commit empty transaction
+
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit empty transaction: %w", err)
 		}
@@ -428,7 +431,7 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 
 	conversationDoc := convertMessagesToConversationDocument(messages, conversationID)
 	if conversationDoc == nil {
-		// No valid conversation doc, commit empty transaction
+
 		if err := tx.Commit(); err != nil {
 			return fmt.Errorf("failed to commit empty transaction: %w", err)
 		}
@@ -442,7 +445,6 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 		"messages_count", len(messages),
 		"people_count", len(conversationDoc.People))
 
-	// Store in memory first - if this fails, we can still rollback the transaction
 	err = memoryStorage.Store(ctx, documents, func(processed, total int) {
 		logger.Debug("WhatsApp conversation storage progress",
 			"conversation_id", conversationID,
@@ -453,13 +455,11 @@ func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage me
 		return fmt.Errorf("failed to store conversation in memory: %w", err)
 	}
 
-	// Only delete from database after successful memory storage
 	err = txQueries.DeleteWhatsappMessagesByConversation(ctx, conversationID)
 	if err != nil {
 		return fmt.Errorf("failed to delete buffered messages: %w", err)
 	}
 
-	// Commit the transaction
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
