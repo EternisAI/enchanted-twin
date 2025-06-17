@@ -103,7 +103,6 @@ export class LiveKitAgentBootstrap {
 
   private handleAgentOutput(data: string) {
     const lines = data.toString().trim().split('\n')
-
     for (const line of lines) {
       if (line.startsWith('STATE:')) {
         try {
@@ -115,7 +114,6 @@ export class LiveKitAgentBootstrap {
         }
       } else if (line.trim()) {
         log.info(`[LiveKit] [agent] ${line}`)
-
         // Check for session ready indicators
         if (line.includes('Agent session started successfully')) {
           this.onSessionReady?.(true)
