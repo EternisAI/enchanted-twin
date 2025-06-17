@@ -83,6 +83,9 @@ importers:
       date-fns:
         specifier: ^4.1.0
         version: 4.1.0
+      dotenv:
+        specifier: ^16.5.0
+        version: 16.5.0
       electron-log:
         specifier: ^5.3.3
         version: 5.3.3
