@@ -10,14 +10,16 @@ import (
 
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/config"
 	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/holons"
+	"github.com/EternisAI/enchanted-twin/pkg/db/sqlc/whatsapp"
 )
 
 // DB wraps the database connection and provides additional functionality.
 type DB struct {
 	*sql.DB
-	ConfigQueries *config.Queries
-	HolonsQueries *holons.Queries
-	logger        *log.Logger
+	ConfigQueries   *config.Queries
+	HolonsQueries   *holons.Queries
+	WhatsappQueries *whatsapp.Queries
+	logger          *log.Logger
 }
 
 // New creates a new database connection.
@@ -40,11 +42,13 @@ func New(sqlDB *sql.DB, logger *log.Logger) (*DB, error) {
 	// Create queries instances
 	configQueries := config.New(sqlDB)
 	holonsQueries := holons.New(sqlDB)
+	whatsappQueries := whatsapp.New(sqlDB)
 
 	return &DB{
-		DB:            sqlDB,
-		ConfigQueries: configQueries,
-		HolonsQueries: holonsQueries,
-		logger:        logger,
+		DB:              sqlDB,
+		ConfigQueries:   configQueries,
+		HolonsQueries:   holonsQueries,
+		WhatsappQueries: whatsappQueries,
+		logger:          logger,
 	}, nil
 }

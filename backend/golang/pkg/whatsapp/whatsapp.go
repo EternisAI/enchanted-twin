@@ -3,6 +3,7 @@ package whatsapp
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/google/uuid"
 	"github.com/nats-io/nats.go"
 	"github.com/samber/lo"
 	"go.mau.fi/whatsmeow"
@@ -23,7 +25,10 @@ import (
 	waLog "go.mau.fi/whatsmeow/util/log"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
+	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
+	whatsappdb "github.com/EternisAI/enchanted-twin/pkg/db/sqlc/whatsapp"
 )
 
 // WhatsmeowLoggerAdapter adapts github.com/charmbracelet/log.Logger to whatsmeow's Logger interface.
@@ -295,6 +300,221 @@ func formatDetailedProgressMessage(totalContacts, processedMessages, totalMessag
 	return strings.Join(parts, " and ")
 }
 
+const (
+	MaxMessagesInBuffer             = 100
+	MaxTimeBetweenMessages          = 48 * time.Hour
+	ConversationConfidenceThreshold = 0.8
+)
+
+func getConversationID(v *events.Message) string {
+	if v.Info.Chat.User != "" {
+		return normalizeJID(v.Info.Chat.User)
+	}
+	return v.Info.Chat.String()
+}
+
+func extractMessageContent(message *events.Message) (string, string) {
+	var content, messageType string
+
+	if msg := message.Message.GetConversation(); msg != "" {
+		content = msg
+		messageType = "text"
+	} else if message.Message.GetImageMessage() != nil {
+		content = "[IMAGE]"
+		messageType = "image"
+	} else if message.Message.GetVideoMessage() != nil {
+		content = "[VIDEO]"
+		messageType = "video"
+	} else if message.Message.GetAudioMessage() != nil {
+		content = "[AUDIO]"
+		messageType = "audio"
+	} else if message.Message.GetDocumentMessage() != nil {
+		content = "[DOCUMENT]"
+		messageType = "document"
+	} else if message.Message.GetStickerMessage() != nil {
+		content = "[STICKER]"
+		messageType = "sticker"
+	}
+
+	return content, messageType
+}
+
+func getSenderInfo(v *events.Message) (string, string) {
+	senderJID := ""
+	senderName := ""
+
+	if v.Info.IsFromMe {
+		senderJID = "me"
+		senderName = "me"
+	} else {
+		if v.Info.Sender.User != "" {
+			senderJID = v.Info.Sender.String()
+			if v.Info.PushName != "" {
+				senderName = v.Info.PushName
+			} else {
+				senderName = normalizeJID(senderJID)
+			}
+		} else {
+			senderJID = "unknown"
+			senderName = "unknown"
+		}
+	}
+
+	return senderJID, senderName
+}
+
+func convertMessagesToConversationDocument(messages []whatsappdb.WhatsappMessage, conversationID string) *memory.ConversationDocument {
+	if len(messages) == 0 {
+		return nil
+	}
+
+	var conversationMessages []memory.ConversationMessage
+	var people []string
+	peopleMap := make(map[string]bool)
+
+	for _, msg := range messages {
+		conversationMessages = append(conversationMessages, memory.ConversationMessage{
+			Speaker: msg.SenderName,
+			Content: msg.Content,
+			Time:    msg.Timestamp,
+		})
+
+		if !peopleMap[msg.SenderName] {
+			people = append(people, msg.SenderName)
+			peopleMap[msg.SenderName] = true
+		}
+	}
+
+	conversationDoc := memory.ConversationDocument{
+		FieldID:      fmt.Sprintf("whatsapp-chat-%s", conversationID),
+		FieldSource:  "whatsapp",
+		People:       people,
+		User:         "me",
+		Conversation: conversationMessages,
+		FieldTags:    []string{"conversation", "chat"},
+		FieldMetadata: map[string]string{
+			"chat_id": conversationID,
+			"type":    "conversation",
+		},
+	}
+	return &conversationDoc
+}
+
+func UpdateWhatsappMemory(ctx context.Context, database *db.DB, memoryStorage memory.Storage, conversationID string, logger *log.Logger) error {
+	messages, err := database.WhatsappQueries.GetWhatsappMessagesByConversation(ctx, conversationID)
+	if err != nil {
+		return fmt.Errorf("failed to get messages for conversation %s: %w", conversationID, err)
+	}
+
+	if len(messages) == 0 {
+		return nil
+	}
+
+	conversationDoc := convertMessagesToConversationDocument(messages, conversationID)
+	if conversationDoc == nil {
+		return nil
+	}
+
+	documents := []memory.Document{conversationDoc}
+
+	logger.Info("Storing WhatsApp conversation in memory",
+		"conversation_id", conversationID,
+		"messages_count", len(messages),
+		"people_count", len(conversationDoc.People))
+
+	err = memoryStorage.Store(ctx, documents, func(processed, total int) {
+		logger.Debug("WhatsApp conversation storage progress",
+			"conversation_id", conversationID,
+			"processed", processed,
+			"total", total)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to store conversation in memory: %w", err)
+	}
+
+	err = database.WhatsappQueries.DeleteWhatsappMessagesByConversation(ctx, conversationID)
+	if err != nil {
+		return fmt.Errorf("failed to delete buffered messages: %w", err)
+	}
+
+	logger.Info("Successfully flushed WhatsApp conversation to memory",
+		"conversation_id", conversationID,
+		"messages_count", len(messages))
+
+	return nil
+}
+
+func shouldFlushToMemory(ctx context.Context, database *db.DB, conversationID string, newMessageTime time.Time, newMessage string, newSender string, analyzer *ConversationAnalyzer, logger *log.Logger) (bool, error) {
+	messageCount, err := database.WhatsappQueries.GetWhatsappMessageCount(ctx, conversationID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get message count: %w", err)
+	}
+
+	if messageCount >= MaxMessagesInBuffer {
+		logger.Debug("Flushing to memory due to message count",
+			"conversation_id", conversationID,
+			"count", messageCount)
+		return true, nil
+	}
+
+	if messageCount > 0 && analyzer != nil {
+		recentMessages, err := database.WhatsappQueries.GetWhatsappMessagesByConversation(ctx, conversationID)
+		if err != nil {
+			logger.Error("Failed to get recent messages for AI assessment", "error", err)
+		} else {
+
+			if len(recentMessages) > 10 {
+				recentMessages = recentMessages[len(recentMessages)-10:]
+			}
+
+			assessment, err := analyzer.AssessConversationBoundary(ctx, recentMessages, newMessage, newSender)
+			if err != nil {
+				logger.Error("Failed to get AI conversation assessment", "error", err)
+			} else {
+				logger.Debug("AI conversation assessment",
+					"conversation_id", conversationID,
+					"is_new_conversation", assessment.IsNewConversation,
+					"confidence", assessment.Confidence,
+					"reasoning", assessment.Reasoning)
+
+				if assessment.IsNewConversation && assessment.Confidence > ConversationConfidenceThreshold {
+					logger.Debug("Flushing to memory due to AI assessment of new conversation",
+						"conversation_id", conversationID,
+						"confidence", assessment.Confidence,
+						"reasoning", assessment.Reasoning)
+					return true, nil
+				}
+
+				if !assessment.IsNewConversation && assessment.Confidence > ConversationConfidenceThreshold {
+					logger.Debug("Not flushing - AI assessment indicates continuing conversation",
+						"conversation_id", conversationID,
+						"confidence", assessment.Confidence)
+					return false, nil
+				}
+			}
+		}
+	}
+
+	if messageCount > 0 {
+		latestMessage, err := database.WhatsappQueries.GetLatestWhatsappMessage(ctx, conversationID)
+		if err != nil && err != sql.ErrNoRows {
+			return false, fmt.Errorf("failed to get latest message: %w", err)
+		}
+
+		if err == nil {
+			timeDiff := newMessageTime.Sub(latestMessage.Timestamp)
+			if timeDiff > MaxTimeBetweenMessages {
+				logger.Debug("Flushing to memory due to time gap (fallback)",
+					"conversation_id", conversationID,
+					"time_diff", timeDiff.String())
+				return true, nil
+			}
+		}
+	}
+
+	return false, nil
+}
+
 func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, logger *log.Logger) *memory.ConversationDocument {
 	if conversation.ID == nil {
 		logger.Warn("Skipping conversation with nil ID")
@@ -410,7 +630,12 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 	return nil
 }
 
-func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, config *config.Config) func(interface{}) {
+func EventHandler(memoryStorage memory.Storage, database *db.DB, logger *log.Logger, nc *nats.Conn, config *config.Config, aiService *ai.Service) func(interface{}) {
+	var analyzer *ConversationAnalyzer
+	if aiService != nil {
+		analyzer = NewConversationAnalyzer(logger, aiService)
+	}
+
 	return func(evt interface{}) {
 		switch v := evt.(type) {
 		case *events.HistorySync:
@@ -562,7 +787,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 			if len(documents) > 0 {
-				// Update status to indicate we're storing conversations
 				UpdateSyncStatus(SyncStatus{
 					IsCompleted:    false,
 					IsSyncing:      true,
@@ -577,7 +801,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 
 				logger.Info("Storing WhatsApp conversations through evolvingmemory fact extraction", "count", len(documents))
 
-				// Log sample conversation content before storage
 				if len(documents) > 0 {
 					if sampleConv, ok := documents[0].(*memory.ConversationDocument); ok {
 						logger.Info("Sample conversation before storage",
@@ -599,7 +822,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				err = memoryStorage.Store(ctx, documents, func(processed, total int) {
 					logger.Info("WhatsApp conversations storage progress", "processed", processed, "total", total)
 
-					// Update status during conversation storage
 					UpdateSyncStatus(SyncStatus{
 						IsCompleted:    false,
 						IsSyncing:      true,
@@ -617,7 +839,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				} else {
 					logger.Info("WhatsApp conversation documents storage completed successfully through evolvingmemory", "count", len(documents))
 
-					// Debug: Immediately try to query back the stored conversations
 					testFilter := &memory.Filter{
 						Source: func() *string { s := "whatsapp"; return &s }(),
 						Tags: &memory.TagsFilter{
@@ -626,7 +847,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 						Limit: func() *int { l := 10; return &l }(),
 					}
 
-					// Give it a moment for indexing
 					time.Sleep(2 * time.Second)
 
 					result, queryErr := memoryStorage.Query(ctx, "WhatsApp conversations", testFilter)
@@ -643,7 +863,6 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 				}
 			}
 
-			// Only mark as complete after ALL memory storage is done
 			UpdateSyncStatus(SyncStatus{
 				IsCompleted:    true,
 				IsSyncing:      false,
@@ -657,30 +876,54 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 			}
 
 		case *events.Message:
+			logger.Info("Received WhatsApp message", "message", v)
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
 
-			message := v.Message.GetConversation()
-			if message == "" {
-				if v.Message.GetImageMessage() != nil {
-					message = "[IMAGE]"
-				} else if v.Message.GetVideoMessage() != nil {
-					message = "[VIDEO]"
-				} else if v.Message.GetAudioMessage() != nil {
-					message = "[AUDIO]"
-				} else if v.Message.GetDocumentMessage() != nil {
-					message = "[DOCUMENT]"
-				} else if v.Message.GetStickerMessage() != nil {
-					message = "[STICKER]"
-				}
-			}
-
-			if message == "" {
-				logger.Info("Received a message with empty content")
+			content, messageType := extractMessageContent(v)
+			if content == "" {
+				logger.Debug("Received a message with empty content")
 				return
 			}
 
+			conversationID := getConversationID(v)
+			senderJID, senderName := getSenderInfo(v)
+			messageTimestamp := v.Info.Timestamp
+
 			if v.Info.Sender.User != "" && v.Info.PushName != "" {
-				senderJID := v.Info.Sender.String()
 				addContact(senderJID, v.Info.PushName)
+			}
+
+			shouldFlush, err := shouldFlushToMemory(ctx, database, conversationID, messageTimestamp, content, senderName, analyzer, logger)
+			if err != nil {
+				logger.Error("Error checking flush condition", "error", err, "conversation_id", conversationID)
+			} else if shouldFlush {
+				err = UpdateWhatsappMemory(ctx, database, memoryStorage, conversationID, logger)
+				if err != nil {
+					logger.Error("Error flushing messages to memory", "error", err, "conversation_id", conversationID)
+				}
+			}
+
+			messageID := uuid.New().String()
+			err = database.WhatsappQueries.InsertWhatsappMessage(ctx, whatsappdb.InsertWhatsappMessageParams{
+				ID:             messageID,
+				ConversationID: conversationID,
+				SenderJid:      senderJID,
+				SenderName:     senderName,
+				Content:        content,
+				MessageType:    messageType,
+				Timestamp:      messageTimestamp,
+				FromMe:         v.Info.IsFromMe,
+			})
+			if err != nil {
+				logger.Error("Error storing WhatsApp message", "error", err,
+					"conversation_id", conversationID,
+					"sender", senderName)
+			} else {
+				logger.Debug("Stored WhatsApp message in buffer",
+					"conversation_id", conversationID,
+					"sender", senderName,
+					"type", messageType)
 			}
 
 		default:
@@ -689,7 +932,200 @@ func EventHandler(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Con
 	}
 }
 
-func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, nc *nats.Conn, dbPath string, config *config.Config) *whatsmeow.Client {
+type ConnectionManager struct {
+	client       *whatsmeow.Client
+	logger       *log.Logger
+	nc           *nats.Conn
+	isConnected  bool
+	isConnecting bool
+	reconnectMux sync.Mutex
+	ctx          context.Context
+	cancel       context.CancelFunc
+	maxRetries   int
+	baseDelay    time.Duration
+}
+
+func NewConnectionManager(client *whatsmeow.Client, logger *log.Logger, nc *nats.Conn) *ConnectionManager {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	return &ConnectionManager{
+		client:     client,
+		logger:     logger,
+		nc:         nc,
+		ctx:        ctx,
+		cancel:     cancel,
+		maxRetries: 10,
+		baseDelay:  time.Second * 2,
+	}
+}
+
+func (cm *ConnectionManager) Connect() error {
+	cm.reconnectMux.Lock()
+	defer cm.reconnectMux.Unlock()
+
+	if cm.isConnecting {
+		cm.logger.Debug("Connection already in progress")
+		return nil
+	}
+
+	cm.isConnecting = true
+	defer func() { cm.isConnecting = false }()
+
+	cm.client.AddEventHandler(cm.handleConnectionEvents)
+
+	return cm.connectWithRetry()
+}
+
+func (cm *ConnectionManager) connectWithRetry() error {
+	var lastErr error
+
+	for attempt := 0; attempt <= cm.maxRetries; attempt++ {
+		select {
+		case <-cm.ctx.Done():
+			return cm.ctx.Err()
+		default:
+		}
+
+		if attempt > 0 {
+			delay := cm.calculateBackoff(attempt)
+			cm.logger.Info("Retrying WhatsApp connection",
+				"attempt", attempt,
+				"delay", delay.String(),
+				"last_error", lastErr)
+
+			select {
+			case <-cm.ctx.Done():
+				return cm.ctx.Err()
+			case <-time.After(delay):
+			}
+		}
+
+		err := cm.attemptConnection()
+		if err == nil {
+			cm.isConnected = true
+			cm.logger.Info("WhatsApp connection established successfully")
+
+			go cm.monitorConnection()
+			return nil
+		}
+
+		lastErr = err
+		cm.logger.Error("WhatsApp connection attempt failed",
+			"attempt", attempt+1,
+			"error", err)
+	}
+
+	return fmt.Errorf("failed to connect after %d attempts, last error: %w", cm.maxRetries, lastErr)
+}
+
+func (cm *ConnectionManager) attemptConnection() error {
+	ctx, cancel := context.WithTimeout(cm.ctx, 30*time.Second)
+	defer cancel()
+
+	errChan := make(chan error, 1)
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				cm.logger.Error("Recovered from panic during connection", "panic", r)
+				errChan <- fmt.Errorf("connection panic: %v", r)
+			}
+		}()
+
+		err := cm.client.Connect()
+		errChan <- err
+	}()
+
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("connection timeout: %w", ctx.Err())
+	case err := <-errChan:
+		return err
+	}
+}
+
+func (cm *ConnectionManager) calculateBackoff(attempt int) time.Duration {
+	if attempt <= 0 {
+		return 0
+	}
+
+	backoff := cm.baseDelay * time.Duration(1<<uint(attempt-1))
+
+	if backoff > 5*time.Minute {
+		backoff = 5 * time.Minute
+	}
+
+	jitter := time.Duration(float64(backoff) * 0.25 * (2*0.5 - 1))
+	return backoff + jitter
+}
+
+func (cm *ConnectionManager) handleConnectionEvents(evt interface{}) {
+	switch evt.(type) {
+	case *events.Disconnected:
+		cm.logger.Warn("WhatsApp client disconnected")
+		cm.isConnected = false
+
+		// Don't auto-reconnect if we're shutting down
+		select {
+		case <-cm.ctx.Done():
+			return
+		default:
+		}
+
+		// Attempt reconnection
+		go func() {
+			cm.logger.Info("Attempting to reconnect WhatsApp client")
+			if err := cm.connectWithRetry(); err != nil {
+				cm.logger.Error("Failed to reconnect WhatsApp client", "error", err)
+			}
+		}()
+
+	case *events.ConnectFailure:
+		cm.logger.Error("WhatsApp connection failure")
+		cm.isConnected = false
+	}
+}
+
+func (cm *ConnectionManager) monitorConnection() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-cm.ctx.Done():
+			return
+		case <-ticker.C:
+			if !cm.client.IsConnected() && cm.isConnected {
+				cm.logger.Warn("WhatsApp connection lost, attempting reconnection")
+				cm.isConnected = false
+
+				go func() {
+					if err := cm.connectWithRetry(); err != nil {
+						cm.logger.Error("Failed to reconnect during monitoring", "error", err)
+					}
+				}()
+			}
+		}
+	}
+}
+
+func (cm *ConnectionManager) Disconnect() {
+	cm.cancel()
+
+	cm.reconnectMux.Lock()
+	defer cm.reconnectMux.Unlock()
+
+	if cm.client.IsConnected() {
+		cm.client.Disconnect()
+	}
+	cm.isConnected = false
+}
+
+func (cm *ConnectionManager) IsConnected() bool {
+	return cm.isConnected && cm.client.IsConnected()
+}
+
+func BootstrapWhatsAppClient(memoryStorage memory.Storage, database *db.DB, logger *log.Logger, nc *nats.Conn, dbPath string, config *config.Config, aiService *ai.Service) *whatsmeow.Client {
 	dbLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Database"}
 
 	dbDir := filepath.Dir(dbPath)
@@ -713,19 +1149,36 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 	}
 	clientLog := &WhatsmeowLoggerAdapter{Logger: logger, Module: "Client"}
 	client := whatsmeow.NewClient(deviceStore, clientLog)
-	client.AddEventHandler(EventHandler(memoryStorage, logger, nc, config))
+	client.AddEventHandler(EventHandler(memoryStorage, database, logger, nc, config, aiService))
+
+	// Create connection manager
+	connManager := NewConnectionManager(client, logger, nc)
 
 	logger.Info("Waiting for WhatsApp connection signal...")
 	connectChan := GetConnectChannel()
 	<-connectChan
 	logger.Info("Received signal to start WhatsApp connection")
 
+	// Use connection manager for robust connection handling
 	if client.Store.ID == nil {
+		// First time setup - handle QR code flow
 		qrChan, _ := client.GetQRChannel(context.Background())
-		err = client.Connect()
-		if err != nil {
-			logger.Error("Error connecting to WhatsApp", "error", err)
-		}
+
+		// Start connection in a goroutine to handle QR events
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("Recovered from panic during QR connection", "panic", r)
+				}
+			}()
+
+			err := connManager.Connect()
+			if err != nil {
+				logger.Error("Error establishing WhatsApp connection", "error", err)
+			}
+		}()
+
+		// Handle QR code events
 		for evt := range qrChan {
 			switch evt.Event {
 			case "code":
@@ -768,9 +1221,10 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 			}
 		}
 	} else {
-		err = client.Connect()
+		// Existing session - connect directly
+		err = connManager.Connect()
 		if err != nil {
-			logger.Error("Error connecting to WhatsApp", "error", err)
+			logger.Error("Error connecting to WhatsApp with existing session", "error", err)
 		} else {
 			qrEvent := QRCodeEvent{
 				Event: "success",
@@ -795,11 +1249,13 @@ func BootstrapWhatsAppClient(memoryStorage memory.Storage, logger *log.Logger, n
 		}
 	}
 
+	// Set up graceful shutdown
 	go func() {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 		<-c
-		client.Disconnect()
+		logger.Info("Received shutdown signal, disconnecting WhatsApp client")
+		connManager.Disconnect()
 	}()
 
 	return client
