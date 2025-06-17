@@ -106,7 +106,7 @@ func (r *Repository) GetThreads(ctx context.Context, first int32, offset int32) 
 	return threads, nil
 }
 
-// GetDisplayThreads returns threads filtered by state for UI display (visible, pending, broadcasted)
+// GetDisplayThreads returns threads filtered by state for UI display (visible, pending, broadcasted).
 func (r *Repository) GetDisplayThreads(ctx context.Context, first int32, offset int32) ([]*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
@@ -733,7 +733,7 @@ func (r *Repository) GetThreadMessage(ctx context.Context, messageID string) (*m
 	return r.dbThreadMessageToModel(&dbMessage, &author)
 }
 
-// GetThreadsByState returns threads filtered by state
+// GetThreadsByState returns threads filtered by state.
 func (r *Repository) GetThreadsByState(ctx context.Context, state string) ([]*model.Thread, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.expires_at, 
@@ -783,7 +783,7 @@ func (r *Repository) GetThreadsByState(ctx context.Context, state string) ([]*mo
 }
 
 // UpdateThreadWithEvaluation updates a thread's state along with evaluation data
-// Use pointers for nullable fields to allow clearing them by passing nil
+// Use pointers for nullable fields to allow clearing them by passing nil.
 func (r *Repository) UpdateThreadWithEvaluation(ctx context.Context, threadID, state string, reason *string, confidence *float64, evaluatedBy *string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
@@ -798,7 +798,7 @@ func (r *Repository) UpdateThreadWithEvaluation(ctx context.Context, threadID, s
 	return nil
 }
 
-// ClearThreadEvaluation clears all evaluation fields for a thread
+// ClearThreadEvaluation clears all evaluation fields for a thread.
 func (r *Repository) ClearThreadEvaluation(ctx context.Context, threadID string) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE threads 
@@ -811,7 +811,7 @@ func (r *Repository) ClearThreadEvaluation(ctx context.Context, threadID string)
 	return nil
 }
 
-// UpdateThreadEvaluationOnly updates only the evaluation fields without changing state
+// UpdateThreadEvaluationOnly updates only the evaluation fields without changing state.
 func (r *Repository) UpdateThreadEvaluationOnly(ctx context.Context, threadID string, reason *string, confidence *float64, evaluatedBy *string) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 
@@ -826,7 +826,7 @@ func (r *Repository) UpdateThreadEvaluationOnly(ctx context.Context, threadID st
 	return nil
 }
 
-// GetThreadEvaluationData returns the evaluation data for a thread
+// GetThreadEvaluationData returns the evaluation data for a thread.
 func (r *Repository) GetThreadEvaluationData(ctx context.Context, threadID string) (*ThreadEvaluationData, error) {
 	query := `
 		SELECT evaluation_reason, evaluation_confidence, evaluated_at, evaluated_by
@@ -848,7 +848,7 @@ func (r *Repository) GetThreadEvaluationData(ctx context.Context, threadID strin
 	return &eval, nil
 }
 
-// GetThreadsWithEvaluationStats returns threads with evaluation statistics
+// GetThreadsWithEvaluationStats returns threads with evaluation statistics.
 func (r *Repository) GetThreadsWithEvaluationStats(ctx context.Context, limit int) ([]*ThreadWithEvaluation, error) {
 	query := `
 		SELECT t.id, t.title, t.content, t.author_identity, t.created_at, t.state,
@@ -865,7 +865,12 @@ func (r *Repository) GetThreadsWithEvaluationStats(ctx context.Context, limit in
 	if err != nil {
 		return nil, fmt.Errorf("failed to query threads with evaluation stats: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if cerr := rows.Close(); cerr != nil {
+			// Handle error in defer but don't override the main return error
+			_ = cerr
+		}
+	}()
 
 	var results []*ThreadWithEvaluation
 	for rows.Next() {
@@ -892,7 +897,7 @@ func (r *Repository) GetThreadsWithEvaluationStats(ctx context.Context, limit in
 	return results, nil
 }
 
-// ThreadEvaluationData holds evaluation metadata for a thread
+// ThreadEvaluationData holds evaluation metadata for a thread.
 type ThreadEvaluationData struct {
 	Reason      *string  `db:"evaluation_reason"`
 	Confidence  *float64 `db:"evaluation_confidence"`
@@ -900,7 +905,7 @@ type ThreadEvaluationData struct {
 	EvaluatedBy *string  `db:"evaluated_by"`
 }
 
-// ThreadWithEvaluation represents a thread with its evaluation data
+// ThreadWithEvaluation represents a thread with its evaluation data.
 type ThreadWithEvaluation struct {
 	ID                   string        `db:"id"`
 	Title                string        `db:"title"`

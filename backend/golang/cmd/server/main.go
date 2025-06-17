@@ -403,7 +403,7 @@ func main() {
 	processingInterval := 30 * time.Second // Process received threads every 30 seconds
 	holonService.InitializeBackgroundProcessor(processingInterval)
 
-	// Create a cancellable context for background processing that will be cancelled on shutdown
+	// Create a cancellable context for background processing that will be canceled on shutdown
 	backgroundCtx, cancelBackgroundProcessing := context.WithCancel(context.Background())
 
 	// Start background processing (this method spawns its own goroutine, so no need for additional go func)
@@ -414,9 +414,9 @@ func main() {
 		logger.Info("Background thread processing started successfully")
 	}
 
-	// Ensure background processing context is always cancelled and service stopped on shutdown
+	// Ensure background processing context is always canceled and service stopped on shutdown
 	defer func() {
-		cancelBackgroundProcessing() // Cancel the context to stop background goroutines
+		cancelBackgroundProcessing()            // Cancel the context to stop background goroutines
 		holonService.StopBackgroundProcessing() // Stop the service and wait for cleanup
 	}()
 

@@ -9,7 +9,7 @@ import (
 	"github.com/charmbracelet/log"
 )
 
-// BackgroundProcessor handles automatic thread processing in the background
+// BackgroundProcessor handles automatic thread processing in the background.
 type BackgroundProcessor struct {
 	service            *Service
 	logger             *log.Logger
@@ -20,7 +20,7 @@ type BackgroundProcessor struct {
 	mu                 sync.RWMutex
 }
 
-// NewBackgroundProcessor creates a new background processor
+// NewBackgroundProcessor creates a new background processor.
 func NewBackgroundProcessor(service *Service, logger *log.Logger, processingInterval time.Duration) *BackgroundProcessor {
 	if processingInterval == 0 {
 		processingInterval = 30 * time.Second // Default to 30 seconds
@@ -34,7 +34,7 @@ func NewBackgroundProcessor(service *Service, logger *log.Logger, processingInte
 	}
 }
 
-// Start begins background processing of received threads
+// Start begins background processing of received threads.
 func (bp *BackgroundProcessor) Start(ctx context.Context) error {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
@@ -60,7 +60,7 @@ func (bp *BackgroundProcessor) Start(ctx context.Context) error {
 	return nil
 }
 
-// Stop gracefully stops the background processor
+// Stop gracefully stops the background processor.
 func (bp *BackgroundProcessor) Stop() {
 	bp.mu.Lock()
 	defer bp.mu.Unlock()
@@ -75,7 +75,7 @@ func (bp *BackgroundProcessor) Stop() {
 	bp.logger.Info("Background thread processor stopped")
 }
 
-// run is the main processing loop
+// run is the main processing loop.
 func (bp *BackgroundProcessor) run(ctx context.Context) {
 	ticker := time.NewTicker(bp.processingInterval)
 	defer ticker.Stop()
@@ -101,7 +101,7 @@ func (bp *BackgroundProcessor) run(ctx context.Context) {
 	}
 }
 
-// runBootstrap performs initial processing of existing received threads
+// runBootstrap performs initial processing of existing received threads.
 func (bp *BackgroundProcessor) runBootstrap(ctx context.Context) error {
 	bp.logger.Info("Running bootstrap processing of received threads")
 
@@ -113,7 +113,7 @@ func (bp *BackgroundProcessor) runBootstrap(ctx context.Context) error {
 	return bp.service.BootstrapProcessAllReceivedThreads(ctx)
 }
 
-// processReceivedThreads processes any new threads with 'received' state
+// processReceivedThreads processes any new threads with 'received' state.
 func (bp *BackgroundProcessor) processReceivedThreads(ctx context.Context) error {
 	if !bp.service.IsThreadProcessorReady() {
 		// Skip processing if thread processor isn't ready
@@ -135,14 +135,14 @@ func (bp *BackgroundProcessor) processReceivedThreads(ctx context.Context) error
 	return bp.service.ProcessReceivedThreads(ctx)
 }
 
-// IsRunning returns true if the background processor is running
+// IsRunning returns true if the background processor is running.
 func (bp *BackgroundProcessor) IsRunning() bool {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()
 	return bp.running
 }
 
-// ProcessSingleThreadNow immediately processes a specific thread (useful for newly arrived threads)
+// ProcessSingleThreadNow immediately processes a specific thread (useful for newly arrived threads).
 func (bp *BackgroundProcessor) ProcessSingleThreadNow(ctx context.Context, threadID string) error {
 	if !bp.service.IsThreadProcessorReady() {
 		return fmt.Errorf("thread processor not ready")
@@ -152,7 +152,7 @@ func (bp *BackgroundProcessor) ProcessSingleThreadNow(ctx context.Context, threa
 	return bp.service.ProcessSingleReceivedThread(ctx, threadID)
 }
 
-// GetStatus returns the current status of the background processor
+// GetStatus returns the current status of the background processor.
 func (bp *BackgroundProcessor) GetStatus() map[string]interface{} {
 	bp.mu.RLock()
 	defer bp.mu.RUnlock()

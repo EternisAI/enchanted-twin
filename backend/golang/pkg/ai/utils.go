@@ -28,7 +28,7 @@ func StripThinkingTags(content string) string {
 	return content
 }
 
-// UnmarshalToolCall unmarshals a tool call's arguments into a struct
+// UnmarshalToolCall unmarshals a tool call's arguments into a struct.
 func UnmarshalToolCall(toolCall openai.ChatCompletionMessageToolCall, v interface{}) error {
 	return json.Unmarshal([]byte(toolCall.Function.Arguments), v)
 }
