@@ -10,3 +10,4 @@ store.db*
 postgres-data/*
 data/*
 weaviate-test-memory/*
+**/pipeline_output/*

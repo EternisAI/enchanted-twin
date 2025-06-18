@@ -50,11 +50,17 @@ func main() {
 	})
 
 	// Load minimal configuration for testing - we only need API keys
-	_ = godotenv.Load() // Load .env file if it exists, ignore errors
+	_ = godotenv.Load("../../.env") // Load .env file from root directory, ignore errors
+
+	// Debug what was actually loaded
+	logger.Info("Environment variables loaded",
+		"COMPLETIONS_API_KEY", fmt.Sprintf("sk-...%s", os.Getenv("COMPLETIONS_API_KEY")[len(os.Getenv("COMPLETIONS_API_KEY"))-10:]),
+		"COMPLETIONS_API_URL", os.Getenv("COMPLETIONS_API_URL"),
+	)
 
 	envConfig := &config.Config{
 		CompletionsAPIKey: os.Getenv("COMPLETIONS_API_KEY"),
-		CompletionsAPIURL: getEnvOrDefault("COMPLETIONS_API_URL", "https://api.openrouter.ai/v1"),
+		CompletionsAPIURL: getEnvOrDefault("COMPLETIONS_API_URL", "https://openrouter.ai/api/v1"),
 		CompletionsModel:  getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
 		EmbeddingsAPIKey:  os.Getenv("EMBEDDINGS_API_KEY"),
 		EmbeddingsAPIURL:  getEnvOrDefault("EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
