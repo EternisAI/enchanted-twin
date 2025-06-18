@@ -444,8 +444,17 @@ func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
 
 // X_2.5 -> X_3: Extract facts from documents.
 func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
-	// This step is complex and requires direct access to internal functions
-	// For the pipeline test, we'll create placeholder facts to demonstrate the structure
+	// Ensure we have completions service for fact extraction
+	if p.config.Config.CompletionsAPIKey == "" {
+		return fmt.Errorf("fact extraction requires COMPLETIONS_API_KEY - run with --enable-memory or add API key to .env")
+	}
+
+	// Create AI service for fact extraction (same as production)
+	aiService := ai.NewOpenAIService(
+		p.logger,
+		p.config.Config.CompletionsAPIKey,
+		p.config.Config.CompletionsAPIURL,
+	)
 
 	// Read X_2.5
 	inputFile := filepath.Join(p.config.OutputDir, "X_2.5_chunked_documents.json")
@@ -461,64 +470,55 @@ func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
 		return fmt.Errorf("failed to unmarshal chunked documents: %w", err)
 	}
 
-	p.logger.Info("Processing documents for fact extraction", "count", len(chunkedData.ChunkedDocuments))
+	// Convert raw JSON messages to Document instances
+	var documents []memory.Document
+	for _, rawDoc := range chunkedData.ChunkedDocuments {
+		// Try ConversationDocument first
+		var convDoc memory.ConversationDocument
+		if err := json.Unmarshal(rawDoc, &convDoc); err == nil && len(convDoc.Conversation) > 0 {
+			documents = append(documents, &convDoc)
+			continue
+		}
 
-	// For now, create a few sample facts to demonstrate the pipeline structure
-	// In the full implementation, this would use the evolvingmemory fact extraction
-	now := time.Now()
-	sampleFacts := []*memory.MemoryFact{
-		{
-			ID:                 "fact-1",
-			Content:            "User prefers dark mode interface settings",
-			Timestamp:          now,
-			Category:           "preference",
-			Subject:            "user",
-			Attribute:          "interface_preference",
-			Value:              "prefers dark mode over light mode for UI settings",
-			TemporalContext:    nil,
-			Sensitivity:        "low",
-			Importance:         2,
-			Source:             "telegram",
-			DocumentReferences: []string{"sample-doc-1"},
-			Tags:               []string{"ui", "preferences"},
-			Metadata: map[string]string{
-				"extraction_method": "pipeline_test",
-				"source_type":       "conversation",
-			},
-		},
-		{
-			ID:                 "fact-2",
-			Content:            "User is learning Go programming language",
-			Timestamp:          now,
-			Category:           "skill",
-			Subject:            "user",
-			Attribute:          "programming_skill",
-			Value:              "currently learning Go programming language",
-			TemporalContext:    &[]string{"2025-01"}[0],
-			Sensitivity:        "low",
-			Importance:         2,
-			Source:             "telegram",
-			DocumentReferences: []string{"sample-doc-1", "sample-doc-2"},
-			Tags:               []string{"programming", "learning"},
-			Metadata: map[string]string{
-				"extraction_method": "pipeline_test",
-				"source_type":       "conversation",
-			},
-		},
+		// Try TextDocument
+		var textDoc memory.TextDocument
+		if err := json.Unmarshal(rawDoc, &textDoc); err == nil && textDoc.Content() != "" {
+			documents = append(documents, &textDoc)
+		}
 	}
 
-	p.logger.Info("Generated sample facts for pipeline testing", "count", len(sampleFacts))
+	p.logger.Info("Processing YOUR actual documents for fact extraction", "count", len(documents))
+
+	// Extract facts from YOUR documents using the REAL production code path
+	var allFacts []*memory.MemoryFact
+	for i, doc := range documents {
+		p.logger.Info("Extracting facts from YOUR document", "index", i+1, "id", doc.ID(), "type", fmt.Sprintf("%T", doc))
+
+		// Call the EXACT same fact extraction function as production
+		// This is the same call that happens in orchestrator.go:52
+		facts, err := evolvingmemory.ExtractFactsFromDocument(ctx, doc, aiService, p.config.Config.CompletionsModel, p.logger)
+		if err != nil {
+			p.logger.Error("Failed to extract facts from YOUR document", "id", doc.ID(), "error", err)
+			continue
+		}
+
+		p.logger.Info("Extracted facts from YOUR document", "id", doc.ID(), "facts_count", len(facts))
+		allFacts = append(allFacts, facts...)
+	}
+
+	p.logger.Info("Fact extraction completed on YOUR data", "total_facts", len(allFacts))
 
 	// Write X_3: extracted facts as JSON
 	outputFile := filepath.Join(p.config.OutputDir, "X_3_extracted_facts.json")
 	factsData, err := json.MarshalIndent(map[string]interface{}{
-		"facts": sampleFacts,
+		"facts": allFacts,
 		"metadata": map[string]interface{}{
-			"processed_at":    time.Now().Format(time.RFC3339),
-			"step":            "extract_facts",
-			"documents_count": len(chunkedData.ChunkedDocuments),
-			"facts_count":     len(sampleFacts),
-			"note":            "Sample facts generated for pipeline testing - full implementation requires fact extraction service",
+			"processed_at":      time.Now().Format(time.RFC3339),
+			"step":              "extract_facts",
+			"documents_count":   len(documents),
+			"facts_count":       len(allFacts),
+			"completions_model": p.config.Config.CompletionsModel,
+			"source":            "real_llm_extraction_from_user_data",
 		},
 	}, "", "  ")
 	if err != nil {
@@ -529,29 +529,46 @@ func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
 		return fmt.Errorf("failed to write extracted facts file: %w", err)
 	}
 
-	p.logger.Info("Wrote extracted facts", "file", outputFile, "count", len(sampleFacts))
+	p.logger.Info("Wrote YOUR extracted facts", "file", outputFile, "count", len(allFacts))
 	return nil
 }
 
-// X_3 -> X_4: Store documents in memory system (memory operations).
+// X_2.5 -> X_4: Store documents in memory system (memory operations).
 func (p *MemoryPipeline) stepStoreMemory(ctx context.Context) error {
 	if !p.config.EnableMemory {
 		p.logger.Info("Memory storage disabled, skipping step")
 		return nil
 	}
 
-	// Read X_3
-	inputFile := filepath.Join(p.config.OutputDir, "X_3_extracted_facts.json")
+	// Read X_2.5 (chunked documents)
+	inputFile := filepath.Join(p.config.OutputDir, "X_2.5_chunked_documents.json")
 	data, err := os.ReadFile(inputFile)
 	if err != nil {
-		return fmt.Errorf("failed to read facts file: %w", err)
+		return fmt.Errorf("failed to read chunked documents file: %w", err)
 	}
 
-	var factsData struct {
-		Facts []memory.MemoryFact `json:"facts"`
+	var documentsData struct {
+		ChunkedDocuments []json.RawMessage `json:"chunked_documents"`
 	}
-	if err := json.Unmarshal(data, &factsData); err != nil {
-		return fmt.Errorf("failed to unmarshal facts: %w", err)
+	if err := json.Unmarshal(data, &documentsData); err != nil {
+		return fmt.Errorf("failed to unmarshal documents: %w", err)
+	}
+
+	// Convert raw JSON messages to Document instances (same logic as stepExtractFacts)
+	var documents []memory.Document
+	for _, rawDoc := range documentsData.ChunkedDocuments {
+		// Try ConversationDocument first
+		var convDoc memory.ConversationDocument
+		if err := json.Unmarshal(rawDoc, &convDoc); err == nil && len(convDoc.Conversation) > 0 {
+			documents = append(documents, &convDoc)
+			continue
+		}
+
+		// Try TextDocument
+		var textDoc memory.TextDocument
+		if err := json.Unmarshal(rawDoc, &textDoc); err == nil && textDoc.Content() != "" {
+			documents = append(documents, &textDoc)
+		}
 	}
 
 	// Create memory storage
@@ -572,40 +589,28 @@ func (p *MemoryPipeline) stepStoreMemory(ctx context.Context) error {
 		p.logger.Info("Memory storage progress", "processed", processed, "total", total)
 	}
 
-	p.logger.Info("Storing facts in memory", "count", len(factsData.Facts))
+	p.logger.Info("Storing documents in memory", "count", len(documents))
 
 	startTime := time.Now()
 
-	// Convert MemoryFacts to Documents for storage
-	var documents []memory.Document
-	for _, fact := range factsData.Facts {
-		// Create a TextDocument from the fact for storage
-		factCopy := fact
-		doc := &memory.TextDocument{
-			FieldID:        factCopy.ID,
-			FieldContent:   factCopy.Content,
-			FieldTimestamp: &factCopy.Timestamp,
-			FieldSource:    factCopy.Source,
-			FieldTags:      factCopy.Tags,
-			FieldMetadata:  factCopy.Metadata,
-		}
-		documents = append(documents, doc)
-	}
-
+	// Store documents in memory system (this will internally extract facts and store them)
 	err = memoryStorage.Store(ctx, documents, progressCallback)
 	duration := time.Since(startTime)
 
 	if err != nil {
-		return fmt.Errorf("failed to store facts in memory: %w", err)
+		p.logger.Error("Memory storage failed", "error", err, "duration", duration)
+		return fmt.Errorf("failed to store documents in memory: %w", err)
 	}
 
-	// Write X_4: memory storage results
+	// Write X_4: storage results
 	outputFile := filepath.Join(p.config.OutputDir, "X_4_memory_storage.json")
 	storageData, err := json.MarshalIndent(map[string]interface{}{
-		"storage_completed": true,
-		"facts_stored":      len(factsData.Facts),
-		"duration_seconds":  duration.Seconds(),
-		"progress_updates":  progressUpdates,
+		"storage_result": map[string]interface{}{
+			"documents_stored":   len(documents),
+			"duration_seconds":   duration.Seconds(),
+			"storage_successful": true,
+		},
+		"progress_updates": progressUpdates,
 		"metadata": map[string]interface{}{
 			"processed_at": time.Now().Format(time.RFC3339),
 			"step":         "store_memory",
@@ -616,10 +621,10 @@ func (p *MemoryPipeline) stepStoreMemory(ctx context.Context) error {
 	}
 
 	if err := os.WriteFile(outputFile, storageData, 0o644); err != nil {
-		return fmt.Errorf("failed to write storage results file: %w", err)
+		return fmt.Errorf("failed to write storage results: %w", err)
 	}
 
-	p.logger.Info("Wrote memory storage results", "file", outputFile, "duration", duration)
+	p.logger.Info("Memory storage completed", "file", outputFile, "documents_stored", len(documents), "duration", duration)
 	return nil
 }
 
