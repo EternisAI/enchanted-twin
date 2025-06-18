@@ -56,15 +56,21 @@ var conversationAnalysisTool = openai.ChatCompletionToolParam{
 	},
 }
 
-func NewConversationAnalyzer(logger *log.Logger, aiService *ai.Service, model string) *ConversationAnalyzer {
+func NewConversationAnalyzer(logger *log.Logger, aiService *ai.Service, model string) (*ConversationAnalyzer, error) {
 	if model == "" {
 		model = "gpt-4o-mini"
+	}
+	if logger == nil {
+		return nil, fmt.Errorf("logger is not available for conversation analysis")
+	}
+	if aiService == nil {
+		return nil, fmt.Errorf("AI service is not available for conversation analysis")
 	}
 	return &ConversationAnalyzer{
 		logger:    logger,
 		aiService: aiService,
 		model:     model,
-	}
+	}, nil
 }
 
 func (ca *ConversationAnalyzer) AssessConversationBoundary(ctx context.Context, recentMessages []whatsappdb.WhatsappMessage, newMessage string, newSender string) (*ConversationAssessment, error) {
@@ -74,6 +80,10 @@ func (ca *ConversationAnalyzer) AssessConversationBoundary(ctx context.Context, 
 			Confidence:        1.0,
 			Reasoning:         "No previous messages exist, this is clearly a new conversation",
 		}, nil
+	}
+
+	if ca.aiService == nil {
+		return nil, fmt.Errorf("AI service is not available for conversation analysis")
 	}
 
 	var messageContext strings.Builder

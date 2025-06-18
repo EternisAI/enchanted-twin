@@ -653,9 +653,9 @@ func ProcessNewConversationMessage(conversation *waHistorySync.Conversation, log
 }
 
 func EventHandler(memoryStorage memory.Storage, database *db.DB, logger *log.Logger, nc *nats.Conn, config *config.Config, aiService *ai.Service) func(interface{}) {
-	var analyzer *ConversationAnalyzer
-	if aiService != nil {
-		analyzer = NewConversationAnalyzer(logger, aiService, config.CompletionsModel)
+	analyzer, err := NewConversationAnalyzer(logger, aiService, config.CompletionsModel)
+	if err != nil {
+		logger.Error("Error creating conversation analyzer", "error", err)
 	}
 
 	return func(evt interface{}) {
