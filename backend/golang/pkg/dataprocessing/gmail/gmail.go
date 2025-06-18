@@ -646,7 +646,6 @@ func (g *GmailProcessor) ToDocuments(ctx context.Context, recs []types.Record) (
 				},
 			},
 		})
-
 	}
 	var documents []memory.Document
 	for _, document := range out {
