@@ -33,7 +33,8 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 	}
 
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-		StartToCloseTimeout: 5 * time.Minute,
+		StartToCloseTimeout:    5 * time.Minute,
+		ScheduleToStartTimeout: 10 * time.Minute,
 		RetryPolicy: &temporal.RetryPolicy{
 			InitialInterval:    time.Second * 2,
 			MaximumInterval:    time.Minute * 10,
@@ -147,8 +148,9 @@ func (w *DataProcessingWorkflows) InitializeWorkflow(
 			continue
 		}
 
+		// TODO: systematically decide batching strategy
 		batchSize := 20
-		if dataSourceDB.Name == "WhatsApp" {
+		if dataSourceDB.Name == "Whatsapp" || dataSourceDB.Name == "Telegram" {
 			batchSize = 3
 		}
 		fmt.Println("Indexing batch size", dataSourceDB.Name, batchSize)
