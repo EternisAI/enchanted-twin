@@ -747,6 +747,8 @@ func monitorWorkerHealth(logger *log.Logger, worker worker.Worker, temporalClien
 					if activityErr == nil && len(activityResponse.Pollers) > 0 {
 						logger.Info("Activity pollers status",
 							"activity_pollers", len(activityResponse.Pollers))
+
+						logger.Info("Activity pollers status", "activity_pollers", activityResponse.TaskQueueStatus)
 					}
 
 					lastHealthLog = time.Now()
