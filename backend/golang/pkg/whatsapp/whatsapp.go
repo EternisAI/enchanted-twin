@@ -693,7 +693,9 @@ func EventHandler(memoryStorage memory.Storage, database *db.DB, logger *log.Log
 			for _, pushname := range v.Data.Pushnames {
 				if pushname.ID != nil && pushname.Pushname != nil {
 					timestamp := time.Now()
+					contactID := fmt.Sprintf("whatsapp-contact-%s", *pushname.ID)
 					document := &memory.TextDocument{
+						FieldID:        contactID,
 						FieldSource:    "whatsapp",
 						FieldContent:   fmt.Sprintf("WhatsApp Contact name: %s. Contact ID: %s.", *pushname.Pushname, *pushname.ID),
 						FieldTimestamp: &timestamp,
