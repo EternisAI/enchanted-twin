@@ -10,11 +10,9 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
-	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
-	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
@@ -30,17 +28,13 @@ const (
 	StepToDocuments    PipelineStep = "to_documents"
 	StepChunkDocuments PipelineStep = "chunk_documents"
 	StepExtractFacts   PipelineStep = "extract_facts"
-	StepStoreMemory    PipelineStep = "store_memory"
-	StepQueryMemory    PipelineStep = "query_memory"
-	StepFactsAnalysis  PipelineStep = "facts_analysis"
 )
 
 type PipelineConfig struct {
-	InputFile    string
-	OutputDir    string
-	Steps        string
-	EnableMemory bool
-	Config       *config.Config
+	InputFile string
+	OutputDir string
+	Steps     string
+	Config    *config.Config
 }
 
 type MemoryPipeline struct {
@@ -65,10 +59,9 @@ func main() {
 
 	// Simple argument parsing - just input file and optional flags
 	pipelineConfig := &PipelineConfig{
-		OutputDir:    "pipeline_output",
-		Steps:        "basic",
-		EnableMemory: false,
-		Config:       envConfig,
+		OutputDir: "pipeline_output",
+		Steps:     "basic",
+		Config:    envConfig,
 	}
 
 	args := os.Args[1:]
@@ -96,7 +89,7 @@ func main() {
 			}
 			pipelineConfig.Steps = args[i+1]
 		case "--enable-memory":
-			pipelineConfig.EnableMemory = true
+			// Memory operations removed for now
 		}
 	}
 
@@ -111,17 +104,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Validate memory requirements
-	if pipelineConfig.EnableMemory {
-		if envConfig.CompletionsAPIKey == "" {
-			logger.Error("Memory operations require COMPLETIONS_API_KEY in .env file")
-			os.Exit(1)
-		}
-		logger.Info("Memory operations enabled",
-			"completions_model", envConfig.CompletionsModel,
-			"embeddings_model", envConfig.EmbeddingsModel,
-			"weaviate_port", envConfig.WeaviatePort)
-	}
+	// Memory operations removed for now - facts are the final payload
 
 	pipeline := &MemoryPipeline{
 		config: pipelineConfig,
@@ -188,9 +171,6 @@ func (p *MemoryPipeline) parseSteps(stepsStr string) []PipelineStep {
 			StepToDocuments,
 			StepChunkDocuments,
 			StepExtractFacts,
-			StepStoreMemory,
-			StepQueryMemory,
-			StepFactsAnalysis,
 		}
 	case "extraction":
 		return []PipelineStep{
@@ -231,18 +211,6 @@ func (p *MemoryPipeline) Run(ctx context.Context) error {
 			}
 		case StepExtractFacts:
 			if err := p.stepExtractFacts(ctx); err != nil {
-				return fmt.Errorf("step %s failed: %w", step, err)
-			}
-		case StepStoreMemory:
-			if err := p.stepStoreMemory(ctx); err != nil {
-				return fmt.Errorf("step %s failed: %w", step, err)
-			}
-		case StepQueryMemory:
-			if err := p.stepQueryMemory(ctx); err != nil {
-				return fmt.Errorf("step %s failed: %w", step, err)
-			}
-		case StepFactsAnalysis:
-			if err := p.stepFactsAnalysis(ctx); err != nil {
 				return fmt.Errorf("step %s failed: %w", step, err)
 			}
 		default:
@@ -531,353 +499,4 @@ func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
 
 	p.logger.Info("Wrote YOUR extracted facts", "file", outputFile, "count", len(allFacts))
 	return nil
-}
-
-// X_2.5 -> X_4: Store documents in memory system (memory operations).
-func (p *MemoryPipeline) stepStoreMemory(ctx context.Context) error {
-	if !p.config.EnableMemory {
-		p.logger.Info("Memory storage disabled, skipping step")
-		return nil
-	}
-
-	// Read X_2.5 (chunked documents)
-	inputFile := filepath.Join(p.config.OutputDir, "X_2.5_chunked_documents.json")
-	data, err := os.ReadFile(inputFile)
-	if err != nil {
-		return fmt.Errorf("failed to read chunked documents file: %w", err)
-	}
-
-	var documentsData struct {
-		ChunkedDocuments []json.RawMessage `json:"chunked_documents"`
-	}
-	if err := json.Unmarshal(data, &documentsData); err != nil {
-		return fmt.Errorf("failed to unmarshal documents: %w", err)
-	}
-
-	// Convert raw JSON messages to Document instances (same logic as stepExtractFacts)
-	var documents []memory.Document
-	for _, rawDoc := range documentsData.ChunkedDocuments {
-		// Try ConversationDocument first
-		var convDoc memory.ConversationDocument
-		if err := json.Unmarshal(rawDoc, &convDoc); err == nil && len(convDoc.Conversation) > 0 {
-			documents = append(documents, &convDoc)
-			continue
-		}
-
-		// Try TextDocument
-		var textDoc memory.TextDocument
-		if err := json.Unmarshal(rawDoc, &textDoc); err == nil && textDoc.Content() != "" {
-			documents = append(documents, &textDoc)
-		}
-	}
-
-	// Create memory storage
-	memoryStorage, err := p.createMemoryStorage(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create memory storage: %w", err)
-	}
-
-	// Track progress
-	var progressUpdates []map[string]interface{}
-	progressCallback := func(processed, total int) {
-		update := map[string]interface{}{
-			"processed": processed,
-			"total":     total,
-			"timestamp": time.Now().Format(time.RFC3339),
-		}
-		progressUpdates = append(progressUpdates, update)
-		p.logger.Info("Memory storage progress", "processed", processed, "total", total)
-	}
-
-	p.logger.Info("Storing documents in memory", "count", len(documents))
-
-	startTime := time.Now()
-
-	// Store documents in memory system (this will internally extract facts and store them)
-	err = memoryStorage.Store(ctx, documents, progressCallback)
-	duration := time.Since(startTime)
-
-	if err != nil {
-		p.logger.Error("Memory storage failed", "error", err, "duration", duration)
-		return fmt.Errorf("failed to store documents in memory: %w", err)
-	}
-
-	// Write X_4: storage results
-	outputFile := filepath.Join(p.config.OutputDir, "X_4_memory_storage.json")
-	storageData, err := json.MarshalIndent(map[string]interface{}{
-		"storage_result": map[string]interface{}{
-			"documents_stored":   len(documents),
-			"duration_seconds":   duration.Seconds(),
-			"storage_successful": true,
-		},
-		"progress_updates": progressUpdates,
-		"metadata": map[string]interface{}{
-			"processed_at": time.Now().Format(time.RFC3339),
-			"step":         "store_memory",
-		},
-	}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal storage results: %w", err)
-	}
-
-	if err := os.WriteFile(outputFile, storageData, 0o644); err != nil {
-		return fmt.Errorf("failed to write storage results: %w", err)
-	}
-
-	p.logger.Info("Memory storage completed", "file", outputFile, "documents_stored", len(documents), "duration", duration)
-	return nil
-}
-
-// X_4 -> X_5: Query memory system to verify storage.
-func (p *MemoryPipeline) stepQueryMemory(ctx context.Context) error {
-	if !p.config.EnableMemory {
-		p.logger.Info("Memory queries disabled, skipping step")
-		return nil
-	}
-
-	// Create memory storage
-	memoryStorage, err := p.createMemoryStorage(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to create memory storage: %w", err)
-	}
-
-	// Define test queries
-	testQueries := []struct {
-		Name   string
-		Query  string
-		Filter *memory.Filter
-	}{
-		{
-			Name:  "all_memories",
-			Query: "tell me about the user",
-			Filter: &memory.Filter{
-				Limit: &[]int{50}[0],
-			},
-		},
-		{
-			Name:  "conversation_memories",
-			Query: "conversations with friends",
-			Filter: &memory.Filter{
-				Source: &[]string{"telegram"}[0],
-				Limit:  &[]int{20}[0],
-			},
-		},
-		{
-			Name:  "preferences",
-			Query: "user preferences and likes",
-			Filter: &memory.Filter{
-				FactCategory: &[]string{"preference"}[0],
-				Limit:        &[]int{10}[0],
-			},
-		},
-		{
-			Name:  "important_facts",
-			Query: "important life facts",
-			Filter: &memory.Filter{
-				FactImportanceMin: &[]int{2}[0],
-				Limit:             &[]int{15}[0],
-			},
-		},
-	}
-
-	queryResults := make(map[string]interface{})
-
-	for _, testQuery := range testQueries {
-		p.logger.Info("Running test query", "name", testQuery.Name, "query", testQuery.Query)
-
-		startTime := time.Now()
-		result, err := memoryStorage.Query(ctx, testQuery.Query, testQuery.Filter)
-		duration := time.Since(startTime)
-
-		if err != nil {
-			p.logger.Error("Query failed", "name", testQuery.Name, "error", err)
-			queryResults[testQuery.Name] = map[string]interface{}{
-				"error":            err.Error(),
-				"duration_seconds": duration.Seconds(),
-			}
-			continue
-		}
-
-		queryResults[testQuery.Name] = map[string]interface{}{
-			"facts_count":      len(result.Facts),
-			"duration_seconds": duration.Seconds(),
-			"facts":            result.Facts,
-			"query":            testQuery.Query,
-			"filter":           testQuery.Filter,
-		}
-
-		p.logger.Info("Query completed", "name", testQuery.Name, "facts", len(result.Facts), "duration", duration)
-	}
-
-	// Write X_5: query results
-	outputFile := filepath.Join(p.config.OutputDir, "X_5_memory_queries.json")
-	queryData, err := json.MarshalIndent(map[string]interface{}{
-		"query_results": queryResults,
-		"metadata": map[string]interface{}{
-			"processed_at": time.Now().Format(time.RFC3339),
-			"step":         "query_memory",
-		},
-	}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal query results: %w", err)
-	}
-
-	if err := os.WriteFile(outputFile, queryData, 0o644); err != nil {
-		return fmt.Errorf("failed to write query results: %w", err)
-	}
-
-	p.logger.Info("Memory queries completed", "file", outputFile)
-	return nil
-}
-
-// X_5 -> X_6: Analyze extracted facts and memory structure.
-func (p *MemoryPipeline) stepFactsAnalysis(ctx context.Context) error {
-	if !p.config.EnableMemory {
-		p.logger.Info("Facts analysis disabled, skipping step")
-		return nil
-	}
-
-	// Read X_5
-	inputFile := filepath.Join(p.config.OutputDir, "X_5_memory_queries.json")
-	data, err := os.ReadFile(inputFile)
-	if err != nil {
-		return fmt.Errorf("failed to read query results file: %w", err)
-	}
-
-	var queryData struct {
-		QueryResults map[string]interface{} `json:"query_results"`
-	}
-	if err := json.Unmarshal(data, &queryData); err != nil {
-		return fmt.Errorf("failed to unmarshal query results: %w", err)
-	}
-
-	// Count facts by category, importance, etc.
-	categoryCount := make(map[string]int)
-	importanceCount := make(map[int]int)
-	subjectCount := make(map[string]int)
-	totalFacts := 0
-
-	for queryName, resultInterface := range queryData.QueryResults {
-		if resultMap, ok := resultInterface.(map[string]interface{}); ok {
-			if factsInterface, ok := resultMap["facts"]; ok {
-				if factsSlice, ok := factsInterface.([]interface{}); ok {
-					for _, factInterface := range factsSlice {
-						if factMap, ok := factInterface.(map[string]interface{}); ok {
-							totalFacts++
-
-							if category, ok := factMap["category"].(string); ok {
-								categoryCount[category]++
-							}
-							if importance, ok := factMap["importance"].(float64); ok {
-								importanceCount[int(importance)]++
-							}
-							if subject, ok := factMap["subject"].(string); ok {
-								subjectCount[subject]++
-							}
-						}
-					}
-				}
-			}
-		}
-
-		p.logger.Info("Analyzed query results", "query", queryName, "type", fmt.Sprintf("%T", resultInterface))
-	}
-
-	analysis := map[string]interface{}{
-		"total_facts":        totalFacts,
-		"category_breakdown": categoryCount,
-		"importance_levels":  importanceCount,
-		"subject_breakdown":  subjectCount,
-		"analysis_summary": map[string]interface{}{
-			"most_common_category": findMostCommon(categoryCount),
-			"most_common_subject":  findMostCommon(subjectCount),
-			"highest_importance":   findHighestKey(importanceCount),
-		},
-	}
-
-	// Write X_6: facts analysis
-	outputFile := filepath.Join(p.config.OutputDir, "X_6_facts_analysis.json")
-	analysisData, err := json.MarshalIndent(map[string]interface{}{
-		"facts_analysis": analysis,
-		"metadata": map[string]interface{}{
-			"processed_at": time.Now().Format(time.RFC3339),
-			"step":         "facts_analysis",
-		},
-	}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal analysis results: %w", err)
-	}
-
-	if err := os.WriteFile(outputFile, analysisData, 0o644); err != nil {
-		return fmt.Errorf("failed to write analysis results: %w", err)
-	}
-
-	p.logger.Info("Facts analysis completed", "file", outputFile, "total_facts", totalFacts)
-	return nil
-}
-
-func (p *MemoryPipeline) createMemoryStorage(ctx context.Context) (memory.Storage, error) {
-	// Create AI service for embeddings and completions
-	aiService := ai.NewOpenAIService(p.logger, p.config.Config.CompletionsAPIKey, p.config.Config.CompletionsAPIURL)
-
-	// Create Weaviate storage backend
-	embeddingWrapper, err := storage.NewEmbeddingWrapper(aiService, "text-embedding-3-small")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create embedding wrapper: %w", err)
-	}
-
-	// Create Weaviate client
-	weaviateClient, err := weaviate.NewClient(weaviate.Config{
-		Host:   fmt.Sprintf("localhost:%s", p.config.Config.WeaviatePort),
-		Scheme: "http",
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Weaviate client: %w", err)
-	}
-
-	weaviateStorage, err := storage.New(storage.NewStorageInput{
-		Client:            weaviateClient,
-		Logger:            p.logger,
-		EmbeddingsWrapper: embeddingWrapper,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create Weaviate storage: %w", err)
-	}
-
-	// Create evolving memory storage
-	memoryStorage, err := evolvingmemory.New(evolvingmemory.Dependencies{
-		Logger:             p.logger,
-		Storage:            weaviateStorage,
-		CompletionsService: aiService,
-		CompletionsModel:   "gpt-4",
-		EmbeddingsWrapper:  embeddingWrapper,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create memory storage: %w", err)
-	}
-
-	return memoryStorage, nil
-}
-
-// Helper functions.
-func findMostCommon(counts map[string]int) string {
-	maxCount := 0
-	mostCommon := ""
-	for key, count := range counts {
-		if count > maxCount {
-			maxCount = count
-			mostCommon = key
-		}
-	}
-	return mostCommon
-}
-
-func findHighestKey(counts map[int]int) int {
-	highest := 0
-	for key := range counts {
-		if key > highest {
-			highest = key
-		}
-	}
-	return highest
 }
