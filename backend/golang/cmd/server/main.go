@@ -734,12 +734,21 @@ func monitorWorkerHealth(logger *log.Logger, worker worker.Worker, temporalClien
 					}
 				}
 
+				// Get activity task queue info as well
+				activityResponse, activityErr := temporalClient.DescribeTaskQueue(ctx, "default", enumspb.TASK_QUEUE_TYPE_ACTIVITY)
+
 				if time.Since(lastHealthLog) >= 30*time.Second || workflowPollers == 0 {
 					logger.Info("Worker health status",
 						"uptime", uptime.String(),
 						"workflow_pollers", workflowPollers,
 						"recent_active_pollers", activityPollers,
 						"task_queue", "default")
+
+					if activityErr == nil && len(activityResponse.Pollers) > 0 {
+						logger.Info("Activity pollers status",
+							"activity_pollers", len(activityResponse.Pollers))
+					}
+
 					lastHealthLog = time.Now()
 				}
 
