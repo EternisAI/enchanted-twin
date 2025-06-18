@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -53,6 +54,11 @@ func (s *Service) ParamsCompletions(ctx context.Context, params openai.ChatCompl
 	if err != nil {
 		return openai.ChatCompletionMessage{}, err
 	}
+
+	if len(completion.Choices) == 0 {
+		return openai.ChatCompletionMessage{}, fmt.Errorf("OpenAI returned no completion choices")
+	}
+
 	return completion.Choices[0].Message, nil
 }
 

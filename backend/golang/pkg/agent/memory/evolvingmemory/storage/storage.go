@@ -1496,8 +1496,14 @@ func sha256hex(content string) string {
 
 // UpsertDocument uses deterministic UUID + batch upsert for idempotent document storage.
 func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Document) (string, error) {
-	if doc.ID() == "" || len(doc.ID()) > 255 {
-		return "", fmt.Errorf("invalid document ID")
+	docID := doc.ID()
+	if docID == "" {
+		return "", fmt.Errorf("document ID cannot be empty")
+	}
+	if len(docID) > 255 {
+		s.logger.Warn("Document ID too long, truncating", "original_length", len(docID), "original_id", docID[:50]+"...")
+		// Generate a hash-based ID for very long IDs
+		docID = fmt.Sprintf("long_id_%s", sha256hex(docID)[:32])
 	}
 	if doc.Content() == "" {
 		return "", fmt.Errorf("content must be non-empty")
@@ -1514,7 +1520,7 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 		docType = "unknown"
 	}
 
-	id := deterministicID(doc.ID())
+	id := deterministicID(docID)
 
 	// Marshal metadata
 	metadataJSON, err := json.Marshal(doc.Metadata())
@@ -1527,7 +1533,7 @@ func (s *WeaviateStorage) UpsertDocument(ctx context.Context, doc memory.Documen
 		contentProperty:             doc.Content(),
 		documentContentHashProperty: sha256hex(doc.Content()),
 		documentTypeProperty:        docType,
-		documentOriginalIDProperty:  doc.ID(),
+		documentOriginalIDProperty:  docID,
 		documentMetadataProperty:    string(metadataJSON),
 	}
 

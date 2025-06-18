@@ -136,7 +136,11 @@ func main() {
 
 	// Convert records to ConversationDocuments using WhatsApp processor
 	logger.Info("Converting records to ConversationDocuments...")
-	processor := whatsapp.NewWhatsappProcessor(nil, logger)
+	processor, err := whatsapp.NewWhatsappProcessor(nil, logger)
+	if err != nil {
+		logger.Error("Failed to create WhatsApp processor", "error", err)
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
 	documents, err := processor.ToDocuments(ctx, records)

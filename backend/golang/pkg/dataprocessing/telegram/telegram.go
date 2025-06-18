@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -39,7 +40,8 @@ type Message struct {
 	FromID        string       `json:"from_id"`
 	ForwardedFrom string       `json:"forwarded_from,omitempty"`
 	SavedFrom     string       `json:"saved_from,omitempty"`
-	Text          []TextEntity `json:"text_entities"`
+	Text          interface{}  `json:"text"`
+	TextEntities  []TextEntity `json:"text_entities"`
 }
 
 type Chat struct {
@@ -75,8 +77,37 @@ type TelegramProcessor struct {
 	logger *log.Logger
 }
 
-func NewTelegramProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &TelegramProcessor{store: store, logger: logger}
+type conversationData struct {
+	chatId       string
+	chatType     string
+	chatName     string
+	messages     []messageData
+	people       map[string]bool
+	firstMessage time.Time
+	lastMessage  time.Time
+}
+
+type messageData struct {
+	ID            int       `json:"id"`
+	MessageType   string    `json:"messageType"`
+	From          string    `json:"from"`
+	To            string    `json:"to"`
+	Text          string    `json:"text"`
+	Timestamp     time.Time `json:"timestamp"`
+	ForwardedFrom string    `json:"forwardedFrom"`
+	SavedFrom     string    `json:"savedFrom"`
+	MyMessage     bool      `json:"myMessage"`
+}
+
+func NewTelegramProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &TelegramProcessor{store: store, logger: logger}, nil
 }
 
 func (s *TelegramProcessor) Name() string {
@@ -84,10 +115,6 @@ func (s *TelegramProcessor) Name() string {
 }
 
 func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData TelegramData) (string, error) {
-	if s.store == nil {
-		return "", fmt.Errorf("store is nil")
-	}
-
 	extractedUsername := ""
 	if telegramData.PersonalInformation.Username != "" {
 		userIDStr := ""
@@ -122,8 +149,10 @@ func (s *TelegramProcessor) extractUsername(ctx context.Context, telegramData Te
 			return "", err
 		}
 
-		extractedUsername = telegramData.PersonalInformation.Username
+		extractedUsername = strings.TrimPrefix(telegramData.PersonalInformation.Username, "@")
 	}
+
+	s.logger.Info(" extractedUsername", "extractedUsername", extractedUsername)
 
 	return extractedUsername, nil
 }
@@ -137,10 +166,6 @@ func (s *TelegramProcessor) Sync(ctx context.Context, accessToken string) ([]typ
 }
 
 func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([]types.Record, error) {
-	if s.store == nil {
-		return nil, fmt.Errorf("store is nil")
-	}
-
 	fileInfo, err := os.Stat(filepath)
 	if err != nil {
 		return nil, err
@@ -197,7 +222,9 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		return nil, err
 	}
 
-	var records []types.Record
+	estimatedRecords := len(telegramData.Contacts.List) + len(telegramData.Chats.List)
+	records := make([]types.Record, 0, estimatedRecords)
+	conversationMap := make(map[string]*conversationData)
 
 	for _, contact := range telegramData.Contacts.List {
 		timestamp, err := parseTimestamp(contact.Date, contact.DateUnixtime)
@@ -222,66 +249,204 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		records = append(records, record)
 	}
 
+	totalChats := len(telegramData.Chats.List)
+	s.logger.Info("Processing chats", "totalChats", totalChats)
+
+	processedChats := 0
+	totalMessages := 0
+	processedMessages := 0
+
 	for _, chat := range telegramData.Chats.List {
-		for _, message := range chat.Messages {
-			timestamp, err := parseTimestamp(message.Date, message.DateUnixtime)
-			if err != nil {
-				s.logger.Warn("Failed to parse message timestamp", "error", err)
-				continue
+		totalMessages += len(chat.Messages)
+	}
+	s.logger.Info("Total messages to process", "count", totalMessages)
+
+	const batchSize = 1000
+	const progressInterval = 10
+
+	for chatIndex, chat := range telegramData.Chats.List {
+		if chat.Type == "private_supergroup" {
+			s.logger.Info("Skipping private_supergroup chat", "chatId", chat.ID, "chatName", chat.Name)
+			processedChats++
+			continue
+		}
+
+		chatId := strconv.Itoa(chat.ID)
+		chatMessageCount := len(chat.Messages)
+
+		if chatMessageCount == 0 {
+			processedChats++
+			continue
+		}
+
+		s.logger.Debug("Processing chat",
+			"chatId", chat.ID,
+			"chatName", chat.Name,
+			"messageCount", chatMessageCount,
+			"progress", fmt.Sprintf("%d/%d", chatIndex+1, totalChats))
+
+		conv := &conversationData{
+			chatId:       chatId,
+			chatType:     chat.Type,
+			chatName:     chat.Name,
+			messages:     make([]messageData, 0, chatMessageCount),
+			people:       make(map[string]bool),
+			firstMessage: time.Now(),
+			lastMessage:  time.Time{},
+		}
+
+		for i := 0; i < len(chat.Messages); i += batchSize {
+			end := i + batchSize
+			if end > len(chat.Messages) {
+				end = len(chat.Messages)
 			}
 
-			var fullText string
-			for _, entity := range message.Text {
-				fullText += entity.Text
-			}
+			for j := i; j < end; j++ {
+				message := chat.Messages[j]
 
-			var myMessage bool
-			if effectiveUserName == "" {
-				myMessage = false
-			} else {
-				normalizedEffectiveUserName := strings.TrimPrefix(effectiveUserName, "@")
-				normalizedMessageFrom := strings.TrimPrefix(message.From, "@")
-				myMessage = strings.EqualFold(normalizedMessageFrom, normalizedEffectiveUserName)
-			}
-
-			to := ""
-			if myMessage {
-				to = chat.Name
-			} else {
-				to = effectiveUserName
-			}
-
-			messageData := map[string]interface{}{
-				"type":        "message",
-				"messageId":   message.ID,
-				"messageType": message.Type,
-				"from":        message.From,
-				"to":          to,
-				"text":        fullText,
-				"chatType":    chat.Type,
-				"chatId":      chat.ID,
-				"myMessage":   myMessage,
-			}
-
-			if message.ForwardedFrom != "" {
-				messageData["forwardedFrom"] = message.ForwardedFrom
-			}
-			if message.SavedFrom != "" {
-				messageData["savedFrom"] = message.SavedFrom
-			}
-
-			if len(message.Text) > 0 {
-				record := types.Record{
-					Data:      messageData,
-					Timestamp: timestamp,
-					Source:    s.Name(),
+				timestamp, err := parseTimestamp(message.Date, message.DateUnixtime)
+				if err != nil {
+					s.logger.Warn("Failed to parse message timestamp", "error", err, "messageId", message.ID)
+					processedMessages++
+					continue
 				}
 
-				records = append(records, record)
+				var fullText string
+				if len(message.TextEntities) > 0 {
+					var textBuilder strings.Builder
+					for _, entity := range message.TextEntities {
+						textBuilder.WriteString(entity.Text)
+					}
+					fullText = textBuilder.String()
+				} else {
+					switch textValue := message.Text.(type) {
+					case string:
+						fullText = textValue
+					case []interface{}:
+						var textBuilder strings.Builder
+						for _, item := range textValue {
+							if textEntity, ok := item.(map[string]interface{}); ok {
+								if text, ok := textEntity["text"].(string); ok {
+									textBuilder.WriteString(text)
+								}
+							}
+						}
+						fullText = textBuilder.String()
+					}
+				}
+
+				if fullText == "" {
+					processedMessages++
+					continue
+				}
+
+				// Identify user messages by from_id matching user_id
+				expectedFromID := fmt.Sprintf("user%d", telegramData.PersonalInformation.UserID)
+				myMessage := message.FromID == expectedFromID
+
+				to := ""
+				if myMessage {
+					to = chat.Name
+				} else {
+					to = effectiveUserName
+				}
+
+				msg := messageData{
+					ID:            message.ID,
+					MessageType:   message.Type,
+					From:          message.From,
+					To:            to,
+					Text:          fullText,
+					Timestamp:     timestamp,
+					ForwardedFrom: message.ForwardedFrom,
+					SavedFrom:     message.SavedFrom,
+					MyMessage:     myMessage,
+				}
+
+				conv.messages = append(conv.messages, msg)
+				// Add all speakers to people list (including the user)
+				conv.people[message.From] = true
+
+				if len(conv.messages) == 1 || timestamp.Before(conv.firstMessage) {
+					conv.firstMessage = timestamp
+				}
+				if timestamp.After(conv.lastMessage) {
+					conv.lastMessage = timestamp
+				}
+
+				processedMessages++
 			}
+
+			if totalMessages > 10000 && (processedMessages%5000 == 0 || processedMessages == totalMessages) {
+				s.logger.Info("Message processing progress",
+					"processed", processedMessages,
+					"total", totalMessages,
+					"percentage", fmt.Sprintf("%.1f%%", float64(processedMessages)/float64(totalMessages)*100))
+			}
+		}
+
+		if len(conv.messages) > 0 {
+			conversationMap[chatId] = conv
+		}
+
+		processedChats++
+
+		if totalChats > 50 && (processedChats%progressInterval == 0 || processedChats == totalChats) {
+			s.logger.Info("Chat processing progress",
+				"processed", processedChats,
+				"total", totalChats,
+				"percentage", fmt.Sprintf("%.1f%%", float64(processedChats)/float64(totalChats)*100))
 		}
 	}
 
+	s.logger.Info("Completed message processing",
+		"totalChats", processedChats,
+		"totalMessages", processedMessages,
+		"conversations", len(conversationMap))
+
+	// Use first name as user display name
+	userDisplayName := telegramData.PersonalInformation.FirstName
+
+	for _, conv := range conversationMap {
+		var people []string
+		for person := range conv.people {
+			if person != "" {
+				people = append(people, person)
+			}
+		}
+
+		// Skip conversations where the user is the only participant
+		if len(people) == 1 && people[0] == userDisplayName {
+			s.logger.Debug("Skipping conversation with only user messages", "chatId", conv.chatId, "chatName", conv.chatName)
+			continue
+		}
+
+		// Skip system conversations with Telegram
+		if slices.Contains(people, "Telegram") {
+			s.logger.Debug("Skipping system conversation with Telegram", "chatId", conv.chatId, "chatName", conv.chatName)
+			continue
+		}
+
+		conversationDataMap := map[string]interface{}{
+			"type":     "conversation",
+			"chatId":   conv.chatId,
+			"chatType": conv.chatType,
+			"chatName": conv.chatName,
+			"messages": conv.messages,
+			"people":   people,
+			"user":     userDisplayName,
+		}
+
+		record := types.Record{
+			Data:      conversationDataMap,
+			Timestamp: conv.firstMessage,
+			Source:    s.Name(),
+		}
+
+		records = append(records, record)
+	}
+
+	s.logger.Info("Processing completed", "totalRecords", len(records))
 	return records, nil
 }
 
@@ -311,34 +476,10 @@ func parseTimestamp(dateStr, unixStr string) (time.Time, error) {
 }
 
 func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error) {
-	conversationMap := make(map[string]*memory.ConversationDocument)
-	var textDocuments []memory.TextDocument
-
-	sourceUsername, err := s.store.GetSourceUsername(ctx, s.Name())
-	if err != nil {
-		return nil, fmt.Errorf("failed to get source username: %v", err)
-	}
-
-	var extractedUser string
-	if sourceUsername != nil {
-		extractedUser = sourceUsername.Username
-	}
+	var documents []memory.Document
 
 	for _, record := range records {
-		if record.Data["type"] == "message" {
-			message, ok := record.Data["text"].(string)
-			if !ok || message == "" {
-				continue
-			}
-			from, ok := record.Data["from"].(string)
-			if !ok || from == "" {
-				continue
-			}
-			to, ok := record.Data["to"].(string)
-			if !ok || to == "" {
-				continue
-			}
-
+		if record.Data["type"] == "conversation" {
 			chatIdInterface, ok := record.Data["chatId"]
 			if !ok {
 				continue
@@ -356,39 +497,78 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 				continue
 			}
 
-			conversation, exists := conversationMap[chatId]
-			if !exists {
-				conversationMap[chatId] = &memory.ConversationDocument{
-					FieldID:      chatId,
-					FieldSource:  "telegram",
-					FieldTags:    []string{"social", "chat"},
-					People:       []string{from, to},
-					User:         extractedUser,
-					Conversation: []memory.ConversationMessage{},
-					FieldMetadata: map[string]string{
-						"type":   "conversation",
-						"source": "telegram",
-					},
+			messagesInterface, ok := record.Data["messages"]
+			if !ok {
+				continue
+			}
+
+			people, ok := record.Data["people"].([]string)
+			if !ok {
+				if peopleInterface, ok := record.Data["people"].([]interface{}); ok {
+					people = make([]string, len(peopleInterface))
+					for i, p := range peopleInterface {
+						if str, ok := p.(string); ok {
+							people[i] = str
+						}
+					}
 				}
-				conversation = conversationMap[chatId]
 			}
 
-			conversation.Conversation = append(conversation.Conversation, memory.ConversationMessage{
-				Speaker: from,
-				Content: message,
-				Time:    record.Timestamp,
-			})
+			// Extract user from the record data (which now contains the display name)
+			userFromRecord, _ := record.Data["user"].(string)
 
-			peopleMap := make(map[string]bool)
-			for _, person := range conversation.People {
-				peopleMap[person] = true
+			conversationDoc := &memory.ConversationDocument{
+				FieldID:      chatId,
+				FieldSource:  "telegram",
+				FieldTags:    []string{"social", "chat"},
+				People:       people,
+				User:         userFromRecord,
+				Conversation: []memory.ConversationMessage{},
+				FieldMetadata: map[string]string{
+					"type":   "conversation",
+					"source": "telegram",
+				},
 			}
-			if !peopleMap[from] {
-				conversation.People = append(conversation.People, from)
+
+			// Handle messages - they can be either []messageData (direct struct) or []interface{} (from JSON)
+			if messagesSlice, ok := messagesInterface.([]messageData); ok {
+				// Direct messageData structs (from ProcessFile)
+				for _, msg := range messagesSlice {
+					conversationDoc.Conversation = append(conversationDoc.Conversation, memory.ConversationMessage{
+						Speaker: msg.From,
+						Content: msg.Text,
+						Time:    msg.Timestamp,
+					})
+				}
+			} else if messagesSlice, ok := messagesInterface.([]interface{}); ok {
+				// Interface slice (from JSON deserialization)
+				for _, msgInterface := range messagesSlice {
+					if msgMap, ok := msgInterface.(map[string]interface{}); ok {
+						from, _ := msgMap["from"].(string)
+						content, _ := msgMap["text"].(string)
+
+						var timestamp time.Time
+						if timestampInterface, ok := msgMap["timestamp"]; ok {
+							switch v := timestampInterface.(type) {
+							case time.Time:
+								timestamp = v
+							case string:
+								if parsed, err := time.Parse(time.RFC3339, v); err == nil {
+									timestamp = parsed
+								}
+							}
+						}
+
+						conversationDoc.Conversation = append(conversationDoc.Conversation, memory.ConversationMessage{
+							Speaker: from,
+							Content: content,
+							Time:    timestamp,
+						})
+					}
+				}
 			}
-			if !peopleMap[to] {
-				conversation.People = append(conversation.People, to)
-			}
+
+			documents = append(documents, conversationDoc)
 		}
 
 		if record.Data["type"] == "contact" {
@@ -404,28 +584,42 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			if !ok {
 				phoneNumber = ""
 			}
-			textDocuments = append(textDocuments, memory.TextDocument{
+
+			// Create more descriptive content that clearly indicates this is contact information
+			fullName := strings.TrimSpace(firstName + " " + lastName)
+			contactContent := fmt.Sprintf("CONTACT ENTRY: %s", fullName)
+			if phoneNumber != "" {
+				contactContent += fmt.Sprintf(" (Phone: %s)", phoneNumber)
+			}
+			contactContent += " - This is a contact from the user's Telegram contact list, not information about the primary user."
+
+			// Generate a unique ID for the contact
+			contactID := fmt.Sprintf("telegram-contact-%s", phoneNumber)
+			if phoneNumber == "" {
+				// Fallback to name-based ID if no phone number
+				contactID = fmt.Sprintf("telegram-contact-%s", strings.ReplaceAll(fullName, " ", "-"))
+			}
+
+			textDoc := &memory.TextDocument{
+				FieldID:        contactID,
 				FieldSource:    "telegram",
-				FieldContent:   firstName + " " + lastName,
+				FieldContent:   contactContent,
 				FieldTimestamp: &record.Timestamp,
-				FieldTags:      []string{"social", "contact"},
+				FieldTags:      []string{"social", "contact", "contact_list"},
 				FieldMetadata: map[string]string{
-					"type":        "contact",
-					"firstName":   firstName,
-					"lastName":    lastName,
-					"phoneNumber": phoneNumber,
+					"type":                "contact",
+					"document_type":       "contact_entry",
+					"data_category":       "contact_list",
+					"is_primary_user":     "false",
+					"contact_source":      "telegram_contacts",
+					"firstName":           firstName,
+					"lastName":            lastName,
+					"phoneNumber":         phoneNumber,
+					"extraction_guidance": "This is contact list data - extract relationship facts only, never facts about primaryUser",
 				},
-			})
+			}
+			documents = append(documents, textDoc)
 		}
-	}
-
-	var documents []memory.Document
-	for _, conversation := range conversationMap {
-		documents = append(documents, conversation)
-	}
-
-	for _, textDoc := range textDocuments {
-		documents = append(documents, &textDoc)
 	}
 
 	return documents, nil
