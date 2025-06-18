@@ -10,11 +10,19 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/helpers"
+	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 func TestToDocuments(t *testing.T) {
 	logger := log.New(os.Stdout)
-	slack := NewSlackProcessor(nil, logger)
+	store, err := db.NewStore(context.Background(), "test")
+	if err != nil {
+		t.Fatalf("Failed to create store: %v", err)
+	}
+	slack, err := NewSlackProcessor(store, logger)
+	if err != nil {
+		t.Fatalf("Failed to create slack processor: %v", err)
+	}
 	tempFile, err := os.CreateTemp("", "test-slack-*.jsonl")
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)

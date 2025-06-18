@@ -23,6 +23,54 @@ Even if the conversation shows "John said X", extract it as:
 
 The "primaryUser" field in conversation metadata tells you who is the main person.
 
+## CRITICAL: Contact Document Handling
+
+**For CONTACT ENTRIES (documents starting with "CONTACT ENTRY:" or with metadata "document_type": "contact_entry"):**
+
+1. **These are NOT about the primaryUser** - they are entries from the user's contact list
+2. **Only extract relationship facts** - never extract facts about primaryUser from contact data alone
+3. **Subject should be the contact's name** - NOT "primaryUser"
+4. **Relationship context**: Contact entries represent people in the user's network
+
+You must, as always, use tool EXTRACT_FACTS to extract facts from contact documents.
+
+### Contact Document Examples:
+**Input**: "CONTACT ENTRY: Guillaume Doe (Phone: 0033222222222) - This is a contact from the user's Telegram contact list"
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship",
+      "subject": "Guillaume Doe",
+      "attribute": "contact_method",
+      "value": "has phone number 0033222222222 in primaryUser's Telegram contacts",
+      "sensitivity": "low",
+      "importance": 1
+    }
+  ]
+}
+</json>
+
+**Input**: "CONTACT ENTRY: Sarah Johnson - This is a contact from the user's Telegram contact list"
+<json>
+{
+  "facts": [
+    {
+      "category": "relationship", 
+      "subject": "Sarah Johnson",
+      "attribute": "role",
+      "value": "person in primaryUser's Telegram contact list",
+      "sensitivity": "low",
+      "importance": 1
+    }
+  ]
+}
+</json>
+
+## Regular Conversation/Text Processing
+
+For non-contact documents, continue with the standard rules:
+
 ## Output schema
 
 <json>
