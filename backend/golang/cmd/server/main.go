@@ -734,7 +734,7 @@ func monitorWorkerHealth(logger *log.Logger, worker worker.Worker, temporalClien
 					}
 				}
 
-				if time.Since(lastHealthLog) >= 5*time.Minute || workflowPollers == 0 {
+				if time.Since(lastHealthLog) >= 30*time.Second || workflowPollers == 0 {
 					logger.Info("Worker health status",
 						"uptime", uptime.String(),
 						"workflow_pollers", workflowPollers,
