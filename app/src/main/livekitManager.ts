@@ -1,5 +1,5 @@
 import log from 'electron-log/main'
-import { DependencyProgress, LiveKitAgentBootstrap } from './pythonManager'
+import { AgentState, DependencyProgress, LiveKitAgentBootstrap } from './pythonManager'
 
 let livekitAgent: LiveKitAgentBootstrap | null = null
 let sessionReady = false
@@ -20,7 +20,14 @@ export function startLiveKitSetup(mainWindow: Electron.BrowserWindow) {
     }
   }
 
-  livekitAgent = new LiveKitAgentBootstrap(agentProgress, agentSessionReady)
+  const agentStateChange = (state: AgentState) => {
+    if (mainWindow) {
+      log.info(`[LiveKit] Agent state changed: ${state}`)
+      mainWindow.webContents.send('livekit-agent-state', { state })
+    }
+  }
+
+  livekitAgent = new LiveKitAgentBootstrap(agentProgress, agentSessionReady, agentStateChange)
 
   try {
     livekitAgent.setup()
@@ -106,4 +113,27 @@ export async function cleanupLiveKitAgent() {
     await livekitAgent.cleanup()
     livekitAgent = null
   }
+}
+
+export function muteLiveKitAgent(): boolean {
+  if (!livekitAgent) {
+    log.warn('LiveKit agent not initialized')
+    return false
+  }
+  return livekitAgent.muteUser()
+}
+
+export function unmuteLiveKitAgent(): boolean {
+  if (!livekitAgent) {
+    log.warn('LiveKit agent not initialized')
+    return false
+  }
+  return livekitAgent.unmuteUser()
+}
+
+export function getCurrentAgentState(): AgentState {
+  if (!livekitAgent) {
+    return 'idle'
+  }
+  return livekitAgent.getCurrentState()
 }

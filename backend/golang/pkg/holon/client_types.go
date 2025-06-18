@@ -23,6 +23,7 @@ type Thread struct {
 	CreatorID     int       `json:"creatorId"`
 	CreatorName   string    `json:"creatorName"`
 	DedupThreadID string    `json:"dedupThreadId"`
+	ImageURLs     []string  `json:"imageUrls,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`
 }
@@ -35,6 +36,7 @@ type Reply struct {
 	ParticipantDisplayName string    `json:"participantDisplayName"`
 	Content                string    `json:"content"`
 	DedupReplyID           string    `json:"dedupReplyId"`
+	ImageURLs              []string  `json:"imageUrls,omitempty"`
 	CreatedAt              time.Time `json:"createdAt"`
 	UpdatedAt              time.Time `json:"updatedAt"`
 }
@@ -55,28 +57,32 @@ type UpdateParticipantRequest struct {
 
 // CreateThreadRequest for creating a new thread.
 type CreateThreadRequest struct {
-	Title         string `json:"title"`
-	Content       string `json:"content,omitempty"`
-	DedupThreadID string `json:"dedupThreadId"`
+	Title         string   `json:"title"`
+	Content       string   `json:"content,omitempty"`
+	DedupThreadID string   `json:"dedupThreadId"`
+	ImageURLs     []string `json:"imageUrls,omitempty"`
 }
 
 // UpdateThreadRequest for updating a thread.
 type UpdateThreadRequest struct {
-	Title   string `json:"title"`
-	Content string `json:"content,omitempty"`
+	Title     string   `json:"title"`
+	Content   string   `json:"content,omitempty"`
+	ImageURLs []string `json:"imageUrls,omitempty"`
 }
 
 // CreateReplyRequest for creating a new reply.
 type CreateReplyRequest struct {
-	ThreadID      int    `json:"threadId"`
-	ParticipantID int    `json:"participantId"`
-	Content       string `json:"content"`
-	DedupReplyID  string `json:"dedupReplyId"`
+	ThreadID      int      `json:"threadId"`
+	ParticipantID int      `json:"participantId"`
+	Content       string   `json:"content"`
+	DedupReplyID  string   `json:"dedupReplyId"`
+	ImageURLs     []string `json:"imageUrls,omitempty"`
 }
 
 // UpdateReplyRequest for updating a reply.
 type UpdateReplyRequest struct {
-	Content string `json:"content"`
+	Content   string   `json:"content"`
+	ImageURLs []string `json:"imageUrls,omitempty"`
 }
 
 // Response types
