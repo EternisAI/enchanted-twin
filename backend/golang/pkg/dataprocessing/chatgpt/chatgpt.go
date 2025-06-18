@@ -66,8 +66,15 @@ type ChatGPTProcessor struct {
 	logger *log.Logger
 }
 
-func NewChatGPTProcessor(store *db.Store, logger *log.Logger) processor.Processor {
-	return &ChatGPTProcessor{store: store, logger: logger}
+func NewChatGPTProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store is nil")
+	}
+
+	if logger == nil {
+		return nil, fmt.Errorf("logger is nil")
+	}
+	return &ChatGPTProcessor{store: store, logger: logger}, nil
 }
 
 func (s *ChatGPTProcessor) Name() string {
@@ -224,6 +231,8 @@ func (s *ChatGPTProcessor) ToDocuments(ctx context.Context, records []types.Reco
 		id := getString("id")
 
 		conversation := &memory.ConversationDocument{
+			User:        "user",
+			People:      []string{"user", "assistant"},
 			FieldID:     id,
 			FieldSource: "chatgpt",
 			FieldTags:   []string{"chat", "conversation"},
