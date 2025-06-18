@@ -711,6 +711,7 @@ func monitorWorkerHealth(logger *log.Logger, worker worker.Worker, temporalClien
 		select {
 		case <-ticker.C:
 
+			logger.Info("🟢 Worker health check", "uptime", time.Since(workerStartTime).String())
 			uptime := time.Since(workerStartTime)
 
 			// Basic worker monitoring - check if worker is still running
