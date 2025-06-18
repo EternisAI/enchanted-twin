@@ -12,7 +12,10 @@ import {
   stopLiveKitAgent,
   isLiveKitAgentRunning,
   getLiveKitAgentState,
-  isLiveKitSessionReady
+  isLiveKitSessionReady,
+  muteLiveKitAgent,
+  unmuteLiveKitAgent,
+  getCurrentAgentState
 } from './livekitManager'
 
 const PATHNAME = 'input_data'
@@ -247,6 +250,33 @@ export function registerIpcHandlers() {
     } catch (error) {
       log.error('Failed to get LiveKit agent state:', error)
       return null
+    }
+  })
+
+  ipcMain.handle('livekit:mute', () => {
+    try {
+      return muteLiveKitAgent()
+    } catch (error) {
+      log.error('Failed to mute LiveKit agent:', error)
+      return false
+    }
+  })
+
+  ipcMain.handle('livekit:unmute', () => {
+    try {
+      return unmuteLiveKitAgent()
+    } catch (error) {
+      log.error('Failed to unmute LiveKit agent:', error)
+      return false
+    }
+  })
+
+  ipcMain.handle('livekit:get-agent-state', () => {
+    try {
+      return getCurrentAgentState()
+    } catch (error) {
+      log.error('Failed to get LiveKit agent state:', error)
+      return 'idle' as const
     }
   })
 }

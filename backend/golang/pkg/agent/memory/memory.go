@@ -626,14 +626,29 @@ func (td *TextDocument) createTextChunk(content string, chunkNum int) *TextDocum
 	}
 }
 
-// MemoryFact represents an extracted fact about a person.
+// MemoryFact represents an extracted fact about a person with structured fields.
 type MemoryFact struct {
-	ID        string            `json:"id"`
-	Content   string            `json:"content"`
-	Subject   string            `json:"subject,omitempty"`
-	Timestamp time.Time         `json:"timestamp"`
-	Source    string            `json:"source"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
+	// Identity and display
+	ID        string    `json:"id"`
+	Content   string    `json:"content"` // Searchable content (generated from structured fields)
+	Timestamp time.Time `json:"timestamp"`
+
+	// Structured fact fields
+	Category        string  `json:"category"`         // Semantic category (preference, health, goal_plan, etc.)
+	Subject         string  `json:"subject"`          // Who/what the fact is about
+	Attribute       string  `json:"attribute"`        // Property being described
+	Value           string  `json:"value"`            // The actual fact content
+	TemporalContext *string `json:"temporal_context"` // When this happened (optional)
+	Sensitivity     string  `json:"sensitivity"`      // Privacy level: high/medium/low
+	Importance      int     `json:"importance"`       // Priority score: 1-3
+
+	// Source tracking
+	Source             string   `json:"source"`              // Source of the memory document
+	DocumentReferences []string `json:"document_references"` // IDs of source documents
+	Tags               []string `json:"tags,omitempty"`      // Tags for categorization
+
+	// Legacy support
+	Metadata map[string]string `json:"metadata,omitempty"` // Additional metadata (being phased out)
 }
 
 type QueryResult struct {
@@ -662,6 +677,12 @@ func (tf *TagsFilter) IsEmpty() bool {
 		return true
 	}
 	return len(tf.All) == 0 && len(tf.Any) == 0 && tf.Expression == nil
+}
+
+// GenerateContent creates the searchable content string from structured fields.
+func (mf *MemoryFact) GenerateContent() string {
+	// Simple combination for embeddings and search
+	return fmt.Sprintf("%s - %s", mf.Subject, mf.Value)
 }
 
 // IsLeaf returns true if this is a leaf node (has tags).
