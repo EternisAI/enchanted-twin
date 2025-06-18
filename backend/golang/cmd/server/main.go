@@ -28,6 +28,7 @@ import (
 	"github.com/rs/cors"
 	"github.com/weaviate/weaviate-go-client/v5/weaviate"
 	"go.mau.fi/whatsmeow"
+	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
@@ -379,6 +380,9 @@ func main() {
 	}
 	defer temporalWorker.Stop()
 
+	// Start worker health monitoring
+	go monitorWorkerHealth(logger, temporalWorker, temporalClient)
+
 	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
 		logger.Error("Failed to bootstrap periodic workflows", "error", err)
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
@@ -567,9 +571,9 @@ func bootstrapTemporalWorker(
 	friendService.RegisterWorkflowsAndActivities(&w, input.temporalClient)
 
 	// Register holon sync activities
-	holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
-	holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
-	holonSyncActivities.RegisterWorkflowsAndActivities(w)
+	// holonManager := holon.NewManager(input.store, holon.DefaultManagerConfig(), input.logger, input.temporalClient, w)
+	// holonSyncActivities := holon.NewHolonSyncActivities(input.logger, holonManager)
+	// holonSyncActivities.RegisterWorkflowsAndActivities(w)
 
 	err := w.Start()
 	if err != nil {
@@ -694,4 +698,64 @@ func bootstrapPeriodicWorkflows(logger *log.Logger, temporalClient client.Client
 	}
 
 	return nil
+}
+
+func monitorWorkerHealth(logger *log.Logger, worker worker.Worker, temporalClient client.Client) {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	workerStartTime := time.Now()
+	lastHealthLog := time.Now()
+
+	for {
+		select {
+		case <-ticker.C:
+
+			uptime := time.Since(workerStartTime)
+
+			// Basic worker monitoring - check if worker is still running
+			// by attempting to describe the default task queue
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			response, err := temporalClient.DescribeTaskQueue(ctx, "default", enumspb.TASK_QUEUE_TYPE_WORKFLOW)
+			if err != nil {
+				logger.Error("Worker health check - failed to describe task queue",
+					"error", err,
+					"uptime", uptime.String())
+			} else {
+				// Check if there are active pollers (indicates worker is connected)
+				workflowPollers := len(response.Pollers)
+				activityPollers := 0
+				for _, poller := range response.Pollers {
+					if poller.LastAccessTime.AsTime().After(time.Now().Add(-1 * time.Minute)) {
+						activityPollers++
+					}
+				}
+
+				if time.Since(lastHealthLog) >= 5*time.Minute || workflowPollers == 0 {
+					logger.Info("Worker health status",
+						"uptime", uptime.String(),
+						"workflow_pollers", workflowPollers,
+						"recent_active_pollers", activityPollers,
+						"task_queue", "default")
+					lastHealthLog = time.Now()
+				}
+
+				// Alert if no active pollers detected
+				if workflowPollers == 0 {
+					logger.Warn("Worker health warning - no active pollers detected",
+						"uptime", uptime.String())
+				}
+			}
+
+			// Log periodic health summary (every 5 minutes)
+			if time.Since(lastHealthLog) >= 30*time.Second {
+				logger.Info("Worker periodic health check",
+					"uptime", uptime.String(),
+					"status", "running")
+				lastHealthLog = time.Now()
+			}
+		}
+	}
 }
