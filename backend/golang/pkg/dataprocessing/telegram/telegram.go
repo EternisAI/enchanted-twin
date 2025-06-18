@@ -222,32 +222,12 @@ func (s *TelegramProcessor) ProcessFile(ctx context.Context, filepath string) ([
 		return nil, err
 	}
 
-	estimatedRecords := len(telegramData.Contacts.List) + len(telegramData.Chats.List)
+	estimatedRecords := len(telegramData.Chats.List) // Only conversations, no contacts
 	records := make([]types.Record, 0, estimatedRecords)
 	conversationMap := make(map[string]*conversationData)
 
-	for _, contact := range telegramData.Contacts.List {
-		timestamp, err := parseTimestamp(contact.Date, contact.DateUnixtime)
-		if err != nil {
-			s.logger.Warn("Failed to parse contact timestamp", "error", err)
-			continue
-		}
-
-		contactData := map[string]interface{}{
-			"type":        "contact",
-			"firstName":   contact.FirstName,
-			"lastName":    contact.LastName,
-			"phoneNumber": contact.PhoneNumber,
-		}
-
-		record := types.Record{
-			Data:      contactData,
-			Timestamp: timestamp,
-			Source:    s.Name(),
-		}
-
-		records = append(records, record)
-	}
+	// Skip contacts - they're noise for memory/fact extraction
+	s.logger.Info("Skipping contacts processing", "contactCount", len(telegramData.Contacts.List))
 
 	totalChats := len(telegramData.Chats.List)
 	s.logger.Info("Processing chats", "totalChats", totalChats)
@@ -571,55 +551,7 @@ func (s *TelegramProcessor) ToDocuments(ctx context.Context, records []types.Rec
 			documents = append(documents, conversationDoc)
 		}
 
-		if record.Data["type"] == "contact" {
-			firstName, ok := record.Data["firstName"].(string)
-			if !ok {
-				firstName = ""
-			}
-			lastName, ok := record.Data["lastName"].(string)
-			if !ok {
-				lastName = ""
-			}
-			phoneNumber, ok := record.Data["phoneNumber"].(string)
-			if !ok {
-				phoneNumber = ""
-			}
-
-			// Create more descriptive content that clearly indicates this is contact information
-			fullName := strings.TrimSpace(firstName + " " + lastName)
-			contactContent := fmt.Sprintf("CONTACT ENTRY: %s", fullName)
-			if phoneNumber != "" {
-				contactContent += fmt.Sprintf(" (Phone: %s)", phoneNumber)
-			}
-			contactContent += " - This is a contact from the user's Telegram contact list, not information about the primary user."
-
-			// Generate a unique ID for the contact
-			contactID := fmt.Sprintf("telegram-contact-%s", phoneNumber)
-			if phoneNumber == "" {
-				// Fallback to name-based ID if no phone number
-				contactID = fmt.Sprintf("telegram-contact-%s", strings.ReplaceAll(fullName, " ", "-"))
-			}
-
-			textDoc := &memory.TextDocument{
-				FieldID:        contactID,
-				FieldSource:    "telegram",
-				FieldContent:   contactContent,
-				FieldTimestamp: &record.Timestamp,
-				FieldTags:      []string{"social", "contact", "contact_list"},
-				FieldMetadata: map[string]string{
-					"type":                "contact",
-					"document_type":       "contact_entry",
-					"data_category":       "contact_list",
-					"is_primary_user":     "false",
-					"contact_source":      "telegram_contacts",
-					"firstName":           firstName,
-					"lastName":            lastName,
-					"phoneNumber":         phoneNumber,
-					"extraction_guidance": "This is contact list data - extract relationship facts only, never facts about primaryUser",
-				},
-			}
-			documents = append(documents, textDoc)
-		}
+		// Skip contact processing - contacts are now filtered out during record creation
 	}
 
 	return documents, nil

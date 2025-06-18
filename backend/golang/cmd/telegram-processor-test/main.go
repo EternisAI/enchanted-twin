@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/joho/godotenv"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
@@ -17,17 +18,15 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/config"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
 type PipelineStep string
 
 const (
-	StepParseJSON      PipelineStep = "parse_json"
-	StepToDocuments    PipelineStep = "to_documents"
-	StepChunkDocuments PipelineStep = "chunk_documents"
-	StepExtractFacts   PipelineStep = "extract_facts"
+	StepProcessToDocuments PipelineStep = "process_to_documents" // X_0 → X_1: Raw JSON to Documents (unified)
+	StepChunkDocuments     PipelineStep = "chunk_documents"      // X_1 → X_1': Documents to Chunks
+	StepExtractFacts       PipelineStep = "extract_facts"        // X_1' → X_2: Chunks to Facts
 )
 
 type PipelineConfig struct {
@@ -50,11 +49,18 @@ func main() {
 		TimeFormat:      time.Kitchen,
 	})
 
-	// Load configuration from .env file (just like the main app)
-	envConfig, err := config.LoadConfig(false)
-	if err != nil {
-		logger.Error("Failed to load config from .env", "error", err)
-		os.Exit(1)
+	// Load minimal configuration for testing - we only need API keys
+	_ = godotenv.Load() // Load .env file if it exists, ignore errors
+
+	envConfig := &config.Config{
+		CompletionsAPIKey: os.Getenv("COMPLETIONS_API_KEY"),
+		CompletionsAPIURL: getEnvOrDefault("COMPLETIONS_API_URL", "https://api.openrouter.ai/v1"),
+		CompletionsModel:  getEnvOrDefault("COMPLETIONS_MODEL", "openai/gpt-4.1"),
+		EmbeddingsAPIKey:  os.Getenv("EMBEDDINGS_API_KEY"),
+		EmbeddingsAPIURL:  getEnvOrDefault("EMBEDDINGS_API_URL", "https://api.openai.com/v1"),
+		EmbeddingsModel:   getEnvOrDefault("EMBEDDINGS_MODEL", "text-embedding-3-small"),
+		WeaviatePort:      getEnvOrDefault("WEAVIATE_PORT", "51414"),
+		// Skip all the other config we don't need for testing
 	}
 
 	// Simple argument parsing - just input file and optional flags
@@ -119,6 +125,13 @@ func main() {
 	logger.Info("Pipeline completed successfully! 🎉")
 }
 
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 func printUsage() {
 	fmt.Println("Telegram Memory Pipeline Tester")
 	fmt.Println()
@@ -132,22 +145,20 @@ func printUsage() {
 	fmt.Println("  --input, -i     Input telegram export file (required)")
 	fmt.Println("  --output, -o    Output directory (default: pipeline_output)")
 	fmt.Println("  --steps, -s     Pipeline steps to run:")
-	fmt.Println("                  - 'basic' (default): parse_json, to_documents")
-	fmt.Println("                  - 'chunking': basic + chunk_documents")
-	fmt.Println("                  - 'extraction': chunking + extract_facts (requires COMPLETIONS_API_KEY)")
-	fmt.Println("                  - 'all': all steps including memory operations")
-	fmt.Println("                    (requires: COMPLETIONS_API_KEY, EMBEDDINGS_API_KEY)")
+	fmt.Println("                  - 'basic' (default): process_to_documents (X_0 → X_1)")
+	fmt.Println("                  - 'chunking': basic + chunk_documents (X_0 → X_1 → X_1')")
+	fmt.Println("                  - 'extraction': chunking + extract_facts (X_0 → X_1 → X_1' → X_2)")
+	fmt.Println("                    (requires COMPLETIONS_API_KEY)")
+	fmt.Println("                  - 'all': all implemented steps (same as extraction for now)")
 	fmt.Println("  --enable-memory Enable memory storage and analysis")
 	fmt.Println("                  Requires: COMPLETIONS_API_KEY, EMBEDDINGS_API_KEY in .env")
 	fmt.Println()
 	fmt.Println("Pipeline Steps:")
-	fmt.Println("  X_0 → X_1:     parse_json      (Telegram JSON → types.Record)")
-	fmt.Println("  X_1 → X_2:     to_documents    (Records → memory.Document)")
-	fmt.Println("  X_2 → X_2.5:   chunk_documents (Documents → Chunked Documents)")
-	fmt.Println("  X_2.5 → X_3:   extract_facts   (Chunked Docs → memory.MemoryFact)")
-	fmt.Println("  X_3 → X_4:     store_memory    (Facts → Vector Database)")
-	fmt.Println("  X_4 → X_5:     query_memory    (Test queries)")
-	fmt.Println("  X_5 → X_6:     facts_analysis  (Analyze memory structure)")
+	fmt.Println("  X_0 → X_1:     process_to_documents (Telegram JSON → memory.Documents)")
+	fmt.Println("  X_1 → X_1':    chunk_documents      (Documents → Chunked Documents)")
+	fmt.Println("  X_1' → X_2:    extract_facts        (Document Chunks → memory.MemoryFacts)")
+	fmt.Println("  X_2 → X_3:     store_memory         (Facts → Vector Database) [TODO]")
+	fmt.Println("  X_3 → X_4:     query_memory         (Test queries) [TODO]")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  telegram-processor-test telegram_export.json")
@@ -167,42 +178,40 @@ func (p *MemoryPipeline) parseSteps(stepsStr string) []PipelineStep {
 	switch stepsStr {
 	case "all":
 		return []PipelineStep{
-			StepParseJSON,
-			StepToDocuments,
+			StepProcessToDocuments,
 			StepChunkDocuments,
 			StepExtractFacts,
 		}
 	case "extraction":
 		return []PipelineStep{
-			StepParseJSON,
-			StepToDocuments,
+			StepProcessToDocuments,
 			StepChunkDocuments,
 			StepExtractFacts,
 		}
 	case "chunking":
 		return []PipelineStep{
-			StepParseJSON,
-			StepToDocuments,
+			StepProcessToDocuments,
 			StepChunkDocuments,
 		}
 	default: // "basic"
-		return []PipelineStep{StepParseJSON, StepToDocuments}
+		return []PipelineStep{StepProcessToDocuments}
 	}
 }
 
 func (p *MemoryPipeline) Run(ctx context.Context) error {
+	// Ensure output directory exists
+	if err := os.MkdirAll(p.config.OutputDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+
 	stepsToRun := p.parseSteps(p.config.Steps)
 
 	for _, step := range stepsToRun {
 		p.logger.Info("Running pipeline step", "step", step)
 
 		switch step {
-		case StepParseJSON:
-			if err := p.stepParseJSON(ctx); err != nil {
-				return fmt.Errorf("step %s failed: %w", step, err)
-			}
-		case StepToDocuments:
-			if err := p.stepToDocuments(ctx); err != nil {
+		case StepProcessToDocuments:
+			if err := p.stepProcessToDocuments(ctx); err != nil {
 				return fmt.Errorf("step %s failed: %w", step, err)
 			}
 		case StepChunkDocuments:
@@ -223,8 +232,8 @@ func (p *MemoryPipeline) Run(ctx context.Context) error {
 	return nil
 }
 
-// X_0 -> X_1: Parse Telegram JSON and extract records.
-func (p *MemoryPipeline) stepParseJSON(ctx context.Context) error {
+// X_0 -> X_1: Process Telegram JSON directly to Documents (unified step).
+func (p *MemoryPipeline) stepProcessToDocuments(ctx context.Context) error {
 	// Create an in-memory SQLite store for testing
 	store, err := db.NewStore(ctx, ":memory:")
 	if err != nil {
@@ -252,56 +261,6 @@ func (p *MemoryPipeline) stepParseJSON(ctx context.Context) error {
 
 	p.logger.Info("Processed records", "count", len(records))
 
-	// Write X_1: processed records as JSON
-	outputFile := filepath.Join(p.config.OutputDir, "X_1_records.json")
-	recordsData, err := json.MarshalIndent(map[string]interface{}{
-		"records": records,
-		"metadata": map[string]interface{}{
-			"source_file":  p.config.InputFile,
-			"processed_at": time.Now().Format(time.RFC3339),
-			"record_count": len(records),
-			"step":         "parse_json",
-		},
-	}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal records: %w", err)
-	}
-
-	if err := os.WriteFile(outputFile, recordsData, 0o644); err != nil {
-		return fmt.Errorf("failed to write records file: %w", err)
-	}
-
-	p.logger.Info("Wrote processed records", "file", outputFile)
-	return nil
-}
-
-// X_1 -> X_2: Convert records to memory documents.
-func (p *MemoryPipeline) stepToDocuments(ctx context.Context) error {
-	// Read X_1
-	inputFile := filepath.Join(p.config.OutputDir, "X_1_records.json")
-	data, err := os.ReadFile(inputFile)
-	if err != nil {
-		return fmt.Errorf("failed to read records file: %w", err)
-	}
-
-	var recordsData struct {
-		Records []types.Record `json:"records"`
-	}
-	if err := json.Unmarshal(data, &recordsData); err != nil {
-		return fmt.Errorf("failed to unmarshal records: %w", err)
-	}
-
-	// Create store and dataprocessing service (matching real app workflow)
-	store, err := db.NewStore(ctx, ":memory:")
-	if err != nil {
-		return fmt.Errorf("failed to create store: %w", err)
-	}
-	defer func() {
-		if err := store.Close(); err != nil {
-			p.logger.Error("Failed to close store", "error", err)
-		}
-	}()
-
 	// Create AI service for dataprocessing service (only if we have an API key)
 	var aiService *ai.Service
 	if p.config.Config.CompletionsAPIKey != "" {
@@ -312,7 +271,7 @@ func (p *MemoryPipeline) stepToDocuments(ctx context.Context) error {
 	dataprocessingService := dataprocessing.NewDataProcessingService(aiService, "gpt-4", store, p.logger)
 
 	// Convert to documents using the REAL workflow path
-	documents, err := dataprocessingService.ToDocuments(ctx, "telegram", recordsData.Records)
+	documents, err := dataprocessingService.ToDocuments(ctx, "telegram", records)
 	if err != nil {
 		return fmt.Errorf("failed to convert to documents: %w", err)
 	}
@@ -331,17 +290,18 @@ func (p *MemoryPipeline) stepToDocuments(ctx context.Context) error {
 		}
 	}
 
-	// Write X_2: documents as JSON
-	outputFile := filepath.Join(p.config.OutputDir, "X_2_documents.json")
+	// Write X_1: documents as JSON (NEW NUMBERING)
+	outputFile := filepath.Join(p.config.OutputDir, "X_1_documents.json")
 	documentsData, err := json.MarshalIndent(map[string]interface{}{
 		"conversation_documents": conversationDocs,
 		"other_documents":        otherDocs,
 		"metadata": map[string]interface{}{
+			"source_file":        p.config.InputFile,
 			"processed_at":       time.Now().Format(time.RFC3339),
 			"total_documents":    len(documents),
 			"conversation_count": len(conversationDocs),
 			"other_count":        len(otherDocs),
-			"step":               "to_documents",
+			"step":               "process_to_documents",
 		},
 	}, "", "  ")
 	if err != nil {
@@ -356,10 +316,10 @@ func (p *MemoryPipeline) stepToDocuments(ctx context.Context) error {
 	return nil
 }
 
-// X_2 -> X_2.5: Chunk documents.
+// X_1 -> X_1': Chunk documents.
 func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
-	// Read X_2
-	inputFile := filepath.Join(p.config.OutputDir, "X_2_documents.json")
+	// Read X_1
+	inputFile := filepath.Join(p.config.OutputDir, "X_1_documents.json")
 	data, err := os.ReadFile(inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to read documents file: %w", err)
@@ -367,7 +327,7 @@ func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
 
 	var documentsData struct {
 		ConversationDocuments []memory.ConversationDocument `json:"conversation_documents"`
-		OtherDocuments        []memory.Document             `json:"other_documents"`
+		OtherDocuments        []json.RawMessage             `json:"other_documents"`
 	}
 	if err := json.Unmarshal(data, &documentsData); err != nil {
 		return fmt.Errorf("failed to unmarshal documents: %w", err)
@@ -375,20 +335,32 @@ func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
 
 	// PRODUCTION CODE PATH: Step 1: Chunk documents (matches orchestrator.go:107-111)
 	var chunkedDocs []memory.Document
+
+	// Process conversation documents
 	for _, doc := range documentsData.ConversationDocuments {
 		docCopy := doc
 		chunks := docCopy.Chunk() // <-- EXACT SAME CODE PATH as production
 		chunkedDocs = append(chunkedDocs, chunks...)
 	}
-	for _, doc := range documentsData.OtherDocuments {
-		chunks := doc.Chunk() // <-- EXACT SAME CODE PATH as production
-		chunkedDocs = append(chunkedDocs, chunks...)
+
+	// Process other documents (need to unmarshal them individually)
+	for _, rawDoc := range documentsData.OtherDocuments {
+		// Try TextDocument first
+		var textDoc memory.TextDocument
+		if err := json.Unmarshal(rawDoc, &textDoc); err == nil && textDoc.Content() != "" {
+			chunks := textDoc.Chunk() // <-- EXACT SAME CODE PATH as production
+			chunkedDocs = append(chunkedDocs, chunks...)
+			continue
+		}
+
+		// Could add other document types here as needed
+		p.logger.Warn("Could not unmarshal other document, skipping")
 	}
 
 	p.logger.Info("Chunked documents", "original_count", len(documentsData.ConversationDocuments)+len(documentsData.OtherDocuments), "chunked_count", len(chunkedDocs))
 
-	// Write X_2.5: chunked documents as JSON
-	outputFile := filepath.Join(p.config.OutputDir, "X_2.5_chunked_documents.json")
+	// Write X_1': chunked documents as JSON
+	outputFile := filepath.Join(p.config.OutputDir, "X_1'_chunked_documents.json")
 	chunkedData, err := json.MarshalIndent(map[string]interface{}{
 		"chunked_documents": chunkedDocs,
 		"metadata": map[string]interface{}{
@@ -410,7 +382,7 @@ func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
 	return nil
 }
 
-// X_2.5 -> X_3: Extract facts from documents.
+// X_1' -> X_2: Extract facts from document chunks.
 func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
 	// Ensure we have completions service for fact extraction
 	if p.config.Config.CompletionsAPIKey == "" {
@@ -424,8 +396,8 @@ func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
 		p.config.Config.CompletionsAPIURL,
 	)
 
-	// Read X_2.5
-	inputFile := filepath.Join(p.config.OutputDir, "X_2.5_chunked_documents.json")
+	// Read X_1'
+	inputFile := filepath.Join(p.config.OutputDir, "X_1'_chunked_documents.json")
 	data, err := os.ReadFile(inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to read chunked documents file: %w", err)
@@ -476,8 +448,8 @@ func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
 
 	p.logger.Info("Fact extraction completed on YOUR data", "total_facts", len(allFacts))
 
-	// Write X_3: extracted facts as JSON
-	outputFile := filepath.Join(p.config.OutputDir, "X_3_extracted_facts.json")
+	// Write X_2: extracted facts as JSON
+	outputFile := filepath.Join(p.config.OutputDir, "X_2_extracted_facts.json")
 	factsData, err := json.MarshalIndent(map[string]interface{}{
 		"facts": allFacts,
 		"metadata": map[string]interface{}{
