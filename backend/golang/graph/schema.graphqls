@@ -166,6 +166,11 @@ type Subscription {
   notificationAdded: AppNotification!
   telegramMessageAdded(chatUUID: ID!): Message!
   messageStream(chatId: ID!): MessageStreamPayload!
+  processMessageHistoryStream(
+    chatId: ID!
+    messages: [MessageInput!]!
+    isOnboarding: Boolean! = False
+  ): MessageStreamPayload!
   whatsAppSyncStatus: WhatsAppSyncStatus!
 }
 
