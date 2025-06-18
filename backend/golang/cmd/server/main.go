@@ -379,9 +379,6 @@ func main() {
 	}
 	defer temporalWorker.Stop()
 
-	// Start worker health monitoring
-	go monitorWorkerHealth(logger, temporalWorker, temporalClient)
-
 	if err := bootstrapPeriodicWorkflows(logger, temporalClient); err != nil {
 		logger.Error("Failed to bootstrap periodic workflows", "error", err)
 		panic(errors.Wrap(err, "Failed to bootstrap periodic workflows"))
