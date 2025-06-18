@@ -748,7 +748,7 @@ func monitorWorkerHealth(logger *log.Logger, worker worker.Worker, temporalClien
 						logger.Info("Activity pollers status",
 							"activity_pollers", len(activityResponse.Pollers))
 
-						logger.Info("Activity pollers status", "activity_pollers", activityResponse.TaskQueueStatus)
+						logger.Info("Task queue status", "task_queue_status", activityResponse.TaskQueueStatus)
 					}
 
 					lastHealthLog = time.Now()
