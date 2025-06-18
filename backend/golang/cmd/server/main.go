@@ -529,7 +529,7 @@ func bootstrapTemporalWorker(
 	input *bootstrapTemporalWorkerInput,
 ) (worker.Worker, error) {
 	w := worker.New(input.temporalClient, "default", worker.Options{
-		MaxConcurrentActivityExecutionSize: 1,
+		MaxConcurrentActivityExecutionSize: 3,
 	})
 
 	dataProcessingWorkflow := workflows.DataProcessingWorkflows{
