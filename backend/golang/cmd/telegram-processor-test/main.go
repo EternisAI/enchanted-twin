@@ -24,9 +24,9 @@ import (
 type PipelineStep string
 
 const (
-	StepProcessToDocuments PipelineStep = "process_to_documents" // X_0 → X_1: Raw JSON to Documents (unified)
-	StepChunkDocuments     PipelineStep = "chunk_documents"      // X_1 → X_1': Documents to Chunks
-	StepExtractFacts       PipelineStep = "extract_facts"        // X_1' → X_2: Chunks to Facts
+	StepDataToDocument   PipelineStep = "data_to_document"   // X_0 → X_1: Raw JSON to Documents (unified)
+	StepDocumentToChunks PipelineStep = "document_to_chunks" // X_1 → X_1': Documents to Chunks
+	StepChunksToFacts    PipelineStep = "chunks_to_facts"    // X_1' → X_2: Chunks to Facts
 )
 
 type PipelineConfig struct {
@@ -110,8 +110,19 @@ func main() {
 		pipelineConfig.InputFile = args[0]
 	}
 
+	// If still no input file, auto-detect from pipeline_input/ directory
 	if pipelineConfig.InputFile == "" {
-		logger.Error("Input file is required")
+		inputFiles, err := filepath.Glob("pipeline_input/*.json")
+		if err != nil {
+			logger.Error("Failed to scan pipeline_input directory", "error", err)
+		} else if len(inputFiles) > 0 {
+			pipelineConfig.InputFile = inputFiles[0]
+			logger.Info("Auto-detected input file", "file", pipelineConfig.InputFile)
+		}
+	}
+
+	if pipelineConfig.InputFile == "" {
+		logger.Error("Input file is required. Place your data file in pipeline_input/ or use --input flag")
 		printUsage()
 		os.Exit(1)
 	}
@@ -147,24 +158,33 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  telegram-processor-test [options] [input_file]")
 	fmt.Println()
+	fmt.Println("Quick Start with Makefile:")
+	fmt.Println("  1. Put your telegram export file in pipeline_input/")
+	fmt.Println("  2. Run: make documents")
+	fmt.Println("  3. Run: make chunks")
+	fmt.Println("  4. Run: make facts")
+	fmt.Println("  Or just: make all")
+	fmt.Println()
 	fmt.Println("Options:")
 	fmt.Println("  --input, -i     Input telegram export file (required)")
 	fmt.Println("  --output, -o    Output directory (default: pipeline_output)")
 	fmt.Println("  --steps, -s     Pipeline steps to run:")
-	fmt.Println("                  - 'basic' (default): process_to_documents (X_0 → X_1)")
-	fmt.Println("                  - 'chunking': basic + chunk_documents (X_0 → X_1 → X_1')")
-	fmt.Println("                  - 'extraction': chunking + extract_facts (X_0 → X_1 → X_1' → X_2)")
+	fmt.Println("                  - 'basic' (default): data_to_document (X_0 → X_1)")
+	fmt.Println("                  - 'chunking': basic + document_to_chunks (X_0 → X_1 → X_1')")
+	fmt.Println("                  - 'extraction': chunking + chunks_to_facts (X_0 → X_1 → X_1' → X_2)")
 	fmt.Println("                    (requires COMPLETIONS_API_KEY)")
+	fmt.Println("                  - 'facts_only': chunks_to_facts only (X_1' → X_2)")
+	fmt.Println("                    (requires existing X_1'_chunked_documents.json)")
 	fmt.Println("                  - 'all': all implemented steps (same as extraction for now)")
 	fmt.Println("  --enable-memory Enable memory storage and analysis")
 	fmt.Println("                  Requires: COMPLETIONS_API_KEY, EMBEDDINGS_API_KEY in .env")
 	fmt.Println()
 	fmt.Println("Pipeline Steps:")
-	fmt.Println("  X_0 → X_1:     process_to_documents (Telegram JSON → memory.Documents)")
-	fmt.Println("  X_1 → X_1':    chunk_documents      (Documents → Chunked Documents)")
-	fmt.Println("  X_1' → X_2:    extract_facts        (Document Chunks → memory.MemoryFacts)")
-	fmt.Println("  X_2 → X_3:     store_memory         (Facts → Vector Database) [TODO]")
-	fmt.Println("  X_3 → X_4:     query_memory         (Test queries) [TODO]")
+	fmt.Println("  X_0 → X_1:     data_to_document   (Telegram JSON → memory.Documents)")
+	fmt.Println("  X_1 → X_1':    document_to_chunks (Documents → Chunked Documents)")
+	fmt.Println("  X_1' → X_2:    chunks_to_facts    (Document Chunks → memory.MemoryFacts)")
+	fmt.Println("  X_2 → X_3:     store_memory       (Facts → Vector Database) [TODO]")
+	fmt.Println("  X_3 → X_4:     query_memory       (Test queries) [TODO]")
 	fmt.Println()
 	fmt.Println("Examples:")
 	fmt.Println("  telegram-processor-test telegram_export.json")
@@ -184,23 +204,27 @@ func (p *MemoryPipeline) parseSteps(stepsStr string) []PipelineStep {
 	switch stepsStr {
 	case "all":
 		return []PipelineStep{
-			StepProcessToDocuments,
-			StepChunkDocuments,
-			StepExtractFacts,
+			StepDataToDocument,
+			StepDocumentToChunks,
+			StepChunksToFacts,
 		}
 	case "extraction":
 		return []PipelineStep{
-			StepProcessToDocuments,
-			StepChunkDocuments,
-			StepExtractFacts,
+			StepDataToDocument,
+			StepDocumentToChunks,
+			StepChunksToFacts,
+		}
+	case "facts_only":
+		return []PipelineStep{
+			StepChunksToFacts,
 		}
 	case "chunking":
 		return []PipelineStep{
-			StepProcessToDocuments,
-			StepChunkDocuments,
+			StepDataToDocument,
+			StepDocumentToChunks,
 		}
 	default: // "basic"
-		return []PipelineStep{StepProcessToDocuments}
+		return []PipelineStep{StepDataToDocument}
 	}
 }
 
@@ -216,16 +240,16 @@ func (p *MemoryPipeline) Run(ctx context.Context) error {
 		p.logger.Info("Running pipeline step", "step", step)
 
 		switch step {
-		case StepProcessToDocuments:
-			if err := p.stepProcessToDocuments(ctx); err != nil {
+		case StepDataToDocument:
+			if err := p.stepDataToDocument(ctx); err != nil {
 				return fmt.Errorf("step %s failed: %w", step, err)
 			}
-		case StepChunkDocuments:
-			if err := p.stepChunkDocuments(ctx); err != nil {
+		case StepDocumentToChunks:
+			if err := p.stepDocumentToChunks(ctx); err != nil {
 				return fmt.Errorf("step %s failed: %w", step, err)
 			}
-		case StepExtractFacts:
-			if err := p.stepExtractFacts(ctx); err != nil {
+		case StepChunksToFacts:
+			if err := p.stepChunksToFacts(ctx); err != nil {
 				return fmt.Errorf("step %s failed: %w", step, err)
 			}
 		default:
@@ -239,7 +263,7 @@ func (p *MemoryPipeline) Run(ctx context.Context) error {
 }
 
 // X_0 -> X_1: Process Telegram JSON directly to Documents (unified step).
-func (p *MemoryPipeline) stepProcessToDocuments(ctx context.Context) error {
+func (p *MemoryPipeline) stepDataToDocument(ctx context.Context) error {
 	// Create an in-memory SQLite store for testing
 	store, err := db.NewStore(ctx, ":memory:")
 	if err != nil {
@@ -307,7 +331,7 @@ func (p *MemoryPipeline) stepProcessToDocuments(ctx context.Context) error {
 			"total_documents":    len(documents),
 			"conversation_count": len(conversationDocs),
 			"other_count":        len(otherDocs),
-			"step":               "process_to_documents",
+			"step":               "data_to_document",
 		},
 	}, "", "  ")
 	if err != nil {
@@ -323,7 +347,7 @@ func (p *MemoryPipeline) stepProcessToDocuments(ctx context.Context) error {
 }
 
 // X_1 -> X_1': Chunk documents.
-func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
+func (p *MemoryPipeline) stepDocumentToChunks(ctx context.Context) error {
 	// Read X_1
 	inputFile := filepath.Join(p.config.OutputDir, "X_1_documents.json")
 	data, err := os.ReadFile(inputFile)
@@ -371,7 +395,7 @@ func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
 		"chunked_documents": chunkedDocs,
 		"metadata": map[string]interface{}{
 			"processed_at":   time.Now().Format(time.RFC3339),
-			"step":           "chunk_documents",
+			"step":           "document_to_chunks",
 			"original_count": len(documentsData.ConversationDocuments) + len(documentsData.OtherDocuments),
 			"chunked_count":  len(chunkedDocs),
 		},
@@ -389,7 +413,7 @@ func (p *MemoryPipeline) stepChunkDocuments(ctx context.Context) error {
 }
 
 // X_1' -> X_2: Extract facts from document chunks.
-func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
+func (p *MemoryPipeline) stepChunksToFacts(ctx context.Context) error {
 	// Ensure we have completions service for fact extraction
 	if p.config.Config.CompletionsAPIKey == "" {
 		return fmt.Errorf("fact extraction requires COMPLETIONS_API_KEY - run with --enable-memory or add API key to .env")
@@ -460,7 +484,7 @@ func (p *MemoryPipeline) stepExtractFacts(ctx context.Context) error {
 		"facts": allFacts,
 		"metadata": map[string]interface{}{
 			"processed_at":      time.Now().Format(time.RFC3339),
-			"step":              "extract_facts",
+			"step":              "chunks_to_facts",
 			"documents_count":   len(documents),
 			"facts_count":       len(allFacts),
 			"completions_model": p.config.Config.CompletionsModel,
