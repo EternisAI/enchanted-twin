@@ -391,15 +391,12 @@ func main() {
 	}
 	logger.Info("User profile", "profile", userProfile)
 
-	// Create holon service with configuration
 	holonConfig := holon.DefaultManagerConfig()
 	holonService := holon.NewServiceWithConfig(store, logger, holonConfig.HolonAPIURL)
 
-	// // Initialize HolonZero API fetcher service with the main logger
 	holonManager := holon.NewManager(store, holonConfig, logger, temporalClient, temporalWorker)
 	if err := holonManager.Start(); err != nil {
 		logger.Error("Failed to start HolonZero fetcher service", "error", err)
-		// Don't panic - the service can run without the fetcher
 	} else {
 		logger.Info("HolonZero API fetcher service started successfully")
 		defer func() {
@@ -412,19 +409,16 @@ func main() {
 	threadPreviewTool := holon.NewThreadPreviewTool(holonService)
 	if err := toolRegistry.Register(threadPreviewTool); err != nil {
 		logger.Error("Failed to register thread preview tool", "error", err)
-		// panic(errors.Wrap(err, "Failed to register thread preview tool"))
 	}
 
 	sendToHolonTool := holon.NewSendToHolonTool(holonService)
 	if err := toolRegistry.Register(sendToHolonTool); err != nil {
 		logger.Error("Failed to register send to holon tool", "error", err)
-		// panic(errors.Wrap(err, "Failed to register send to holon tool"))
 	}
 
 	sendMessageToHolonTool := holon.NewAddMessageToThreadTool(holonService)
 	if err := toolRegistry.Register(sendMessageToHolonTool); err != nil {
 		logger.Error("Failed to register send message to holon tool", "error", err)
-		// panic(errors.Wrap(err, "Failed to register send message to holon tool"))
 	}
 
 	telegramServiceInput := telegram.TelegramServiceInput{
