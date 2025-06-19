@@ -222,7 +222,10 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string, category
 					"chatId":  chat.ID,
 				}
 				if errorData, marshalErr := json.Marshal(errorMsg); marshalErr == nil {
-					r.Nc.Publish(fmt.Sprintf("chat.%s.error", chat.ID), errorData)
+					err := r.Nc.Publish(fmt.Sprintf("chat.%s.error", chat.ID), errorData)
+					if err != nil {
+						r.Logger.Error("Failed to publish error message", "error", err, "chat_id", chat.ID)
+					}
 				}
 			}
 		}()
