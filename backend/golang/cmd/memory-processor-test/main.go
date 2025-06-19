@@ -69,13 +69,10 @@ func main() {
 
 	// Debug what was actually loaded
 	if os.Getenv("COMPLETIONS_API_KEY") != "" {
-		keyLen := len(os.Getenv("COMPLETIONS_API_KEY"))
-		if keyLen > 10 {
-			logger.Info("Environment variables loaded",
-				"COMPLETIONS_API_KEY", fmt.Sprintf("sk-...%s", os.Getenv("COMPLETIONS_API_KEY")[keyLen-10:]),
-				"COMPLETIONS_API_URL", os.Getenv("COMPLETIONS_API_URL"),
-			)
-		}
+		logger.Info("Environment variables loaded",
+			"COMPLETIONS_API_KEY", "configured",
+			"COMPLETIONS_API_URL", os.Getenv("COMPLETIONS_API_URL"),
+		)
 	}
 
 	envConfig := &config.Config{
@@ -97,7 +94,8 @@ func main() {
 	}
 
 	args := os.Args[1:]
-	for i, arg := range args {
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
 		switch arg {
 		case "--help", "-h":
 			printUsage()
@@ -108,18 +106,21 @@ func main() {
 				os.Exit(1)
 			}
 			pipelineConfig.InputFile = args[i+1]
+			i++ // Skip the next argument since we consumed it
 		case "--output", "-o":
 			if i+1 >= len(args) {
 				logger.Error("--output requires a value")
 				os.Exit(1)
 			}
 			pipelineConfig.OutputDir = args[i+1]
+			i++ // Skip the next argument since we consumed it
 		case "--steps", "-s":
 			if i+1 >= len(args) {
 				logger.Error("--steps requires a value")
 				os.Exit(1)
 			}
 			pipelineConfig.Steps = args[i+1]
+			i++ // Skip the next argument since we consumed it
 		case "--enable-memory":
 			// Memory operations removed for now
 		}
@@ -265,7 +266,7 @@ func (p *MemoryPipeline) Run(ctx context.Context) error {
 				return fmt.Errorf("step %s failed: %w", step, err)
 			}
 		case StepDocumentToChunks:
-			if err := p.stepDocumentToChunks(ctx); err != nil {
+			if err := p.stepDocumentToChunks(); err != nil {
 				return fmt.Errorf("step %s failed: %w", step, err)
 			}
 		case StepChunksToFacts:
@@ -291,10 +292,7 @@ func (p *MemoryPipeline) stepDataToDocument(ctx context.Context) error {
 		// New unified approach: JSONL X_0 → Documents X_1
 		return p.processJSONLToDocuments(ctx)
 	}
-
-	// Legacy fallback: Direct Telegram JSON processing (for backward compatibility)
-	p.logger.Warn("Using legacy direct processing for non-JSONL input", "file", p.config.InputFile)
-	return p.processLegacyTelegramJSON(ctx)
+	return nil
 }
 
 // New unified JSONL processing path.
@@ -369,53 +367,6 @@ func (p *MemoryPipeline) processJSONLToDocuments(ctx context.Context) error {
 	return p.writeDocumentsOutput(documents)
 }
 
-// Legacy direct Telegram JSON processing (for backward compatibility).
-func (p *MemoryPipeline) processLegacyTelegramJSON(ctx context.Context) error {
-	// Create an in-memory SQLite store for testing
-	store, err := db.NewStore(ctx, ":memory:")
-	if err != nil {
-		return fmt.Errorf("failed to create store: %w", err)
-	}
-	defer func() {
-		if err := store.Close(); err != nil {
-			p.logger.Error("Failed to close store", "error", err)
-		}
-	}()
-
-	// Create the telegram processor
-	processor, err := telegram.NewTelegramProcessor(store, p.logger)
-	if err != nil {
-		return fmt.Errorf("failed to create telegram processor: %w", err)
-	}
-
-	// Use the actual ProcessFile method
-	records, err := processor.ProcessFile(ctx, p.config.InputFile)
-	if err != nil {
-		return fmt.Errorf("failed to process file: %w", err)
-	}
-
-	p.logger.Info("Processed records", "count", len(records))
-
-	// Create AI service for dataprocessing service (only if we have an API key)
-	var aiService *ai.Service
-	if p.config.Config.CompletionsAPIKey != "" {
-		aiService = ai.NewOpenAIService(p.logger, p.config.Config.CompletionsAPIKey, p.config.Config.CompletionsAPIURL)
-	}
-
-	// Create DataProcessingService (this is what the real app uses!)
-	dataprocessingService := dataprocessing.NewDataProcessingService(aiService, "gpt-4", store, p.logger)
-
-	// Convert to documents using the REAL workflow path
-	documents, err := dataprocessingService.ToDocuments(ctx, "telegram", records)
-	if err != nil {
-		return fmt.Errorf("failed to convert to documents: %w", err)
-	}
-
-	p.logger.Info("Generated documents", "count", len(documents))
-
-	return p.writeDocumentsOutput(documents)
-}
-
 // Helper function to write documents output (shared by both paths).
 func (p *MemoryPipeline) writeDocumentsOutput(documents []memory.Document) error {
 	// Analyze document types
@@ -457,7 +408,7 @@ func (p *MemoryPipeline) writeDocumentsOutput(documents []memory.Document) error
 }
 
 // X_1 -> X_1': Chunk documents.
-func (p *MemoryPipeline) stepDocumentToChunks(ctx context.Context) error {
+func (p *MemoryPipeline) stepDocumentToChunks() error {
 	// Read X_1
 	inputFile := filepath.Join(p.config.OutputDir, "X_1_documents.json")
 	data, err := os.ReadFile(inputFile)
