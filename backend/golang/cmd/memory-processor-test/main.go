@@ -837,7 +837,7 @@ func runTelegramConversion(logger *log.Logger) {
 
 	// Convert Telegram to JSONL
 	logger.Info("🔄 Converting Telegram JSON to JSONL...")
-	if err := convertTelegramToJSONL(inputFile, outputFile, logger, false); err != nil {
+	if err := convertTelegramToJSONL(inputFile, outputFile, logger); err != nil {
 		logger.Error("Telegram conversion failed", "error", err)
 		os.Exit(1)
 	}
@@ -858,7 +858,7 @@ func runTelegramConversion(logger *log.Logger) {
 	fmt.Println("  Or just: make all")
 }
 
-func convertTelegramToJSONL(inputFile, outputFile string, logger *log.Logger, verbose bool) error {
+func convertTelegramToJSONL(inputFile, outputFile string, logger *log.Logger) error {
 	// Validate input file exists
 	if _, err := os.Stat(inputFile); os.IsNotExist(err) {
 		return fmt.Errorf("input file does not exist: %s", inputFile)
