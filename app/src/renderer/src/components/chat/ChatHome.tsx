@@ -10,7 +10,6 @@ import {
   GetProfileDocument,
   GetChatsDocument,
   CreateChatDocument,
-  SendMessageDocument,
   ChatCategory
 } from '@renderer/graphql/generated/graphql'
 import { client } from '@renderer/graphql/lib'
@@ -51,7 +50,6 @@ export function Home() {
   const [isReasonSelected, setIsReasonSelected] = useState(false)
 
   const [createChat] = useMutation(CreateChatDocument)
-  const [sendMessage] = useMutation(SendMessageDocument)
   const [updateProfile] = useMutation(UPDATE_PROFILE)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -155,10 +153,12 @@ export function Home() {
       if (!message.trim()) return
 
       try {
+        const reducedMessage = message.length > 100 ? message.slice(0, 100) + '...' : message
         const { data: createData } = await createChat({
           variables: {
-            name: chatTitle || message,
-            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
+            name: chatTitle || reducedMessage,
+            category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
+            initialMessage: message
           }
         })
         const newChatId = createData?.createChat?.id
@@ -230,8 +230,9 @@ export function Home() {
     try {
       const { data: createData } = await createChat({
         variables: {
-          name: suggestion.name,
-          category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text
+          name: 'New Chat',
+          category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
+          initialMessage: suggestion.name
         }
       })
       const newChatId = createData?.createChat?.id
@@ -247,14 +248,6 @@ export function Home() {
           filter: (match) => match.routeId === '/chat/$chatId'
         })
 
-        sendMessage({
-          variables: {
-            chatId: newChatId,
-            text: suggestion.name,
-            reasoning: isReasonSelected,
-            voice: isVoiceMode
-          }
-        })
         setQuery('')
       }
     } catch (error) {
