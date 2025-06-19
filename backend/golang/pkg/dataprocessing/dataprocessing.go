@@ -30,6 +30,12 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
 
+// DocumentProcessor represents the new clean interface - each source implements this
+// to convert raw input directly to ConversationDocument, eliminating the lossy types.Record step.
+type DocumentProcessor interface {
+	ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error)
+}
+
 func validateInputPath(inputPath string) error {
 	cleanPath := filepath.Clean(inputPath)
 
@@ -309,10 +315,20 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		if err != nil {
 			return false, err
 		}
-		records, err = processor.ProcessFile(ctx, inputPath)
+		// Telegram uses the new direct approach - skip the records step
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		// For now, save as JSON instead of records
+		documentsJSON, err := json.MarshalIndent(documents, "", "  ")
+		if err != nil {
+			return false, err
+		}
+		if err := os.WriteFile(outputPath, documentsJSON, 0o644); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "slack":
 		source, err := slack.NewSlackProcessor(s.store, s.logger)
 		if err != nil {

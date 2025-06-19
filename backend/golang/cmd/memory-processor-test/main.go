@@ -900,46 +900,42 @@ func convertTelegramToJSONL(inputFile, outputFile string, logger *log.Logger) er
 
 	logger.Info("Reading Telegram export file...")
 
-	// Use the actual ProcessFile method
-	records, err := processor.ProcessFile(ctx, inputFile)
+	// Use the new ProcessFile method that returns ConversationDocuments directly
+	documents, err := processor.ProcessFile(ctx, inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to process file: %w", err)
 	}
 
-	logger.Info("Successfully processed Telegram export", "conversations", len(records))
+	logger.Info("Successfully processed Telegram export", "conversations", len(documents))
 
-	// Save records to JSONL file
-	logger.Info("Writing conversations to JSONL file...")
-	if err := dataprocessing.SaveRecords(records, outputFile); err != nil {
-		return fmt.Errorf("failed to save records: %w", err)
+	// Save documents as JSON (not JSONL)
+	logger.Info("Writing conversations to JSON file...")
+	if err := memory.ExportConversationDocumentsJSON(documents, outputFile); err != nil {
+		return fmt.Errorf("failed to save documents: %w", err)
 	}
 
 	logger.Info("Conversion completed successfully!",
 		"output", outputFile,
-		"conversations", len(records))
+		"conversations", len(documents))
 
 	// Print summary statistics
 	totalMessages := 0
 	participants := make(map[string]bool)
 
-	for _, record := range records {
-		if conversation, ok := record.Data["conversation"].([]map[string]interface{}); ok {
-			totalMessages += len(conversation)
-		}
-		if people, ok := record.Data["people"].([]string); ok {
-			for _, person := range people {
-				participants[person] = true
-			}
+	for _, doc := range documents {
+		totalMessages += len(doc.Conversation)
+		for _, person := range doc.People {
+			participants[person] = true
 		}
 	}
 
 	logger.Info("Summary statistics:",
-		"total_conversations", len(records),
+		"total_conversations", len(documents),
 		"total_messages", totalMessages,
 		"unique_participants", len(participants))
 
-	if totalMessages > 0 && len(records) > 0 {
-		avgMessagesPerConv := float64(totalMessages) / float64(len(records))
+	if totalMessages > 0 && len(documents) > 0 {
+		avgMessagesPerConv := float64(totalMessages) / float64(len(documents))
 		logger.Info("Average messages per conversation:", "average", fmt.Sprintf("%.2f", avgMessagesPerConv))
 	}
 

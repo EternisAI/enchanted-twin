@@ -195,28 +195,25 @@ func TestProcessDirectoryInput(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
-	records, err := processor.ProcessFile(ctx, tempDir)
+	documents, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
 
-	if len(records) != 1 {
-		t.Errorf("Expected 1 record, got %d", len(records))
+	if len(documents) != 1 {
+		t.Errorf("Expected 1 document, got %d", len(documents))
 	}
 
-	if len(records) > 0 {
-		record := records[0]
-		if record.Data["type"] != "conversation" {
-			t.Errorf("Expected conversation type, got %v", record.Data["type"])
+	if len(documents) > 0 {
+		doc := documents[0]
+		if doc.FieldSource != "telegram" {
+			t.Errorf("Expected telegram source, got %v", doc.FieldSource)
 		}
 
-		messages, ok := record.Data["messages"].([]messageData)
-		if !ok {
-			t.Errorf("Expected messages to be []messageData, got %T", record.Data["messages"])
-		} else if len(messages) != 2 {
-			t.Errorf("Expected 2 messages in conversation, got %d", len(messages))
-		} else if messages[0].Text != "Test message" {
-			t.Errorf("Expected 'Test message', got %v", messages[0].Text)
+		if len(doc.Conversation) != 2 {
+			t.Errorf("Expected 2 messages in conversation, got %d", len(doc.Conversation))
+		} else if doc.Conversation[0].Content != "Test message" {
+			t.Errorf("Expected 'Test message', got %v", doc.Conversation[0].Content)
 		}
 	}
 
@@ -306,28 +303,25 @@ func TestProcessDirectoryInputCustomJsonName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
-	records, err := processor.ProcessFile(ctx, tempDir)
+	documents, err := processor.ProcessFile(ctx, tempDir)
 	if err != nil {
 		t.Fatalf("ProcessFile with directory failed: %v", err)
 	}
 
-	if len(records) != 1 {
-		t.Errorf("Expected 1 record, got %d", len(records))
+	if len(documents) != 1 {
+		t.Errorf("Expected 1 document, got %d", len(documents))
 	}
 
-	if len(records) > 0 {
-		record := records[0]
-		if record.Data["type"] != "conversation" {
-			t.Errorf("Expected conversation type, got %v", record.Data["type"])
+	if len(documents) > 0 {
+		doc := documents[0]
+		if doc.FieldSource != "telegram" {
+			t.Errorf("Expected telegram source, got %v", doc.FieldSource)
 		}
 
-		messages, ok := record.Data["messages"].([]messageData)
-		if !ok {
-			t.Errorf("Expected messages to be []messageData, got %T", record.Data["messages"])
-		} else if len(messages) != 2 {
-			t.Errorf("Expected 2 messages in conversation, got %d", len(messages))
-		} else if messages[0].Text != "Custom JSON test message" {
-			t.Errorf("Expected 'Custom JSON test message', got %v", messages[0].Text)
+		if len(doc.Conversation) != 2 {
+			t.Errorf("Expected 2 messages in conversation, got %d", len(doc.Conversation))
+		} else if doc.Conversation[0].Content != "Custom JSON test message" {
+			t.Errorf("Expected 'Custom JSON test message', got %v", doc.Conversation[0].Content)
 		}
 	}
 
@@ -365,14 +359,14 @@ func TestProcessDirectoryNoJsonFiles(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create telegram processor: %v", err)
 	}
-	records, err := processor.ProcessFile(ctx, tempDir)
+	documents, err := processor.ProcessFile(ctx, tempDir)
 
 	if err == nil {
 		t.Errorf("Expected error when no JSON files found, but got none")
 	}
 
-	if records != nil {
-		t.Errorf("Expected nil records when error occurs, got %v", records)
+	if documents != nil {
+		t.Errorf("Expected nil documents when error occurs, got %v", documents)
 	}
 
 	expectedError := "no JSON files found in directory"
@@ -423,24 +417,22 @@ func TestProcessRealTelegramExport(t *testing.T) {
 	conversationCount := 0
 
 	for _, record := range records {
-		switch record.Data["type"] {
-		case "contact":
-			contactCount++
-			t.Logf("Contact: %s %s", record.Data["firstName"], record.Data["lastName"])
-		case "conversation":
+		// ConversationDocument type checking
+		if record.User != "" && len(record.Conversation) > 0 {
 			conversationCount++
-			chatName, _ := record.Data["chatName"].(string)
-			messages, _ := record.Data["messages"].([]messageData)
-			t.Logf("Conversation: %s with %d messages", chatName, len(messages))
+			t.Logf("Conversation: %s with %d messages", record.ID(), len(record.Conversation))
 
 			// Verify messages have text content
-			for i, msg := range messages {
-				if msg.Text == "" {
-					t.Errorf("Message %d in conversation %s has empty text", i, chatName)
+			for i, msg := range record.Conversation {
+				if msg.Content == "" {
+					t.Errorf("Message %d in conversation %s has empty content", i, record.ID())
 				} else {
-					t.Logf("  Message from %s: %s", msg.From, msg.Text[:min(50, len(msg.Text))])
+					t.Logf("  Message from %s: %s", msg.Speaker, msg.Content[:min(50, len(msg.Content))])
 				}
 			}
+		} else if record.Metadata()["type"] == "contact" {
+			contactCount++
+			t.Logf("Contact: %s", record.ID())
 		}
 	}
 
