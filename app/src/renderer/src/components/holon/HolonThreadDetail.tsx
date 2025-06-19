@@ -6,7 +6,6 @@ import { motion } from 'framer-motion'
 import {
   ChatCategory,
   CreateChatDocument,
-  SendMessageDocument,
   Thread
 } from '@renderer/graphql/generated/graphql'
 import { useMutation } from '@apollo/client'
@@ -23,7 +22,6 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
   const router = useRouter()
 
   const [createChat] = useMutation(CreateChatDocument)
-  const [sendMessage] = useMutation(SendMessageDocument)
 
   const handleCreateChat = useCallback(
     async (action: string) => {
@@ -32,7 +30,7 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
 
       try {
         const { data: createData } = await createChat({
-          variables: { name: chatId, category: ChatCategory.Holon, holonThreadId: thread.id }
+          variables: { name: chatId, category: ChatCategory.Holon, holonThreadId: thread.id, initialMessage: text }
         })
         const newChatId = createData?.createChat?.id
 
@@ -48,20 +46,12 @@ export default function HolonThreadDetail({ thread }: HolonThreadDetailProps) {
             filter: (match) => match.routeId === '/chat/$chatId'
           })
 
-          sendMessage({
-            variables: {
-              chatId: newChatId,
-              text: text,
-              reasoning: false,
-              voice: false
-            }
-          })
         }
       } catch (error) {
         console.error('Failed to create chat:', error)
       }
     },
-    [navigate, createChat, sendMessage, router, thread.id]
+    [navigate, createChat, router, thread.id]
   )
 
   const handleBack = () => {

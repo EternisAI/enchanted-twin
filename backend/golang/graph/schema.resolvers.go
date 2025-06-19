@@ -200,32 +200,42 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 }
 
 // CreateChat is the resolver for the createChat field.
-func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (*model.Chat, error) {
+func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.CreateChat(ctx, name, category, holonThreadID)
 	if err != nil {
+		r.Logger.Error("Failed to create chat", "error", err)
 		return nil, err
 	}
+
+	if initialMessage != nil && *initialMessage != "" {
+		go func() {
+			bgCtx := context.Background()
+
+			isVoice := category == model.ChatCategoryVoice
+			_, err := r.TwinChatService.SendMessage(bgCtx, chat.ID, *initialMessage, false, isVoice)
+			if err != nil {
+				r.Logger.Error("Failed to send initial message asynchronously", "error", err, "chat_id", chat.ID)
+
+				errorMsg := map[string]interface{}{
+					"type":    "error",
+					"message": "Failed to send initial message",
+					"chatId":  chat.ID,
+				}
+				if errorData, marshalErr := json.Marshal(errorMsg); marshalErr == nil {
+					err := r.Nc.Publish(fmt.Sprintf("chat.%s.error", chat.ID), errorData)
+					if err != nil {
+						r.Logger.Error("Failed to publish error message", "error", err, "chat_id", chat.ID)
+					}
+				}
+			}
+		}()
+	}
+
 	return &chat, nil
 }
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error) {
-	subject := fmt.Sprintf("chat.%s", chatID)
-
-	userMessageJson, err := json.Marshal(model.Message{
-		ID:        uuid.New().String(),
-		Text:      &text,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Role:      model.RoleUser,
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = r.Nc.Publish(subject, userMessageJson)
-	if err != nil {
-		return nil, err
-	}
-
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 
