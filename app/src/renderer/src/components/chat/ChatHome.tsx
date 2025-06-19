@@ -228,7 +228,6 @@ export function Home() {
 
   const handleSuggestionClick = async (suggestion: (typeof dummySuggestions)[0]) => {
     try {
-      console.log('Creating chat from suggestion', suggestion.name)
       const { data: createData } = await createChat({
         variables: {
           name: 'New Chat',
