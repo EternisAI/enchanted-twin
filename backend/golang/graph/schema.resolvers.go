@@ -212,10 +212,12 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string, category
 		_, err := r.TwinChatService.SendMessage(ctx, chat.ID, *initialMessage, false, isVoice)
 		if err != nil {
 			r.Logger.Error("Failed to send initial message", "error", err, "chat_id", chat.ID)
+			return nil, fmt.Errorf("failed to send initial message: %w", err)
 		}
 
 		updatedChat, err := r.TwinChatService.GetChat(ctx, chat.ID)
 		if err != nil {
+			r.Logger.Error("Failed to get updated chat after sending initial message", "error", err, "chat_id", chat.ID)
 			return &chat, nil
 		}
 		return &updatedChat, nil
