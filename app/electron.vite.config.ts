@@ -18,7 +18,10 @@ export default defineConfig(({ mode }) => {
   return {
     main: {
       plugins: [externalizeDepsPlugin()],
-      define: inlineEnvVars('', env)
+      define: {
+        ...inlineEnvVars('', env),
+        __APP_ENV__: JSON.stringify(env)
+      }
     },
     preload: {
       plugins: [externalizeDepsPlugin()]
@@ -30,6 +33,9 @@ export default defineConfig(({ mode }) => {
         alias: {
           '@renderer': resolve('src/renderer/src')
         }
+      },
+      define: {
+        __APP_ENV__: JSON.stringify(env)
       },
       plugins: [
         TanStackRouterVite({ target: 'react', autoCodeSplitting: true }),
