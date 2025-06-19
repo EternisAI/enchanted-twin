@@ -208,19 +208,24 @@ func (r *mutationResolver) CreateChat(ctx context.Context, name string, category
 	}
 
 	if initialMessage != nil && *initialMessage != "" {
-		isVoice := category == model.ChatCategoryVoice
-		_, err := r.TwinChatService.SendMessage(ctx, chat.ID, *initialMessage, false, isVoice)
-		if err != nil {
-			r.Logger.Error("Failed to send initial message", "error", err, "chat_id", chat.ID)
-			return nil, fmt.Errorf("failed to send initial message: %w", err)
-		}
+		go func() {
+			bgCtx := context.Background()
 
-		updatedChat, err := r.TwinChatService.GetChat(ctx, chat.ID)
-		if err != nil {
-			r.Logger.Error("Failed to get updated chat after sending initial message", "error", err, "chat_id", chat.ID)
-			return &chat, nil
-		}
-		return &updatedChat, nil
+			isVoice := category == model.ChatCategoryVoice
+			_, err := r.TwinChatService.SendMessage(bgCtx, chat.ID, *initialMessage, false, isVoice)
+			if err != nil {
+				r.Logger.Error("Failed to send initial message asynchronously", "error", err, "chat_id", chat.ID)
+
+				errorMsg := map[string]interface{}{
+					"type":    "error",
+					"message": "Failed to send initial message",
+					"chatId":  chat.ID,
+				}
+				if errorData, marshalErr := json.Marshal(errorMsg); marshalErr == nil {
+					r.Nc.Publish(fmt.Sprintf("chat.%s.error", chat.ID), errorData)
+				}
+			}
+		}()
 	}
 
 	return &chat, nil
