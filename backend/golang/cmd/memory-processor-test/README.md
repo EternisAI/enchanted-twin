@@ -47,14 +47,14 @@ This tool helps developers:
 - **Understand the memory workflow** through detailed logging
 - **Support multiple data sources** (WhatsApp, Telegram) through unified JSONL format
 
-## Pure Markov Chain Architecture
+## Pure Modular Architecture
 
-The tool implements a **mathematically pure Markov chain** where each step depends ONLY on the previous step's output:
+The tool implements a modular architecture where each step depends ONLY on the previous step's output:
 
 ```
 WhatsApp SQLite ──make whatsapp──→ X_0_whatsapp.jsonl ┐
                                                       ├──→ X_1_documents.json
-Telegram JSON ────make telegram──→ X_0_telegram.jsonl ┘       ↓ make documents
+Telegram JSON ────make telegram──→ X_0_telegram.jsonl ┘        ↓ make documents
                                                            X_1_documents.json
                                                                ↓ make chunks
                                                         X_1'_chunked_documents.json  
@@ -100,7 +100,7 @@ Create a `.env` file in `backend/golang/` with:
 # Required for fact extraction (OpenRouter recommended)
 COMPLETIONS_API_KEY=sk-or-v1-your-openrouter-api-key
 COMPLETIONS_API_URL=https://openrouter.ai/api/v1
-COMPLETIONS_MODEL=anthropic/claude-3.5-sonnet
+COMPLETIONS_MODEL=openai/gpt-4.1
 
 # Optional: for embeddings (future memory storage)
 EMBEDDINGS_API_KEY=sk-your-openai-api-key  
