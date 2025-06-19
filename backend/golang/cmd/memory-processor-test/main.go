@@ -297,7 +297,7 @@ func (p *MemoryPipeline) stepDataToDocument(ctx context.Context) error {
 	return p.processLegacyTelegramJSON(ctx)
 }
 
-// New unified JSONL processing path
+// New unified JSONL processing path.
 func (p *MemoryPipeline) processJSONLToDocuments(ctx context.Context) error {
 	// Load records from JSONL file
 	records, err := LoadRecords(p.config.InputFile)
@@ -369,7 +369,7 @@ func (p *MemoryPipeline) processJSONLToDocuments(ctx context.Context) error {
 	return p.writeDocumentsOutput(documents)
 }
 
-// Legacy direct Telegram JSON processing (for backward compatibility)
+// Legacy direct Telegram JSON processing (for backward compatibility).
 func (p *MemoryPipeline) processLegacyTelegramJSON(ctx context.Context) error {
 	// Create an in-memory SQLite store for testing
 	store, err := db.NewStore(ctx, ":memory:")
@@ -416,7 +416,7 @@ func (p *MemoryPipeline) processLegacyTelegramJSON(ctx context.Context) error {
 	return p.writeDocumentsOutput(documents)
 }
 
-// Helper function to write documents output (shared by both paths)
+// Helper function to write documents output (shared by both paths).
 func (p *MemoryPipeline) writeDocumentsOutput(documents []memory.Document) error {
 	// Analyze document types
 	var conversationDocs []memory.ConversationDocument
