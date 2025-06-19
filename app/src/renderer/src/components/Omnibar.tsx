@@ -6,7 +6,7 @@ import { useMutation, useQuery } from '@apollo/client'
 import {
   ChatCategory,
   CreateChatDocument,
-  GetChatsDocument,
+  GetChatsDocument
 } from '@renderer/graphql/generated/graphql'
 import { useNavigate } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
@@ -81,7 +81,11 @@ export const Omnibar = () => {
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: "Chat", category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text, initialMessage: query }
+        variables: {
+          name: query,
+          category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text,
+          initialMessage: query
+        }
       })
       const newChatId = createData?.createChat?.id
 
@@ -96,7 +100,6 @@ export const Omnibar = () => {
         await router.invalidate({
           filter: (match) => match.routeId === '/chat/$chatId'
         })
-
       }
     } catch (error) {
       console.error('Failed to create chat:', error)
