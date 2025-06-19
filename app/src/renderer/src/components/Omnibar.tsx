@@ -7,7 +7,6 @@ import {
   ChatCategory,
   CreateChatDocument,
   GetChatsDocument,
-  SendMessageDocument
 } from '@renderer/graphql/generated/graphql'
 import { useNavigate } from '@tanstack/react-router'
 import { client } from '@renderer/graphql/lib'
@@ -28,7 +27,6 @@ export const Omnibar = () => {
   const router = useRouter()
   const { isVoiceMode } = useVoiceStore()
   const [createChat] = useMutation(CreateChatDocument)
-  const [sendMessage] = useMutation(SendMessageDocument)
   const { data: chatsData } = useQuery(GetChatsDocument, {
     variables: { first: 20, offset: 0 }
   })
@@ -83,7 +81,7 @@ export const Omnibar = () => {
 
     try {
       const { data: createData } = await createChat({
-        variables: { name: query, category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text }
+        variables: { name: "Chat", category: isVoiceMode ? ChatCategory.Voice : ChatCategory.Text, initialMessage: query }
       })
       const newChatId = createData?.createChat?.id
 
@@ -99,21 +97,13 @@ export const Omnibar = () => {
           filter: (match) => match.routeId === '/chat/$chatId'
         })
 
-        sendMessage({
-          variables: {
-            chatId: newChatId,
-            text: query,
-            voice: isVoiceMode,
-            reasoning: false
-          }
-        })
       }
     } catch (error) {
       console.error('Failed to create chat:', error)
     } finally {
       closeOmnibar()
     }
-  }, [query, navigate, router, createChat, isVoiceMode, sendMessage, closeOmnibar])
+  }, [query, navigate, router, createChat, isVoiceMode, closeOmnibar])
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

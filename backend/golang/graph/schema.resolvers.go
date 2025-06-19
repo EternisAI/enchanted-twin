@@ -13,12 +13,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/lnquy/cron"
-	nats "github.com/nats-io/nats.go"
-	common "go.temporal.io/api/common/v1"
-	"go.temporal.io/sdk/client"
-
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/scheduler"
 	"github.com/EternisAI/enchanted-twin/pkg/auth"
@@ -26,6 +20,11 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/helpers"
 	"github.com/EternisAI/enchanted-twin/pkg/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/whatsapp"
+	"github.com/google/uuid"
+	"github.com/lnquy/cron"
+	nats "github.com/nats-io/nats.go"
+	common "go.temporal.io/api/common/v1"
+	"go.temporal.io/sdk/client"
 )
 
 // Messages is the resolver for the messages field.
@@ -200,32 +199,33 @@ func (r *mutationResolver) UpdateProfile(ctx context.Context, input model.Update
 }
 
 // CreateChat is the resolver for the createChat field.
-func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string) (*model.Chat, error) {
+func (r *mutationResolver) CreateChat(ctx context.Context, name string, category model.ChatCategory, holonThreadID *string, initialMessage *string) (*model.Chat, error) {
 	chat, err := r.TwinChatService.CreateChat(ctx, name, category, holonThreadID)
 	if err != nil {
+		r.Logger.Error("Failed to create chat", "error", err)
 		return nil, err
 	}
+
+	if initialMessage != nil && *initialMessage != "" {
+
+		isVoice := category == model.ChatCategoryVoice
+		_, err := r.TwinChatService.SendMessage(ctx, chat.ID, *initialMessage, false, isVoice)
+		if err != nil {
+			r.Logger.Error("Failed to send initial message", "error", err, "chat_id", chat.ID)
+		}
+
+		updatedChat, err := r.TwinChatService.GetChat(ctx, chat.ID)
+		if err != nil {
+			return &chat, nil
+		}
+		return &updatedChat, nil
+	}
+
 	return &chat, nil
 }
 
 // SendMessage is the resolver for the sendMessage field.
 func (r *mutationResolver) SendMessage(ctx context.Context, chatID string, text string, reasoning bool, voice bool) (*model.Message, error) {
-	subject := fmt.Sprintf("chat.%s", chatID)
-
-	userMessageJson, err := json.Marshal(model.Message{
-		ID:        uuid.New().String(),
-		Text:      &text,
-		CreatedAt: time.Now().Format(time.RFC3339),
-		Role:      model.RoleUser,
-	})
-	if err != nil {
-		return nil, err
-	}
-	err = r.Nc.Publish(subject, userMessageJson)
-	if err != nil {
-		return nil, err
-	}
-
 	return r.TwinChatService.SendMessage(ctx, chatID, text, reasoning, voice)
 }
 

@@ -56,7 +56,6 @@ type Chat {
   createdAt: DateTime!
   category: ChatCategory!
   holonThreadId: String #include this in the system prompt so user does not have to excit. on twinchat.go
-    initialMessage: String
 }
 
 type Message {
@@ -134,7 +133,6 @@ type Mutation {
     name: String!
     category: ChatCategory! = TEXT
     holonThreadId: String
-    initialMessage: String
   ): Chat!
   sendMessage(
     chatId: ID!
