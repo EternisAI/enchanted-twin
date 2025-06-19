@@ -180,7 +180,7 @@ func getEnvOrDefault(key, defaultValue string) string {
 }
 
 func printUsage() {
-	fmt.Println("Telegram Memory Pipeline Tester")
+	fmt.Println("Memory Pipeline Tester")
 	fmt.Println()
 	fmt.Println("This tool tests the exact memory ingestion pipeline used by the main app.")
 	fmt.Println("Configuration is loaded from .env file (same as main app).")
@@ -210,7 +210,7 @@ func printUsage() {
 	fmt.Println("                  Requires: COMPLETIONS_API_KEY, EMBEDDINGS_API_KEY in .env")
 	fmt.Println()
 	fmt.Println("Pipeline Steps:")
-	fmt.Println("  X_0 → X_1:     data_to_document   (Telegram JSON → memory.Documents)")
+	fmt.Println("  X_0 → X_1:     data_to_document   (Raw Data → memory.Documents)")
 	fmt.Println("  X_1 → X_1':    document_to_chunks (Documents → Chunked Documents)")
 	fmt.Println("  X_1' → X_2:    chunks_to_facts    (Document Chunks → memory.MemoryFacts)")
 	fmt.Println("  X_2 → X_3:     store_memory       (Facts → Vector Database) [TODO]")
