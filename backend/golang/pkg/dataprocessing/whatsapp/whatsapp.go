@@ -14,7 +14,6 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/processor"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -24,7 +23,7 @@ type WhatsappProcessor struct {
 	logger *log.Logger
 }
 
-func NewWhatsappProcessor(store *db.Store, logger *log.Logger) (processor.Processor, error) {
+func NewWhatsappProcessor(store *db.Store, logger *log.Logger) (*WhatsappProcessor, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store is nil")
 	}
@@ -1003,10 +1002,28 @@ func (s *WhatsappProcessor) ProcessDirectory(ctx context.Context, filePath strin
 	return nil, fmt.Errorf("sync operation not supported for WhatsApp")
 }
 
-func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([]types.Record, error) {
-	// Store is not required for reading WhatsApp database files
-	// ReadWhatsAppDB only uses the logger for warnings
-	return s.ReadWhatsAppDB(ctx, filePath)
+func (s *WhatsappProcessor) ProcessFile(ctx context.Context, filePath string) ([]memory.ConversationDocument, error) {
+	// Read WhatsApp database and convert directly to ConversationDocuments
+	records, err := s.ReadWhatsAppDB(ctx, filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert records to documents using existing ToDocuments logic
+	documents, err := s.ToDocuments(ctx, records)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert memory.Document slice to ConversationDocument slice
+	var conversationDocs []memory.ConversationDocument
+	for _, doc := range documents {
+		if convDoc, ok := doc.(*memory.ConversationDocument); ok {
+			conversationDocs = append(conversationDocs, *convDoc)
+		}
+	}
+
+	return conversationDocs, nil
 }
 
 func (s *WhatsappProcessor) Sync(ctx context.Context, accessToken string) ([]types.Record, bool, error) {

@@ -357,14 +357,20 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 	case "whatsapp":
-		source, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
+		processor, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessFile(ctx, inputPath)
+		// WhatsApp uses the new direct approach - skip the records step
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		// For now, save as JSON instead of records
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "chatgpt":
 		chatgptProcessor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
 		if err != nil {
