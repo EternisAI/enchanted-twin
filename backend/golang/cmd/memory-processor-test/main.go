@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,9 +16,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/config"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
-	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/types"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
 )
@@ -27,9 +24,8 @@ import (
 type PipelineStep string
 
 const (
-	StepDataToDocument   PipelineStep = "data_to_document"   // X_0 → X_1: Raw JSON to Documents (unified)
-	StepDocumentToChunks PipelineStep = "document_to_chunks" // X_1 → X_1': Documents to Chunks
-	StepChunksToFacts    PipelineStep = "chunks_to_facts"    // X_1' → X_2: Chunks to Facts
+	StepDocumentToChunks PipelineStep = "document_to_chunks" // X_0 → X_1: ConversationDocument to Chunks
+	StepChunksToFacts    PipelineStep = "chunks_to_facts"    // X_1 → X_2: Chunks to Facts
 )
 
 type PipelineConfig struct {
@@ -42,6 +38,11 @@ type PipelineConfig struct {
 type MemoryPipeline struct {
 	config *PipelineConfig
 	logger *log.Logger
+}
+
+// DocumentProcessor represents the clean interface that all processors implement.
+type DocumentProcessor interface {
+	ProcessFile(ctx context.Context, filepath string) ([]memory.ConversationDocument, error)
 }
 
 func main() {
@@ -240,12 +241,8 @@ func (p *MemoryPipeline) parseSteps(stepsStr string) []PipelineStep {
 		return []PipelineStep{
 			StepDocumentToChunks,
 		}
-	case "documents_only":
-		return []PipelineStep{
-			StepDataToDocument,
-		}
 	default:
-		return []PipelineStep{StepDataToDocument}
+		return []PipelineStep{StepDocumentToChunks}
 	}
 }
 
@@ -261,10 +258,6 @@ func (p *MemoryPipeline) Run(ctx context.Context) error {
 		p.logger.Info("Running pipeline step", "step", step)
 
 		switch step {
-		case StepDataToDocument:
-			if err := p.stepDataToDocument(ctx); err != nil {
-				return fmt.Errorf("step %s failed: %w", step, err)
-			}
 		case StepDocumentToChunks:
 			if err := p.stepDocumentToChunks(); err != nil {
 				return fmt.Errorf("step %s failed: %w", step, err)
@@ -283,181 +276,49 @@ func (p *MemoryPipeline) Run(ctx context.Context) error {
 	return nil
 }
 
-// X_0 -> X_1: Process JSONL X_0 records to Documents (unified step).
-func (p *MemoryPipeline) stepDataToDocument(ctx context.Context) error {
-	p.logger.Info("Processing X_0 JSONL file", "file", p.config.InputFile)
-
-	// Detect if input is JSONL (X_0) or legacy direct input
-	if strings.HasSuffix(p.config.InputFile, ".jsonl") {
-		// New unified approach: JSONL X_0 → Documents X_1
-		return p.processJSONLToDocuments(ctx)
-	}
-	return nil
-}
-
-// New unified JSONL processing path.
-func (p *MemoryPipeline) processJSONLToDocuments(ctx context.Context) error {
-	// Load records from JSONL file
-	records, err := LoadRecords(p.config.InputFile)
-	if err != nil {
-		return fmt.Errorf("failed to load JSONL records: %w", err)
-	}
-
-	p.logger.Info("Loaded JSONL records", "count", len(records))
-
-	// Determine processor type based on first record source
-	var processor interface {
-		ToDocuments(ctx context.Context, records []types.Record) ([]memory.Document, error)
-	}
-
-	if len(records) > 0 {
-		source := records[0].Source
-		p.logger.Info("Detected source type", "source", source)
-
-		switch source {
-		case "whatsapp":
-			// Create in-memory store for WhatsApp processor
-			store, err := db.NewStore(ctx, ":memory:")
-			if err != nil {
-				return fmt.Errorf("failed to create store: %w", err)
-			}
-			defer func() {
-				if err := store.Close(); err != nil {
-					p.logger.Error("Failed to close store", "error", err)
-				}
-			}()
-
-			processor, err = whatsapp.NewWhatsappProcessor(store, p.logger)
-			if err != nil {
-				return fmt.Errorf("failed to create WhatsApp processor: %w", err)
-			}
-		case "telegram":
-			// Create in-memory store for Telegram processor
-			store, err := db.NewStore(ctx, ":memory:")
-			if err != nil {
-				return fmt.Errorf("failed to create store: %w", err)
-			}
-			defer func() {
-				if err := store.Close(); err != nil {
-					p.logger.Error("Failed to close store", "error", err)
-				}
-			}()
-
-			telegramProcessor, err := telegram.NewTelegramProcessor(store, p.logger)
-			if err != nil {
-				return fmt.Errorf("failed to create telegram processor: %w", err)
-			}
-			processor = telegramProcessor
-		default:
-			return fmt.Errorf("unsupported source type: %s", source)
-		}
-	} else {
-		return fmt.Errorf("no records found in JSONL file")
-	}
-
-	// Convert records to documents using the appropriate processor
-	documents, err := processor.ToDocuments(ctx, records)
-	if err != nil {
-		return fmt.Errorf("failed to convert records to documents: %w", err)
-	}
-
-	p.logger.Info("Generated documents from JSONL", "count", len(documents))
-
-	// Analyze document types and write output
-	return p.writeDocumentsOutput(documents)
-}
-
-// Helper function to write documents output (shared by both paths).
-func (p *MemoryPipeline) writeDocumentsOutput(documents []memory.Document) error {
-	// Analyze document types
-	var conversationDocs []memory.ConversationDocument
-	var otherDocs []memory.Document
-
-	for _, doc := range documents {
-		if convDoc, ok := doc.(*memory.ConversationDocument); ok {
-			conversationDocs = append(conversationDocs, *convDoc)
-		} else {
-			otherDocs = append(otherDocs, doc)
-		}
-	}
-
-	// Write X_1: documents as JSON
-	outputFile := filepath.Join(p.config.OutputDir, "X_1_documents.json")
-	documentsData, err := json.MarshalIndent(map[string]interface{}{
-		"conversation_documents": conversationDocs,
-		"other_documents":        otherDocs,
-		"metadata": map[string]interface{}{
-			"source_file":        p.config.InputFile,
-			"processed_at":       time.Now().Format(time.RFC3339),
-			"total_documents":    len(documents),
-			"conversation_count": len(conversationDocs),
-			"other_count":        len(otherDocs),
-			"step":               "data_to_document",
-		},
-	}, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal documents: %w", err)
-	}
-
-	if err := os.WriteFile(outputFile, documentsData, 0o644); err != nil {
-		return fmt.Errorf("failed to write documents file: %w", err)
-	}
-
-	p.logger.Info("Wrote documents", "file", outputFile, "conversations", len(conversationDocs), "other", len(otherDocs))
-	return nil
-}
-
-// X_1 -> X_1': Chunk documents.
+// X_0 -> X_1: Chunk ConversationDocuments.
 func (p *MemoryPipeline) stepDocumentToChunks() error {
-	// Read X_1
-	inputFile := filepath.Join(p.config.OutputDir, "X_1_documents.json")
-	data, err := os.ReadFile(inputFile)
+	// Auto-detect X_0 ConversationDocument file
+	var inputFile string
+	whatsappFile := filepath.Join(p.config.OutputDir, "X_0_whatsapp.json")
+	telegramFile := filepath.Join(p.config.OutputDir, "X_0_telegram.json")
+
+	if _, err := os.Stat(whatsappFile); err == nil {
+		inputFile = whatsappFile
+	} else if _, err := os.Stat(telegramFile); err == nil {
+		inputFile = telegramFile
+	} else {
+		return fmt.Errorf("no X_0 ConversationDocument file found (X_0_whatsapp.json or X_0_telegram.json)")
+	}
+
+	// Load ConversationDocuments from JSON
+	documents, err := memory.LoadConversationDocumentsFromJSON(inputFile)
 	if err != nil {
-		return fmt.Errorf("failed to read documents file: %w", err)
+		return fmt.Errorf("failed to load ConversationDocuments: %w", err)
 	}
 
-	var documentsData struct {
-		ConversationDocuments []memory.ConversationDocument `json:"conversation_documents"`
-		OtherDocuments        []json.RawMessage             `json:"other_documents"`
-	}
-	if err := json.Unmarshal(data, &documentsData); err != nil {
-		return fmt.Errorf("failed to unmarshal documents: %w", err)
-	}
+	p.logger.Info("Loaded ConversationDocuments", "count", len(documents))
 
-	// PRODUCTION CODE PATH: Step 1: Chunk documents (matches orchestrator.go:107-111)
+	// PRODUCTION CODE PATH: Chunk documents (matches orchestrator.go:107-111)
 	var chunkedDocs []memory.Document
 
 	// Process conversation documents
-	for _, doc := range documentsData.ConversationDocuments {
+	for _, doc := range documents {
 		docCopy := doc
 		chunks := docCopy.Chunk() // <-- EXACT SAME CODE PATH as production
 		chunkedDocs = append(chunkedDocs, chunks...)
 	}
 
-	// Process other documents (need to unmarshal them individually)
-	for _, rawDoc := range documentsData.OtherDocuments {
-		// Try TextDocument first
-		var textDoc memory.TextDocument
-		if err := json.Unmarshal(rawDoc, &textDoc); err == nil && textDoc.Content() != "" {
-			chunks := textDoc.Chunk() // <-- EXACT SAME CODE PATH as production
-			chunkedDocs = append(chunkedDocs, chunks...)
-			continue
-		}
+	p.logger.Info("Chunked documents", "original_count", len(documents), "chunked_count", len(chunkedDocs))
 
-		// Could add other document types here as needed
-		p.logger.Warn("Could not unmarshal other document, skipping")
-	}
-
-	p.logger.Info("Chunked documents", "original_count", len(documentsData.ConversationDocuments)+len(documentsData.OtherDocuments), "chunked_count", len(chunkedDocs))
-
-	// Write X_1': chunked documents as JSON
-	outputFile := filepath.Join(p.config.OutputDir, "X_1'_chunked_documents.json")
+	// Write X_1: chunked documents as JSON
+	outputFile := filepath.Join(p.config.OutputDir, "X_1_chunked_documents.json")
 	chunkedData, err := json.MarshalIndent(map[string]interface{}{
 		"chunked_documents": chunkedDocs,
 		"metadata": map[string]interface{}{
 			"processed_at":   time.Now().Format(time.RFC3339),
 			"step":           "document_to_chunks",
-			"original_count": len(documentsData.ConversationDocuments) + len(documentsData.OtherDocuments),
+			"original_count": len(documents),
 			"chunked_count":  len(chunkedDocs),
 		},
 	}, "", "  ")
@@ -473,7 +334,7 @@ func (p *MemoryPipeline) stepDocumentToChunks() error {
 	return nil
 }
 
-// X_1' -> X_2: Extract facts from document chunks.
+// X_1 -> X_2: Extract facts from document chunks.
 func (p *MemoryPipeline) stepChunksToFacts(ctx context.Context) error {
 	// Ensure we have completions service for fact extraction
 	if p.config.Config.CompletionsAPIKey == "" {
@@ -487,8 +348,8 @@ func (p *MemoryPipeline) stepChunksToFacts(ctx context.Context) error {
 		p.config.Config.CompletionsAPIURL,
 	)
 
-	// Read X_1'
-	inputFile := filepath.Join(p.config.OutputDir, "X_1'_chunked_documents.json")
+	// Read X_1
+	inputFile := filepath.Join(p.config.OutputDir, "X_1_chunked_documents.json")
 	data, err := os.ReadFile(inputFile)
 	if err != nil {
 		return fmt.Errorf("failed to read chunked documents file: %w", err)
@@ -564,57 +425,11 @@ func (p *MemoryPipeline) stepChunksToFacts(ctx context.Context) error {
 	return nil
 }
 
-// LoadRecords loads records from a JSONL file.
-func LoadRecords(filePath string) ([]types.Record, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("opening file: %w", err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
-	var records []types.Record
-	scanner := bufio.NewScanner(file)
-
-	// Increase buffer size to handle large conversation records (10MB max)
-	const maxCapacity = 10 * 1024 * 1024 // 10MB
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, maxCapacity)
-
-	lineNum := 0
-
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
-		if strings.TrimSpace(line) == "" {
-			continue
-		}
-
-		var record types.Record
-		if err := json.Unmarshal([]byte(line), &record); err != nil {
-			return nil, fmt.Errorf("unmarshaling line %d: %w", lineNum, err)
-		}
-		records = append(records, record)
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("reading file: %w", err)
-	}
-
-	return records, nil
-}
-
-func convertWhatsAppToJSONL(inputFile, outputFile string, logger *log.Logger, verbose bool) error {
+// convertToDocuments is the polymorphic function that works with any processor.
+func convertToDocuments(processor DocumentProcessor, inputFile, outputFile string, logger *log.Logger, verbose bool) error {
 	// Validate input file exists
 	if _, err := os.Stat(inputFile); os.IsNotExist(err) {
 		return fmt.Errorf("input file does not exist: %s", inputFile)
-	}
-
-	// Ensure output file has .jsonl extension
-	if !strings.HasSuffix(outputFile, ".jsonl") {
-		logger.Warn("Output file should have .jsonl extension, adding it", "file", outputFile)
-		outputFile = outputFile + ".jsonl"
 	}
 
 	// Create output directory if it doesn't exist
@@ -623,46 +438,19 @@ func convertWhatsAppToJSONL(inputFile, outputFile string, logger *log.Logger, ve
 		return fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
 	}
 
-	logger.Info("Starting WhatsApp to JSONL conversion",
+	logger.Info("Starting data conversion",
 		"input", inputFile,
 		"output", outputFile)
 
-	// Process the SQLite file
 	ctx := context.Background()
 
-	// Create in-memory store for WhatsApp processor
-	store, err := db.NewStore(ctx, ":memory:")
+	// Use the ProcessFile method that returns ConversationDocuments directly
+	documents, err := processor.ProcessFile(ctx, inputFile)
 	if err != nil {
-		return fmt.Errorf("failed to create store: %w", err)
-	}
-	defer func() {
-		if err := store.Close(); err != nil {
-			logger.Error("Failed to close store", "error", err)
-		}
-	}()
-
-	// Create WhatsApp processor
-	processor, err := whatsapp.NewWhatsappProcessor(store, logger)
-	if err != nil {
-		return fmt.Errorf("failed to create WhatsApp processor: %w", err)
-	}
-	logger.Info("Reading WhatsApp database...")
-
-	records, err := processor.ProcessFile(ctx, inputFile)
-	if err != nil {
-		return fmt.Errorf("failed to process WhatsApp database: %w", err)
+		return fmt.Errorf("failed to process file: %w", err)
 	}
 
-	logger.Info("Successfully read database", "conversations", len(records))
-
-	// Call ToDocuments to convert records to memory documents
-	logger.Info("Converting records to memory documents...")
-	documents, err := processor.ToDocuments(ctx, records)
-	if err != nil {
-		return fmt.Errorf("failed to convert to documents: %w", err)
-	}
-
-	logger.Info("Successfully converted to documents", "documents", len(documents))
+	logger.Info("Successfully processed data", "conversations", len(documents))
 
 	// Print out ConversationDocument structures for inspection if verbose
 	if verbose {
@@ -676,55 +464,46 @@ func convertWhatsAppToJSONL(inputFile, outputFile string, logger *log.Logger, ve
 				break
 			}
 
-			// Type assert to ConversationDocument
-			if convDoc, ok := doc.(*memory.ConversationDocument); ok {
-				logger.Info("ConversationDocument",
-					"index", i+1,
-					"ID", convDoc.ID(),
-					"Source", convDoc.Source(),
-					"Tags", convDoc.Tags(),
-					"User", convDoc.User,
-					"People", convDoc.People,
-					"MessageCount", len(convDoc.Conversation),
-					"Metadata", convDoc.Metadata())
-			} else {
-				logger.Warn("Document is not a ConversationDocument", "index", i+1, "type", fmt.Sprintf("%T", doc))
-			}
+			logger.Info("ConversationDocument",
+				"index", i+1,
+				"ID", doc.ID(),
+				"Source", doc.Source(),
+				"Tags", doc.Tags(),
+				"User", doc.User,
+				"People", doc.People,
+				"MessageCount", len(doc.Conversation),
+				"Metadata", doc.Metadata())
 		}
 	}
 
-	// Save records to JSONL file
-	logger.Info("Writing conversations to JSONL file...")
-	if err := dataprocessing.SaveRecords(records, outputFile); err != nil {
-		return fmt.Errorf("failed to save records: %w", err)
+	// Save documents as JSON
+	logger.Info("Writing conversations to JSON file...")
+	if err := memory.ExportConversationDocumentsJSON(documents, outputFile); err != nil {
+		return fmt.Errorf("failed to save documents: %w", err)
 	}
 
 	logger.Info("Conversion completed successfully!",
 		"output", outputFile,
-		"conversations", len(records))
+		"conversations", len(documents))
 
 	// Print summary statistics
 	totalMessages := 0
 	participants := make(map[string]bool)
 
-	for _, record := range records {
-		if conversation, ok := record.Data["conversation"].([]map[string]interface{}); ok {
-			totalMessages += len(conversation)
-		}
-		if people, ok := record.Data["people"].([]string); ok {
-			for _, person := range people {
-				participants[person] = true
-			}
+	for _, doc := range documents {
+		totalMessages += len(doc.Conversation)
+		for _, person := range doc.People {
+			participants[person] = true
 		}
 	}
 
 	logger.Info("Summary statistics:",
-		"total_conversations", len(records),
+		"total_conversations", len(documents),
 		"total_messages", totalMessages,
 		"unique_participants", len(participants))
 
-	if totalMessages > 0 && len(records) > 0 {
-		avgMessagesPerConv := float64(totalMessages) / float64(len(records))
+	if totalMessages > 0 && len(documents) > 0 {
+		avgMessagesPerConv := float64(totalMessages) / float64(len(documents))
 		logger.Info("Average messages per conversation:", "average", fmt.Sprintf("%.2f", avgMessagesPerConv))
 	}
 
@@ -771,28 +550,47 @@ func runWhatsAppConversion(logger *log.Logger) {
 	}
 
 	// Output to pipeline_output with WhatsApp-specific naming
-	outputFile := "pipeline_output/X_0_whatsapp.jsonl"
+	outputFile := "pipeline_output/X_0_whatsapp.json"
 
-	// Convert WhatsApp to JSONL
-	logger.Info("🔄 Converting WhatsApp SQLite to JSONL...")
-	if err := convertWhatsAppToJSONL(inputFile, outputFile, logger, false); err != nil {
+	// Convert WhatsApp to Documents
+	logger.Info("🔄 Converting WhatsApp SQLite to ConversationDocuments...")
+
+	// Create in-memory store for WhatsApp processor
+	ctx := context.Background()
+	store, err := db.NewStore(ctx, ":memory:")
+	if err != nil {
+		logger.Error("Failed to create store", "error", err)
+		os.Exit(1)
+	}
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Failed to close store", "error", err)
+		}
+	}()
+
+	processor, err := whatsapp.NewWhatsappProcessor(store, logger)
+	if err != nil {
+		logger.Error("Failed to create WhatsApp processor", "error", err)
+		os.Exit(1)
+	}
+
+	if err := convertToDocuments(processor, inputFile, outputFile, logger, false); err != nil {
 		logger.Error("WhatsApp conversion failed", "error", err)
 		os.Exit(1)
 	}
 
 	logger.Info("✅ WhatsApp conversion completed!",
 		"output", outputFile,
-		"next_step", "Use 'make documents' to process this JSONL file")
+		"next_step", "Use 'make chunks' to process these documents")
 
 	fmt.Println()
 	fmt.Println("🎉 WhatsApp data converted successfully!")
 	fmt.Printf("📁 Output: %s\n", outputFile)
 	fmt.Println()
 	fmt.Println("Next steps:")
-	fmt.Println("  1. Review the JSONL file if needed")
-	fmt.Println("  2. Run: make documents")
-	fmt.Println("  3. Run: make chunks")
-	fmt.Println("  4. Run: make facts")
+	fmt.Println("  1. Review the JSON file if needed")
+	fmt.Println("  2. Run: make chunks")
+	fmt.Println("  3. Run: make facts")
 	fmt.Println("  Or just: make all")
 }
 
@@ -833,58 +631,17 @@ func runTelegramConversion(logger *log.Logger) {
 	}
 
 	// Output to pipeline_output with Telegram-specific naming
-	outputFile := "pipeline_output/X_0_telegram.jsonl"
+	outputFile := "pipeline_output/X_0_telegram.json"
 
-	// Convert Telegram to JSONL
-	logger.Info("🔄 Converting Telegram JSON to JSONL...")
-	if err := convertTelegramToJSONL(inputFile, outputFile, logger); err != nil {
-		logger.Error("Telegram conversion failed", "error", err)
-		os.Exit(1)
-	}
+	// Convert Telegram to Documents
+	logger.Info("🔄 Converting Telegram JSON to ConversationDocuments...")
 
-	logger.Info("✅ Telegram conversion completed!",
-		"output", outputFile,
-		"next_step", "Use 'make documents' to process this JSONL file")
-
-	fmt.Println()
-	fmt.Println("🎉 Telegram data converted successfully!")
-	fmt.Printf("📁 Output: %s\n", outputFile)
-	fmt.Println()
-	fmt.Println("Next steps:")
-	fmt.Println("  1. Review the JSONL file if needed")
-	fmt.Println("  2. Run: make documents")
-	fmt.Println("  3. Run: make chunks")
-	fmt.Println("  4. Run: make facts")
-	fmt.Println("  Or just: make all")
-}
-
-func convertTelegramToJSONL(inputFile, outputFile string, logger *log.Logger) error {
-	// Validate input file exists
-	if _, err := os.Stat(inputFile); os.IsNotExist(err) {
-		return fmt.Errorf("input file does not exist: %s", inputFile)
-	}
-
-	// Ensure output file has .jsonl extension
-	if !strings.HasSuffix(outputFile, ".jsonl") {
-		logger.Warn("Output file should have .jsonl extension, adding it", "file", outputFile)
-		outputFile = outputFile + ".jsonl"
-	}
-
-	// Create output directory if it doesn't exist
-	outputDir := filepath.Dir(outputFile)
-	if err := os.MkdirAll(outputDir, 0o755); err != nil {
-		return fmt.Errorf("failed to create output directory %s: %w", outputDir, err)
-	}
-
-	logger.Info("Starting Telegram to JSONL conversion",
-		"input", inputFile,
-		"output", outputFile)
-
-	// Create an in-memory SQLite store for testing
+	// Create in-memory store for Telegram processor
 	ctx := context.Background()
 	store, err := db.NewStore(ctx, ":memory:")
 	if err != nil {
-		return fmt.Errorf("failed to create store: %w", err)
+		logger.Error("Failed to create store", "error", err)
+		os.Exit(1)
 	}
 	defer func() {
 		if err := store.Close(); err != nil {
@@ -892,52 +649,28 @@ func convertTelegramToJSONL(inputFile, outputFile string, logger *log.Logger) er
 		}
 	}()
 
-	// Create the telegram processor
 	processor, err := telegram.NewTelegramProcessor(store, logger)
 	if err != nil {
-		return fmt.Errorf("failed to create telegram processor: %w", err)
+		logger.Error("Failed to create Telegram processor", "error", err)
+		os.Exit(1)
 	}
 
-	logger.Info("Reading Telegram export file...")
-
-	// Use the new ProcessFile method that returns ConversationDocuments directly
-	documents, err := processor.ProcessFile(ctx, inputFile)
-	if err != nil {
-		return fmt.Errorf("failed to process file: %w", err)
+	if err := convertToDocuments(processor, inputFile, outputFile, logger, false); err != nil {
+		logger.Error("Telegram conversion failed", "error", err)
+		os.Exit(1)
 	}
 
-	logger.Info("Successfully processed Telegram export", "conversations", len(documents))
-
-	// Save documents as JSON (not JSONL)
-	logger.Info("Writing conversations to JSON file...")
-	if err := memory.ExportConversationDocumentsJSON(documents, outputFile); err != nil {
-		return fmt.Errorf("failed to save documents: %w", err)
-	}
-
-	logger.Info("Conversion completed successfully!",
+	logger.Info("✅ Telegram conversion completed!",
 		"output", outputFile,
-		"conversations", len(documents))
+		"next_step", "Use 'make chunks' to process these documents")
 
-	// Print summary statistics
-	totalMessages := 0
-	participants := make(map[string]bool)
-
-	for _, doc := range documents {
-		totalMessages += len(doc.Conversation)
-		for _, person := range doc.People {
-			participants[person] = true
-		}
-	}
-
-	logger.Info("Summary statistics:",
-		"total_conversations", len(documents),
-		"total_messages", totalMessages,
-		"unique_participants", len(participants))
-
-	if totalMessages > 0 && len(documents) > 0 {
-		avgMessagesPerConv := float64(totalMessages) / float64(len(documents))
-		logger.Info("Average messages per conversation:", "average", fmt.Sprintf("%.2f", avgMessagesPerConv))
-	}
-
-	return nil
+	fmt.Println()
+	fmt.Println("🎉 Telegram data converted successfully!")
+	fmt.Printf("📁 Output: %s\n", outputFile)
+	fmt.Println()
+	fmt.Println("Next steps:")
+	fmt.Println("  1. Review the JSON file if needed")
+	fmt.Println("  2. Run: make chunks")
+	fmt.Println("  3. Run: make facts")
+	fmt.Println("  Or just: make all")
 }

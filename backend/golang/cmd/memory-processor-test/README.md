@@ -1,6 +1,6 @@
 # Memory Pipeline Tester
 
-A command-line tool for testing and debugging the **exact memory ingestion pipeline** used by the Enchanted Twin application. This tool processes **WhatsApp** and **Telegram** chat exports through the same atomic pipeline steps as production, with **pure Markov chain execution** for maximum debugging clarity.
+A command-line tool for testing and debugging the **exact memory ingestion pipeline** used by the Enchanted Twin application. This tool processes **WhatsApp** and **Telegram** chat exports through the same atomic pipeline steps as production, with **clean polymorphic execution** for maximum debugging clarity.
 
 ## Quick Start 🚀
 
@@ -15,18 +15,17 @@ A command-line tool for testing and debugging the **exact memory ingestion pipel
    cp ~/Downloads/telegram_export.json pipeline_input/
    ```
 
-2. **Convert to unified JSONL format (X_0):**
+2. **Convert to ConversationDocument (X_0):**
    ```bash
-   make whatsapp    # SQLite → X_0_whatsapp.jsonl
+   make whatsapp    # SQLite → X_0_whatsapp.json
    # OR
-   make telegram    # JSON → X_0_telegram.jsonl
+   make telegram    # JSON → X_0_telegram.json
    ```
 
 3. **Run the atomic pipeline steps:**
    ```bash
-   make documents   # X_0 → X_1 (JSONL → Documents)
-   make chunks      # X_1 → X_1' (Documents → Chunks)  
-   make facts       # X_1' → X_2 (Chunks → Facts)
+   make chunks      # X_0 → X_1 (ConversationDocument → Chunks)  
+   make facts       # X_1 → X_2 (Chunks → Facts)
    ```
 
 4. **Check results:**
@@ -35,29 +34,27 @@ A command-line tool for testing and debugging the **exact memory ingestion pipel
    ls pipeline_output/X_*
    ```
 
-**That's it!** 🎉 Pure atomic steps, no complex commands.
+**That's it!** 🎉 Clean atomic steps, no intermediate formats.
 
 ## Purpose
 
 This tool helps developers:
 - **Debug memory pipeline issues** by replicating exact production processing
-- **Inspect intermediate outputs** at each atomic stage (X_0, X_1, X_1', X_2)
+- **Inspect intermediate outputs** at each atomic stage (X_0, X_1, X_2)
 - **Test configuration changes** without affecting the main application
 - **Validate fact extraction** from personal conversation data
 - **Understand the memory workflow** through detailed logging
-- **Support multiple data sources** (WhatsApp, Telegram) through unified JSONL format
+- **Support multiple data sources** (WhatsApp, Telegram) through clean polymorphic interface
 
-## Pure Modular Architecture
+## Clean Architecture
 
-The tool implements a modular architecture where each step depends ONLY on the previous step's output:
+The tool implements a simplified architecture where each step depends ONLY on the previous step's output:
 
 ```
-WhatsApp SQLite ──make whatsapp──→ X_0_whatsapp.jsonl ┐
-                                                      ├──→ X_1_documents.json
-Telegram JSON ────make telegram──→ X_0_telegram.jsonl ┘        ↓ make documents
-                                                           X_1_documents.json
-                                                               ↓ make chunks
-                                                        X_1'_chunked_documents.json  
+WhatsApp SQLite ──make whatsapp──→ X_0_whatsapp.json ┐
+                                                     ├──→ X_1_chunked_documents.json
+Telegram JSON ────make telegram──→ X_0_telegram.json ┘        ↓ make chunks
+                                                         X_1_chunked_documents.json
                                                                ↓ make facts
                                                          X_2_extracted_facts.json
 ```
@@ -66,21 +63,19 @@ Telegram JSON ────make telegram──→ X_0_telegram.jsonl ┘        �
 
 | Step | Input | Output | Description | Command |
 |------|-------|--------|-------------|---------|
-| **WhatsApp Conversion** | SQLite DB | `X_0_whatsapp.jsonl` | Extract conversations to unified format | `make whatsapp` |
-| **Telegram Conversion** | JSON export | `X_0_telegram.jsonl` | Convert export to unified format | `make telegram` |
-| **Documents** | `X_0_*.jsonl` | `X_1_documents.json` | Parse messages, create conversation documents | `make documents` |
-| **Chunks** | `X_1_documents.json` | `X_1'_chunked_documents.json` | Split conversations into manageable chunks | `make chunks` |
-| **Facts** | `X_1'_chunked_documents.json` | `X_2_extracted_facts.json` | Extract meaningful facts using LLM | `make facts` |
+| **WhatsApp Conversion** | SQLite DB | `X_0_whatsapp.json` | Extract conversations to ConversationDocument | `make whatsapp` |
+| **Telegram Conversion** | JSON export | `X_0_telegram.json` | Convert export to ConversationDocument | `make telegram` |
+| **Chunks** | `X_0_*.json` | `X_1_chunked_documents.json` | Split conversations into manageable chunks | `make chunks` |
+| **Facts** | `X_1_chunked_documents.json` | `X_2_extracted_facts.json` | Extract meaningful facts using LLM | `make facts` |
 
 ## Makefile Commands
 
 | Command | Description | Input Required | Output |
 |---------|-------------|----------------|--------|
-| `make whatsapp` | Convert WhatsApp SQLite to X_0 | SQLite in `pipeline_input/` | `X_0_whatsapp.jsonl` |
-| `make telegram` | Convert Telegram JSON to X_0 | JSON in `pipeline_input/` | `X_0_telegram.jsonl` |
-| `make documents` | X_0 → X_1 (JSONL to documents) | `X_0_*.jsonl` | `X_1_documents.json` |
-| `make chunks` | X_1 → X_1' (documents to chunks) | `X_1_documents.json` | `X_1'_chunked_documents.json` |
-| `make facts` | X_1' → X_2 (chunks to facts) | `X_1'_chunked_documents.json` + API key | `X_2_extracted_facts.json` |
+| `make whatsapp` | Convert WhatsApp SQLite to X_0 | SQLite in `pipeline_input/` | `X_0_whatsapp.json` |
+| `make telegram` | Convert Telegram JSON to X_0 | JSON in `pipeline_input/` | `X_0_telegram.json` |
+| `make chunks` | X_0 → X_1 (documents to chunks) | `X_0_*.json` | `X_1_chunked_documents.json` |
+| `make facts` | X_1 → X_2 (chunks to facts) | `X_1_chunked_documents.json` + API key | `X_2_extracted_facts.json` |
 | `make status` | Show current pipeline state | - | Status display |
 | `make clean` | Remove all output files | - | Clean slate |
 | `make help` | Show all commands | - | Help text |
@@ -141,14 +136,13 @@ WEAVIATE_PORT=51414
 # Setup: Copy WhatsApp database
 cp ~/Downloads/whatsapp_data.sqlite pipeline_input/
 
-# Step 1: Convert to unified JSONL
+# Step 1: Convert to ConversationDocument
 make whatsapp
-# Output: X_0_whatsapp.jsonl (86 conversations, 5,351 messages)
+# Output: X_0_whatsapp.json (86 conversations, 5,351 messages)
 
-# Step 2-4: Process through pipeline  
-make documents  # X_0 → X_1
-make chunks     # X_1 → X_1'
-make facts      # X_1' → X_2
+# Step 2-3: Process through pipeline  
+make chunks     # X_0 → X_1
+make facts      # X_1 → X_2
 
 # Check results
 make status
@@ -159,14 +153,13 @@ make status
 # Setup: Copy Telegram export
 cp ~/Downloads/telegram_export.json pipeline_input/
 
-# Step 1: Convert to unified JSONL
+# Step 1: Convert to ConversationDocument
 make telegram
-# Output: X_0_telegram.jsonl (1 conversation, 1,077 messages)
+# Output: X_0_telegram.json (1 conversation, 1,077 messages)
 
-# Step 2-4: Process through pipeline
-make documents  # X_0 → X_1
-make chunks     # X_1 → X_1'  
-make facts      # X_1' → X_2
+# Step 2-3: Process through pipeline
+make chunks     # X_0 → X_1
+make facts      # X_1 → X_2
 
 # Check results
 make status
@@ -186,7 +179,6 @@ make status
 # Start completely over
 make clean
 make whatsapp
-make documents
 make chunks
 make facts
 ```
@@ -200,43 +192,27 @@ make facts
 ./memory-processor-test telegram pipeline_input/telegram_export.json
 
 # Run atomic steps directly
-./memory-processor-test --steps documents_only
 ./memory-processor-test --steps chunks_only
 ./memory-processor-test --steps facts_only
 ```
 
 ## Output Files
 
-### X_0_whatsapp.jsonl / X_0_telegram.jsonl
-**Unified JSONL format** for both data sources:
-```jsonl
-{"source":"whatsapp","conversation_id":"chat-123","participants":["User","Friend"],"messages":[...],"metadata":{...}}
-{"source":"telegram","conversation_id":"chat-456","participants":["User"],"messages":[...],"metadata":{...}}
-```
-
-### X_1_documents.json
-**Clean document objects** ready for memory processing:
+### X_0_whatsapp.json / X_0_telegram.json
+**ConversationDocument format** directly from processors:
 ```json
-{
-  "conversation_documents": [
-    {
-      "id": "whatsapp-chat-95",
-      "conversation": [...],
-      "participants": ["User", "Friend"],
-      "metadata": {...}
-    }
-  ],
-  "other_documents": [],
-  "metadata": {
-    "processed_at": "2024-06-19T11:43:39Z",
-    "step": "data_to_document",
-    "source": "whatsapp",
-    "total_documents": 1
+[
+  {
+    "id": "whatsapp-chat-95",
+    "conversation": [...],
+    "user": "User",
+    "people": ["User", "Friend"],
+    "metadata": {...}
   }
-}
+]
 ```
 
-### X_1'_chunked_documents.json  
+### X_1_chunked_documents.json  
 **Document chunks** optimized for LLM processing:
 ```json
 {
@@ -291,9 +267,8 @@ make facts
 ## What to Expect
 
 ### Typical Processing Times
-- **`make whatsapp`**: 3-5 seconds (5.9MB SQLite → 1.8KB JSONL)
-- **`make telegram`**: 2-3 seconds (708KB JSON → 224KB JSONL)
-- **`make documents`**: 1-2 seconds
+- **`make whatsapp`**: 3-5 seconds (5.9MB SQLite → 2.1KB JSON)
+- **`make telegram`**: 2-3 seconds (708KB JSON → 224KB JSON)
 - **`make chunks`**: 1-2 seconds  
 - **`make facts`**: 30-60 seconds (depends on API speed)
 
@@ -301,16 +276,14 @@ make facts
 
 **WhatsApp Processing:**
 - **Input**: 5.9MB SQLite database
-- **X_0**: 1.8KB JSONL (86 conversations, 5,351 messages, 107 participants)
-- **X_1**: 2.1KB documents JSON (1 document after filtering)
-- **X_1'**: 2.0KB chunks JSON (1 chunk)
+- **X_0**: 2.1KB ConversationDocument JSON (1 document after filtering)
+- **X_1**: 2.0KB chunks JSON (1 chunk)
 - **X_2**: 1.2KB facts JSON (2 facts extracted)
 
 **Telegram Processing:**
 - **Input**: 708KB JSON export  
-- **X_0**: 224KB JSONL (1 conversation, 1,077 messages)
-- **X_1**: Similar document structure
-- **X_1'**: Multiple chunks for large conversations
+- **X_0**: 224KB ConversationDocument JSON (1 conversation, 1,077 messages)
+- **X_1**: Multiple chunks for large conversations
 - **X_2**: 20-40 facts typically extracted
 
 ### Console Output
@@ -318,24 +291,19 @@ Clean atomic step execution:
 ```bash
 ❯ make whatsapp
 🔨 Building pipeline tool...
-📱 Converting WhatsApp SQLite to JSONL (X_0)...
+📱 Converting WhatsApp SQLite to ConversationDocument (X_0)...
 ✅ Found WhatsApp database: pipeline_input/whatsapp_data.sqlite
-✅ WhatsApp X_0 JSONL created: pipeline_output/X_0_whatsapp.jsonl
+✅ WhatsApp X_0 ConversationDocument created: pipeline_output/X_0_whatsapp.json
 
-❯ make documents  
+❯ make chunks  
 🔨 Building pipeline tool...
-📄 Converting JSONL (X_0) to documents (X_1)...
-✅ Using WhatsApp X_0 JSONL
-✅ Generated documents count=1
-
-❯ make chunks
-🔨 Building pipeline tool...
-🧩 Converting documents to chunks...
+🧩 Converting ConversationDocument to chunks (X_0 → X_1)...
+✅ Using WhatsApp X_0 ConversationDocument
 ✅ Chunked documents: 1 → 1 chunks
 
 ❯ make facts
 🔨 Building pipeline tool...
-🧠 Converting chunks to facts...
+🧠 Converting chunks to facts (X_1 → X_2)...
 ✅ Extracted facts: 1 chunks → 2 facts
 ✅ Pipeline completed successfully! 🎉
 ```
@@ -361,15 +329,14 @@ cp ~/Downloads/telegram_export.json pipeline_input/
 - Add `COMPLETIONS_API_KEY=your-key` to `backend/golang/.env`
 - Ensure the `.env` file is in the correct location (project root)
 
-#### 3. "failed to read documents file"
-**Cause**: Running steps out of order (breaking Markov condition)
+#### 3. "No X_0 ConversationDocument file found"
+**Cause**: Running steps out of order
 **Solution**: 
 ```bash
 # Run atomic steps in order
 make whatsapp    # First: create X_0
-make documents   # Second: X_0 → X_1
-make chunks      # Third: X_1 → X_1'
-make facts       # Fourth: X_1' → X_2
+make chunks      # Second: X_0 → X_1
+make facts       # Third: X_1 → X_2
 ```
 
 #### 4. "Both WhatsApp and Telegram X_0 files found"
@@ -379,7 +346,7 @@ make facts       # Fourth: X_1' → X_2
 #### 5. Empty facts extracted
 **Cause**: May be normal for some conversation types
 **Check**: 
-- Look at `X_1_documents.json` content
+- Look at `X_0_*.json` content
 - Verify conversations have meaningful content beyond contact lists
 
 ### Debug Mode
@@ -393,8 +360,8 @@ For additional debugging:
 
 2. **Inspect intermediate files**:
    ```bash
-   cat pipeline_output/X_0_whatsapp.jsonl | head -2
-   cat pipeline_output/X_1_documents.json | jq '.metadata'
+   cat pipeline_output/X_0_whatsapp.json | head -20
+   cat pipeline_output/X_1_chunked_documents.json | jq '.metadata'
    cat pipeline_output/X_2_extracted_facts.json | jq '.facts | length'
    ```
 
@@ -408,8 +375,8 @@ For additional debugging:
    ```bash
    make clean
    make whatsapp
-   make documents
-   # etc.
+   make chunks
+   make facts
    ```
 
 ## Data Source Setup
@@ -432,11 +399,11 @@ For additional debugging:
 This tool uses the **exact same code paths** as production:
 - `whatsapp.NewWhatsAppProcessor()` - Same WhatsApp parsing
 - `telegram.NewTelegramProcessor()` - Same Telegram parsing  
-- `processor.ToDocuments()` - Same document conversion
+- `processor.ProcessFile()` - Same direct ConversationDocument conversion
 - `doc.Chunk()` - Same chunking algorithm
 - `evolvingmemory.ExtractFactsFromDocument()` - Same fact extraction
 
-**Pure Markov Property**: Each step reads ONLY from the previous step's output file, ensuring mathematical purity and debugging clarity.
+**Clean Pipeline**: Each step reads ONLY from the previous step's output file, ensuring mathematical purity and debugging clarity.
 
 ## API Costs
 
@@ -456,4 +423,4 @@ This tool uses the **exact same code paths** as production:
 
 ---
 
-**Happy debugging!** 🚀 This tool provides mathematically pure atomic step execution for understanding and debugging the memory pipeline with real user data. 
+**Happy debugging!** 🚀 This tool provides clean atomic step execution for understanding and debugging the memory pipeline with real user data. 

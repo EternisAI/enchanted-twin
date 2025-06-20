@@ -1,12 +1,13 @@
 # Telegram & WhatsApp Memory Pipeline Makefile
 # 
+# Simplified Pipeline: Raw → ConversationDocument (X_0) → Chunks (X_1) → Facts (X_2)
+#
 # Usage:
-#   make whatsapp   - Convert WhatsApp SQLite to JSONL (X_0)
-#   make telegram   - Convert Telegram JSON to JSONL (X_0)
-#   make documents  - Convert JSONL (X_0) to documents (X_1)
-#   make chunks     - Convert documents (X_1) to chunks (X_1')  
-#   make facts      - Convert chunks (X_1') to facts (X_2)
-#   make all        - Run complete pipeline (X_0 → X_2)
+#   make whatsapp   - Convert WhatsApp SQLite to ConversationDocument (X_0)
+#   make telegram   - Convert Telegram JSON to ConversationDocument (X_0)
+#   make chunks     - Convert ConversationDocument (X_0) to chunks (X_1)  
+#   make facts      - Convert chunks (X_1) to facts (X_2)
+#   make all        - Run complete pipeline (Raw → X_2)
 #   make clean      - Remove all output files
 #   make build      - Build the pipeline tool
 
@@ -19,9 +20,9 @@ build:
 	@echo "🔨 Building pipeline tool..."
 	go build -o $(TOOL_NAME) .
 
-# Convert WhatsApp SQLite database to JSONL (X_0)
+# Convert WhatsApp SQLite database to ConversationDocument (X_0)
 whatsapp:
-	@echo "📱 Converting WhatsApp SQLite to JSONL (X_0)..."
+	@echo "📱 Converting WhatsApp SQLite to ConversationDocument (X_0)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@if [ ! -f "$(INPUT_DIR)"/*.sqlite ] && [ ! -f "$(INPUT_DIR)"/*.db ]; then \
 		echo "❌ No SQLite database found in $(INPUT_DIR)/"; \
@@ -32,12 +33,12 @@ whatsapp:
 	if [ -n "$$SQLITE_FILE" ]; then \
 		echo "✅ Found WhatsApp database: $$SQLITE_FILE"; \
 		go run . whatsapp "$$SQLITE_FILE"; \
-		echo "✅ WhatsApp X_0 JSONL created: $(OUTPUT_DIR)/X_0_whatsapp.jsonl"; \
+		echo "✅ WhatsApp X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_whatsapp.json"; \
 	fi
 
-# Convert Telegram JSON export to JSONL (X_0)
+# Convert Telegram JSON export to ConversationDocument (X_0)
 telegram:
-	@echo "📱 Converting Telegram JSON to JSONL (X_0)..."
+	@echo "📱 Converting Telegram JSON to ConversationDocument (X_0)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@if [ ! -f "$(INPUT_DIR)"/*.json ]; then \
 		echo "❌ No JSON export found in $(INPUT_DIR)/"; \
@@ -48,44 +49,35 @@ telegram:
 	if [ -n "$$JSON_FILE" ]; then \
 		echo "✅ Found Telegram export: $$JSON_FILE"; \
 		go run . telegram "$$JSON_FILE"; \
-		echo "✅ Telegram X_0 JSONL created: $(OUTPUT_DIR)/X_0_telegram.jsonl"; \
+		echo "✅ Telegram X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_telegram.json"; \
 	fi
 
-# Convert JSONL (X_0) to documents (X_1)
-documents:
-	@echo "📄 Converting JSONL (X_0) to documents (X_1)..."
-	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
-	# Auto-detect which X_0 JSONL file to use
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.jsonl" ] && [ -f "$(OUTPUT_DIR)/X_0_telegram.jsonl" ]; then \
-		echo "⚠️  Both WhatsApp and Telegram X_0 files found. Using most recent..."; \
-		JSONL_FILE=$$(ls -t $(OUTPUT_DIR)/X_0_*.jsonl | head -1); \
-		echo "✅ Using: $$JSONL_FILE"; \
-		go run . --input "$$JSONL_FILE" --steps documents_only; \
-	elif [ -f "$(OUTPUT_DIR)/X_0_whatsapp.jsonl" ]; then \
-		echo "✅ Using WhatsApp X_0 JSONL"; \
-		go run . --input "$(OUTPUT_DIR)/X_0_whatsapp.jsonl" --steps documents_only; \
-	elif [ -f "$(OUTPUT_DIR)/X_0_telegram.jsonl" ]; then \
-		echo "✅ Using Telegram X_0 JSONL"; \
-		go run . --input "$(OUTPUT_DIR)/X_0_telegram.jsonl" --steps documents_only; \
-	else \
-		echo "❌ No X_0 JSONL file found. Run 'make whatsapp' or 'make telegram' first."; \
-		exit 1; \
-	fi
-
-# Convert documents to chunks (X_1 → X_1')
+# Convert ConversationDocument to chunks (X_0 → X_1)
 chunks:
-	@echo "🧩 Converting documents to chunks..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_1_documents.json" ]; then \
-		echo "❌ X_1_documents.json not found. Run 'make documents' first."; \
+	@echo "🧩 Converting ConversationDocument to chunks (X_0 → X_1)..."
+	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+	# Auto-detect which X_0 file to use
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] && [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
+		echo "⚠️  Both WhatsApp and Telegram X_0 files found. Using most recent..."; \
+		JSON_FILE=$$(ls -t $(OUTPUT_DIR)/X_0_*.json | head -1); \
+		echo "✅ Using: $$JSON_FILE"; \
+		go run . --input "$$JSON_FILE" --steps chunks_only; \
+	elif [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ]; then \
+		echo "✅ Using WhatsApp X_0 ConversationDocument"; \
+		go run . --input "$(OUTPUT_DIR)/X_0_whatsapp.json" --steps chunks_only; \
+	elif [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
+		echo "✅ Using Telegram X_0 ConversationDocument"; \
+		go run . --input "$(OUTPUT_DIR)/X_0_telegram.json" --steps chunks_only; \
+	else \
+		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp' or 'make telegram' first."; \
 		exit 1; \
 	fi
-	go run . --steps chunks_only
 
-# Convert chunks to facts (X_1' → X_2)
+# Convert chunks to facts (X_1 → X_2)
 facts:
-	@echo "🧠 Converting chunks to facts..."
-	@if [ ! -f "$(OUTPUT_DIR)/X_1'_chunked_documents.json" ]; then \
-		echo "❌ X_1'_chunked_documents.json not found. Run 'make chunks' first."; \
+	@echo "🧠 Converting chunks to facts (X_1 → X_2)..."
+	@if [ ! -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then \
+		echo "❌ X_1_chunked_documents.json not found. Run 'make chunks' first."; \
 		exit 1; \
 	fi
 	go run . --steps facts_only
@@ -96,8 +88,8 @@ all:
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@echo "🔍 Auto-detecting data source..."
 	@# Check for existing X_0 files first
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.jsonl" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.jsonl" ]; then \
-		echo "✅ Found existing X_0 JSONL files, proceeding with pipeline..."; \
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
+		echo "✅ Found existing X_0 ConversationDocument files, proceeding with pipeline..."; \
 	else \
 		echo "📱 Looking for raw data sources..."; \
 		HAS_WHATSAPP=false; \
@@ -130,7 +122,6 @@ all:
 		fi; \
 	fi
 	@echo "🔄 Running pipeline steps..."
-	$(MAKE) documents
 	$(MAKE) chunks  
 	$(MAKE) facts
 	@echo "🎉 Complete pipeline finished! Check $(OUTPUT_DIR)/ for results."
@@ -150,46 +141,42 @@ status:
 	@echo "Output files (pipeline_output/):"
 	@ls -la $(OUTPUT_DIR)/ 2>/dev/null || echo "  (no output files)"
 	@echo
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.jsonl" ]; then echo "✅ WhatsApp X_0 ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_0_telegram.jsonl" ]; then echo "✅ Telegram X_0 ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_1_documents.json" ]; then echo "✅ X_1 documents ready"; fi
-	@if [ -f "$(OUTPUT_DIR)/X_1'_chunked_documents.json" ]; then echo "✅ X_1' chunks ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ]; then echo "✅ WhatsApp X_0 ConversationDocument ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then echo "✅ Telegram X_0 ConversationDocument ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then echo "✅ X_2 facts ready"; fi
 
 # Help
 help:
-	@echo "Pure Atomic Memory Pipeline Commands:"
+	@echo "Simplified Memory Pipeline Commands:"
 	@echo
-	@echo "📱 Data Conversion (Raw → X_0 JSONL):"
-	@echo "  make whatsapp   - Convert WhatsApp SQLite to X_0 JSONL"
-	@echo "  make telegram   - Convert Telegram JSON to X_0 JSONL"
+	@echo "📱 Data Conversion (Raw → X_0 ConversationDocument):"
+	@echo "  make whatsapp   - Convert WhatsApp SQLite to X_0 ConversationDocument"
+	@echo "  make telegram   - Convert Telegram JSON to X_0 ConversationDocument"
 	@echo
 	@echo "🧠 Atomic Memory Pipeline (X_i → X_{i+1}):"
-	@echo "  make documents  - X_0 JSONL → X_1 documents"
-	@echo "  make chunks     - X_1 documents → X_1' chunks"
-	@echo "  make facts      - X_1' chunks → X_2 facts"
+	@echo "  make chunks     - X_0 ConversationDocument → X_1 chunks"
+	@echo "  make facts      - X_1 chunks → X_2 facts"
 	@echo
 	@echo "⚡ Utilities:"
-	@echo "  make all        - Auto-detect data source and run complete pipeline (X_0 → X_2)"
+	@echo "  make all        - Auto-detect data source and run complete pipeline (Raw → X_2)"
 	@echo "  make build      - Build the tool"
 	@echo "  make clean      - Remove output files"
 	@echo "  make status     - Show current pipeline state"
 	@echo "  make help       - Show this help"
 	@echo
-	@echo "📋 Pure Atomic Workflow:"
+	@echo "📋 Simplified Workflow:"
 	@echo
 	@echo "For WhatsApp:"
-	@echo "  make whatsapp   # SQLite → X_0"
-	@echo "  make documents  # X_0 → X_1"
-	@echo "  make chunks     # X_1 → X_1'"
-	@echo "  make facts      # X_1' → X_2"
+	@echo "  make whatsapp   # SQLite → X_0 ConversationDocument"
+	@echo "  make chunks     # X_0 → X_1 chunks"
+	@echo "  make facts      # X_1 → X_2 facts"
 	@echo
 	@echo "For Telegram:"
-	@echo "  make telegram   # JSON → X_0"  
-	@echo "  make documents  # X_0 → X_1"
-	@echo "  make chunks     # X_1 → X_1'"
-	@echo "  make facts      # X_1' → X_2"
+	@echo "  make telegram   # JSON → X_0 ConversationDocument"  
+	@echo "  make chunks     # X_0 → X_1 chunks"
+	@echo "  make facts      # X_1 → X_2 facts"
 	@echo
-	@echo "🔥 Pure Markov Chain - Each step depends ONLY on previous step!"
+	@echo "🔥 Clean Pipeline - No intermediate JSONL step!"
 
-.PHONY: build whatsapp telegram documents chunks facts all clean status help 
+.PHONY: build whatsapp telegram chunks facts all clean status help 
