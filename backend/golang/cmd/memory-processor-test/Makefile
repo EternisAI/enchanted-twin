@@ -56,18 +56,10 @@ telegram:
 chunks:
 	@echo "🧩 Converting ConversationDocument to chunks (X_0 → X_1)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
-	# Auto-detect which X_0 file to use
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] && [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
-		echo "⚠️  Both WhatsApp and Telegram X_0 files found. Using most recent..."; \
-		JSON_FILE=$$(ls -t $(OUTPUT_DIR)/X_0_*.json | head -1); \
-		echo "✅ Using: $$JSON_FILE"; \
-		go run . --input "$$JSON_FILE" --steps chunks_only; \
-	elif [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ]; then \
-		echo "✅ Using WhatsApp X_0 ConversationDocument"; \
-		go run . --input "$(OUTPUT_DIR)/X_0_whatsapp.json" --steps chunks_only; \
-	elif [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
-		echo "✅ Using Telegram X_0 ConversationDocument"; \
-		go run . --input "$(OUTPUT_DIR)/X_0_telegram.json" --steps chunks_only; \
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
+		echo "✅ Auto-detecting X_0 ConversationDocument..."; \
+		go run . --steps chunks_only; \
+		echo "✅ X_1 chunks created: $(OUTPUT_DIR)/X_1_chunked_documents.json"; \
 	else \
 		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp' or 'make telegram' first."; \
 		exit 1; \
@@ -80,7 +72,8 @@ facts:
 		echo "❌ X_1_chunked_documents.json not found. Run 'make chunks' first."; \
 		exit 1; \
 	fi
-	go run . --steps facts_only
+	@go run . --steps facts_only
+	@echo "✅ X_2 facts created: $(OUTPUT_DIR)/X_2_extracted_facts.json"
 
 # Run complete pipeline - auto-detects data source
 all:

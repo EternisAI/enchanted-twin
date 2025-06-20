@@ -185,11 +185,11 @@ make facts
 
 ### 4. Advanced: CLI Direct Usage
 ```bash
-# Convert WhatsApp directly
-./memory-processor-test whatsapp pipeline_input/whatsapp_data.sqlite
+# Convert WhatsApp directly (auto-detects from pipeline_input/)
+./memory-processor-test whatsapp
 
-# Convert Telegram directly  
-./memory-processor-test telegram pipeline_input/telegram_export.json
+# Convert Telegram directly (auto-detects from pipeline_input/)
+./memory-processor-test telegram
 
 # Run atomic steps directly
 ./memory-processor-test --steps chunks_only
@@ -267,9 +267,9 @@ make facts
 ## What to Expect
 
 ### Typical Processing Times
-- **`make whatsapp`**: 3-5 seconds (5.9MB SQLite → 2.1KB JSON)
-- **`make telegram`**: 2-3 seconds (708KB JSON → 224KB JSON)
-- **`make chunks`**: 1-2 seconds  
+- **`make whatsapp`**: 3-5 seconds (auto-detects SQLite files)
+- **`make telegram`**: 2-3 seconds (auto-detects JSON files)
+- **`make chunks`**: 1-2 seconds (auto-detects X_0 files)
 - **`make facts`**: 30-60 seconds (depends on API speed)
 
 ### Typical Data Volumes
