@@ -410,13 +410,6 @@ func (s *TextDocumentProcessor) ProcessFile(ctx context.Context, filePath string
 	return records, nil
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func (s *TextDocumentProcessor) ProcessDirectory(ctx context.Context, inputPath string) ([]types.Record, error) {
 	var allRecords []types.Record
 

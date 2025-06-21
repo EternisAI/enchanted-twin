@@ -460,13 +460,6 @@ func TestProcessRealTelegramExport(t *testing.T) {
 	}
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 func TestToDocumentsEndToEnd(t *testing.T) {
 	dbFile, err := os.CreateTemp("", "test_*.db")
 	if err != nil {
