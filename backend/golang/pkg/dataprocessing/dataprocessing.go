@@ -372,14 +372,20 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 		}
 		return true, nil
 	case "chatgpt":
-		chatgptProcessor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
+		processor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = chatgptProcessor.ProcessDirectory(ctx, inputPath)
+		// ChatGPT uses the new direct approach - skip the records step
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		// For now, save as JSON instead of records
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "misc":
 		source, err := misc.NewTextDocumentProcessor(s.openAiService, s.completionsModel, s.store, s.logger)
 		if err != nil {
@@ -407,14 +413,8 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 	sourceType = strings.ToLower(sourceType)
 	switch sourceType {
 	case "chatgpt":
-		chatgptProcessor, err := chatgpt.NewChatGPTProcessor(s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = chatgptProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+		// ChatGPT no longer supports ToDocuments - use direct ProcessFile interface instead
+		return nil, fmt.Errorf("ChatGPT processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	case "telegram":
 		telegramProcessor, err := telegram.NewTelegramProcessor(s.store, s.logger)
 		if err != nil {

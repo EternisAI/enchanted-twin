@@ -52,16 +52,32 @@ telegram:
 		echo "✅ Telegram X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_telegram.json"; \
 	fi
 
+# Convert ChatGPT JSON export to ConversationDocument (X_0)
+chatgpt:
+	@echo "🤖 Converting ChatGPT JSON to ConversationDocument (X_0)..."
+	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+	@if [ ! -f "$(INPUT_DIR)"/conversations.json ] && [ ! -f "$(INPUT_DIR)"/*.json ]; then \
+		echo "❌ No ChatGPT conversations.json found in $(INPUT_DIR)/"; \
+		echo "💡 Place your ChatGPT conversations.json file in $(INPUT_DIR)/"; \
+		exit 1; \
+	fi
+	@JSON_FILE=$$(ls $(INPUT_DIR)/conversations.json $(INPUT_DIR)/*.json 2>/dev/null | head -1); \
+	if [ -n "$$JSON_FILE" ]; then \
+		echo "✅ Found ChatGPT export: $$JSON_FILE"; \
+		go run . chatgpt "$$JSON_FILE"; \
+		echo "✅ ChatGPT X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_chatgpt.json"; \
+	fi
+
 # Convert ConversationDocument to chunks (X_0 → X_1)
 chunks:
 	@echo "🧩 Converting ConversationDocument to chunks (X_0 → X_1)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ]; then \
 		echo "✅ Auto-detecting X_0 ConversationDocument..."; \
 		go run . chunks; \
 		echo "✅ X_1 chunks created: $(OUTPUT_DIR)/X_1_chunked_documents.json"; \
 	else \
-		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp' or 'make telegram' first."; \
+		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp', 'make telegram', or 'make chatgpt' first."; \
 		exit 1; \
 	fi
 
@@ -81,7 +97,7 @@ all:
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@echo "🔍 Auto-detecting data source..."
 	@# Check for existing X_0 files first
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ]; then \
 		echo "✅ Found existing X_0 ConversationDocument files, proceeding with pipeline..."; \
 	else \
 		echo "📱 Looking for raw data sources..."; \
@@ -136,6 +152,7 @@ status:
 	@echo
 	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ]; then echo "✅ WhatsApp X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then echo "✅ Telegram X_0 ConversationDocument ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ]; then echo "✅ ChatGPT X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then echo "✅ X_2 facts ready"; fi
 
@@ -146,6 +163,7 @@ help:
 	@echo "📱 Data Conversion (Raw → X_0 ConversationDocument):"
 	@echo "  make whatsapp   - Convert WhatsApp SQLite to X_0 ConversationDocument"
 	@echo "  make telegram   - Convert Telegram JSON to X_0 ConversationDocument"
+	@echo "  make chatgpt    - Convert ChatGPT JSON to X_0 ConversationDocument"
 	@echo
 	@echo "🧠 Atomic Memory Pipeline (X_i → X_{i+1}):"
 	@echo "  make chunks     - X_0 ConversationDocument → X_1 chunks"
@@ -170,6 +188,11 @@ help:
 	@echo "  make chunks     # X_0 → X_1 chunks"
 	@echo "  make facts      # X_1 → X_2 facts"
 	@echo
+	@echo "For ChatGPT:"
+	@echo "  make chatgpt    # JSON → X_0 ConversationDocument"
+	@echo "  make chunks     # X_0 → X_1 chunks"
+	@echo "  make facts      # X_1 → X_2 facts"
+	@echo
 	@echo "🔥 Clean Pipeline - No intermediate JSONL step!"
 
-.PHONY: build whatsapp telegram chunks facts all clean status help 
+.PHONY: build whatsapp telegram chatgpt chunks facts all clean status help 

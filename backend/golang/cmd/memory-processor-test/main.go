@@ -15,6 +15,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -37,6 +38,8 @@ func main() {
 		runWhatsApp()
 	case "telegram":
 		runTelegram()
+	case "chatgpt":
+		runChatGPT()
 	case "chunks":
 		runChunks()
 	case "facts":
@@ -107,7 +110,10 @@ func findX0File() string {
 	if f := findInputFile("pipeline_output/X_0_whatsapp.json"); f != "" {
 		return f
 	}
-	return findInputFile("pipeline_output/X_0_telegram.json")
+	if f := findInputFile("pipeline_output/X_0_telegram.json"); f != "" {
+		return f
+	}
+	return findInputFile("pipeline_output/X_0_chatgpt.json")
 }
 
 func saveJSON(data interface{}, filename string) error {
@@ -148,6 +154,17 @@ func runTelegram() {
 		"pipeline_output/X_0_telegram.json",
 		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
 			return telegram.NewTelegramProcessor(store, logger)
+		},
+	)
+}
+
+func runChatGPT() {
+	runDataProcessor(
+		"ChatGPT",
+		[]string{"pipeline_input/*.json", "pipeline_input/conversations.json"},
+		"pipeline_output/X_0_chatgpt.json",
+		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
+			return chatgpt.NewChatGPTProcessor(store, logger)
 		},
 	)
 }
@@ -277,12 +294,14 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  memory-processor-test whatsapp")
 	fmt.Println("  memory-processor-test telegram")
+	fmt.Println("  memory-processor-test chatgpt")
 	fmt.Println("  memory-processor-test chunks")
 	fmt.Println("  memory-processor-test facts")
 	fmt.Println()
 	fmt.Println("Or use make commands:")
-	fmt.Println("  make whatsapp  # Convert WhatsApp SQLite")
-	fmt.Println("  make telegram  # Convert Telegram JSON")
-	fmt.Println("  make chunks    # X_0 → X_1")
-	fmt.Println("  make facts     # X_1 → X_2")
+	fmt.Println("  make whatsapp # Convert WhatsApp SQLite")
+	fmt.Println("  make telegram # Convert Telegram JSON")
+	fmt.Println("  make chatgpt  # Convert ChatGPT JSON")
+	fmt.Println("  make chunks   # X_0 → X_1")
+	fmt.Println("  make facts    # X_1 → X_2")
 }
