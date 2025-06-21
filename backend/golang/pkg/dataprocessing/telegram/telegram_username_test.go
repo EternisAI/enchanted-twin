@@ -111,8 +111,8 @@ func TestUsernameExtraction(t *testing.T) {
 		t.Fatalf("ProcessFileWithStore failed: %v", err)
 	}
 
-	if len(records) != 2 {
-		t.Errorf("Expected 2 records, got %d", len(records))
+	if len(records) != 1 {
+		t.Errorf("Expected 1 conversation document, got %d", len(records))
 	}
 
 	sourceUsername, err := store.GetSourceUsername(ctx, "telegram")
