@@ -38,13 +38,6 @@ func (s *WhatsappProcessor) Name() string {
 	return "whatsapp"
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // convertWhatsAppTimestamp tries multiple timestamp conversion strategies.
 func convertWhatsAppTimestamp(rawTimestamp interface{}) time.Time {
 	var timestampFloat float64

@@ -14,6 +14,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory"
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -43,6 +44,54 @@ func main() {
 	default:
 		printUsage()
 	}
+}
+
+// Polymorphic data processor - eliminates duplication.
+func runDataProcessor(name string, filePatterns []string, outputFile string, processorFactory func(*db.Store) (dataprocessing.DocumentProcessor, error)) {
+	// Find input file
+	var inputFile string
+	for _, pattern := range filePatterns {
+		if file := findInputFile(pattern); file != "" {
+			inputFile = file
+			break
+		}
+	}
+	if inputFile == "" {
+		logger.Error("No input file found", "name", name, "patterns", filePatterns)
+		os.Exit(1)
+	}
+
+	logger.Info("Converting data", "name", name, "file", inputFile)
+
+	// Create processor
+	ctx := context.Background()
+	store, _ := db.NewStore(ctx, ":memory:")
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Failed to close store", "error", err)
+		}
+	}()
+
+	processor, err := processorFactory(store)
+	if err != nil {
+		logger.Error("Failed to create processor", "error", err)
+		os.Exit(1)
+	}
+
+	// Process file
+	documents, err := processor.ProcessFile(ctx, inputFile)
+	if err != nil {
+		logger.Error("Processing failed", "error", err)
+		os.Exit(1)
+	}
+
+	// Save output
+	if err := saveJSON(documents, outputFile); err != nil {
+		logger.Error("Save failed", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("Conversion done", "name", name, "documents", len(documents))
 }
 
 // Shared file utilities.
@@ -80,82 +129,27 @@ func loadJSON(filename string, target interface{}) error {
 	return json.Unmarshal(data, target)
 }
 
-// Data source processors.
+// Data source processors using polymorphic function.
 func runWhatsApp() {
-	inputFile := findInputFile("pipeline_input/*.sqlite")
-	if inputFile == "" {
-		inputFile = findInputFile("pipeline_input/*.db")
-	}
-	if inputFile == "" {
-		logger.Error("No SQLite file found in pipeline_input/")
-		os.Exit(1)
-	}
-
-	logger.Info("Converting WhatsApp", "file", inputFile)
-
-	ctx := context.Background()
-	store, _ := db.NewStore(ctx, ":memory:")
-	defer func() {
-		if err := store.Close(); err != nil {
-			logger.Error("Failed to close store", "error", err)
-		}
-	}()
-
-	processor, err := whatsapp.NewWhatsappProcessor(store, logger)
-	if err != nil {
-		logger.Error("Failed to create processor", "error", err)
-		os.Exit(1)
-	}
-
-	documents, err := processor.ProcessFile(ctx, inputFile)
-	if err != nil {
-		logger.Error("Processing failed", "error", err)
-		os.Exit(1)
-	}
-
-	if err := saveJSON(documents, "pipeline_output/X_0_whatsapp.json"); err != nil {
-		logger.Error("Save failed", "error", err)
-		os.Exit(1)
-	}
-
-	logger.Info("WhatsApp conversion done", "documents", len(documents))
+	runDataProcessor(
+		"WhatsApp",
+		[]string{"pipeline_input/*.sqlite", "pipeline_input/*.db"},
+		"pipeline_output/X_0_whatsapp.json",
+		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
+			return whatsapp.NewWhatsappProcessor(store, logger)
+		},
+	)
 }
 
 func runTelegram() {
-	inputFile := findInputFile("pipeline_input/*.json")
-	if inputFile == "" {
-		logger.Error("No JSON file found in pipeline_input/")
-		os.Exit(1)
-	}
-
-	logger.Info("Converting Telegram", "file", inputFile)
-
-	ctx := context.Background()
-	store, _ := db.NewStore(ctx, ":memory:")
-	defer func() {
-		if err := store.Close(); err != nil {
-			logger.Error("Failed to close store", "error", err)
-		}
-	}()
-
-	processor, err := telegram.NewTelegramProcessor(store, logger)
-	if err != nil {
-		logger.Error("Failed to create processor", "error", err)
-		os.Exit(1)
-	}
-
-	documents, err := processor.ProcessFile(ctx, inputFile)
-	if err != nil {
-		logger.Error("Processing failed", "error", err)
-		os.Exit(1)
-	}
-
-	if err := saveJSON(documents, "pipeline_output/X_0_telegram.json"); err != nil {
-		logger.Error("Save failed", "error", err)
-		os.Exit(1)
-	}
-
-	logger.Info("Telegram conversion done", "documents", len(documents))
+	runDataProcessor(
+		"Telegram",
+		[]string{"pipeline_input/*.json"},
+		"pipeline_output/X_0_telegram.json",
+		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
+			return telegram.NewTelegramProcessor(store, logger)
+		},
+	)
 }
 
 // Pipeline steps.
