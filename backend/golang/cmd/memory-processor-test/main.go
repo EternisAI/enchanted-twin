@@ -36,12 +36,10 @@ func main() {
 		runWhatsApp()
 	case "telegram":
 		runTelegram()
-	case "--steps":
-		if len(os.Args) < 3 {
-			logger.Error("--steps requires a value")
-			os.Exit(1)
-		}
-		runStep(os.Args[2])
+	case "chunks":
+		runChunks()
+	case "facts":
+		runFacts()
 	default:
 		printUsage()
 	}
@@ -161,18 +159,6 @@ func runTelegram() {
 }
 
 // Pipeline steps.
-func runStep(step string) {
-	switch step {
-	case "chunks_only":
-		runChunks()
-	case "facts_only":
-		runFacts()
-	default:
-		logger.Error("Unknown step", "step", step)
-		os.Exit(1)
-	}
-}
-
 func runChunks() {
 	inputFile := findX0File()
 	if inputFile == "" {
@@ -297,8 +283,8 @@ func printUsage() {
 	fmt.Println("Usage:")
 	fmt.Println("  memory-processor-test whatsapp")
 	fmt.Println("  memory-processor-test telegram")
-	fmt.Println("  memory-processor-test --steps chunks_only")
-	fmt.Println("  memory-processor-test --steps facts_only")
+	fmt.Println("  memory-processor-test chunks")
+	fmt.Println("  memory-processor-test facts")
 	fmt.Println()
 	fmt.Println("Or use make commands:")
 	fmt.Println("  make whatsapp  # Convert WhatsApp SQLite")
