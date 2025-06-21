@@ -192,8 +192,8 @@ make facts
 ./memory-processor-test telegram
 
 # Run atomic steps directly
-./memory-processor-test --steps chunks_only
-./memory-processor-test --steps facts_only
+./memory-processor-test chunks
+./memory-processor-test facts
 ```
 
 ## Output Files
@@ -403,7 +403,7 @@ This tool uses the **exact same code paths** as production:
 - `doc.Chunk()` - Same chunking algorithm
 - `evolvingmemory.ExtractFactsFromDocument()` - Same fact extraction
 
-**Clean Pipeline**: Each step reads ONLY from the previous step's output file, ensuring mathematical purity and debugging clarity.
+**Clean Pipeline**: Each step auto-detects input files and reads ONLY from the previous step's output, ensuring mathematical purity and debugging clarity.
 
 ## API Costs
 

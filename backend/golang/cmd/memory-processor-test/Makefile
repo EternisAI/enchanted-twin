@@ -58,7 +58,7 @@ chunks:
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then \
 		echo "✅ Auto-detecting X_0 ConversationDocument..."; \
-		go run . --steps chunks_only; \
+		go run . chunks; \
 		echo "✅ X_1 chunks created: $(OUTPUT_DIR)/X_1_chunked_documents.json"; \
 	else \
 		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp' or 'make telegram' first."; \
@@ -72,7 +72,7 @@ facts:
 		echo "❌ X_1_chunked_documents.json not found. Run 'make chunks' first."; \
 		exit 1; \
 	fi
-	@go run . --steps facts_only
+	@go run . facts
 	@echo "✅ X_2 facts created: $(OUTPUT_DIR)/X_2_extracted_facts.json"
 
 # Run complete pipeline - auto-detects data source
