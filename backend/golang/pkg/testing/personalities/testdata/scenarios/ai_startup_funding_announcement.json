@@ -1,0 +1,89 @@
+{
+  "name": "ai_startup_funding_announcement",
+  "description": "Major AI startup funding round that should appeal to multiple extension combinations",
+  "thread_data": {
+    "title": "Anthropic Raises $2B Series D Led by Sequoia, Google",
+    "content": "AI safety startup Anthropic has closed a massive $2B Series D funding round led by Sequoia Capital and Google Ventures. The company plans to use the funding to accelerate development of Constitutional AI systems and expand their enterprise offerings. This brings Anthropic's total funding to $7.3B with a valuation of $25B, making it one of the most valuable AI startups globally.",
+    "author_name": "tech_insider",
+    "author_alias": "TechCrunch",
+    "image_urls": ["https://example.com/anthropic-funding.jpg"],
+    "messages": [
+      {
+        "author_name": "vc_partner",
+        "author_alias": "Sarah Kim",
+        "content": "Incredible valuation jump! The AI safety angle is compelling but that's a lot of capital for a pre-revenue company. Market dynamics are wild right now.",
+        "created_at": "2025-01-20T11:15:00Z"
+      },
+      {
+        "author_name": "ai_researcher",
+        "author_alias": "Dr. Alex Chen",
+        "content": "Constitutional AI is fascinating from a research perspective. The technical approach could be game-changing for enterprise adoption.",
+        "created_at": "2025-01-20T11:18:00Z"
+      },
+      {
+        "author_name": "startup_founder",
+        "author_alias": "Mike Rodriguez",
+        "content": "This sets a new benchmark for AI startup valuations. Wonder how this affects Series A/B rounds for smaller AI companies.",
+        "created_at": "2025-01-20T11:20:00Z"
+      }
+    ],
+    "created_at": "2025-01-20T11:10:00Z"
+  },
+  "context": {
+    "domain": "startup_funding",
+    "technical_level": "high",
+    "business_relevance": "very_high",
+    "funding_stage": "series_d",
+    "industry": "artificial_intelligence"
+  },
+  "personality_expectations": [
+    {
+      "personality_name": "tech_entrepreneur",
+      "should_show": true,
+      "confidence": 0.85,
+      "reason_keywords": ["funding", "startup", "AI", "business opportunity"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Tech entrepreneurs are highly interested in major funding announcements"
+    },
+    {
+      "personality_name": "tech_entrepreneur",
+      "extension_names": ["ai_research_focused"],
+      "should_show": true,
+      "confidence": 0.90,
+      "reason_keywords": ["AI", "research", "Constitutional AI", "technical advancement"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "AI research focused entrepreneurs care about both funding and technical innovation"
+    },
+    {
+      "personality_name": "tech_entrepreneur", 
+      "extension_names": ["startup_ecosystem_focused"],
+      "should_show": true,
+      "confidence": 0.95,
+      "reason_keywords": ["funding", "valuation", "market dynamics", "Series D"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Startup ecosystem focused entrepreneurs are very interested in major funding rounds"
+    },
+    {
+      "personality_name": "tech_entrepreneur",
+      "extension_names": ["ai_research_focused", "startup_ecosystem_focused"],
+      "should_show": true,
+      "confidence": 0.98,
+      "reason_keywords": ["AI research", "funding", "Constitutional AI", "valuation", "enterprise"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Combination of AI research and startup ecosystem focus creates maximum interest in AI startup funding"
+    },
+    {
+      "personality_name": "creative_artist",
+      "should_show": true,
+      "confidence": 0.60,
+      "reason_keywords": ["AI", "technology", "potential impact"],
+      "expected_state": "visible",
+      "priority": 2,
+      "rationale": "Creative artists have moderate interest in AI developments that might affect their field"
+    }
+  ]
+}

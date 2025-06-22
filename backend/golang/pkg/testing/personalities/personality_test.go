@@ -60,7 +60,7 @@ func TestPersonalityThreadProcessingIntegration(t *testing.T) {
 	// Verify we have the expected test data
 	assert.Contains(t, personalities, "tech_entrepreneur", "Missing tech_entrepreneur personality")
 	assert.Contains(t, personalities, "creative_artist", "Missing creative_artist personality")
-	assert.Len(t, scenarios, 3, "Expected 3 test scenarios")
+	assert.Len(t, scenarios, 4, "Expected 4 test scenarios")
 
 	// Create mock storage and repository for testing
 	mockStorage := NewMockMemoryStorage()
@@ -74,10 +74,7 @@ func TestPersonalityThreadProcessingIntegration(t *testing.T) {
 		require.NoError(t, err, "Failed to run personality tests")
 
 		// We expect results for each personality × scenario combination
-		// With extensions, we now have: 2 base personalities + 2 extensions = 4 total personality variants
-		// 4 personality variants × 3 scenarios = 12 total results
-		expectedTests := 4 * len(scenarios) // Updated to account for extensions
-		assert.Len(t, results, expectedTests, "Expected results for all personality-scenario combinations")
+		assert.Len(t, results, len(personalities)*len(scenarios), "Expected results for all personality-scenario combinations")
 
 		// Generate and display report
 		report := framework.GenerateReport(results)

@@ -120,12 +120,12 @@ type ReferencePersonality struct {
 	ExpectedBehaviors []ExpectedBehavior     `json:"expected_behaviors"`
 }
 
-// ExtendedPersonality combines a base personality with extensions for testing
+// ExtendedPersonality combines a base personality with one or more extensions for testing
 type ExtendedPersonality struct {
-	Base      *BasePersonality      `json:"base"`
-	Extension *PersonalityExtension `json:"extension"`
-	TestID    string                `json:"test_id"`
-	CreatedAt time.Time             `json:"created_at"`
+	Base       *BasePersonality       `json:"base"`
+	Extensions []*PersonalityExtension `json:"extensions"`
+	TestID     string                 `json:"test_id"`
+	CreatedAt  time.Time              `json:"created_at"`
 }
 
 // ToReferencePersonality converts an ExtendedPersonality to ReferencePersonality for testing
@@ -146,28 +146,36 @@ func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
 	// Copy base plans
 	copy(result.Plans, ep.Base.Plans)
 
-	// Apply extension if present
-	if ep.Extension != nil {
-		// Override profile if specified
-		if ep.Extension.ProfileOverrides != nil {
-			result.Profile = mergeProfiles(result.Profile, *ep.Extension.ProfileOverrides)
+	// Apply all extensions
+	if len(ep.Extensions) > 0 {
+		// collect test names and descriptions
+		var names []string
+		var descs []string
+		for _, ext := range ep.Extensions {
+			// Override profile if specified
+			if ext.ProfileOverrides != nil {
+				result.Profile = mergeProfiles(result.Profile, *ext.ProfileOverrides)
+			}
+			// Add extension memory facts
+			result.MemoryFacts = append(result.MemoryFacts, ext.AdditionalFacts...)
+			// Add extension plans
+			result.Plans = append(result.Plans, ext.AdditionalPlans...)
+			// Add expected behaviors
+			result.ExpectedBehaviors = append(result.ExpectedBehaviors, ext.ExpectedBehaviors...)
+			// collect for naming
+			if ext.TestName != "" {
+				names = append(names, ext.TestName)
+			}
+			if ext.Description != "" {
+				descs = append(descs, ext.Description)
+			}
 		}
-
-		// Add extension memory facts
-		result.MemoryFacts = append(result.MemoryFacts, ep.Extension.AdditionalFacts...)
-
-		// Add extension plans
-		result.Plans = append(result.Plans, ep.Extension.AdditionalPlans...)
-
-		// Add expected behaviors from extension
-		result.ExpectedBehaviors = append(result.ExpectedBehaviors, ep.Extension.ExpectedBehaviors...)
-
-		// Update name and description to reflect extension
-		if ep.Extension.TestName != "" {
-			result.Name = fmt.Sprintf("%s_%s", ep.Base.Name, ep.Extension.TestName)
+		// update name and description
+		if len(names) > 0 {
+			result.Name = fmt.Sprintf("%s_%s", ep.Base.Name, strings.Join(names, "_"))
 		}
-		if ep.Extension.Description != "" {
-			result.Description = fmt.Sprintf("%s - %s", ep.Base.Description, ep.Extension.Description)
+		if len(descs) > 0 {
+			result.Description = fmt.Sprintf("%s - %s", ep.Base.Description, strings.Join(descs, "; "))
 		}
 	}
 
@@ -206,7 +214,7 @@ func mergeProfiles(base PersonalityProfile, override PersonalityProfile) Persona
 // PersonalityExpectedOutcome defines what a specific personality should do with a scenario
 type PersonalityExpectedOutcome struct {
 	PersonalityName string   `json:"personality_name"`
-	ExtensionName   string   `json:"extension_name,omitempty"` // Optional extension to use
+	ExtensionNames  []string `json:"extension_names,omitempty"` // Optional extensions to use
 	ShouldShow      bool     `json:"should_show"`
 	Confidence      float64  `json:"confidence"`
 	ReasonKeywords  []string `json:"reason_keywords"` // Keywords that should appear in reasoning
@@ -227,25 +235,51 @@ type ThreadTestScenario struct {
 }
 
 // GetExpectedOutcomeForPersonality returns the expected outcome for a specific personality
-func (tts *ThreadTestScenario) GetExpectedOutcomeForPersonality(personalityName, extensionName string) *PersonalityExpectedOutcome {
-	// First try to find exact match with extension
-	if extensionName != "" {
+func (tts *ThreadTestScenario) GetExpectedOutcomeForPersonality(personalityName string, extensionNames []string) *PersonalityExpectedOutcome {
+	// First try to find exact match with extensions
+	if len(extensionNames) > 0 {
 		for _, outcome := range tts.PersonalityExpectations {
-			if outcome.PersonalityName == personalityName && outcome.ExtensionName == extensionName {
+			if outcome.PersonalityName == personalityName &&
+				len(outcome.ExtensionNames) == len(extensionNames) &&
+				stringSlicesEqual(outcome.ExtensionNames, extensionNames) {
 				return &outcome
 			}
 		}
 	}
 
-	// Then try to find base personality match
+	// Then try to find base personality match (no extensions)
 	for _, outcome := range tts.PersonalityExpectations {
-		if outcome.PersonalityName == personalityName && outcome.ExtensionName == "" {
+		if outcome.PersonalityName == personalityName && len(outcome.ExtensionNames) == 0 {
 			return &outcome
 		}
 	}
 
 	// Return nil if no specific expectation found
 	return nil
+}
+
+// Helper function to compare string slices
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	// Create maps to compare contents regardless of order
+	mapA := make(map[string]bool)
+	mapB := make(map[string]bool)
+
+	for _, s := range a {
+		mapA[s] = true
+	}
+	for _, s := range b {
+		mapB[s] = true
+	}
+
+	for key := range mapA {
+		if !mapB[key] {
+			return false
+		}
+	}
+	return true
 }
 
 // GetExpectedThreadEvaluation converts PersonalityExpectedOutcome to ExpectedThreadEvaluation for compatibility
@@ -425,31 +459,32 @@ func (ptf *PersonalityTestFramework) LoadPersonalityExtensions() error {
 	return nil
 }
 
-// CreateExtendedPersonality creates an extended personality for testing
-func (ptf *PersonalityTestFramework) CreateExtendedPersonality(baseName, extensionKey string) (*ExtendedPersonality, error) {
+// CreateExtendedPersonality creates an extended personality for testing, allowing multiple extensions
+func (ptf *PersonalityTestFramework) CreateExtendedPersonality(baseName string, extensionKeys ...string) (*ExtendedPersonality, error) {
 	basePersonality, exists := ptf.basePersonalities[baseName]
 	if !exists {
 		return nil, fmt.Errorf("base personality '%s' not found", baseName)
 	}
-
-	var extension *PersonalityExtension
-	if extensionKey != "" {
-		ext, exists := ptf.extensions[extensionKey]
-		if !exists {
-			return nil, fmt.Errorf("extension '%s' not found", extensionKey)
+	var exts []*PersonalityExtension
+	for _, key := range extensionKeys {
+		if key == "" {
+			continue
 		}
-		extension = ext
+		ext, exists := ptf.extensions[key]
+		if !exists {
+			return nil, fmt.Errorf("extension '%s' not found", key)
+		}
+		exts = append(exts, ext)
 	}
-
 	return &ExtendedPersonality{
-		Base:      basePersonality,
-		Extension: extension,
-		TestID:    generateTestID(),
-		CreatedAt: time.Now(),
+		Base:       basePersonality,
+		Extensions: exts,
+		TestID:     generateTestID(),
+		CreatedAt:  time.Now(),
 	}, nil
 }
 
-// CreatePersonalityVariant creates a personality variant programmatically
+// CreatePersonalityVariant creates a personality variant programmatically, supporting multiple extensions
 func (ptf *PersonalityTestFramework) CreatePersonalityVariant(baseName, variantName string, modifications func(*PersonalityExtension) *PersonalityExtension) (*ExtendedPersonality, error) {
 	basePersonality, exists := ptf.basePersonalities[baseName]
 	if !exists {
@@ -460,9 +495,9 @@ func (ptf *PersonalityTestFramework) CreatePersonalityVariant(baseName, variantN
 	extension := &PersonalityExtension{
 		TestName:          variantName,
 		Description:       fmt.Sprintf("Programmatic variant of %s", baseName),
-		AdditionalFacts:   make([]MemoryFact, 0),
-		AdditionalPlans:   make([]PersonalityPlan, 0),
-		ExpectedBehaviors: make([]ExpectedBehavior, 0),
+		AdditionalFacts:   []MemoryFact{},
+		AdditionalPlans:   []PersonalityPlan{},
+		ExpectedBehaviors: []ExpectedBehavior{},
 		Tags:              []string{"programmatic", "variant"},
 	}
 
@@ -472,10 +507,10 @@ func (ptf *PersonalityTestFramework) CreatePersonalityVariant(baseName, variantN
 	}
 
 	return &ExtendedPersonality{
-		Base:      basePersonality,
-		Extension: extension,
-		TestID:    generateTestID(),
-		CreatedAt: time.Now(),
+		Base:       basePersonality,
+		Extensions: []*PersonalityExtension{extension},
+		TestID:     generateTestID(),
+		CreatedAt:  time.Now(),
 	}, nil
 }
 
@@ -808,13 +843,17 @@ func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, me
 			// Create or get the personality for this test
 			var testPersonality *ReferencePersonality
 
-			if expectation.ExtensionName != "" {
-				// Create extended personality with extension
-				extended, err := ptf.CreateExtendedPersonality(expectation.PersonalityName, expectation.ExtensionName+"_"+expectation.ExtensionName)
+			if expectation.ExtensionNames != nil && len(expectation.ExtensionNames) > 0 {
+				// Support multiple extensions
+				var extKeys []string
+				for _, key := range expectation.ExtensionNames {
+					extKeys = append(extKeys, fmt.Sprintf("%s_%s", key, key))
+				}
+				extended, err := ptf.CreateExtendedPersonality(expectation.PersonalityName, extKeys...)
 				if err != nil {
 					ptf.logger.Warn("Failed to create extended personality",
 						"personality", expectation.PersonalityName,
-						"extension", expectation.ExtensionName,
+						"extensions", expectation.ExtensionNames,
 						"error", err)
 					continue
 				}
@@ -843,7 +882,7 @@ func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, me
 				ptf.logger.Warn("Test failed",
 					"scenario", scenario.Name,
 					"personality", expectation.PersonalityName,
-					"extension", expectation.ExtensionName,
+					"extension", expectation.ExtensionNames,
 					"error", err)
 				continue
 			}
@@ -859,7 +898,7 @@ func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, me
 func (ptf *PersonalityTestFramework) runSingleTest(ctx context.Context, scenario ThreadTestScenario, personality *ReferencePersonality, expectedOutcome PersonalityExpectedOutcome, memoryStorage evolvingmemory.MemoryStorage, holonRepo HolonRepositoryInterface) (*TestResult, error) {
 	ptf.logger.Info("Running test",
 		"personality", expectedOutcome.PersonalityName,
-		"extension", expectedOutcome.ExtensionName,
+		"extension", expectedOutcome.ExtensionNames,
 		"scenario", scenario.Name)
 
 	// Setup test environment for this personality
@@ -902,8 +941,8 @@ func (ptf *PersonalityTestFramework) runSingleTest(ctx context.Context, scenario
 
 	// Create personality name for result (include extension if present)
 	personalityName := expectedOutcome.PersonalityName
-	if expectedOutcome.ExtensionName != "" {
-		personalityName = fmt.Sprintf("%s_%s", expectedOutcome.PersonalityName, expectedOutcome.ExtensionName)
+	if len(expectedOutcome.ExtensionNames) > 0 {
+		personalityName = fmt.Sprintf("%s_%s", expectedOutcome.PersonalityName, strings.Join(expectedOutcome.ExtensionNames, "_"))
 	}
 
 	result := &TestResult{
@@ -969,7 +1008,7 @@ Score this from 0.0 to 1.0 based on:
 
 Provide your score and detailed reasoning.`,
 		expectedOutcome.PersonalityName,
-		expectedOutcome.ExtensionName,
+		strings.Join(expectedOutcome.ExtensionNames, ", "),
 		expectedOutcome.Rationale,
 		expectedOutcome.ShouldShow,
 		expectedOutcome.Confidence,

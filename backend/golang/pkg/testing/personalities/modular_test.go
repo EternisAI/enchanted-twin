@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -208,25 +209,52 @@ func TestPersonalitySpecificExpectations(t *testing.T) {
 		scenarios := framework.GetScenarios()
 		require.Greater(t, len(scenarios), 0)
 
-		// Test getting specific personality expectations
+		// Test getting specific personality expectations for scenarios that actually have them
+		var aiStartupScenario *ThreadTestScenario
 		for _, scenario := range scenarios {
+			if scenario.Name == "ai_startup_funding_announcement" {
+				aiStartupScenario = &scenario
+				break
+			}
+		}
+
+		if aiStartupScenario != nil {
 			// Test base personality expectation
-			techExpectation := scenario.GetExpectedOutcomeForPersonality("tech_entrepreneur", "")
-			if techExpectation != nil {
-				assert.Equal(t, "tech_entrepreneur", techExpectation.PersonalityName)
-				assert.Empty(t, techExpectation.ExtensionName)
-			}
+			techExpectation := aiStartupScenario.GetExpectedOutcomeForPersonality("tech_entrepreneur", []string{})
+			require.NotNil(t, techExpectation, "Should find base tech_entrepreneur expectation")
+			assert.True(t, techExpectation.ShouldShow)
+			assert.Equal(t, 0, len(techExpectation.ExtensionNames))
 
-			// Test extension expectation
-			techExtensionExpectation := scenario.GetExpectedOutcomeForPersonality("tech_entrepreneur", "ai_research_focused")
-			if techExtensionExpectation != nil {
-				assert.Equal(t, "tech_entrepreneur", techExtensionExpectation.PersonalityName)
-				assert.Equal(t, "ai_research_focused", techExtensionExpectation.ExtensionName)
-			}
+			// Test personality with extension expectation
+			techExtensionExpectation := aiStartupScenario.GetExpectedOutcomeForPersonality("tech_entrepreneur", []string{"ai_research_focused"})
+			require.NotNil(t, techExtensionExpectation, "Should find ai_research_focused extension expectation")
+			assert.True(t, techExtensionExpectation.ShouldShow)
+			assert.Contains(t, techExtensionExpectation.ExtensionNames, "ai_research_focused")
 
-			// Test non-existent personality
-			nonExistentExpectation := scenario.GetExpectedOutcomeForPersonality("non_existent", "")
-			assert.Nil(t, nonExistentExpectation, "Should return nil for non-existent personality")
+			// Test combined extension expectation
+			techCombinedExpectation := aiStartupScenario.GetExpectedOutcomeForPersonality("tech_entrepreneur", []string{"ai_research_focused", "startup_ecosystem_focused"})
+			require.NotNil(t, techCombinedExpectation, "Should find combined extension expectation")
+			assert.True(t, techCombinedExpectation.ShouldShow)
+			assert.Contains(t, techCombinedExpectation.ExtensionNames, "ai_research_focused")
+			assert.Contains(t, techCombinedExpectation.ExtensionNames, "startup_ecosystem_focused")
+
+			// Test other personality expectation
+			artistExpectation := aiStartupScenario.GetExpectedOutcomeForPersonality("creative_artist", []string{})
+			require.NotNil(t, artistExpectation, "Should find creative_artist expectation")
+			assert.True(t, artistExpectation.ShouldShow)
+		}
+
+		// Test that we can handle scenarios without extensions gracefully
+		for _, scenario := range scenarios {
+			if scenario.Name != "ai_startup_funding_announcement" {
+				// These scenarios might not have extension-specific expectations
+				techExpectation := scenario.GetExpectedOutcomeForPersonality("tech_entrepreneur", []string{})
+				if techExpectation != nil {
+					// If we find an expectation, it should be valid
+					assert.NotEmpty(t, techExpectation.PersonalityName)
+					assert.NotEmpty(t, techExpectation.ExpectedState)
+				}
+			}
 		}
 	})
 
@@ -253,8 +281,8 @@ func TestPersonalitySpecificExpectations(t *testing.T) {
 		expectationMap := make(map[string]*PersonalityExpectedOutcome)
 		for _, expectation := range testScenario.PersonalityExpectations {
 			key := expectation.PersonalityName
-			if expectation.ExtensionName != "" {
-				key = fmt.Sprintf("%s_%s", expectation.PersonalityName, expectation.ExtensionName)
+			if len(expectation.ExtensionNames) > 0 {
+				key = fmt.Sprintf("%s_%s", expectation.PersonalityName, strings.Join(expectation.ExtensionNames, "_"))
 			}
 			expectationMap[key] = &expectation
 		}
