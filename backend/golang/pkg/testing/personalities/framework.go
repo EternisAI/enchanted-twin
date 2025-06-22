@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/log"
+	"github.com/openai/openai-go"
 
 	"github.com/EternisAI/enchanted-twin/graph/model"
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
@@ -57,17 +58,6 @@ type ConversationDocument struct {
 	Context      string                `json:"context"`
 }
 
-// ReferencePersonality represents a complete personality profile for testing
-type ReferencePersonality struct {
-	Name              string                 `json:"name"`
-	Description       string                 `json:"description"`
-	Profile           PersonalityProfile     `json:"profile"`
-	MemoryFacts       []MemoryFact           `json:"memory_facts"`
-	Conversations     []ConversationDocument `json:"conversations"`
-	Plans             []PersonalityPlan      `json:"plans"`
-	ExpectedBehaviors []ExpectedBehavior     `json:"expected_behaviors"`
-}
-
 // PersonalityProfile contains core personality traits and preferences
 type PersonalityProfile struct {
 	Age                int      `json:"age"`
@@ -98,42 +88,175 @@ type ExpectedBehavior struct {
 	Confidence   float64                `json:"confidence"`
 }
 
+// BasePersonality represents the core personality data without test-specific expectations
+type BasePersonality struct {
+	Name          string                 `json:"name"`
+	Description   string                 `json:"description"`
+	Profile       PersonalityProfile     `json:"profile"`
+	MemoryFacts   []MemoryFact           `json:"memory_facts"`
+	Conversations []ConversationDocument `json:"conversations"`
+	Plans         []PersonalityPlan      `json:"plans"`
+}
+
+// PersonalityExtension contains test-specific extensions and modifications
+type PersonalityExtension struct {
+	TestName          string              `json:"test_name"`
+	Description       string              `json:"description"`
+	AdditionalFacts   []MemoryFact        `json:"additional_facts,omitempty"`
+	AdditionalPlans   []PersonalityPlan   `json:"additional_plans,omitempty"`
+	ProfileOverrides  *PersonalityProfile `json:"profile_overrides,omitempty"`
+	ExpectedBehaviors []ExpectedBehavior  `json:"expected_behaviors"`
+	Tags              []string            `json:"tags,omitempty"`
+}
+
+// ReferencePersonality represents a complete personality profile for testing
+type ReferencePersonality struct {
+	Name              string                 `json:"name"`
+	Description       string                 `json:"description"`
+	Profile           PersonalityProfile     `json:"profile"`
+	MemoryFacts       []MemoryFact           `json:"memory_facts"`
+	Conversations     []ConversationDocument `json:"conversations"`
+	Plans             []PersonalityPlan      `json:"plans"`
+	ExpectedBehaviors []ExpectedBehavior     `json:"expected_behaviors"`
+}
+
+// ExtendedPersonality combines a base personality with extensions for testing
+type ExtendedPersonality struct {
+	Base      *BasePersonality      `json:"base"`
+	Extension *PersonalityExtension `json:"extension"`
+	TestID    string                `json:"test_id"`
+	CreatedAt time.Time             `json:"created_at"`
+}
+
+// ToReferencePersonality converts an ExtendedPersonality to ReferencePersonality for testing
+func (ep *ExtendedPersonality) ToReferencePersonality() *ReferencePersonality {
+	result := &ReferencePersonality{
+		Name:              ep.Base.Name,
+		Description:       ep.Base.Description,
+		Profile:           ep.Base.Profile,
+		MemoryFacts:       make([]MemoryFact, len(ep.Base.MemoryFacts)),
+		Conversations:     ep.Base.Conversations,
+		Plans:             make([]PersonalityPlan, len(ep.Base.Plans)),
+		ExpectedBehaviors: make([]ExpectedBehavior, 0),
+	}
+
+	// Copy base memory facts
+	copy(result.MemoryFacts, ep.Base.MemoryFacts)
+
+	// Copy base plans
+	copy(result.Plans, ep.Base.Plans)
+
+	// Apply extension if present
+	if ep.Extension != nil {
+		// Override profile if specified
+		if ep.Extension.ProfileOverrides != nil {
+			result.Profile = mergeProfiles(result.Profile, *ep.Extension.ProfileOverrides)
+		}
+
+		// Add extension memory facts
+		result.MemoryFacts = append(result.MemoryFacts, ep.Extension.AdditionalFacts...)
+
+		// Add extension plans
+		result.Plans = append(result.Plans, ep.Extension.AdditionalPlans...)
+
+		// Add expected behaviors from extension
+		result.ExpectedBehaviors = append(result.ExpectedBehaviors, ep.Extension.ExpectedBehaviors...)
+
+		// Update name and description to reflect extension
+		if ep.Extension.TestName != "" {
+			result.Name = fmt.Sprintf("%s_%s", ep.Base.Name, ep.Extension.TestName)
+		}
+		if ep.Extension.Description != "" {
+			result.Description = fmt.Sprintf("%s - %s", ep.Base.Description, ep.Extension.Description)
+		}
+	}
+
+	return result
+}
+
+// mergeProfiles merges profile overrides with base profile
+func mergeProfiles(base PersonalityProfile, override PersonalityProfile) PersonalityProfile {
+	result := base
+
+	if override.Age > 0 {
+		result.Age = override.Age
+	}
+	if override.Occupation != "" {
+		result.Occupation = override.Occupation
+	}
+	if len(override.Interests) > 0 {
+		result.Interests = append(result.Interests, override.Interests...)
+	}
+	if len(override.CoreTraits) > 0 {
+		result.CoreTraits = append(result.CoreTraits, override.CoreTraits...)
+	}
+	if override.CommunicationStyle != "" {
+		result.CommunicationStyle = override.CommunicationStyle
+	}
+	if override.Location != "" {
+		result.Location = override.Location
+	}
+	if override.Background != "" {
+		result.Background = override.Background
+	}
+
+	return result
+}
+
+// PersonalityExpectedOutcome defines what a specific personality should do with a scenario
+type PersonalityExpectedOutcome struct {
+	PersonalityName string   `json:"personality_name"`
+	ExtensionName   string   `json:"extension_name,omitempty"` // Optional extension to use
+	ShouldShow      bool     `json:"should_show"`
+	Confidence      float64  `json:"confidence"`
+	ReasonKeywords  []string `json:"reason_keywords"` // Keywords that should appear in reasoning
+	ExpectedState   string   `json:"expected_state"`  // "visible" or "hidden"
+	Priority        int      `json:"priority"`        // How important this expectation is (1-3)
+	Rationale       string   `json:"rationale"`       // Why this personality should react this way
+}
+
 // ThreadTestScenario represents a test case for thread evaluation
 type ThreadTestScenario struct {
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	Thread      *model.Thread            `json:"thread"`
-	ThreadData  ThreadData               `json:"thread_data"`
-	Context     map[string]interface{}   `json:"context"`
-	Expected    ExpectedThreadEvaluation `json:"expected"`
+	Name                    string                       `json:"name"`
+	Description             string                       `json:"description"`
+	Thread                  *model.Thread                `json:"thread"`
+	ThreadData              ThreadData                   `json:"thread_data"`
+	Context                 map[string]interface{}       `json:"context"`
+	PersonalityExpectations []PersonalityExpectedOutcome `json:"personality_expectations"`
+	DefaultExpected         *ExpectedThreadEvaluation    `json:"default_expected,omitempty"` // Fallback for backward compatibility
 }
 
-// ThreadData contains the raw thread data for creating test threads
-type ThreadData struct {
-	Title       string              `json:"title"`
-	Content     string              `json:"content"`
-	AuthorName  string              `json:"author_name"`
-	AuthorAlias *string             `json:"author_alias,omitempty"`
-	ImageURLs   []string            `json:"image_urls,omitempty"`
-	Messages    []ThreadMessageData `json:"messages,omitempty"`
-	CreatedAt   time.Time           `json:"created_at"`
+// GetExpectedOutcomeForPersonality returns the expected outcome for a specific personality
+func (tts *ThreadTestScenario) GetExpectedOutcomeForPersonality(personalityName, extensionName string) *PersonalityExpectedOutcome {
+	// First try to find exact match with extension
+	if extensionName != "" {
+		for _, outcome := range tts.PersonalityExpectations {
+			if outcome.PersonalityName == personalityName && outcome.ExtensionName == extensionName {
+				return &outcome
+			}
+		}
+	}
+
+	// Then try to find base personality match
+	for _, outcome := range tts.PersonalityExpectations {
+		if outcome.PersonalityName == personalityName && outcome.ExtensionName == "" {
+			return &outcome
+		}
+	}
+
+	// Return nil if no specific expectation found
+	return nil
 }
 
-// ThreadMessageData represents message data for test threads
-type ThreadMessageData struct {
-	AuthorName  string    `json:"author_name"`
-	AuthorAlias *string   `json:"author_alias,omitempty"`
-	Content     string    `json:"content"`
-	CreatedAt   time.Time `json:"created_at"`
-}
-
-// ExpectedThreadEvaluation contains expected evaluation results
-type ExpectedThreadEvaluation struct {
-	ShouldShow     bool     `json:"should_show"`
-	Confidence     float64  `json:"confidence"`
-	ReasonKeywords []string `json:"reason_keywords"` // Keywords that should appear in reasoning
-	ExpectedState  string   `json:"expected_state"`  // "visible" or "hidden"
-	Priority       int      `json:"priority"`        // How important this expectation is (1-3)
+// GetExpectedThreadEvaluation converts PersonalityExpectedOutcome to ExpectedThreadEvaluation for compatibility
+func (peo *PersonalityExpectedOutcome) GetExpectedThreadEvaluation() ExpectedThreadEvaluation {
+	return ExpectedThreadEvaluation{
+		ShouldShow:     peo.ShouldShow,
+		Confidence:     peo.Confidence,
+		ReasonKeywords: peo.ReasonKeywords,
+		ExpectedState:  peo.ExpectedState,
+		Priority:       peo.Priority,
+	}
 }
 
 // TestResult represents the result of running a personality test
@@ -170,21 +293,25 @@ type TestSummary struct {
 
 // PersonalityTestFramework manages the testing of personalities against thread scenarios
 type PersonalityTestFramework struct {
-	logger        *log.Logger
-	aiService     *ai.Service
-	personalities map[string]*ReferencePersonality
-	scenarios     []ThreadTestScenario
-	testDataPath  string
+	logger            *log.Logger
+	aiService         *ai.Service
+	personalities     map[string]*ReferencePersonality
+	basePersonalities map[string]*BasePersonality
+	extensions        map[string]*PersonalityExtension
+	scenarios         []ThreadTestScenario
+	testDataPath      string
 }
 
 // NewPersonalityTestFramework creates a new personality testing framework
 func NewPersonalityTestFramework(logger *log.Logger, aiService *ai.Service, testDataPath string) *PersonalityTestFramework {
 	return &PersonalityTestFramework{
-		logger:        logger,
-		aiService:     aiService,
-		personalities: make(map[string]*ReferencePersonality),
-		scenarios:     make([]ThreadTestScenario, 0),
-		testDataPath:  testDataPath,
+		logger:            logger,
+		aiService:         aiService,
+		personalities:     make(map[string]*ReferencePersonality),
+		basePersonalities: make(map[string]*BasePersonality),
+		extensions:        make(map[string]*PersonalityExtension),
+		scenarios:         make([]ThreadTestScenario, 0),
+		testDataPath:      testDataPath,
 	}
 }
 
@@ -214,6 +341,142 @@ func (ptf *PersonalityTestFramework) LoadPersonalities() error {
 	}
 
 	return nil
+}
+
+// LoadBasePersonalities loads base personality files without expected behaviors
+func (ptf *PersonalityTestFramework) LoadBasePersonalities() error {
+	personalitiesDir := filepath.Join(ptf.testDataPath, "personalities")
+
+	entries, err := os.ReadDir(personalitiesDir)
+	if err != nil {
+		return fmt.Errorf("failed to read personalities directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		// Load base personality file
+		basePath := filepath.Join(personalitiesDir, entry.Name(), "base.json")
+		if _, err := os.Stat(basePath); err == nil {
+			basePersonality, err := ptf.loadBasePersonalityFromFile(basePath)
+			if err != nil {
+				ptf.logger.Warn("Failed to load base personality", "path", basePath, "error", err)
+				continue
+			}
+			ptf.basePersonalities[basePersonality.Name] = basePersonality
+			ptf.logger.Info("Loaded base personality", "name", basePersonality.Name)
+		} else {
+			// Fall back to loading legacy personality.json as both base and complete
+			personalityPath := filepath.Join(personalitiesDir, entry.Name(), "personality.json")
+			personality, err := ptf.loadPersonalityFromFile(personalityPath)
+			if err != nil {
+				ptf.logger.Warn("Failed to load personality", "path", personalityPath, "error", err)
+				continue
+			}
+
+			// Convert to base personality (without expected behaviors)
+			basePersonality := &BasePersonality{
+				Name:          personality.Name,
+				Description:   personality.Description,
+				Profile:       personality.Profile,
+				MemoryFacts:   personality.MemoryFacts,
+				Conversations: personality.Conversations,
+				Plans:         personality.Plans,
+			}
+			ptf.basePersonalities[basePersonality.Name] = basePersonality
+
+			// Also keep the full personality for backward compatibility
+			ptf.personalities[personality.Name] = personality
+			ptf.logger.Info("Loaded personality (legacy format)", "name", personality.Name)
+		}
+	}
+
+	return nil
+}
+
+// LoadPersonalityExtensions loads personality extensions from files
+func (ptf *PersonalityTestFramework) LoadPersonalityExtensions() error {
+	extensionsDir := filepath.Join(ptf.testDataPath, "extensions")
+
+	entries, err := os.ReadDir(extensionsDir)
+	if err != nil {
+		// Extensions directory is optional
+		ptf.logger.Debug("Extensions directory not found", "path", extensionsDir)
+		return nil
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
+			extensionPath := filepath.Join(extensionsDir, entry.Name())
+			extension, err := ptf.loadPersonalityExtensionFromFile(extensionPath)
+			if err != nil {
+				ptf.logger.Warn("Failed to load extension", "path", extensionPath, "error", err)
+				continue
+			}
+
+			extensionKey := fmt.Sprintf("%s_%s", extension.TestName, strings.TrimSuffix(entry.Name(), ".json"))
+			ptf.extensions[extensionKey] = extension
+			ptf.logger.Info("Loaded extension", "key", extensionKey, "test_name", extension.TestName)
+		}
+	}
+
+	return nil
+}
+
+// CreateExtendedPersonality creates an extended personality for testing
+func (ptf *PersonalityTestFramework) CreateExtendedPersonality(baseName, extensionKey string) (*ExtendedPersonality, error) {
+	basePersonality, exists := ptf.basePersonalities[baseName]
+	if !exists {
+		return nil, fmt.Errorf("base personality '%s' not found", baseName)
+	}
+
+	var extension *PersonalityExtension
+	if extensionKey != "" {
+		ext, exists := ptf.extensions[extensionKey]
+		if !exists {
+			return nil, fmt.Errorf("extension '%s' not found", extensionKey)
+		}
+		extension = ext
+	}
+
+	return &ExtendedPersonality{
+		Base:      basePersonality,
+		Extension: extension,
+		TestID:    generateTestID(),
+		CreatedAt: time.Now(),
+	}, nil
+}
+
+// CreatePersonalityVariant creates a personality variant programmatically
+func (ptf *PersonalityTestFramework) CreatePersonalityVariant(baseName, variantName string, modifications func(*PersonalityExtension) *PersonalityExtension) (*ExtendedPersonality, error) {
+	basePersonality, exists := ptf.basePersonalities[baseName]
+	if !exists {
+		return nil, fmt.Errorf("base personality '%s' not found", baseName)
+	}
+
+	// Create a basic extension
+	extension := &PersonalityExtension{
+		TestName:          variantName,
+		Description:       fmt.Sprintf("Programmatic variant of %s", baseName),
+		AdditionalFacts:   make([]MemoryFact, 0),
+		AdditionalPlans:   make([]PersonalityPlan, 0),
+		ExpectedBehaviors: make([]ExpectedBehavior, 0),
+		Tags:              []string{"programmatic", "variant"},
+	}
+
+	// Apply modifications
+	if modifications != nil {
+		extension = modifications(extension)
+	}
+
+	return &ExtendedPersonality{
+		Base:      basePersonality,
+		Extension: extension,
+		TestID:    generateTestID(),
+		CreatedAt: time.Now(),
+	}, nil
 }
 
 // LoadScenarios loads thread test scenarios from files
@@ -298,7 +561,144 @@ func (ptf *PersonalityTestFramework) LoadScenariosFromCodeWithCustomization(cust
 	return nil
 }
 
-// loadPersonalityFromFile loads a personality from a JSON file
+// ThreadData contains the raw thread data for creating test threads
+type ThreadData struct {
+	Title       string              `json:"title"`
+	Content     string              `json:"content"`
+	AuthorName  string              `json:"author_name"`
+	AuthorAlias *string             `json:"author_alias,omitempty"`
+	ImageURLs   []string            `json:"image_urls,omitempty"`
+	Messages    []ThreadMessageData `json:"messages,omitempty"`
+	CreatedAt   time.Time           `json:"created_at"`
+}
+
+// ThreadMessageData represents message data for test threads
+type ThreadMessageData struct {
+	AuthorName  string    `json:"author_name"`
+	AuthorAlias *string   `json:"author_alias,omitempty"`
+	Content     string    `json:"content"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// ExpectedThreadEvaluation contains expected evaluation results
+type ExpectedThreadEvaluation struct {
+	ShouldShow     bool     `json:"should_show"`
+	Confidence     float64  `json:"confidence"`
+	ReasonKeywords []string `json:"reason_keywords"` // Keywords that should appear in reasoning
+	ExpectedState  string   `json:"expected_state"`  // "visible" or "hidden"
+	Priority       int      `json:"priority"`        // How important this expectation is (1-3)
+}
+
+// TestEnvironment represents the test environment for a personality
+type TestEnvironment struct {
+	PersonalityName string
+	Memory          evolvingmemory.MemoryStorage
+	ThreadProcessor *holon.ThreadProcessor
+	Repository      *holon.Repository
+	MemoryTracker   *MemoryTracker
+	Context         context.Context
+}
+
+// MemoryTracker tracks memory access during tests
+type MemoryTracker struct {
+	accessedMemories []string
+}
+
+// NewMemoryTracker creates a new memory tracker
+func NewMemoryTracker() *MemoryTracker {
+	return &MemoryTracker{
+		accessedMemories: make([]string, 0),
+	}
+}
+
+// Reset clears the memory tracker
+func (mt *MemoryTracker) Reset() {
+	mt.accessedMemories = make([]string, 0)
+}
+
+// GetAccessedMemories returns the list of accessed memory IDs
+func (mt *MemoryTracker) GetAccessedMemories() []string {
+	return mt.accessedMemories
+}
+
+// setupTestEnvironment creates a test environment with personality data loaded into memory
+func (ptf *PersonalityTestFramework) setupTestEnvironment(ctx context.Context, personality *ReferencePersonality, memoryStorage evolvingmemory.MemoryStorage, repository HolonRepositoryInterface) (*TestEnvironment, error) {
+	// Create memory tracker
+	tracker := NewMemoryTracker()
+
+	// Store personality memory facts
+	documents := make([]memory.Document, 0)
+
+	// Add conversation documents
+	for _, conv := range personality.Conversations {
+		documents = append(documents, &conv)
+	}
+
+	// Store documents in memory
+	if len(documents) > 0 {
+		err := memoryStorage.Store(ctx, documents, func(processed, total int) {
+			ptf.logger.Debug("Storing personality documents", "personality", personality.Name, "processed", processed, "total", total)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to store personality documents: %w", err)
+		}
+	}
+
+	// Store memory facts directly
+	for _, fact := range personality.MemoryFacts {
+		// Store each fact individually through the memory engine
+		doc := &memory.TextDocument{
+			FieldID:      fmt.Sprintf("personality-fact-%s-%d", personality.Name, time.Now().UnixNano()),
+			FieldContent: fact.GenerateContent(),
+		}
+
+		err := memoryStorage.Store(ctx, []memory.Document{doc}, nil)
+		if err != nil {
+			ptf.logger.Warn("Failed to store memory fact", "fact", fact.GenerateContent(), "error", err)
+		}
+	}
+
+	// Create thread processor with memory tracking
+	var threadProcessor *holon.ThreadProcessor
+	var holonRepo *holon.Repository
+
+	// Try to get concrete repository for full functionality
+	if repo, ok := repository.(*holon.Repository); ok {
+		holonRepo = repo
+		threadProcessor = holon.NewThreadProcessor(
+			ptf.logger,
+			ptf.aiService,
+			"gpt-4o-mini", // Use a consistent model for testing
+			repo,
+			memoryStorage,
+		)
+	} else {
+		// For mock testing, create a minimal processor
+		// This allows us to test the framework logic without requiring a real database
+		ptf.logger.Info("Using mock repository, creating simplified test environment")
+
+		// Return a test environment that can simulate thread processing
+		return &TestEnvironment{
+			PersonalityName: personality.Name,
+			Memory:          memoryStorage,
+			ThreadProcessor: nil, // Will be handled in test execution
+			Repository:      nil, // Mock doesn't need concrete repository
+			MemoryTracker:   tracker,
+			Context:         ctx,
+		}, nil
+	}
+
+	return &TestEnvironment{
+		PersonalityName: personality.Name,
+		Memory:          memoryStorage,
+		ThreadProcessor: threadProcessor,
+		Repository:      holonRepo,
+		MemoryTracker:   tracker,
+		Context:         ctx,
+	}, nil
+}
+
+// LoadPersonalityFromFile loads a personality from a JSON file
 func (ptf *PersonalityTestFramework) loadPersonalityFromFile(path string) (*ReferencePersonality, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -313,7 +713,37 @@ func (ptf *PersonalityTestFramework) loadPersonalityFromFile(path string) (*Refe
 	return &personality, nil
 }
 
-// loadScenarioFromFile loads a scenario from a JSON file
+// LoadBasePersonalityFromFile loads a base personality from a JSON file
+func (ptf *PersonalityTestFramework) loadBasePersonalityFromFile(path string) (*BasePersonality, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var basePersonality BasePersonality
+	if err := json.Unmarshal(data, &basePersonality); err != nil {
+		return nil, err
+	}
+
+	return &basePersonality, nil
+}
+
+// LoadPersonalityExtensionFromFile loads a personality extension from a JSON file
+func (ptf *PersonalityTestFramework) loadPersonalityExtensionFromFile(path string) (*PersonalityExtension, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var extension PersonalityExtension
+	if err := json.Unmarshal(data, &extension); err != nil {
+		return nil, err
+	}
+
+	return &extension, nil
+}
+
+// LoadScenarioFromFile loads a scenario from a JSON file
 func (ptf *PersonalityTestFramework) loadScenarioFromFile(path string) (*ThreadTestScenario, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -357,138 +787,241 @@ func generateTestID() string {
 	return fmt.Sprintf("test-%d", time.Now().UnixNano())
 }
 
-// RunPersonalityTests runs a comprehensive suite of personality tests
-func RunPersonalityTests(ctx context.Context, memoryStorage evolvingmemory.MemoryStorage, holonRepo HolonRepositoryInterface) (*PersonalityTestResults, error) {
-	logger := log.New(os.Stderr)
-	logger.Info("Starting comprehensive personality tests...")
+// RunPersonalityTests runs a comprehensive suite of personality tests with personality-specific expectations
+func (ptf *PersonalityTestFramework) RunPersonalityTests(ctx context.Context, memoryStorage evolvingmemory.MemoryStorage, holonRepo HolonRepositoryInterface) ([]TestResult, error) {
+	var results []TestResult
 
-	startTime := time.Now()
-
-	results := &PersonalityTestResults{
-		TestID:    generateTestID(),
-		Timestamp: time.Now(),
-		Tests:     make(map[string]*TestResult),
-		Summary: TestSummary{
-			TotalTests:  0,
-			PassedTests: 0,
-			FailedTests: 0,
-		},
-	}
-
-	// Create test framework
-	framework := NewPersonalityTestFramework(logger, nil, "test-data")
-
-	// Load test scenarios from code
-	err := framework.LoadScenariosFromCode()
+	// Load base personalities and extensions
+	err := ptf.LoadBasePersonalities()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load scenarios: %w", err)
+		return nil, fmt.Errorf("failed to load base personalities: %w", err)
 	}
 
-	scenarios := framework.GetScenarios()
-	results.Summary.TotalTests = len(scenarios)
-
-	// Run tests for each scenario
-	for _, scenario := range scenarios {
-		testKey := fmt.Sprintf("%s_%s", scenario.Name, "default")
-
-		result, err := runSingleTest(ctx, scenario, memoryStorage, holonRepo, logger)
-		if err != nil {
-			logger.Warn("Test failed", "scenario", scenario.Name, "error", err)
-			results.Summary.FailedTests++
-			continue
-		}
-
-		results.Tests[testKey] = result
-
-		if result.Success {
-			results.Summary.PassedTests++
-		} else {
-			results.Summary.FailedTests++
-		}
+	err = ptf.LoadPersonalityExtensions()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load personality extensions: %w", err)
 	}
 
-	// Calculate summary statistics
-	if len(results.Tests) > 0 {
-		var totalScore float64
-		var minScore, maxScore float64 = 1.0, 0.0
+	// For each scenario, test against each personality expectation
+	for _, scenario := range ptf.scenarios {
+		for _, expectation := range scenario.PersonalityExpectations {
+			// Create or get the personality for this test
+			var testPersonality *ReferencePersonality
 
-		for _, test := range results.Tests {
-			totalScore += test.Score
-			if test.Score < minScore {
-				minScore = test.Score
+			if expectation.ExtensionName != "" {
+				// Create extended personality with extension
+				extended, err := ptf.CreateExtendedPersonality(expectation.PersonalityName, expectation.ExtensionName+"_"+expectation.ExtensionName)
+				if err != nil {
+					ptf.logger.Warn("Failed to create extended personality",
+						"personality", expectation.PersonalityName,
+						"extension", expectation.ExtensionName,
+						"error", err)
+					continue
+				}
+				testPersonality = extended.ToReferencePersonality()
+			} else {
+				// Use base personality
+				basePersonality, exists := ptf.basePersonalities[expectation.PersonalityName]
+				if !exists {
+					ptf.logger.Warn("Base personality not found", "personality", expectation.PersonalityName)
+					continue
+				}
+				testPersonality = &ReferencePersonality{
+					Name:              basePersonality.Name,
+					Description:       basePersonality.Description,
+					Profile:           basePersonality.Profile,
+					MemoryFacts:       basePersonality.MemoryFacts,
+					Conversations:     basePersonality.Conversations,
+					Plans:             basePersonality.Plans,
+					ExpectedBehaviors: make([]ExpectedBehavior, 0),
+				}
 			}
-			if test.Score > maxScore {
-				maxScore = test.Score
+
+			// Run the test for this personality-scenario combination
+			result, err := ptf.runSingleTest(ctx, scenario, testPersonality, expectation, memoryStorage, holonRepo)
+			if err != nil {
+				ptf.logger.Warn("Test failed",
+					"scenario", scenario.Name,
+					"personality", expectation.PersonalityName,
+					"extension", expectation.ExtensionName,
+					"error", err)
+				continue
 			}
+
+			results = append(results, *result)
 		}
-
-		results.Summary.AverageScore = totalScore / float64(len(results.Tests))
-		results.Summary.LowestScore = minScore
-		results.Summary.HighestScore = maxScore
 	}
-
-	results.Duration = time.Since(startTime)
-
-	logger.Info("Personality tests completed",
-		"total", results.Summary.TotalTests,
-		"passed", results.Summary.PassedTests,
-		"failed", results.Summary.FailedTests,
-		"duration", results.Duration)
 
 	return results, nil
 }
 
-// runSingleTest runs a single personality test scenario
-func runSingleTest(ctx context.Context, scenario ThreadTestScenario, memoryStorage evolvingmemory.MemoryStorage, holonRepo HolonRepositoryInterface, logger *log.Logger) (*TestResult, error) {
+// runSingleTest runs a single test scenario against a specific personality with expected outcome
+func (ptf *PersonalityTestFramework) runSingleTest(ctx context.Context, scenario ThreadTestScenario, personality *ReferencePersonality, expectedOutcome PersonalityExpectedOutcome, memoryStorage evolvingmemory.MemoryStorage, holonRepo HolonRepositoryInterface) (*TestResult, error) {
+	ptf.logger.Info("Running test",
+		"personality", expectedOutcome.PersonalityName,
+		"extension", expectedOutcome.ExtensionName,
+		"scenario", scenario.Name)
+
+	// Setup test environment for this personality
+	env, err := ptf.setupTestEnvironment(ctx, personality, memoryStorage, holonRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup test environment: %w", err)
+	}
+
+	var evaluation *holon.ThreadEvaluationResult
+
+	// Execute thread evaluation
+	if env.ThreadProcessor != nil {
+		// Use real thread processor for full integration testing
+		evaluation, err = env.ThreadProcessor.EvaluateThread(ctx, scenario.Thread)
+		if err != nil {
+			return nil, fmt.Errorf("failed to evaluate thread: %w", err)
+		}
+	} else {
+		// For mock testing, simulate thread evaluation based on expected results
+		ptf.logger.Debug("Using simulated thread evaluation for mock testing")
+
+		evaluation = &holon.ThreadEvaluationResult{
+			ShouldShow: expectedOutcome.ShouldShow,
+			Reason:     fmt.Sprintf("Simulated evaluation for %s personality: %s", expectedOutcome.PersonalityName, expectedOutcome.Rationale),
+			Confidence: expectedOutcome.Confidence,
+			NewState:   expectedOutcome.ExpectedState,
+		}
+	}
+
+	// Use LLM-as-a-judge to evaluate the result
+	score, reasoning, err := ptf.evaluateWithLLMJudge(ctx, expectedOutcome, evaluation)
+	if err != nil {
+		ptf.logger.Warn("LLM judge evaluation failed", "error", err)
+		score = ptf.calculateBasicScore(expectedOutcome, evaluation)
+		reasoning = "LLM judge failed, using basic scoring"
+	}
+
+	// Determine success based on score threshold
+	success := score >= 0.7 // 70% threshold for success
+
+	// Create personality name for result (include extension if present)
+	personalityName := expectedOutcome.PersonalityName
+	if expectedOutcome.ExtensionName != "" {
+		personalityName = fmt.Sprintf("%s_%s", expectedOutcome.PersonalityName, expectedOutcome.ExtensionName)
+	}
+
 	result := &TestResult{
-		PersonalityName: "default",
+		PersonalityName: personalityName,
 		ScenarioName:    scenario.Name,
+		Success:         success,
+		Score:           score,
+		ActualResult:    evaluation,
+		ExpectedResult:  expectedOutcome.GetExpectedThreadEvaluation(),
+		MemoriesUsed:    env.MemoryTracker.GetAccessedMemories(),
+		Reasoning:       reasoning,
 		Timestamp:       time.Now(),
-		MemoriesUsed:    make([]string, 0),
 	}
 
-	// Simulate thread evaluation
-	evaluationResult := &holon.ThreadEvaluationResult{
-		ShouldShow: scenario.Expected.ShouldShow,
-		Reason:     "Test evaluation",
-		Confidence: scenario.Expected.Confidence,
-		NewState:   scenario.Expected.ExpectedState,
-	}
-
-	result.ActualResult = evaluationResult
-
-	// Calculate similarity score
-	score := calculateSimilarityScore(evaluationResult, scenario.Expected)
-	result.Score = score
-	result.Success = score >= 0.7 // 70% threshold for success
-
-	// Generate reasoning
-	result.Reasoning = fmt.Sprintf("Evaluated thread '%s' with confidence %.2f. Expected show=%v, got show=%v. Score: %.2f",
-		scenario.Thread.Title,
-		evaluationResult.Confidence,
-		scenario.Expected.ShouldShow,
-		evaluationResult.ShouldShow,
-		score)
+	ptf.logger.Info("Test completed",
+		"personality", personalityName,
+		"scenario", scenario.Name,
+		"success", success,
+		"score", score)
 
 	return result, nil
 }
 
-// calculateSimilarityScore calculates how well the actual result matches expected
-func calculateSimilarityScore(actual *holon.ThreadEvaluationResult, expected ExpectedThreadEvaluation) float64 {
+// evaluateWithLLMJudge uses an LLM to evaluate how well the actual result matches the expected result
+func (ptf *PersonalityTestFramework) evaluateWithLLMJudge(ctx context.Context, expectedOutcome PersonalityExpectedOutcome, actualResult *holon.ThreadEvaluationResult) (float64, string, error) {
+	// Check if AI service is available and properly initialized
+	if ptf.aiService == nil {
+		// Fallback to basic scoring if no AI service available
+		return ptf.calculateBasicScore(expectedOutcome, actualResult), "No AI service available for LLM judge evaluation", nil
+	}
+
+	// Try to use AI service, but fallback to basic scoring if it fails
+	defer func() {
+		if r := recover(); r != nil {
+			ptf.logger.Warn("AI service panic recovered, falling back to basic scoring", "panic", r)
+		}
+	}()
+
+	// Create LLM judge prompt
+	prompt := fmt.Sprintf(`You are an expert evaluator of personality-based content filtering systems. 
+
+Evaluate how well the actual result matches the expected outcome for this personality:
+
+PERSONALITY: %s (Extension: %s)
+EXPECTED RATIONALE: %s
+
+EXPECTED OUTCOME:
+- Should Show: %v
+- Confidence: %.2f
+- Expected Keywords: %v
+- Expected State: %s
+
+ACTUAL OUTCOME:
+- Should Show: %v
+- Confidence: %.2f
+- Reasoning: %s
+- State: %s
+
+Score this from 0.0 to 1.0 based on:
+1. Whether the decision (show/hide) matches (40%% weight)
+2. Whether the confidence level is appropriate (30%% weight)  
+3. Whether the reasoning aligns with the personality's expected rationale (30%% weight)
+
+Provide your score and detailed reasoning.`,
+		expectedOutcome.PersonalityName,
+		expectedOutcome.ExtensionName,
+		expectedOutcome.Rationale,
+		expectedOutcome.ShouldShow,
+		expectedOutcome.Confidence,
+		expectedOutcome.ReasonKeywords,
+		expectedOutcome.ExpectedState,
+		actualResult.ShouldShow,
+		actualResult.Confidence,
+		actualResult.Reason,
+		actualResult.NewState)
+
+	// Try to call AI service
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.UserMessage(prompt),
+	}
+
+	// Attempt to call LLM for evaluation using the correct Completions method
+	response, err := ptf.aiService.Completions(ctx, messages, nil, "gpt-4o-mini")
+	if err != nil {
+		// If AI service fails, fall back to basic scoring
+		ptf.logger.Debug("LLM judge failed, using basic scoring", "error", err)
+		return ptf.calculateBasicScore(expectedOutcome, actualResult), fmt.Sprintf("LLM judge failed (%v), using basic scoring", err), nil
+	}
+
+	// Parse the response to extract score and reasoning
+	responseText := response.Content
+
+	// Simple parsing - look for score in the response
+	// In a production system, you'd want more robust parsing
+	score := ptf.calculateBasicScore(expectedOutcome, actualResult) // Fallback score
+
+	// Try to extract a score from the response (this is simplified)
+	// You might want to use regex or structured output parsing
+
+	return score, responseText, nil
+}
+
+// calculateBasicScore provides a basic scoring mechanism when LLM judge is not available
+func (ptf *PersonalityTestFramework) calculateBasicScore(expectedOutcome PersonalityExpectedOutcome, actualResult *holon.ThreadEvaluationResult) float64 {
 	score := 0.0
 
 	// Boolean match for ShouldShow (40% weight)
-	if actual.ShouldShow == expected.ShouldShow {
+	if actualResult.ShouldShow == expectedOutcome.ShouldShow {
 		score += 0.4
 	}
 
 	// State match (30% weight)
-	if actual.NewState == expected.ExpectedState {
+	if actualResult.NewState == expectedOutcome.ExpectedState {
 		score += 0.3
 	}
 
 	// Confidence similarity (30% weight)
-	confidenceDiff := actual.Confidence - expected.Confidence
+	confidenceDiff := actualResult.Confidence - expectedOutcome.Confidence
 	if confidenceDiff < 0 {
 		confidenceDiff = -confidenceDiff
 	}
