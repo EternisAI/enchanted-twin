@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -536,6 +537,410 @@ func TestCodeBasedScenarioIntegration(t *testing.T) {
 			"scenarios", len(scenarios),
 			"results", len(results),
 			"report", reportPath)
+	})
+}
+
+func TestFlexibleScenarioSystem(t *testing.T) {
+	// Skip if no API keys available
+	envPath := "../../../../.env"
+	_ = godotenv.Load(envPath)
+
+	completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+	if completionsKey == "" {
+		t.Skip("Skipping flexible scenario test - no API key configured")
+	}
+
+	logger := log.New(os.Stdout)
+	logger.SetLevel(log.InfoLevel)
+
+	// Create AI service
+	completionsURL := os.Getenv("COMPLETIONS_API_URL")
+	if completionsURL == "" {
+		completionsURL = "https://api.openai.com/v1"
+	}
+	aiService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+	// Initialize framework
+	framework := NewPersonalityTestFramework(logger, aiService, "testdata")
+
+	t.Run("ChatMessageScenarios", func(t *testing.T) {
+		// Test chat message scenario builder
+		scenario := NewChatMessageScenario("test_ai_chat", "Test AI discussion in chat").
+			WithMessage("GPT-5 just got released and the performance improvements are incredible! 40% better at reasoning tasks.", "tech_enthusiast").
+			WithAuthor("tech_enthusiast", stringPtr("Alex"), stringPtr("Alex Chen")).
+			WithChatContext("Tech News Discussion").
+			WithContext("domain", "artificial_intelligence").
+			ExpectPersonality("tech_entrepreneur", true, 0.9, 3, "Tech entrepreneurs are highly interested in AI developments").
+			ExpectPersonality("creative_artist", true, 0.6, 2, "Creative artists have moderate interest in AI tools").
+			Build(framework)
+
+		assert.Equal(t, "test_ai_chat", scenario.Name)
+		assert.Equal(t, ScenarioTypeChatMessage, scenario.Type)
+
+		// Verify content
+		content, ok := scenario.Content.(*ChatMessageContent)
+		require.True(t, ok, "Content should be ChatMessageContent")
+		assert.Contains(t, content.Text, "GPT-5")
+		assert.Equal(t, "tech_enthusiast", content.Author.Identity)
+		assert.Equal(t, "Tech News Discussion", content.ChatContext)
+
+		// Verify expectations
+		assert.Len(t, scenario.PersonalityExpectations, 2)
+
+		techExpectation := scenario.PersonalityExpectations[0]
+		assert.Equal(t, "tech_entrepreneur", techExpectation.PersonalityName)
+		assert.True(t, techExpectation.ShouldShow)
+		assert.Equal(t, 0.9, techExpectation.Confidence)
+	})
+
+	t.Run("EmailScenarios", func(t *testing.T) {
+		// Test email scenario builder
+		scenario := NewEmailScenario("test_business_email", "Test business proposal email").
+			WithEmail(
+				"Investment Opportunity - AI Startup",
+				"Hi,\n\nWe're raising $10M Series A for our AI-powered customer service platform. Interested in learning more?\n\nBest,\nJohn",
+			).
+			WithFrom("john.doe", stringPtr("John Doe"), stringPtr("John Doe"), stringPtr("john@startup.ai")).
+			WithTo(ContentAuthor{Identity: "investor", Name: stringPtr("VC Partner")}).
+			WithPriority("high").
+			WithContext("domain", "venture_capital").
+			ExpectPersonality("tech_entrepreneur", true, 0.95, 3, "Tech entrepreneurs are extremely interested in investment opportunities").
+			ExpectPersonality("creative_artist", false, 0.3, 1, "Creative artists typically have low interest in business emails").
+			Build(framework)
+
+		assert.Equal(t, "test_business_email", scenario.Name)
+		assert.Equal(t, ScenarioTypeEmail, scenario.Type)
+
+		// Verify content
+		content, ok := scenario.Content.(*EmailContent)
+		require.True(t, ok, "Content should be EmailContent")
+		assert.Contains(t, content.Subject, "Investment Opportunity")
+		assert.Contains(t, content.Body, "Series A")
+		assert.Equal(t, "high", content.Priority)
+		assert.Equal(t, "john.doe", content.From.Identity)
+
+		// Verify expectations
+		assert.Len(t, scenario.PersonalityExpectations, 2)
+
+		techExpectation := scenario.PersonalityExpectations[0]
+		assert.Equal(t, "tech_entrepreneur", techExpectation.PersonalityName)
+		assert.True(t, techExpectation.ShouldShow)
+
+		artistExpectation := scenario.PersonalityExpectations[1]
+		assert.Equal(t, "creative_artist", artistExpectation.PersonalityName)
+		assert.False(t, artistExpectation.ShouldShow)
+	})
+
+	t.Run("SocialMediaScenarios", func(t *testing.T) {
+		// Test social media scenario builder
+		scenario := NewSocialPostScenario("test_instagram_art", "Test Instagram art post").
+			WithPost(
+				"🎨 New digital painting exploring AI-human collaboration in art! Using machine learning to generate base compositions, then adding human emotion and meaning. #AIArt #DigitalPainting #TechArt",
+				"instagram",
+			).
+			WithAuthor("digital_artist", stringPtr("@maya_creates"), stringPtr("Maya Rodriguez")).
+			WithImages("https://example.com/art-piece.jpg").
+			WithTags("AIArt", "DigitalPainting", "TechArt", "Innovation").
+			WithEngagement(542, 89, 127).
+			WithContext("domain", "creative_arts").
+			WithContext("platform", "instagram").
+			ExpectPersonality("creative_artist", true, 0.95, 3, "Creative artists are highly engaged with artistic content on visual platforms").
+			ExpectPersonality("tech_entrepreneur", true, 0.5, 2, "Tech entrepreneurs have moderate interest in creative applications of technology").
+			Build(framework)
+
+		assert.Equal(t, "test_instagram_art", scenario.Name)
+		assert.Equal(t, ScenarioTypeSocialPost, scenario.Type)
+
+		// Verify content
+		content, ok := scenario.Content.(*SocialPostContent)
+		require.True(t, ok, "Content should be SocialPostContent")
+		assert.Contains(t, content.Text, "AI-human collaboration")
+		assert.Equal(t, "instagram", content.Platform)
+		assert.Equal(t, 542, content.Likes)
+		assert.Contains(t, content.Tags, "AIArt")
+		assert.Len(t, content.ImageURLs, 1)
+
+		// Verify expectations
+		assert.Len(t, scenario.PersonalityExpectations, 2)
+	})
+
+	t.Run("ThreadScenarioBackwardCompatibility", func(t *testing.T) {
+		// Test that thread scenarios still work with new system
+		scenario := NewThreadScenario("test_thread_compat", "Test thread backward compatibility").
+			WithThread(
+				"Breaking: Major AI Breakthrough at OpenAI",
+				"OpenAI announces GPT-5 with 10x improvement in reasoning capabilities and 50% better code generation.",
+				"ai_researcher",
+			).
+			WithAuthor("ai_researcher", stringPtr("Dr. Sarah Chen")).
+			WithMessage("tech_lead", "This changes everything for our product roadmap!", stringPtr("Alex Kim")).
+			WithContext("domain", "artificial_intelligence").
+			Build(framework)
+
+		assert.Equal(t, "test_thread_compat", scenario.Name)
+		assert.Equal(t, ScenarioTypeThread, scenario.Type)
+
+		// Verify content
+		content, ok := scenario.Content.(*ThreadContent)
+		require.True(t, ok, "Content should be ThreadContent")
+		assert.Contains(t, content.ThreadData.Title, "GPT-5")
+		assert.Equal(t, "ai_researcher", content.ThreadData.AuthorName)
+		assert.Len(t, content.ThreadData.Messages, 1)
+		assert.NotNil(t, content.Thread, "Thread model should be created")
+	})
+}
+
+func TestFlexibleScenarioEvaluation(t *testing.T) {
+	logger := log.New(os.Stdout)
+	logger.SetLevel(log.InfoLevel)
+
+	// Create framework with mock AI service for testing
+	framework := NewPersonalityTestFramework(logger, nil, "testdata")
+
+	t.Run("ChatMessageEvaluation", func(t *testing.T) {
+		// Create chat message scenario
+		scenario := NewChatMessageScenario("chat_test", "Chat evaluation test").
+			WithMessage("I'm working on this cool AI art project using Stable Diffusion and custom training data!", "creative_person").
+			WithAuthor("creative_person", stringPtr("Maya"), stringPtr("Maya Artist")).
+			WithChatContext("Creative Tech Discussion").
+			ExpectPersonality("creative_artist", true, 0.8, 3, "Creative artists are interested in AI art tools").
+			Build(framework)
+
+		// Create test personality
+		personality := &ReferencePersonality{
+			Name: "creative_artist",
+			Profile: PersonalityProfile{
+				Interests:  []string{"digital art", "AI", "creativity", "technology"},
+				CoreTraits: []string{"creative", "innovative", "artistic"},
+			},
+		}
+
+		// Create test environment
+		env := &TestEnvironment{
+			PersonalityName: "creative_artist",
+			MemoryTracker:   NewMemoryTracker(),
+		}
+
+		// Evaluate scenario
+		result, err := scenario.Evaluate(context.Background(), personality, env)
+		require.NoError(t, err)
+
+		// Verify evaluation result
+		assert.NotNil(t, result)
+		assert.True(t, result.ShouldShow, "Creative artist should be interested in AI art discussion")
+		assert.Contains(t, result.Reason, "creative")
+		assert.Greater(t, result.Confidence, 0.0)
+	})
+
+	t.Run("EmailEvaluation", func(t *testing.T) {
+		// Create email scenario
+		scenario := NewEmailScenario("email_test", "Email evaluation test").
+			WithEmail(
+				"Funding Opportunity - Series B",
+				"Hi, we're raising $25M Series B for our AI infrastructure startup. Looking for strategic investors.",
+			).
+			WithFrom("founder", stringPtr("John Founder"), stringPtr("John Founder"), stringPtr("john@startup.ai")).
+			WithPriority("high").
+			ExpectPersonality("tech_entrepreneur", true, 0.9, 3, "Tech entrepreneurs are interested in funding opportunities").
+			Build(framework)
+
+		// Create test personality
+		personality := &ReferencePersonality{
+			Name: "tech_entrepreneur",
+			Profile: PersonalityProfile{
+				Interests:  []string{"startups", "AI", "venture capital", "funding"},
+				CoreTraits: []string{"analytical", "business-focused", "strategic"},
+			},
+		}
+
+		// Create test environment
+		env := &TestEnvironment{
+			PersonalityName: "tech_entrepreneur",
+			MemoryTracker:   NewMemoryTracker(),
+		}
+
+		// Evaluate scenario
+		result, err := scenario.Evaluate(context.Background(), personality, env)
+		require.NoError(t, err)
+
+		// Verify evaluation result
+		assert.NotNil(t, result)
+		assert.True(t, result.ShouldShow, "Tech entrepreneur should be interested in funding email")
+		assert.Greater(t, result.Confidence, 0.0)
+		assert.Contains(t, result.Metadata, "subject")
+		assert.Contains(t, result.Metadata, "priority")
+	})
+
+	t.Run("SocialPostEvaluation", func(t *testing.T) {
+		// Create social post scenario
+		scenario := NewSocialPostScenario("social_test", "Social post evaluation test").
+			WithPost(
+				"Just raised $50M Series C! Excited to scale our AI platform to serve more enterprises. #startup #AI #funding",
+				"linkedin",
+			).
+			WithAuthor("ceo", stringPtr("CEO"), stringPtr("Jane CEO")).
+			WithTags("startup", "AI", "funding").
+			WithEngagement(450, 89, 76).
+			ExpectPersonality("tech_entrepreneur", true, 0.85, 3, "Tech entrepreneurs engage with startup funding news").
+			Build(framework)
+
+		// Create test personality
+		personality := &ReferencePersonality{
+			Name: "tech_entrepreneur",
+			Profile: PersonalityProfile{
+				Interests:  []string{"startups", "funding", "AI", "business"},
+				CoreTraits: []string{"ambitious", "strategic", "networking"},
+			},
+		}
+
+		// Create test environment
+		env := &TestEnvironment{
+			PersonalityName: "tech_entrepreneur",
+			MemoryTracker:   NewMemoryTracker(),
+		}
+
+		// Evaluate scenario
+		result, err := scenario.Evaluate(context.Background(), personality, env)
+		require.NoError(t, err)
+
+		// Verify evaluation result
+		assert.NotNil(t, result)
+		assert.True(t, result.ShouldShow, "Tech entrepreneur should be interested in funding announcement")
+		assert.Greater(t, result.Confidence, 0.0)
+		assert.Contains(t, result.Metadata, "platform")
+		assert.Contains(t, result.Metadata, "engagement")
+	})
+}
+
+func TestFlexibleScenarioIntegration(t *testing.T) {
+	// Skip if no API keys available
+	envPath := "../../../../.env"
+	_ = godotenv.Load(envPath)
+
+	completionsKey := os.Getenv("COMPLETIONS_API_KEY")
+	if completionsKey == "" {
+		t.Skip("Skipping flexible scenario integration test - no API key configured")
+	}
+
+	logger := log.New(os.Stdout)
+	logger.SetLevel(log.InfoLevel)
+
+	// Create AI service
+	completionsURL := os.Getenv("COMPLETIONS_API_URL")
+	if completionsURL == "" {
+		completionsURL = "https://api.openai.com/v1"
+	}
+	aiService := ai.NewOpenAIService(logger, completionsKey, completionsURL)
+
+	// Initialize framework
+	framework := NewPersonalityTestFramework(logger, aiService, "testdata")
+
+	t.Run("RunFlexiblePersonalityTests", func(t *testing.T) {
+		// Load personalities
+		err := framework.LoadBasePersonalities()
+		require.NoError(t, err)
+
+		// Load flexible scenarios
+		err = framework.LoadGenericScenarios()
+		require.NoError(t, err)
+
+		scenarios := framework.GetGenericScenarios()
+		assert.Greater(t, len(scenarios), 0, "Should load flexible scenarios")
+
+		// Verify scenario types
+		scenarioTypes := make(map[ScenarioType]int)
+		for _, scenario := range scenarios {
+			scenarioTypes[scenario.Type]++
+		}
+
+		logger.Info("Loaded flexible scenarios by type",
+			"chat_messages", scenarioTypes[ScenarioTypeChatMessage],
+			"emails", scenarioTypes[ScenarioTypeEmail],
+			"social_posts", scenarioTypes[ScenarioTypeSocialPost])
+
+		// Should have multiple types of scenarios
+		assert.Greater(t, len(scenarioTypes), 1, "Should have multiple scenario types")
+		assert.Greater(t, scenarioTypes[ScenarioTypeChatMessage], 0, "Should have chat message scenarios")
+		assert.Greater(t, scenarioTypes[ScenarioTypeEmail], 0, "Should have email scenarios")
+		assert.Greater(t, scenarioTypes[ScenarioTypeSocialPost], 0, "Should have social post scenarios")
+
+		// Create mock storage and repository
+		mockStorage := NewMockMemoryStorage()
+		mockRepo := NewMockHolonRepository()
+
+		// Run flexible tests
+		ctx := context.Background()
+		results, err := framework.RunFlexiblePersonalityTests(ctx, mockStorage, mockRepo)
+		require.NoError(t, err)
+
+		// Should have results
+		assert.Greater(t, len(results), 0, "Should have test results")
+
+		// Verify result diversity
+		resultTypes := make(map[string]int)
+		for _, result := range results {
+			// Extract scenario type from scenario name
+			if strings.Contains(result.ScenarioName, "chat_message") || strings.Contains(result.ScenarioName, "ChatMessage") {
+				resultTypes["chat"]++
+			} else if strings.Contains(result.ScenarioName, "email") || strings.Contains(result.ScenarioName, "Email") {
+				resultTypes["email"]++
+			} else if strings.Contains(result.ScenarioName, "social") || strings.Contains(result.ScenarioName, "Social") ||
+				strings.Contains(result.ScenarioName, "linkedin") || strings.Contains(result.ScenarioName, "instagram") || strings.Contains(result.ScenarioName, "twitter") {
+				resultTypes["social"]++
+			}
+		}
+
+		logger.Info("Test results by content type",
+			"total", len(results),
+			"chat", resultTypes["chat"],
+			"email", resultTypes["email"],
+			"social", resultTypes["social"])
+
+		// Generate report
+		report := framework.GenerateReport(results)
+		framework.PrintSummary(report)
+
+		// Save report
+		reportPath := fmt.Sprintf("testdata/reports/flexible_scenarios_report_%d.json", time.Now().Unix())
+		err = framework.SaveReport(report, reportPath)
+		require.NoError(t, err)
+
+		logger.Info("Flexible scenario test completed",
+			"total_scenarios", len(scenarios),
+			"total_results", len(results),
+			"report_path", reportPath)
+	})
+
+	t.Run("CompareFlexibleWithLegacy", func(t *testing.T) {
+		// Load both legacy and flexible scenarios
+		err := framework.LoadScenarios() // Legacy
+		require.NoError(t, err)
+
+		err = framework.LoadGenericScenarios() // Flexible
+		require.NoError(t, err)
+
+		legacyScenarios := framework.GetScenarios()
+		flexibleScenarios := framework.GetGenericScenarios()
+
+		logger.Info("Scenario comparison",
+			"legacy_count", len(legacyScenarios),
+			"flexible_count", len(flexibleScenarios))
+
+		// Both systems should be able to generate scenarios
+		assert.Greater(t, len(legacyScenarios), 0, "Should have legacy scenarios")
+		assert.Greater(t, len(flexibleScenarios), 0, "Should have flexible scenarios")
+
+		// Flexible scenarios should support more content types
+		flexibleTypes := make(map[ScenarioType]bool)
+		for _, scenario := range flexibleScenarios {
+			flexibleTypes[scenario.Type] = true
+		}
+
+		// Should have at least 3 different content types in flexible system
+		assert.GreaterOrEqual(t, len(flexibleTypes), 3, "Flexible system should support multiple content types")
+		assert.True(t, flexibleTypes[ScenarioTypeChatMessage], "Should support chat messages")
+		assert.True(t, flexibleTypes[ScenarioTypeEmail], "Should support emails")
+		assert.True(t, flexibleTypes[ScenarioTypeSocialPost], "Should support social posts")
 	})
 }
 
