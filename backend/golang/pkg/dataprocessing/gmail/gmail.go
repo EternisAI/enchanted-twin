@@ -510,7 +510,7 @@ func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, faile
 	results := make(chan emailResult, totalEmails)
 
 	var wg sync.WaitGroup
-	var processedCount, failedCount atomic.Int64
+	var processedCount, failedCount, skippedCount atomic.Int64
 
 	// Start workers
 	for i := 0; i < runtime.NumCPU(); i++ {
@@ -537,6 +537,9 @@ func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, faile
 			failures = append(failures, result)
 		} else if result.email != nil {
 			emails = append(emails, result.email)
+		} else {
+			// result.email == nil && result.err == nil means skipped
+			skippedCount.Add(1)
 		}
 
 		// Progress reporting with visual bar
@@ -548,8 +551,8 @@ func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, faile
 			bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
 			fmt.Fprintf(os.Stderr, "\r[%s] %.1f%% (%d/%d)", bar, percent, int(processedCount.Load()), totalEmails)
 
-			if failedCount.Load() > 0 {
-				fmt.Fprintf(os.Stderr, " [Failed: %d]", failedCount.Load())
+			if failedCount.Load() > 0 || skippedCount.Load() > 0 {
+				fmt.Fprintf(os.Stderr, " [Failed: %d, Skipped: %d]", failedCount.Load(), skippedCount.Load())
 			}
 
 			// Add newline at completion
@@ -561,6 +564,13 @@ func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, faile
 
 	// Always save failed emails file (even if empty)
 	g.saveFailedEmails(failedFilePath, failures)
+
+	successCount := int64(len(emails))
+	g.logger.Info("Email processing complete",
+		"success", successCount,
+		"failed", failedCount.Load(),
+		"skipped", skippedCount.Load(),
+		"total", totalEmails)
 
 	return emails, failures, nil
 }
