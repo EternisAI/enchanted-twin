@@ -34,13 +34,23 @@ func TestGmailProcessor_ProcessFile(t *testing.T) {
 }
 
 func createTestMboxFile(t *testing.T) string {
-	content := `From test@example.com Mon Apr 07 14:31:02 +0000 2025
-From: test@example.com
-To: user@example.com
+	// Create a conversation where user@example.com sends TO test@example.com
+	// This will pass the interaction-based filtering
+	content := `From user@example.com Mon Apr 07 14:31:02 +0000 2025
+From: user@example.com
+To: test@example.com
 Subject: Test Email
 Date: Mon, 07 Apr 2025 14:31:02 +0000
 
-This is a test email content.
+Hello, this is a test email from the user.
+
+From test@example.com Mon Apr 07 14:35:00 +0000 2025
+From: test@example.com
+To: user@example.com
+Subject: Re: Test Email
+Date: Mon, 07 Apr 2025 14:35:00 +0000
+
+Thanks for your email! This is a reply.
 `
 
 	tmpFile, err := os.CreateTemp("", "test-*.mbox")
