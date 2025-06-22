@@ -211,14 +211,14 @@ func (g *GmailProcessor) countEmails(path string) (int, error) {
 	return count, scanner.Err()
 }
 
-func (g *GmailProcessor) parseEmail(parser *letters.EmailParser, content string) *emailWithMeta {
+func (g *GmailProcessor) parseEmail(parser *letters.EmailParser, content string) (*emailWithMeta, error) {
 	email, err := parser.Parse(strings.NewReader(content))
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("letters parsing failed: %w", err)
 	}
 
 	if g.shouldSkipEmail(&email) {
-		return nil
+		return nil, nil // nil error means skip, not failure
 	}
 
 	threadID := g.extractThreadID(&email)
@@ -226,7 +226,7 @@ func (g *GmailProcessor) parseEmail(parser *letters.EmailParser, content string)
 		email:     &email,
 		threadID:  threadID,
 		timestamp: email.Headers.Date,
-	}
+	}, nil
 }
 
 func (g *GmailProcessor) shouldSkipEmail(email *letters.Email) bool {
@@ -575,12 +575,19 @@ func (g *GmailProcessor) advancedEmailWorker(jobs <-chan emailJob, results chan<
 
 		resultChan := make(chan emailResult, 1)
 		go func() {
-			email := g.parseEmail(parser, job.emailData)
-			resultChan <- emailResult{
+			email, err := g.parseEmail(parser, job.emailData)
+			result := emailResult{
 				emailIndex: job.emailIndex,
 				email:      email,
 				duration:   time.Since(start),
+				err:        err,
 			}
+			// Set originalData for any error so failed emails can be saved
+			if err != nil {
+				result.originalData = job.emailData
+				result.originalSize = len(job.emailData)
+			}
+			resultChan <- result
 		}()
 
 		select {
