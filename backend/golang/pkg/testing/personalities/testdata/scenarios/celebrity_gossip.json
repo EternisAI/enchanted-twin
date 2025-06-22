@@ -1,39 +1,71 @@
 {
   "name": "celebrity_gossip",
-  "description": "Entertainment gossip thread about celebrity relationships with no technical or creative value",
+  "description": "A celebrity gossip thread about personal drama and relationships",
   "thread_data": {
-    "title": "BREAKING: Celebrity Couple Spotted at Exclusive Restaurant",
-    "content": "Sources confirm that A-list actors Jennifer Stone and Ryan Maxwell were seen dining together at the ultra-exclusive Le Bernardin last night. The pair, who have been rumored to be dating since their movie premiere three months ago, appeared 'very cozy' according to witnesses. This comes just weeks after Jennifer's publicized breakup with musician Dave Chen.",
-    "author_name": "entertainment_insider",
-    "author_alias": "Hollywood Scoop",
-    "image_urls": ["https://example.com/celebrity-photo.jpg"],
+    "title": "Hollywood Star's Secret Relationship Revealed",
+    "content": "Exclusive photos show A-list actor in romantic getaway with mystery partner. Sources close to the couple reveal they've been dating for months but kept it secret due to conflicting movie contracts and publicity schedules.",
+    "author_name": "gossip_blogger",
+    "author_alias": "Entertainment Tonight",
+    "image_urls": ["https://example.com/celeb-photos.jpg"],
     "messages": [
       {
-        "author_name": "gossip_fan_1",
-        "author_alias": "MovieLover2024",
-        "content": "OMG I KNEW IT! They had such amazing chemistry in their last movie together. They're perfect for each other! 😍",
-        "created_at": "2025-01-15T20:30:00Z"
+        "author_name": "fan_account",
+        "author_alias": "CelebWatcher2025",
+        "content": "I KNEW IT! The chemistry was so obvious in their last movie together.",
+        "created_at": "2025-01-15T16:15:00Z"
       },
       {
-        "author_name": "entertainment_blogger",
-        "author_alias": "CelebWatch",
-        "content": "My sources say they've been secretly dating for months. The restaurant choice is interesting - very private and romantic. Expecting an official announcement soon!",
-        "created_at": "2025-01-15T20:33:00Z"
+        "author_name": "gossip_follower",
+        "author_alias": "HollywoodInsider",
+        "content": "This explains why they were both spotted at the same restaurant last week!",
+        "created_at": "2025-01-15T16:18:00Z"
       }
     ],
-    "created_at": "2025-01-15T20:25:00Z"
+    "created_at": "2025-01-15T16:10:00Z"
   },
   "context": {
-    "domain": "entertainment_gossip",
-    "technical_level": "none",
-    "business_relevance": "none",
-    "creative_relevance": "none"
+    "domain": "entertainment",
+    "technical_level": "low",
+    "business_relevance": "low"
   },
-  "expected": {
-    "should_show": false,
-    "confidence": 0.8,
-    "reason_keywords": ["irrelevant", "gossip", "not interesting", "celebrity"],
-    "expected_state": "hidden",
-    "priority": 1
-  }
+  "personality_expectations": [
+    {
+      "personality_name": "tech_entrepreneur",
+      "should_show": false,
+      "confidence": 0.85,
+      "reason_keywords": ["gossip", "irrelevant", "low priority", "entertainment"],
+      "expected_state": "hidden",
+      "priority": 1,
+      "rationale": "Tech entrepreneurs typically filter out celebrity gossip as it's not relevant to business or technical interests"
+    },
+    {
+      "personality_name": "tech_entrepreneur",
+      "extension_name": "ai_research_focused",
+      "should_show": false,
+      "confidence": 0.90,
+      "reason_keywords": ["gossip", "non-technical", "irrelevant to research"],
+      "expected_state": "hidden",
+      "priority": 1,
+      "rationale": "AI research focused entrepreneurs would be even less interested in celebrity gossip"
+    },
+    {
+      "personality_name": "creative_artist",
+      "should_show": false,
+      "confidence": 0.70,
+      "reason_keywords": ["gossip", "superficial", "not creative"],
+      "expected_state": "hidden",
+      "priority": 2,
+      "rationale": "Creative artists may have mixed feelings about celebrity culture but generally focus on artistic content over gossip"
+    },
+    {
+      "personality_name": "creative_artist",
+      "extension_name": "creative_tools_focused",
+      "should_show": false,
+      "confidence": 0.75,
+      "reason_keywords": ["gossip", "irrelevant to tools", "non-creative"],
+      "expected_state": "hidden",
+      "priority": 1,
+      "rationale": "Creative tools focused artists would filter out gossip in favor of tool-related content"
+    }
+  ]
 }

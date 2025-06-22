@@ -1,38 +1,71 @@
 {
   "name": "creative_tool_announcement",
-  "description": "An announcement about a new creative digital art tool with aesthetic focus",
+  "description": "Announcement of a new AI-powered creative design tool",
   "thread_data": {
-    "title": "Adobe Unveils Revolutionary AI-Powered Brush Engine for Digital Artists",
-    "content": "Adobe announces 'Neural Brush' - a groundbreaking AI-powered painting tool that learns from your artistic style and suggests natural brush strokes. The tool maintains full creative control while enhancing artistic expression with intelligent texture and color harmony suggestions.",
-    "author_name": "adobe_creative",
+    "title": "Adobe Unveils AI-Powered Creative Suite 2025 with Mind-Reading Design Assistant",
+    "content": "Adobe announces revolutionary Creative Suite 2025 featuring an AI assistant that predicts designer intent, automatically suggests color palettes, and generates assets in real-time. The tool uses advanced neural networks trained on millions of design patterns and can adapt to individual creative styles within minutes.",
+    "author_name": "adobe_team",
     "author_alias": "Adobe Creative Team",
-    "image_urls": ["https://example.com/neural-brush-demo.jpg"],
+    "image_urls": ["https://example.com/adobe-demo.gif"],
     "messages": [
       {
-        "author_name": "digital_artist_1",
-        "author_alias": "Maya Rodriguez",
-        "content": "This looks amazing! Finally an AI tool that feels like it's designed BY artists FOR artists. The texture suggestions could save hours of experimentation.",
-        "created_at": "2025-01-15T16:15:00Z"
+        "author_name": "ui_designer",
+        "author_alias": "Jenny Park",
+        "content": "This could revolutionize my workflow! The mind-reading feature sounds like exactly what I need for rapid prototyping.",
+        "created_at": "2025-01-15T10:45:00Z"
       },
       {
-        "author_name": "design_studio",
-        "author_alias": "Pixel & Paint Studio",
-        "content": "We've been beta testing this. The way it learns your personal style is incredible - it's like having an artistic assistant that really gets your vision.",
-        "created_at": "2025-01-15T16:18:00Z"
+        "author_name": "creative_director",
+        "author_alias": "Mark Stevens",
+        "content": "Impressive tech, but I wonder about the learning curve and how it affects creative authenticity.",
+        "created_at": "2025-01-15T10:47:00Z"
       }
     ],
-    "created_at": "2025-01-15T16:10:00Z"
+    "created_at": "2025-01-15T10:40:00Z"
   },
   "context": {
     "domain": "creative_tools",
     "technical_level": "medium",
-    "creative_relevance": "high"
+    "business_relevance": "medium"
   },
-  "expected": {
-    "should_show": true,
-    "confidence": 0.9,
-    "reason_keywords": ["creative", "art", "tool", "design", "artistic"],
-    "expected_state": "visible",
-    "priority": 3
-  }
+  "personality_expectations": [
+    {
+      "personality_name": "tech_entrepreneur",
+      "should_show": true,
+      "confidence": 0.75,
+      "reason_keywords": ["AI", "tool", "business opportunity", "market potential"],
+      "expected_state": "visible",
+      "priority": 2,
+      "rationale": "Tech entrepreneurs see business potential in creative tools and AI applications"
+    },
+    {
+      "personality_name": "tech_entrepreneur",
+      "extension_name": "ai_research_focused",
+      "should_show": true,
+      "confidence": 0.85,
+      "reason_keywords": ["AI", "neural networks", "technology advancement", "research"],
+      "expected_state": "visible",
+      "priority": 2,
+      "rationale": "AI research focused entrepreneurs are interested in AI applications across domains"
+    },
+    {
+      "personality_name": "creative_artist",
+      "should_show": true,
+      "confidence": 0.95,
+      "reason_keywords": ["creative", "design", "workflow", "artistic tools", "Adobe"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Creative artists are highly interested in new creative tools that could enhance their work"
+    },
+    {
+      "personality_name": "creative_artist",
+      "extension_name": "creative_tools_focused",
+      "should_show": true,
+      "confidence": 0.98,
+      "reason_keywords": ["creative tools", "Adobe", "AI assistant", "workflow", "design"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Creative tools focused artists have maximum interest in new creative software announcements"
+    }
+  ]
 }

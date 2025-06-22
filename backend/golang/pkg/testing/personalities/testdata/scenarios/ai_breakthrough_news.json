@@ -28,11 +28,44 @@
     "technical_level": "high",
     "business_relevance": "high"
   },
-  "expected": {
-    "should_show": true,
-    "confidence": 0.85,
-    "reason_keywords": ["AI", "breakthrough", "technical", "business relevant", "automation"],
-    "expected_state": "visible",
-    "priority": 3
-  }
+  "personality_expectations": [
+    {
+      "personality_name": "tech_entrepreneur",
+      "should_show": true,
+      "confidence": 0.95,
+      "reason_keywords": ["AI", "breakthrough", "business opportunity", "automation", "competitive advantage"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "Tech entrepreneurs are highly interested in AI breakthroughs due to potential business applications and competitive advantages"
+    },
+    {
+      "personality_name": "tech_entrepreneur",
+      "extension_name": "ai_research_focused",
+      "should_show": true,
+      "confidence": 0.98,
+      "reason_keywords": ["AI", "research", "technical details", "alignment", "reasoning"],
+      "expected_state": "visible",
+      "priority": 3,
+      "rationale": "AI research focused extension should show even higher interest in technical AI breakthroughs"
+    },
+    {
+      "personality_name": "creative_artist",
+      "should_show": true,
+      "confidence": 0.65,
+      "reason_keywords": ["AI", "creativity", "tools", "potential impact"],
+      "expected_state": "visible",
+      "priority": 2,
+      "rationale": "Creative artists are moderately interested in AI breakthroughs from the perspective of potential creative applications"
+    },
+    {
+      "personality_name": "creative_artist",
+      "extension_name": "creative_tools_focused",
+      "should_show": true,
+      "confidence": 0.80,
+      "reason_keywords": ["AI", "creative potential", "tool development", "artistic applications"],
+      "expected_state": "visible",
+      "priority": 2,
+      "rationale": "Creative tools focused artists have higher interest in AI developments that could become creative tools"
+    }
+  ]
 }

@@ -1,0 +1,38 @@
+{
+  "test_name": "ai_research_focused",
+  "description": "Extension focused on evaluating AI research and breakthrough announcements",
+  "additional_facts": [
+    {
+      "id": "memory_006",
+      "content": "Currently collaborating with Stanford AI lab on a research project about enterprise AI adoption",
+      "category": "research_collaboration",
+      "importance": 0.85,
+      "created_at": "2025-06-18T16:00:00Z",
+      "tags": ["research", "Stanford", "enterprise_AI"],
+      "metadata": {"collaboration_type": "industry_academic", "duration": "6_months"}
+    }
+  ],
+  "expected_behaviors": [
+    {
+      "scenario_type": "ai_breakthrough_news",
+      "input": "New AI breakthrough announced",
+      "expected": {
+        "interest_level": "very_high",
+        "likely_response": "analytical_excitement",
+        "key_concerns": ["business_applications", "competitive_advantage", "technical_feasibility"]
+      },
+      "confidence": 0.92
+    },
+    {
+      "scenario_type": "research_paper_release",
+      "input": "Important AI research paper published",
+      "expected": {
+        "interest_level": "high",
+        "likely_response": "deep_analysis",
+        "key_concerns": ["commercial_viability", "implementation_complexity", "market_timing"]
+      },
+      "confidence": 0.87
+    }
+  ],
+  "tags": ["ai_research", "breakthrough_analysis", "commercial_viability"]
+}

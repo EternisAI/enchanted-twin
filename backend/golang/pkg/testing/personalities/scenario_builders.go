@@ -69,26 +69,202 @@ func (sb *ScenarioBuilder) WithContext(key string, value interface{}) *ScenarioB
 	return sb
 }
 
-// ExpectResult sets the expected evaluation outcome
+// ExpectResult sets the expected evaluation result for the scenario
 func (sb *ScenarioBuilder) ExpectResult(shouldShow bool, confidence float64, state string, priority int) *ScenarioBuilder {
-	sb.scenario.Expected = ExpectedThreadEvaluation{
-		ShouldShow:     shouldShow,
-		Confidence:     confidence,
-		ExpectedState:  state,
-		Priority:       priority,
-		ReasonKeywords: make([]string, 0),
+	if sb.scenario.DefaultExpected == nil {
+		sb.scenario.DefaultExpected = &ExpectedThreadEvaluation{}
 	}
+	sb.scenario.DefaultExpected.ShouldShow = shouldShow
+	sb.scenario.DefaultExpected.Confidence = confidence
+	sb.scenario.DefaultExpected.ExpectedState = state
+	sb.scenario.DefaultExpected.Priority = priority
 	return sb
 }
 
-// ExpectKeywords adds expected reasoning keywords
+// ExpectKeywords sets the expected keywords that should appear in evaluation reasoning
 func (sb *ScenarioBuilder) ExpectKeywords(keywords ...string) *ScenarioBuilder {
-	sb.scenario.Expected.ReasonKeywords = append(sb.scenario.Expected.ReasonKeywords, keywords...)
+	if sb.scenario.DefaultExpected == nil {
+		sb.scenario.DefaultExpected = &ExpectedThreadEvaluation{}
+	}
+	sb.scenario.DefaultExpected.ReasonKeywords = append(sb.scenario.DefaultExpected.ReasonKeywords, keywords...)
 	return sb
+}
+
+// WithPersonalityExpectations adds personality-specific expectations
+func (sb *ScenarioBuilder) WithPersonalityExpectations(expectations ...PersonalityExpectedOutcome) *ScenarioBuilder {
+	sb.scenario.PersonalityExpectations = append(sb.scenario.PersonalityExpectations, expectations...)
+	return sb
+}
+
+// generatePersonalityExpectationsFromDefault creates personality expectations based on default expected result
+func (sb *ScenarioBuilder) generatePersonalityExpectationsFromDefault() {
+	if sb.scenario.DefaultExpected == nil {
+		return
+	}
+
+	// If no personality expectations are defined, create them from default
+	if len(sb.scenario.PersonalityExpectations) == 0 {
+		// Generate expectations for standard personalities based on scenario context
+		domain := ""
+		if val, ok := sb.scenario.Context["domain"].(string); ok {
+			domain = val
+		}
+
+		sb.scenario.PersonalityExpectations = sb.generateExpectationsForDomain(domain, sb.scenario.DefaultExpected)
+	}
+}
+
+// generateExpectationsForDomain creates personality expectations based on content domain
+func (sb *ScenarioBuilder) generateExpectationsForDomain(domain string, defaultExpected *ExpectedThreadEvaluation) []PersonalityExpectedOutcome {
+	expectations := make([]PersonalityExpectedOutcome, 0)
+
+	// Define personality-specific adjustments based on domain
+	switch domain {
+	case "artificial_intelligence":
+		// Tech entrepreneurs should be highly interested in AI
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "tech_entrepreneur",
+			ShouldShow:      true,
+			Confidence:      0.95,
+			ReasonKeywords:  []string{"AI", "breakthrough", "business opportunity", "automation", "competitive advantage"},
+			ExpectedState:   "visible",
+			Priority:        3,
+			Rationale:       "Tech entrepreneurs are highly interested in AI breakthroughs due to potential business applications and competitive advantages",
+		})
+
+		// Creative artists moderately interested for creative applications
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "creative_artist",
+			ShouldShow:      true,
+			Confidence:      0.65,
+			ReasonKeywords:  []string{"AI", "creativity", "tools", "potential", "impact"},
+			ExpectedState:   "visible",
+			Priority:        2,
+			Rationale:       "Creative artists are moderately interested in AI breakthroughs from the perspective of potential creative applications",
+		})
+
+	case "creative_tools":
+		// Creative artists highly interested in creative tools
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "creative_artist",
+			ShouldShow:      true,
+			Confidence:      0.95,
+			ReasonKeywords:  []string{"creative", "design", "workflow", "artistic tools", "Adobe"},
+			ExpectedState:   "visible",
+			Priority:        3,
+			Rationale:       "Creative artists are highly interested in new creative tools that could enhance their work",
+		})
+
+		// Tech entrepreneurs see business potential
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "tech_entrepreneur",
+			ShouldShow:      true,
+			Confidence:      0.75,
+			ReasonKeywords:  []string{"AI", "tool", "business opportunity", "market potential"},
+			ExpectedState:   "visible",
+			Priority:        2,
+			Rationale:       "Tech entrepreneurs see business potential in creative tools and AI applications",
+		})
+
+	case "entertainment_gossip":
+		// Both personalities should generally reject gossip but with different reasoning
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "tech_entrepreneur",
+			ShouldShow:      false,
+			Confidence:      0.85,
+			ReasonKeywords:  []string{"gossip", "irrelevant", "low priority", "entertainment"},
+			ExpectedState:   "hidden",
+			Priority:        1,
+			Rationale:       "Tech entrepreneurs typically filter out celebrity gossip as it's not relevant to business or technical interests",
+		})
+
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "creative_artist",
+			ShouldShow:      false,
+			Confidence:      0.70,
+			ReasonKeywords:  []string{"gossip", "superficial", "not creative"},
+			ExpectedState:   "hidden",
+			Priority:        2,
+			Rationale:       "Creative artists may have mixed feelings about celebrity culture but generally focus on artistic content over gossip",
+		})
+
+	case "venture_capital":
+		// Tech entrepreneurs highly interested in funding news
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "tech_entrepreneur",
+			ShouldShow:      true,
+			Confidence:      0.90,
+			ReasonKeywords:  []string{"funding", "startup", "investment", "AI", "business"},
+			ExpectedState:   "visible",
+			Priority:        3,
+			Rationale:       "Tech entrepreneurs are highly interested in startup funding announcements for market insights and opportunities",
+		})
+
+		// Creative artists less interested but may see relevance for creative industry funding
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "creative_artist",
+			ShouldShow:      true,
+			Confidence:      0.60,
+			ReasonKeywords:  []string{"funding", "startup", "creative industry", "innovation"},
+			ExpectedState:   "visible",
+			Priority:        2,
+			Rationale:       "Creative artists may be interested in funding news if it relates to creative industry or innovative tools",
+		})
+
+	case "technical_education":
+		// Tech entrepreneurs interested in technical learning
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "tech_entrepreneur",
+			ShouldShow:      true,
+			Confidence:      0.75,
+			ReasonKeywords:  []string{"technical", "tutorial", "guide", "production", "development"},
+			ExpectedState:   "visible",
+			Priority:        2,
+			Rationale:       "Tech entrepreneurs value technical education content for staying current with technology trends",
+		})
+
+		// Creative artists interested if relevant to creative work
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "creative_artist",
+			ShouldShow:      true,
+			Confidence:      0.75,
+			ReasonKeywords:  []string{"technical", "tutorial", "guide", "production", "development"},
+			ExpectedState:   "visible",
+			Priority:        2,
+			Rationale:       "Creative artists may be interested in technical tutorials that could apply to their creative workflows",
+		})
+
+	default:
+		// Use default expectations for unknown domains
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "tech_entrepreneur",
+			ShouldShow:      defaultExpected.ShouldShow,
+			Confidence:      defaultExpected.Confidence,
+			ReasonKeywords:  defaultExpected.ReasonKeywords,
+			ExpectedState:   defaultExpected.ExpectedState,
+			Priority:        defaultExpected.Priority,
+			Rationale:       "Default expectation for tech entrepreneur personality",
+		})
+
+		expectations = append(expectations, PersonalityExpectedOutcome{
+			PersonalityName: "creative_artist",
+			ShouldShow:      defaultExpected.ShouldShow,
+			Confidence:      defaultExpected.Confidence,
+			ReasonKeywords:  defaultExpected.ReasonKeywords,
+			ExpectedState:   defaultExpected.ExpectedState,
+			Priority:        defaultExpected.Priority,
+			Rationale:       "Default expectation for creative artist personality",
+		})
+	}
+
+	return expectations
 }
 
 // Build creates the final scenario and converts thread data to model
 func (sb *ScenarioBuilder) Build(framework *PersonalityTestFramework) ThreadTestScenario {
+	// Generate personality expectations from default if none exist
+	sb.generatePersonalityExpectationsFromDefault()
+
 	// Convert ThreadData to actual Thread model
 	sb.scenario.Thread = framework.createThreadFromData(sb.scenario.ThreadData)
 	return *sb.scenario
@@ -308,13 +484,13 @@ func (psb *ParameterizedScenarioBuilder) Build(library *ScenarioLibrary, framewo
 			builder.scenario.ThreadData.AuthorName = authorName
 		}
 		if shouldShow, ok := psb.parameters["should_show"].(bool); ok {
-			builder.scenario.Expected.ShouldShow = shouldShow
+			builder.scenario.DefaultExpected.ShouldShow = shouldShow
 		}
 		if confidence, ok := psb.parameters["confidence"].(float64); ok {
-			builder.scenario.Expected.Confidence = confidence
+			builder.scenario.DefaultExpected.Confidence = confidence
 		}
 		if keywords, ok := psb.parameters["keywords"].([]string); ok {
-			builder.scenario.Expected.ReasonKeywords = keywords
+			builder.scenario.DefaultExpected.ReasonKeywords = keywords
 		}
 
 		return builder
