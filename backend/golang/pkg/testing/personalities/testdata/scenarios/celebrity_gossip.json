@@ -1,0 +1,39 @@
+{
+  "name": "celebrity_gossip",
+  "description": "Entertainment gossip thread about celebrity relationships with no technical or creative value",
+  "thread_data": {
+    "title": "BREAKING: Celebrity Couple Spotted at Exclusive Restaurant",
+    "content": "Sources confirm that A-list actors Jennifer Stone and Ryan Maxwell were seen dining together at the ultra-exclusive Le Bernardin last night. The pair, who have been rumored to be dating since their movie premiere three months ago, appeared 'very cozy' according to witnesses. This comes just weeks after Jennifer's publicized breakup with musician Dave Chen.",
+    "author_name": "entertainment_insider",
+    "author_alias": "Hollywood Scoop",
+    "image_urls": ["https://example.com/celebrity-photo.jpg"],
+    "messages": [
+      {
+        "author_name": "gossip_fan_1",
+        "author_alias": "MovieLover2024",
+        "content": "OMG I KNEW IT! They had such amazing chemistry in their last movie together. They're perfect for each other! 😍",
+        "created_at": "2025-01-15T20:30:00Z"
+      },
+      {
+        "author_name": "entertainment_blogger",
+        "author_alias": "CelebWatch",
+        "content": "My sources say they've been secretly dating for months. The restaurant choice is interesting - very private and romantic. Expecting an official announcement soon!",
+        "created_at": "2025-01-15T20:33:00Z"
+      }
+    ],
+    "created_at": "2025-01-15T20:25:00Z"
+  },
+  "context": {
+    "domain": "entertainment_gossip",
+    "technical_level": "none",
+    "business_relevance": "none",
+    "creative_relevance": "none"
+  },
+  "expected": {
+    "should_show": false,
+    "confidence": 0.8,
+    "reason_keywords": ["irrelevant", "gossip", "not interesting", "celebrity"],
+    "expected_state": "hidden",
+    "priority": 1
+  }
+}

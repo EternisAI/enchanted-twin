@@ -1,0 +1,38 @@
+{
+  "name": "ai_breakthrough_news",
+  "description": "A technical thread about a new AI model breakthrough with detailed metrics",
+  "thread_data": {
+    "title": "GPT-5 Achieves 95% Accuracy on Complex Reasoning Tasks",
+    "content": "New research from OpenAI shows GPT-5 achieving unprecedented 95% accuracy on mathematical reasoning benchmarks, with 40% improvement in code generation tasks. The model uses a novel transformer architecture with enhanced attention mechanisms and demonstrates emergent capabilities in multi-step problem solving.",
+    "author_name": "ai_researcher",
+    "author_alias": "Dr. Sarah Chen",
+    "image_urls": [],
+    "messages": [
+      {
+        "author_name": "tech_lead",
+        "author_alias": "Alex Kumar", 
+        "content": "This is huge for our automation platform. The reasoning capabilities could revolutionize how we handle complex workflows.",
+        "created_at": "2025-01-15T14:30:00Z"
+      },
+      {
+        "author_name": "ai_researcher",
+        "author_alias": "Dr. Sarah Chen",
+        "content": "The technical details are fascinating. They've solved the alignment problem for multi-step reasoning while maintaining interpretability.",
+        "created_at": "2025-01-15T14:32:00Z"
+      }
+    ],
+    "created_at": "2025-01-15T14:25:00Z"
+  },
+  "context": {
+    "domain": "artificial_intelligence",
+    "technical_level": "high",
+    "business_relevance": "high"
+  },
+  "expected": {
+    "should_show": true,
+    "confidence": 0.85,
+    "reason_keywords": ["AI", "breakthrough", "technical", "business relevant", "automation"],
+    "expected_state": "visible",
+    "priority": 3
+  }
+}
