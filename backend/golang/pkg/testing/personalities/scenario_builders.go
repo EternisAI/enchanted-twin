@@ -582,8 +582,3 @@ func (sg *ScenarioGenerator) mustGenerateScenario(templateKey string, framework 
 	}
 	return scenario
 }
-
-// Helper function for string pointers
-func stringPtr(s string) *string {
-	return &s
-}

@@ -1,214 +1,297 @@
 # Personality Testing Framework
 
-A comprehensive testing framework for modeling reference personalities and testing holon thread processing functionality. This framework allows you to create detailed personality profiles with rich memory facts, then test how different personalities respond to various thread scenarios using LLM-based evaluation.
+A comprehensive testing framework for modeling reference personalities and testing both holon thread processing functionality and arbitrary content scenarios. This framework allows you to create detailed personality profiles with rich memory facts, then test how different personalities respond to various content types including chat messages, emails, social media posts, and traditional thread scenarios using LLM-based evaluation.
 
 ## Overview
 
 The personality testing framework consists of several key components:
 
 - **Reference Personalities**: Detailed personality profiles with memory facts, conversations, and expected behaviors
-- **Thread Scenarios**: Test cases representing different types of content (AI news, creative tools, celebrity gossip, etc.)
+- **Flexible Scenarios**: Test cases supporting multiple content types (chat messages, emails, social posts, threads)
+- **Thread Scenarios**: Legacy thread-based test cases for holon processing
 - **LLM-as-a-Judge**: Automated evaluation of how well actual results match expected personality behaviors
-- **Memory Tracking**: Analysis of which memories are accessed during thread evaluation
+- **Memory Tracking**: Analysis of which memories are accessed during evaluation
 - **Comprehensive Reporting**: Detailed analysis and scoring of personality performance
 
 ## Architecture
 
 ```
 PersonalityTestFramework
-├── framework.go          # Core data structures and loading logic
-├── runner.go             # Test execution and LLM judge evaluation
-├── reporting.go          # Report generation and analytics
-└── personality_test.go   # Integration tests demonstrating usage
+├── framework.go              # Core data structures and loading logic
+├── flexible_scenarios.go     # New flexible scenario system for arbitrary content
+├── flexible_handlers.go      # Evaluation handlers for different content types
+├── flexible_builders.go      # Fluent builders for different scenario types
+├── scenario_builders.go      # Legacy thread scenario builders (maintained for compatibility)
+├── runner.go                 # Test execution and LLM judge evaluation
+├── reporting.go              # Report generation and analytics
+├── modular_test.go          # Tests for modular personality system
+└── personality_test.go       # Integration tests demonstrating both systems
 ```
+
+## New Flexible Scenario System
+
+The framework now supports testing personalities against different types of content beyond just holon threads:
+
+### Supported Content Types
+
+1. **Chat Messages** (`ScenarioTypeChatMessage`)
+   - Direct messages, group chats, team discussions
+   - Context-aware evaluation based on chat environment
+   - Author identity and message threading support
+
+2. **Emails** (`ScenarioTypeEmail`)
+   - Business emails, newsletters, notifications
+   - Priority-based filtering, sender reputation
+   - Subject line and body content analysis
+
+3. **Social Media Posts** (`ScenarioTypeSocialPost`)
+   - LinkedIn, Twitter, Instagram posts
+   - Engagement metrics, hashtags, platform-specific behavior
+   - Visual content and viral content patterns
+
+4. **Threads** (`ScenarioTypeThread`) 
+   - Traditional holon thread scenarios (backward compatible)
+   - Multi-message discussions with replies
+   - Integration with existing holon processing system
+
+### Content-Specific Evaluation
+
+Each content type has specialized evaluation handlers that consider:
+
+- **Chat Messages**: Conversation context, urgency, social dynamics
+- **Emails**: Business relevance, sender authority, call-to-action strength
+- **Social Posts**: Platform norms, engagement potential, trend relevance
+- **Threads**: Topic depth, discussion quality, community value
 
 ## Usage
 
-### 1. Define Reference Personalities
+### 1. Flexible Scenario Creation
 
-Create personality JSON files in `testdata/personalities/{name}/personality.json`:
-
-```json
-{
-  "name": "tech_entrepreneur",
-  "description": "A tech entrepreneur focused on AI and startups",
-  "profile": {
-    "age": 32,
-    "occupation": "Tech Entrepreneur & AI Startup Founder",
-    "interests": ["artificial intelligence", "machine learning", "venture capital"],
-    "core_traits": ["analytical", "ambitious", "risk-taking"],
-    "communication_style": "direct and data-driven"
-  },
-  "memory_facts": [
-    {
-      "category": "preference",
-      "subject": "user",
-      "attribute": "content_interest",
-      "value": "highly interested in AI breakthrough news",
-      "importance": 3,
-      "content": "user - highly interested in AI breakthrough news"
-    }
-  ],
-  "expected_behaviors": [
-    {
-      "scenario_type": "ai_news",
-      "expected": {"interest_level": "high", "likely_to_engage": true},
-      "confidence": 0.9
-    }
-  ]
-}
+#### Chat Message Scenarios
+```go
+scenario := NewChatMessageScenario("ai_discussion_chat", "Chat about AI development").
+    WithMessage("GPT-5 just got released and the performance improvements are incredible!", "tech_enthusiast").
+    WithAuthor("tech_enthusiast", stringPtr("Alex"), stringPtr("Alex Chen")).
+    WithChatContext("Tech Innovation Discussion").
+    WithContext("domain", "artificial_intelligence").
+    ExpectPersonality("tech_entrepreneur", true, 0.9, 3, "Tech entrepreneurs are highly interested in AI developments").
+    ExpectPersonality("creative_artist", true, 0.6, 2, "Creative artists have moderate interest in AI tools").
+    Build(framework)
 ```
 
-### 2. Create Thread Scenarios
-
-Define test scenarios in `testdata/scenarios/{name}.json`:
-
-```json
-{
-  "name": "ai_breakthrough_news",
-  "description": "Technical thread about AI model breakthrough",
-  "thread_data": {
-    "title": "GPT-5 Achieves 95% Accuracy on Complex Reasoning Tasks",
-    "content": "New research shows unprecedented capabilities...",
-    "author_name": "ai_researcher",
-    "created_at": "2025-01-15T14:25:00Z"
-  },
-  "expected": {
-    "should_show": true,
-    "confidence": 0.85,
-    "reason_keywords": ["AI", "breakthrough", "technical"],
-    "expected_state": "visible"
-  }
-}
+#### Email Scenarios
+```go
+scenario := NewEmailScenario("business_proposal", "Business proposal email").
+    WithEmail(
+        "Series B Funding Opportunity - AI Infrastructure Startup", 
+        "Hi, we're raising $25M Series B for our AI infrastructure startup...",
+    ).
+    WithFrom("founder", stringPtr("John Doe"), stringPtr("John Doe"), stringPtr("john@startup.ai")).
+    WithTo(ContentAuthor{Identity: "investor", Name: stringPtr("VC Partner")}).
+    WithPriority("high").
+    WithContext("domain", "venture_capital").
+    ExpectPersonality("tech_entrepreneur", true, 0.95, 3, "Tech entrepreneurs are extremely interested in investment opportunities").
+    Build(framework)
 ```
 
-### 3. Run Tests
+#### Social Media Scenarios
+```go
+scenario := NewSocialPostScenario("instagram_art_post", "Instagram art showcase").
+    WithPost(
+        "🎨 New digital painting exploring AI-human collaboration! #AIArt #DigitalPainting", 
+        "instagram",
+    ).
+    WithAuthor("digital_artist", stringPtr("@maya_creates"), stringPtr("Maya Rodriguez")).
+    WithImages("https://example.com/art-piece.jpg").
+    WithTags("AIArt", "DigitalPainting", "TechArt").
+    WithEngagement(542, 89, 127).
+    WithContext("domain", "creative_arts").
+    ExpectPersonality("creative_artist", true, 0.95, 3, "Creative artists highly engage with artistic content").
+    Build(framework)
+```
+
+### 2. Backward Compatible Thread Scenarios
+
+The legacy thread system continues to work exactly as before:
 
 ```go
-package main
+scenario := NewThreadScenario("ai_breakthrough", "AI breakthrough discussion").
+    WithThread(
+        "GPT-5 Achieves 95% Accuracy on Complex Reasoning Tasks",
+        "New research shows unprecedented capabilities...",
+        "ai_researcher",
+    ).
+    WithAuthor("ai_researcher", stringPtr("Dr. Sarah Chen")).
+    WithMessage("tech_lead", "This changes everything for our product roadmap!", stringPtr("Alex Kim")).
+    WithContext("domain", "artificial_intelligence").
+    Build(framework)
+```
 
-import (
-    "context"
-    "log"
-    
-    "github.com/EternisAI/enchanted-twin/pkg/testing/personalities"
-    "github.com/EternisAI/enchanted-twin/pkg/ai"
-)
+### 3. Running Flexible Tests
 
-func main() {
-    // Initialize framework
-    logger := log.New(os.Stdout)
-    aiService := ai.NewOpenAIService(logger, apiKey, apiURL)
-    framework := personalities.NewPersonalityTestFramework(logger, aiService, "testdata")
-    
-    // Load test data
-    framework.LoadPersonalities()
-    framework.LoadScenarios()
-    
-    // Run tests
-    results, err := framework.RunPersonalityTests(ctx, memoryStorage, repository)
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    // Generate report
-    report := framework.GenerateReport(results)
-    framework.PrintSummary(report)
-    framework.SaveReport(report, "test_report.json")
-}
+```go
+// Load personalities and flexible scenarios
+err := framework.LoadBasePersonalities()
+err = framework.LoadGenericScenarios()
+
+// Run flexible personality tests
+results, err := framework.RunFlexiblePersonalityTests(ctx, memoryStorage, holonRepo)
+
+// Generate comprehensive report
+report := framework.GenerateReport(results)
+framework.PrintSummary(report)
+framework.SaveReport(report, "flexible_test_report.json")
 ```
 
 ## Test Data Structure
 
 ```
 testdata/
-├── personalities/
+├── personalities/                    # Personality definitions
 │   ├── tech_entrepreneur/
 │   │   └── personality.json
 │   ├── creative_artist/
 │   │   └── personality.json
 │   └── {personality_name}/
 │       └── personality.json
-├── scenarios/
+├── scenarios/                        # Legacy thread scenarios
 │   ├── ai_breakthrough_news.json
 │   ├── creative_tool_announcement.json
-│   ├── celebrity_gossip.json
 │   └── {scenario_name}.json
+├── generic_scenarios/                # New flexible scenarios (optional)
+│   ├── chat_messages/
+│   ├── emails/
+│   ├── social_posts/
+│   └── mixed/
+├── extensions/                       # Personality extensions (optional)
+│   ├── tech_entrepreneur/
+│   │   ├── ai_research_focused.json
+│   │   └── startup_ecosystem_focused.json
+│   └── creative_artist/
+│       └── creative_tools_focused.json
 └── reports/
-    └── personality_test_report_{timestamp}.json
+    ├── personality_test_report_{timestamp}.json
+    └── flexible_scenarios_report_{timestamp}.json
 ```
 
-## Memory Fact Categories
+## Content Type Specifications
 
-The framework supports rich memory facts with the following categories:
+### ChatMessageContent
+```go
+type ChatMessageContent struct {
+    MessageID    string                 `json:"message_id"`
+    Text         string                 `json:"text"`
+    Author       ContentAuthor          `json:"author"`
+    ChatContext  string                 `json:"chat_context"`
+    CreatedAt    time.Time             `json:"created_at"`
+    Metadata     map[string]interface{} `json:"metadata"`
+}
+```
 
-- **preference**: User preferences and interests
-- **goal_plan**: Short-term and long-term goals
-- **relationship**: Social connections and networks
-- **skill_expertise**: Technical and creative skills
-- **value_belief**: Core values and beliefs
-- **habit_routine**: Daily patterns and behaviors
-- **experience_event**: Past experiences and significant events
+### EmailContent
+```go
+type EmailContent struct {
+    Subject   string          `json:"subject"`
+    Body      string          `json:"body"`
+    From      ContentAuthor   `json:"from"`
+    To        []ContentAuthor `json:"to"`
+    CC        []ContentAuthor `json:"cc"`
+    Priority  string          `json:"priority"`
+    CreatedAt time.Time       `json:"created_at"`
+    Metadata  map[string]interface{} `json:"metadata"`
+}
+```
 
-## Evaluation Metrics
+### SocialPostContent
+```go
+type SocialPostContent struct {
+    PostID    string          `json:"post_id"`
+    Text      string          `json:"text"`
+    Author    ContentAuthor   `json:"author"`
+    Platform  string          `json:"platform"`
+    ImageURLs []string        `json:"image_urls"`
+    Tags      []string        `json:"tags"`
+    Likes     int             `json:"likes"`
+    Shares    int             `json:"shares"`
+    Comments  int             `json:"comments"`
+    CreatedAt time.Time       `json:"created_at"`
+    Metadata  map[string]interface{} `json:"metadata"`
+}
+```
 
-### Test Results
-- **Success Rate**: Percentage of tests that meet the score threshold (≥70%)
-- **Similarity Score**: 0-1 score from LLM judge comparing actual vs expected results
-- **Memory Usage**: Which memories were accessed during evaluation
+## Evaluation Handlers
 
-### Personality Analysis
-- **Average Score**: Overall performance across all scenarios
-- **Best/Worst Scenarios**: Scenarios where personality performs best/worst
-- **Memory Access Patterns**: Which memories are most frequently used
+Each content type has a specialized evaluation handler:
 
-### Scenario Analysis
-- **Difficulty Score**: How challenging each scenario is across personalities
-- **Personality Differences**: How different personalities respond to same content
+### Chat Message Handler
+- Analyzes conversational context and social dynamics
+- Considers message urgency and relevance to ongoing discussions
+- Evaluates based on relationship with message author
+- Factors in group dynamics and chat environment
 
-## Sample Personalities Included
+### Email Handler
+- Prioritizes based on sender authority and email priority
+- Analyzes subject line relevance and call-to-action strength
+- Considers business context and professional relationships
+- Evaluates time-sensitivity and response requirements
 
-### Tech Entrepreneur
-- **Focus**: AI, startups, business opportunities
-- **Traits**: Analytical, data-driven, networking-oriented
-- **Expected**: High interest in AI news, low interest in celebrity gossip
+### Social Post Handler
+- Considers platform-specific norms and engagement patterns
+- Analyzes hashtag relevance and trending topics
+- Evaluates visual content and shareability potential
+- Factors in follower relationships and social proof
 
-### Creative Artist
-- **Focus**: Art, design, creative tools, aesthetics
-- **Traits**: Intuitive, emotionally-driven, aesthetically-focused
-- **Expected**: High interest in creative tools, low interest in technical jargon
+## Key Features
+
+### Content-Agnostic Framework
+- **Unified Interface**: Same evaluation framework works across all content types
+- **Pluggable Handlers**: Easy to add new content types and evaluation logic
+- **Consistent Reporting**: Same metrics and analysis across different content scenarios
+
+### Enhanced Realism
+- **Platform Behavior**: Different evaluation logic for LinkedIn vs Instagram vs Email
+- **Context Awareness**: Chat context, email threads, social engagement influence decisions
+- **Multi-Modal Support**: Text, images, engagement metrics, metadata all factor into evaluation
+
+### Backward Compatibility
+- **Legacy Support**: All existing thread scenarios continue to work unchanged
+- **Gradual Migration**: Can use both systems simultaneously during transition
+- **Unified Reporting**: Legacy and flexible scenarios appear in same reports
 
 ## Sample Scenarios Included
 
-### AI Breakthrough News
-- **Content**: Technical AI model improvements with metrics
-- **Expected**: High interest from tech entrepreneur, medium from artist
+### Chat Message Scenarios
+- **AI Discussion**: Tech enthusiasts discussing AI breakthroughs in team chat
+- **Creative Collaboration**: Artists sharing creative process in collaboration channel
+- **Casual Personal**: Friends planning coffee meetup in group chat
 
-### Creative Tool Announcement
-- **Content**: New digital art tool with creative features
-- **Expected**: High interest from artist, medium from entrepreneur
+### Email Scenarios
+- **Business Proposal**: High-priority funding opportunity from startup founder
+- **Creative Opportunity**: Art exhibition invitation with professional opportunity
+- **Newsletter**: Technical newsletter with industry insights
 
-### Celebrity Gossip
-- **Content**: Entertainment news with no practical value
-- **Expected**: Low interest from both personalities
+### Social Media Scenarios
+- **LinkedIn Tech Post**: AI researcher sharing research breakthrough with engagement metrics
+- **Instagram Art Post**: Digital artist showcasing AI-human collaborative artwork
+- **Twitter Opinion**: Tech commentator sharing hot take on AI industry trends
 
-## LLM-as-a-Judge Evaluation
+### Thread Scenarios (Legacy)
+- **AI Breakthrough News**: Technical AI model improvements with metrics
+- **Creative Tool Announcement**: New digital art tool with creative features  
+- **Celebrity Gossip**: Entertainment news with no practical value
+- **Startup Funding**: Major funding announcements and market implications
 
-The framework uses an LLM judge to evaluate how well actual results match expected behaviors:
+## Migration Guide
 
-- **Similarity Scoring**: 0.0-1.0 scale comparing actual vs expected results
-- **Reasoning Analysis**: Checks if expected keywords appear in reasoning
-- **Nuanced Evaluation**: Considers multiple factors beyond just the binary decision
-- **Fallback Scoring**: Basic algorithmic scoring when LLM judge fails
+### For Existing Users
+1. **No Changes Required**: Your existing thread scenarios continue to work exactly as before
+2. **Gradual Enhancement**: Add flexible scenarios alongside existing ones
+3. **Unified Testing**: Use `RunFlexiblePersonalityTests()` for new scenarios, `RunPersonalityTests()` for legacy
 
-## Integration with Holon Thread Processing
-
-The framework integrates with the existing holon thread processing system:
-
-- **ThreadProcessor**: Uses actual thread evaluation logic
-- **Memory Integration**: Loads personality data into evolving memory system
-- **Real Evaluation**: Tests actual decision-making pathways
-- **Memory Tracking**: Monitors which memories influence decisions
+### For New Users
+1. **Start with Flexible**: Use the new content-specific builders for realistic scenarios
+2. **Content Diversity**: Create scenarios across different content types for comprehensive testing
+3. **Platform-Specific**: Consider platform norms and user behavior patterns
 
 ## Running the Tests
 
@@ -217,11 +300,15 @@ The framework integrates with the existing holon thread processing system:
 - OpenAI API key for LLM evaluation
 - Weaviate or compatible vector database (for full integration)
 
-### Quick Start
+### Quick Start - Flexible Scenarios
 ```bash
-# Run the integration test
+# Run flexible scenario tests
 cd pkg/testing/personalities
+go test -v -run TestFlexibleScenarioIntegration
+
+# Run both legacy and flexible systems
 go test -v -run TestPersonalityThreadProcessingIntegration
+go test -v -run TestFlexibleScenarioSystem
 
 # View generated reports
 ls testdata/reports/
@@ -234,44 +321,40 @@ export COMPLETIONS_API_URL="https://api.openai.com/v1"
 export EMBEDDINGS_API_KEY="your-openai-api-key"  # Optional, defaults to completions key
 ```
 
-## Extending the Framework
-
-### Adding New Personalities
-1. Create a new directory in `testdata/personalities/{name}/`
-2. Add `personality.json` with complete personality profile
-3. Include rich memory facts, conversations, and expected behaviors
-
-### Adding New Scenarios
-1. Create `{scenario_name}.json` in `testdata/scenarios/`
-2. Define thread content and expected evaluation results
-3. Include context information and priority levels
-
-### Custom Evaluation Logic
-- Extend `LLM-as-a-judge` prompts for domain-specific evaluation
-- Add custom scoring metrics for specific personality traits
-- Implement memory tracking for specific categories
-
 ## Use Cases
 
 ### Development Testing
-- Validate thread processing logic across different personality types
-- Ensure memory integration works correctly
-- Test edge cases and boundary conditions
+- **Content Processing**: Test how personalities respond to different content types
+- **Platform Integration**: Validate behavior across chat, email, social platforms
+- **Multi-Modal Scenarios**: Test responses to text + image + engagement combinations
 
-### Personality Modeling
-- Research how different personality types respond to content
-- Validate psychological models with LLM behavior
-- Study memory access patterns and decision-making
+### Product Development
+- **Feed Algorithms**: Test content recommendation systems across platforms
+- **Notification Systems**: Validate email and push notification relevance
+- **Social Features**: Test engagement prediction and viral content identification
 
-### Content Curation
-- Test content filtering algorithms across user segments
-- Optimize recommendation systems for different personalities
-- Validate interest prediction models
+### Research Applications
+- **Cross-Platform Behavior**: Study how personality traits manifest across different platforms
+- **Content Preference**: Analyze content type preferences by personality segments
+- **Communication Patterns**: Research how personalities respond to different communication channels
 
 ## Future Enhancements
 
-- **Multi-modal Scenarios**: Support for image and video content
-- **Temporal Analysis**: Track personality changes over time
-- **Social Dynamics**: Multi-personality interaction scenarios
-- **Real User Validation**: Compare framework results with actual user behavior
-- **Performance Optimization**: Batch processing and caching for large test suites
+### New Content Types
+- **Video Content**: YouTube videos, TikToks, video calls with transcript analysis
+- **Audio Content**: Podcasts, voice messages, meeting recordings
+- **Documents**: PDFs, presentations, research papers with domain-specific evaluation
+- **Code**: GitHub repositories, pull requests, technical documentation
+
+### Advanced Features
+- **Real-Time Evaluation**: Stream processing for live content evaluation
+- **Multi-User Scenarios**: Group conversations, collaborative documents
+- **Temporal Analysis**: Track personality evolution across content types over time
+- **A/B Testing**: Compare different evaluation strategies for same content
+
+### Platform Integrations
+- **Native APIs**: Direct integration with Slack, Discord, Gmail, LinkedIn APIs
+- **Webhook Support**: Real-time content evaluation via webhooks
+- **Analytics Integration**: Connect with Google Analytics, social media analytics
+
+This flexible scenario system provides a comprehensive foundation for testing personality-based content evaluation across the diverse landscape of modern digital communication platforms.

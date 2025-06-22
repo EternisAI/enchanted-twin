@@ -327,26 +327,43 @@ type TestSummary struct {
 
 // PersonalityTestFramework manages the testing of personalities against thread scenarios
 type PersonalityTestFramework struct {
-	logger            *log.Logger
-	aiService         *ai.Service
-	personalities     map[string]*ReferencePersonality
-	basePersonalities map[string]*BasePersonality
-	extensions        map[string]*PersonalityExtension
-	scenarios         []ThreadTestScenario
-	testDataPath      string
+	logger             *log.Logger
+	aiService          *ai.Service
+	personalities      map[string]*ReferencePersonality
+	basePersonalities  map[string]*BasePersonality
+	extensions         map[string]*PersonalityExtension
+	scenarios          []ThreadTestScenario         // Legacy scenarios
+	genericScenarios   []GenericTestScenario        // New flexible scenarios
+	evaluationRegistry *EvaluationHandlerRegistry   // Handler registry
+	testDataPath       string
 }
 
 // NewPersonalityTestFramework creates a new personality testing framework
 func NewPersonalityTestFramework(logger *log.Logger, aiService *ai.Service, testDataPath string) *PersonalityTestFramework {
-	return &PersonalityTestFramework{
+	framework := &PersonalityTestFramework{
 		logger:            logger,
 		aiService:         aiService,
 		personalities:     make(map[string]*ReferencePersonality),
 		basePersonalities: make(map[string]*BasePersonality),
 		extensions:        make(map[string]*PersonalityExtension),
 		scenarios:         make([]ThreadTestScenario, 0),
+		genericScenarios:  make([]GenericTestScenario, 0),
+		evaluationRegistry: NewEvaluationHandlerRegistry(),
 		testDataPath:      testDataPath,
 	}
+	
+	// Register default evaluation handlers
+	framework.registerDefaultHandlers()
+	
+	return framework
+}
+
+// registerDefaultHandlers registers the built-in evaluation handlers
+func (ptf *PersonalityTestFramework) registerDefaultHandlers() {
+	ptf.evaluationRegistry.Register(NewThreadEvaluationHandler(ptf))
+	ptf.evaluationRegistry.Register(NewChatMessageEvaluationHandler(ptf))
+	ptf.evaluationRegistry.Register(NewEmailEvaluationHandler(ptf))
+	ptf.evaluationRegistry.Register(NewSocialPostEvaluationHandler(ptf))
 }
 
 // LoadPersonalities loads all personality files from the test data directory
@@ -1109,4 +1126,393 @@ func (cd *ConversationDocument) Metadata() map[string]string {
 
 func (cd *ConversationDocument) Source() string {
 	return "conversation"
+}
+
+// LoadGenericScenarios loads flexible scenarios from files or code
+func (ptf *PersonalityTestFramework) LoadGenericScenarios() error {
+	// First try to load from files
+	err := ptf.loadGenericScenariosFromFiles()
+	if err != nil {
+		ptf.logger.Warn("Failed to load generic scenarios from files", "error", err)
+	}
+	
+	// Then load code-based scenarios
+	err = ptf.loadGenericScenariosFromCode()
+	if err != nil {
+		ptf.logger.Warn("Failed to load generic scenarios from code", "error", err)
+	}
+	
+	return nil
+}
+
+// loadGenericScenariosFromFiles loads flexible scenarios from JSON files
+func (ptf *PersonalityTestFramework) loadGenericScenariosFromFiles() error {
+	scenariosDir := filepath.Join(ptf.testDataPath, "generic_scenarios")
+	
+	entries, err := os.ReadDir(scenariosDir)
+	if err != nil {
+		// Generic scenarios directory is optional
+		ptf.logger.Debug("Generic scenarios directory not found", "path", scenariosDir)
+		return nil
+	}
+	
+	for _, entry := range entries {
+		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" {
+			scenarioPath := filepath.Join(scenariosDir, entry.Name())
+			scenario, err := ptf.loadGenericScenarioFromFile(scenarioPath)
+			if err != nil {
+				ptf.logger.Warn("Failed to load generic scenario", "path", scenarioPath, "error", err)
+				continue
+			}
+			
+			ptf.genericScenarios = append(ptf.genericScenarios, *scenario)
+			ptf.logger.Info("Loaded generic scenario", "name", scenario.Name, "type", scenario.Type)
+		}
+	}
+	
+	return nil
+}
+
+// loadGenericScenariosFromCode loads sample scenarios using the flexible builders
+func (ptf *PersonalityTestFramework) loadGenericScenariosFromCode() error {
+	// Chat message scenarios
+	chatScenarios := ptf.generateChatMessageScenarios()
+	ptf.genericScenarios = append(ptf.genericScenarios, chatScenarios...)
+	
+	// Email scenarios  
+	emailScenarios := ptf.generateEmailScenarios()
+	ptf.genericScenarios = append(ptf.genericScenarios, emailScenarios...)
+	
+	// Social media scenarios
+	socialScenarios := ptf.generateSocialMediaScenarios()
+	ptf.genericScenarios = append(ptf.genericScenarios, socialScenarios...)
+	
+	ptf.logger.Info("Generated flexible scenarios from code", 
+		"chat", len(chatScenarios),
+		"email", len(emailScenarios), 
+		"social", len(socialScenarios))
+	
+	return nil
+}
+
+// generateChatMessageScenarios creates sample chat message scenarios
+func (ptf *PersonalityTestFramework) generateChatMessageScenarios() []GenericTestScenario {
+	var scenarios []GenericTestScenario
+	
+	// AI Discussion Chat Message
+	aiChat := NewChatMessageScenario("ai_discussion_message", "Chat message about AI development").
+		WithMessage("Just saw the new Claude 3.5 Sonnet results - the reasoning capabilities are incredible! This could change everything for software development.", "tech_leader").
+		WithAuthor("tech_leader", stringPtr("Alex Chen"), stringPtr("Alex Chen")).
+		WithChatContext("Tech Innovation Discussion").
+		WithContext("domain", "artificial_intelligence").
+		WithContext("technical_level", "high").
+		ExpectPersonality("tech_entrepreneur", true, 0.9, 3, "Tech entrepreneurs are highly interested in AI developments and their business implications").
+		ExpectPersonality("creative_artist", true, 0.6, 2, "Creative artists are moderately interested in AI tools that might affect their work").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *aiChat)
+	
+	// Creative Collaboration Chat Message
+	creativeChat := NewChatMessageScenario("creative_collaboration_message", "Chat message about creative project collaboration").
+		WithMessage("Working on this amazing mixed media installation - combining traditional painting with AI-generated backgrounds. The contrast between human and machine creativity is fascinating!", "artist_collective").
+		WithAuthor("artist_collective", stringPtr("Maya Studios"), stringPtr("Maya Rodriguez")).
+		WithChatContext("Creative Collaboration Channel").
+		WithContext("domain", "creative_arts").
+		WithContext("technical_level", "medium").
+		ExpectPersonality("creative_artist", true, 0.95, 3, "Creative artists are highly interested in artistic projects and creative techniques").
+		ExpectPersonality("tech_entrepreneur", true, 0.4, 2, "Tech entrepreneurs have some interest in creative applications of technology").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *creativeChat)
+	
+	// Casual Personal Message
+	casualChat := NewChatMessageScenario("casual_personal_message", "Casual personal chat message").
+		WithMessage("Anyone want to grab coffee later? I'm thinking that new place downtown.", "friend").
+		WithAuthor("friend", stringPtr("Sam"), stringPtr("Sam Johnson")).
+		WithChatContext("Friends Group Chat").
+		WithContext("domain", "personal").
+		WithContext("technical_level", "none").
+		ExpectPersonality("tech_entrepreneur", false, 0.8, 1, "Tech entrepreneurs typically filter out casual social messages during work hours").
+		ExpectPersonality("creative_artist", false, 0.7, 1, "Creative artists may be interested in social connections but this lacks creative relevance").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *casualChat)
+	
+	return scenarios
+}
+
+// generateEmailScenarios creates sample email scenarios
+func (ptf *PersonalityTestFramework) generateEmailScenarios() []GenericTestScenario {
+	var scenarios []GenericTestScenario
+	
+	// Business Proposal Email
+	businessEmail := NewEmailScenario("business_proposal_email", "High-priority business proposal email").
+		WithEmail(
+			"Series B Funding Opportunity - AI Infrastructure Startup",
+			"Hi,\n\nI'm reaching out regarding a Series B funding opportunity for our AI infrastructure startup. We're building next-generation vector databases for enterprise AI applications.\n\nKey metrics:\n- $2M ARR, 300% YoY growth\n- Fortune 500 customers including Microsoft, Salesforce\n- Team of 45 engineers, 15 PhD researchers\n\nWe're raising $25M Series B led by Andreessen Horowitz. Would love to discuss potential participation.\n\nBest regards,\nDavid Kim\nCEO, VectorFlow AI",
+		).
+		WithFrom("david.kim", stringPtr("David Kim"), stringPtr("David Kim"), stringPtr("david@vectorflow.ai")).
+		WithTo(ContentAuthor{Identity: "investor", Name: stringPtr("Venture Partner")}).
+		WithPriority("high").
+		WithContext("domain", "venture_capital").
+		WithContext("business_relevance", "very_high").
+		ExpectPersonality("tech_entrepreneur", true, 0.95, 3, "Tech entrepreneurs are extremely interested in funding opportunities and AI infrastructure").
+		ExpectPersonality("creative_artist", false, 0.3, 1, "Creative artists typically have low interest in business funding discussions").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *businessEmail)
+	
+	// Creative Opportunity Email
+	creativeEmail := NewEmailScenario("creative_opportunity_email", "Art exhibition invitation email").
+		WithEmail(
+			"Invitation: Digital Art Exhibition - 'AI & Human Creativity'",
+			"Dear Artist,\n\nYou're invited to participate in our upcoming exhibition 'AI & Human Creativity' at the Metropolitan Digital Arts Center.\n\nThis groundbreaking show explores the intersection of artificial intelligence and human artistic expression. We're seeking 20 artists to showcase works that incorporate or respond to AI technology.\n\nExhibition dates: March 15-May 15, 2025\nSubmission deadline: January 30, 2025\nCurator fee: $5,000 per selected artist\n\nPlease submit 3-5 portfolio pieces that demonstrate your exploration of AI in creative practice.\n\nLooking forward to your participation!\n\nBest,\nSarah Thompson\nCurator, Metropolitan Digital Arts Center",
+		).
+		WithFrom("sarah.thompson", stringPtr("Sarah Thompson"), stringPtr("Sarah Thompson"), stringPtr("sarah@metrodigitalarts.org")).
+		WithTo(ContentAuthor{Identity: "artist", Name: stringPtr("Featured Artist")}).
+		WithPriority("normal").
+		WithContext("domain", "creative_arts").
+		WithContext("creative_relevance", "very_high").
+		ExpectPersonality("creative_artist", true, 0.98, 3, "Creative artists are extremely interested in exhibition opportunities and creative recognition").
+		ExpectPersonality("tech_entrepreneur", true, 0.5, 2, "Tech entrepreneurs may see business potential in AI-art intersection").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *creativeEmail)
+	
+	return scenarios
+}
+
+// generateSocialMediaScenarios creates sample social media scenarios
+func (ptf *PersonalityTestFramework) generateSocialMediaScenarios() []GenericTestScenario {
+	var scenarios []GenericTestScenario
+	
+	// LinkedIn Tech Post
+	linkedinPost := NewSocialPostScenario("linkedin_ai_breakthrough", "LinkedIn post about AI breakthrough").
+		WithPost(
+			"🚀 Incredible milestone in AI research! Our team just achieved 98% accuracy on complex reasoning tasks using our new Constitutional AI framework. This could revolutionize how we build trustworthy AI systems.\n\nKey innovations:\n✅ Self-correcting reasoning chains\n✅ Built-in ethical constraints  \n✅ Transparent decision explanations\n\nThe future of AI is not just about capability, but about alignment with human values. Excited to share more details at #NeurIPS2025!\n\n#AI #MachineLearning #Research #Innovation #TechLeadership",
+			"linkedin",
+		).
+		WithAuthor("ai_researcher", stringPtr("Dr. Sarah Chen"), stringPtr("Dr. Sarah Chen")).
+		WithTags("AI", "MachineLearning", "Research", "Innovation", "TechLeadership", "NeurIPS2025").
+		WithEngagement(245, 67, 34).
+		WithContext("domain", "artificial_intelligence").
+		WithContext("platform", "linkedin").
+		WithContext("technical_level", "high").
+		ExpectPersonality("tech_entrepreneur", true, 0.92, 3, "Tech entrepreneurs are highly engaged with AI research and business applications on LinkedIn").
+		ExpectPersonality("creative_artist", true, 0.55, 2, "Creative artists have moderate interest in AI developments that might affect creative tools").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *linkedinPost)
+	
+	// Instagram Art Post  
+	instagramPost := NewSocialPostScenario("instagram_digital_art", "Instagram post showcasing digital art").
+		WithPost(
+			"✨ Latest piece from my 'Digital Dreams' series ✨\n\nExploring the boundary between human intuition and algorithmic precision. Each stroke is intentional, each color carries emotion that no AI can replicate... or can it? 🎨🤖\n\n#DigitalArt #AI #Art #CreativeProcess #ArtistLife #TechArt #Innovation #Creativity #AbstractArt #FutureArt",
+			"instagram",
+		).
+		WithAuthor("digital_artist", stringPtr("Maya Rodriguez"), stringPtr("Maya Rodriguez")).
+		WithImages("https://example.com/digital-art-1.jpg", "https://example.com/digital-art-2.jpg").
+		WithTags("DigitalArt", "AIArt", "Art", "CreativeProcess", "ArtistLife", "TechArt", "Innovation", "Creativity").
+		WithEngagement(1247, 89, 156).
+		WithContext("domain", "creative_arts").
+		WithContext("platform", "instagram").
+		WithContext("visual_content", true).
+		ExpectPersonality("creative_artist", true, 0.95, 3, "Creative artists are highly engaged with artistic content and creative processes on visual platforms").
+		ExpectPersonality("tech_entrepreneur", true, 0.4, 2, "Tech entrepreneurs have moderate interest in creative applications of technology").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *instagramPost)
+	
+	// Twitter Casual Tech Opinion
+	twitterPost := NewSocialPostScenario("twitter_tech_opinion", "Twitter post with casual tech opinion").
+		WithPost(
+			"Hot take: Most 'AI companies' are just APIs with nice UIs. Real innovation happens in the infrastructure layer - compute, storage, networking. The application layer is just wrapping. 🧵",
+			"twitter",
+		).
+		WithAuthor("tech_commentator", stringPtr("@techthoughts"), stringPtr("Alex Thompson")).
+		WithTags("AI", "tech", "startups", "infrastructure").
+		WithEngagement(89, 23, 67).
+		WithContext("domain", "technology").
+		WithContext("platform", "twitter").
+		WithContext("opinion_based", true).
+		ExpectPersonality("tech_entrepreneur", true, 0.8, 3, "Tech entrepreneurs engage with industry discussions and infrastructure opinions").
+		ExpectPersonality("creative_artist", false, 0.2, 1, "Creative artists typically have low interest in technical infrastructure discussions").
+		Build(ptf)
+	
+	scenarios = append(scenarios, *twitterPost)
+	
+	return scenarios
+}
+
+// loadGenericScenarioFromFile loads a generic scenario from JSON
+func (ptf *PersonalityTestFramework) loadGenericScenarioFromFile(path string) (*GenericTestScenario, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var scenario GenericTestScenario
+	if err := json.Unmarshal(data, &scenario); err != nil {
+		return nil, err
+	}
+
+	// Set up the appropriate evaluation handler based on scenario type
+	handler, exists := ptf.evaluationRegistry.GetHandler(scenario.Type)
+	if !exists {
+		return nil, fmt.Errorf("no evaluation handler found for scenario type: %s", scenario.Type)
+	}
+	scenario.EvaluationHandler = handler
+
+	return &scenario, nil
+}
+
+// GetGenericScenarios returns all loaded generic scenarios
+func (ptf *PersonalityTestFramework) GetGenericScenarios() []GenericTestScenario {
+	return ptf.genericScenarios
+}
+
+// RunFlexiblePersonalityTests runs tests using the new flexible scenario system
+func (ptf *PersonalityTestFramework) RunFlexiblePersonalityTests(ctx context.Context, memoryStorage evolvingmemory.MemoryStorage, holonRepo HolonRepositoryInterface) ([]TestResult, error) {
+	var results []TestResult
+	
+	// Load base personalities and extensions
+	err := ptf.LoadBasePersonalities()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load base personalities: %w", err)
+	}
+	
+	err = ptf.LoadPersonalityExtensions()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load personality extensions: %w", err)
+	}
+	
+	// Load generic scenarios
+	err = ptf.LoadGenericScenarios()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load generic scenarios: %w", err)
+	}
+	
+	// For each generic scenario, test against each personality expectation
+	for _, scenario := range ptf.genericScenarios {
+		for _, expectation := range scenario.PersonalityExpectations {
+			// Create or get the personality for this test
+			var testPersonality *ReferencePersonality
+			
+			if expectation.ExtensionNames != nil && len(expectation.ExtensionNames) > 0 {
+				// Support multiple extensions
+				var extKeys []string
+				for _, key := range expectation.ExtensionNames {
+					extKeys = append(extKeys, fmt.Sprintf("%s_%s", key, key))
+				}
+				extended, err := ptf.CreateExtendedPersonality(expectation.PersonalityName, extKeys...)
+				if err != nil {
+					ptf.logger.Warn("Failed to create extended personality",
+						"personality", expectation.PersonalityName,
+						"extensions", expectation.ExtensionNames,
+						"error", err)
+					continue
+				}
+				testPersonality = extended.ToReferencePersonality()
+			} else {
+				// Use base personality
+				basePersonality, exists := ptf.basePersonalities[expectation.PersonalityName]
+				if !exists {
+					ptf.logger.Warn("Base personality not found", "personality", expectation.PersonalityName)
+					continue
+				}
+				testPersonality = &ReferencePersonality{
+					Name:              basePersonality.Name,
+					Description:       basePersonality.Description,
+					Profile:           basePersonality.Profile,
+					MemoryFacts:       basePersonality.MemoryFacts,
+					Conversations:     basePersonality.Conversations,
+					Plans:             basePersonality.Plans,
+					ExpectedBehaviors: make([]ExpectedBehavior, 0),
+				}
+			}
+			
+			// Run the test for this personality-scenario combination
+			result, err := ptf.runSingleFlexibleTest(ctx, scenario, testPersonality, expectation, memoryStorage, holonRepo)
+			if err != nil {
+				ptf.logger.Warn("Flexible test failed",
+					"scenario", scenario.Name,
+					"type", scenario.Type,
+					"personality", expectation.PersonalityName,
+					"extension", expectation.ExtensionNames,
+					"error", err)
+				continue
+			}
+			
+			results = append(results, *result)
+		}
+	}
+	
+	return results, nil
+}
+
+// runSingleFlexibleTest runs a single flexible test scenario
+func (ptf *PersonalityTestFramework) runSingleFlexibleTest(ctx context.Context, scenario GenericTestScenario, personality *ReferencePersonality, expectedOutcome PersonalityExpectedOutcome, memoryStorage evolvingmemory.MemoryStorage, holonRepo HolonRepositoryInterface) (*TestResult, error) {
+	ptf.logger.Info("Running flexible test",
+		"personality", expectedOutcome.PersonalityName,
+		"extension", expectedOutcome.ExtensionNames,
+		"scenario", scenario.Name,
+		"type", scenario.Type)
+	
+	// Setup test environment for this personality
+	env, err := ptf.setupTestEnvironment(ctx, personality, memoryStorage, holonRepo)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup test environment: %w", err)
+	}
+	
+	// Execute scenario evaluation using the appropriate handler
+	genericResult, err := scenario.Evaluate(ctx, personality, env)
+	if err != nil {
+		return nil, fmt.Errorf("failed to evaluate scenario: %w", err)
+	}
+	
+	// Convert generic result to thread evaluation result for compatibility
+	evaluation := &holon.ThreadEvaluationResult{
+		ShouldShow: genericResult.ShouldShow,
+		Reason:     genericResult.Reason,
+		Confidence: genericResult.Confidence,
+		NewState:   genericResult.NewState,
+	}
+	
+	// Use LLM-as-a-judge to evaluate the result
+	score, reasoning, err := ptf.evaluateWithLLMJudge(ctx, expectedOutcome, evaluation)
+	if err != nil {
+		ptf.logger.Warn("LLM judge evaluation failed", "error", err)
+		score = ptf.calculateBasicScore(expectedOutcome, evaluation)
+		reasoning = "LLM judge failed, using basic scoring"
+	}
+	
+	// Determine success based on score threshold
+	success := score >= 0.7 // 70% threshold for success
+	
+	// Create personality name for result (include extension if present)
+	personalityName := expectedOutcome.PersonalityName
+	if len(expectedOutcome.ExtensionNames) > 0 {
+		personalityName = fmt.Sprintf("%s_%s", expectedOutcome.PersonalityName, strings.Join(expectedOutcome.ExtensionNames, "_"))
+	}
+	
+	result := &TestResult{
+		PersonalityName: personalityName,
+		ScenarioName:    fmt.Sprintf("%s (%s)", scenario.Name, scenario.Type),
+		Success:         success,
+		Score:           score,
+		ActualResult:    evaluation,
+		ExpectedResult:  expectedOutcome.GetExpectedThreadEvaluation(),
+		MemoriesUsed:    env.MemoryTracker.GetAccessedMemories(),
+		Reasoning:       reasoning,
+		Timestamp:       time.Now(),
+	}
+	
+	ptf.logger.Info("Flexible test completed",
+		"personality", personalityName,
+		"scenario", scenario.Name,
+		"type", scenario.Type,
+		"success", success,
+		"score", score)
+	
+	return result, nil
 }
