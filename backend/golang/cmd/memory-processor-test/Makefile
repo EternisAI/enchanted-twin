@@ -5,6 +5,8 @@
 # Usage:
 #   make whatsapp   - Convert WhatsApp SQLite to ConversationDocument (X_0)
 #   make telegram   - Convert Telegram JSON to ConversationDocument (X_0)
+#   make chatgpt    - Convert ChatGPT JSON to ConversationDocument (X_0)
+#   make gmail      - Convert Gmail MBOX to ConversationDocument (X_0)
 #   make chunks     - Convert ConversationDocument (X_0) to chunks (X_1)  
 #   make facts      - Convert chunks (X_1) to facts (X_2)
 #   make all        - Run complete pipeline (Raw → X_2)
@@ -68,16 +70,32 @@ chatgpt:
 		echo "✅ ChatGPT X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_chatgpt.json"; \
 	fi
 
+# Convert Gmail MBOX to ConversationDocument (X_0)
+gmail:
+	@echo "📧 Converting Gmail MBOX to ConversationDocument (X_0)..."
+	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+	@if [ ! -f "$(INPUT_DIR)"/*.mbox ]; then \
+		echo "❌ No Gmail MBOX found in $(INPUT_DIR)/"; \
+		echo "�� Place your Gmail MBOX file in $(INPUT_DIR)/"; \
+		exit 1; \
+	fi
+	@MBOX_FILE=$$(ls $(INPUT_DIR)/*.mbox 2>/dev/null | head -1); \
+	if [ -n "$$MBOX_FILE" ]; then \
+		echo "✅ Found Gmail MBOX: $$MBOX_FILE"; \
+		go run . gmail "$$MBOX_FILE"; \
+		echo "✅ Gmail X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_gmail.json"; \
+	fi
+
 # Convert ConversationDocument to chunks (X_0 → X_1)
 chunks:
 	@echo "🧩 Converting ConversationDocument to chunks (X_0 → X_1)..."
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ]; then \
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ] || [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then \
 		echo "✅ Auto-detecting X_0 ConversationDocument..."; \
 		go run . chunks; \
 		echo "✅ X_1 chunks created: $(OUTPUT_DIR)/X_1_chunked_documents.json"; \
 	else \
-		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp', 'make telegram', or 'make chatgpt' first."; \
+		echo "❌ No X_0 ConversationDocument file found. Run 'make whatsapp', 'make telegram', 'make chatgpt', or 'make gmail' first."; \
 		exit 1; \
 	fi
 
@@ -97,22 +115,39 @@ all:
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@echo "🔍 Auto-detecting data source..."
 	@# Check for existing X_0 files first
-	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ]; then \
+	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ] || [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ] || [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ] || [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then \
 		echo "✅ Found existing X_0 ConversationDocument files, proceeding with pipeline..."; \
 	else \
 		echo "📱 Looking for raw data sources..."; \
 		HAS_WHATSAPP=false; \
 		HAS_TELEGRAM=false; \
+		HAS_CHATGPT=false; \
+		HAS_GMAIL=false; \
 		if ls $(INPUT_DIR)/*.sqlite $(INPUT_DIR)/*.db >/dev/null 2>&1; then \
 			echo "✅ Found WhatsApp database"; \
 			HAS_WHATSAPP=true; \
 		fi; \
 		if ls $(INPUT_DIR)/*.json >/dev/null 2>&1; then \
-			echo "✅ Found Telegram JSON export"; \
+			echo "✅ Found JSON export (Telegram/ChatGPT)"; \
 			HAS_TELEGRAM=true; \
+			HAS_CHATGPT=true; \
 		fi; \
-		if [ "$$HAS_WHATSAPP" = "true" ] && [ "$$HAS_TELEGRAM" = "true" ]; then \
-			echo "⚠️  Both WhatsApp and Telegram data found!"; \
+		if ls $(INPUT_DIR)/*.mbox >/dev/null 2>&1; then \
+			echo "✅ Found Gmail MBOX"; \
+			HAS_GMAIL=true; \
+		fi; \
+		if [ "$$HAS_WHATSAPP" = "true" ] && [ "$$HAS_TELEGRAM" = "true" ] && [ "$$HAS_CHATGPT" = "true" ] && [ "$$HAS_GMAIL" = "true" ]; then \
+			echo "⚠️  All data sources found!"; \
+			echo "💡 Choose one: 'make whatsapp all', 'make telegram all', 'make chatgpt all', or 'make gmail all'"; \
+			echo "💡 Or manually run the conversion first, then 'make all'"; \
+			exit 1; \
+		elif [ "$$HAS_WHATSAPP" = "true" ] && [ "$$HAS_TELEGRAM" = "true" ] && [ "$$HAS_CHATGPT" = "true" ]; then \
+			echo "⚠️  WhatsApp, Telegram, and ChatGPT data found!"; \
+			echo "💡 Choose one: 'make whatsapp all', 'make telegram all', or 'make chatgpt all'"; \
+			echo "💡 Or manually run the conversion first, then 'make all'"; \
+			exit 1; \
+		elif [ "$$HAS_WHATSAPP" = "true" ] && [ "$$HAS_TELEGRAM" = "true" ]; then \
+			echo "⚠️  WhatsApp and Telegram data found!"; \
 			echo "💡 Choose one: 'make whatsapp all' or 'make telegram all'"; \
 			echo "💡 Or manually run the conversion first, then 'make all'"; \
 			exit 1; \
@@ -122,11 +157,19 @@ all:
 		elif [ "$$HAS_TELEGRAM" = "true" ]; then \
 			echo "🔄 Converting Telegram data first..."; \
 			$(MAKE) telegram; \
+		elif [ "$$HAS_CHATGPT" = "true" ]; then \
+			echo "🔄 Converting ChatGPT data first..."; \
+			$(MAKE) chatgpt; \
+		elif [ "$$HAS_GMAIL" = "true" ]; then \
+			echo "🔄 Converting Gmail data first..."; \
+			$(MAKE) gmail; \
 		else \
 			echo "❌ No data sources found in $(INPUT_DIR)/"; \
 			echo "💡 Place either:"; \
 			echo "   📱 WhatsApp: *.sqlite or *.db file"; \
 			echo "   📱 Telegram: *.json export file"; \
+			echo "   🤖 ChatGPT: conversations.json or *.json file"; \
+			echo "   📧 Gmail: *.mbox file"; \
 			exit 1; \
 		fi; \
 	fi
@@ -153,6 +196,7 @@ status:
 	@if [ -f "$(OUTPUT_DIR)/X_0_whatsapp.json" ]; then echo "✅ WhatsApp X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_0_telegram.json" ]; then echo "✅ Telegram X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_0_chatgpt.json" ]; then echo "✅ ChatGPT X_0 ConversationDocument ready"; fi
+	@if [ -f "$(OUTPUT_DIR)/X_0_gmail.json" ]; then echo "✅ Gmail X_0 ConversationDocument ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_1_chunked_documents.json" ]; then echo "✅ X_1 chunks ready"; fi
 	@if [ -f "$(OUTPUT_DIR)/X_2_extracted_facts.json" ]; then echo "✅ X_2 facts ready"; fi
 
@@ -164,6 +208,7 @@ help:
 	@echo "  make whatsapp   - Convert WhatsApp SQLite to X_0 ConversationDocument"
 	@echo "  make telegram   - Convert Telegram JSON to X_0 ConversationDocument"
 	@echo "  make chatgpt    - Convert ChatGPT JSON to X_0 ConversationDocument"
+	@echo "  make gmail      - Convert Gmail MBOX to X_0 ConversationDocument"
 	@echo
 	@echo "🧠 Atomic Memory Pipeline (X_i → X_{i+1}):"
 	@echo "  make chunks     - X_0 ConversationDocument → X_1 chunks"
@@ -193,6 +238,11 @@ help:
 	@echo "  make chunks     # X_0 → X_1 chunks"
 	@echo "  make facts      # X_1 → X_2 facts"
 	@echo
+	@echo "For Gmail:"
+	@echo "  make gmail      # MBOX → X_0 ConversationDocument"
+	@echo "  make chunks     # X_0 → X_1 chunks"
+	@echo "  make facts      # X_1 → X_2 facts"
+	@echo
 	@echo "🔥 Clean Pipeline - No intermediate JSONL step!"
 
-.PHONY: build whatsapp telegram chatgpt chunks facts all clean status help 
+.PHONY: build whatsapp telegram chatgpt gmail chunks facts all clean status help 
