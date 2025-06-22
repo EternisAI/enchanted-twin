@@ -10,3 +10,6 @@ store.db*
 postgres-data/*
 data/*
 weaviate-test-memory/*
+
+# Personality testing framework reports
+pkg/testing/personalities/testdata/reports/

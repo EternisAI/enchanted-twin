@@ -1,0 +1,38 @@
+{
+  "name": "creative_tool_announcement",
+  "description": "An announcement about a new creative digital art tool with aesthetic focus",
+  "thread_data": {
+    "title": "Adobe Unveils Revolutionary AI-Powered Brush Engine for Digital Artists",
+    "content": "Adobe announces 'Neural Brush' - a groundbreaking AI-powered painting tool that learns from your artistic style and suggests natural brush strokes. The tool maintains full creative control while enhancing artistic expression with intelligent texture and color harmony suggestions.",
+    "author_name": "adobe_creative",
+    "author_alias": "Adobe Creative Team",
+    "image_urls": ["https://example.com/neural-brush-demo.jpg"],
+    "messages": [
+      {
+        "author_name": "digital_artist_1",
+        "author_alias": "Maya Rodriguez",
+        "content": "This looks amazing! Finally an AI tool that feels like it's designed BY artists FOR artists. The texture suggestions could save hours of experimentation.",
+        "created_at": "2025-01-15T16:15:00Z"
+      },
+      {
+        "author_name": "design_studio",
+        "author_alias": "Pixel & Paint Studio",
+        "content": "We've been beta testing this. The way it learns your personal style is incredible - it's like having an artistic assistant that really gets your vision.",
+        "created_at": "2025-01-15T16:18:00Z"
+      }
+    ],
+    "created_at": "2025-01-15T16:10:00Z"
+  },
+  "context": {
+    "domain": "creative_tools",
+    "technical_level": "medium",
+    "creative_relevance": "high"
+  },
+  "expected": {
+    "should_show": true,
+    "confidence": 0.9,
+    "reason_keywords": ["creative", "art", "tool", "design", "artistic"],
+    "expected_state": "visible",
+    "priority": 3
+  }
+}
