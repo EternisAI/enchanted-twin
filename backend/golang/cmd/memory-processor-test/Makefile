@@ -76,7 +76,7 @@ gmail:
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@if [ ! -f "$(INPUT_DIR)"/*.mbox ]; then \
 		echo "❌ No Gmail MBOX found in $(INPUT_DIR)/"; \
-		echo "�� Place your Gmail MBOX file in $(INPUT_DIR)/"; \
+	echo "💡 Place your Gmail MBOX file in $(INPUT_DIR)/"; \
 		exit 1; \
 	fi
 	@MBOX_FILE=$$(ls $(INPUT_DIR)/*.mbox 2>/dev/null | head -1); \
