@@ -7,14 +7,17 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"html"
 	"os"
+	"path/filepath"
 	"regexp"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -37,6 +40,32 @@ type emailWithMeta struct {
 	timestamp time.Time
 }
 
+type SenderDetail struct {
+	Email       string `json:"email"`
+	Count       int    `json:"count"`
+	Interaction bool   `json:"interaction"`
+	Reason      string `json:"reason,omitempty"`
+}
+
+type emailJob struct {
+	emailIndex int
+	emailData  string
+}
+
+type emailResult struct {
+	emailIndex   int
+	email        *emailWithMeta
+	originalData string
+	originalSize int
+	err          error
+	duration     time.Duration
+}
+
+const (
+	processTimeout   = time.Second
+	progressBarWidth = 50
+)
+
 func NewGmailProcessor(store *db.Store, logger *log.Logger) (*GmailProcessor, error) {
 	if logger == nil || store == nil {
 		return nil, fmt.Errorf("logger or store is nil")
@@ -46,20 +75,102 @@ func NewGmailProcessor(store *db.Store, logger *log.Logger) (*GmailProcessor, er
 
 func (g *GmailProcessor) Name() string { return "gmail" }
 
+// Simple interface - unchanged API.
 func (g *GmailProcessor) ProcessFile(ctx context.Context, path string) ([]memory.ConversationDocument, error) {
+	return g.processFileInternal(ctx, path, "pipeline_output", false)
+}
+
+// New method for sender analysis only.
+func (g *GmailProcessor) ProcessFileForSenders(ctx context.Context, path string, outputDir string) error {
+	_, err := g.processFileInternal(ctx, path, outputDir, true)
+	return err
+}
+
+// Internal method with all the sophisticated logic.
+func (g *GmailProcessor) processFileInternal(ctx context.Context, path string, outputDir string, sendersOnly bool) ([]memory.ConversationDocument, error) {
 	userEmail, err := g.detectUserEmail(path)
 	if err != nil {
 		g.logger.Warn("Could not detect user email", "error", err)
 	}
 
-	emails, err := g.parseAllEmails(path)
+	// Setup output directory
+	if outputDir == "" {
+		outputDir = "output"
+	}
+	sendersFilePath := filepath.Join(outputDir, "senders.json")
+	failedEmailFilepath := filepath.Join(outputDir, "F_0_gmail.mbox")
+
+	// Check for existing senders file
+	useExistingSendersFile := g.fileExists(sendersFilePath)
+	if useExistingSendersFile && !sendersOnly {
+		g.logger.Info("Found existing senders.json, using for filtering")
+	} else if !useExistingSendersFile && !sendersOnly {
+		g.logger.Info("No senders.json found, will analyze and create it")
+	}
+
+	// Count emails
+	totalEmails, err := g.countEmails(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count emails: %w", err)
+	}
+	if totalEmails == 0 {
+		g.logger.Info("No emails found in file")
+		return []memory.ConversationDocument{}, nil
+	}
+
+	g.logger.Info("Starting email processing", "total", totalEmails, "workers", runtime.NumCPU())
+
+	// Phase 1: Parse all emails with sophisticated parallel processing
+	emails, failures, err := g.parseEmailsAdvanced(path, totalEmails, failedEmailFilepath)
 	if err != nil {
 		return nil, err
 	}
 
-	filtered := g.filterEmails(emails, userEmail)
-	threads := g.buildThreads(filtered)
-	return g.toConversationDocuments(threads, userEmail), nil
+	g.logger.Info("Parsing completed", "success", len(emails), "failed", len(failures))
+
+	// Phase 2: Sender analysis
+	var keepers map[string]bool
+	var includedSenders, excludedSenders []SenderDetail
+
+	if useExistingSendersFile && !sendersOnly {
+		// Load existing senders
+		keepers, err = g.loadExistingSenders(sendersFilePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load existing senders: %w", err)
+		}
+		g.logger.Info("Loaded existing sender filtering", "included", len(keepers))
+	} else {
+		// Analyze senders
+		includedSenders, excludedSenders, keepers = g.analyzeSenders(emails, userEmail)
+		g.logger.Info("Sender analysis completed", "included", len(includedSenders), "excluded", len(excludedSenders))
+
+		// Save sender analysis
+		if err := g.saveSenderAnalysis(sendersFilePath, includedSenders, excludedSenders, outputDir); err != nil {
+			return nil, fmt.Errorf("failed to save sender analysis: %w", err)
+		}
+
+		// If only doing sender analysis, return early
+		if sendersOnly {
+			g.logger.Info("Sender analysis saved", "file", sendersFilePath)
+			return nil, nil
+		}
+	}
+
+	// Phase 3: Filter and build conversation documents
+	filteredEmails := g.filterEmailsBySenders(emails, keepers)
+	g.logger.Info("Email filtering completed", "kept", len(filteredEmails), "filtered_out", len(emails)-len(filteredEmails))
+
+	threads := g.buildThreads(filteredEmails)
+	documents := g.toConversationDocuments(threads, userEmail)
+
+	g.logger.Info("Processing completed", "threads", len(threads), "documents", len(documents))
+	return documents, nil
+}
+
+// Helper functions.
+func (g *GmailProcessor) fileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return err == nil
 }
 
 func (g *GmailProcessor) detectUserEmail(path string) (string, error) {
@@ -76,19 +187,6 @@ func (g *GmailProcessor) detectUserEmail(path string) (string, error) {
 	}
 
 	return userEmail, nil
-}
-
-func (g *GmailProcessor) parseAllEmails(path string) ([]*emailWithMeta, error) {
-	total, err := g.countEmails(path)
-	if err != nil {
-		return nil, err
-	}
-
-	emails := make([]*emailWithMeta, 0, total)
-	parser := letters.NewEmailParser(letters.WithFileFilter(letters.NoFiles))
-
-	err = g.processEmailsParallel(path, parser, &emails)
-	return emails, err
 }
 
 func (g *GmailProcessor) countEmails(path string) (int, error) {
@@ -111,85 +209,6 @@ func (g *GmailProcessor) countEmails(path string) (int, error) {
 		}
 	}
 	return count, scanner.Err()
-}
-
-func (g *GmailProcessor) processEmailsParallel(path string, parser *letters.EmailParser, emails *[]*emailWithMeta) error {
-	jobs := make(chan string, runtime.NumCPU())
-	results := make(chan *emailWithMeta, 100)
-
-	var wg sync.WaitGroup
-	for i := 0; i < runtime.NumCPU(); i++ {
-		wg.Add(1)
-		go g.emailWorker(parser, jobs, results, &wg)
-	}
-
-	go g.readEmailsFromFile(path, jobs)
-
-	go func() {
-		wg.Wait()
-		close(results)
-	}()
-
-	for email := range results {
-		if email != nil {
-			*emails = append(*emails, email)
-		}
-	}
-
-	return nil
-}
-
-func (g *GmailProcessor) emailWorker(parser *letters.EmailParser, jobs <-chan string, results chan<- *emailWithMeta, wg *sync.WaitGroup) {
-	defer wg.Done()
-
-	for content := range jobs {
-		if email := g.parseEmail(parser, content); email != nil {
-			results <- email
-		}
-	}
-}
-
-func (g *GmailProcessor) readEmailsFromFile(path string, jobs chan<- string) {
-	defer close(jobs)
-
-	f, err := os.Open(path)
-	if err != nil {
-		g.logger.Error("Failed to open file", "error", err)
-		return
-	}
-	defer func() { _ = f.Close() }()
-
-	var content strings.Builder
-	scanner := bufio.NewScanner(f)
-
-	// Increase buffer size to handle very long email lines (e.g., base64 attachments)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 10*1024*1024) // 10MB max token size
-
-	inEmail := false
-
-	for scanner.Scan() {
-		line := scanner.Text()
-
-		if strings.HasPrefix(line, "From ") {
-			if inEmail && content.Len() > 0 {
-				jobs <- content.String()
-				content.Reset()
-			}
-			inEmail = true
-		} else if inEmail {
-			content.WriteString(line + "\n")
-		}
-	}
-
-	if scanner.Err() != nil {
-		g.logger.Error("Scanner error while reading emails", "error", scanner.Err())
-		return
-	}
-
-	if inEmail && content.Len() > 0 {
-		jobs <- content.String()
-	}
 }
 
 func (g *GmailProcessor) parseEmail(parser *letters.EmailParser, content string) *emailWithMeta {
@@ -232,7 +251,7 @@ func (g *GmailProcessor) hasSkipLabels(email *letters.Email) bool {
 
 func (g *GmailProcessor) hasSkipSender(email *letters.Email) bool {
 	skipPatterns := []string{
-		"no-reply", "noreply", "no_reply", "support", "alert", "notification",
+		"no-reply", "noreply", "no_reply", "donotreply", "do-not-reply", "support", "alert", "notification",
 		"ticket", "update", "info@", "contact@", "billing@", "newsletter",
 		"news@", "auto@", "auto-", "mms@", "sms@", "mail@", "server@",
 		"bounce", "daemon",
@@ -277,67 +296,6 @@ func (g *GmailProcessor) subjectThreadID(subject string) string {
 
 	h := sha256.Sum256([]byte(normalized))
 	return fmt.Sprintf("subject-%x", h[:8])
-}
-
-func (g *GmailProcessor) filterEmails(emails []*emailWithMeta, userEmail string) []*emailWithMeta {
-	if userEmail == "" {
-		return emails
-	}
-
-	userLower := strings.ToLower(userEmail)
-	senderCounts := make(map[string]int)
-	recipientsOfMyEmails := make(map[string]bool)
-
-	// Phase 1: Count senders and track user interactions
-	for _, email := range emails {
-		// Count senders (deduplicated per email)
-		seenInThisEmail := make(map[string]bool)
-		for _, from := range email.email.Headers.From {
-			if from != nil && from.Address != "" {
-				lowerAddr := strings.ToLower(from.Address)
-				if !seenInThisEmail[lowerAddr] {
-					senderCounts[lowerAddr]++
-					seenInThisEmail[lowerAddr] = true
-				}
-			}
-		}
-
-		// Track recipients if email was sent BY the user
-		if g.isUserEmail(email.email, userLower) {
-			for _, to := range email.email.Headers.To {
-				if to != nil && to.Address != "" {
-					recipientsOfMyEmails[strings.ToLower(to.Address)] = true
-				}
-			}
-			for _, cc := range email.email.Headers.Cc {
-				if cc != nil && cc.Address != "" {
-					recipientsOfMyEmails[strings.ToLower(cc.Address)] = true
-				}
-			}
-		}
-	}
-
-	// Phase 2: Filter based on interaction OR frequency
-	const minEmailCount = 5
-	var filtered []*emailWithMeta
-	for _, email := range emails {
-		keep := false
-		for _, from := range email.email.Headers.From {
-			if from != nil && from.Address != "" {
-				lowerAddr := strings.ToLower(from.Address)
-				// Keep if: high frequency OR user interacted with them
-				if senderCounts[lowerAddr] > minEmailCount || recipientsOfMyEmails[lowerAddr] {
-					keep = true
-					break
-				}
-			}
-		}
-		if keep {
-			filtered = append(filtered, email)
-		}
-	}
-
-	return filtered
 }
 
 func (g *GmailProcessor) isUserEmail(email *letters.Email, userEmail string) bool {
@@ -545,4 +503,294 @@ func (g *GmailProcessor) decodeUTF8Sequences(text string) (string, error) {
 		}
 		return match
 	}), nil
+}
+
+func (g *GmailProcessor) parseEmailsAdvanced(path string, totalEmails int, failedFilePath string) ([]*emailWithMeta, []emailResult, error) {
+	jobs := make(chan emailJob, runtime.NumCPU())
+	results := make(chan emailResult, totalEmails)
+
+	var wg sync.WaitGroup
+	var processedCount, failedCount atomic.Int64
+
+	// Start workers
+	for i := 0; i < runtime.NumCPU(); i++ {
+		wg.Add(1)
+		go g.advancedEmailWorker(jobs, results, &wg)
+	}
+
+	// Read emails from file
+	go g.distributeEmailJobs(path, jobs)
+
+	// Collect results
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	var emails []*emailWithMeta
+	var failures []emailResult
+
+	for result := range results {
+		processedCount.Add(1)
+		if result.err != nil {
+			failedCount.Add(1)
+			failures = append(failures, result)
+		} else if result.email != nil {
+			emails = append(emails, result.email)
+		}
+
+		// Progress reporting with visual bar
+		if int(processedCount.Load())%100 == 0 || int(processedCount.Load()) == totalEmails {
+			percent := float64(processedCount.Load()) * 100.0 / float64(totalEmails)
+			barWidth := 40
+			filled := int(percent / 100 * float64(barWidth))
+
+			bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
+			fmt.Fprintf(os.Stderr, "\r[%s] %.1f%% (%d/%d)", bar, percent, int(processedCount.Load()), totalEmails)
+
+			if failedCount.Load() > 0 {
+				fmt.Fprintf(os.Stderr, " [Failed: %d]", failedCount.Load())
+			}
+
+			// Add newline at completion
+			if int(processedCount.Load()) == totalEmails {
+				fmt.Fprintf(os.Stderr, "\n")
+			}
+		}
+	}
+
+	// Always save failed emails file (even if empty)
+	g.saveFailedEmails(failedFilePath, failures)
+
+	return emails, failures, nil
+}
+
+func (g *GmailProcessor) advancedEmailWorker(jobs <-chan emailJob, results chan<- emailResult, wg *sync.WaitGroup) {
+	defer wg.Done()
+	parser := letters.NewEmailParser(letters.WithFileFilter(letters.NoFiles))
+
+	for job := range jobs {
+		start := time.Now()
+		ctx, cancel := context.WithTimeout(context.Background(), processTimeout)
+
+		resultChan := make(chan emailResult, 1)
+		go func() {
+			email := g.parseEmail(parser, job.emailData)
+			resultChan <- emailResult{
+				emailIndex: job.emailIndex,
+				email:      email,
+				duration:   time.Since(start),
+			}
+		}()
+
+		select {
+		case result := <-resultChan:
+			results <- result
+		case <-ctx.Done():
+			results <- emailResult{
+				emailIndex:   job.emailIndex,
+				originalData: job.emailData,
+				originalSize: len(job.emailData),
+				err:          fmt.Errorf("timeout after %v", processTimeout),
+				duration:     time.Since(start),
+			}
+		}
+		cancel()
+	}
+}
+
+func (g *GmailProcessor) distributeEmailJobs(path string, jobs chan<- emailJob) {
+	defer close(jobs)
+
+	f, err := os.Open(path)
+	if err != nil {
+		g.logger.Error("Failed to open file", "error", err)
+		return
+	}
+	defer func() { _ = f.Close() }()
+
+	scanner := bufio.NewScanner(f)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 10*1024*1024)
+
+	var content strings.Builder
+	var inEmail bool
+	emailIndex := 0
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.HasPrefix(line, "From ") {
+			if inEmail && content.Len() > 0 {
+				emailIndex++
+				jobs <- emailJob{emailIndex: emailIndex, emailData: content.String()}
+				content.Reset()
+			}
+			inEmail = true
+		} else if inEmail {
+			content.WriteString(line + "\n")
+		}
+	}
+
+	if inEmail && content.Len() > 0 {
+		emailIndex++
+		jobs <- emailJob{emailIndex: emailIndex, emailData: content.String()}
+	}
+}
+
+func (g *GmailProcessor) saveFailedEmails(failedPath string, failures []emailResult) {
+	if err := os.MkdirAll(filepath.Dir(failedPath), 0o755); err != nil {
+		g.logger.Warn("Could not create output directory", "error", err)
+		return
+	}
+
+	f, err := os.Create(failedPath)
+	if err != nil {
+		g.logger.Warn("Could not create failed emails file", "error", err)
+		return
+	}
+	defer func() { _ = f.Close() }()
+
+	for _, failure := range failures {
+		if failure.originalData != "" {
+			_, _ = f.WriteString(failure.originalData)
+		}
+	}
+
+	if len(failures) > 0 {
+		g.logger.Info("Saved failed emails", "count", len(failures), "file", failedPath)
+	} else {
+		g.logger.Info("Created empty failed emails file", "file", failedPath)
+	}
+}
+
+func (g *GmailProcessor) loadExistingSenders(filePath string) (map[string]bool, error) {
+	type senderCategorization struct {
+		Included []SenderDetail `json:"included"`
+		Excluded []SenderDetail `json:"excluded"`
+	}
+
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, err
+	}
+
+	var categorization senderCategorization
+	if err := json.Unmarshal(data, &categorization); err != nil {
+		return nil, err
+	}
+
+	// Simple inclusion logic: Only senders in "included" array are processed
+	// - If sender is in "included" → PROCESS
+	// - If sender is in "excluded" OR deleted from "included" → SKIP
+	keepers := make(map[string]bool)
+	for _, sender := range categorization.Included {
+		keepers[sender.Email] = true
+	}
+
+	g.logger.Info("Loaded sender preferences",
+		"included", len(categorization.Included),
+		"excluded", len(categorization.Excluded))
+
+	return keepers, nil
+}
+
+func (g *GmailProcessor) analyzeSenders(emails []*emailWithMeta, userEmail string) ([]SenderDetail, []SenderDetail, map[string]bool) {
+	userLower := strings.ToLower(userEmail)
+	senderCounts := make(map[string]int)
+	recipientsOfMyEmails := make(map[string]bool)
+
+	// Count senders and track interactions
+	for _, email := range emails {
+		seenInThisEmail := make(map[string]bool)
+		for _, from := range email.email.Headers.From {
+			if from != nil && from.Address != "" {
+				lowerAddr := strings.ToLower(from.Address)
+				if !seenInThisEmail[lowerAddr] {
+					senderCounts[lowerAddr]++
+					seenInThisEmail[lowerAddr] = true
+				}
+			}
+		}
+
+		if g.isUserEmail(email.email, userLower) {
+			for _, to := range email.email.Headers.To {
+				if to != nil && to.Address != "" {
+					recipientsOfMyEmails[strings.ToLower(to.Address)] = true
+				}
+			}
+			for _, cc := range email.email.Headers.Cc {
+				if cc != nil && cc.Address != "" {
+					recipientsOfMyEmails[strings.ToLower(cc.Address)] = true
+				}
+			}
+		}
+	}
+
+	// Categorize senders
+	const minEmailCount = 5
+	var included, excluded []SenderDetail
+	keepers := make(map[string]bool)
+
+	for email, count := range senderCounts {
+		interaction := recipientsOfMyEmails[email]
+		detail := SenderDetail{
+			Email:       email,
+			Count:       count,
+			Interaction: interaction,
+		}
+
+		if count > minEmailCount || interaction {
+			keepers[email] = true
+			included = append(included, detail)
+		} else {
+			detail.Reason = fmt.Sprintf("Low count (<=%d) and no interaction", minEmailCount)
+			excluded = append(excluded, detail)
+		}
+	}
+
+	// Sort by count descending
+	sort.Slice(included, func(i, j int) bool { return included[i].Count > included[j].Count })
+	sort.Slice(excluded, func(i, j int) bool { return excluded[i].Count > excluded[j].Count })
+
+	return included, excluded, keepers
+}
+
+func (g *GmailProcessor) saveSenderAnalysis(filePath string, included, excluded []SenderDetail, outputDir string) error {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return err
+	}
+
+	// Create JSON with included first for easier editing
+	data := map[string]interface{}{
+		"_instructions": "CURATION RULES: Only senders in 'included' will be processed. Move senders between 'included'/'excluded' or delete them entirely to control filtering.",
+		"included":      included,
+		"excluded":      excluded,
+	}
+
+	jsonData, err := json.MarshalIndent(data, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(filePath, jsonData, 0o644)
+}
+
+func (g *GmailProcessor) filterEmailsBySenders(emails []*emailWithMeta, keepers map[string]bool) []*emailWithMeta {
+	var filtered []*emailWithMeta
+	for _, email := range emails {
+		keep := false
+		for _, from := range email.email.Headers.From {
+			if from != nil && from.Address != "" {
+				if keepers[strings.ToLower(from.Address)] {
+					keep = true
+					break
+				}
+			}
+		}
+		if keep {
+			filtered = append(filtered, email)
+		}
+	}
+	return filtered
 }

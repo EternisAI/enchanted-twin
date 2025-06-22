@@ -76,14 +76,31 @@ gmail:
 	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
 	@if [ ! -f "$(INPUT_DIR)"/*.mbox ]; then \
 		echo "❌ No Gmail MBOX found in $(INPUT_DIR)/"; \
-	echo "💡 Place your Gmail MBOX file in $(INPUT_DIR)/"; \
+		echo "💡 Place your Gmail MBOX file in $(INPUT_DIR)/"; \
 		exit 1; \
 	fi
 	@MBOX_FILE=$$(ls $(INPUT_DIR)/*.mbox 2>/dev/null | head -1); \
 	if [ -n "$$MBOX_FILE" ]; then \
 		echo "✅ Found Gmail MBOX: $$MBOX_FILE"; \
-		go run . gmail "$$MBOX_FILE"; \
+		go run . gmail; \
 		echo "✅ Gmail X_0 ConversationDocument created: $(OUTPUT_DIR)/X_0_gmail.json"; \
+	fi
+
+# Analyze Gmail senders only
+gmail-senders:
+	@echo "📊 Analyzing Gmail senders..."
+	@mkdir -p $(INPUT_DIR) $(OUTPUT_DIR)
+	@if [ ! -f "$(INPUT_DIR)"/*.mbox ]; then \
+		echo "❌ No Gmail MBOX found in $(INPUT_DIR)/"; \
+		echo "💡 Place your Gmail MBOX file in $(INPUT_DIR)/"; \
+		exit 1; \
+	fi
+	@MBOX_FILE=$$(ls $(INPUT_DIR)/*.mbox 2>/dev/null | head -1); \
+	if [ -n "$$MBOX_FILE" ]; then \
+		echo "✅ Found Gmail MBOX: $$MBOX_FILE"; \
+		go run . gmail --senders; \
+		echo "✅ Sender analysis completed: $(OUTPUT_DIR)/senders.json"; \
+		echo "💡 Edit $(OUTPUT_DIR)/senders.json then run 'make gmail' again"; \
 	fi
 
 # Convert ConversationDocument to chunks (X_0 → X_1)
@@ -245,4 +262,4 @@ help:
 	@echo
 	@echo "🔥 Clean Pipeline - No intermediate JSONL step!"
 
-.PHONY: build whatsapp telegram chatgpt gmail chunks facts all clean status help 
+.PHONY: build whatsapp telegram chatgpt gmail gmail-senders chunks facts all clean status help 
