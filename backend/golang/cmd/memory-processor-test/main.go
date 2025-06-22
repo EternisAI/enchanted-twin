@@ -16,6 +16,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/ai"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/chatgpt"
+	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/gmail"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/telegram"
 	"github.com/EternisAI/enchanted-twin/pkg/dataprocessing/whatsapp"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -40,6 +41,8 @@ func main() {
 		runTelegram()
 	case "chatgpt":
 		runChatGPT()
+	case "gmail":
+		runGmail()
 	case "chunks":
 		runChunks()
 	case "facts":
@@ -113,6 +116,9 @@ func findX0File() string {
 	if f := findInputFile("pipeline_output/X_0_telegram.json"); f != "" {
 		return f
 	}
+	if f := findInputFile("pipeline_output/X_0_gmail.json"); f != "" {
+		return f
+	}
 	return findInputFile("pipeline_output/X_0_chatgpt.json")
 }
 
@@ -165,6 +171,17 @@ func runChatGPT() {
 		"pipeline_output/X_0_chatgpt.json",
 		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
 			return chatgpt.NewChatGPTProcessor(store, logger)
+		},
+	)
+}
+
+func runGmail() {
+	runDataProcessor(
+		"Gmail",
+		[]string{"pipeline_input/*.mbox"},
+		"pipeline_output/X_0_gmail.json",
+		func(store *db.Store) (dataprocessing.DocumentProcessor, error) {
+			return gmail.NewGmailProcessor(store, logger)
 		},
 	)
 }
@@ -295,6 +312,7 @@ func printUsage() {
 	fmt.Println("  memory-processor-test whatsapp")
 	fmt.Println("  memory-processor-test telegram")
 	fmt.Println("  memory-processor-test chatgpt")
+	fmt.Println("  memory-processor-test gmail")
 	fmt.Println("  memory-processor-test chunks")
 	fmt.Println("  memory-processor-test facts")
 	fmt.Println()
@@ -302,6 +320,7 @@ func printUsage() {
 	fmt.Println("  make whatsapp # Convert WhatsApp SQLite")
 	fmt.Println("  make telegram # Convert Telegram JSON")
 	fmt.Println("  make chatgpt  # Convert ChatGPT JSON")
+	fmt.Println("  make gmail    # Convert Gmail JSON")
 	fmt.Println("  make chunks   # X_0 → X_1")
 	fmt.Println("  make facts    # X_1 → X_2")
 }

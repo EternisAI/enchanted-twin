@@ -1,6 +1,6 @@
 # Memory Pipeline Tester
 
-A command-line tool for testing and debugging the **exact memory ingestion pipeline** used by the Enchanted Twin application. This tool processes **WhatsApp** and **Telegram** chat exports through the same atomic pipeline steps as production, with **clean polymorphic execution** for maximum debugging clarity.
+A command-line tool for testing and debugging the **exact memory ingestion pipeline** used by the Enchanted Twin application. This tool processes **WhatsApp**, **Telegram**, **ChatGPT**, and **Gmail** chat exports through the same atomic pipeline steps as production, with **clean polymorphic execution** for maximum debugging clarity.
 
 ## Quick Start 🚀
 
@@ -13,6 +13,12 @@ A command-line tool for testing and debugging the **exact memory ingestion pipel
    
    # OR Telegram JSON export  
    cp ~/Downloads/telegram_export.json pipeline_input/
+   
+   # OR ChatGPT conversations JSON
+   cp ~/Downloads/conversations.json pipeline_input/
+   
+   # OR Gmail MBOX file
+   cp ~/Downloads/gmail_export.mbox pipeline_input/
    ```
 
 2. **Convert to ConversationDocument (X_0):**
@@ -20,6 +26,10 @@ A command-line tool for testing and debugging the **exact memory ingestion pipel
    make whatsapp    # SQLite → X_0_whatsapp.json
    # OR
    make telegram    # JSON → X_0_telegram.json
+   # OR
+   make chatgpt     # JSON → X_0_chatgpt.json
+   # OR
+   make gmail       # MBOX → X_0_gmail.json
    ```
 
 3. **Run the atomic pipeline steps:**
@@ -44,7 +54,7 @@ This tool helps developers:
 - **Test configuration changes** without affecting the main application
 - **Validate fact extraction** from personal conversation data
 - **Understand the memory workflow** through detailed logging
-- **Support multiple data sources** (WhatsApp, Telegram) through clean polymorphic interface
+- **Support multiple data sources** (WhatsApp, Telegram, ChatGPT, Gmail) through clean polymorphic interface
 
 ## Clean Architecture
 
@@ -65,6 +75,8 @@ Telegram JSON ────make telegram──→ X_0_telegram.json ┘        �
 |------|-------|--------|-------------|---------|
 | **WhatsApp Conversion** | SQLite DB | `X_0_whatsapp.json` | Extract conversations to ConversationDocument | `make whatsapp` |
 | **Telegram Conversion** | JSON export | `X_0_telegram.json` | Convert export to ConversationDocument | `make telegram` |
+| **ChatGPT Conversion** | JSON export | `X_0_chatgpt.json` | Convert ChatGPT conversations to ConversationDocument | `make chatgpt` |
+| **Gmail Conversion** | MBOX file | `X_0_gmail.json` | Convert Gmail MBOX file to ConversationDocument | `make gmail` |
 | **Chunks** | `X_0_*.json` | `X_1_chunked_documents.json` | Split conversations into manageable chunks | `make chunks` |
 | **Facts** | `X_1_chunked_documents.json` | `X_2_extracted_facts.json` | Extract meaningful facts using LLM | `make facts` |
 
@@ -74,6 +86,8 @@ Telegram JSON ────make telegram──→ X_0_telegram.json ┘        �
 |---------|-------------|----------------|--------|
 | `make whatsapp` | Convert WhatsApp SQLite to X_0 | SQLite in `pipeline_input/` | `X_0_whatsapp.json` |
 | `make telegram` | Convert Telegram JSON to X_0 | JSON in `pipeline_input/` | `X_0_telegram.json` |
+| `make chatgpt` | Convert ChatGPT conversations to X_0 | JSON in `pipeline_input/` | `X_0_chatgpt.json` |
+| `make gmail` | Convert Gmail MBOX file to X_0 | MBOX in `pipeline_input/` | `X_0_gmail.json` |
 | `make chunks` | X_0 → X_1 (documents to chunks) | `X_0_*.json` | `X_1_chunked_documents.json` |
 | `make facts` | X_1 → X_2 (chunks to facts) | `X_1_chunked_documents.json` + API key | `X_2_extracted_facts.json` |
 | `make status` | Show current pipeline state | - | Status display |
@@ -85,6 +99,8 @@ Telegram JSON ────make telegram──→ X_0_telegram.json ┘        �
 ### Required Files
 - **WhatsApp SQLite database** (from WhatsApp export) 
 - **OR Telegram JSON export** (from Telegram Desktop)
+- **OR ChatGPT conversations JSON** (from ChatGPT export)
+- **OR Gmail MBOX file** (from Gmail export)
 - **`.env` file** in the project root (`backend/golang/.env`) with API keys
 
 ### Environment Variables
@@ -125,6 +141,12 @@ WEAVIATE_PORT=51414
    
    # OR Telegram export
    cp ~/Downloads/telegram_export.json pipeline_input/
+   
+   # OR ChatGPT conversations JSON
+   cp ~/Downloads/conversations.json pipeline_input/
+   
+   # OR Gmail MBOX file
+   cp ~/Downloads/gmail_export.mbox pipeline_input/
    ```
 
 4. **You're ready to go!**
@@ -165,7 +187,41 @@ make facts      # X_1 → X_2
 make status
 ```
 
-### 3. Atomic Step Testing
+### 3. ChatGPT Complete Pipeline
+```bash
+# Setup: Copy ChatGPT conversations export
+cp ~/Downloads/conversations.json pipeline_input/
+
+# Step 1: Convert to ConversationDocument
+make chatgpt
+# Output: X_0_chatgpt.json (conversations with threading)
+
+# Step 2-3: Process through pipeline
+make chunks     # X_0 → X_1
+make facts      # X_1 → X_2
+
+# Check results
+make status
+```
+
+### 4. Gmail Complete Pipeline
+```bash
+# Setup: Copy Gmail MBOX export
+cp ~/Downloads/gmail_export.mbox pipeline_input/
+
+# Step 1: Convert to ConversationDocument
+make gmail
+# Output: X_0_gmail.json (threaded email conversations)
+
+# Step 2-3: Process through pipeline
+make chunks     # X_0 → X_1
+make facts      # X_1 → X_2
+
+# Check results
+make status
+```
+
+### 5. Atomic Step Testing
 ```bash
 # Test only fact extraction (after fixing extraction logic)
 make facts
@@ -178,18 +234,18 @@ make status
 
 # Start completely over
 make clean
-make whatsapp
+make gmail      # or whatsapp/telegram/chatgpt
 make chunks
 make facts
 ```
 
-### 4. Advanced: CLI Direct Usage
+### 6. Advanced: CLI Direct Usage
 ```bash
-# Convert WhatsApp directly (auto-detects from pipeline_input/)
+# Convert data sources directly (auto-detects from pipeline_input/)
 ./memory-processor-test whatsapp
-
-# Convert Telegram directly (auto-detects from pipeline_input/)
 ./memory-processor-test telegram
+./memory-processor-test chatgpt
+./memory-processor-test gmail
 
 # Run atomic steps directly
 ./memory-processor-test chunks

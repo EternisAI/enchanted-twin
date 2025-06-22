@@ -339,14 +339,18 @@ func (s *DataProcessingService) ProcessSource(ctx context.Context, sourceType st
 			return false, err
 		}
 	case "gmail":
-		source, err := gmail.NewGmailProcessor(s.store, s.logger)
+		processor, err := gmail.NewGmailProcessor(s.store, s.logger)
 		if err != nil {
 			return false, err
 		}
-		records, err = source.ProcessDirectory(ctx, inputPath)
+		documents, err := processor.ProcessFile(ctx, inputPath)
 		if err != nil {
 			return false, err
 		}
+		if err := memory.ExportConversationDocumentsJSON(documents, outputPath); err != nil {
+			return false, err
+		}
+		return true, nil
 	case "x":
 		source, err := x.NewXProcessor(s.store, s.logger)
 		if err != nil {
@@ -434,14 +438,8 @@ func (s *DataProcessingService) ToDocuments(ctx context.Context, sourceType stri
 			return nil, err
 		}
 	case "gmail":
-		gmailProcessor, err := gmail.NewGmailProcessor(s.store, s.logger)
-		if err != nil {
-			return nil, err
-		}
-		documents, err = gmailProcessor.ToDocuments(ctx, records)
-		if err != nil {
-			return nil, err
-		}
+		// Gmail no longer supports ToDocuments - use direct ProcessFile interface instead
+		return nil, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	case "whatsapp":
 		whatsappProcessor, err := whatsapp.NewWhatsappProcessor(s.store, s.logger)
 		if err != nil {
@@ -584,14 +582,8 @@ func (d *DataProcessingService) Sync(ctx context.Context, sourceName string, acc
 	var authorized bool
 	switch sourceName {
 	case "gmail":
-		gmailProcessor, err := gmail.NewGmailProcessor(d.store, d.logger)
-		if err != nil {
-			return nil, err
-		}
-		records, authorized, err = gmailProcessor.Sync(ctx, accessToken)
-		if err != nil {
-			return nil, err
-		}
+		// Gmail no longer supports Sync - use direct ProcessFile interface instead
+		return nil, fmt.Errorf("gmail processor has been upgraded to new DocumentProcessor interface - use ProcessFile directly")
 	case "x":
 		xProcessor, err := x.NewXProcessor(d.store, d.logger)
 		if err != nil {
