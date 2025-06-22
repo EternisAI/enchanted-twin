@@ -30,6 +30,11 @@ A command-line tool for testing and debugging the **exact memory ingestion pipel
    make chatgpt     # JSON → X_0_chatgpt.json
    # OR
    make gmail       # MBOX → X_0_gmail.json
+   
+   # For Gmail: Optional 2-step sender curation
+   make gmail-senders  # Analyze senders → senders.json
+   # Edit pipeline_output/senders.json to curate
+   make gmail          # Process with curated senders
    ```
 
 3. **Run the atomic pipeline steps:**
@@ -88,6 +93,7 @@ Telegram JSON ────make telegram──→ X_0_telegram.json ┘        �
 | `make telegram` | Convert Telegram JSON to X_0 | JSON in `pipeline_input/` | `X_0_telegram.json` |
 | `make chatgpt` | Convert ChatGPT conversations to X_0 | JSON in `pipeline_input/` | `X_0_chatgpt.json` |
 | `make gmail` | Convert Gmail MBOX file to X_0 | MBOX in `pipeline_input/` | `X_0_gmail.json` |
+| `make gmail-senders` | Analyze Gmail senders only | MBOX in `pipeline_input/` | `senders.json` |
 | `make chunks` | X_0 → X_1 (documents to chunks) | `X_0_*.json` | `X_1_chunked_documents.json` |
 | `make facts` | X_1 → X_2 (chunks to facts) | `X_1_chunked_documents.json` + API key | `X_2_extracted_facts.json` |
 | `make status` | Show current pipeline state | - | Status display |
@@ -219,6 +225,29 @@ make facts      # X_1 → X_2
 
 # Check results
 make status
+```
+
+### 4b. Gmail with Sender Curation (Advanced)
+```bash
+# Setup: Copy Gmail MBOX export
+cp ~/Downloads/gmail_export.mbox pipeline_input/
+
+# Step 1a: Analyze senders
+make gmail-senders
+# Output: pipeline_output/senders.json with sender analysis
+
+# Step 1b: Edit senders.json manually
+# - Remove unwanted senders from "included" array
+# - Move senders between "included" and "excluded"
+# - Delete senders entirely to exclude them
+
+# Step 1c: Process with curated senders
+make gmail
+# Output: X_0_gmail.json (only emails from curated senders)
+
+# Step 2-3: Process through pipeline
+make chunks     # X_0 → X_1  
+make facts      # X_1 → X_2
 ```
 
 ### 5. Atomic Step Testing
@@ -434,6 +463,56 @@ For additional debugging:
    make chunks
    make facts
    ```
+
+## Gmail Sender Curation 📧
+
+Gmail processing includes sophisticated sender analysis to filter out noise and focus on meaningful conversations.
+
+### How It Works
+
+1. **Automatic Analysis**: `make gmail-senders` analyzes all senders and categorizes them:
+   - **Included**: Senders with >5 emails OR you've sent emails to them
+   - **Excluded**: Low-volume senders with no interaction
+
+2. **Manual Curation**: Edit `pipeline_output/senders.json`:
+   ```json
+   {
+     "_instructions": "CURATION RULES: Only senders in 'included' will be processed...",
+     "included": [
+       {"email": "friend@example.com", "count": 45, "interaction": true},
+       {"email": "colleague@work.com", "count": 12, "interaction": false}
+     ],
+     "excluded": [
+       {"email": "noreply@service.com", "count": 3, "interaction": false, "reason": "Low count (<=5) and no interaction"}
+     ]
+   }
+   ```
+
+3. **Simple Rules**:
+   - **✅ INCLUDED**: Only senders in the `"included"` array are processed
+   - **❌ EXCLUDED**: Senders in `"excluded"` array OR deleted entirely are skipped
+
+### Curation Actions
+
+| Action | Result |
+|--------|--------|
+| Keep sender in `"included"` | ✅ Emails from this sender are processed |
+| Move sender to `"excluded"` | ❌ Emails from this sender are skipped |
+| Delete sender entirely | ❌ Emails from this sender are skipped |
+| Add new sender to `"included"` | ✅ Emails from this sender are processed |
+
+### Output Files
+
+- **`senders.json`**: Sender analysis for manual curation
+- **`X_0_gmail.json`**: Processed emails (only from included senders)
+- **`F_0_gmail.mbox`**: Failed emails that couldn't be parsed
+
+### Visual Progress
+
+Gmail processing shows a visual progress bar:
+```
+[████████████████████████████████████████] 100.0% (35844/35844)
+```
 
 ## Data Source Setup
 

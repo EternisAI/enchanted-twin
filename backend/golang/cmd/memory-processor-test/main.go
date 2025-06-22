@@ -176,6 +176,14 @@ func runChatGPT() {
 }
 
 func runGmail() {
+	// Check for --senders flag
+	sendersOnly := len(os.Args) > 2 && os.Args[2] == "--senders"
+
+	if sendersOnly {
+		runGmailSenders()
+		return
+	}
+
 	runDataProcessor(
 		"Gmail",
 		[]string{"pipeline_input/*.mbox"},
@@ -184,6 +192,46 @@ func runGmail() {
 			return gmail.NewGmailProcessor(store, logger)
 		},
 	)
+}
+
+func runGmailSenders() {
+	// Find input file
+	var inputFile string
+	for _, pattern := range []string{"pipeline_input/*.mbox"} {
+		if file := findInputFile(pattern); file != "" {
+			inputFile = file
+			break
+		}
+	}
+	if inputFile == "" {
+		logger.Error("No mbox file found", "patterns", []string{"pipeline_input/*.mbox"})
+		os.Exit(1)
+	}
+
+	logger.Info("Analyzing Gmail senders", "file", inputFile)
+
+	// Create processor
+	ctx := context.Background()
+	store, _ := db.NewStore(ctx, ":memory:")
+	defer func() {
+		if err := store.Close(); err != nil {
+			logger.Error("Failed to close store", "error", err)
+		}
+	}()
+
+	processor, err := gmail.NewGmailProcessor(store, logger)
+	if err != nil {
+		logger.Error("Failed to create Gmail processor", "error", err)
+		os.Exit(1)
+	}
+
+	// Process file for senders only
+	if err := processor.ProcessFileForSenders(ctx, inputFile, "pipeline_output"); err != nil {
+		logger.Error("Sender analysis failed", "error", err)
+		os.Exit(1)
+	}
+
+	logger.Info("Sender analysis completed. Edit pipeline_output/senders.json then run 'make gmail' again.")
 }
 
 // Pipeline steps.
@@ -313,6 +361,7 @@ func printUsage() {
 	fmt.Println("  memory-processor-test telegram")
 	fmt.Println("  memory-processor-test chatgpt")
 	fmt.Println("  memory-processor-test gmail")
+	fmt.Println("  memory-processor-test gmail --senders  # Analyze senders only")
 	fmt.Println("  memory-processor-test chunks")
 	fmt.Println("  memory-processor-test facts")
 	fmt.Println()
@@ -320,7 +369,8 @@ func printUsage() {
 	fmt.Println("  make whatsapp # Convert WhatsApp SQLite")
 	fmt.Println("  make telegram # Convert Telegram JSON")
 	fmt.Println("  make chatgpt  # Convert ChatGPT JSON")
-	fmt.Println("  make gmail    # Convert Gmail JSON")
+	fmt.Println("  make gmail    # Convert Gmail mbox")
+	fmt.Println("  make gmail --senders # Analyze Gmail senders, create senders.json")
 	fmt.Println("  make chunks   # X_0 → X_1")
 	fmt.Println("  make facts    # X_1 → X_2")
 }
