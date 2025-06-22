@@ -6,16 +6,21 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"html"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/log"
 	"github.com/mnako/letters"
+	loghtml "golang.org/x/net/html"
 
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory"
 	"github.com/EternisAI/enchanted-twin/pkg/db"
@@ -226,7 +231,12 @@ func (g *GmailProcessor) hasSkipLabels(email *letters.Email) bool {
 }
 
 func (g *GmailProcessor) hasSkipSender(email *letters.Email) bool {
-	skipPatterns := []string{"no-reply", "noreply", "support", "alert", "notification", "newsletter"}
+	skipPatterns := []string{
+		"no-reply", "noreply", "no_reply", "support", "alert", "notification",
+		"ticket", "update", "info@", "contact@", "billing@", "newsletter",
+		"news@", "auto@", "auto-", "mms@", "sms@", "mail@", "server@",
+		"bounce", "daemon",
+	}
 
 	senders := email.Headers.From
 	if email.Headers.Sender != nil {
@@ -276,27 +286,53 @@ func (g *GmailProcessor) filterEmails(emails []*emailWithMeta, userEmail string)
 
 	userLower := strings.ToLower(userEmail)
 	senderCounts := make(map[string]int)
-	userContacts := make(map[string]bool)
+	recipientsOfMyEmails := make(map[string]bool)
 
+	// Phase 1: Count senders and track user interactions
 	for _, email := range emails {
+		// Count senders (deduplicated per email)
+		seenInThisEmail := make(map[string]bool)
 		for _, from := range email.email.Headers.From {
-			if from != nil {
-				senderCounts[strings.ToLower(from.Address)]++
+			if from != nil && from.Address != "" {
+				lowerAddr := strings.ToLower(from.Address)
+				if !seenInThisEmail[lowerAddr] {
+					senderCounts[lowerAddr]++
+					seenInThisEmail[lowerAddr] = true
+				}
 			}
 		}
 
+		// Track recipients if email was sent BY the user
 		if g.isUserEmail(email.email, userLower) {
 			for _, to := range email.email.Headers.To {
-				if to != nil {
-					userContacts[strings.ToLower(to.Address)] = true
+				if to != nil && to.Address != "" {
+					recipientsOfMyEmails[strings.ToLower(to.Address)] = true
+				}
+			}
+			for _, cc := range email.email.Headers.Cc {
+				if cc != nil && cc.Address != "" {
+					recipientsOfMyEmails[strings.ToLower(cc.Address)] = true
 				}
 			}
 		}
 	}
 
+	// Phase 2: Filter based on interaction OR frequency
+	const minEmailCount = 5
 	var filtered []*emailWithMeta
 	for _, email := range emails {
-		if g.shouldKeepEmail(email, senderCounts, userContacts) {
+		keep := false
+		for _, from := range email.email.Headers.From {
+			if from != nil && from.Address != "" {
+				lowerAddr := strings.ToLower(from.Address)
+				// Keep if: high frequency OR user interacted with them
+				if senderCounts[lowerAddr] > minEmailCount || recipientsOfMyEmails[lowerAddr] {
+					keep = true
+					break
+				}
+			}
+		}
+		if keep {
 			filtered = append(filtered, email)
 		}
 	}
@@ -308,18 +344,6 @@ func (g *GmailProcessor) isUserEmail(email *letters.Email, userEmail string) boo
 	for _, from := range email.Headers.From {
 		if from != nil && strings.ToLower(from.Address) == userEmail {
 			return true
-		}
-	}
-	return false
-}
-
-func (g *GmailProcessor) shouldKeepEmail(email *emailWithMeta, senderCounts map[string]int, userContacts map[string]bool) bool {
-	for _, from := range email.email.Headers.From {
-		if from != nil {
-			lowerAddr := strings.ToLower(from.Address)
-			if senderCounts[lowerAddr] > 5 || userContacts[lowerAddr] {
-				return true
-			}
 		}
 	}
 	return false
@@ -422,6 +446,103 @@ func (g *GmailProcessor) getSpeaker(email *letters.Email) string {
 	return "unknown"
 }
 
-func (g *GmailProcessor) htmlToText(html string) string {
-	return html
+func (g *GmailProcessor) htmlToText(htmlContent string) string {
+	// Decode common HTML entities and remaining UTF-8 sequences
+	r := strings.NewReplacer(
+		"=E2=80=99", "'",
+		"=E2=9A=BD", "⚽",
+		"=EF=B8=8F", "",
+		"&nbsp;", " ",
+		"&amp;", "&",
+		"&lt;", "<",
+		"&gt;", ">",
+		"&quot;", "\"",
+		"&apos;", "'",
+	)
+	htmlContent = r.Replace(htmlContent)
+
+	// Try to decode any remaining UTF-8 sequences
+	if decodedContent, err := g.decodeUTF8Sequences(htmlContent); err == nil {
+		htmlContent = decodedContent
+	}
+
+	// Unescape basic HTML entities
+	htmlContent = html.UnescapeString(htmlContent)
+
+	doc, err := loghtml.Parse(strings.NewReader(htmlContent))
+	if err != nil {
+		return ""
+	}
+
+	var textBuilder strings.Builder
+	var lastText string
+	var extract func(*loghtml.Node)
+	extract = func(n *loghtml.Node) {
+		switch n.Type {
+		case loghtml.ElementNode:
+			// Skip non-content tags
+			switch strings.ToLower(n.Data) {
+			case "style", "script", "noscript", "iframe", "head", "meta", "link":
+				return
+			}
+		case loghtml.TextNode:
+			text := strings.TrimSpace(n.Data)
+			if text != "" {
+				if lastText != "" && !strings.HasSuffix(lastText, "\n") {
+					textBuilder.WriteString(" ")
+				}
+				textBuilder.WriteString(text)
+				lastText = text
+			}
+		}
+
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			extract(c)
+		}
+
+		// Add newline after block elements
+		if n.Type == loghtml.ElementNode {
+			switch strings.ToLower(n.Data) {
+			case "p", "div", "br", "h1", "h2", "h3", "h4", "h5", "h6", "li":
+				if lastText != "" && !strings.HasSuffix(lastText, "\n") {
+					textBuilder.WriteString("\n")
+					lastText = "\n"
+				}
+			}
+		}
+	}
+	extract(doc)
+
+	result := textBuilder.String()
+	result = strings.Join(strings.Fields(result), " ")
+	for strings.Contains(result, "\n\n") {
+		result = strings.ReplaceAll(result, "\n\n", "\n")
+	}
+	return strings.TrimSpace(result)
+}
+
+func (g *GmailProcessor) decodeUTF8Sequences(text string) (string, error) {
+	re := regexp.MustCompile(`=([0-9A-F]{2})(=([0-9A-F]{2}))?(=([0-9A-F]{2}))?`)
+	return re.ReplaceAllStringFunc(text, func(match string) string {
+		parts := re.FindStringSubmatch(match)
+		if len(parts) < 2 {
+			return match
+		}
+
+		bytes := make([]byte, 0, 3)
+		for i := 1; i < len(parts); i += 2 {
+			if parts[i] != "" {
+				b, err := hex.DecodeString(parts[i])
+				if err != nil {
+					return match
+				}
+				bytes = append(bytes, b[0])
+			}
+		}
+
+		if str := string(bytes); utf8.ValidString(str) {
+			return str
+		}
+		return match
+	}), nil
 }
