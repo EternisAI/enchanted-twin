@@ -205,6 +205,20 @@ func (gts *GenericTestScenario) UnmarshalJSON(data []byte) error {
 		}
 		content = &threadContent
 
+	case ScenarioTypeNewsArticle:
+		var newsContent NewsArticleContent
+		if err := json.Unmarshal(temp.Content, &newsContent); err != nil {
+			return fmt.Errorf("failed to unmarshal news article content: %w", err)
+		}
+		content = &newsContent
+
+	case ScenarioTypeGeneric:
+		var genericContent GenericContent
+		if err := json.Unmarshal(temp.Content, &genericContent); err != nil {
+			return fmt.Errorf("failed to unmarshal generic content: %w", err)
+		}
+		content = &genericContent
+
 	default:
 		return fmt.Errorf("unsupported scenario type: %s", temp.Type)
 	}
@@ -535,6 +549,170 @@ func (spc *SocialPostContent) GetKeywords() []string {
 	for _, word := range words {
 		word = strings.Trim(word, ".,!?;:")
 		if len(word) > 3 {
+			keywords = append(keywords, word)
+		}
+	}
+
+	return keywords
+}
+
+// NewsArticleContent represents a news article scenario
+type NewsArticleContent struct {
+	ArticleID   string                 `json:"article_id"`
+	Headline    string                 `json:"headline"`
+	Body        string                 `json:"body"`
+	Author      ContentAuthor          `json:"author"`
+	Publication string                 `json:"publication"`
+	Category    string                 `json:"category,omitempty"` // "technology", "business", "science", etc.
+	CreatedAt   time.Time              `json:"created_at"`
+	Tags        []string               `json:"tags,omitempty"`
+	ImageURLs   []string               `json:"image_urls,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+}
+
+func (nac *NewsArticleContent) GetContentType() ScenarioType {
+	return ScenarioTypeNewsArticle
+}
+
+func (nac *NewsArticleContent) GetMainText() string {
+	return nac.Body
+}
+
+func (nac *NewsArticleContent) GetAuthor() *ContentAuthor {
+	return &nac.Author
+}
+
+func (nac *NewsArticleContent) GetCreatedAt() time.Time {
+	return nac.CreatedAt
+}
+
+func (nac *NewsArticleContent) GetMetadata() map[string]interface{} {
+	metadata := make(map[string]interface{})
+	if nac.Metadata != nil {
+		for k, v := range nac.Metadata {
+			metadata[k] = v
+		}
+	}
+	metadata["article_id"] = nac.ArticleID
+	metadata["publication"] = nac.Publication
+	metadata["category"] = nac.Category
+	metadata["tags"] = nac.Tags
+	metadata["image_count"] = len(nac.ImageURLs)
+	return metadata
+}
+
+func (nac *NewsArticleContent) GetDisplayTitle() string {
+	return nac.Headline
+}
+
+func (nac *NewsArticleContent) GetDisplaySummary() string {
+	if len(nac.Body) > 200 {
+		return nac.Body[:197] + "..."
+	}
+	return nac.Body
+}
+
+func (nac *NewsArticleContent) GetKeywords() []string {
+	// Extract keywords from headline and body
+	var keywords []string
+
+	// Add tags as keywords
+	keywords = append(keywords, nac.Tags...)
+
+	// Extract keywords from text
+	text := nac.Headline + " " + nac.Body
+	words := strings.Fields(strings.ToLower(text))
+
+	wordCount := make(map[string]int)
+	for _, word := range words {
+		word = strings.Trim(word, ".,!?;:")
+		if len(word) > 3 {
+			wordCount[word]++
+		}
+	}
+
+	for word, count := range wordCount {
+		if count >= 2 || len(word) > 6 {
+			keywords = append(keywords, word)
+		}
+	}
+
+	return keywords
+}
+
+// GenericContent represents a generic content scenario that can adapt to various content types
+type GenericContent struct {
+	ContentID   string                 `json:"content_id"`
+	Title       string                 `json:"title"`
+	Body        string                 `json:"body"`
+	Author      ContentAuthor          `json:"author"`
+	ContentType string                 `json:"content_type"` // "article", "blog_post", "document", etc.
+	CreatedAt   time.Time              `json:"created_at"`
+	Tags        []string               `json:"tags,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+}
+
+func (gc *GenericContent) GetContentType() ScenarioType {
+	return ScenarioTypeGeneric
+}
+
+func (gc *GenericContent) GetMainText() string {
+	return gc.Body
+}
+
+func (gc *GenericContent) GetAuthor() *ContentAuthor {
+	return &gc.Author
+}
+
+func (gc *GenericContent) GetCreatedAt() time.Time {
+	return gc.CreatedAt
+}
+
+func (gc *GenericContent) GetMetadata() map[string]interface{} {
+	metadata := make(map[string]interface{})
+	if gc.Metadata != nil {
+		for k, v := range gc.Metadata {
+			metadata[k] = v
+		}
+	}
+	metadata["content_id"] = gc.ContentID
+	metadata["content_type"] = gc.ContentType
+	metadata["tags"] = gc.Tags
+	return metadata
+}
+
+func (gc *GenericContent) GetDisplayTitle() string {
+	return gc.Title
+}
+
+func (gc *GenericContent) GetDisplaySummary() string {
+	if len(gc.Body) > 150 {
+		return gc.Body[:147] + "..."
+	}
+	return gc.Body
+}
+
+func (gc *GenericContent) GetKeywords() []string {
+	// Extract keywords from title and body
+	var keywords []string
+
+	// Add tags as keywords
+	keywords = append(keywords, gc.Tags...)
+
+	// Extract keywords from text
+	text := gc.Title + " " + gc.Body
+	words := strings.Fields(strings.ToLower(text))
+
+	wordCount := make(map[string]int)
+	for _, word := range words {
+		word = strings.Trim(word, ".,!?;:")
+		if len(word) > 3 {
+			wordCount[word]++
+		}
+	}
+
+	for word, count := range wordCount {
+		if count >= 2 || len(word) > 6 {
 			keywords = append(keywords, word)
 		}
 	}
