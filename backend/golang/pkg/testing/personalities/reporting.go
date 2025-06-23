@@ -1,10 +1,6 @@
 package personalities
 
 import (
-	"encoding/json"
-	"fmt"
-	"os"
-	"path/filepath"
 	"sort"
 	"time"
 )
@@ -49,53 +45,6 @@ type MemoryUsageStats struct {
 	AverageMemoriesPerTest float64        `json:"average_memories_per_test"`
 	MostAccessedMemories   []string       `json:"most_accessed_memories"`
 	MemoryAccessPatterns   map[string]int `json:"memory_access_patterns"`
-}
-
-// GenerateReport creates a comprehensive test report from results
-func (ptf *PersonalityTestFramework) GenerateReport(results []TestResult) *TestReport {
-	report := &TestReport{
-		GeneratedAt:        time.Now(),
-		TotalTests:         len(results),
-		PersonalityResults: make(map[string]PersonalityReport),
-		ScenarioResults:    make(map[string]ScenarioReport),
-		DetailedResults:    results,
-	}
-
-	// Calculate overall statistics
-	totalScore := 0.0
-	passedTests := 0
-
-	// Group results by personality and scenario
-	personalityGroups := make(map[string][]TestResult)
-	scenarioGroups := make(map[string][]TestResult)
-
-	for _, result := range results {
-		if result.Success {
-			passedTests++
-		}
-		totalScore += result.Score
-
-		personalityGroups[result.PersonalityName] = append(personalityGroups[result.PersonalityName], result)
-		scenarioGroups[result.ScenarioName] = append(scenarioGroups[result.ScenarioName], result)
-	}
-
-	report.PassedTests = passedTests
-	report.FailedTests = len(results) - passedTests
-	if len(results) > 0 {
-		report.OverallScore = totalScore / float64(len(results))
-	}
-
-	// Generate personality reports
-	for name, results := range personalityGroups {
-		report.PersonalityResults[name] = ptf.generatePersonalityReport(name, results)
-	}
-
-	// Generate scenario reports
-	for name, results := range scenarioGroups {
-		report.ScenarioResults[name] = ptf.generateScenarioReport(name, results)
-	}
-
-	return report
 }
 
 // generatePersonalityReport creates a report for a specific personality
@@ -219,65 +168,5 @@ func (ptf *PersonalityTestFramework) generateScenarioReport(name string, results
 		AverageScore:     averageScore,
 		BestPersonality:  bestPersonality,
 		WorstPersonality: worstPersonality,
-	}
-}
-
-// SaveReport saves the test report to a JSON file
-func (ptf *PersonalityTestFramework) SaveReport(report *TestReport, outputPath string) error {
-	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	// Marshal report to JSON
-	data, err := json.MarshalIndent(report, "", "  ")
-	if err != nil {
-		return fmt.Errorf("failed to marshal report: %w", err)
-	}
-
-	// Write to file
-	if err := os.WriteFile(outputPath, data, 0644); err != nil {
-		return fmt.Errorf("failed to write report file: %w", err)
-	}
-
-	ptf.logger.Info("Test report saved", "path", outputPath)
-	return nil
-}
-
-// PrintSummary prints a human-readable summary of the test results
-func (ptf *PersonalityTestFramework) PrintSummary(report *TestReport) {
-	fmt.Printf("\n=== Personality Testing Report ===\n")
-	fmt.Printf("Generated: %s\n", report.GeneratedAt.Format("2006-01-02 15:04:05"))
-	fmt.Printf("Total Tests: %d\n", report.TotalTests)
-	fmt.Printf("Passed: %d (%.1f%%)\n", report.PassedTests, float64(report.PassedTests)/float64(report.TotalTests)*100)
-	fmt.Printf("Failed: %d (%.1f%%)\n", report.FailedTests, float64(report.FailedTests)/float64(report.TotalTests)*100)
-	fmt.Printf("Overall Score: %.3f\n", report.OverallScore)
-
-	fmt.Printf("\n=== Personality Performance ===\n")
-	for name, result := range report.PersonalityResults {
-		fmt.Printf("%s: %.3f avg score, %d/%d passed\n",
-			name, result.AverageScore, result.PassedTests, result.TotalTests)
-		fmt.Printf("  Best: %s, Worst: %s\n", result.BestScenario, result.WorstScenario)
-		fmt.Printf("  Memory: %.1f avg/test, %d unique accessed\n",
-			result.MemoryUsage.AverageMemoriesPerTest, result.MemoryUsage.UniqueMemoriesAccessed)
-	}
-
-	fmt.Printf("\n=== Scenario Difficulty ===\n")
-	for name, result := range report.ScenarioResults {
-		fmt.Printf("%s: %.3f avg score, %d/%d passed\n",
-			name, result.AverageScore, result.PassedTests, result.TotalTests)
-		fmt.Printf("  Best: %s, Worst: %s\n", result.BestPersonality, result.WorstPersonality)
-	}
-
-	// Show detailed failures
-	fmt.Printf("\n=== Failed Tests ===\n")
-	for _, result := range report.DetailedResults {
-		if !result.Success {
-			fmt.Printf("%s x %s: %.3f score\n",
-				result.PersonalityName, result.ScenarioName, result.Score)
-			fmt.Printf("  Expected: %t, Got: %t\n",
-				result.ExpectedResult.ShouldShow, result.ActualResult.ShouldShow)
-			fmt.Printf("  Reasoning: %s\n", result.Reasoning)
-		}
 	}
 }
