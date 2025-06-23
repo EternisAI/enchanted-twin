@@ -7,6 +7,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
@@ -29,12 +32,12 @@ type BaseScenario interface {
 	GetDescription() string
 	GetType() ScenarioType
 	GetContext() map[string]interface{}
-	
+
 	// Content and evaluation
 	GetContent() ScenarioContent
 	GetExpectedOutcomes() []PersonalityExpectedOutcome
 	GetExpectedOutcomeForPersonality(personalityName string, extensionNames []string) *PersonalityExpectedOutcome
-	
+
 	// Evaluation
 	Evaluate(ctx context.Context, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error)
 }
@@ -47,7 +50,7 @@ type ScenarioContent interface {
 	GetAuthor() *ContentAuthor
 	GetCreatedAt() time.Time
 	GetMetadata() map[string]interface{}
-	
+
 	// For display and analysis
 	GetDisplayTitle() string
 	GetDisplaySummary() string
@@ -80,7 +83,7 @@ type GenericTestScenario struct {
 	Context                 map[string]interface{}       `json:"context"`
 	PersonalityExpectations []PersonalityExpectedOutcome `json:"personality_expectations"`
 	DefaultExpected         *ExpectedThreadEvaluation    `json:"default_expected,omitempty"`
-	
+
 	// For evaluation
 	EvaluationHandler EvaluationHandler `json:"-"` // Not serialized
 }
@@ -117,20 +120,12 @@ func (gts *GenericTestScenario) GetExpectedOutcomes() []PersonalityExpectedOutco
 }
 
 func (gts *GenericTestScenario) GetExpectedOutcomeForPersonality(personalityName string, extensionNames []string) *PersonalityExpectedOutcome {
-	// Add debug logging
-	fmt.Printf("DEBUG: Searching for personality '%s' with extensions %v in scenario '%s'\n", personalityName, extensionNames, gts.Name)
-	fmt.Printf("DEBUG: Available expectations: %d\n", len(gts.PersonalityExpectations))
-	for i, outcome := range gts.PersonalityExpectations {
-		fmt.Printf("DEBUG: Expectation %d: personality='%s', extensions=%v\n", i, outcome.PersonalityName, outcome.ExtensionNames)
-	}
-	
 	// First try to find exact match with extensions
 	if len(extensionNames) > 0 {
 		for _, outcome := range gts.PersonalityExpectations {
 			if outcome.PersonalityName == personalityName &&
 				len(outcome.ExtensionNames) == len(extensionNames) &&
 				stringSlicesEqual(outcome.ExtensionNames, extensionNames) {
-				fmt.Printf("DEBUG: Found exact match with extensions for '%s'\n", personalityName)
 				return &outcome
 			}
 		}
@@ -139,12 +134,10 @@ func (gts *GenericTestScenario) GetExpectedOutcomeForPersonality(personalityName
 	// Then try to find base personality match (no extensions)
 	for _, outcome := range gts.PersonalityExpectations {
 		if outcome.PersonalityName == personalityName && len(outcome.ExtensionNames) == 0 {
-			fmt.Printf("DEBUG: Found base personality match for '%s'\n", personalityName)
 			return &outcome
 		}
 	}
 
-	fmt.Printf("DEBUG: No match found for personality '%s' with extensions %v\n", personalityName, extensionNames)
 	return nil
 }
 
@@ -152,7 +145,7 @@ func (gts *GenericTestScenario) Evaluate(ctx context.Context, personality *Refer
 	if gts.EvaluationHandler == nil {
 		return nil, fmt.Errorf("no evaluation handler configured for scenario type: %s", gts.Type)
 	}
-	
+
 	return gts.EvaluationHandler.Evaluate(ctx, gts.Content, personality, env)
 }
 
@@ -168,11 +161,11 @@ func (gts *GenericTestScenario) UnmarshalJSON(data []byte) error {
 		PersonalityExpectations []PersonalityExpectedOutcome `json:"personality_expectations"`
 		DefaultExpected         *ExpectedThreadEvaluation    `json:"default_expected,omitempty"`
 	}
-	
+
 	if err := json.Unmarshal(data, &temp); err != nil {
 		return err
 	}
-	
+
 	// Set the basic fields
 	gts.Name = temp.Name
 	gts.Description = temp.Description
@@ -180,7 +173,7 @@ func (gts *GenericTestScenario) UnmarshalJSON(data []byte) error {
 	gts.Context = temp.Context
 	gts.PersonalityExpectations = temp.PersonalityExpectations
 	gts.DefaultExpected = temp.DefaultExpected
-	
+
 	// Now unmarshal the content based on the type
 	var content ScenarioContent
 	switch temp.Type {
@@ -190,32 +183,32 @@ func (gts *GenericTestScenario) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("failed to unmarshal chat message content: %w", err)
 		}
 		content = &chatContent
-		
+
 	case ScenarioTypeEmail:
 		var emailContent EmailContent
 		if err := json.Unmarshal(temp.Content, &emailContent); err != nil {
 			return fmt.Errorf("failed to unmarshal email content: %w", err)
 		}
 		content = &emailContent
-		
+
 	case ScenarioTypeSocialPost:
 		var socialContent SocialPostContent
 		if err := json.Unmarshal(temp.Content, &socialContent); err != nil {
 			return fmt.Errorf("failed to unmarshal social post content: %w", err)
 		}
 		content = &socialContent
-		
+
 	case ScenarioTypeThread:
 		var threadContent ThreadContent
 		if err := json.Unmarshal(temp.Content, &threadContent); err != nil {
 			return fmt.Errorf("failed to unmarshal thread content: %w", err)
 		}
 		content = &threadContent
-		
+
 	default:
 		return fmt.Errorf("unsupported scenario type: %s", temp.Type)
 	}
-	
+
 	gts.Content = content
 	return nil
 }
@@ -297,11 +290,11 @@ func (tc *ThreadContent) GetKeywords() []string {
 	var keywords []string
 	title := tc.GetDisplayTitle()
 	content := tc.GetMainText()
-	
+
 	// Simple keyword extraction (could be enhanced with NLP)
 	text := title + " " + content
 	words := strings.Fields(strings.ToLower(text))
-	
+
 	wordCount := make(map[string]int)
 	for _, word := range words {
 		word = strings.Trim(word, ".,!?;:")
@@ -309,14 +302,14 @@ func (tc *ThreadContent) GetKeywords() []string {
 			wordCount[word]++
 		}
 	}
-	
+
 	// Return most frequent words as keywords
 	for word, count := range wordCount {
 		if count >= 2 || len(word) > 6 {
 			keywords = append(keywords, word)
 		}
 	}
-	
+
 	return keywords
 }
 
@@ -385,14 +378,14 @@ func (cmc *ChatMessageContent) GetDisplaySummary() string {
 func (cmc *ChatMessageContent) GetKeywords() []string {
 	words := strings.Fields(strings.ToLower(cmc.GetText()))
 	var keywords []string
-	
+
 	for _, word := range words {
 		word = strings.Trim(word, ".,!?;:")
 		if len(word) > 3 {
 			keywords = append(keywords, word)
 		}
 	}
-	
+
 	return keywords
 }
 
@@ -453,7 +446,7 @@ func (ec *EmailContent) GetKeywords() []string {
 	text := ec.Subject + " " + ec.Body
 	words := strings.Fields(strings.ToLower(text))
 	var keywords []string
-	
+
 	wordCount := make(map[string]int)
 	for _, word := range words {
 		word = strings.Trim(word, ".,!?;:")
@@ -461,13 +454,13 @@ func (ec *EmailContent) GetKeywords() []string {
 			wordCount[word]++
 		}
 	}
-	
+
 	for word, count := range wordCount {
 		if count >= 2 || len(word) > 6 {
 			keywords = append(keywords, word)
 		}
 	}
-	
+
 	return keywords
 }
 
@@ -520,7 +513,7 @@ func (spc *SocialPostContent) GetMetadata() map[string]interface{} {
 }
 
 func (spc *SocialPostContent) GetDisplayTitle() string {
-	return fmt.Sprintf("%s Post", strings.Title(spc.Platform))
+	return fmt.Sprintf("%s Post", cases.Title(language.English).String(spc.Platform))
 }
 
 func (spc *SocialPostContent) GetDisplaySummary() string {
@@ -533,10 +526,10 @@ func (spc *SocialPostContent) GetDisplaySummary() string {
 func (spc *SocialPostContent) GetKeywords() []string {
 	// Include both content keywords and tags
 	var keywords []string
-	
+
 	// Add tags as keywords
 	keywords = append(keywords, spc.Tags...)
-	
+
 	// Extract keywords from text
 	words := strings.Fields(strings.ToLower(spc.Text))
 	for _, word := range words {
@@ -545,6 +538,6 @@ func (spc *SocialPostContent) GetKeywords() []string {
 			keywords = append(keywords, word)
 		}
 	}
-	
+
 	return keywords
 }

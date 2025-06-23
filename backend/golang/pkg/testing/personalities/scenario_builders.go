@@ -25,8 +25,8 @@ func NewDefaultTestScenarioConfig() *TestScenarioConfig {
 				"combined_ai_and_startup_ecosystem": 0.98,
 			},
 			"creative_artist": {
-				"base":                    0.6,
-				"creative_tools_focused":  0.85,
+				"base":                     0.6,
+				"creative_tools_focused":   0.85,
 				"ai_creative_applications": 0.7,
 			},
 		},
@@ -455,7 +455,7 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 		Builder: func() *ScenarioBuilder {
 			// Create default test configuration for confidence values
 			config := NewDefaultTestScenarioConfig()
-			
+
 			builder := NewScenarioBuilder("ai_startup_funding_announcement", "Major AI startup funding round that should appeal to multiple extension combinations").
 				WithThread(
 					"Anthropic Raises $2B Series D Led by Sequoia, Google",
@@ -657,7 +657,7 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 
 	for i, templateKey := range standardTemplates {
 		framework.logger.Info("Generating scenario", "index", i, "template", templateKey)
-		
+
 		// Check if template exists
 		template, exists := sg.library.GetTemplate(templateKey)
 		if !exists {
@@ -666,9 +666,9 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 			collectedErrors = append(collectedErrors, err)
 			continue // Continue processing remaining templates
 		}
-		
+
 		framework.logger.Info("Template found, calling builder", "template", templateKey, "name", template.Name)
-		
+
 		// Call the builder function
 		builder := template.Builder()
 		if builder == nil {
@@ -677,9 +677,9 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 			collectedErrors = append(collectedErrors, err)
 			continue // Continue processing remaining templates
 		}
-		
+
 		framework.logger.Info("Builder created, calling Build", "template", templateKey)
-		
+
 		// Build the scenario (wrap in error handling for potential panics)
 		func() {
 			defer func() {
@@ -689,7 +689,7 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 					collectedErrors = append(collectedErrors, err)
 				}
 			}()
-			
+
 			scenario := builder.Build(framework)
 			framework.logger.Info("Scenario built successfully", "template", templateKey, "scenario_name", scenario.Name)
 			scenarios = append(scenarios, scenario)
@@ -700,13 +700,13 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 	// Handle collected errors
 	if len(collectedErrors) > 0 {
 		framework.logger.Warn("Some templates failed to generate", "failed_count", len(collectedErrors), "successful_count", len(scenarios))
-		
+
 		// If all templates failed, return error
 		if len(scenarios) == 0 {
 			framework.logger.Error("All scenario generation failed", "total_errors", len(collectedErrors))
 			return nil, fmt.Errorf("all %d templates failed to generate scenarios: %v", len(collectedErrors), collectedErrors)
 		}
-		
+
 		// If some succeeded, log warnings but continue
 		framework.logger.Info("Partial scenario generation completed", "successful_scenarios", len(scenarios), "failed_templates", len(collectedErrors))
 		for i, err := range collectedErrors {
