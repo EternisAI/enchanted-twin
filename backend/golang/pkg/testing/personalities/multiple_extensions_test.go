@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestMultipleExtensionsCombination tests the ability to combine multiple personality extensions
+// TestMultipleExtensionsCombination tests the ability to combine multiple personality extensions.
 func TestMultipleExtensionsCombination(t *testing.T) {
 	// Setup test framework
 	logger := log.New(os.Stdout)
@@ -159,7 +159,7 @@ func TestMultipleExtensionsCombination(t *testing.T) {
 	})
 }
 
-// TestExtensionProcessingInRunPersonalityTests tests that the test runner properly handles combined extensions
+// TestExtensionProcessingInRunPersonalityTests tests that the test runner properly handles combined extensions.
 func TestExtensionProcessingInRunPersonalityTests(t *testing.T) {
 	logger := log.New(os.Stdout)
 	logger.SetLevel(log.ErrorLevel)
@@ -215,7 +215,7 @@ func TestExtensionProcessingInRunPersonalityTests(t *testing.T) {
 	}
 }
 
-// Helper function to find a specific test result
+// Helper function to find a specific test result.
 func findResult(results []TestResult, personalityName, extensionName string) *TestResult {
 	targetName := personalityName
 	if extensionName != "" {

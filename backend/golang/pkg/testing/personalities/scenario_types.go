@@ -13,7 +13,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/graph/model"
 )
 
-// ScenarioType represents different types of scenarios
+// ScenarioType represents different types of scenarios.
 type ScenarioType string
 
 const (
@@ -25,7 +25,7 @@ const (
 	ScenarioTypeGeneric     ScenarioType = "generic"
 )
 
-// BaseScenario defines the common interface for all scenario types
+// BaseScenario defines the common interface for all scenario types.
 type BaseScenario interface {
 	// Core scenario information
 	GetName() string
@@ -42,7 +42,7 @@ type BaseScenario interface {
 	Evaluate(ctx context.Context, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error)
 }
 
-// ScenarioContent represents the content of any scenario type
+// ScenarioContent represents the content of any scenario type.
 type ScenarioContent interface {
 	// Basic content information
 	GetContentType() ScenarioType
@@ -57,7 +57,7 @@ type ScenarioContent interface {
 	GetKeywords() []string
 }
 
-// ContentAuthor represents the author of any content
+// ContentAuthor represents the author of any content.
 type ContentAuthor struct {
 	Identity string  `json:"identity"`
 	Alias    *string `json:"alias,omitempty"`
@@ -65,7 +65,7 @@ type ContentAuthor struct {
 	Email    *string `json:"email,omitempty"`
 }
 
-// GenericEvaluationResult represents the result of evaluating any scenario type
+// GenericEvaluationResult represents the result of evaluating any scenario type.
 type GenericEvaluationResult struct {
 	ShouldShow bool                   `json:"should_show"`
 	Reason     string                 `json:"reason"`
@@ -74,7 +74,7 @@ type GenericEvaluationResult struct {
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// GenericTestScenario is the new flexible scenario structure
+// GenericTestScenario is the new flexible scenario structure.
 type GenericTestScenario struct {
 	Name                    string                       `json:"name"`
 	Description             string                       `json:"description"`
@@ -88,13 +88,13 @@ type GenericTestScenario struct {
 	EvaluationHandler EvaluationHandler `json:"-"` // Not serialized
 }
 
-// EvaluationHandler defines how to evaluate different content types
+// EvaluationHandler defines how to evaluate different content types.
 type EvaluationHandler interface {
 	Evaluate(ctx context.Context, content ScenarioContent, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error)
 	GetSupportedType() ScenarioType
 }
 
-// Implementation of BaseScenario interface
+// Implementation of BaseScenario interface.
 func (gts *GenericTestScenario) GetName() string {
 	return gts.Name
 }
@@ -149,7 +149,7 @@ func (gts *GenericTestScenario) Evaluate(ctx context.Context, personality *Refer
 	return gts.EvaluationHandler.Evaluate(ctx, gts.Content, personality, env)
 }
 
-// Custom JSON unmarshaling for GenericTestScenario
+// Custom JSON unmarshaling for GenericTestScenario.
 func (gts *GenericTestScenario) UnmarshalJSON(data []byte) error {
 	// First unmarshal into a temporary struct with raw content
 	var temp struct {
@@ -229,7 +229,7 @@ func (gts *GenericTestScenario) UnmarshalJSON(data []byte) error {
 
 // ===== SPECIFIC CONTENT TYPES =====
 
-// ThreadContent represents holon thread content (backward compatibility)
+// ThreadContent represents holon thread content (backward compatibility).
 type ThreadContent struct {
 	Thread     *model.Thread       `json:"thread"`
 	ThreadData ThreadData          `json:"thread_data"`
@@ -327,7 +327,7 @@ func (tc *ThreadContent) GetKeywords() []string {
 	return keywords
 }
 
-// ChatMessageContent represents a chat message scenario
+// ChatMessageContent represents a chat message scenario.
 type ChatMessageContent struct {
 	MessageID   string                 `json:"message_id"`
 	Content     string                 `json:"content"` // Main field for content
@@ -338,7 +338,7 @@ type ChatMessageContent struct {
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// GetText returns Text if set, otherwise falls back to Content for backward compatibility
+// GetText returns Text if set, otherwise falls back to Content for backward compatibility.
 func (cmc *ChatMessageContent) GetText() string {
 	if cmc.Text != "" {
 		return cmc.Text
@@ -403,7 +403,7 @@ func (cmc *ChatMessageContent) GetKeywords() []string {
 	return keywords
 }
 
-// EmailContent represents an email scenario
+// EmailContent represents an email scenario.
 type EmailContent struct {
 	Subject   string                 `json:"subject"`
 	Body      string                 `json:"body"`
@@ -478,7 +478,7 @@ func (ec *EmailContent) GetKeywords() []string {
 	return keywords
 }
 
-// SocialPostContent represents a social media post scenario
+// SocialPostContent represents a social media post scenario.
 type SocialPostContent struct {
 	PostID    string                 `json:"post_id"`
 	Text      string                 `json:"text"`
@@ -556,7 +556,7 @@ func (spc *SocialPostContent) GetKeywords() []string {
 	return keywords
 }
 
-// NewsArticleContent represents a news article scenario
+// NewsArticleContent represents a news article scenario.
 type NewsArticleContent struct {
 	ArticleID   string                 `json:"article_id"`
 	Headline    string                 `json:"headline"`
@@ -640,7 +640,7 @@ func (nac *NewsArticleContent) GetKeywords() []string {
 	return keywords
 }
 
-// GenericContent represents a generic content scenario that can adapt to various content types
+// GenericContent represents a generic content scenario that can adapt to various content types.
 type GenericContent struct {
 	ContentID   string                 `json:"content_id"`
 	Title       string                 `json:"title"`

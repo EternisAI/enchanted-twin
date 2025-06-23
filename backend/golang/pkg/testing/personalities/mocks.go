@@ -9,7 +9,7 @@ import (
 	"github.com/EternisAI/enchanted-twin/pkg/agent/memory/evolvingmemory/storage"
 )
 
-// MockMemoryStorage provides a complete mock implementation for testing
+// MockMemoryStorage provides a complete mock implementation for testing.
 type MockMemoryStorage struct {
 	facts map[string][]string
 }
@@ -63,7 +63,7 @@ func (m *MockMemoryStorage) GetDocumentReferences(ctx context.Context, memoryID 
 	return []*storage.DocumentReference{}, nil
 }
 
-// MockHolonRepository provides a complete mock implementation for testing
+// MockHolonRepository provides a complete mock implementation for testing.
 type MockHolonRepository struct{}
 
 func NewMockHolonRepository() *MockHolonRepository {
