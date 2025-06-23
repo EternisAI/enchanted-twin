@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // ThreadEvaluationHandler handles thread-based scenario evaluation
@@ -18,21 +21,59 @@ func NewThreadEvaluationHandler(framework *PersonalityTestFramework) *ThreadEval
 	}
 }
 
-// GetType returns the scenario type this handler supports
-func (teh *ThreadEvaluationHandler) GetType() ScenarioType {
+// GetSupportedType returns the scenario type this handler supports
+func (teh *ThreadEvaluationHandler) GetSupportedType() ScenarioType {
 	return ScenarioTypeThread
 }
 
 // Evaluate evaluates a thread scenario
-func (teh *ThreadEvaluationHandler) Evaluate(ctx context.Context, scenario GenericTestScenario, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
+func (teh *ThreadEvaluationHandler) Evaluate(ctx context.Context, content ScenarioContent, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
+	// Cast content to ThreadContent
+	threadContent, ok := content.(*ThreadContent)
+	if !ok {
+		return nil, fmt.Errorf("invalid content type for thread handler")
+	}
+
+	// Get the main text content
+	mainText := threadContent.GetMainText()
+	title := threadContent.GetDisplayTitle()
+
 	// For thread evaluation, we'd typically use the thread processor
-	// For now, return a mock result
+	// For now, return a mock result based on basic content analysis
+	shouldShow := true
+	confidence := 0.8
+	reason := fmt.Sprintf("Thread evaluation for personality %s", personality.Name)
+
+	// Basic filtering logic
+	if len(mainText) < 20 {
+		shouldShow = false
+		confidence = 0.9
+		reason = "Thread content too short to be meaningful"
+	}
+
+	// Check for tech-related content for tech entrepreneurs
+	if personality.Name == "tech_entrepreneur" && (contains(mainText, "AI") || contains(title, "technology")) {
+		shouldShow = true
+		confidence = 0.95
+		reason = "Tech entrepreneur is highly interested in technology content"
+	}
+
+	newState := "visible"
+	if !shouldShow {
+		newState = "hidden"
+	}
+
 	return &GenericEvaluationResult{
-		ShouldShow: true,
-		Reason:     "Thread evaluation not fully implemented",
-		Confidence: 0.5,
-		NewState:   "visible",
-		Metadata:   map[string]interface{}{"handler": "thread"},
+		ShouldShow: shouldShow,
+		Reason:     reason,
+		Confidence: confidence,
+		NewState:   newState,
+		Metadata: map[string]interface{}{
+			"handler":        "thread",
+			"title":          title,
+			"content_length": len(mainText),
+			"personality":    personality.Name,
+		},
 	}, nil
 }
 
@@ -48,20 +89,22 @@ func NewChatMessageEvaluationHandler(framework *PersonalityTestFramework) *ChatM
 	}
 }
 
-// GetType returns the scenario type this handler supports
-func (cmeh *ChatMessageEvaluationHandler) GetType() ScenarioType {
+// GetSupportedType returns the scenario type this handler supports
+func (cmeh *ChatMessageEvaluationHandler) GetSupportedType() ScenarioType {
 	return ScenarioTypeChatMessage
 }
 
 // Evaluate evaluates a chat message scenario
-func (cmeh *ChatMessageEvaluationHandler) Evaluate(ctx context.Context, scenario GenericTestScenario, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
-	// Extract chat message content from scenario
-	content, ok := scenario.Content["content"].(string)
+func (cmeh *ChatMessageEvaluationHandler) Evaluate(ctx context.Context, content ScenarioContent, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
+	// Cast content to ChatMessageContent
+	chatContent, ok := content.(*ChatMessageContent)
 	if !ok {
-		return nil, fmt.Errorf("invalid chat message content")
+		return nil, fmt.Errorf("invalid content type for chat message handler")
 	}
 
-	chatContext, _ := scenario.Content["chat_context"].(string)
+	// Get the main text content
+	messageText := chatContent.GetText()
+	chatContext := chatContent.ChatContext
 	if chatContext == "" {
 		chatContext = "unknown"
 	}
@@ -72,14 +115,14 @@ func (cmeh *ChatMessageEvaluationHandler) Evaluate(ctx context.Context, scenario
 	reason := fmt.Sprintf("Chat message evaluation for personality %s", personality.Name)
 
 	// Basic filtering logic - this would be more sophisticated in practice
-	if len(content) < 10 {
+	if len(messageText) < 10 {
 		shouldShow = false
 		confidence = 0.9
 		reason = "Message too short to be meaningful"
 	}
 
 	// Check for AI-related content for tech entrepreneurs
-	if personality.Name == "tech_entrepreneur" && contains(content, "AI") {
+	if personality.Name == "tech_entrepreneur" && contains(messageText, "AI") {
 		shouldShow = true
 		confidence = 0.95
 		reason = "Tech entrepreneur is highly interested in AI content"
@@ -97,7 +140,7 @@ func (cmeh *ChatMessageEvaluationHandler) Evaluate(ctx context.Context, scenario
 		NewState:   newState,
 		Metadata: map[string]interface{}{
 			"handler":        "chat_message",
-			"content_length": len(content),
+			"content_length": len(messageText),
 			"personality":    personality.Name,
 			"chat_context":   chatContext,
 			"message_type":   "chat",
@@ -117,25 +160,22 @@ func NewEmailEvaluationHandler(framework *PersonalityTestFramework) *EmailEvalua
 	}
 }
 
-// GetType returns the scenario type this handler supports
-func (eeh *EmailEvaluationHandler) GetType() ScenarioType {
+// GetSupportedType returns the scenario type this handler supports
+func (eeh *EmailEvaluationHandler) GetSupportedType() ScenarioType {
 	return ScenarioTypeEmail
 }
 
 // Evaluate evaluates an email scenario
-func (eeh *EmailEvaluationHandler) Evaluate(ctx context.Context, scenario GenericTestScenario, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
-	// Extract email content from scenario
-	subject, ok := scenario.Content["subject"].(string)
+func (eeh *EmailEvaluationHandler) Evaluate(ctx context.Context, content ScenarioContent, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
+	// Cast content to EmailContent
+	emailContent, ok := content.(*EmailContent)
 	if !ok {
-		return nil, fmt.Errorf("invalid email subject")
+		return nil, fmt.Errorf("invalid content type for email handler")
 	}
 
-	body, ok := scenario.Content["body"].(string)
-	if !ok {
-		return nil, fmt.Errorf("invalid email body")
-	}
-
-	priority, _ := scenario.Content["priority"].(string)
+	subject := emailContent.Subject
+	body := emailContent.Body
+	priority := emailContent.Priority
 	if priority == "" {
 		priority = "normal"
 	}
@@ -196,40 +236,30 @@ func NewSocialPostEvaluationHandler(framework *PersonalityTestFramework) *Social
 	}
 }
 
-// GetType returns the scenario type this handler supports
-func (speh *SocialPostEvaluationHandler) GetType() ScenarioType {
+// GetSupportedType returns the scenario type this handler supports
+func (speh *SocialPostEvaluationHandler) GetSupportedType() ScenarioType {
 	return ScenarioTypeSocialPost
 }
 
 // Evaluate evaluates a social media post scenario
-func (speh *SocialPostEvaluationHandler) Evaluate(ctx context.Context, scenario GenericTestScenario, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
-	// Extract social post content from scenario
-	content, ok := scenario.Content["content"].(string)
+func (speh *SocialPostEvaluationHandler) Evaluate(ctx context.Context, content ScenarioContent, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
+	// Cast content to SocialPostContent
+	socialContent, ok := content.(*SocialPostContent)
 	if !ok {
-		return nil, fmt.Errorf("invalid social post content")
+		return nil, fmt.Errorf("invalid content type for social post handler")
 	}
 
-	platform, ok := scenario.Content["platform"].(string)
-	if !ok {
+	postText := socialContent.Text
+	platform := socialContent.Platform
+	if platform == "" {
 		platform = "unknown"
 	}
 
-	// Extract engagement metrics if available
+	// Extract engagement metrics
 	engagement := map[string]interface{}{
-		"likes":    0,
-		"comments": 0,
-		"shares":   0,
-	}
-	if engagementData, ok := scenario.Content["engagement"].(map[string]interface{}); ok {
-		if likes, ok := engagementData["likes"].(int); ok {
-			engagement["likes"] = likes
-		}
-		if comments, ok := engagementData["comments"].(int); ok {
-			engagement["comments"] = comments
-		}
-		if shares, ok := engagementData["shares"].(int); ok {
-			engagement["shares"] = shares
-		}
+		"likes":    socialContent.Likes,
+		"comments": socialContent.Comments,
+		"shares":   socialContent.Shares,
 	}
 
 	// Simple evaluation logic based on content and platform
@@ -241,7 +271,7 @@ func (speh *SocialPostEvaluationHandler) Evaluate(ctx context.Context, scenario 
 	techKeywords := []string{"AI", "quantum", "breakthrough", "technology", "innovation", "startup", "funding"}
 	isTechRelated := false
 	for _, keyword := range techKeywords {
-		if contains(content, keyword) {
+		if contains(postText, keyword) {
 			isTechRelated = true
 			break
 		}
@@ -272,36 +302,20 @@ func (speh *SocialPostEvaluationHandler) Evaluate(ctx context.Context, scenario 
 			"handler":        "social_post",
 			"platform":       platform,
 			"engagement":     engagement,
-			"content_length": len(content),
+			"content_length": len(postText),
 			"tech_related":   isTechRelated,
 			"personality":    personality.Name,
 		},
 	}, nil
 }
 
-// Helper function to check if a string contains a substring (case-insensitive)
+// Helper function to check if a string contains a substring (Unicode-aware case-insensitive)
 func contains(text, substr string) bool {
-	// Simple case-insensitive contains check
-	// In a real implementation, you'd want proper case folding
-	return len(text) >= len(substr) &&
-		findSubstring(strings.ToLower(text), strings.ToLower(substr))
-}
+	// Create a Unicode-aware lowercase caser for English
+	caser := cases.Lower(language.English)
 
-// Simple substring search
-func findSubstring(text, substr string) bool {
-	if len(substr) == 0 {
-		return true
-	}
-	if len(text) < len(substr) {
-		return false
-	}
-
-	for i := 0; i <= len(text)-len(substr); i++ {
-		if text[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	// Use proper Unicode case folding and efficient string search
+	return strings.Contains(caser.String(text), caser.String(substr))
 }
 
 // EvaluationHandlerRegistry manages evaluation handlers for different scenario types
@@ -318,7 +332,7 @@ func NewEvaluationHandlerRegistry() *EvaluationHandlerRegistry {
 
 // Register adds a handler for a specific scenario type
 func (ehr *EvaluationHandlerRegistry) Register(handler EvaluationHandler) {
-	ehr.handlers[handler.GetType()] = handler
+	ehr.handlers[handler.GetSupportedType()] = handler
 }
 
 // GetHandler retrieves a handler for a specific scenario type

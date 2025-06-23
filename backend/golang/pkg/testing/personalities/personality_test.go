@@ -503,10 +503,11 @@ func TestFlexibleScenarioSystem(t *testing.T) {
 		assert.Equal(t, "test_ai_chat", scenario.Name)
 		assert.Equal(t, ScenarioTypeChatMessage, scenario.Type)
 
-		// Verify content
-		contentMap := scenario.Content
-		assert.Contains(t, contentMap["content"], "GPT-5")
-		assert.Equal(t, "tech_enthusiast", scenario.Author.Identity)
+		// Verify content through interface methods
+		chatContent, ok := scenario.Content.(*ChatMessageContent)
+		assert.True(t, ok, "Content should be ChatMessageContent type")
+		assert.Contains(t, chatContent.GetMainText(), "GPT-5")
+		assert.Equal(t, "tech_enthusiast", chatContent.Author.Identity)
 
 		// Verify expectations
 		assert.Len(t, scenario.PersonalityExpectations, 2)
@@ -519,11 +520,8 @@ func TestFlexibleScenarioSystem(t *testing.T) {
 
 	t.Run("EmailScenarios", func(t *testing.T) {
 		// Test email scenario builder
-		scenario := NewEmailScenario("test_business_email", "Test business proposal email").
-			WithEmail(
-				"Investment Opportunity - AI Startup",
-				"Hi,\n\nWe're raising $10M Series A for our AI-powered customer service platform. Interested in learning more?\n\nBest,\nJohn",
-			).
+		scenario := NewEmailScenario("test_business_email", "Test business email").
+			WithEmail("Investment Opportunity - Series A Funding", "We'd like to discuss a Series A funding opportunity for your startup...").
 			WithFrom("john.doe", stringPtr("John Doe"), stringPtr("John Doe"), stringPtr("john@startup.ai")).
 			WithTo(ContentAuthor{Identity: "investor", Name: stringPtr("VC Partner")}).
 			WithPriority("high").
@@ -535,12 +533,13 @@ func TestFlexibleScenarioSystem(t *testing.T) {
 		assert.Equal(t, "test_business_email", scenario.Name)
 		assert.Equal(t, ScenarioTypeEmail, scenario.Type)
 
-		// Verify content
-		contentMap := scenario.Content
-		assert.Contains(t, contentMap["subject"], "Investment Opportunity")
-		assert.Contains(t, contentMap["body"], "Series A")
-		assert.Equal(t, "high", contentMap["priority"])
-		assert.Equal(t, "john.doe", scenario.Author.Identity)
+		// Verify content through interface methods
+		emailContent, ok := scenario.Content.(*EmailContent)
+		assert.True(t, ok, "Content should be EmailContent type")
+		assert.Contains(t, emailContent.Subject, "Investment Opportunity")
+		assert.Contains(t, emailContent.Body, "Series A")
+		assert.Equal(t, "high", emailContent.Priority)
+		assert.Equal(t, "john.doe", emailContent.From.Identity)
 
 		// Verify expectations
 		assert.Len(t, scenario.PersonalityExpectations, 2)
@@ -558,31 +557,31 @@ func TestFlexibleScenarioSystem(t *testing.T) {
 		// Test social media scenario builder
 		scenario := NewSocialPostScenario("test_instagram_art", "Test Instagram art post").
 			WithPost(
-				"🎨 New digital painting exploring AI-human collaboration in art! Using machine learning to generate base compositions, then adding human emotion and meaning. #AIArt #DigitalPainting #TechArt",
+				"🎨 New digital painting exploring AI-human collaboration! #AIArt #DigitalPainting",
 				"instagram",
 			).
 			WithAuthor("digital_artist", stringPtr("@maya_creates"), stringPtr("Maya Rodriguez")).
 			WithImages("https://example.com/art-piece.jpg").
-			WithTags("AIArt", "DigitalPainting", "TechArt", "Innovation").
+			WithTags("AIArt", "DigitalPainting", "TechArt").
 			WithEngagement(542, 89, 127).
 			WithContext("domain", "creative_arts").
-			WithContext("platform", "instagram").
-			ExpectPersonality("creative_artist", true, 0.95, 3, "Creative artists are highly engaged with artistic content on visual platforms").
-			ExpectPersonality("tech_entrepreneur", true, 0.5, 2, "Tech entrepreneurs have moderate interest in creative applications of technology").
+			ExpectPersonality("creative_artist", true, 0.95, 3, "Creative artists highly engage with artistic content").
+			ExpectPersonality("tech_entrepreneur", false, 0.4, 1, "Tech entrepreneurs have moderate interest in art").
 			Build(framework)
 
 		assert.Equal(t, "test_instagram_art", scenario.Name)
 		assert.Equal(t, ScenarioTypeSocialPost, scenario.Type)
 
-		// Verify content
-		contentMap := scenario.Content
-		assert.Contains(t, contentMap["content"], "AI-human collaboration")
-		assert.Equal(t, "instagram", contentMap["platform"])
-		engagementMap := contentMap["engagement"].(map[string]interface{})
-		assert.Equal(t, 542, engagementMap["likes"])
-		assert.Contains(t, contentMap["tags"], "AIArt")
-		imageURLs := contentMap["image_urls"].([]string)
-		assert.Len(t, imageURLs, 1)
+		// Verify content through interface methods
+		socialContent, ok := scenario.Content.(*SocialPostContent)
+		assert.True(t, ok, "Content should be SocialPostContent type")
+		assert.Contains(t, socialContent.Text, "AI-human collaboration")
+		assert.Equal(t, "instagram", socialContent.Platform)
+		assert.Equal(t, 542, socialContent.Likes)
+		assert.Equal(t, 89, socialContent.Comments)
+		assert.Equal(t, 127, socialContent.Shares)
+		assert.Contains(t, socialContent.Tags, "AIArt")
+		assert.Len(t, socialContent.ImageURLs, 1)
 
 		// Verify expectations
 		assert.Len(t, scenario.PersonalityExpectations, 2)

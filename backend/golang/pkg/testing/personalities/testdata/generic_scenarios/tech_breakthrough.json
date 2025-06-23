@@ -4,27 +4,24 @@
   "type": "social_post",
   "content": {
     "post_id": "post_002",
-    "content": "🚀 BREAKTHROUGH: Scientists at MIT just achieved room-temperature superconductivity! This could revolutionize everything from quantum computing to energy transmission. The implications for tech infrastructure are mind-blowing. Paper drops tomorrow in Nature. #Science #Technology #Superconductivity #QuantumComputing #EnergyInnovation",
+    "text": "🚀 BREAKTHROUGH: Scientists at MIT just achieved room-temperature superconductivity! This could revolutionize everything from quantum computing to energy transmission. The implications for tech infrastructure are mind-blowing. Paper drops tomorrow in Nature. #Science #Technology #Superconductivity #QuantumComputing #EnergyInnovation",
+    "author": {
+      "identity": "science_reporter",
+      "name": "Dr. Lisa Chen",
+      "alias": "ScienceBreaking"
+    },
     "platform": "twitter",
     "tags": ["Science", "Technology", "Superconductivity", "QuantumComputing", "EnergyInnovation"],
     "image_urls": ["https://example.com/mit-lab-photo.jpg"],
-    "engagement": {
-      "likes": 12500,
-      "comments": 1890,
-      "shares": 5200
-    },
-    "timestamp": "2024-01-22T16:30:00Z",
+    "likes": 12500,
+    "comments": 1890,
+    "shares": 5200,
     "created_at": "2024-01-22T16:30:00Z",
     "metadata": {
       "verified_account": true,
       "trending": true,
       "retweets": 5200
     }
-  },
-  "author": {
-    "identity": "science_reporter",
-    "name": "Dr. Lisa Chen",
-    "alias": "ScienceBreaking"
   },
   "context": {
     "domain": "scientific_breakthrough",

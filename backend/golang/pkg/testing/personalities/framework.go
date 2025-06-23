@@ -77,11 +77,12 @@ func (ptf *PersonalityTestFramework) LoadBasePersonalities() error {
 
 	for _, entry := range entries {
 		if entry.IsDir() {
-			personalityFile := filepath.Join(personalitiesDir, entry.Name(), "personality.json")
-			if _, err := os.Stat(personalityFile); err == nil {
-				basePersonality, err := ptf.loadBasePersonalityFromFile(personalityFile)
+			// Look for base.json file instead of personality.json
+			baseFile := filepath.Join(personalitiesDir, entry.Name(), "base.json")
+			if _, err := os.Stat(baseFile); err == nil {
+				basePersonality, err := ptf.loadBasePersonalityFromFile(baseFile)
 				if err != nil {
-					ptf.logger.Warn("Failed to load base personality", "file", personalityFile, "error", err)
+					ptf.logger.Warn("Failed to load base personality", "file", baseFile, "error", err)
 					continue
 				}
 				ptf.basePersonalities[basePersonality.Name] = basePersonality
@@ -234,6 +235,13 @@ func (ptf *PersonalityTestFramework) LoadGenericScenarios() error {
 		return fmt.Errorf("failed to read generic scenarios directory: %w", err)
 	}
 
+	// Create evaluation handler registry
+	registry := NewEvaluationHandlerRegistry()
+	registry.Register(NewThreadEvaluationHandler(ptf))
+	registry.Register(NewChatMessageEvaluationHandler(ptf))
+	registry.Register(NewEmailEvaluationHandler(ptf))
+	registry.Register(NewSocialPostEvaluationHandler(ptf))
+
 	for _, entry := range entries {
 		if strings.HasSuffix(entry.Name(), ".json") {
 			scenarioFile := filepath.Join(scenariosDir, entry.Name())
@@ -242,6 +250,16 @@ func (ptf *PersonalityTestFramework) LoadGenericScenarios() error {
 				ptf.logger.Warn("Failed to load generic scenario", "file", scenarioFile, "error", err)
 				continue
 			}
+
+			// Assign the appropriate evaluation handler based on scenario type
+			if handler, exists := registry.GetHandler(scenario.Type); exists {
+				scenario.EvaluationHandler = handler
+				ptf.logger.Debug("Assigned evaluation handler", "scenario", scenario.Name, "type", scenario.Type)
+			} else {
+				ptf.logger.Warn("No evaluation handler found for scenario type", "scenario", scenario.Name, "type", scenario.Type)
+				continue
+			}
+
 			ptf.genericScenarios = append(ptf.genericScenarios, *scenario)
 			ptf.logger.Info("Loaded generic scenario", "name", scenario.Name, "type", scenario.Type)
 		}
@@ -668,7 +686,7 @@ func (ptf *PersonalityTestFramework) setupTestEnvironment(ctx context.Context, p
 
 	// For mock testing, create a minimal processor
 	// This allows us to test the framework logic without requiring a real database
-	ptf.logger.Info("Using mock repository, creating simplified test environment")
+	ptf.logger.Debug("Using mock repository, creating simplified test environment", "personality", personality.Name)
 
 	// Return a test environment that can simulate thread processing
 	return &TestEnvironment{

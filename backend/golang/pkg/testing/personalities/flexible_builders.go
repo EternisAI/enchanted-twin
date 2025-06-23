@@ -17,28 +17,15 @@ func NewFlexibleScenarioBuilder(name, description string, scenarioType ScenarioT
 			Name:                    name,
 			Description:             description,
 			Type:                    scenarioType,
-			Content:                 make(map[string]interface{}),
 			Context:                 make(map[string]interface{}),
 			PersonalityExpectations: make([]PersonalityExpectedOutcome, 0),
-			CreatedAt:               time.Now(),
 		},
 	}
 }
 
-// WithContent sets the content as a map
-func (fsb *FlexibleScenarioBuilder) WithContent(content map[string]interface{}) *FlexibleScenarioBuilder {
+// WithContent sets the content as a ScenarioContent interface
+func (fsb *FlexibleScenarioBuilder) WithContent(content ScenarioContent) *FlexibleScenarioBuilder {
 	fsb.scenario.Content = content
-	return fsb
-}
-
-// WithAuthor sets the author information
-func (fsb *FlexibleScenarioBuilder) WithAuthor(identity string, name, alias, email *string) *FlexibleScenarioBuilder {
-	fsb.scenario.Author = ContentAuthor{
-		Identity: identity,
-		Name:     name,
-		Alias:    alias,
-		Email:    email,
-	}
 	return fsb
 }
 
@@ -89,7 +76,6 @@ func NewChatMessageScenario(name, description string) *ChatMessageScenarioBuilde
 		builder: NewFlexibleScenarioBuilder(name, description, ScenarioTypeChatMessage),
 		content: &ChatMessageContent{
 			MessageID: fmt.Sprintf("msg-%d", now.UnixNano()),
-			Timestamp: now,
 			CreatedAt: now,
 			Metadata:  make(map[string]interface{}),
 		},
@@ -99,7 +85,6 @@ func NewChatMessageScenario(name, description string) *ChatMessageScenarioBuilde
 // WithMessage sets the message content
 func (cmsb *ChatMessageScenarioBuilder) WithMessage(content, authorIdentity string) *ChatMessageScenarioBuilder {
 	cmsb.content.Content = content
-	cmsb.content.Text = content // Set both fields
 	cmsb.content.Author.Identity = authorIdentity
 	return cmsb
 }
@@ -122,7 +107,6 @@ func (cmsb *ChatMessageScenarioBuilder) WithChatContext(context string) *ChatMes
 
 // WithTimestamp sets the message timestamp
 func (cmsb *ChatMessageScenarioBuilder) WithTimestamp(timestamp time.Time) *ChatMessageScenarioBuilder {
-	cmsb.content.Timestamp = timestamp
 	cmsb.content.CreatedAt = timestamp
 	return cmsb
 }
@@ -147,19 +131,8 @@ func (cmsb *ChatMessageScenarioBuilder) ExpectPersonality(personalityName string
 
 // Build creates the final scenario
 func (cmsb *ChatMessageScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTestScenario {
-	// Convert content to map[string]interface{}
-	contentMap := map[string]interface{}{
-		"message_id":   cmsb.content.MessageID,
-		"content":      cmsb.content.Content,
-		"text":         cmsb.content.Text,
-		"chat_context": cmsb.content.ChatContext,
-		"timestamp":    cmsb.content.Timestamp,
-		"created_at":   cmsb.content.CreatedAt,
-		"metadata":     cmsb.content.Metadata,
-	}
-
-	cmsb.builder.WithContent(contentMap)
-	cmsb.builder.WithAuthor(cmsb.content.Author.Identity, cmsb.content.Author.Name, cmsb.content.Author.Alias, nil)
+	// Set the content directly as ScenarioContent
+	cmsb.builder.WithContent(cmsb.content)
 
 	// Set evaluation handler
 	handler := NewChatMessageEvaluationHandler(ptf)
@@ -180,8 +153,6 @@ func NewEmailScenario(name, description string) *EmailScenarioBuilder {
 	return &EmailScenarioBuilder{
 		builder: NewFlexibleScenarioBuilder(name, description, ScenarioTypeEmail),
 		content: &EmailContent{
-			MessageID: fmt.Sprintf("email-%d", now.UnixNano()),
-			Timestamp: now,
 			CreatedAt: now,
 			Metadata:  make(map[string]interface{}),
 		},
@@ -208,7 +179,7 @@ func (esb *EmailScenarioBuilder) WithFrom(identity string, name, alias, email *s
 
 // WithTo sets the recipient information
 func (esb *EmailScenarioBuilder) WithTo(recipient ContentAuthor) *EmailScenarioBuilder {
-	esb.content.To = recipient
+	esb.content.To = []ContentAuthor{recipient}
 	return esb
 }
 
@@ -220,7 +191,6 @@ func (esb *EmailScenarioBuilder) WithPriority(priority string) *EmailScenarioBui
 
 // WithTimestamp sets the email timestamp
 func (esb *EmailScenarioBuilder) WithTimestamp(timestamp time.Time) *EmailScenarioBuilder {
-	esb.content.Timestamp = timestamp
 	esb.content.CreatedAt = timestamp
 	return esb
 }
@@ -245,20 +215,8 @@ func (esb *EmailScenarioBuilder) ExpectPersonality(personalityName string, shoul
 
 // Build creates the final scenario
 func (esb *EmailScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTestScenario {
-	// Convert content to map[string]interface{}
-	contentMap := map[string]interface{}{
-		"message_id": esb.content.MessageID,
-		"subject":    esb.content.Subject,
-		"body":       esb.content.Body,
-		"priority":   esb.content.Priority,
-		"timestamp":  esb.content.Timestamp,
-		"created_at": esb.content.CreatedAt,
-		"metadata":   esb.content.Metadata,
-	}
-
-	esb.builder.WithContent(contentMap)
-	esb.builder.WithAuthor(esb.content.From.Identity, esb.content.From.Name, esb.content.From.Alias, esb.content.From.Email)
-	esb.builder.WithContext("recipient", esb.content.To)
+	// Set the content directly as ScenarioContent
+	esb.builder.WithContent(esb.content)
 
 	// Set evaluation handler
 	handler := NewEmailEvaluationHandler(ptf)
@@ -280,7 +238,6 @@ func NewSocialPostScenario(name, description string) *SocialPostScenarioBuilder 
 		builder: NewFlexibleScenarioBuilder(name, description, ScenarioTypeSocialPost),
 		content: &SocialPostContent{
 			PostID:    fmt.Sprintf("post-%d", now.UnixNano()),
-			Timestamp: now,
 			CreatedAt: now,
 			Metadata:  make(map[string]interface{}),
 		},
@@ -289,7 +246,7 @@ func NewSocialPostScenario(name, description string) *SocialPostScenarioBuilder 
 
 // WithPost sets the post content and platform
 func (spsb *SocialPostScenarioBuilder) WithPost(content, platform string) *SocialPostScenarioBuilder {
-	spsb.content.Content = content
+	spsb.content.Text = content
 	spsb.content.Platform = platform
 	return spsb
 }
@@ -318,15 +275,14 @@ func (spsb *SocialPostScenarioBuilder) WithImages(urls ...string) *SocialPostSce
 
 // WithEngagement sets the engagement metrics
 func (spsb *SocialPostScenarioBuilder) WithEngagement(likes, comments, shares int) *SocialPostScenarioBuilder {
-	spsb.content.Engagement.Likes = likes
-	spsb.content.Engagement.Comments = comments
-	spsb.content.Engagement.Shares = shares
+	spsb.content.Likes = likes
+	spsb.content.Comments = comments
+	spsb.content.Shares = shares
 	return spsb
 }
 
 // WithTimestamp sets the post timestamp
 func (spsb *SocialPostScenarioBuilder) WithTimestamp(timestamp time.Time) *SocialPostScenarioBuilder {
-	spsb.content.Timestamp = timestamp
 	spsb.content.CreatedAt = timestamp
 	return spsb
 }
@@ -351,28 +307,8 @@ func (spsb *SocialPostScenarioBuilder) ExpectPersonality(personalityName string,
 
 // Build creates the final scenario
 func (spsb *SocialPostScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTestScenario {
-	// Convert engagement struct to map to avoid type assertion issues
-	engagementMap := map[string]interface{}{
-		"likes":    spsb.content.Engagement.Likes,
-		"comments": spsb.content.Engagement.Comments,
-		"shares":   spsb.content.Engagement.Shares,
-	}
-
-	// Convert content to map[string]interface{}
-	contentMap := map[string]interface{}{
-		"post_id":    spsb.content.PostID,
-		"content":    spsb.content.Content,
-		"platform":   spsb.content.Platform,
-		"tags":       spsb.content.Tags,
-		"image_urls": spsb.content.ImageURLs,
-		"engagement": engagementMap, // Use the converted map instead of struct
-		"timestamp":  spsb.content.Timestamp,
-		"created_at": spsb.content.CreatedAt,
-		"metadata":   spsb.content.Metadata,
-	}
-
-	spsb.builder.WithContent(contentMap)
-	spsb.builder.WithAuthor(spsb.content.Author.Identity, spsb.content.Author.Name, spsb.content.Author.Alias, nil)
+	// Set the content directly as ScenarioContent
+	spsb.builder.WithContent(spsb.content)
 
 	// Set evaluation handler
 	handler := NewSocialPostEvaluationHandler(ptf)

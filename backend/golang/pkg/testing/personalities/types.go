@@ -201,18 +201,6 @@ type ThreadEvaluationResult struct {
 	NewState   string  `json:"new_state"`
 }
 
-// ScenarioType represents different types of scenarios
-type ScenarioType string
-
-const (
-	ScenarioTypeThread      ScenarioType = "thread"
-	ScenarioTypeChatMessage ScenarioType = "chat_message"
-	ScenarioTypeEmail       ScenarioType = "email"
-	ScenarioTypeSocialPost  ScenarioType = "social_post"
-	ScenarioTypeNewsArticle ScenarioType = "news_article"
-	ScenarioTypeGeneric     ScenarioType = "generic"
-)
-
 // TestEnvironment represents the test environment for a personality
 type TestEnvironment struct {
 	PersonalityName string
@@ -226,97 +214,4 @@ type TestEnvironment struct {
 // MemoryTracker tracks memory access during tests
 type MemoryTracker struct {
 	accessedMemories []string
-}
-
-// ContentAuthor represents the author of content in scenarios
-type ContentAuthor struct {
-	Identity string  `json:"identity"`
-	Name     *string `json:"name,omitempty"`
-	Alias    *string `json:"alias,omitempty"`
-	Email    *string `json:"email,omitempty"`
-	Platform string  `json:"platform,omitempty"`
-}
-
-// EvaluationHandler interface for handling different scenario types
-type EvaluationHandler interface {
-	GetType() ScenarioType
-	Evaluate(ctx context.Context, scenario GenericTestScenario, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error)
-}
-
-// GenericTestScenario represents a flexible test scenario that can handle different content types
-type GenericTestScenario struct {
-	Name                    string                       `json:"name"`
-	Description             string                       `json:"description"`
-	Type                    ScenarioType                 `json:"type"`
-	Content                 map[string]interface{}       `json:"content"`
-	Author                  ContentAuthor                `json:"author"`
-	Context                 map[string]interface{}       `json:"context"`
-	PersonalityExpectations []PersonalityExpectedOutcome `json:"personality_expectations"`
-	EvaluationHandler       EvaluationHandler            `json:"-"` // Not serialized
-	CreatedAt               time.Time                    `json:"created_at"`
-}
-
-// GenericEvaluationResult represents the result of evaluating a generic scenario
-type GenericEvaluationResult struct {
-	ShouldShow bool                   `json:"should_show"`
-	Reason     string                 `json:"reason"`
-	Confidence float64                `json:"confidence"`
-	NewState   string                 `json:"new_state"`
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// Content types for flexible scenarios
-
-// ChatMessageContent represents the content of a chat message scenario
-type ChatMessageContent struct {
-	MessageID   string                 `json:"message_id"`
-	Message     string                 `json:"message"`
-	Content     string                 `json:"content"` // Alternative field name
-	Text        string                 `json:"text"`    // Alternative field name
-	Author      ContentAuthor          `json:"author"`
-	Context     string                 `json:"context,omitempty"`
-	ChatContext string                 `json:"chat_context,omitempty"`
-	Timestamp   time.Time              `json:"timestamp"`
-	CreatedAt   time.Time              `json:"created_at"`
-	Platform    string                 `json:"platform,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// EmailContent represents the content of an email scenario
-type EmailContent struct {
-	MessageID string                 `json:"message_id"`
-	Subject   string                 `json:"subject"`
-	Body      string                 `json:"body"`
-	From      ContentAuthor          `json:"from"`
-	To        ContentAuthor          `json:"to"`
-	Priority  string                 `json:"priority,omitempty"`
-	Timestamp time.Time              `json:"timestamp"`
-	CreatedAt time.Time              `json:"created_at"`
-	Metadata  map[string]interface{} `json:"metadata,omitempty"`
-}
-
-// EngagementMetrics represents social media engagement data
-type EngagementMetrics struct {
-	Likes    int `json:"likes,omitempty"`
-	Shares   int `json:"shares,omitempty"`
-	Comments int `json:"comments,omitempty"`
-}
-
-// SocialPostContent represents the content of a social media post scenario
-type SocialPostContent struct {
-	PostID     string                 `json:"post_id"`
-	Text       string                 `json:"text"`
-	Content    string                 `json:"content"` // Alternative field name
-	Author     ContentAuthor          `json:"author"`
-	Platform   string                 `json:"platform"`
-	Tags       []string               `json:"tags,omitempty"`
-	Images     []string               `json:"images,omitempty"`
-	ImageURLs  []string               `json:"image_urls,omitempty"`
-	Likes      int                    `json:"likes,omitempty"`
-	Shares     int                    `json:"shares,omitempty"`
-	Comments   int                    `json:"comments,omitempty"`
-	Engagement EngagementMetrics      `json:"engagement,omitempty"`
-	Timestamp  time.Time              `json:"timestamp"`
-	CreatedAt  time.Time              `json:"created_at"`
-	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
