@@ -3,23 +3,28 @@
   "description": "Business email about a startup investment opportunity",
   "type": "email",
   "content": {
-    "message_id": "email_001",
     "subject": "Series A Investment Opportunity - AI-Powered Customer Service Platform",
     "body": "Hi,\n\nI hope this email finds you well. I'm reaching out to share an exciting investment opportunity in our AI-powered customer service platform.\n\nWe're currently raising a $15M Series A round and have already secured commitments from several top-tier VCs. Our platform uses advanced NLP to automate 85% of customer support interactions while maintaining high satisfaction scores.\n\nKey highlights:\n- 300% revenue growth over the past 18 months\n- $2M ARR with strong unit economics\n- Partnership pipeline with Fortune 500 companies\n- Experienced team with previous exits\n\nWould you be interested in learning more? I'd be happy to send over our pitch deck and schedule a call.\n\nBest regards,\nSarah Thompson\nCEO, AI Support Solutions",
+    "from": {
+      "identity": "startup_ceo",
+      "name": "Sarah Thompson",
+      "alias": "Sarah T.",
+      "email": "sarah@aisupport.com"
+    },
+    "to": [
+      {
+        "identity": "investor",
+        "name": "Investor",
+        "email": "investor@example.com"
+      }
+    ],
+    "cc": [],
     "priority": "high",
-    "timestamp": "2024-01-15T14:22:00Z",
     "created_at": "2024-01-15T14:22:00Z",
     "metadata": {
       "attachment_count": 1,
-      "cc_recipients": [],
       "reply_to": "sarah@aisupport.com"
     }
-  },
-  "author": {
-    "identity": "startup_ceo",
-    "name": "Sarah Thompson",
-    "alias": "Sarah T.",
-    "email": "sarah@aisupport.com"
   },
   "context": {
     "domain": "venture_capital",

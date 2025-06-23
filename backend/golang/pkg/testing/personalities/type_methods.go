@@ -1,7 +1,6 @@
 package personalities
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -187,6 +186,17 @@ func (mt *MemoryTracker) TrackAccess(memoryID string) {
 	mt.accessedMemories = append(mt.accessedMemories, memoryID)
 }
 
+// NewThreadScenario creates a new thread scenario for testing
+func NewThreadScenario(name, description string, threadData ThreadData) *ThreadTestScenario {
+	return &ThreadTestScenario{
+		Name:                    name,
+		Description:             description,
+		ThreadData:              threadData,
+		Context:                 make(map[string]interface{}),
+		PersonalityExpectations: make([]PersonalityExpectedOutcome, 0),
+	}
+}
+
 // Helper utility functions
 func stringSlicesEqual(a, b []string) bool {
 	if len(a) != len(b) {
@@ -218,100 +228,4 @@ func mergeStringSlices(base, additions []string) []string {
 	}
 
 	return result
-}
-
-// NewThreadScenario creates a new thread scenario for testing
-func NewThreadScenario(name, description string, threadData ThreadData) *ThreadTestScenario {
-	return &ThreadTestScenario{
-		Name:                    name,
-		Description:             description,
-		ThreadData:              threadData,
-		Context:                 make(map[string]interface{}),
-		PersonalityExpectations: make([]PersonalityExpectedOutcome, 0),
-	}
-}
-
-// GenericTestScenario methods
-func (gts *GenericTestScenario) GetExpectedOutcomeForPersonality(personalityName string, extensionNames []string) *PersonalityExpectedOutcome {
-	// First try to find exact match with extensions
-	if len(extensionNames) > 0 {
-		for _, outcome := range gts.PersonalityExpectations {
-			if outcome.PersonalityName == personalityName && stringSlicesEqual(outcome.ExtensionNames, extensionNames) {
-				return &outcome
-			}
-		}
-	}
-
-	// Then try to find base personality match (no extensions)
-	for _, outcome := range gts.PersonalityExpectations {
-		if outcome.PersonalityName == personalityName && len(outcome.ExtensionNames) == 0 {
-			return &outcome
-		}
-	}
-
-	// Return nil if no specific expectation found
-	return nil
-}
-
-// Evaluate evaluates a generic scenario for a personality in a test environment
-func (gts *GenericTestScenario) Evaluate(ctx context.Context, personality *ReferencePersonality, env *TestEnvironment) (*GenericEvaluationResult, error) {
-	// For mock testing, create a basic evaluation based on scenario type
-	result := &GenericEvaluationResult{
-		ShouldShow: true, // Default to showing
-		Reason:     fmt.Sprintf("Mock evaluation of %s scenario for personality %s", gts.Type, personality.Name),
-		Confidence: 0.8,
-		NewState:   "visible",
-		Metadata:   make(map[string]interface{}),
-	}
-
-	// Add some basic logic based on scenario type
-	switch gts.Type {
-	case ScenarioTypeThread:
-		result.Reason = fmt.Sprintf("Thread scenario evaluated for %s", personality.Name)
-	case ScenarioTypeChatMessage:
-		result.Reason = fmt.Sprintf("Chat message scenario evaluated for %s", personality.Name)
-		// Add chat-specific metadata
-		if chatContent, ok := gts.Content["message"]; ok {
-			result.Metadata["message"] = chatContent
-		}
-		if platform, ok := gts.Content["platform"]; ok {
-			result.Metadata["platform"] = platform
-		}
-	case ScenarioTypeEmail:
-		result.Reason = fmt.Sprintf("Email scenario evaluated for %s", personality.Name)
-		// Add email-specific metadata
-		if subject, ok := gts.Content["subject"]; ok {
-			result.Metadata["subject"] = subject
-		}
-		if priority, ok := gts.Content["priority"]; ok {
-			result.Metadata["priority"] = priority
-		}
-		if from, ok := gts.Content["from"]; ok {
-			result.Metadata["from"] = from
-		}
-	case ScenarioTypeSocialPost:
-		result.Reason = fmt.Sprintf("Social post scenario evaluated for %s", personality.Name)
-		// Add social media-specific metadata
-		if platform, ok := gts.Content["platform"]; ok {
-			result.Metadata["platform"] = platform
-		}
-		if engagement, ok := gts.Content["engagement"]; ok {
-			result.Metadata["engagement"] = engagement
-		}
-		if likes, ok := gts.Content["likes"]; ok {
-			result.Metadata["likes"] = likes
-		}
-		if shares, ok := gts.Content["shares"]; ok {
-			result.Metadata["shares"] = shares
-		}
-	default:
-		result.Reason = fmt.Sprintf("Generic scenario evaluated for %s", personality.Name)
-	}
-
-	// Add personality-specific metadata
-	result.Metadata["personality_name"] = personality.Name
-	result.Metadata["scenario_type"] = string(gts.Type)
-	result.Metadata["evaluation_time"] = time.Now().Format(time.RFC3339)
-
-	return result, nil
 }

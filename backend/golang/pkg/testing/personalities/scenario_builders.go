@@ -5,6 +5,48 @@ import (
 	"time"
 )
 
+// TestScenarioConfig holds configuration parameters for test scenarios
+type TestScenarioConfig struct {
+	// Confidence level mappings for different scenario types
+	ConfidenceLevels map[string]map[string]float64 `json:"confidence_levels"`
+	// Default confidence if not specified
+	DefaultConfidence float64 `json:"default_confidence"`
+}
+
+// NewDefaultTestScenarioConfig creates a default configuration
+func NewDefaultTestScenarioConfig() *TestScenarioConfig {
+	return &TestScenarioConfig{
+		DefaultConfidence: 0.8,
+		ConfidenceLevels: map[string]map[string]float64{
+			"tech_entrepreneur": {
+				"base":                              0.85,
+				"ai_research_focused":               0.9,
+				"startup_ecosystem_focused":         0.95,
+				"combined_ai_and_startup_ecosystem": 0.98,
+			},
+			"creative_artist": {
+				"base":                    0.6,
+				"creative_tools_focused":  0.85,
+				"ai_creative_applications": 0.7,
+			},
+		},
+	}
+}
+
+// GetConfidence retrieves confidence value for a personality and extension combination
+func (config *TestScenarioConfig) GetConfidence(personalityName string, extensionKey string) float64 {
+	if personalityLevels, exists := config.ConfidenceLevels[personalityName]; exists {
+		if confidence, exists := personalityLevels[extensionKey]; exists {
+			return confidence
+		}
+		// Try base confidence for this personality
+		if baseConfidence, exists := personalityLevels["base"]; exists {
+			return baseConfidence
+		}
+	}
+	return config.DefaultConfidence
+}
+
 // ScenarioBuilder provides a fluent interface for building test scenarios
 type ScenarioBuilder struct {
 	scenario *ThreadTestScenario
@@ -411,6 +453,9 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 		Name:        "AI Startup Funding Announcement",
 		Description: "Major AI startup funding round that appeals to multiple extension combinations",
 		Builder: func() *ScenarioBuilder {
+			// Create default test configuration for confidence values
+			config := NewDefaultTestScenarioConfig()
+			
 			builder := NewScenarioBuilder("ai_startup_funding_announcement", "Major AI startup funding round that should appeal to multiple extension combinations").
 				WithThread(
 					"Anthropic Raises $2B Series D Led by Sequoia, Google",
@@ -430,14 +475,14 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 				ExpectResult(true, 0.85, "visible", 3).
 				ExpectKeywords("funding", "startup", "AI", "business opportunity", "valuation")
 
-			// Add extension-specific expectations manually
+			// Add extension-specific expectations using configurable confidence values
 			builder.WithPersonalityExpectations(
 				// Base personality expectation
 				PersonalityExpectedOutcome{
 					PersonalityName: "tech_entrepreneur",
 					ExtensionNames:  nil,
 					ShouldShow:      true,
-					Confidence:      0.85,
+					Confidence:      config.GetConfidence("tech_entrepreneur", "base"),
 					ReasonKeywords:  []string{"funding", "startup", "AI", "business opportunity"},
 					ExpectedState:   "visible",
 					Priority:        3,
@@ -448,7 +493,7 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 					PersonalityName: "tech_entrepreneur",
 					ExtensionNames:  []string{"ai_research_focused"},
 					ShouldShow:      true,
-					Confidence:      0.9,
+					Confidence:      config.GetConfidence("tech_entrepreneur", "ai_research_focused"),
 					ReasonKeywords:  []string{"AI research", "Constitutional AI", "technical advancement"},
 					ExpectedState:   "visible",
 					Priority:        3,
@@ -459,29 +504,29 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 					PersonalityName: "tech_entrepreneur",
 					ExtensionNames:  []string{"startup_ecosystem_focused"},
 					ShouldShow:      true,
-					Confidence:      0.95,
+					Confidence:      config.GetConfidence("tech_entrepreneur", "startup_ecosystem_focused"),
 					ReasonKeywords:  []string{"funding", "valuation", "market dynamics", "Series D"},
 					ExpectedState:   "visible",
 					Priority:        3,
 					Rationale:       "Startup ecosystem focused entrepreneurs are very interested in major funding rounds",
 				},
-				// Combined extensions - this needs to match test expectation of 0.98
+				// Combined extensions - now uses configurable value instead of hardcoded 0.98
 				PersonalityExpectedOutcome{
 					PersonalityName: "tech_entrepreneur",
 					ExtensionNames:  []string{"ai_research_focused", "startup_ecosystem_focused"},
 					ShouldShow:      true,
-					Confidence:      0.98,
+					Confidence:      config.GetConfidence("tech_entrepreneur", "combined_ai_and_startup_ecosystem"),
 					ReasonKeywords:  []string{"AI research", "funding", "Constitutional AI", "valuation", "enterprise"},
 					ExpectedState:   "visible",
 					Priority:        3,
 					Rationale:       "Combination of AI research and startup ecosystem focus creates maximum interest in AI startup funding",
 				},
-				// Creative artist expectation - this was missing!
+				// Creative artist expectation
 				PersonalityExpectedOutcome{
 					PersonalityName: "creative_artist",
 					ExtensionNames:  nil,
 					ShouldShow:      true,
-					Confidence:      0.6,
+					Confidence:      config.GetConfidence("creative_artist", "base"),
 					ReasonKeywords:  []string{"AI technology", "potential impact"},
 					ExpectedState:   "visible",
 					Priority:        2,
@@ -604,6 +649,7 @@ func (sg *ScenarioGenerator) GetLibrary() *ScenarioLibrary {
 // GenerateStandardScenarios creates a set of standard test scenarios
 func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTestFramework) ([]ThreadTestScenario, error) {
 	scenarios := make([]ThreadTestScenario, 0)
+	var collectedErrors []error
 
 	standardTemplates := []string{"ai_news", "creative_tool", "celebrity_gossip", "startup_funding", "technical_tutorial", "ai_startup_funding"}
 
@@ -615,8 +661,10 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 		// Check if template exists
 		template, exists := sg.library.GetTemplate(templateKey)
 		if !exists {
-			framework.logger.Error("Template not found", "template", templateKey)
-			return nil, fmt.Errorf("template not found: %s", templateKey)
+			err := fmt.Errorf("template not found: %s", templateKey)
+			framework.logger.Error("Template not found", "template", templateKey, "error", err)
+			collectedErrors = append(collectedErrors, err)
+			continue // Continue processing remaining templates
 		}
 		
 		framework.logger.Info("Template found, calling builder", "template", templateKey, "name", template.Name)
@@ -624,22 +672,49 @@ func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTes
 		// Call the builder function
 		builder := template.Builder()
 		if builder == nil {
-			framework.logger.Error("Builder function returned nil", "template", templateKey)
-			return nil, fmt.Errorf("builder function returned nil for template: %s", templateKey)
+			err := fmt.Errorf("builder function returned nil for template: %s", templateKey)
+			framework.logger.Error("Builder function returned nil", "template", templateKey, "error", err)
+			collectedErrors = append(collectedErrors, err)
+			continue // Continue processing remaining templates
 		}
 		
 		framework.logger.Info("Builder created, calling Build", "template", templateKey)
 		
-		// Build the scenario
-		scenario := builder.Build(framework)
-		
-		framework.logger.Info("Scenario built successfully", "template", templateKey, "scenario_name", scenario.Name)
-		
-		scenarios = append(scenarios, scenario)
-		framework.logger.Info("Scenario added to collection", "template", templateKey, "total_scenarios", len(scenarios))
+		// Build the scenario (wrap in error handling for potential panics)
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					err := fmt.Errorf("panic during scenario build for template %s: %v", templateKey, r)
+					framework.logger.Error("Scenario build panic", "template", templateKey, "panic", r)
+					collectedErrors = append(collectedErrors, err)
+				}
+			}()
+			
+			scenario := builder.Build(framework)
+			framework.logger.Info("Scenario built successfully", "template", templateKey, "scenario_name", scenario.Name)
+			scenarios = append(scenarios, scenario)
+			framework.logger.Info("Scenario added to collection", "template", templateKey, "total_scenarios", len(scenarios))
+		}()
 	}
 
-	framework.logger.Info("Completed scenario generation", "final_count", len(scenarios), "expected", len(standardTemplates))
+	// Handle collected errors
+	if len(collectedErrors) > 0 {
+		framework.logger.Warn("Some templates failed to generate", "failed_count", len(collectedErrors), "successful_count", len(scenarios))
+		
+		// If all templates failed, return error
+		if len(scenarios) == 0 {
+			framework.logger.Error("All scenario generation failed", "total_errors", len(collectedErrors))
+			return nil, fmt.Errorf("all %d templates failed to generate scenarios: %v", len(collectedErrors), collectedErrors)
+		}
+		
+		// If some succeeded, log warnings but continue
+		framework.logger.Info("Partial scenario generation completed", "successful_scenarios", len(scenarios), "failed_templates", len(collectedErrors))
+		for i, err := range collectedErrors {
+			framework.logger.Warn("Template generation error", "error_index", i+1, "error", err)
+		}
+	}
+
+	framework.logger.Info("Completed scenario generation", "final_count", len(scenarios), "expected", len(standardTemplates), "errors", len(collectedErrors))
 	return scenarios, nil
 }
 
@@ -650,47 +725,66 @@ func (sg *ScenarioGenerator) GeneratePersonalityTargetedScenarios(personalityTyp
 	switch personalityType {
 	case "tech_entrepreneur":
 		// Generate scenarios that should appeal to tech entrepreneurs
-		scenarios = append(scenarios, []ThreadTestScenario{
-			sg.mustGenerateScenario("ai_news", framework),
-			sg.mustGenerateScenario("startup_funding", framework),
-			sg.mustGenerateScenario("technical_tutorial", framework),
-		}...)
+		aiNewsScenario, err := sg.generateScenario("ai_news", framework)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate ai_news scenario: %w", err)
+		}
+
+		startupFundingScenario, err := sg.generateScenario("startup_funding", framework)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate startup_funding scenario: %w", err)
+		}
+
+		technicalTutorialScenario, err := sg.generateScenario("technical_tutorial", framework)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate technical_tutorial scenario: %w", err)
+		}
+
+		scenarios = append(scenarios, aiNewsScenario, startupFundingScenario, technicalTutorialScenario)
 
 		// Generate variant scenarios
-		variant, _ := sg.library.GenerateScenarioVariant("ai_news", framework, func(builder *ScenarioBuilder) *ScenarioBuilder {
+		variant, err := sg.library.GenerateScenarioVariant("ai_news", framework, func(builder *ScenarioBuilder) *ScenarioBuilder {
 			return builder.WithThread(
 				"New AI Chip Architecture Delivers 10x Performance Gains",
 				"Revolutionary neuromorphic chip design from Intel shows 10x improvement in AI inference with 50% lower power consumption. Game-changer for edge AI applications.",
 				"tech_insider",
 			).ExpectResult(true, 0.9, "visible", 3)
 		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate ai_news variant scenario: %w", err)
+		}
 		scenarios = append(scenarios, variant)
 
 	case "creative_artist":
 		// Generate scenarios that should appeal to creative artists
-		scenarios = append(scenarios, []ThreadTestScenario{
-			sg.mustGenerateScenario("creative_tool", framework),
-		}...)
+		creativeToolScenario, err := sg.generateScenario("creative_tool", framework)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate creative_tool scenario: %w", err)
+		}
+		scenarios = append(scenarios, creativeToolScenario)
 
 		// Generate art-focused variants
-		variant, _ := sg.library.GenerateScenarioVariant("creative_tool", framework, func(builder *ScenarioBuilder) *ScenarioBuilder {
+		variant, err := sg.library.GenerateScenarioVariant("creative_tool", framework, func(builder *ScenarioBuilder) *ScenarioBuilder {
 			return builder.WithThread(
 				"Procreate Dreams Launches with Revolutionary Animation Features",
 				"The new animation app from Procreate introduces frame-by-frame animation with AI-assisted in-betweening, bringing professional animation tools to iPad.",
 				"procreate_team",
 			).ExpectResult(true, 0.95, "visible", 3)
 		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate creative_tool variant scenario: %w", err)
+		}
 		scenarios = append(scenarios, variant)
 	}
 
 	return scenarios, nil
 }
 
-// mustGenerateScenario is a helper that panics on error (for internal use)
-func (sg *ScenarioGenerator) mustGenerateScenario(templateKey string, framework *PersonalityTestFramework) ThreadTestScenario {
+// generateScenario is a helper that returns an error instead of panicking
+func (sg *ScenarioGenerator) generateScenario(templateKey string, framework *PersonalityTestFramework) (ThreadTestScenario, error) {
 	scenario, err := sg.library.GenerateScenario(templateKey, framework)
 	if err != nil {
-		panic(fmt.Sprintf("failed to generate scenario %s: %v", templateKey, err))
+		return ThreadTestScenario{}, fmt.Errorf("failed to generate scenario %s: %w", templateKey, err)
 	}
-	return scenario
+	return scenario, nil
 }
