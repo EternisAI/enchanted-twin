@@ -3,7 +3,6 @@ import logging
 import os
 import sys
 import json
-import threading
 import requests
 import aiohttp
 
@@ -12,10 +11,8 @@ from livekit.agents import (
     Agent,
     AgentSession,
     JobContext,
-    RunContext,
     WorkerOptions,
     cli,
-    function_tool,
 )
 from livekit.plugins import openai, silero
 from livekit.plugins.openai.utils import to_chat_ctx
