@@ -386,8 +386,8 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 
 	// Technical Tutorial Template
 	sl.RegisterTemplate("technical_tutorial", ScenarioTemplate{
-		Name:        "Technical Tutorial",
-		Description: "Educational technical content",
+		Name:        "Deep technical tutorial or guide",
+		Description: "Technical educational content",
 		Builder: func() *ScenarioBuilder {
 			return NewScenarioBuilder("technical_tutorial", "Deep technical tutorial or guide").
 				WithThread(
@@ -403,6 +403,93 @@ func (sl *ScenarioLibrary) registerBuiltinTemplates() {
 				WithContext("business_relevance", "medium").
 				ExpectResult(true, 0.75, "visible", 2).
 				ExpectKeywords("technical", "tutorial", "guide", "production", "development")
+		},
+	})
+
+	// AI Startup Funding Announcement Template - for multiple extensions testing
+	sl.RegisterTemplate("ai_startup_funding", ScenarioTemplate{
+		Name:        "AI Startup Funding Announcement",
+		Description: "Major AI startup funding round that appeals to multiple extension combinations",
+		Builder: func() *ScenarioBuilder {
+			builder := NewScenarioBuilder("ai_startup_funding_announcement", "Major AI startup funding round that should appeal to multiple extension combinations").
+				WithThread(
+					"Anthropic Raises $2B Series D Led by Sequoia, Google",
+					"AI safety startup Anthropic has closed a massive $2B Series D funding round led by Sequoia Capital and Google Ventures. The company plans to use the funding to accelerate development of Constitutional AI systems and expand their enterprise offerings. This brings Anthropic's total funding to $7.3B with a valuation of $25B, making it one of the most valuable AI startups globally.",
+					"tech_insider",
+				).
+				WithAuthor("tech_insider", stringPtr("TechCrunch")).
+				WithImages("https://example.com/anthropic-funding.jpg").
+				WithMessage("vc_partner", "Incredible valuation jump! The AI safety angle is compelling but that's a lot of capital for a pre-revenue company. Market dynamics are wild right now.", stringPtr("Sarah Kim")).
+				WithMessage("ai_researcher", "Constitutional AI is fascinating from a research perspective. The technical approach could be game-changing for enterprise adoption.", stringPtr("Dr. Alex Chen")).
+				WithMessage("startup_founder", "This sets a new benchmark for AI startup valuations. Wonder how this affects Series A/B rounds for smaller AI companies.", stringPtr("Mike Rodriguez")).
+				WithContext("domain", "startup_funding").
+				WithContext("technical_level", "high").
+				WithContext("business_relevance", "very_high").
+				WithContext("funding_stage", "series_d").
+				WithContext("industry", "artificial_intelligence").
+				ExpectResult(true, 0.85, "visible", 3).
+				ExpectKeywords("funding", "startup", "AI", "business opportunity", "valuation")
+
+			// Add extension-specific expectations manually
+			builder.WithPersonalityExpectations(
+				// Base personality expectation
+				PersonalityExpectedOutcome{
+					PersonalityName: "tech_entrepreneur",
+					ExtensionNames:  nil,
+					ShouldShow:      true,
+					Confidence:      0.85,
+					ReasonKeywords:  []string{"funding", "startup", "AI", "business opportunity"},
+					ExpectedState:   "visible",
+					Priority:        3,
+					Rationale:       "Tech entrepreneurs are highly interested in major funding announcements",
+				},
+				// AI research focused extension
+				PersonalityExpectedOutcome{
+					PersonalityName: "tech_entrepreneur",
+					ExtensionNames:  []string{"ai_research_focused"},
+					ShouldShow:      true,
+					Confidence:      0.9,
+					ReasonKeywords:  []string{"AI research", "Constitutional AI", "technical advancement"},
+					ExpectedState:   "visible",
+					Priority:        3,
+					Rationale:       "AI research focused entrepreneurs care about both funding and technical innovation",
+				},
+				// Startup ecosystem focused extension
+				PersonalityExpectedOutcome{
+					PersonalityName: "tech_entrepreneur",
+					ExtensionNames:  []string{"startup_ecosystem_focused"},
+					ShouldShow:      true,
+					Confidence:      0.95,
+					ReasonKeywords:  []string{"funding", "valuation", "market dynamics", "Series D"},
+					ExpectedState:   "visible",
+					Priority:        3,
+					Rationale:       "Startup ecosystem focused entrepreneurs are very interested in major funding rounds",
+				},
+				// Combined extensions - this needs to match test expectation of 0.98
+				PersonalityExpectedOutcome{
+					PersonalityName: "tech_entrepreneur",
+					ExtensionNames:  []string{"ai_research_focused", "startup_ecosystem_focused"},
+					ShouldShow:      true,
+					Confidence:      0.98,
+					ReasonKeywords:  []string{"AI research", "funding", "Constitutional AI", "valuation", "enterprise"},
+					ExpectedState:   "visible",
+					Priority:        3,
+					Rationale:       "Combination of AI research and startup ecosystem focus creates maximum interest in AI startup funding",
+				},
+				// Creative artist expectation - this was missing!
+				PersonalityExpectedOutcome{
+					PersonalityName: "creative_artist",
+					ExtensionNames:  nil,
+					ShouldShow:      true,
+					Confidence:      0.6,
+					ReasonKeywords:  []string{"AI technology", "potential impact"},
+					ExpectedState:   "visible",
+					Priority:        2,
+					Rationale:       "Creative artists have moderate interest in AI developments that might affect their field",
+				},
+			)
+
+			return builder
 		},
 	})
 }
@@ -518,16 +605,41 @@ func (sg *ScenarioGenerator) GetLibrary() *ScenarioLibrary {
 func (sg *ScenarioGenerator) GenerateStandardScenarios(framework *PersonalityTestFramework) ([]ThreadTestScenario, error) {
 	scenarios := make([]ThreadTestScenario, 0)
 
-	standardTemplates := []string{"ai_news", "creative_tool", "celebrity_gossip", "startup_funding", "technical_tutorial"}
+	standardTemplates := []string{"ai_news", "creative_tool", "celebrity_gossip", "startup_funding", "technical_tutorial", "ai_startup_funding"}
 
-	for _, templateKey := range standardTemplates {
-		scenario, err := sg.library.GenerateScenario(templateKey, framework)
-		if err != nil {
-			return nil, fmt.Errorf("failed to generate scenario from template %s: %w", templateKey, err)
+	framework.logger.Info("Starting scenario generation", "templates", standardTemplates)
+
+	for i, templateKey := range standardTemplates {
+		framework.logger.Info("Generating scenario", "index", i, "template", templateKey)
+		
+		// Check if template exists
+		template, exists := sg.library.GetTemplate(templateKey)
+		if !exists {
+			framework.logger.Error("Template not found", "template", templateKey)
+			return nil, fmt.Errorf("template not found: %s", templateKey)
 		}
+		
+		framework.logger.Info("Template found, calling builder", "template", templateKey, "name", template.Name)
+		
+		// Call the builder function
+		builder := template.Builder()
+		if builder == nil {
+			framework.logger.Error("Builder function returned nil", "template", templateKey)
+			return nil, fmt.Errorf("builder function returned nil for template: %s", templateKey)
+		}
+		
+		framework.logger.Info("Builder created, calling Build", "template", templateKey)
+		
+		// Build the scenario
+		scenario := builder.Build(framework)
+		
+		framework.logger.Info("Scenario built successfully", "template", templateKey, "scenario_name", scenario.Name)
+		
 		scenarios = append(scenarios, scenario)
+		framework.logger.Info("Scenario added to collection", "template", templateKey, "total_scenarios", len(scenarios))
 	}
 
+	framework.logger.Info("Completed scenario generation", "final_count", len(scenarios), "expected", len(standardTemplates))
 	return scenarios, nil
 }
 
