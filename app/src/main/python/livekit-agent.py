@@ -201,15 +201,24 @@ def get_chat_history(chat_id: str):
     
     variables = { "id": chat_id}
     
-    resp = requests.post(url, json={"query": query, "variables": variables})
-    
-    if resp.status_code == 200:
-        body = resp.json()
-        history = body["data"]["getChat"]["messages"]  
-        history = [item for item in history if item["role"].lower() != "system"]
-        return history
-    
-    return []
+    try:
+        resp = requests.post(url, json={"query": query, "variables": variables})
+        
+        if resp.status_code == 200:
+            body = resp.json()
+            history = body["data"]["getChat"]["messages"]  
+            history = [item for item in history if item["role"].lower() != "system"]
+            return history
+        else:
+            logger.warning(f"HTTP request failed with status code: {resp.status_code}")
+            return []
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch chat history: {e}")
+        return []
+    except (KeyError, TypeError, ValueError) as e:
+        logger.error(f"Failed to parse chat history response: {e}")
+        return []
 
 
 async def send_message_stream(context, chat_id: str):
