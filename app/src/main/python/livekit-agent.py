@@ -317,7 +317,6 @@ async def send_message_fallback(context, chat_id: str):
         async with session.post(url, json={"query": query, "variables": variables}) as resp:
             if resp.status == 200:
                 body = await resp.json()
-                print(body)
                 return body["data"]["processMessageHistory"]["text"]
     return ""
     
