@@ -5,92 +5,111 @@ import (
 	"time"
 )
 
-// ===== FLEXIBLE SCENARIO BUILDERS =====
-
-// GenericScenarioBuilder provides a fluent interface for building any type of scenario
-type GenericScenarioBuilder struct {
+// FlexibleScenarioBuilder provides a fluent interface for building generic test scenarios
+type FlexibleScenarioBuilder struct {
 	scenario *GenericTestScenario
 }
 
-// NewGenericScenarioBuilder creates a new generic scenario builder
-func NewGenericScenarioBuilder(name, description string, scenarioType ScenarioType) *GenericScenarioBuilder {
-	return &GenericScenarioBuilder{
+// NewFlexibleScenarioBuilder creates a new flexible scenario builder
+func NewFlexibleScenarioBuilder(name, description string, scenarioType ScenarioType) *FlexibleScenarioBuilder {
+	return &FlexibleScenarioBuilder{
 		scenario: &GenericTestScenario{
-			Name:        name,
-			Description: description,
-			Type:        scenarioType,
-			Context:     make(map[string]interface{}),
+			Name:                    name,
+			Description:             description,
+			Type:                    scenarioType,
+			Content:                 make(map[string]interface{}),
+			Context:                 make(map[string]interface{}),
+			PersonalityExpectations: make([]PersonalityExpectedOutcome, 0),
+			CreatedAt:               time.Now(),
 		},
 	}
 }
 
-// WithContent sets the scenario content
-func (gsb *GenericScenarioBuilder) WithContent(content ScenarioContent) *GenericScenarioBuilder {
-	gsb.scenario.Content = content
-	return gsb
+// WithContent sets the content as a map
+func (fsb *FlexibleScenarioBuilder) WithContent(content map[string]interface{}) *FlexibleScenarioBuilder {
+	fsb.scenario.Content = content
+	return fsb
 }
 
-// WithContext adds context metadata
-func (gsb *GenericScenarioBuilder) WithContext(key string, value interface{}) *GenericScenarioBuilder {
-	gsb.scenario.Context[key] = value
-	return gsb
+// WithAuthor sets the author information
+func (fsb *FlexibleScenarioBuilder) WithAuthor(identity string, name, alias, email *string) *FlexibleScenarioBuilder {
+	fsb.scenario.Author = ContentAuthor{
+		Identity: identity,
+		Name:     name,
+		Alias:    alias,
+		Email:    email,
+	}
+	return fsb
 }
 
-// WithPersonalityExpectations adds personality-specific expectations
-func (gsb *GenericScenarioBuilder) WithPersonalityExpectations(expectations ...PersonalityExpectedOutcome) *GenericScenarioBuilder {
-	gsb.scenario.PersonalityExpectations = append(gsb.scenario.PersonalityExpectations, expectations...)
-	return gsb
+// WithContext adds a context key-value pair
+func (fsb *FlexibleScenarioBuilder) WithContext(key string, value interface{}) *FlexibleScenarioBuilder {
+	fsb.scenario.Context[key] = value
+	return fsb
 }
 
 // WithEvaluationHandler sets the evaluation handler
-func (gsb *GenericScenarioBuilder) WithEvaluationHandler(handler EvaluationHandler) *GenericScenarioBuilder {
-	gsb.scenario.EvaluationHandler = handler
-	return gsb
+func (fsb *FlexibleScenarioBuilder) WithEvaluationHandler(handler EvaluationHandler) *FlexibleScenarioBuilder {
+	fsb.scenario.EvaluationHandler = handler
+	return fsb
 }
 
-// Build creates the final scenario
-func (gsb *GenericScenarioBuilder) Build() *GenericTestScenario {
-	return gsb.scenario
+// ExpectPersonality adds a personality expectation
+func (fsb *FlexibleScenarioBuilder) ExpectPersonality(personalityName string, shouldShow bool, confidence float64, priority int, rationale string) *FlexibleScenarioBuilder {
+	expectation := PersonalityExpectedOutcome{
+		PersonalityName: personalityName,
+		ShouldShow:      shouldShow,
+		Confidence:      confidence,
+		Priority:        priority,
+		Rationale:       rationale,
+		ExpectedState:   "visible",
+	}
+	if !shouldShow {
+		expectation.ExpectedState = "hidden"
+	}
+	fsb.scenario.PersonalityExpectations = append(fsb.scenario.PersonalityExpectations, expectation)
+	return fsb
 }
 
-// ===== CONTENT-SPECIFIC BUILDERS =====
+// Build returns the completed scenario
+func (fsb *FlexibleScenarioBuilder) Build() *GenericTestScenario {
+	return fsb.scenario
+}
 
 // ChatMessageScenarioBuilder builds chat message scenarios
 type ChatMessageScenarioBuilder struct {
-	builder *GenericScenarioBuilder
+	builder *FlexibleScenarioBuilder
 	content *ChatMessageContent
 }
 
 // NewChatMessageScenario creates a new chat message scenario builder
 func NewChatMessageScenario(name, description string) *ChatMessageScenarioBuilder {
-	content := &ChatMessageContent{
-		MessageID: fmt.Sprintf("msg-%d", time.Now().UnixNano()),
-		CreatedAt: time.Now(),
-		Metadata:  make(map[string]interface{}),
-	}
-	
-	builder := NewGenericScenarioBuilder(name, description, ScenarioTypeChatMessage)
-	builder.WithContent(content)
-	
+	now := time.Now()
 	return &ChatMessageScenarioBuilder{
-		builder: builder,
-		content: content,
+		builder: NewFlexibleScenarioBuilder(name, description, ScenarioTypeChatMessage),
+		content: &ChatMessageContent{
+			MessageID: fmt.Sprintf("msg-%d", now.UnixNano()),
+			Timestamp: now,
+			CreatedAt: now,
+			Metadata:  make(map[string]interface{}),
+		},
 	}
 }
 
 // WithMessage sets the message content
-func (cmsb *ChatMessageScenarioBuilder) WithMessage(text, authorIdentity string) *ChatMessageScenarioBuilder {
-	cmsb.content.Text = text
+func (cmsb *ChatMessageScenarioBuilder) WithMessage(content, authorIdentity string) *ChatMessageScenarioBuilder {
+	cmsb.content.Content = content
+	cmsb.content.Text = content // Set both fields
 	cmsb.content.Author.Identity = authorIdentity
 	return cmsb
 }
 
-// WithAuthor sets detailed author information
-func (cmsb *ChatMessageScenarioBuilder) WithAuthor(identity string, alias *string, name *string) *ChatMessageScenarioBuilder {
+// WithAuthor sets the author details
+func (cmsb *ChatMessageScenarioBuilder) WithAuthor(identity string, name, alias *string) *ChatMessageScenarioBuilder {
 	cmsb.content.Author = ContentAuthor{
 		Identity: identity,
-		Alias:    alias,
 		Name:     name,
+		Alias:    alias,
 	}
 	return cmsb
 }
@@ -102,49 +121,48 @@ func (cmsb *ChatMessageScenarioBuilder) WithChatContext(context string) *ChatMes
 }
 
 // WithTimestamp sets the message timestamp
-func (cmsb *ChatMessageScenarioBuilder) WithTimestamp(t time.Time) *ChatMessageScenarioBuilder {
-	cmsb.content.CreatedAt = t
+func (cmsb *ChatMessageScenarioBuilder) WithTimestamp(timestamp time.Time) *ChatMessageScenarioBuilder {
+	cmsb.content.Timestamp = timestamp
+	cmsb.content.CreatedAt = timestamp
 	return cmsb
 }
 
-// WithMetadata adds custom metadata
+// WithMetadata adds metadata
 func (cmsb *ChatMessageScenarioBuilder) WithMetadata(key string, value interface{}) *ChatMessageScenarioBuilder {
 	cmsb.content.Metadata[key] = value
 	return cmsb
 }
 
-// WithContext adds scenario context
+// WithContext adds a context key-value pair
 func (cmsb *ChatMessageScenarioBuilder) WithContext(key string, value interface{}) *ChatMessageScenarioBuilder {
 	cmsb.builder.WithContext(key, value)
 	return cmsb
 }
 
-// WithPersonalityExpectations adds personality expectations
-func (cmsb *ChatMessageScenarioBuilder) WithPersonalityExpectations(expectations ...PersonalityExpectedOutcome) *ChatMessageScenarioBuilder {
-	cmsb.builder.WithPersonalityExpectations(expectations...)
+// ExpectPersonality adds a personality expectation
+func (cmsb *ChatMessageScenarioBuilder) ExpectPersonality(personalityName string, shouldShow bool, confidence float64, priority int, rationale string) *ChatMessageScenarioBuilder {
+	cmsb.builder.ExpectPersonality(personalityName, shouldShow, confidence, priority, rationale)
 	return cmsb
 }
 
-// ExpectPersonality adds a single personality expectation
-func (cmsb *ChatMessageScenarioBuilder) ExpectPersonality(name string, shouldShow bool, confidence float64, priority int, rationale string) *ChatMessageScenarioBuilder {
-	expectation := PersonalityExpectedOutcome{
-		PersonalityName: name,
-		ShouldShow:      shouldShow,
-		Confidence:      confidence,
-		Priority:        priority,
-		Rationale:       rationale,
-		ExpectedState:   "visible",
-	}
-	if !shouldShow {
-		expectation.ExpectedState = "hidden"
-	}
-	return cmsb.WithPersonalityExpectations(expectation)
-}
-
 // Build creates the final scenario
-func (cmsb *ChatMessageScenarioBuilder) Build(framework *PersonalityTestFramework) *GenericTestScenario {
-	// Set up evaluation handler
-	handler := NewChatMessageEvaluationHandler(framework)
+func (cmsb *ChatMessageScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTestScenario {
+	// Convert content to map[string]interface{}
+	contentMap := map[string]interface{}{
+		"message_id":    cmsb.content.MessageID,
+		"content":       cmsb.content.Content,
+		"text":          cmsb.content.Text,
+		"chat_context":  cmsb.content.ChatContext,
+		"timestamp":     cmsb.content.Timestamp,
+		"created_at":    cmsb.content.CreatedAt,
+		"metadata":      cmsb.content.Metadata,
+	}
+	
+	cmsb.builder.WithContent(contentMap)
+	cmsb.builder.WithAuthor(cmsb.content.Author.Identity, cmsb.content.Author.Name, cmsb.content.Author.Alias, nil)
+	
+	// Set evaluation handler
+	handler := NewChatMessageEvaluationHandler(ptf)
 	cmsb.builder.WithEvaluationHandler(handler)
 	
 	return cmsb.builder.Build()
@@ -152,53 +170,45 @@ func (cmsb *ChatMessageScenarioBuilder) Build(framework *PersonalityTestFramewor
 
 // EmailScenarioBuilder builds email scenarios
 type EmailScenarioBuilder struct {
-	builder *GenericScenarioBuilder
+	builder *FlexibleScenarioBuilder
 	content *EmailContent
 }
 
 // NewEmailScenario creates a new email scenario builder
 func NewEmailScenario(name, description string) *EmailScenarioBuilder {
-	content := &EmailContent{
-		CreatedAt: time.Now(),
-		Metadata:  make(map[string]interface{}),
-	}
-	
-	builder := NewGenericScenarioBuilder(name, description, ScenarioTypeEmail)
-	builder.WithContent(content)
-	
+	now := time.Now()
 	return &EmailScenarioBuilder{
-		builder: builder,
-		content: content,
+		builder: NewFlexibleScenarioBuilder(name, description, ScenarioTypeEmail),
+		content: &EmailContent{
+			MessageID: fmt.Sprintf("email-%d", now.UnixNano()),
+			Timestamp: now,
+			CreatedAt: now,
+			Metadata:  make(map[string]interface{}),
+		},
 	}
 }
 
-// WithEmail sets the email content
+// WithEmail sets the email subject and body
 func (esb *EmailScenarioBuilder) WithEmail(subject, body string) *EmailScenarioBuilder {
 	esb.content.Subject = subject
 	esb.content.Body = body
 	return esb
 }
 
-// WithFrom sets the sender
-func (esb *EmailScenarioBuilder) WithFrom(identity string, alias *string, name *string, email *string) *EmailScenarioBuilder {
+// WithFrom sets the sender information
+func (esb *EmailScenarioBuilder) WithFrom(identity string, name, alias, email *string) *EmailScenarioBuilder {
 	esb.content.From = ContentAuthor{
 		Identity: identity,
-		Alias:    alias,
 		Name:     name,
+		Alias:    alias,
 		Email:    email,
 	}
 	return esb
 }
 
-// WithTo adds recipients
-func (esb *EmailScenarioBuilder) WithTo(recipients ...ContentAuthor) *EmailScenarioBuilder {
-	esb.content.To = append(esb.content.To, recipients...)
-	return esb
-}
-
-// WithCC adds CC recipients
-func (esb *EmailScenarioBuilder) WithCC(recipients ...ContentAuthor) *EmailScenarioBuilder {
-	esb.content.CC = append(esb.content.CC, recipients...)
+// WithTo sets the recipient information
+func (esb *EmailScenarioBuilder) WithTo(recipient ContentAuthor) *EmailScenarioBuilder {
+	esb.content.To = recipient
 	return esb
 }
 
@@ -209,43 +219,49 @@ func (esb *EmailScenarioBuilder) WithPriority(priority string) *EmailScenarioBui
 }
 
 // WithTimestamp sets the email timestamp
-func (esb *EmailScenarioBuilder) WithTimestamp(t time.Time) *EmailScenarioBuilder {
-	esb.content.CreatedAt = t
+func (esb *EmailScenarioBuilder) WithTimestamp(timestamp time.Time) *EmailScenarioBuilder {
+	esb.content.Timestamp = timestamp
+	esb.content.CreatedAt = timestamp
 	return esb
 }
 
-// WithContext adds scenario context
+// WithMetadata adds metadata
+func (esb *EmailScenarioBuilder) WithMetadata(key string, value interface{}) *EmailScenarioBuilder {
+	esb.content.Metadata[key] = value
+	return esb
+}
+
+// WithContext adds a context key-value pair
 func (esb *EmailScenarioBuilder) WithContext(key string, value interface{}) *EmailScenarioBuilder {
 	esb.builder.WithContext(key, value)
 	return esb
 }
 
-// WithPersonalityExpectations adds personality expectations
-func (esb *EmailScenarioBuilder) WithPersonalityExpectations(expectations ...PersonalityExpectedOutcome) *EmailScenarioBuilder {
-	esb.builder.WithPersonalityExpectations(expectations...)
+// ExpectPersonality adds a personality expectation
+func (esb *EmailScenarioBuilder) ExpectPersonality(personalityName string, shouldShow bool, confidence float64, priority int, rationale string) *EmailScenarioBuilder {
+	esb.builder.ExpectPersonality(personalityName, shouldShow, confidence, priority, rationale)
 	return esb
 }
 
-// ExpectPersonality adds a single personality expectation
-func (esb *EmailScenarioBuilder) ExpectPersonality(name string, shouldShow bool, confidence float64, priority int, rationale string) *EmailScenarioBuilder {
-	expectation := PersonalityExpectedOutcome{
-		PersonalityName: name,
-		ShouldShow:      shouldShow,
-		Confidence:      confidence,
-		Priority:        priority,
-		Rationale:       rationale,
-		ExpectedState:   "visible",
-	}
-	if !shouldShow {
-		expectation.ExpectedState = "hidden"
-	}
-	return esb.WithPersonalityExpectations(expectation)
-}
-
 // Build creates the final scenario
-func (esb *EmailScenarioBuilder) Build(framework *PersonalityTestFramework) *GenericTestScenario {
-	// Set up evaluation handler
-	handler := NewEmailEvaluationHandler(framework)
+func (esb *EmailScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTestScenario {
+	// Convert content to map[string]interface{}
+	contentMap := map[string]interface{}{
+		"message_id": esb.content.MessageID,
+		"subject":    esb.content.Subject,
+		"body":       esb.content.Body,
+		"priority":   esb.content.Priority,
+		"timestamp":  esb.content.Timestamp,
+		"created_at": esb.content.CreatedAt,
+		"metadata":   esb.content.Metadata,
+	}
+	
+	esb.builder.WithContent(contentMap)
+	esb.builder.WithAuthor(esb.content.From.Identity, esb.content.From.Name, esb.content.From.Alias, esb.content.From.Email)
+	esb.builder.WithContext("recipient", esb.content.To)
+	
+	// Set evaluation handler
+	handler := NewEmailEvaluationHandler(ptf)
 	esb.builder.WithEvaluationHandler(handler)
 	
 	return esb.builder.Build()
@@ -253,191 +269,119 @@ func (esb *EmailScenarioBuilder) Build(framework *PersonalityTestFramework) *Gen
 
 // SocialPostScenarioBuilder builds social media post scenarios
 type SocialPostScenarioBuilder struct {
-	builder *GenericScenarioBuilder
+	builder *FlexibleScenarioBuilder
 	content *SocialPostContent
 }
 
 // NewSocialPostScenario creates a new social post scenario builder
 func NewSocialPostScenario(name, description string) *SocialPostScenarioBuilder {
-	content := &SocialPostContent{
-		PostID:    fmt.Sprintf("post-%d", time.Now().UnixNano()),
-		CreatedAt: time.Now(),
-		Metadata:  make(map[string]interface{}),
-	}
-	
-	builder := NewGenericScenarioBuilder(name, description, ScenarioTypeSocialPost)
-	builder.WithContent(content)
-	
+	now := time.Now()
 	return &SocialPostScenarioBuilder{
-		builder: builder,
-		content: content,
+		builder: NewFlexibleScenarioBuilder(name, description, ScenarioTypeSocialPost),
+		content: &SocialPostContent{
+			PostID:    fmt.Sprintf("post-%d", now.UnixNano()),
+			Timestamp: now,
+			CreatedAt: now,
+			Metadata:  make(map[string]interface{}),
+		},
 	}
 }
 
-// WithPost sets the post content
-func (spsb *SocialPostScenarioBuilder) WithPost(text, platform string) *SocialPostScenarioBuilder {
-	spsb.content.Text = text
+// WithPost sets the post content and platform
+func (spsb *SocialPostScenarioBuilder) WithPost(content, platform string) *SocialPostScenarioBuilder {
+	spsb.content.Content = content
 	spsb.content.Platform = platform
 	return spsb
 }
 
-// WithAuthor sets the post author
-func (spsb *SocialPostScenarioBuilder) WithAuthor(identity string, alias *string, name *string) *SocialPostScenarioBuilder {
+// WithAuthor sets the author details
+func (spsb *SocialPostScenarioBuilder) WithAuthor(identity string, name, alias *string) *SocialPostScenarioBuilder {
 	spsb.content.Author = ContentAuthor{
 		Identity: identity,
-		Alias:    alias,
 		Name:     name,
+		Alias:    alias,
 	}
 	return spsb
 }
 
-// WithImages adds image URLs
-func (spsb *SocialPostScenarioBuilder) WithImages(urls ...string) *SocialPostScenarioBuilder {
-	spsb.content.ImageURLs = append(spsb.content.ImageURLs, urls...)
-	return spsb
-}
-
-// WithTags adds hashtags/tags
+// WithTags sets the post tags
 func (spsb *SocialPostScenarioBuilder) WithTags(tags ...string) *SocialPostScenarioBuilder {
-	spsb.content.Tags = append(spsb.content.Tags, tags...)
+	spsb.content.Tags = tags
 	return spsb
 }
 
-// WithEngagement sets engagement metrics
-func (spsb *SocialPostScenarioBuilder) WithEngagement(likes, shares, comments int) *SocialPostScenarioBuilder {
-	spsb.content.Likes = likes
-	spsb.content.Shares = shares
-	spsb.content.Comments = comments
+// WithImages sets the image URLs
+func (spsb *SocialPostScenarioBuilder) WithImages(urls ...string) *SocialPostScenarioBuilder {
+	spsb.content.ImageURLs = urls
+	return spsb
+}
+
+// WithEngagement sets the engagement metrics
+func (spsb *SocialPostScenarioBuilder) WithEngagement(likes, comments, shares int) *SocialPostScenarioBuilder {
+	spsb.content.Engagement.Likes = likes
+	spsb.content.Engagement.Comments = comments
+	spsb.content.Engagement.Shares = shares
 	return spsb
 }
 
 // WithTimestamp sets the post timestamp
-func (spsb *SocialPostScenarioBuilder) WithTimestamp(t time.Time) *SocialPostScenarioBuilder {
-	spsb.content.CreatedAt = t
+func (spsb *SocialPostScenarioBuilder) WithTimestamp(timestamp time.Time) *SocialPostScenarioBuilder {
+	spsb.content.Timestamp = timestamp
+	spsb.content.CreatedAt = timestamp
 	return spsb
 }
 
-// WithContext adds scenario context
+// WithMetadata adds metadata
+func (spsb *SocialPostScenarioBuilder) WithMetadata(key string, value interface{}) *SocialPostScenarioBuilder {
+	spsb.content.Metadata[key] = value
+	return spsb
+}
+
+// WithContext adds a context key-value pair
 func (spsb *SocialPostScenarioBuilder) WithContext(key string, value interface{}) *SocialPostScenarioBuilder {
 	spsb.builder.WithContext(key, value)
 	return spsb
 }
 
-// WithPersonalityExpectations adds personality expectations
-func (spsb *SocialPostScenarioBuilder) WithPersonalityExpectations(expectations ...PersonalityExpectedOutcome) *SocialPostScenarioBuilder {
-	spsb.builder.WithPersonalityExpectations(expectations...)
+// ExpectPersonality adds a personality expectation
+func (spsb *SocialPostScenarioBuilder) ExpectPersonality(personalityName string, shouldShow bool, confidence float64, priority int, rationale string) *SocialPostScenarioBuilder {
+	spsb.builder.ExpectPersonality(personalityName, shouldShow, confidence, priority, rationale)
 	return spsb
 }
 
-// ExpectPersonality adds a single personality expectation
-func (spsb *SocialPostScenarioBuilder) ExpectPersonality(name string, shouldShow bool, confidence float64, priority int, rationale string) *SocialPostScenarioBuilder {
-	expectation := PersonalityExpectedOutcome{
-		PersonalityName: name,
-		ShouldShow:      shouldShow,
-		Confidence:      confidence,
-		Priority:        priority,
-		Rationale:       rationale,
-		ExpectedState:   "visible",
-	}
-	if !shouldShow {
-		expectation.ExpectedState = "hidden"
-	}
-	return spsb.WithPersonalityExpectations(expectation)
-}
-
 // Build creates the final scenario
-func (spsb *SocialPostScenarioBuilder) Build(framework *PersonalityTestFramework) *GenericTestScenario {
-	// Set up evaluation handler
-	handler := NewSocialPostEvaluationHandler(framework)
+func (spsb *SocialPostScenarioBuilder) Build(ptf *PersonalityTestFramework) *GenericTestScenario {
+	// Convert engagement struct to map to avoid type assertion issues
+	engagementMap := map[string]interface{}{
+		"likes":    spsb.content.Engagement.Likes,
+		"comments": spsb.content.Engagement.Comments,
+		"shares":   spsb.content.Engagement.Shares,
+	}
+	
+	// Convert content to map[string]interface{}
+	contentMap := map[string]interface{}{
+		"post_id":     spsb.content.PostID,
+		"content":     spsb.content.Content,
+		"platform":    spsb.content.Platform,
+		"tags":        spsb.content.Tags,
+		"image_urls":  spsb.content.ImageURLs,
+		"engagement":  engagementMap, // Use the converted map instead of struct
+		"timestamp":   spsb.content.Timestamp,
+		"created_at":  spsb.content.CreatedAt,
+		"metadata":    spsb.content.Metadata,
+	}
+	
+	spsb.builder.WithContent(contentMap)
+	spsb.builder.WithAuthor(spsb.content.Author.Identity, spsb.content.Author.Name, spsb.content.Author.Alias, nil)
+	
+	// Set evaluation handler
+	handler := NewSocialPostEvaluationHandler(ptf)
 	spsb.builder.WithEvaluationHandler(handler)
 	
 	return spsb.builder.Build()
 }
 
-// ===== BACKWARD COMPATIBILITY HELPERS =====
-
-// ThreadScenarioBuilder provides backward compatibility for existing thread scenarios
-type ThreadScenarioBuilder struct {
-	builder *GenericScenarioBuilder
-	content *ThreadContent
-}
-
-// NewThreadScenario creates a thread scenario builder for backward compatibility
-func NewThreadScenario(name, description string) *ThreadScenarioBuilder {
-	content := &ThreadContent{
-		ThreadData: ThreadData{
-			CreatedAt: time.Now(),
-		},
-	}
-	
-	builder := NewGenericScenarioBuilder(name, description, ScenarioTypeThread)
-	builder.WithContent(content)
-	
-	return &ThreadScenarioBuilder{
-		builder: builder,
-		content: content,
-	}
-}
-
-// WithThread sets the thread content (backward compatibility)
-func (tsb *ThreadScenarioBuilder) WithThread(title, content, authorName string) *ThreadScenarioBuilder {
-	tsb.content.ThreadData.Title = title
-	tsb.content.ThreadData.Content = content
-	tsb.content.ThreadData.AuthorName = authorName
-	return tsb
-}
-
-// WithAuthor sets the thread author details
-func (tsb *ThreadScenarioBuilder) WithAuthor(name string, alias *string) *ThreadScenarioBuilder {
-	tsb.content.ThreadData.AuthorName = name
-	tsb.content.ThreadData.AuthorAlias = alias
-	return tsb
-}
-
-// WithImages adds image URLs to the thread
-func (tsb *ThreadScenarioBuilder) WithImages(urls ...string) *ThreadScenarioBuilder {
-	tsb.content.ThreadData.ImageURLs = append(tsb.content.ThreadData.ImageURLs, urls...)
-	return tsb
-}
-
-// WithMessage adds a message to the thread
-func (tsb *ThreadScenarioBuilder) WithMessage(authorName, content string, alias *string) *ThreadScenarioBuilder {
-	message := ThreadMessageData{
-		AuthorName:  authorName,
-		AuthorAlias: alias,
-		Content:     content,
-		CreatedAt:   time.Now(),
-	}
-	tsb.content.ThreadData.Messages = append(tsb.content.ThreadData.Messages, message)
-	tsb.content.Messages = append(tsb.content.Messages, message)
-	return tsb
-}
-
-// WithContext adds scenario context
-func (tsb *ThreadScenarioBuilder) WithContext(key string, value interface{}) *ThreadScenarioBuilder {
-	tsb.builder.WithContext(key, value)
-	return tsb
-}
-
-// WithPersonalityExpectations adds personality expectations
-func (tsb *ThreadScenarioBuilder) WithPersonalityExpectations(expectations ...PersonalityExpectedOutcome) *ThreadScenarioBuilder {
-	tsb.builder.WithPersonalityExpectations(expectations...)
-	return tsb
-}
-
-// Build creates the final scenario
-func (tsb *ThreadScenarioBuilder) Build(framework *PersonalityTestFramework) *GenericTestScenario {
-	// Create the thread model from thread data
-	tsb.content.Thread = framework.createThreadFromData(tsb.content.ThreadData)
-	
-	// Set up evaluation handler
-	handler := NewThreadEvaluationHandler(framework)
-	tsb.builder.WithEvaluationHandler(handler)
-	
-	return tsb.builder.Build()
-}
-
-// Helper function for string pointers
+// Helper function to create string pointers
 func stringPtr(s string) *string {
 	return &s
 }

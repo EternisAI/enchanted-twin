@@ -31,8 +31,8 @@ func TestMultipleExtensionsCombination(t *testing.T) {
 		// Test creating a personality with multiple extensions
 		extended, err := framework.CreateExtendedPersonality(
 			"tech_entrepreneur",
-			"ai_research_focused_ai_research_focused",
-			"startup_ecosystem_focused_startup_ecosystem_focused",
+			"ai_research_focused",
+			"startup_ecosystem_focused",
 		)
 		require.NoError(t, err)
 		assert.NotNil(t, extended)
