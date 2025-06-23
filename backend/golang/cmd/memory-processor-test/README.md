@@ -6,19 +6,7 @@ A command-line tool for testing and debugging the **exact memory ingestion pipel
 
 **The easiest way to use this tool:**
 
-1. **Put your data file in the input folder:**
-   ```bash
-   # WhatsApp SQLite database
-   cp ~/Downloads/whatsapp_data.sqlite pipeline_input/
-   
-   # OR Telegram JSON export  
-   cp ~/Downloads/telegram_export.json pipeline_input/
-   
-   # OR ChatGPT conversations JSON
-   cp ~/Downloads/conversations.json pipeline_input/
-   
-   # OR Gmail MBOX file
-   cp ~/Downloads/gmail_export.mbox pipeline_input/
+1. **Put your data file in the `pipeline_input/` folder:**
    ```
 
 2. **Convert to ConversationDocument (X_0):**
@@ -66,12 +54,11 @@ This tool helps developers:
 The tool implements a simplified architecture where each step depends ONLY on the previous step's output:
 
 ```
-WhatsApp SQLite ──make whatsapp──→ X_0_whatsapp.json ┐
-                                                     ├──→ X_1_chunked_documents.json
-Telegram JSON ────make telegram──→ X_0_telegram.json ┘        ↓ make chunks
-                                                         X_1_chunked_documents.json
-                                                               ↓ make facts
-                                                         X_2_extracted_facts.json
+<source file> ----- make <source> ----→ X_0_<source>.json
+                                           ↓ make chunks
+                                        X_1_chunked_documents.json
+                                           ↓ make facts
+                                        X_2_extracted_facts.json
 ```
 
 ### Atomic Pipeline Steps
